@@ -80,6 +80,18 @@ each with `versionsMatch`:
 A raw count of `divergences[].length` conflates the two and overstates drift. Always filter on
 `versionsMatch == false` before presenting a count to the user.
 
+Each entry also carries the facts `sync` and `converge` both act on, computed once in
+`fleet-state.sh` so the two never disagree:
+
+- `highest` is the highest parsable version over the id's records not keyed to a user home (see
+  "A projectPath that is a user home directory" below), or `null` when none parses; `userHolds`
+  says a user-scope record is at it.
+- Each `scopes[].class` says what `converge` can do with that pin, first match wins:
+  `blocked-home` (a home path), `blocked-absent` (a project/local path not present), `worktree` (a
+  linked worktree), `blocked-catalog` (the catalog reads below `highest`), else `actionable`.
+  `converge` turns `blocked-catalog` into `actionable` when its strategy for the row is uninstall,
+  which installs nothing from the catalog.
+
 ## `plugin list` / `plugin details` version output is misleading
 
 **Neither output says what loads here.** `claude plugin list` prints one row per install record,
@@ -244,9 +256,10 @@ it does not rest on that treatment.
   the command itself is documented under
   [Update plugins now](https://code.claude.com/docs/en/plugins/install#update-plugins-now).
 
-`sync` drops a home-keyed record's scope before comparing versions,
-so a divergence that exists only because of it is not counted as actionable, and lists in a
-`User-home project records` row only the records `update` could not move.
+A home-keyed record never sets a divergence's `highest`, so `converge` never targets its version.
+`sync` also drops its scope before comparing versions, so a divergence that exists only because of
+it is not counted as actionable, and lists in a `user-home project records:` row only the records
+`update` could not move.
 
 ## Where project-scope records come from, and why the skill cannot reap them
 
@@ -392,7 +405,9 @@ So follow this two-step rather than predicting the cause:
 
 Never recommend `--force` pre-emptively alongside every reload. It exists specifically to opt into a
 real token cost the bare command declines to pay automatically. Recommend bare; escalate on the
-warning.
+warning. The `sync` and audit render closes with the bare reload and its `--force` rerun when the
+run changed what the session loads (`render-report.jq`); the install-summary check is for a user's
+own `/plugin` install.
 
 - **Pointer**: for the cache warning and `--force`, see
   [Reloads that change MCP tools](https://code.claude.com/docs/en/plugins/cli-reference#reloads-that-change-mcp-tools)
@@ -465,7 +480,7 @@ When a `userConfig` key is set in none of the three `pluginConfigs` sources, we 
 render as leaving that key's placeholder token unchanged, with the manifest's `default` not
 substituted into skill content. A sibling key that is set, and `${CLAUDE_PLUGIN_ROOT}`, substitute
 in the same render, so the unchanged token is the unset signal and not a substitution failure.
-`SKILL.md`'s **Configured value** line reads that token as "unset, use the default `ask`". Our
+`sync-run.sh` reads that token in `SKILL.md`'s command as "unset, use the default `ask`". Our
 probe settles a point the plugins reference leaves open: the reference does not say whether the
 default substitutes into skill content, so the two do not conflict.
 

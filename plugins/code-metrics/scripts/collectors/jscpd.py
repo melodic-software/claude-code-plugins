@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Adapter for `jscpd`, the clone detector behind every duplication lane.
+"""Adapter for `jscpd`, the clone detector behind every duplication language.
 
 Adapter contract (design/contracts.md section 3): `probe`, `measures`,
-`collect <lane> <measure> <file>...`, `install_hint`.
+`collect <language> <measure> <file>...`, `install_hint`.
 
 jscpd only writes its report to a file, so `collect` runs it with
 `--reporters json --output <tmpdir>`, reads `<tmpdir>/jscpd-report.json`,
@@ -19,14 +19,14 @@ common ancestor of its inputs, which collapses two vendored copies that share
 a basename into one indistinguishable name; the absolute paths are made
 relative to the working directory here.
 
-The file list never goes on jscpd's command line. A lane's scope can be
-thousands of paths, past the Windows command-line limit. On Windows a lane
+The file list never goes on jscpd's command line. A language's scope can be
+thousands of paths, past the Windows command-line limit. On Windows a language
 of 400 or more files given on the command line got no report and nothing on
 stderr; a length limit in the launch chain (a bun `.EXE` shim, then the
 binary) is the likely cause, not a proven one. The adapter writes the absolute paths to
 the `path` array of a config file in the temporary directory and passes
 `--config <that file>`, so the argument vector has the same length for one
-file or ten thousand, and the lane is still one jscpd run, so a clone whose
+file or ten thousand, and the language is still one jscpd run, so a clone whose
 copies sit far apart in the list is still found. Both majors read `path`
 from a config file the way they read positional paths (verified 2026-10-11
 against jscpd 4.3.0 over 150 shell files and 5.4.1 over 1,590: each gave
@@ -102,12 +102,6 @@ PATHS_CONFIG_BASENAME = "code-metrics-jscpd-paths.json"
 DEFAULT_MIN_TOKENS = "50"
 DEFAULT_MIN_LINES = "5"
 DEFAULT_MAX_SIZE = "1mb"
-# Passed to jscpd when the adapter applies no cap of its own: bounds no real
-# file reaches, so jscpd's own gate can never skip a file this adapter did not
-# name; both are accepted by both majors (`0` is not), verified 2026-09-11
-# against 4.3.0 and 5.2.0 with the line bound at the signed 32-bit maximum.
-# Recheck when a jscpd release newer than 5.2.0 changes how its size or line
-# bounds are parsed or accepted.
 NO_LINE_CAP = 2_147_483_647
 NO_SIZE_CAP = 1 << 40
 _SIZE_UNITS = {"": 1, "b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3}
@@ -153,7 +147,6 @@ def parse_size(text: str) -> int | None:
 
 
 def parse_lines(text: str) -> int | None:
-    """A positive line cap, or None for no cap (empty, 0, or negative)."""
     text = (text or "").strip()
     if not text:
         return None
@@ -165,7 +158,6 @@ def parse_lines(text: str) -> int | None:
 
 
 def count_lines(path: str) -> int:
-    """Newline count, plus one for a final line without a newline."""
     lines = 0
     last = b"\n"
     with open(path, "rb") as handle:
@@ -240,7 +232,6 @@ def report_skips(
     size_text: str,
     lines_text: str,
 ) -> None:
-    """One line naming what a cap or a non-UTF-8 name left out of the scan."""
     parts: list[str] = []
     if skipped:
         path, size, lines = max(skipped, key=lambda entry: entry[1])
@@ -281,7 +272,7 @@ def _instance(entry: dict) -> dict:
     }
 
 
-def translate(raw: str, lane: str) -> list[dict]:
+def translate(raw: str, language: str) -> list[dict]:
     document = json.loads(raw)
     rows: list[dict] = []
     for duplicate in document.get("duplicates", []):
@@ -296,7 +287,7 @@ def translate(raw: str, lane: str) -> list[dict]:
             {
                 "file": None,
                 "function": None,
-                "lane": lane,
+                "language": language,
                 "instances": instances,
                 "values": {
                     "lines": duplicate.get("lines"),
@@ -340,8 +331,6 @@ def _command(
         os.environ.get("CODE_METRICS_DUP_MIN_TOKENS") or DEFAULT_MIN_TOKENS,
         "--min-lines",
         os.environ.get("CODE_METRICS_DUP_MIN_LINES") or DEFAULT_MIN_LINES,
-        # One above the adapter's own bound: the pre-filter already removed
-        # every file over it, so jscpd's gate never fires on either major.
         "--max-size",
         str(size_cap + 1 if size_cap is not None else NO_SIZE_CAP),
         "--max-lines",
@@ -355,7 +344,7 @@ def _command(
     return command
 
 
-def collect(lane: str, measure: str, files: list[str]) -> int:
+def collect(language: str, measure: str, files: list[str]) -> int:
     if measure != "duplication":
         print(f"jscpd.py: cannot collect {measure}", file=sys.stderr)
         return 2
@@ -388,7 +377,7 @@ def collect(lane: str, measure: str, files: list[str]) -> int:
         report = os.path.join(output, REPORT_BASENAME)
         try:
             with open(report, encoding="utf-8") as handle:
-                rows = translate(handle.read(), lane)
+                rows = translate(handle.read(), language)
         except (OSError, ValueError, TypeError) as exc:
             print(
                 f"jscpd.py: no parseable {REPORT_BASENAME} ({exc}); "

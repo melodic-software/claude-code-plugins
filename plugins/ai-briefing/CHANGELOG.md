@@ -3,6 +3,46 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.3] - 2026-11-28
+
+### Changed
+
+- Trimmed `/ai-briefing:setup` user-invoked frontmatter description (444 -> 143 chars) to a one-line summary without trigger phrasing.
+
+## [2.0.2] - 2026-11-28
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
+## [2.0.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [2.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+## [1.0.39] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [1.0.38] - 2026-11-26
+
+### Changed
+
+- `/ai-briefing:setup apply install-build-deps` no longer restates how the plugin cache and Node ESM behave. It states the rule (install nothing into the installed plugin directory, resolve bare packages without `NODE_PATH`) and points at the Claude Code plugin loading reference and the Node.js ESM docs for the details.
+
 ## [1.0.37] - 2026-11-24
 
 ### Changed

@@ -3,6 +3,30 @@
 All notable changes to the `songwriting` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.5] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter `description` fields across 10 `songwriting` skills to cut ambient listing budget by 2,711 chars (`5,907 -> 3,196`, `-45.9%`; `co-write` `543 -> 344`, `metaphor` `770 -> 346`, `meter-prosody` `564 -> 337`, `object-writing` `614 -> 325`, `practice` `544 -> 349`, `revise` `503 -> 346`, `rhyme` `620 -> 336`, `setup` `507 -> 135`, `song-form` `616 -> 334`, `workflow` `626 -> 344`; `suno` unchanged at `337`) while keeping `disable-model-invocation: true` trigger-free on `setup` and preserving full action, safety, and invocation-probe recall parity.
+
+## [3.0.4] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [3.0.3] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [3.0.2] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
 ## [3.0.1] - 2026-11-24
 
 ### Fixed
@@ -683,7 +707,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   keep-these-four-consistent sentence named `prosody.md` and `meter.md`, which are siblings and
   resolve, alongside `skills/meter-prosody/SKILL.md`, whose implied base is the plugin root while
   its real base is `context/pat-pattison/research/`, the defect class
-  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  retired ADR 0018 (treat the plugin as the encapsulation boundary for skill citation)'s
   correction 1 names. It now reads `${CLAUDE_PLUGIN_ROOT}/skills/meter-prosody/SKILL.md`, the
   anchored form this `research/` tree already uses for the Datamuse script. The sentence is the
   plugin's own prose, not printed Pat Pattison text, so the distilled-corpus exclusion does not

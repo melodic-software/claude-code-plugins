@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# parity-check.sh: prove a scanner change preserves findings.
-#
-# Runs the scanner at a base ref (default: the merge base with origin/HEAD,
-# extracted with git archive into .work/) and the working-tree scanner over
-# the same roots, under every awk on PATH among gawk and mawk, and diffs their
-# output and exit codes. Roots: each evals/fixtures subdirectory, then this
-# repository's whole tree.
-#
-# Each run must examine more than 0 files (test files plus Playwright configs)
-# and exit 0 or 1, or the diff proves nothing. It also diffs the resolved
-# regex strings of both engines per language, because the fixtures do not
-# exercise every alternative of every regex.
-#
-# Usage: parity-check.sh [<base-ref>]
 # Exit: 0 parity holds; 1 a diff or a vacuous run; 2 setup failed.
 set -uo pipefail
 
@@ -41,9 +27,6 @@ git -C "$REPO" archive "$base" "${paths[@]}" | tar -x -C "$WORK" || {
 BASE_SCAN="$WORK/$REL_SCRIPTS/cant-fail-scan.sh"
 NEW_SCAN="$SCRIPT_DIR/cant-fail-scan.sh"
 
-# Prints each engine regex as NAME=value for one language, from whichever
-# variable names the engine uses (the pre-adapter *_ERE literals, or the
-# adapter-driven names), so the two sides are compared field by field.
 cat >"$WORK/dump.awk" <<'EOF'
 function pick(a, b) { return a != "" ? a : b }
 BEGIN {
@@ -60,8 +43,6 @@ BEGIN {
 }
 EOF
 
-# dump_engine <scripts-dir> <lang> <out>: the pre-adapter engine takes
-# LANG_ID; the adapter engine takes an adapter id and the loaded table.
 dump_engine() {
   local dir="$1" lang="$2" out="$3" id table vars
   if [[ -r "$dir/adapter-load.awk" ]]; then

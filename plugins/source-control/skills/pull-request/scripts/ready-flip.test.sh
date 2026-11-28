@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for ready's wait, guarded flip and ready-run confirmation (the "Wait for the
-# push's CI run", "Flip to ready" and "Confirm a ready run" blocks of the GitHub ready reference)
-# against a forge that lags one read behind a push: its first head read still returns the
-# pre-push commit. Black-box, with the
-# blocks extracted from the reference and run in a fixture repository against a stubbed `gh`.
 # test-scope: plugins/source-control/skills/pull-request/scripts/pr-worktree.sh
 
 set -uo pipefail
@@ -58,11 +53,6 @@ PUSHED=$(git -C "$REPO" rev-parse HEAD)
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$STUB_DIR/sleep"
-# The forge's first head read returns STUB_STALE, later reads STUB_FORGE (default: the pushed
-# commit); pr-worktree.sh's head read returns STUB_BRANCH and STUB_OID. Runs exist only for the pushed commit, and a new one only once the PR is flipped. Each
-# run list logs the commit it asked about; `pr ready` logs the flip. A call that names neither
-# `-R acme/tool` nor GH_REPO=acme/tool fails, as gh does outside a checkout, so a read the
-# reference leaves untargeted cannot pass by the stub's grace.
 cat >"$STUB_DIR/gh" <<'STUB_EOF'
 #!/usr/bin/env bash
 if [[ "${GH_REPO:-}" != acme/tool && " $* " != *" -R acme/tool "* ]]; then
@@ -109,10 +99,6 @@ new_state() {
   [[ -z "${1:-}" ]] || READY_VERIFY_DIR="$STATE/verify" bash "$SKILL_DIR/scripts/verify-gate.sh" record --head "$1" --result pass
 }
 
-# run_flow <stale-head> <head-before> [<later-forge-head>], in the state new_state made, from
-# $FLOW_CWD (default: the PR's checkout), with pr-worktree.sh reading STUB_OID (default: the
-# pre-push head, as a lagging read returns it), and GH_REPO exported as the reference's "Find the
-# PR for the branch" block exports it (FLOW_GH_REPO, default acme/tool; empty leaves it unset).
 STUB_BRANCH=$(git -C "$REPO" branch --show-current)
 run_flow() {
   (unset GH_REPO
@@ -140,9 +126,6 @@ new_state "$BEFORE"
 out=$(run_flow "$BEFORE" "$BEFORE")
 assert_contains "a record for the pre-push commit only: the guard refuses" "$out" "FLIP_EXIT=2"
 
-# The /verification:confirm verdict: recorded per head, named in the 2.5.7 report for the PR
-# worktree's HEAD, and advisory, so neither NEEDS WORK nor a missing verdict stops the flip or
-# changes the verify gate's result for that head.
 confirm_record() { CONFIRM_VERDICT_DIR="$STATE/confirm" bash "$SKILL_DIR/scripts/confirm-verdict.sh" record "$@"; }
 run_report() {
   (cd "$REPO" && PATH="$STUB_DIR:$PATH" GH_REPO=acme/tool STUB_STATE="$STATE" STUB_BRANCH="$STUB_BRANCH" STUB_OID="$PUSHED" \
@@ -180,8 +163,6 @@ assert_exit "the report's confirm verdict line exits 0 with no verdict for the h
 assert_eq "a verdict for an earlier head only: the report says none is recorded for this head" \
   "confirm: no verdict recorded for head $PUSHED" "$out"
 
-# The /verification:measure verdict: recorded per head in the same store, named in the report only
-# when one is recorded for the head, and advisory, so no verdict word stops the flip.
 measure_record() { CONFIRM_VERDICT_DIR="$STATE/confirm" bash "$SKILL_DIR/scripts/confirm-verdict.sh" record --of measure "$@"; }
 
 for verdict in 'CANNOT QUANTIFY' DEGRADED 'NOT CONFIRMED' INCONCLUSIVE MIXED CONFIRMED; do
@@ -239,8 +220,6 @@ out=$(FLOW_CWD="$TEST_TMPDIR/outside" FLOW_CHECKOUT="$REPO" run_flow "$BEFORE" "
 assert_contains "from outside every checkout: HEAD_SHA is the PR worktree's HEAD" "$out" "HEAD_SHA=$PUSHED"
 assert_contains "from outside every checkout: the guarded flip passes on the PR's head" "$out" "FLIP_EXIT=0"
 
-# The same shell without GH_REPO: the untargeted reads fail as gh fails outside a checkout, so the
-# case above passes only because the reads follow the exported repository.
 new_state "$PUSHED"
 out=$(FLOW_GH_REPO='' FLOW_CWD="$TEST_TMPDIR/outside" FLOW_CHECKOUT="$REPO" run_flow "$BEFORE" "$BEFORE")
 [[ -e "$STATE/flipped" ]] && flipped=yes || flipped=no

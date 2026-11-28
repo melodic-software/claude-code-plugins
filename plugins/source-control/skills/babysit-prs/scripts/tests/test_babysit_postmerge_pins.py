@@ -101,9 +101,6 @@ class Threads:
         return [c for c in self.calls if "PostMergePin(" in c]
 
 
-# 25 pull requests: a pinned head on every one except 103 (no pin), 104 (an
-# edited pin), 105 (a pin by a human), and 106, whose pin sits behind 150
-# later comments, on its second page.
 THREADS: dict[int, list[dict[str, Any]]] = {
     n: [*chatter(2), pin(n)] for n in range(100, 125)
 }
@@ -125,7 +122,6 @@ class ReadPins(unittest.TestCase):
     def test_a_batch_of_25_reads_every_pin(self) -> None:
         api = Threads(THREADS)
         self.assertEqual(self.read(api, list(THREADS)), EXPECTED)
-        # Two queries of at most 20 pull requests, and #106's later pages alone.
         self.assertEqual(len(api.batches()), 2)
         self.assertEqual(len(re.findall(r":pullRequest\(", api.batches()[0])), 20)
         self.assertEqual(len(api.singles()), 2)
@@ -155,7 +151,6 @@ class ReadPins(unittest.TestCase):
         api.missing = {110}
         with self.assertRaisesRegex(pm.PostMergeReadError, "#110 pin"):
             self.read(api, list(THREADS))
-        # As the single read fails on it.
         with (
             mock.patch.object(pm, "gh_capture", api),
             self.assertRaises(pm.PostMergeReadError),

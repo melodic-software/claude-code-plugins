@@ -1,5 +1,5 @@
 ---
-description: "List of every Claude Code surface this machine can invoke: built-in commands, subagents, tools, bundled skills and workflows, and installed plugin components. Use when: 'what slash commands do I have', 'what agents are available', 'is /foo a real command', 'what changed after the update', 'what does marketplace X give me'. On-disk audit: /harness-ops:audit-install-state."
+description: "List every Claude Code surface this machine can invoke: built-in commands, subagents, tools, bundled skills/workflows, and installed plugin components. Use when 'what slash commands do I have', 'what agents are available', 'is /foo a real command', what changed after update, or marketplace contents. On-disk audit: /harness-ops:audit-install-state."
 argument-hint: "[--builtin|--plugins|--bundled|--agents|--tools|--hooks|--docs] [--marketplace <m>] [--diff <f>]"
 user-invocable: true
 disable-model-invocation: false
@@ -24,7 +24,7 @@ clearly separated, because they are evidence of different quality.
 The report is an inventory, not a judgment. Nothing here says a component is stale, misconfigured,
 or wrong; the neighbors below own those verdicts.
 
-## Scope boundary
+## What this skill does not do
 
 | Question | Owner |
 |---|---|
@@ -42,8 +42,16 @@ because it is disabled, and a built-in command can be fully live while existing 
 ## Run it
 
 ```bash
-python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --deps-dir "${CLAUDE_PLUGIN_DATA}" --out ./claude-inventory.json
+python3 "${CLAUDE_PLUGIN_ROOT}/skills/inventory/scripts/inventory.py" --deps-dir "${CLAUDE_PLUGIN_DATA}" \
+  --sources-file '${user_config.transcript_sources_file}' --diagnostics-dir "${CLAUDE_PLUGIN_DATA}/diagnostics" --out ./claude-inventory.json
 ```
+
+`--sources-file` is the `transcript_sources_file` option (`''` when it still reads
+`${user_config.…}`): the configuration directory read is its first local source's, else
+`$CLAUDE_CONFIG_DIR`, else `~/.claude`. The report's `header` lists a local source whose projects
+directory cannot be listed as a gap, with its retry command, and `--diagnostics-dir` keeps it as a
+lookup diagnostics record. Every reply built from a report with a gap opens with each gap and its
+retry command, before any count or list, a short answer included.
 
 Python 3.11+ is the only requirement of the default bundle reader (`--reader regex`). No
 `strings`, no `jq`, no PowerShell. The run takes about twenty seconds, dominated by reading and
@@ -53,7 +61,7 @@ pinned packages into the plugin data directory (`--deps-dir`) on first use, and 
 reports the binary source broken with the command that repairs it. `--reader compare` runs both.
 
 Useful flags: `--binary <path>` (else the session's own CLI, then `PATH` and the usual install roots) · `--config-dir <path>` (else
-`$CLAUDE_CONFIG_DIR`, else `~/.claude`) · `--binary-only` / `--disk-only` to skip a source ·
+the first local transcript source's, else `$CLAUDE_CONFIG_DIR`, else `~/.claude`) · `--binary-only` / `--disk-only` to skip a source ·
 `--reader regex|parser|compare` (default `regex`) · `--docs` to add the `docs_crosscheck` block,
 fetching the commands page, the changelog, and the tools reference · `--docs-file <path>` /
 `--changelog-file <path>` / `--tools-docs-file <path>` to read one from a file instead (each
@@ -273,8 +281,10 @@ still listed. Each entry carries:
 - `bytes` and `sha256` of the file.
 
 Which file kinds exist and when each loads is the memory page's to say:
-<https://code.claude.com/docs/en/memory>, the file table and "When Claude Code reads AGENTS.md".
-As of 2026-10-03. Recheck when the memory page's file table changes. The script encodes the default
+[choose where to put CLAUDE.md files](https://code.claude.com/docs/en/memory#choose-where-to-put-claude-md-files),
+[how CLAUDE.md files load](https://code.claude.com/docs/en/memory#how-claude-md-files-load) and
+[when Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md).
+The script encodes the default
 loading only: it does not expand `@path` imports, apply `claudeMdExcludes` or the Project
 instructions setting, or read directories above the git toplevel.
 
@@ -315,13 +325,17 @@ so read a remote plugin's SKILL.md files only after shortlisting it. A relative-
 loads in place from a marketplace added from a local path has no cached copy, so it reads
 `not-installed` here.
 
-Sources, read 2026-10-30: the
-[loading reference](https://code.claude.com/docs/en/plugins/loading.md) (cache layout, in-place
-plugins, `enabledPlugins` precedence), the
-[manifest reference](https://code.claude.com/docs/en/plugins/manifest-reference.md)
-(`defaultEnabled`, the `skills` key, the entry's `defaultEnabled` overriding plugin.json's), and
-[skills](https://code.claude.com/docs/en/skills.md) (`when_to_use`, `skillOverrides` not affecting
-plugin skills). Recheck when the cache layout or `defaultEnabled` precedence changes.
+Sources: the loading reference's
+[find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk),
+[in-place and copied plugins](https://code.claude.com/docs/en/plugins/loading#in-place-and-copied-plugins)
+and [find where a plugin is enabled](https://code.claude.com/docs/en/plugins/loading#find-where-a-plugin-is-enabled);
+the manifest reference's [`defaultEnabled`](https://code.claude.com/docs/en/plugins/manifest-reference#defaultenabled),
+[component path forms](https://code.claude.com/docs/en/plugins/manifest-reference#component-path-forms) (the `skills` key)
+and [how entry fields combine with `plugin.json`](https://code.claude.com/docs/en/plugins/manifest-reference#how-entry-fields-combine-with-plugin-json);
+and the skills page's [frontmatter reference](https://code.claude.com/docs/en/skills#frontmatter-reference)
+(`when_to_use`) and
+[override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings)
+(`skillOverrides`).
 
 ## MCP servers
 

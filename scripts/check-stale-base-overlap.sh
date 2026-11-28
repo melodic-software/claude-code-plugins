@@ -1,44 +1,10 @@
 #!/usr/bin/env bash
-# Gate: refuse a PR whose merge-base is behind the target tip on overlapping paths.
-#
-#   scripts/check-stale-base-overlap.sh --check <base-ref>
-#   scripts/check-stale-base-overlap.sh --warn <base-ref>
-#
-# --warn reports any overlap as a GitHub Actions ::warning and exits 0: the
-# pull_request step runs it, and the merge queue is the gate (#7871).
-#
-# Why: squash-merging a PR cut from a stale base can silently drop commits that
-# landed on the base after the PR branched — including the tests that would have
-# caught the drop. CI stays green because the reverting squash deletes those
-# tests in the same commit.
-#
-# SCOPE: the stale-BASE class only, where the merge-base is genuinely behind
-# the target tip. A branch stale in CONTENT while up to date in HISTORY exits 0
-# here ("fresh"); that class belongs to scripts/check-silent-revert.sh. The two cover disjoint classes and neither
-# subsumes the other, so a green run here is not evidence about the other class.
-#
-# Agreement is established by comparing path lists only:
-#   1. merge-base(HEAD, <base-ref>) == tip(<base-ref>) → fresh, exit 0.
-#   2. Else intersect paths changed on base since the merge-base with paths
-#      changed on HEAD since the merge-base.
-#   3. Non-empty intersection → exit 1 with the overlapping paths, unless every
-#      overlapping path is a CHANGELOG.md or a .changes/ fragment: then a
-#      warning and exit 0.
-#   4. Empty intersection → exit 0 (parallel work on disjoint files).
-#
-# Unrecognized git state is exit 2 (inconclusive), never a pass.
 set -uo pipefail
 
-# Operate on the caller's git work tree (CI checks out the PR and runs from its
-# root; the self-test cds into a scratch repo before invoking). Never force-cd
-# to the script's install location — that would always inspect this repository
-# instead of the tree under test.
 if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   echo "check-stale-base-overlap: not inside a git work tree" >&2
   exit 2
 fi
-# SCRIPT_DIR locates the shared library only. The cd below still goes to the
-# tree under test, never to the install location.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
@@ -72,18 +38,6 @@ if [[ "$merge_base" == "$base_tip" ]]; then
   gate_entry::finish 0
 fi
 
-# Both path lists are walked through scripts/lib/changed-files.sh, which exists
-# so a failed diff cannot arrive looking like an empty change set: an empty list
-# here means "this side touched nothing", and a gate that concludes "no
-# overlapping paths" from a diff that never ran is a silent pass on exactly the
-# stale base it is here to refuse.
-#
-# `--include-deleted --no-renames` is what makes a rename contribute BOTH the
-# old and the new path: with detection off the move arrives as a delete of the
-# source plus an add of the destination, and keeping deletions is what lets the
-# source side survive. Collapsing the move to its destination alone would miss
-# an overlap on the pre-rename path when the other side still touches the old
-# name.
 base_paths=()
 # shellcheck disable=SC2310  # the non-zero return IS the handled case
 if ! changed_files::into base_paths "$merge_base..$base_tip" --include-deleted --no-renames; then
@@ -97,12 +51,6 @@ if ! changed_files::into head_paths "$merge_base..HEAD" --include-deleted --no-r
   exit 2
 fi
 
-# Generated docs nearly every plugin PR regenerates are dropped from the
-# overlap: scripts/validate-plugins.sh runs each generator with --check in CI,
-# which fails unless the committed block matches what its sources produce, and
-# those sources stay in the comparison. Only the text between each file's
-# markers is generated; the short hand-written preamble is not re-checked.
-# Add a path here only when a --check in that script covers it.
 generated_paths=(docs/catalog.md docs/skill-cheat-sheet.md)
 kept=()
 for path in ${head_paths[@]+"${head_paths[@]}"}; do
@@ -110,9 +58,6 @@ for path in ${head_paths[@]+"${head_paths[@]}"}; do
 done
 head_paths=(${kept[@]+"${kept[@]}"})
 
-# `comm` requires both inputs ordered under the collation it compares with, so
-# both sides are re-sorted under LC_ALL=C here rather than relying on whatever
-# locale the library's own sort ran in.
 overlap="$(
   comm -12 \
     <(printf '%s\n' ${base_paths[@]+"${base_paths[@]}"} | LC_ALL=C sort -u) \
@@ -121,7 +66,6 @@ overlap="$(
 
 behind_by="$(git rev-list --count "$merge_base..$base_tip" 2>/dev/null || echo '?')"
 
-# Prints the overlapping paths to stderr, one indented path per line.
 print_overlap() {
   local path
   while IFS= read -r path; do
@@ -136,15 +80,10 @@ if [[ -z "$overlap" ]]; then
 fi
 
 if [[ "$GE_MODE" == --warn ]]; then
-  # A workflow command is one line, so the paths are joined.
   echo "::warning title=Stale base::HEAD is $behind_by commit(s) behind $base_ref on overlapping paths: ${overlap//$'\n'/, }"
   gate_entry::finish 0
 fi
 
-# An overlap made only of changelogs (any CHANGELOG.md) and changelog
-# fragments (.changes/) is a warning, not a refusal: those files take
-# independent entries, and the merge queue tests the change on the current base
-# and runs the collision gates there (#7871).
 release_notes_only=1
 while IFS= read -r path; do
   [[ "$path" == CHANGELOG.md || "$path" == */CHANGELOG.md || "$path" == .changes/* ]] || release_notes_only=0

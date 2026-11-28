@@ -21,7 +21,7 @@ class StubLiveStarter:
     def start(self, entry):
         if entry["label"] == self.FAILS:
             raise RuntimeError("the stand-in starter fails this entry")
-        return f"https://fake-live-{entry['id'].lower()}.trycloudflare.com"  # the suite reads links only, never opens one
+        return f"https://fake-live-{entry['id'].lower()}.trycloudflare.com"
 
     def stop(self, entry):
         pass

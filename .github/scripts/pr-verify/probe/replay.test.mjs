@@ -1,10 +1,4 @@
 // test-scope: .github/scripts/pr-verify/probe/fixtures/*
-// The fixture set, the data the replay lays out from it, and the scoring.
-// Expected counts come from the planted-defect plan (fixture mix and scoring
-// rules); the data expectations from prompt.md and resolve-pr.mjs's spec
-// rules: a spec is the body and comments a listed human wrote, the PR author
-// included, while the context keeps every listed account's text and drops
-// unlisted accounts.
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
@@ -16,7 +10,7 @@ process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 
 const CASES = loadCases();
-const TRUSTED = path.join(REPO_ROOT, ".github/standards/trusted-actors/trusted-actors.json");
+const TRUSTED = path.join(REPO_ROOT, ".github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json");
 const LANE = /^ {2}agent-identity: (.+)$/m.exec(readFileSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"))[1];
 const count = (filter) => CASES.filter(filter).length;
 
@@ -49,8 +43,6 @@ test("each case is data only, with valid expectations", () => {
   }
 });
 
-// Unified diff format: each hunk's header counts its old (context and -) and
-// new (context and +) lines.
 test("each diff is a well-formed git diff under 400 lines", () => {
   for (const c of CASES) {
     const lines = c.diff.replace(/\n$/, "").split("\n");
@@ -291,7 +283,6 @@ test("only infrastructure failures are retried, and the first model outcome ends
 });
 
 test("a failing command's error carries its stdout when stderr is empty", () => {
-  // resolve-config reports `::error title=resolve-config::<message>` on stdout.
   const script = "console.log('::error title=resolve-config::no schema'); process.exit(1)";
   assert.throws(() => sh(process.execPath, ["-e", script]), /::error title=resolve-config::no schema/);
   assert.throws(() => sh(process.execPath, ["-e", "console.error('to stderr'); process.exit(1)"]), /failed: to stderr$/);

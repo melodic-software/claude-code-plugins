@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-docs-naming.sh.
-#
-# Self-contained and cwd-independent: builds a throwaway git repository with a
-# fixture docs/ tree, runs the checker against it, and asserts on exit code +
-# output. Mutates only its own mktemp dir. The SUT resolves the repository root
-# relative to its own location, so the fixture tree carries a copy of it under
-# scripts/ and every case commits its files so `git ls-files` sees them.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,8 +9,6 @@ SUT_SRC="$SCRIPT_DIR/check-docs-naming.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-# mk_repo <out-var>: a throwaway repo with a committed, rule-abiding docs/ tree.
-# The builder assigns through a nameref, which shellcheck cannot follow.
 mk_repo() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --git || return 1
@@ -31,9 +22,6 @@ mk_repo() {
   git_test_config "$dir" commit -qm base
 }
 
-# run_case <label> <expected-rc> [<path-to-add>...]
-# Adds each path (committed), runs `--check`, asserts the exit code, and on an
-# expected failure asserts that every added path is named in the output.
 run_case() {
   local label="$1" expected="$2"
   shift 2
@@ -67,39 +55,24 @@ run_case() {
   ok "$label"
 }
 
-# 1. A clean tree passes.
 run_case "clean tree passes" 0
 
-# 2. An uppercase basename fails and is named.
 run_case "docs/NEW-FILE.md fails" 1 docs/NEW-FILE.md
 
-# 3. The conventional uppercase names are exempt anywhere under docs/.
 run_case "docs/x/README.md passes" 0 docs/x/README.md docs/x/CHANGELOG.md docs/x/INDEX.md
 
-# 4. The branch-only topic slice is exempt.
-
-# 5. Code files are judged by their language, not this rule.
 run_case "docs/a/b_c.py passes" 0 docs/a/b_c.py docs/a/Run-Thing.ps1
 
-# 6. Dotted stems and multi-part extensions are lower-kebab.
 run_case "docs/a/v1.2.schema.json passes" 0 docs/a/v1.2.schema.json
 
-# 7. Underscores and mixed case are not kebab.
 run_case "docs/a/snake_case.md fails" 1 docs/a/snake_case.md
 
-# 7b. Empty or trailing dot segments are not an extension.
 run_case "docs/a/foo..md fails" 1 docs/a/foo..md
 run_case "docs/a/foo.md. fails" 1 docs/a/foo.md.
 run_case "docs/a/foo... fails" 1 docs/a/foo...
 
-# 8. Two tracked paths that differ only by case fail even when each is a
-#    conventional name on its own.
 run_case "docs/Foo.md beside docs/foo.md fails" 1 docs/Foo.md docs/foo.md
 
-# 8b. A case collision on a path git would quote. The shared non-ASCII byte
-#     (UTF-8 C3 A9) makes `git ls-files` without -z C-quote the name, and the
-#     ASCII C/c is what `tr` folds. A .py file is exempt from the basename
-#     rule, so a failure here is the collision pass comparing the raw path.
 repo=""
 if mk_repo repo && [[ -n "$repo" ]]; then
   lower="docs/x/caf"$'\303\251'".py"
@@ -123,8 +96,6 @@ else
   fail "quoted-path collision: fixture build failed"
 fi
 
-# 8c. A case collision on a path holding a newline stays one finding per path:
-#     two `%q` findings plus the summary line, never a split record.
 repo=""
 if mk_repo repo && [[ -n "$repo" ]]; then
   mkdir -p "$repo/docs/New"$'\n'"line" "$repo/docs/new"$'\n'"line"
@@ -143,9 +114,6 @@ else
   fail "newline collision: fixture build failed"
 fi
 
-# 9. Discover mode (no flag) lists offenders and still exits 1 on any.
-# A failed fixture build leaves $repo empty, and `git -C ""` would then act on
-# THIS checkout, so the build is checked before any git command runs.
 repo=""
 if mk_repo repo && [[ -n "$repo" ]]; then
   printf 'seed\n' >"$repo/docs/Bad-Name.md"
@@ -162,43 +130,21 @@ else
   fail "discover mode: fixture build failed"
 fi
 
-# 10. Unknown mode is a usage error, not a silent pass.
 test_harness::assert_unknown_mode "$SUT_SRC"
 
-# 11. No drift from the docs-naming template this gate was generalized into.
-#     The emitter renders the template with THIS repository's
-#     docs/conventions/docs-naming.yaml, both gates run over one seeded tree, and their
-#     exit codes, stdout, and stderr must agree. The comparison is behavioral,
-#     not textual: the two differ by construction in the script's name and
-#     path, in the rule's display name (`lower-kebab-case` here, the config's
-#     `rule` there), and in how the clean-run line spells the scope, so exactly
-#     those literals are normalized and nothing else is. The seeded tree covers
-#     the whole scope: docs/, markdown outside it, and the fixture, eval, and
-#     vendor trees. Every root and exemption the config declares, and every
-#     name in this gate's EXEMPT_NAMES, is seeded, so an exempt name added on
-#     either side only, or a config entry the gate lacks, surfaces as a finding
-#     the other side lacks. A path exclusion or code extension added to this
-#     gate alone is caught only where a fixed seed below falls under it. The emitted gate
-#     folds case with `tr`, ASCII only, so no seed pairs two paths that differ
-#     only in a non-ASCII letter's case; case 17 covers that here.
 EMITTER="$SCRIPT_DIR/../plugins/docs-naming/skills/generate-file-name-gate/scripts/emit-gate.sh"
 ROOT_SCOPES="$SCRIPT_DIR/../plugins/docs-naming/scripts/root-scopes.jq"
 
-# script_exempt_names <gate>: one name per line from the gate's EXEMPT_NAMES.
 script_exempt_names() {
   sed -n "s/^EXEMPT_NAMES=' \(.*\) '\$/\1/p" "$1" | tr ' ' '\n' | sed '/^$/d'
 }
 
-# exempt_name_seeds <gate>: each exempt name, from the config and from the
-# gate's own list, under docs/ and outside it, one path per line.
 exempt_name_seeds() {
   {
     jq -r '.file_names.exempt_basenames[]' "$REPO_CONFIG"
     script_exempt_names "$1"
   } | sort -u | awk 'NF {print "docs/x/" $0; print "plugins/x/" $0}'
 }
-# This repository's settings live in docs/conventions/docs-naming.yaml; the
-# emitter takes a JSON document, so the YAML is converted once into a fixture dir.
 # shellcheck source=../plugins/docs-naming/lib/layer-yaml.sh
 . "$SCRIPT_DIR/../plugins/docs-naming/lib/layer-yaml.sh"
 REPO_YAML="$SCRIPT_DIR/../docs/conventions/docs-naming.yaml"
@@ -214,8 +160,6 @@ EMITTED_ROOTS=""
 DRIFT_REPORT=""
 DRIFT_RC=""
 
-# drift_norm <script-path> <rule> <roots> <file>: <file> with the four
-# by-construction differences replaced by fixed tokens.
 drift_norm() {
   local path="$1" rule="$2" roots="$3" s stem
   s="$(cat "$4" && printf x)"
@@ -227,13 +171,12 @@ drift_norm() {
   s="${s//"$stem"/GATE}"
   s="${s//"under $roots is $rule."/under ROOTS is RULE.}"
   s="${s//"basename is not $rule (rule:"/basename is not RULE (rule:}"
-  s="${s//"rename to $rule (see"/rename to RULE (see}"
+  s="${s//"rename each to $rule,"/rename each to RULE,}"
+  s="${s//" or add it to EXEMPT_NAMES in SCRIPT and to exempt_basenames in docs/conventions/docs-naming.yaml."/ EXEMPT.}"
+  s="${s//" or exempt it in the docs-naming file_names configuration and re-emit this gate."/ EXEMPT.}"
   printf '%s' "$s"
 }
 
-# drift_compare <repo> <emitted-script> [<arg>]: runs this gate and the emitted
-# one with the same argument. Sets DRIFT_RC to this gate's exit code and
-# DRIFT_REPORT to empty when both agree after normalization, or to what differs.
 drift_compare() {
   local repo="$1" emitted="$2" tmp rc_a rc_b side a b
   shift 2
@@ -254,7 +197,6 @@ drift_compare() {
   done
 }
 
-# drift_seed <repo> <path>...: writes and commits each path.
 drift_seed() {
   local repo="$1" p
   shift
@@ -283,17 +225,12 @@ if [[ -n "$drift_ready" ]]; then
   while IFS= read -r one; do
     [[ -n "$one" ]] && exempt_seeds+=("docs/a/Bad_Name.$one")
   done < <(jq -r '.file_names.exempt_extensions[]' "$REPO_CONFIG")
-  # A glob entry gets its literal prefix plus a name the rule rejects, the
-  # same seed the emitter's own suite uses.
   while IFS= read -r one; do
     [[ "$one" == *'*' ]] || continue
     one="${one%%\**}"
     one="${one%/}"
     [[ -n "$one" ]] && exempt_seeds+=("$one/Exempt_By-PATH.md")
   done < <(jq -r '.file_names.exempt_paths[]' "$REPO_CONFIG")
-  # A probe the rule rejects under every root, in each extension a root object
-  # claims; and for each glob a root exempts, one path under it (exempt) and
-  # the same path under docs/ (judged, since the docs root exempts nothing).
   while IFS= read -r one; do
     [[ -n "$one" ]] && offender_seeds+=("$one")
   done < <(jq -r -f "$ROOT_SCOPES" "$REPO_CONFIG" |
@@ -307,10 +244,6 @@ if [[ -n "$drift_ready" ]]; then
     exempt_seeds+=("p/$one/Exempt_By-ROOT.md")
     offender_seeds+=("docs/p/$one/Judged_By-DOCS.md")
   done < <(jq -r '.file_names.roots[] | objects | .exempt_paths[]?' "$REPO_CONFIG")
-  # Every offender shape the header names, the exemption boundaries (a case
-  # variant of an exempt name, an exempt extension in the wrong case), case
-  # collisions including one against an exempt name, and non-markdown files
-  # outside docs/ that neither gate may judge.
   offender_seeds+=(
     docs/NEW-FILE.md docs/a/snake_case.md docs/a/Mixed.md docs/a/foo..md
     docs/a/foo.md. docs/a/foo... docs/a/noext docs/a/README.md.bak
@@ -325,12 +258,10 @@ if [[ -n "$drift_ready" ]]; then
   )
 fi
 
-# drift_emit <repo> <config> <out-dir>: renders the template into the fixture.
 drift_emit() {
   bash "$EMITTER" --config "$2" --root "$1" --out-dir "$3" >/dev/null 2>"$1/.git/emit.err"
 }
 
-# 11a. A tree holding only exempt names is clean under both gates.
 repo=""
 if [[ -n "$drift_ready" ]] && mk_repo repo && [[ -n "$repo" ]]; then
   drift_seed "$repo" "${exempt_seeds[@]}"
@@ -348,8 +279,6 @@ elif [[ -n "$drift_ready" ]]; then
   fail "template drift: fixture build failed"
 fi
 
-# 11b. The seeded offending tree: same findings, streams, and exit code in
-#      --check, discover, and usage-error modes.
 repo=""
 if [[ -n "$drift_ready" ]] && mk_repo repo && [[ -n "$repo" ]]; then
   drift_seed "$repo" "${exempt_seeds[@]}" "${offender_seeds[@]}"
@@ -369,9 +298,6 @@ if [[ -n "$drift_ready" ]] && mk_repo repo && [[ -n "$repo" ]]; then
       fi
     done
 
-    # 11c. The comparison has teeth: a config that loses one entry from any
-    #      exemption list, or narrows the regex, emits a gate that must NOT
-    #      agree with this one over the same tree.
     n=0
     for filter in \
       '.file_names.exempt_basenames |= .[1:]' \
@@ -395,9 +321,6 @@ if [[ -n "$drift_ready" ]] && mk_repo repo && [[ -n "$repo" ]]; then
       fi
     done
 
-    # 11d. The other direction: a name this gate exempts that the config does
-    #      not carry is drift too. The seeds come from the gate under test, so
-    #      the extra name is seeded and the emitted gate reports it.
     sed "s/^EXEMPT_NAMES=' /&MUTANT.md /" "$SUT_SRC" >"$repo/scripts/check-docs-naming.sh"
     if [[ -z "$(script_exempt_names "$SUT_SRC")" ]]; then
       fail "template drift: no names parsed from EXEMPT_NAMES in $SUT_SRC, so its exemptions are not seeded"
@@ -423,36 +346,27 @@ elif [[ -n "$drift_ready" ]]; then
   fail "template drift: fixture build failed"
 fi
 
-# 12. Markdown outside docs/ is held to the rule and named when it breaks it.
 run_case "Top_Level.md fails" 1 Top_Level.md
 run_case "plugins/p/skills/s/NOT_IMPLEMENTED.md fails" 1 plugins/p/skills/s/NOT_IMPLEMENTED.md
 run_case "plugins/p/NOTES.md fails" 1 plugins/p/NOTES.md
 
-# 13. Every listed role name passes anywhere; a case variant of one does not.
 run_case "role names pass outside docs/" 0 AGENTS.md CLAUDE.md SECURITY.md REVIEW.md \
   LICENSE.md CONTRIBUTING.md CODE_OF_CONDUCT.md plugins/p/README.md plugins/p/CHANGELOG.md \
   plugins/p/skills/s/SKILL.md plugins/p/tools/t/CONTRACT.md plugins/p/styles/s/STYLE.md \
   plugins/p/skills/s/TODO.md plugins/p/reference/r/PLAN.md plugins/p/INDEX.md
 run_case "plugins/p/Skill.md fails" 1 plugins/p/Skill.md
 
-# 14. Fixture, eval, and vendor trees keep the names they reproduce, and
-#     non-markdown files outside docs/ are out of scope.
 run_case "fixture, eval, vendor trees and non-markdown pass" 0 \
   plugins/p/tests/fixtures/a/NOTES.md plugins/p/evals/workspaces/w/MISSION.md \
   plugins/p/vendor/v/TUNING.md plugins/p/scripts/Bad_Name.json
 run_case "docs/x/fixtures/NOTES.md fails" 1 docs/x/fixtures/NOTES.md
 
-# 15. A case collision outside docs/ fails, inside an excluded tree too.
 run_case "plugins/p/Foo.md beside plugins/p/foo.md fails" 1 plugins/p/Foo.md plugins/p/foo.md
 run_case "collision inside a fixture tree fails" 1 p/fixtures/A.md p/fixtures/a.md
 
-# 16. The .md extension matches in any case: an uppercase extension is in
-#     scope, and a pair differing only in the extension's case collides.
 run_case "plugins/p/NOTES.MD fails" 1 plugins/p/NOTES.MD
 run_case "p/fixtures/foo.MD beside p/fixtures/foo.md fails" 1 p/fixtures/foo.MD p/fixtures/foo.md
 
-# 17. A collision on a non-ASCII letter that differs only by case (UTF-8
-#     C3 84 / C3 A4, A-umlaut) fails: the fold is Unicode, not ASCII-only.
 run_case "p/fixtures/Ä.md beside p/fixtures/ä.md fails" 1 \
   "p/fixtures/"$'\303\204'".md" "p/fixtures/"$'\303\244'".md"
 

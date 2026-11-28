@@ -1,6 +1,7 @@
 # test-scope: .github/scripts/pr-verify/resolve-pr.mjs .github/scripts/pr-verify/write-verdict.mjs .github/workflows/pr-require-checks.yml .github/scripts/pr-merge/merge-holds.mjs .github/scripts/pr-verify/prompt.md
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_async.py plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_merge_unattended.py
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/test_babysit_review_evidence.py plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/review_evidence/*
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/*.py
 """The verifier's two shared rules agree across languages: the gate's
 (`babysit_verify_evidence`, `babysit_classify`) and the resolver's
 (`.github/scripts/pr-verify/resolve-pr.mjs`, run here under node).
@@ -38,14 +39,11 @@ The run records are the gate suite's own forgeries and unfinished runs.
 from __future__ import annotations
 
 import json
-import os
 import pathlib
 import re
 import shutil
 import subprocess
 import sys
-import tempfile
-import textwrap
 import unittest
 from typing import Any
 from unittest import mock
@@ -193,7 +191,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         js = json.loads(proc.stdout)
         self.assertEqual(js["query"], ve.RELINK_QUERY)
         since = postmerge._time(gate.OLDER_START)
-        # The resolver judges up to now; the gate up to a pass's start.
         until = postmerge._time("2100-01-01T00:00:00Z")
         for answer, judged in zip(answers, js["judged"], strict=True):
             fake = gate.FakeGitHub([], {})
@@ -213,7 +210,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         human, app = gate.HUMAN, gate.LANES_ACTOR
         at, before = gate.RELINK_AT, "2026-10-13T00:00:00Z"
         cases = [
-            # A person's edit alone re-opens the head; a connect alone does not.
             (gate.relink_answer([(at, human)]), True),
             (gate.relink_answer([], [(at, human)]), False),
             (gate.relink_answer([(at, human)], [(at, human)]), True),
@@ -291,12 +287,9 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         answer = json.loads(proc.stdout)
         self.assertEqual(answer["hex"], ve.HEAD_REF_DIGEST_HEX)
         self.assertEqual(answer["digests"], [ve.head_ref_digest(r) for r in refs])
-        # The first 16 hex digits of `printf %s feat/x | sha256sum`.
         self.assertEqual(answer["digests"][0], "79b4cc554b80dca6")
 
     def test_a_checks_runs_draft_state_is_read_the_same(self) -> None:
-        # Only a listed conclusion of the draft step decides; the jobs API can
-        # list a finished job's steps empty or cut short.
         cases = {
             "the draft step ran": gate.DRAFT_JOBS,
             "the draft step skipped": gate.READY_JOBS,
@@ -342,9 +335,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
                 self.assertEqual(got, want)
 
     def test_a_fail_judged_from_a_draft_run_is_dropped_the_same(self) -> None:
-        # #11832's checks runs at the head (gate.draft_race), then each change
-        # the gate suite's keeps-the-FAIL test makes; `jobs` None is a read
-        # that fails, `runs` None a listing that fails.
         base = {
             "runs": [
                 {"id": gate.READY_CHECKS, "created_at": "2026-11-01T04:26:33Z"},
@@ -430,12 +420,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         self.assertEqual(js[:2], [True, False])
 
     def test_a_fail_outlives_the_look_back_and_a_pass_its_held_head(self) -> None:
-        # A FAIL the gate still counts must not expire before the pull
-        # request turns too old (TOO_OLD_DAYS), or verify:earlier-fail and the
-        # FAIL cap stop refusing. So must a pass judged after a relink: it may
-        # supersede a FAIL at its head (`_superseded`), which a later head of
-        # the same change still reads. Any other pass is read only at the open
-        # head, and 7 days is the window .github/artifact-retention.json records.
         writer = RESOLVER.parent / "write-verdict.mjs"
         script = (
             f"import {{ retentionDays }} from {json.dumps(writer.as_uri())};"
@@ -455,9 +439,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
             self.assertGreater(days, ve.TOO_OLD_DAYS)
         self.assertEqual((passed, notes), (7, 7))
 
-    # Each FAIL-shaped name, and the issues its name carries read off by hand,
-    # or None for a name no reader takes. One verdict has one name: a PASS
-    # carries no issues, and issues are ascending and listed once.
     SHA = "a" * 40
     BASE = f"pr-verify-41-{SHA}-fail"
     DIGEST = "79b4cc554b80dca6"
@@ -486,32 +467,23 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         f"pr-verify-41-{SHA}-pass-i7": None,
         f"pr-verify-41-{SHA}-pass-notes-i7": None,
         f"pr-verify-41-{SHA}-pass-{DIGEST}-i7": None,
-        # The pull request number is 1 to 10 digits in every reader.
         f"pr-verify-9999999999-{SHA}-fail": set(),
         f"pr-verify-10000000000-{SHA}-fail": None,
         f"pr-verify-041-{SHA}-fail": None,
-        # The longest name the grammar allows, NAME_MAX (194) characters.
         f"pr-verify-9999999999-{SHA}-fail-{DIGEST}-i"
         + ".".join(str(9999999990 + n) for n in range(10)): set(
             range(9999999990, 10000000000)
         ),
-        # A trailing line feed is no part of a name.
         f"{BASE}\n": None,
         f"{BASE}-i7\n": None,
     }
 
     def test_the_longest_name_is_name_max(self) -> None:
-        # 194, counted by hand in NAME_MAX's comment; the table's longest
-        # name is that long and every reader takes it.
         longest = max(self.NAMES, key=len)
         self.assertEqual((len(longest), ve.NAME_MAX), (194, 194))
         self.assertIsNotNone(ve.verdict_name(longest))
 
     def test_every_script_reader_takes_the_same_names(self) -> None:
-        # The gate (`verdict_name`), the resolver (`isVerdictName`, the
-        # pattern it checks names against; `judged` builds exact names and
-        # reads none) and the notes poster (`readVerdict`, given a verdict
-        # file that records what the name names).
         notes = RESOLVER.parents[1] / "pr-unblock/verify-notes.mjs"
         script = (
             f"import {{ isVerdictName, NAME }} from {json.dumps(RESOLVER.as_uri())};"
@@ -543,9 +515,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
                 self.assertEqual(notes_take, issues is not None)
 
     def test_pr_feedback_dispatch_selects_the_same_names(self) -> None:
-        # Its listing keeps every verdict-shaped name, a pass's included; its
-        # strict filter keeps the ones the readers take, and any other fails
-        # the run.
         if not shutil.which("jq"):
             self.skipTest("jq not installed")
         workflow = (
@@ -570,8 +539,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
             f"[{listing[0]}]",
             {"artifacts": [{"expired": False, "name": n} for n in names]},
         )
-        # Any digits for the number, so an 11-digit one is listed and fails
-        # the strict filter, as the gate holds on it.
         self.assertEqual(listed, names)
         self.assertEqual(
             jq(f"[.[] | {strict[0]}]", names),
@@ -579,8 +546,6 @@ class TheGateAndTheResolverAgree(unittest.TestCase):
         )
 
     def test_the_gate_reads_the_issues_the_writer_names(self) -> None:
-        # Each FAIL write-verdict.mjs names parses to the issues it records;
-        # a pass's name carries none.
         writer = RESOLVER.parent / "write-verdict.mjs"
         sha = "a" * 40
         cases = [
@@ -656,7 +621,6 @@ REFS_BODIES = [
     "Refs: #5\u2028Refs: #6",
     "Refs: #5\x0bRefs: #6",
     "Closes #4\nRefs: #5",
-    # An off-form line beside a plain one still names none.
     "Refs: #5\nrefs: #6",
     "Refs: #5\nRefs: o/r#6",
 ]
@@ -689,7 +653,6 @@ class TheGateAndTheResolverReadRefsAlike(unittest.TestCase):
         for body, js in zip(REFS_BODIES, named, strict=True):
             with self.subTest(body=body):
                 self.assertEqual(merge_policy.refs_issue(body)[0], js)
-        # Hand-read: the table holds both kinds of answer.
         self.assertEqual(named[2], 5)
         self.assertIn(None, named)
 
@@ -725,9 +688,6 @@ class TheGateBindsThePassToTheSpecKindTheWriterRecords(unittest.TestCase):
 
 QUEUE_CHECK = RESOLVER.parents[1] / "pr-merge/merge-holds.mjs"
 REQUIRE_CHECKS = RESOLVER.parents[2] / "workflows/pr-require-checks.yml"
-# The fields the queue check reads differ from the gate's `_origin` only in
-# its compare that main holds the run's head SHA, which the queue check skips
-# (main's ruleset forbids the force push that could drop it).
 HEAD_ONLY = {"head_sha"}
 
 
@@ -759,111 +719,14 @@ def queue_counts(runs: list[dict[str, Any]]) -> list[bool]:
 
 
 def queue_should_count(label: str) -> bool:
-    # Only the head SHA differs: the gate's compare decides, which the queue
-    # check skips.
     return set(RUNS[label]) <= HEAD_ONLY or gate_counts(
         gate.run(1, **RUNS[label]), "pass"
     )
 
 
-QUEUE_REF = "work-resolve-issue/issue-1"
-LOOKUP_STUBS = """\
-read_api() {
-  printf '%s\\n' "$2" >>"$RUNNER_TEMP/reads"
-  jq -ce --arg id "${2##*/}" '.[$id] // error' "$RUNNER_TEMP/runs.json"
-}
-: >"$RUNNER_TEMP/reads"
-: >"$RUNNER_TEMP/verdicts.jsonl"
-listed=true
-"""
-
-
-def queue_lookup_script() -> str:
-    """The merge-queue lines of ci-status's hold step that find the head's
-    pass, as the workflow holds them: the head-ref digest, the lookup by
-    exact name that stops at a counted pass, and the counted pass's
-    artifact."""
-    lines = REQUIRE_CHECKS.read_text(encoding="utf-8").splitlines()
-    start = lines.index("          verdicts=()")
-    body = lines[start : lines.index("          export BASE_SHA", start)]
-
-    def at(prefix: str, after: int = 0) -> int:
-        for n in range(after, len(body)):
-            if body[n].lstrip().startswith(prefix):
-                return n
-        raise AssertionError(f"no line starting {prefix!r} in the queue lookup")
-
-    digest = at("digest=$(")
-    names = at("pass_names=(")
-    names_end = next(n for n in range(names, len(body)) if body[n].rstrip().endswith(")"))
-    loop = at('[ "$listed" = false ] || for name in')
-    loop_end = body.index("            done", loop)
-    artifact = at("artifact=$(jq -sr")
-    artifact_end = at("and .repository.full_name == $repo", artifact)
-    return textwrap.dedent(
-        "\n".join(
-            [
-                body[digest],
-                *body[names : names_end + 1],
-                *body[loop : loop_end + 1],
-                *body[artifact : artifact_end + 1],
-            ]
-        )
-    )
-
-
-def listed(name: str, run: int, expired: bool = False) -> dict[str, Any]:
-    return {
-        "name": name,
-        "id": run * 10,
-        "expired": expired,
-        "workflow_run": {"id": run},
-    }
-
-
-def queue_lookup(
-    artifacts: list[dict[str, Any]], runs: dict[int, dict[str, Any]]
-) -> tuple[list[dict[str, Any]], str, int]:
-    """Run the lookup for PR 41 at the gate's head over `artifacts` as the
-    reader's listing, each run read answering `runs`. Returns the records it
-    kept, the counted pass's artifact id ('' for none) and its run reads."""
-    bash = merge_policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
-    if bash is None:
-        raise unittest.SkipTest("bash not installed")
-    for tool in ("jq", "sha256sum"):
-        if not shutil.which(tool):
-            raise unittest.SkipTest(f"{tool} not installed")
-    script = LOOKUP_STUBS + queue_lookup_script() + '\nprintf "%s\\n" "$artifact"\n'
-    with tempfile.TemporaryDirectory() as tmp:
-        temp = pathlib.Path(tmp)
-        (temp / "listing.json").write_text(json.dumps({"artifacts": artifacts}))
-        (temp / "runs.json").write_text(
-            json.dumps({str(k): v for k, v in runs.items()})
-        )
-        proc = subprocess.run(
-            [bash, "-e", "-c", script],
-            env={
-                **os.environ,
-                "RUNNER_TEMP": temp.as_posix(),
-                "BABYSIT_VERIFY_LISTING": (temp / "listing.json").as_posix(),
-                "GITHUB_REPOSITORY": gate.REPO,
-                "pr": str(gate.PR),
-                "head": gate.HEAD,
-                "ref": QUEUE_REF,
-            },
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        kept = (temp / "verdicts.jsonl").read_text().splitlines()
-        reads = (temp / "reads").read_text().splitlines()
-    return [json.loads(row) for row in kept], proc.stdout.strip(), len(reads)
-
-
 @unittest.skipUnless(shutil.which("node"), "node not installed")
 class TheQueueCheckAndTheGateAgree(unittest.TestCase):
-    """ci-status's merge-queue pass check (pr-require-checks.yml's lookup,
-    run here against stubbed run reads, and merge-holds.mjs verdictHold)
+    """ci-status's merge-queue pass check (merge-holds.mjs verdictHold)
     counts a pass from the runs the gate counts."""
 
     def test_a_pass_counts_from_the_same_runs(self) -> None:
@@ -875,66 +738,6 @@ class TheQueueCheckAndTheGateAgree(unittest.TestCase):
                 self.assertEqual(js, queue_should_count(label))
         self.assertIn(True, counted)
         self.assertIn(False, counted)
-
-    def test_the_lookup_allows_a_pass_from_the_runs_the_gate_counts(self) -> None:
-        name = f"pr-verify-{gate.PR}-{gate.HEAD}-pass"
-        looked = [
-            queue_lookup([listed(name, 1)], {1: gate.run(1, **overrides)})
-            for overrides in RUNS.values()
-        ]
-        allowed = queue_allows([kept for kept, _, _ in looked])
-        for label, (_, artifact, _), allows in zip(RUNS, looked, allowed, strict=True):
-            with self.subTest(label):
-                self.assertEqual(allows, queue_should_count(label))
-                self.assertEqual(artifact, "10" if allows else "")
-        self.assertIn(True, allowed)
-        self.assertIn(False, allowed)
-
-    def test_the_lookup_stops_only_at_a_pass_the_gate_counts(self) -> None:
-        # The run record under the first name, a counted pass under a later one.
-        first, later = (
-            f"pr-verify-{gate.PR}-{gate.HEAD}-{verdict}"
-            for verdict in ("pass", "pass-notes")
-        )
-        for label, overrides in RUNS.items():
-            with self.subTest(label):
-                _, artifact, reads = queue_lookup(
-                    [listed(first, 1), listed(later, 2)],
-                    {1: gate.run(1, **overrides), 2: gate.run(2)},
-                )
-                self.assertEqual(
-                    (artifact, reads),
-                    ("10", 1) if queue_should_count(label) else ("20", 2),
-                )
-
-    def test_the_lookup_takes_each_pass_name_and_no_other(self) -> None:
-        base = f"pr-verify-{gate.PR}-{gate.HEAD}"
-        digest = ve.head_ref_digest(QUEUE_REF)
-        names = {
-            f"{base}-pass": True,
-            f"{base}-pass-{digest}": True,
-            f"{base}-pass-notes": True,
-            f"{base}-pass-notes-{digest}": True,
-            f"{base}-pass-{ve.head_ref_digest('feat/x')}": False,
-            f"{base}-pass-i7": False,
-            f"{base}-fail": False,
-            f"pr-verify-{gate.PR}-{gate.EARLIER}-pass": False,
-            f"pr-verify-{gate.PR + 1}-{gate.HEAD}-pass": False,
-        }
-        looked = [queue_lookup([listed(name, 1)], {1: gate.run(1)}) for name in names]
-        allowed = queue_allows([kept for kept, _, _ in looked])
-        for (name, taken), (_, artifact, reads), allows in zip(
-            names.items(), looked, allowed, strict=True
-        ):
-            with self.subTest(name):
-                self.assertEqual(
-                    (allows, artifact, reads),
-                    (True, "10", 1) if taken else (False, "", 0),
-                )
-        expired = queue_lookup(
-            [listed(f"{base}-pass", 1, expired=True)], {1: gate.run(1)}
-        )
-        self.assertEqual(expired, ([], "", 0))
 
 
 class TheBodyNoteTokenIsTheVerifiersOwn(unittest.TestCase):

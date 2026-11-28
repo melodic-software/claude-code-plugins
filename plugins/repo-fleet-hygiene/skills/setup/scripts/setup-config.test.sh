@@ -18,7 +18,6 @@ CONF="$TMP/proj/.claude/repo-fleet-hygiene.conf"
 
 run() { bash "$SCRIPT" apply --config "$CONF" "$@" 2>&1; }
 
-# apply adds the name and creates the parent directory
 out="$(run --extend-skip third_party)"
 if [[ $? -eq 0 && "$(git config --file "$CONF" --get-all fleet.skipAppend)" == "third_party" ]]; then
   pass "apply adds the name and creates the config directory"
@@ -26,7 +25,6 @@ else
   fail "apply adds the name" "$out"
 fi
 
-# second identical run is idempotent
 before="$(cat "$CONF")"
 out="$(run --extend-skip third_party)"
 if [[ $? -eq 0 && "$(cat "$CONF")" == "$before" && "$out" == *"already configured"* ]]; then
@@ -35,7 +33,6 @@ else
   fail "second identical run is idempotent" "$out"
 fi
 
-# unrelated entries and comments survive
 printf '%s\n' '# keep this comment' '[fleet]' '  repo = ../keep-me' '  maxDepth = 4' \
   '[canonical "github.com/o/r"]' '  path = ../canon' >"$CONF"
 if run --extend-skip vendored --max-depth 6 >/dev/null && grep -Fq '# keep this comment' "$CONF" &&
@@ -47,7 +44,6 @@ else
   fail "unrelated entries and comments survive" "$(cat "$CONF")"
 fi
 
-# invalid input exits 2 and leaves the file byte-identical
 before="$(cat "$CONF")"
 bad_ok=1
 backslash=$'\\'
@@ -70,7 +66,6 @@ for args in "--max-depth 0" "--max-depth 13" "--max-depth x" "--root $TMP/missin
 done
 ((bad_ok)) && pass "invalid values exit 2 and leave the file byte-identical"
 
-# symlink target refused
 ln -s "$CONF" "$TMP/link.conf" 2>/dev/null
 if [[ -L "$TMP/link.conf" ]]; then
   before="$(cat "$CONF")"
@@ -84,7 +79,6 @@ else
   printf 'SKIP: symlink target: ln -s unavailable\n'
 fi
 
-# --skip and --extend-skip write different keys; --skip usage text says REPLACES
 rm -f "$CONF"
 out="$(run --skip only --extend-skip more)"
 usage_text="$(bash "$SCRIPT" 2>&1)"
@@ -96,7 +90,6 @@ else
   fail "--skip vs --extend-skip keys" "$out"
 fi
 
-# roots and repos are written relative to the config directory and deduplicated
 mkdir -p "$TMP/proj/fleet"
 git -C "$TMP" init -q -b main "$TMP/proj/repo1"
 run --root "$TMP/proj/fleet" --repo "$TMP/proj/repo1" >/dev/null
@@ -108,12 +101,20 @@ else
   fail "root and repo entries are written once" "$(cat "$CONF")"
 fi
 
-# no arguments is an error, not a silent empty write
 out="$(run)"
 if [[ $? -eq 2 ]]; then
   pass "apply with nothing to write exits 2"
 else
   fail "apply with nothing to write exits 2" "$out"
+fi
+
+ph_dir="$TMP/ph-cwd"
+mkdir -p "$ph_dir"
+out="$(cd "$ph_dir" && CLAUDE_PROJECT_DIR='${CLAUDE_PROJECT_DIR}' bash "$SCRIPT" apply --extend-skip ph_skip 2>&1)"
+if [[ $? -eq 0 && -f "$ph_dir/.claude/repo-fleet-hygiene.conf" && ! -e "$ph_dir/\${CLAUDE_PROJECT_DIR}" ]]; then
+  pass "literal \${CLAUDE_PROJECT_DIR} falls back to cwd instead of creating a placeholder dir"
+else
+  fail "literal \${CLAUDE_PROJECT_DIR} falls back to cwd" "$out"
 fi
 
 if [[ $FAILED -ne 0 ]]; then

@@ -47,60 +47,73 @@ file puts them, and it removes the retyping error that a per-step transcript inv
 What the model still owns, because the script cannot:
 
 - **The `install_new` policy.** The `user_config.install_new` placeholder substitutes only when Claude Code
-  renders SKILL.md; a `context/*.md` spoke is read raw. SKILL.md's "Configured value" line is the
-  rendered value, and the model passes it as `--install-new`. On `ask` with a non-empty install gap
-  the script reports the gap and stops before Step 4, because only the model can run the chunked
-  prompt; it then re-enters with `--only-install <ids> --run-dir <the digest's run_dir>`, which
+  renders SKILL.md; a `context/*.md` spoke is read raw. SKILL.md's command carries the token,
+  single-quoted, as `--install-new`, so it arrives rendered; the script reads the option's own
+  unrendered token as the default `ask`. On `ask` with a non-empty install gap
+  the script reports the gap and its `install_offer` question groups and stops before Step 4,
+  because only the model can ask them; it then re-enters with `--only-install <ids> --run-dir <the digest's run_dir>`, which
   performs Step 4, Step 5, and, when this pass skipped it, Step 5b against the same run journal
   and re-emits the digest.
 - **The pull offer.** The `directory_source_pull` and `quiet_auto_update_marketplaces` values
-  render in SKILL.md the same way, and the model passes them as `--source-pull` and
-  `--quiet-auto-update`. Only the model can ask the user, so a checkout the digest marks
+  render in SKILL.md the same way, and the model passes them, token or word, as `--source-pull`
+  and `--quiet-auto-update`. Only the model can ask the user, so a checkout the digest marks
   `offered` is asked about there, and a yes reruns with `--pull-source`; see Step 1's
   "Directory-source fast-forward".
 - **The journal root.** `${CLAUDE_PLUGIN_DATA}` substitutes in SKILL.md and not here, so SKILL.md
   passes the substituted path as `--journal-root`.
-- **The reload guidance.** Step 6's report is rendered by the script too (`render-report.jq`
-  over the digest, printed under `--render` and written to `<run_dir>/report.txt`); the model
-  appends the reload guidance SKILL.md's Report section fixes and answers questions.
 
-The digest carries, per marketplace: the refresh result, `project_root`, the marketplace's
-`auto_update` and `catalog_source`, `source_checkout` for a `directory` source (branch, upstream,
-ahead/behind as of the checkout's last fetch, modified tracked files; `null` for any other source
-kind; the script fetches or pulls that checkout only on a `--pull-source` request, because the
-user owns it), `source_pull` (what the run did or would do with a behind checkout: offered,
-skipped, refused, pulled or failed, with the reason, and the commits for a pull; see Step 1's
-"Directory-source fast-forward"), the in-repo and user-scope sweep outcomes with each pair's
-direction, withheld downgrades, the install and enable gaps, what was installed and enabled, the
-installs whose CLI output named userConfig options left unset
-(`installed_with_unset_user_config[]`, one `{id, options_unset, required}` each), the ids whose
-install output said the plugin is disabled by default and that this run did not then enable
-(`installed_disabled[]`), the user-scope
-installs the catalog's names no longer carry (`delisted[]`), the same for installs in the repo the
-run stands in (`delisted_project[]`, one `{id, scope}` each), the effective `true` `enabledPlugins`
-keys with no install record that those names no longer carry (`delisted_settings_only[]`; a
-catalog with an empty `plugins` array produces none of the three), the project-scope enable rows, the normalizer result, the cache-content counts and stale ids with the scope they cover (`cache_content.scope`, always `user`), the catalog regression
-interval, the three-snapshot divergence split, the ids that moved during the run under an update
-call that reported them current (`moved_during_run[]`, with `noop_unverified` counting the
-already-current answers the snapshots could not confirm), whether this plugin itself moved, the
-moved plugins whose installed build declares a monitor (`updated_with_monitors[]`, one
-`{id, scope, monitors}` each, read from the record's own cache directory in the post-sweep
-snapshot), `catalog_last_updated` (the marketplace's `lastUpdated` as Step 2's `pre.<mp>.json` read
-it, after Step 1's refresh, on the first pass and on an `--only-install` re-entry alike; a
-skipped refresh leaves the last refresh's stamp, and a
-background refresh can move the stamp again later in the run, so it dates the catalog as of
-Step 2, not every read), and `timings`: seconds to three decimals for
-`pre_refresh_read`, `marketplace_update`, `in_repo_update`, `other_paths` (Step 3a and the mid
-read that selects its records), `user_sweep`, `pre_install_read` (the
-Steps 4 and 5 gate read, taken on every pass), `install_enable`, `cache_content_check`,
-`post_read`, `finalize` (version capture, the divergence and regression diffs, and the monitor
-count that build the block), `unattributed` (the rest of the block's time, between and around those
-steps), and the marketplace's `total`, which those keys sum to, with `resolution` naming the
-clock that produced them (`microseconds` from bash's `EPOCHREALTIME`, `nanoseconds` from a
-validated `date +%s.%N`, else `seconds`). On the default-marketplace path the block's window opens
-at the resolving read, which is that marketplace's `pre_refresh_read`. A step this invocation did
-not run, because `audit` predicted it, the policy stopped before Step 4, or an `--only-install`
-re-entry reuses the first pass's result, reads `null`, never 0. The digest's top-level
+Step 6's report is rendered by the script too (`render-report.jq` over the digest, printed under
+`--render` and written to `<run_dir>/report.txt`), reload guidance included; the model pastes it
+and answers questions.
+
+`scripts/digest-contract.json` declares every run-level and per-marketplace digest field with its
+default, and the script builds each block and the run object on it, so a field a run did not
+compute carries its default and is never absent. What the fields mean, where it is not plain from
+the name:
+
+- `digest_version` names the digest shape. `render-report.jq` formats only the contract's
+  version; a digest of any other version, or one without the field, renders one line pointing at
+  the `report.txt` its own run wrote. A change to the shape the renderer reads bumps it.
+- `source_checkout` describes a `directory` source as of the checkout's last fetch and is `null`
+  for any other source kind. The script fetches or pulls that checkout only on a `--pull-source`
+  request, because the user owns it; `source_pull` says what the run did or would do with a behind
+  checkout (see Step 1's "Directory-source fast-forward").
+- `delisted[]`, `delisted_project[]` and `delisted_settings_only[]` name installs and effective
+  `true` `enabledPlugins` keys the catalog no longer carries; a catalog with an empty `plugins`
+  array produces none of them.
+- A row that reports one CLI call (`refresh`, `installed[]`, `enabled[]`, every `would_update[]`,
+  and an `in_repo` or `user_sweep` `failed[]` row whose call ran) carries that call's outcome: `label` (the command as the journal records it),
+  `rc`, `output` and `predicted` (the contract's `shapes.call`). In `audit` every call is a predicted row, `rc` `null`, and the
+  report prints its `label` after `would run:`.
+- Each block's and the run's `verdict` holds the report's classified facts, from
+  `scripts/verdict.jq`, the classify step `render-report.jq` formats. A block's: `status`
+  (`needs_update`, `source_behind` or `current`), `pending` and one `pending_kinds[]` entry per
+  pending action, `changed`, `reload` (see Step 6), `actions[]` (each `Action needed` item as `{kind, lines}`), the
+  `installed` and `enabled` outcomes, and `installed_disabled[]`, the ids whose install output said
+  the plugin is disabled by default and that this run did not then enable. The run's: `result` (the
+  `Result:` line's kind), `action_count`, `reload` and its own `actions[]`.
+- `moved_during_run[]` holds ids that moved under an update call that reported them current, and
+  `noop_unverified` counts the already-current answers the snapshots could not confirm.
+- `updated_with_monitors[]` is read from each moved record's own cache directory in the post-sweep
+  snapshot.
+- `catalog_last_updated` is the marketplace's `lastUpdated` as Step 2's `pre.<mp>.json` read it,
+  after Step 1's refresh, on the first pass and on an `--only-install` re-entry alike. A skipped
+  refresh leaves the last refresh's stamp, and a background refresh can move it again later in the
+  run, so it dates the catalog as of Step 2, not every read.
+
+`scripts/steps.json` is the ordered step table the script runs each marketplace through: each row's
+`name` is its `timings` key, `modes` the passes it runs in (`sync`, `audit`, `reentry` for an
+`--only-install` re-entry), `stop_on_failed_read` whether a failed fleet-state read in it ends the
+block there, `window` whether its clock closes with the step or when the block is assembled, and
+`covers` what its time includes. `timings` holds seconds to three decimals for each row, in table
+order, then `unattributed` (the rest of the block's time, between and around those steps) and the
+marketplace's `total`, which those keys sum to, with `resolution` naming the clock that produced
+them (`microseconds` from bash's `EPOCHREALTIME`, `nanoseconds` from a validated `date +%s.%N`,
+else `seconds`). On the default-marketplace path the block's window opens at the resolving read,
+which is that marketplace's `pre_refresh_read`. A step this invocation did not run, because its
+mode leaves it out, `audit` predicted it, the policy stopped before Step 4, or an `--only-install`
+re-entry reuses the first pass's result, reads `null`, never 0; a step whose read failed and ended
+the block is timed. The digest's top-level
 `timings.total` times the run from its start until the digest is about to be assembled (so it
 excludes the digest's own assembly, the render and the print), and `timings.outside_marketplaces`
 is the part of it no block's window covers (run setup and each block's assembly into the digest).
@@ -108,20 +121,29 @@ Each block's `cli` is `{calls, seconds}`: how many journaled `claude` calls this
 the marketplace and their summed wall time, so `timings.total` minus `cli.seconds` is the script's
 own time. `journal.log` records each call's time on the line after its output, as
 `# elapsed <seconds>s, exit <rc>`.
-An `--only-install` re-entry times both passes: the first pass saves its run timings to
-`first-pass-run.json` in the run directory, and the re-entry's `timings.total` and
-`timings.outside_marketplaces` sum the two passes, `timings.resolution` is the coarser of their
-clocks, and `timings.passes[]` holds each pass's own `{pass, total, outside_marketplaces,
-resolution}` (`first`, then `only_install`). The wait between the passes is in neither, and the
-report's run `Timing:` row names both passes and says the wait is not counted. The blocks still
-time only the re-entry, so on a re-entry the block totals plus `outside_marketplaces` fall short
-of `timings.total` by the first pass's block time. Only the first pass writes the file, so a
-second re-entry reports the first pass and itself, and the earlier re-entry's time is in neither.
-A run directory with no `first-pass-run.json` (an older version's) times the re-entry alone. The
-re-entry also reads `install_new` and `install_new_invalid` back from `flags.json`, so an invalid
-policy value the first pass named is still named in the digest and report that supersede it. The
-digest's `cwd` is what the `In-repo:` row names when no
-project root resolved. Ids and counts only: the per-file cache detail and every snapshot stay in
+A sync first pass writes its run record, `run.json`, to the run directory; `scripts/run-record.json`
+declares its fields. The run-level fields are the flags the pass ran with (`--allow-downgrade`,
+`--install-new`, `--source-pull`, `--quiet-auto-update`, `--update-other-paths`, the invalid values
+named and why the pull policy is off) and its run timings. Each marketplace's entry holds its
+errors, failed in-repo and user-sweep rows, withheld downgrades, refresh outcome, source pull,
+`catalog_last_updated`, `project_root`, `install_held` and `other_paths`. An `--only-install`
+re-entry restores every declared field whole, so its digest and report carry the first pass's flags
+and rows, an invalid policy value included; with `CLAUDE_CODE_REMOTE` set it then forces the pull
+policy off again. A missing or unreadable `run.json`, or one lacking a declared field, is a run
+error in the digest and report, and that re-entry runs on its own flags and the defaults; a
+marketplace the record has no entry for gets a block error. Only the first pass writes the record,
+so a second re-entry restores the first pass again.
+
+A re-entry times both passes: its `timings.total` and `timings.outside_marketplaces` sum the first
+pass's recorded timings and its own, `timings.resolution` is the coarser of their clocks, and
+`timings.passes[]` holds each pass's own `{pass, total, outside_marketplaces, resolution}`
+(`first`, then `only_install`). The wait between the passes is in neither, and the report's `Run`
+footer times both passes and says the wait is not counted. The blocks still time only the
+re-entry, so on a re-entry the block totals plus `outside_marketplaces` fall short of
+`timings.total` by the first pass's block time, and a second re-entry reports the first pass and
+itself, the earlier re-entry's time in neither. The digest's `cwd` is what the `in-repo:` row names when no
+project root resolved, and `home` is the `$HOME` the run saw (`null` when unset): the render prints a
+path under exactly that prefix from `~`, and never shortens a path inside a command. Ids and counts only: the per-file cache detail and every snapshot stay in
 the run directory, which the digest names.
 
 ## Concurrency
@@ -137,7 +159,7 @@ steps. Inside a step, the loop body is deliberately snapshot-driven: Step 3 read
 and then issues one `claude plugin update` per line. That is the intended design, not a violation of
 the rule above. Re-reading state before each of sixty-odd calls would not close the race: an
 external writer can still land between the read and the call, and the lost write is silent. The
-step-boundary snapshots (`mid` and `post`, and the `Moved during this run:` row the gotchas
+step-boundary snapshots (`mid` and `post`, and the `moved during this run:` row the gotchas
 Concurrency section points to) are what detect it.
 
 A re-read whose inputs did not change reuses the last report instead of running `fleet-state.sh`
@@ -147,11 +169,12 @@ path makes the read run again. A report is stored only from a read with an earli
 compare against, whose list and fingerprint match before and after it, and whose present inputs
 all have an mtime and ctime more than 2 s before it started (`SYNC_FLEET_STATE_STORE_MARGIN_S` overrides the 2 s with a whole
 number of seconds, up to 6 digits), so the first read in a run directory is never stored. The reuse holds within one invocation and into an `--only-install` re-entry run
-from the same directory and environment. `journal.log` records each read as
+from the same directory and environment: `fleet-state.sh --fingerprint` names the environment
+inputs, including the project root `git rev-parse` resolves when `CLAUDE_PROJECT_DIR` is unset,
+and a changed one runs the read again. `journal.log` records each read as
 `# fleet-state read <step>: elapsed <seconds>s, exit <rc>, ...` and each reuse as
 `# fleet-state reuse <step>: inputs unchanged since the <step> read`. The fingerprint does not
-cover the project root `git rev-parse` resolves when `CLAUDE_PROJECT_DIR` is unset, or the
-`realpath` check that a catalog manifest sits inside its checkout.
+cover the `realpath` check that a catalog manifest sits inside its checkout.
 
 **The CLI's text cannot tell that race from a true no-op, but the run's snapshots can.** An id the
 CLI reports "already at the latest version (X)" is consistent with both a plugin that was current and
@@ -170,7 +193,7 @@ pre-mutation snapshot's version (`pre.<mp>.json` for Step 2, `mid.<mp>.json` for
 A moved row is `{id, scope, kind, old, new, direction}` in the digest's `moved_during_run[]`, with
 `new` the post version and `direction` from the same triple compare Updated rows use. The report says
 the id moved during this run "by something other than this run's update calls": the snapshots show
-that it moved, not who moved it, so no row names a process. The row is not an `Updated:` row, because
+that it moved, not who moved it, so no row names a process. The row is not an `updated:` row, because
 this run's call changed nothing. A backward move is also in `downgraded[]`, flagged `concurrent: true`,
 and the report qualifies it `(moved during this run)`. The row feeds the self-update check and the
 monitor count like an updated row, and the divergence split credits it separately. `noop_unverified`
@@ -200,7 +223,7 @@ reads as success.
 
 **The opt-in is explicit: the `--allow-downgrade` argument to `sync`.** Without it, Step 3 leaves
 every downgrade candidate untouched and reports it under `Action needed`. With it, Step 3 acts on
-them and their outcomes render under `Downgraded:`, never under `Updated:`.
+them and their outcomes render under `downgraded:`, never under `updated:`.
 
 **Name the likely cause in the report: a marketplace source that moved backward.** A `directory`
 source whose checkout is parked on an old branch, or a git source that was force-pushed or
@@ -210,7 +233,7 @@ where the rollback is what the operator actually wants.
 
 ## Version capture for the report
 
-SKILL.md's report requires `- <id>@<marketplace> (<scope>): <old> -> <new>` for every updated plugin, so both
+The report names every updated plugin with its old and new version, so both
 values have to be collected while the sweep runs. Neither can be reconstructed afterward.
 
 **Retain the pre-sweep `fleet-state.sh` output for the whole run.** It is the sole source of every
@@ -245,14 +268,24 @@ first. It found none for how many of them are required or for a disabled-by-defa
 `sync-run.sh` reads those from the message (`unset_user_config_of`, `install_disabled_notice`). The
 shapes it matches live only in the script and its probe evidence, never here.
 
+- **Claim**: `claude plugin update --json` prints `updateOutcome` (`updated`, `up_to_date`),
+  `oldVersion` and `newVersion`; install and update print `outcome` (`ok`, `failed`), `message`
+  and, on failure, `failureCode`. Install adds `unsetOptionCount` (only when an option is unset) and
+  `configApplied` (only with `--config`). No field gives the required count or a disabled-by-default
+  install.
+- **Basis**: attended probes on Claude Code 2.1.310 and 2.1.330, recorded in
+  `scripts/fixtures/cli-json-results.jsonl`;
+  [JSON result format](https://code.claude.com/docs/en/plugins/cli-reference#plugin-json-result).
+- **As of**: 2026-11-22
+- **Recheck trigger**: a Claude Code release adds a field for the required count or the
+  disabled-by-default sentence, renames `unsetOptionCount`, or changes `updateOutcome`'s values.
 - **Pointer**: when either classifier misses, compare a fresh `claude plugin install --json`
-  result with the probe rows in `scripts/fixtures/cli-json-results.jsonl` and the `cli_json`
-  basis comment in `scripts/sync-run.sh`.
+  result with the probe rows in `scripts/fixtures/cli-json-results.jsonl` and the claim above.
 
 An up-to-date result is not a source for `<new>`: this run's call
 changed nothing. It is the cross-check the "Concurrency" section's table uses against source 3, so
 an already-current id whose post version differs from `<old>` is reported as moved during the run,
-never dropped and never filed under `Updated:`.
+never dropped and never filed under `updated:`.
 
 One data point, not a license to drop the fallback: on Claude Code 2.1.228 a 63-plugin user-scope
 sweep had all 21 CLI-reported updates already reflected in a post-sweep `fleet-state.sh` re-read, so
@@ -266,7 +299,7 @@ Every `sync` run keeps its own directory on disk, so Step 6 reads what happened 
 reconstructing it from conversation. Nothing in the report then depends on the transcript surviving
 a compaction, and `converge` or a later audit gets a real before-state.
 
-`fleet-state.sh` does not write it. It stays the read-only inspector its own header advertises.
+`fleet-state.sh` does not write it. It stays a read-only inspector.
 The journal is agent-executed shell around the calls the algorithm already makes.
 
 **The journal is durable across `sync` runs and session restarts, but not across the removal of its
@@ -311,10 +344,12 @@ Then, for the rest of the run:
   occupies in `sync`; the code is in `sync-run.sh` rather than restated here. It is a read, so `audit`
   saves it too, into that run's scratch directory.
 
-- **Catalog regression check.** Step 6 diffs `catalog_versions` across every consecutive saved
-  snapshot for the marketplace, `pre-refresh` then `pre` then `mid` then `post`, and reports the
-  first interval in which any id's catalog version moved backward. Both actions have all four
-  snapshots, so both have the full chain. That interval is the signal that names the cause: in
+- **Catalog regression check.** Step 6 diffs `catalog_versions` across every two consecutive
+  snapshots the run saved for the marketplace, in the read order `steps.json`'s `snapshot` fields
+  declare (`scripts/snapshot-ledger.sh` resolves them, and every other reader of these files goes
+  through it), and reports the first interval in which any id's catalog version moved backward. A
+  read the run did not take is bridged, so the chain covers every read taken. That interval is the
+  signal that names the cause: in
   `sync` a regression across the `pre-refresh` to `pre` boundary is the Step 1 refresh pulling a
   source that moved backward, while one appearing later is the checkout changing under the run. In
   `audit` no refresh runs, and in `sync` a skipped refresh (`refresh.skipped` set) pulls nothing,
@@ -325,7 +360,7 @@ Then, for the rest of the run:
 
   The script runs the triple compare per consecutive pair, stops at the first pair that finds a
   backward move, and reports that interval and its rows in the digest's `catalog_regression`.
-  Emit SKILL.md's `Catalog regression:` line from it; report nothing when the field is null.
+  The render's `catalog regression:` row reads it and is absent when the field is null.
 - **Append every mutating CLI call and its output** to `$run_dir/journal.log` as it runs, so the
   `<new>` values that only the CLI reports survive the step that produced them:
 
@@ -469,7 +504,7 @@ when the source carries no key beyond `source`, `repo`, `url`, `ref` and `path`,
 is the clone's root, its `origin` is the recorded source, `git status` lists no modified or
 untracked file, a pinned ref is the checked-out branch, and the remote answers with the clone's
 HEAD. The
-journal and a `refresh skipped` row under the marketplace header say so, the digest's
+journal and a `refresh: skipped` row in the marketplace block say so, the digest's
 `refresh.skipped` holds `{head, ref}` with `refresh.rc` null, and `lastUpdated` keeps the last
 refresh's stamp. Every other case runs the refresh: another source kind, a pinned ref that is a tag
 or a different branch, an unreachable remote, or one that asks for a credential, since prompts are
@@ -522,8 +557,8 @@ is current with its source, nothing else: a current catalog can still read lower
 installed, because the source itself can have moved backward. The downgrade guard applies on every
 run, refreshed or not.
 
-The report says so rather than claiming the marketplace is current: its header reads `needs
-update`, a `refresh failed (exit <N>): <reason>` line sits under it, and `Action needed` carries
+The report says so rather than claiming the marketplace is current: its `status:` row reads `needs
+update`, a `refresh: failed (exit <N>): <reason>` row sits under it, and `Action needed` carries
 the error, which says the catalog may be stale and install/enable maintenance is deferred. The
 update sweep ran guarded, so its already-current ids are a lower bound. Do not
 delete, rename, or re-clone the marketplace directory to work around it. That is cache surgery
@@ -555,11 +590,8 @@ only after the user said yes to the offer.
 - **After a pull.** The refresh runs against the fast-forwarded checkout, so Steps 2 through 5b see
   the newer catalog, and the `source:` row names the commits it moved from and to. Its time is in
   the block's `marketplace_update` timing.
-- **Never in an autonomous or ambiguous session.** No human can answer the offer there, so a
-  session with `CLAUDE_CODE_REMOTE` set, or one invoked via `/loop` or `/schedule`, or one where it
-  is unclear a human is present, never asks and never pulls: the model passes `--source-pull
-  never`, and the script treats a set `CLAUDE_CODE_REMOTE` as `never` on its own. This is the test
-  `converge` applies before touching anything ([converge.md](converge.md)).
+- **Never on a session that fails the autonomy test** (SKILL.md, "The autonomy test"): the model
+  passes `--source-pull never`, so nothing is asked or pulled.
 - **`audit`** offers nothing and refuses `--pull-source` as a usage error: it changes nothing.
 
 ## Step 2: In-repo update (the primary value path)
@@ -578,10 +610,9 @@ report. They are categorically different answers and the user cannot tell them a
 
 - **`project_root` is `null`**: no project root resolved (a run from `$HOME`, or from a non-git
   directory with no `.claude` of its own). Nothing in-repo can be updated because there is no
-  "here". Emit the skipped `In-repo:` row from SKILL.md's Report section, naming the cwd, and go to
-  Step 3. Do **not** report this as "0 updated".
+  "here". The render's skipped `in-repo:` row names the cwd, and the run goes to Step 3. Do **not** report this as "0 updated".
 - **`project_root` is a path and no record carries `currentProject: true`**: a project resolved and
-  it simply has no project/local-scope installs. Emit the `In-repo:` row as `0` **for that root**,
+  it simply has no project/local-scope installs. Emit the `in-repo:` row as `0` **for that root**,
   which is an honest zero rather than an absent step.
 - **`project_root` is a path and records carry `currentProject: true`**: the success path below.
 
@@ -667,8 +698,8 @@ this step only; an `--allow-downgrade` project/local rollback is not compared.
 Off by default, because it makes one serial CLI call per lagging record, which on a machine with
 many checkouts runs to tens of minutes. The calls stay serial, on the sandbox probe recorded in
 [#12525](https://github.com/melodic-software/claude-code-plugins/issues/12525).
-Off, the step makes no call and renders `Behind in other paths:` with the count and the remedy; those
-records are not counted for `converge`, and a user-home one leaves the `User-home project records` row.
+Off, the step makes no call and renders `behind in other paths:` with the count and the remedy; those
+records are not counted for `converge`, and a user-home one leaves the `user-home project records:` row.
 
 Step 2 covers the repo the run stands in. With `--update-other-paths`, right after the mid read and
 before the user-scope sweep, `sync-run.sh` takes the project/local records of every other path that is
@@ -676,7 +707,8 @@ present, a user home and a linked worktree included, and runs `claude plugin upd
 --json` from that path (`-s project` and `-s local` have no path flag). It is forward-only, unlike Step 2: a record is
 called only when its version and the catalog's both parse and the record is below. A record with no
 readable catalog version, one at or above the catalog, and one in an absent path take no call;
-absent paths stay in the stale project records section.
+absent paths stay in the stale project records section. The records come from
+`--ids update-candidates-other-paths` projected off `mid.<mp>.json`.
 
 The step does not rest on `update` leaving the settings files alone (the record for that is in
 [scope-semantics.md](scope-semantics.md#a-projectpath-that-is-a-user-home-directory)); it checks: before the first call in a path and after each call it takes `git status --porcelain --
@@ -686,12 +718,19 @@ The step does not rest on `update` leaving the settings files alone (the record 
 that path is reported as not tried.
 
 After the post read, each called record is read back by id, scope and path. A record that moved
-forward renders under `Updated in other paths:`. One left behind in a linked worktree or a user home
-renders under `Not moved in other paths:` with its label; the worktree keeps its divergence class and
-the home stays in the `User-home project records` row. Any other record left behind, a failed call,
+forward renders under `updated in other paths:`. One left behind in a linked worktree or a user home
+renders under `not moved in other paths:` with its label; the worktree keeps its divergence class and
+the home stays in the `user-home project records:` row. Any other record left behind, a failed call,
 and a stopped path go under `Action needed`. With the flag, audit runs no call and lists `Would update
-in other paths:`. The digest field is `other_paths`; its shape is in `sync-run.sh`'s header.
-`Catalog moved during this run:` names a catalog that changed between the pre and post reads, since a
+in other paths:`. The digest field is `other_paths`:
+`{updated, failed, not_moved, would_update, skipped, catalog_moved}`. `updated[]` is
+`{id, scope, path, old, new}`, `would_update[]` (audit) is `{id, scope, path, old, catalog}`,
+`not_moved[]` is `{id, scope, path, version, catalog, label}`, and `failed[]` is
+`{id, scope, path, reason, stopped}`, `stopped` true for the call after which the path's
+`.claude/` settings changed. Without the flag, `skipped` is `{records, paths}` and no call is
+made. `catalog_moved` counts the plugins whose catalog version changed between the pre and post
+reads.
+`catalog moved during this run:` names a catalog that changed between the pre and post reads, since a
 long run can leave records on different versions. Each CLI call's duration is in the journal.
 
 ## Step 3: User-scope update sweep
@@ -713,14 +752,14 @@ an id current, and what each does:
   `marketplace.lastUpdated`:
 
   ```text
-  Would update: <N> plugin(s) (lower bound, predicted against a catalog last refreshed
-    <lastUpdated>, which `audit` does not refresh; `sync` refreshes first and may find more)
-  Would withhold: <N> downgrade(s) (the catalog reads lower than what is installed; `sync`
-    reports these under Action needed unless it is run with --allow-downgrade)
+  would update:    <N> plugin(s)
+  would withhold:  <N> downgrade(s)
   ```
 
-  The withheld count comes from `--ids downgrade-candidates`, projected off the same saved report
-  as the `Would update` count. Print it whenever it is non-zero: a prediction that names only what
+  The marketplace block's `refresh:` row names the `lastUpdated` the prediction ran against and
+  calls it a lower bound; `sync` reports a withheld downgrade under Action needed unless it is run
+  with --allow-downgrade. The withheld count comes from `--ids downgrade-candidates`, projected off
+  the same saved report as the `would update` count. Print it whenever it is non-zero: a prediction that names only what
   would move forward hides the direction problem the guard exists to surface.
 
   Never present an `audit` prediction of zero as "the fleet is current": it means "nothing is
@@ -753,10 +792,10 @@ across user scope and this repo's in-repo records both, so it covers what Step 2
 as well as Step 3's. What happens to it is the operator's call, not this step's:
 
 - **`--allow-downgrade` was not given.** Do not touch them. Report each under `Action needed` with
-  both versions and the likely cause, per SKILL.md's `downgrade withheld:` row.
+  both versions and the likely cause, as the render's `would withhold:` row prints it.
 - **`--allow-downgrade` was given.** Loop them too, taking `-s <scope>` from field 2 the way Step 2
   takes it off its own line, journaled through the same `tee` plus `PIPESTATUS[0]` shape as every
-  other mutating call. Their outcomes render under `Downgraded:`, never under `Updated:`, whatever
+  other mutating call. Their outcomes render under `downgraded:`, never under `updated:`, whatever
   the CLI's own line calls them. The digest carries them in `downgraded`, which is a separate array
   from `user_sweep.updated` for exactly that reason.
 
@@ -839,11 +878,12 @@ the user-scope `enabledPlugins` map, so `pre-install.<mp>.json` is stale by the 
 cannot stand in for `pre-enable.<mp>.json`. The two are never collapsed.
 
 **Step 4 stops for the `ask` policy.** When `install_new` renders as `ask` and the install gap is
-non-empty, the script reports the gap and issues no install: the chunked prompt belongs to the
-model, which runs it and re-enters with `--only-install <the chosen ids>` against the same run
+non-empty, the script reports the gap, groups it into `install_offer`'s questions, and issues no
+install: the prompt belongs to the model, which asks those questions and re-enters with `--only-install <the chosen ids>` against the same run
 directory. The digest says so in `stopped_before_install`, so a gap left unresolved is a reported
-state rather than a silent skip. Under `all` the gap is installed; under `none` it is reported and
-Step 5 still runs.
+state rather than a silent skip. Under `all` the gap is installed, except under `--all`, where the
+script stops the same way and sets `install_held: "all-target"` (kept on the re-entry's blocks);
+under `none` it is reported and Step 5 still runs.
 
 - **Step 4: install new catalog plugins.** Installs the `missing_from_user_install` ids at `user`
   scope per the configured `install_new` policy, then normalizes the user-scope `enabledPlugins`
@@ -893,8 +933,8 @@ that could not be produced, never a second pass beside a JSON that was.
 directory removal under Claude Code's own plugin cache, which is outside the boundary the rest of
 this skill keeps: `sync` mutates only through documented `claude plugin` CLI calls, and no CLI verb
 rewrites a cache directory whose version number has not moved. So both actions report the ids and
-the remediation and stop. Emit SKILL.md's `Cache content:` row, and omit it entirely when the check
-found nothing.
+the remediation and stop. The render's `cache content:` row carries them, and is absent when the
+check found nothing.
 
 The check compares only installs recorded at the marketplace clone's HEAD. It never fetches a
 commit, since that would be a network mutation and would repair the very condition being reported,
@@ -908,28 +948,26 @@ very little; say so rather than leading with the match count.
 The script renders the report from the digest (`render-report.jq`), filling each updated plugin's
 `<old> -> <new>` from the sources the "Version capture for the report" section above fixes. The
 digest carries them, resolved from the run journal rather than from memory of the run, and the run
-directory it names holds every snapshot behind them. The paragraphs below state what the render
-does with each field and why, so a reader can check a rendered row against the field it came from;
-the model's one addition is the reload guidance at the end. The layout (the `Result:` verdict, one
-fact per line, a `remedy:` line under the fact it fixes) is SKILL.md's Report section. The reasons
-behind a row stay in these files and out of the render, so a clean run prints none of them.
+directory it names holds every snapshot behind them. The paragraphs below state which field each
+row reads and why the row exists; the exact text of every row and variant is the goldens' under
+`scripts/fixtures/render/`, and the model adds nothing. The reasons behind a row stay in these files and out of the render, so a clean run prints none of them.
 
 **Every `<old> -> <new>` pair reaches the report already classified by direction.** Apply the same triple
 compare the guard uses, reading each numeric segment in base 10: a pair whose new version is higher, or whose direction the compare cannot
-read, goes under `Updated:`, with an unreadable one flagged `(direction unknown)`; a pair whose new
-version is lower goes under `Downgraded:`. A pair whose two versions differ as strings but whose
-triples tie, `1.2.3` to `1.2.3-beta`, goes under `Updated:` flagged `(direction unknown)` too,
+read, goes under `updated:`, with an unreadable one flagged `(direction unknown)`; a pair whose new
+version is lower goes under `downgraded:`. A pair whose two versions differ as strings but whose
+triples tie, `1.2.3` to `1.2.3-beta`, goes under `updated:` flagged `(direction unknown)` too,
 because the compare cannot rank suffixes. This classification is what makes a backward move
-unprintable as `Updated:` for the ids that still reach the CLI on the guard's fail-open path, the
+unprintable as `updated:` for the ids that still reach the CLI on the guard's fail-open path, the
 ones whose catalog version was null or unparsable and so could never be proven a downgrade in
 advance. The guard withholds what it can prove; this classification catches what only the outcome
 reveals. In the digest that is the split between each block's `updated` arrays, whose rows carry
 `direction`, and its `downgraded` array.
-The same classification governs the `In-repo:` count: it counts forward moves only, and an in-repo
-record that moved backward renders under `Downgraded:` with its scope instead of being counted
+The same classification governs the `in-repo:` count: it counts forward moves only, and an in-repo
+record that moved backward renders under `downgraded:` with its scope instead of being counted
 there.
 
-**Report the catalog regression check.** Emit SKILL.md's `Catalog regression:` line for the first
+**Report the catalog regression check.** The render's `catalog regression:` row names the first
 snapshot interval in which any id's catalog version moved backward, from the digest's
 `catalog_regression` field that `sync-run.sh` computes (see the "Run journal" section). It is the signal that names the cause behind every withheld downgrade, so it belongs in the
 report even when `--allow-downgrade` moved them anyway.
@@ -956,17 +994,13 @@ are the per-marketplace loop body, so a three-marketplace run leaves three `pre.
 marketplace against that marketplace's own three snapshots; a cross-marketplace diff compares
 unrelated fleets.
 
-Report the split as indented lines under the count it sums to, one count per line:
-`<N-M> pre-existing`, then `<M> newly created by this run`, and under that, when `<M>` is above
-zero, `<a> by the in-repo update` and `<b> by the user-scope sweep`. A new divergence on an id the
+The render shows the split under the count it sums to: the pre-existing part, the part this run
+created, and, only when the run created any, that part split by step. A new divergence on an id the
 run's snapshots show moved during the run (`moved_during_run[]`, see "Concurrency") is attributed
-to neither step: a third line under `<M>`, `<c> moved during this run, cause unattributed`, appears
-when `<c>` is above zero, and the three parts sum to `<M>`. The total, the pre-existing count and
-the `converge` remedy do not change. For a digest written before the class split below, the row
-reads `Divergences: <N> actionable`. When a project root resolved, it reads `Divergences: <N>
-actionable on this whole machine` with `<here> behind here` as its first line, because `<N>`
-counts every repo's divergences and the here-count is a part of it, not a separate remainder. When
-a snapshot was missed the split cannot be computed, and the row says `not computed` rather than
+to neither step and counted as its own unattributed part, so the parts still sum to the run's
+total. The total, the pre-existing count and the `converge` remedy do not change. A here-count is a
+part of the machine-wide count, never a separate remainder, because the count covers every repo.
+When a snapshot was missed the split cannot be computed, and the render says so rather than
 assigning the whole delta to one step.
 
 **Split the same count by what can be done about each row.** `converge` can act only on a pin whose
@@ -974,10 +1008,13 @@ path is present, and removing a worktree is the right fix for a pin inside one, 
 `run converge` pointer over the whole count sends the operator at rows converge marks BLOCKED. The
 digest's `divergences` therefore also carries `actionable_here`, `actionable_elsewhere`,
 `in_worktrees` and `blocked`, which sum to `post`. The script classes each version-skewed row by its
-project/local pins that differ from the row's highest version (a pin already at it is not the skew):
-any such pin that is present and not in a linked worktree makes the row actionable (a row with no
-such pin is actionable too); otherwise any in a linked worktree makes it a worktree row; otherwise
-every such pin is in a path that is not present and the row is blocked. An actionable row is
+project/local pins that differ from the row's `highest` (a pin already at it is not the skew), using
+each pin's `class` from the post report
+([scope-semantics.md](scope-semantics.md#divergence-is-not-automatically-actionable)), the same
+fields `converge` reads: any such pin classed `actionable` or `blocked-catalog` makes the row
+actionable (a row with no such pin is actionable too); otherwise any classed `worktree` makes it a
+worktree row; otherwise every such pin is `blocked-absent` and the row is blocked. A pin at the
+project the run stands in counts as actionable even in a linked worktree. An actionable row is
 `here` when its id has a record for the repo the run stands in. Under audit nothing moves, so a pin
 sync would forward-update (Step 2 or Step 3a, present, not in a linked worktree, below a readable
 catalog version) is read at the catalog version first: work `sync` does is not work for
@@ -985,22 +1022,17 @@ catalog version) is read at the catalog version first: work `sync` does is not w
 stays counted. A scope whose `projectPathIsHome` is
 true is not a project ([scope-semantics.md](scope-semantics.md)), so it is dropped before any of this:
 it never makes a row skewed or actionable, and a divergence that exists only because of such a record
-is in no class and not in `post`. A linked worktree is a present path
-whose `.git` is a file whose `gitdir:` line names a `<repo>.git/worktrees/<name>` entry of another
-repository: a repository's own `.git` is a directory, a submodule's names `/modules/`, and a
-`--separate-git-dir` checkout names a git directory that is not under a `.git/worktrees/`, so none
-of them matches.
+is in no class and not in `post`. A linked worktree is a scope the post report flags
+`linkedWorktree` (`fleet-state.sh`'s rule, bare `.bare/worktrees/` layouts included, the one
+`converge` reads too).
 
-The render heads the section `Divergences: <post> in all` and gives each non-zero class its own
-line with its `remedy:` lines under it. The actionable line counts here and elsewhere together,
-names each non-zero one on a line under it, and carries the one `converge` remedy. The worktree
-line has two remedies, removing the worktree and `/source-control:worktree audit` (if installed).
-The blocked line points at the stale project records section below it. Why a path can be absent is
+Each non-zero class gets its own line because each has its own fix: the actionable count carries
+the one `converge` remedy, the worktree count points at removing the worktree or
+`/source-control:worktree audit` (if installed), and the blocked count points at the stale project
+records section. Why a path can be absent is
 [stale-records-cache-content.md](stale-records-cache-content.md)'s to explain, not the render's.
-The interval lines split the same total a second way, so they follow under a `by origin:`
-heading. `divergences[]` is not filtered (`projectPathPresent` stays advisory), and a digest
-written before the split carries none of the four counts and renders the count with one
-`converge` remedy, as the paragraph above describes.
+The interval split above divides the same total a second way, so it follows the classes.
+`divergences[]` is not filtered (`projectPathPresent` stays advisory).
 
 **Name where the skew sits, one sub-line per project path.** A count alone tells the operator how
 much to converge but not where. Each record that makes a counted row skewed is
@@ -1018,18 +1050,15 @@ ids in sorted order and `more` the number left. The actionable paths come first,
 worktrees, each group with the most records first, so the first path listed is a place `converge`
 can run from. The paths that are not present (`blocked`) are counted in
 `divergences.blocked_paths` as `{paths, records}` instead, because the stale project records
-section already counts each of them, and `sync` writes its full per-path list to the run directory. The render keeps the count lines and adds a `by project path:`
-line with one entry under it per path, `- <path>: <count> diverging record(s): <ids>, +<more> more`, with the
-`+<more> more` tail only when ids were left out, and `(linked worktree)` after the path, one space
-from it, when `converge` cannot act on it there. A last entry, `- <paths> path(s) not present:
-<records> diverging record(s), counted under Stale project records`, counts the absent ones. Three
-ids per path is a judgment cap (`DIVERGENCE_PATH_IDS` in `sync-run.sh`); the number of present
-paths is not capped, since each is one place the operator acts: `converge` from an actionable path
-or a worktree removal. `count` counts records and `more` counts distinct ids, so an id with both a
-project and a local record at one path is counted twice and named once. A digest written before
-these fields carries neither and renders the count line alone; one written before `class` renders
-every path without a suffix; one written before `blocked_paths` carries `records[]` inline and its
-absent paths in `by_path`, which the render folds into the count entry.
+section already counts each of them, and `sync` writes its full per-path list to the run directory.
+The render names each present path with its record count and its capped ids, marks a linked
+worktree where `converge` cannot act, and counts the absent paths in one entry that points at the
+stale project records section. Three ids per path is a judgment cap (`DIVERGENCE_PATH_IDS` in
+`sync-run.sh`). The digest keeps every present path in `divergences.by_path`, since each is one
+place the operator acts (`converge` from an actionable path, or a worktree removal); the render
+shows three and then points at the rest. `count` counts records and `more`
+counts distinct ids, so an id with both a project and a local record at one path is counted twice
+and named once.
 
 **Say when `harness-ops` itself moved during the run.** Step 3 sweeps every user-scope candidate,
 which can include the plugin providing this skill, and a concurrent update can move it too; the
@@ -1059,6 +1088,10 @@ updated plugin's monitors.
   [Which marketplaces and plugins auto-update](https://code.claude.com/docs/en/plugins/loading#which-marketplaces-and-plugins-auto-update)
   live.
 
-End with the reload guidance per SKILL.md's Report section: recommend bare `/reload-plugins`, and
-state the recovery step rather than pre-judging which case will trigger it. That line is the
-model's; everything above it is the render's.
+**End with the reload guidance when the session needs it.** Each block's `verdict.reload` is true
+when the run updated, downgraded, installed or enabled a plugin (in audit, would), and the run's is
+true when any block's is; the render then closes with a bare `/reload-plugins` and the `--force`
+rerun for when it warns, the two-step
+[scope-semantics.md](scope-semantics.md#reload-plugins-bare-by-default---force-for-the-mcp-cache-invalidation-case)
+explains. A normalize, a source pull or an other-path update alone changes nothing this session
+loads, so it prints none.

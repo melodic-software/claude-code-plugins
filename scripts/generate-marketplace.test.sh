@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for generate-marketplace.mjs. Each scenario builds a throwaway
-# fixture tree (marketplace + plugin manifests) and drives the generator through
-# CHECK_DATA_ROOT: the green generate/--check path, that only category and tags
-# are taken from plugin.json while order and the entry's own fields stay, drift
-# detection, and each failure mode (missing metadata.category, missing keywords,
-# a plugin.json name that disagrees with its entry).
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,15 +11,12 @@ GENERATOR="$SELF_DIR/generate-marketplace.mjs"
 
 tree=""
 
-# write_manifest <dir> <plugin> <json>
 write_manifest() {
   mkdir -p "$1/plugins/$2/.claude-plugin"
   printf '%s\n' "$3" >"$1/plugins/$2/.claude-plugin/plugin.json"
 }
 
-# mk_tree: two plugins listed beta-first, beta with a hand-owned
-# defaultEnabled, and stale category/tags in both entries.
-mk_tree() { # <out-var>
+mk_tree() {
   local dir
   fixture_tree::build "$1" || return 1
   dir="${!1}"
@@ -43,14 +34,13 @@ EOF
   write_manifest "$dir" beta '{ "name": "beta", "keywords": ["b1"], "metadata": { "category": "quality" } }'
 }
 
-run_gen() { # run_gen <tree> [extra args...]: stdout+stderr to $OUT, exit code in $CODE
+run_gen() {
   local dir="$1"
   shift
   OUT="$(CHECK_DATA_ROOT="$dir" node "$GENERATOR" "$@" 2>&1)"
   CODE=$?
 }
 
-# assert_fails <label> <tree> <expected substring>
 assert_fails() {
   local label="$1" dir="$2" expected="$3"
   run_gen "$dir"

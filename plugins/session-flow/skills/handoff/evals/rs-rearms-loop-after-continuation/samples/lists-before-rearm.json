@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "ToolSearch",
+          "input": {
+            "query": "select:CronList,CronCreate"
+          }
+        },
+        {
+          "tool": "CronList",
+          "input": {}
+        },
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "loop",
+            "args": "10m Check inbox/ once and append its file count to QUEUE.md; do not schedule anything."
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "loop",
+            "args": "10m Check inbox/ once and append its file count to QUEUE.md; do not schedule anything."
+          }
+        },
+        {
+          "tool": "CronList",
+          "input": {}
+        }
+      ],
+      "why": "re-arms blind"
+    }
+  ]
+}

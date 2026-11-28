@@ -1,153 +1,4 @@
 #!/usr/bin/env bash
-# telemetry-upsert.sh — maintain exactly ONE marker-identified comment on a
-# tracking issue, editing it in place every cycle instead of posting a second.
-#
-# The loop-lane contract "maintain ONE telemetry comment, EDIT it in place, never
-# post a second" is otherwise a prose warning every lane prompt has to carry — the
-# tell that marker-based edit-in-place is deterministic work that belongs in a
-# script, not repeated reasoning. It is the interim scripted home of the per-lane
-# telemetry-comment contract.
-#
-# MARKER / DETECTION CONVENTION (reusable across lanes and tracking issues):
-#   The script writes a machine-detectable sentinel as the FIRST line of the
-#   comment body:
-#       <!-- harness-ops:lane-telemetry marker=<MARKER> -->
-#   <MARKER> is a caller-supplied short id (e.g. `lane:triage`) constrained to
-#   [A-Za-z0-9:@._-] so it can never contain the `>` that would close the comment
-#   early. The sentinel is an HTML comment: invisible in the rendered issue, and
-#   distinct per marker, so N lanes can each own one comment on the SAME issue
-#   without colliding. Upsert = find that sentinel and PATCH it, else create it.
-#
-#   `@` is in the charset for the loop-lane convention's writer-identity suffix
-#   (`<lane>@<instance>`, #1295): a marker that names only a lane type is shared
-#   by every concurrent instance of that lane, so they clobber one another's
-#   durable state. A marker names ONE writer, and the suffix is what makes that
-#   true rather than aspirational.
-#
-#   Detection is two-tier (mirrors the issue's spec):
-#     1. Primary — a comment BY THE WRITE IDENTITY whose body contains the exact
-#        sentinel above. The newest such comment wins if (abnormally) several
-#        exist. The issue is public, so anyone can post the sentinel; another
-#        author's copy is ignored, as restart-consumer.sh ignores it when reading.
-#     2. Fallback — no sentinel yet (first migration off a hand-authored comment):
-#        the most recent comment BY THE AUTHENTICATED USER whose body contains the
-#        raw <MARKER> text. PATCHing it adopts it (adds the sentinel), so the next
-#        cycle takes the primary path. This is why the fallback is user-scoped:
-#        editing another author's comment is neither possible via the API nor
-#        intended, and a single writer identity owns a given marker.
-#
-# WRITE IDENTITY (both tiers). "My comments" is the lanes' write identity,
-# resolved in the order restart-consumer.sh and the babysit-loop upsert use, with
-# one added check on step 2:
-#   1. `gh api user` reports a User: that login (a personal or machine-user token).
-#   2. that call reports a Bot, or fails under an App installation token: SLUG[bot]
-#      from --app-slug SLUG. A failed call counts as an installation token only
-#      when `gh api installation/repositories` then succeeds. Any other result,
-#      a transient failure included, resolves no identity: under a personal
-#      token SLUG[bot] would miss that token's own comment, and the create would
-#      duplicate it. Which token types reach that endpoint:
-#      https://docs.github.com/en/rest/authentication/endpoints-available-for-github-app-installation-access-tokens#apps
-#      https://docs.github.com/en/rest/authentication/endpoints-available-for-fine-grained-personal-access-tokens#apps
-#   3. a Bot report with no --app-slug: the reported login, plus `[bot]` when
-#      missing.
-# Anything else, or a login outside [A-Za-z0-9_-] plus an optional [bot], exits 4
-# before anything is written: creating a comment because the existing one could
-# not be recognized is the duplicate this script exists to prevent.
-#
-# Usage:
-#   telemetry-upsert.sh --issue N --marker STR --body-file PATH
-#                       [--body-dir DIR] [--repo owner/name] [--app-slug SLUG]
-#                       [--dry-run]
-#
-#   --issue N        Tracking issue number (required).
-#   --marker STR     Marker id, [A-Za-z0-9:@._-]+ (required).
-#   --body-file PATH File whose contents become the comment body BELOW the
-#                    sentinel (required; `-` reads stdin). Kept small — a
-#                    telemetry block, not an essay (hard cap: 64 KiB).
-#                    SECURITY: a real path (not `-`) MUST resolve under the safe
-#                    body dir (--body-dir, else $CLAUDE_PLUGIN_DATA). This script
-#                    is driven by AI lane prompts; an unconstrained path read
-#                    would let a prompt-injected `--body-file ~/.ssh/id_rsa` (or a
-#                    token store / .env) be posted verbatim as a public comment —
-#                    silent credential exfiltration. Containment blocks that; pipe
-#                    via `-` for a body generated in memory.
-#   --body-dir DIR   Directory a real --body-file must resolve under
-#                    (default: $CLAUDE_PLUGIN_DATA). Either counts only when its
-#                    last path segment names harness-ops, and never when it is /,
-#                    the home dir, or an ancestor of it: a caller-chosen
-#                    `--body-dir ~` would otherwise contain nothing.
-#   --repo owner/name  Target repo (default: `gh repo view` for the cwd's repo).
-#                    Validated as owner/repo before URL interpolation so a
-#                    traversal value can't redirect the API to another repo.
-#   --app-slug SLUG  The GitHub App whose installation token gh runs under; the
-#                    detection then reads comments written by SLUG[bot]. Must be
-#                    a GitHub App slug ([a-z0-9][a-z0-9-]*), else exit 3. An
-#                    empty value or an unrendered `${user_config.*}`
-#                    placeholder means no slug.
-#   --dry-run       Resolve + report the action (create/update + target id) but
-#                    perform no write.
-#   --help
-#
-# PRE-WRITE BODY VALIDATION (#952, guarding the #943 fail-open) — the real gate:
-#   Before anything is sent, the caller's body is asserted to not begin with a
-#   literal `@` and to clear MIN_BODY_BYTES. A failure exits 3 having made zero
-#   API calls, so the degraded body never reaches the tracking issue — there is
-#   no public comment to retract and no window in which a reader sees it.
-#
-#   The `@` assertion is the specific defect this guards (see the lanes SKILL.md
-#   section "Never pass a body as an `@path` string" for the caller-facing rule):
-#   a body argument given an `@path` string posts the literal path text, and the
-#   comment's timestamp still moves — so the telemetry surface looks FRESH while
-#   carrying no data, an observability fail-open a timestamp check cannot see.
-#   The length floor catches the degenerate sibling: a sentinel-only comment
-#   from an empty body.
-#
-#   This script cannot commit the `@path` mistake through its own plumbing (it
-#   reads the body into a shell variable before any gh call, so `-f body=` never
-#   sees an `@path`). The gate is here for the body TEXT a caller hands it: a
-#   lane that composed `@/tmp/telemetry.txt` as its body content, meaning the
-#   file, arrives at this script as that literal string.
-#
-#   Validation is unconditional and has no opt-out flag: this script is driven by
-#   AI lane prompts, and a `--no-verify` escape hatch would be reachable by the
-#   same prompt-injected caller the check exists to catch.
-#
-# POST-WRITE READ-BACK (secondary confirmation, not the gate):
-#   After the create/update, the comment is re-read via a separate GET and the
-#   same assertions re-run against what a reader of the issue will actually find,
-#   plus the sentinel. A body that fails exits 6 with the comment id/url named.
-#
-#   Scope it honestly. The pre-write gate already proved the body we SENT is
-#   sound, and the GET targets the id we just wrote, so this pass sees only what
-#   happened to THAT comment after the write returned: a truncated or mangled
-#   store, a concurrent writer overwriting or stripping the sentinel, or the
-#   comment being deleted out from under us (404). It cannot tell that detection
-#   resolved the WRONG comment — we would have stamped our sentinel and body onto
-#   it, and reading that id back finds exactly what we expect. (Nor is it the
-#   guard for editing another user's comment: that PATCH 403s and exits 5.)
-#
-#   The GET is retried once: the write has already landed by then, so a momentary
-#   read failure must not report a good cycle as a bad one. That retry is a
-#   network-blip guard only — it does not wait out a secondary rate limit. A
-#   second failure is still fail-closed — the cycle is reported UNCONFIRMED
-#   rather than good — but its message says so, because a check that could not
-#   run is not a check that disagreed, and it branches on gh's own error: a 404
-#   means the comment is not retrievable, not merely unread.
-#
-#   KNOWN LIMITATION — this pass asserts PROPERTIES, not that the body changed.
-#   A PATCH that silently no-ops (storing the previous cycle's body) still
-#   verifies: the old body carries the sentinel, has no leading `@`, and clears
-#   the floor. So a STALE telemetry comment reads as a good cycle here. That is a
-#   freshness defect, a different class from the `@path` fail-open this guards,
-#   and it is deliberately not addressed by asserting round-trip equality —
-#   GitHub normalizes stored bodies, so an equality assert would fail real lane
-#   writes for cosmetic reasons. Freshness is the reader's job (`morning-brief`
-#   reads last-cycle age off this same comment), not this script's.
-#
-# Output (stdout): one action line, e.g.
-#   telemetry-upsert: updated comment 12345 (marker=lane:triage) on <owner/repo>#<issue>
-#   <html_url>
-#
 # Exit codes:
 #   0  upserted and verified (or, with --dry-run, resolved)
 #   3  invalid argument (bad issue/marker/repo, body-file outside the safe dir),
@@ -168,7 +19,40 @@ unset CDPATH
 
 jq() { command jq "$@" | tr -d '\r'; }
 err() { printf 'ERROR: %s\n' "$*" >&2; }
-usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
+usage() {
+  cat <<'EOF'
+telemetry-upsert.sh: maintain exactly ONE marker-identified comment on a tracking issue,
+editing it in place every cycle. The comment's first line is the sentinel
+`<!-- harness-ops:lane-telemetry marker=<MARKER> -->`; only the write identity's comments
+are matched, and a `<lane>@<instance>` marker names one writer.
+
+Usage:
+  telemetry-upsert.sh --issue N --marker STR --body-file PATH
+                      [--body-dir DIR] [--repo owner/name] [--app-slug SLUG]
+                      [--dry-run]
+
+  --issue N          tracking issue number (required)
+  --marker STR       marker id, [A-Za-z0-9:@._-]+ (required)
+  --body-file PATH   comment body below the sentinel (required; `-` reads stdin; cap 64 KiB);
+                     a real path must resolve under the safe body dir
+  --body-dir DIR     safe body dir (default: $CLAUDE_PLUGIN_DATA); its last segment must name
+                     harness-ops, and it is never /, the home dir, or an ancestor of it
+  --repo owner/name  target repo (default: `gh repo view` for the cwd's repo)
+  --app-slug SLUG    GitHub App whose installation token gh runs under ([a-z0-9][a-z0-9-]*)
+  --dry-run          resolve and report the action; write nothing
+  --help
+
+Exit codes:
+  0  upserted and verified (or, with --dry-run, resolved)
+  3  invalid argument, or a body that failed the pre-write gate (over the size cap, under
+     the size floor, starting with a literal `@`, or matching the leak scan), or a marker
+     findMachine matches; nothing was written
+  4  prerequisite missing (gh, jq or node), or the repo / safe body dir / write identity
+     unresolved; nothing was written
+  5  a gh API call failed, or the comment list was unreadable; nothing was written
+  6  the write went through but its read-back did not verify (or could not run)
+EOF
+}
 
 MAX_BODY_BYTES=65536
 MIN_BODY_BYTES=16
@@ -291,12 +175,6 @@ tbg_check_instance "${BASH_SOURCE[0]%/*}/../../../lib/publish-gate.mjs" "$MARKER
 SENTINEL="<!-- harness-ops:lane-telemetry marker=$MARKER -->"
 new_body="$SENTINEL"$'\n'"$body_text"
 
-# --- Leak scan ---------------------------------------------------------------
-# The comment is public. scanLeak and findMachine (this plugin's generated copy
-# of lib/publish-gate.mjs) judge what would be posted, from a file or stdin. A
-# hit withholds all of it, never a masked copy, and names only the rule. A plain
-# assignment, a home path or a private hostname is withheld too, and so is a body
-# the scan cannot judge.
 leak="$(printf '%s' "$new_body" | tbg_scan "${BASH_SOURCE[0]%/*}/../../../lib/publish-gate.mjs")" || {
   err "the leak scan could not run; nothing was written"
   exit 3
@@ -423,6 +301,8 @@ if [[ -n "$verify_err" ]]; then
 fi
 verify_body=""
 verify_read=0
+# One retry covers a network blip only; a secondary rate limit needs a wait of at least a minute.
+# https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api
 for verify_attempt in 1 2; do
   if verify_body="$(gh api "repos/$REPO/issues/comments/$new_id" --jq '.body' 2>"${verify_err:-/dev/null}" | tr -d '\r')"; then
     verify_read=1

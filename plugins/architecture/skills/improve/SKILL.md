@@ -1,5 +1,5 @@
 ---
-description: "Codebase scan for module-level friction (shallow modules, seam leaks, locality gaps): an HTML candidate report, then a Design-It-Twice interview on the chosen one. Use when 'improve architecture', 'find deepening opportunities', 'shallow modules', 'design it twice', 'compare alternative interfaces', 'make code more testable', 'codebase friction', 'module seams', 'locality', 'check our layer boundaries', 'which references cross a boundary', 'derive our conventions'. Skip when a cross-dimension ask ('what should we improve') routes to /improvement:find."
+description: "Codebase scan for module friction (shallow modules, module seams, locality, cross-boundary leaks): HTML report, Design-It-Twice interview. Use for 'improve architecture', 'shallow modules', 'locality', deepening, compare interface, derive conventions, layer boundaries, which references cross a boundary. Not for cross-dimension: /improvement:find."
 argument-hint: "[deepening|boundaries|conventions] [--repo <repo> ...] [--medium <value>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
@@ -113,10 +113,9 @@ Graceful degradation: where a named step below is not available in the consuming
 
 ## Next
 
-- A deepening candidate's shape is agreed, when available: /planning:plan
+- A deepening candidate's shape is agreed: /planning:plan.
 - A finding is about coupling between modules: /coupling:reduce.
-- The boundaries lens wrote a findings file, when available: /corrections:codify findings
-- A boundary rule is recorded and nothing enforces it yet: /architecture:enforce-boundaries
+- A boundary rule is recorded and nothing enforces it yet: /architecture:enforce-boundaries.
 - An agreed candidate's module has no tests to protect the refactor: /testing:write, characterization tests first.
 
 ## Related

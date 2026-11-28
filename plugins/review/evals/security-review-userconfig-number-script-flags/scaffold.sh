@@ -4,10 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# notes is an existing plugin whose PostToolUse hook runs hooks/wrap-check.sh.
-# The branch adds a wrap_column number key that the summary skill's prose
-# reads and that the hook script also reads through CLAUDE_PLUGIN_OPTION_WRAP_COLUMN,
-# so the value reaches code and the key is not inert.
 mkdir -p .claude-plugin plugins/notes/.claude-plugin plugins/notes/skills/summary plugins/notes/hooks
 
 cat >.claude-plugin/marketplace.json <<'JSON'

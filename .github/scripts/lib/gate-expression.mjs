@@ -1,11 +1,3 @@
-// GitHub Actions expressions, `${{ }}` or bare, evaluated for the workflow
-// tests by the rules of
-// https://docs.github.com/en/actions/reference/workflows-and-actions/expressions:
-// literals, context paths, `!`, `==`, `!=`, `&&` and `||` (each returning an
-// operand), parentheses, the status functions, contains(), startsWith(),
-// format() and fromJSON(). Strings compare case-insensitively and mismatched
-// types compare as numbers. A context path no context sets reads as ''. Any
-// other shape fails the calling test.
 import assert from "node:assert/strict";
 
 const TOKEN = /\s*('(?:[^']|'')*'|==|!=|&&|\|\||[!(),]|\d+(?:\.\d+)?|[A-Za-z_][\w.-]*)/y;

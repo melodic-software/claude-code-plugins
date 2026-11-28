@@ -134,6 +134,7 @@ _LIB_DIR = _PLUGIN_ROOT / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import data_root_state  # noqa: E402  (path set above; shared data-root state)
 import guard_decision_log  # noqa: E402  (path set above; bounded local record)
 import hook_telemetry  # noqa: E402  (path set above; stdlib-only telemetry emitter)
 
@@ -180,9 +181,8 @@ def _resolve_data_root(argv: list[str]) -> str | None:
 def _marker_path_candidates(
     data_root: str | None, session_id: str, suffix: str = ".warned"
 ) -> list[Path]:
-    safe_session = (
-        "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in session_id)
-        or "unknown-session"
+    safe_session = data_root_state.sanitize_session_id(
+        session_id, fallback="unknown-session"
     )
     candidates: list[Path] = []
     if data_root:

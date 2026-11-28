@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Structure test: pr-run-activity-read.yml admits a github-actions[bot]
-# workflow_dispatch only through a pr-unblock-dispatch.yml run, or a
-# pr-dispatch-feedback.yml run whose recorded review run reviewed the PR's
-# current head, that sent it to pr-unblock.yml, or to pr-refine.yml for the
-# pr-refine lane, as
-# docs/conventions/pr-pipeline/pr-run-activity.md (run job step 3) states. The gate's own checks are check-trusted-trigger's suite; this
-# asserts only the read file's wiring of them.
 # test-scope: .github/workflows/pr-run-activity-read.yml scripts/ci-deps/package.json
 set -uo pipefail
 

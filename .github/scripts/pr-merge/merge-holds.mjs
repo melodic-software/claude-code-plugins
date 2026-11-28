@@ -1,57 +1,14 @@
 #!/usr/bin/env node
-// merge-holds.mjs: the merge holds a pull request's own text carries, by the
-// rules pr-merge's gate reads them. enable-auto-merge.mjs arms nothing they
-// hold, and ci-status runs this file alone, fetched from the base commit, on
-// every lanes App pull request, so it imports no other file of the repository.
-//
-// Command line: merge-holds.mjs <number> <body-file> <discussion-file>
-// <files-file> <denied-paths-file> <trusted-actors-file> <head-sha>
-// [<verdicts-file> <link-file> [<evidence-file>]]. The link file holds {record, closing}: the
-// verdict.json of the pass verdictHold counts (null when none was read) and
-// the pull request's closingIssuesReferences (totalCount, nodes with number
-// and repository.nameWithOwner). The verdicts file holds one {name, verdict, runId, run}
-// per line, run as GET actions/runs/{runId} gives it, for each unexpired artifact
-// named a pass at the head; GITHUB_REPOSITORY names the repository. The
-// evidence file holds the reader's one JSON line (Evidence.report); with
-// verdicts and no evidence file, the FAIL check holds as unreadable. The
-// discussion file holds one REST issue comment, review or review comment per
-// line; the files file one changed file per line, its path, renamed-from
-// path and status (changeOf); the denied-paths file the config's
-// merge.diff-check.denied-paths as JSON; the trusted-actors file
-// trusted-actors.json. PATH_HOLDS "false" turns the hold paths off
-// (pathHoldsOf). Each hold prints as an ::error:: and exits 1; no hold
-// exits 0. Who wrote a body that holds, a changed trusted-actor list, a
-// cost path with a decision link in the body, and the approvals of earlier
-// heads when no approval of the head lifts a hold path, are read with
-// GH_TOKEN.
-import { Buffer } from "node:buffer";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { posix } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-// Whether `value` reads as a full commit SHA, or as an `owner/name` repository.
 const isSha = (value) => /^[0-9a-f]{40}$/.test(String(value));
 const isRepo = (value) => /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(String(value));
 
-// enable-auto-merge.test.mjs checks both agree with the gate's Python on every
-// text it tries.
-export const BODY_HOLD = /\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:/im;
-// "the do-not-merge label" (backticks allowed) names the label and vetoes
-// nothing. Any other do-not-merge vetoes: a comma list cannot be told from a
-// comma clause, so it fails closed.
-export const HUMAN_VETO =
-  /\bdo(?:n['’]?t| not)[\s-]*merge\b|\bdo-not(?!-merge\b)[\s-]*merge\b|(?<!the )(?<!the `)\bdo-not-merge\b|(?<=the )do-not-merge\b(?!\s*labels?\b)|(?<=the `)do-not-merge\b(?!`\s*labels?\b)/i;
-// The lanes App's bot login. A `Hold:` line on its own pull request holds the
-// merge, not a fix pushed to it (apply-patch.mjs's held()).
 export const LANES_APP_LOGIN = "melodic-automation-lanes[bot]";
-// Whether the lanes App's pull request changes exactly `baselineFile`,
-// pr-pipeline.yaml's merge.baseline-file: the one file such a pull request may
-// change and merge with no linked issue and no pr-verify verdict (owner
-// decision Q152 (B), https://github.com/melodic-software/architecture/pull/197).
-// An unset file takes none. babysit_merge_policy.baseline_only, which
-// test_merge_holds_sync.py keeps equal.
 export const baselineOnly = (author, files, appId, baselineFile) =>
   typeof baselineFile === "string" &&
   baselineFile !== "" &&
@@ -62,19 +19,24 @@ export const baselineOnly = (author, files, appId, baselineFile) =>
   Array.isArray(files) &&
   files.length === 1 &&
   files[0] === baselineFile;
+export const DEPENDENCY_MANAGERS = Object.freeze(["dependabot", "dependabot-preview", "renovate", "renovate-bot"]);
+export const isDependencyManager = (user) =>
+  user?.type === "Bot" &&
+  DEPENDENCY_MANAGERS.includes(String(user.login ?? "").toLowerCase().replace(/^app\//, "").replace(/\[bot\]$/, ""));
+export const loginKey = (login) => String(login ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
+export const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
+export function authorSkip(user, verifyAuthors, laneIdentity, ownerIds) {
+  const lane = () => loginKey(laneIdentity) !== "" && user?.type === "Bot" && loginKey(user.login) === loginKey(laneIdentity);
+  const owner = () => (user?.type === "User" || user?.type === "Bot") && ownerIds.includes(user.id);
+  if (isDependencyManager(user)) return "dependency-manager";
+  if (!VERIFY_AUTHORS.includes(verifyAuthors)) return "verify-authors-invalid";
+  if (verifyAuthors === "lane" && !lane()) return "author-not-lane";
+  if (verifyAuthors === "lane-or-owner" && !lane() && !owner()) return "author-not-lane-or-owner";
+  return null;
+}
 export const baselineNote = (baselineFile) =>
   `the lanes App's pull request changes only ${baselineFile} (merge.baseline-file), which merges with no linked issue or pr-verify verdict`;
-// report-outcome.mjs HOLD_LINE on a line of its own, which
-// enable-auto-merge.test.mjs checks; it holds whoever wrote the body.
-export const LANE_HOLD = /(?:^|[\r\n])Hold: a human merges this[^\S\r\n]*(?:[\r\n]|$)/;
-// Whether `body` holds: the lane's hold line, or hold text a person wrote.
-export const bodyHolds = (body, byPerson) => LANE_HOLD.test(String(body ?? "")) || (byPerson && BODY_HOLD.test(String(body ?? "")));
 
-// babysit_merge_policy.refs_issue, which test_verify_rules_sync.py keeps equal:
-// the one issue the visible `Refs: #<n>` lines of a pull request body name,
-// else null. A line counts only from its first column, outside an HTML comment
-// and a fenced code block; a `Refs:` line in any other form, or two numbers,
-// name none.
 const HTML_COMMENT = /<!--[\s\S]*?(?:-->|$)/g;
 const FENCE = /^ {0,3}(`{3,}|~{3,})/;
 const REFS_LINE = /^[Rr][Ee][Ff][Ss]:/;
@@ -84,8 +46,6 @@ export function refsIssue(body) {
   return numbers?.size === 1 ? [...numbers][0] : null;
 }
 
-// The lines of a pull request body a reader sees: outside an HTML comment and
-// a fenced code block. refsIssue and pr-verify's siblingNumbers read only these.
 export function* visibleLines(body) {
   let fence = "";
   for (const line of String(body ?? "").replace(HTML_COMMENT, "").split(/\r\n|\r|\n/)) {
@@ -104,8 +64,6 @@ export function* visibleLines(body) {
   }
 }
 
-// The issues the visible plain `Refs: #<n>` lines of `body` name, as
-// refsIssue reads them, or null when such a line is in any other form.
 function refsNumbers(body) {
   const numbers = new Set();
   for (const line of visibleLines(body)) {
@@ -121,15 +79,6 @@ function refsNumbers(body) {
   return numbers;
 }
 
-// Why the pass `record` (its verdict.json) does not bind the pull request's
-// live link, or null when it does. The live link is its closing issues in
-// `repo`, or, with no closing issue at all, the one issue its plain `Refs:`
-// lines name (refsNumbers). The pass binds unless the live link drops the
-// issue it judged (a link removed, or closing issues all in another
-// repository, drop it), or names that issue linked another way (its
-// `spec_kind`, `closes` when absent, as the reader reads an older record). A
-// link of several issues that still names the judged one binds: the fix loop
-// rewrites it.
 export function linkHold(record, body, closing, repo) {
   if (record === null || typeof record !== "object" || !Array.isArray(record.linked_issues)) {
     return "its verifier pass's record could not be read";
@@ -152,29 +101,6 @@ export function linkHold(record, body, closing, repo) {
   }
   return null;
 }
-// babysit_merge_policy.BLOCKER_ASSOCIATIONS.
-export const MEMBERS = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
-
-// The pull request's author and the editors of its body, for personWrote.
-export const BODY_WRITERS_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
-  repository(owner: $owner, name: $name) {
-    pullRequest(number: $number) { author { __typename } userContentEdits(first: 100) { totalCount nodes { editor { __typename } } } }
-  }
-}`;
-
-// Whether a person wrote any of the body of `pull` (BODY_WRITERS_QUERY's
-// pullRequest, or a listing's with the same fields): its author or an editor
-// of its body is not a Bot account. A deleted account, an edit list not read
-// whole or a pull request that did not read counts as a person, so a hold an
-// unknown hand wrote still holds.
-export function personWrote(pull) {
-  const edits = pull?.userContentEdits;
-  if (!pull?.author || !Array.isArray(edits?.nodes) || !(edits.totalCount <= edits.nodes.length)) {
-    return true;
-  }
-  return [pull.author, ...edits.nodes.map((edit) => edit?.editor)].some((who) => who?.__typename !== "Bot");
-}
-
 export const COST_PATHS = Object.freeze([
   // BEGIN hold-floor COST_PATHS: generated by scripts/sync-hold-floor.py
   "**/Pulumi.yaml",
@@ -196,25 +122,6 @@ export const COST_PATHS = Object.freeze([
   // END hold-floor COST_PATHS
 ]);
 
-// The members whose newest item with text vetoes the merge, sorted. Each item
-// is { login, isUser, association, at, body }, `at` an ISO 8601 UTC time.
-export function vetoers(items) {
-  const newest = new Map();
-  for (const { login, isUser, association, at, body } of items) {
-    if (!isUser || !MEMBERS.has(String(association).toUpperCase()) || !String(body ?? "").trim()) {
-      continue;
-    }
-    if (!newest.has(login) || at >= newest.get(login).at) {
-      newest.set(login, { at, body: String(body) });
-    }
-  }
-  return [...newest]
-    .filter(([, { body }]) => HUMAN_VETO.test(body))
-    .map(([login]) => login)
-    .sort();
-}
-
-// One REST issue comment, review or review comment as a vetoers item.
 export const fromRest = (row) => ({
   id: row?.id,
   login: String(row?.user?.login ?? ""),
@@ -228,51 +135,38 @@ export const fromRest = (row) => ({
   nodeId: row?.node_id,
 });
 
-// The read-back pin (babysit_postmerge.PIN_RE): the lanes App posts one naming
-// the head just before it arms auto-merge (enable-auto-merge.mjs pinBody) or
-// enqueues. enable-auto-merge.mjs reads it from here.
 export const PIN_RE = /^<!-- babysit-merge-pin sha=([0-9a-f]{40})(?: rung=(C2|C3))? -->$/;
+export const UNPIN_RE = /^<!-- babysit-merge-unpin sha=([0-9a-f]{40}) -->$/;
 
-// How a trusted approval lifts a hold, in the hold messages.
 const APPROVAL_LIFTS = "an approving review of this head by a person on the trusted-actor list lifts it";
 const APPROVAL_CARRIES = `${APPROVAL_LIFTS}, and the approval carries over later merges that bring only the base's changes; then re-run ci-status`;
 
-// Why the merge queue holds `head`, or null: the lanes App's newest pin among
-// `items` (fromRest's) names another head. GitHub checks expectedHeadOid only
-// when the arm is made, and turns auto-merge off only on a push by someone
-// without write access, so a later push by the lanes App or a person with
-// write access leaves the arm on, and the queue would merge a head the
-// arming checks never judged. With no pin, no lane armed it, and nothing holds.
-// A pin not read as unedited (withPinEdit sets its lastEditedAt) holds too:
-// enable-auto-merge.mjs pinned and pinMoved, and babysit_postmerge, read an
-// edited pin as naming no head the arm judged.
-export function pinHold(items, head) {
-  const pin = newestPin(items);
+export function pinHold(items, head, { unpins = false } = {}) {
+  const pin = newestPin(items, unpins);
   if (pin === undefined) {
     return null;
   }
   const again = `enable-auto-merge judges and pins this head before it arms it again, or ${APPROVAL_LIFTS}, then re-queue`;
+  const unpin = UNPIN_RE.test(pinLine(pin));
   if (!unedited(pin)) {
-    return `the lanes App's newest pin comment was edited, or its edit time did not read, so the head its arm judged does not read; ${again}`;
+    return `the lanes App's newest ${unpin ? "unpin" : "pin"} comment was edited, or its edit time did not read, so the head its arm judged does not read; ${again}`;
+  }
+  if (unpin) {
+    return null;
   }
   const sha = PIN_RE.exec(pinLine(pin))[1];
   return sha === head ? null : `its head is not ${sha}, the head the lanes App pinned when it armed auto-merge, so the arm's checks never judged this head; ${again}`;
 }
 
 const pinLine = (item) => item.body.split("\n", 1)[0].replace(/\r$/, "");
-// The lanes App's newest read-back pin among `items` (fromRest's), or undefined.
-const newestPin = (items) =>
+const newestPin = (items, unpins) =>
   items
-    .filter((item) => item.login === LANES_APP_LOGIN && PIN_RE.test(pinLine(item)))
+    .filter((item) => item.login === LANES_APP_LOGIN && (PIN_RE.test(pinLine(item)) || (unpins && UNPIN_RE.test(pinLine(item)))))
     .sort((a, b) => a.at.localeCompare(b.at))
     .at(-1);
 
-// `items` with the lanes App's newest pin's lastEditedAt, read with
-// COMMENT_EDITED_QUERY as enable-auto-merge.mjs reads it. A pin with no node
-// id, or a read that fails or answers no lastEditedAt, is left without one,
-// so pinHold holds.
-export async function withPinEdit(github, items) {
-  const pin = newestPin(items);
+export async function withPinEdit(github, items, { unpins = false } = {}) {
+  const pin = newestPin(items, unpins);
   if (pin === undefined || typeof pin.nodeId !== "string" || !pin.nodeId) {
     return items;
   }
@@ -288,11 +182,6 @@ export async function withPinEdit(github, items) {
   return items.map((item) => (item === pin ? { ...item, lastEditedAt: node.lastEditedAt } : item));
 }
 
-// Whether `path` matches the hold-path `glob`, case-folded as glob_match
-// folds it: a lane host on a case-insensitive filesystem reads `.github/codeowners`
-// as CODEOWNERS. path.matchesGlob has no `dot` option, so `*` and `**` skip a
-// segment opening with "."; both sides mark such a segment alike first, so
-// `.github/**` holds `.github/a/.x` too.
 const undot = (text) => String(text).toLowerCase().replaceAll(/(^|\/)\./g, "$1\u0001");
 export const matchesHoldPath = (path, glob) => posix.matchesGlob(undot(path), undot(glob));
 
@@ -346,6 +235,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/lib/lane-vocabulary.mjs", "trust"],
   [".github/scripts/pr-merge/superseded.mjs", "trust"],
   [".github/scripts/pr-merge/clear-escalations.mjs", "trust"],
+  [".github/scripts/pr-merge/verifier.mjs", "trust"],
   [".github/scripts/pr-merge/release-eval-hold.mjs", "trust"],
   [".github/scripts/pr-merge/carry-run-cache.mjs", "gate"],
   [".github/scripts/pr-merge/gate-check.mjs", "trust"],
@@ -359,6 +249,7 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   [".github/scripts/pr-merge/sweep-summary.mjs", "gate"],
   [".github/scripts/pr-merge/who.mjs", "gate"],
   [".github/scripts/pr-merge/post-unarmed-status.mjs", "gate"],
+  [".github/scripts/pr-merge/cancel-orphaned-runs.mjs", "gate"],
   [".github/scripts/pr-merge/verify-answers.mjs", "gate"],
   [".github/scripts/lib/run-title.mjs", "gate"],
   [".github/scripts/lib/lane-branch.mjs", "gate"],
@@ -398,6 +289,21 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["scripts/upstream-drift-vendored-report.sh", "enforcement"],
   [".github/scripts/recurring-schedule/file-due.mjs", "enforcement"],
   [".github/scripts/maintenance-monitor-signals/issues.mjs", "enforcement"],
+  [".github/scripts/maintenance-scan-architecture/file-findings.mjs", "enforcement"],
+  [".github/scripts/maintenance-scan-architecture/model-tools.json", "enforcement"],
+  [".github/scripts/maintenance-scan-architecture/gate.mjs", "enforcement"],
+  [".github/scripts/maintenance-scan-architecture/lane.mjs", "enforcement"],
+  [".github/scripts/maintenance-scan-architecture/prepare-working-tree.sh", "enforcement"],
+  [".github/scripts/maintenance-scan-architecture/prompt.md", "enforcement"],
+  ["plugins/improvement/lib/state-key.sh", "enforcement"],
+  ["plugins/improvement/scripts/filing-plan.mjs", "enforcement"],
+  ["plugins/architecture/lib/resolve-convention-home.sh", "enforcement"],
+  ["plugins/architecture/lib/read-verification.sh", "enforcement"],
+  ["plugins/architecture/lib/default-branch-file.sh", "enforcement"],
+  ["plugins/architecture/lib/config-root.sh", "enforcement"],
+  ["plugins/architecture/lib/config-cascade.mjs", "enforcement"],
+  ["plugins/architecture/lib/yaml-subset.mjs", "enforcement"],
+  ["plugins/architecture/skills/improve/scripts/improve-settings.mjs", "enforcement"],
   [".github/scripts/lib/github-rest.mjs", "enforcement"],
   ["plugins/work-items/scripts/charge-words.json", "enforcement"],
   [".github/scripts/pr-unblock/dependency-classify.mjs", "enforcement"],
@@ -432,17 +338,20 @@ export const HOLD_PATH_CLASSES = Object.freeze([
   ["docs/conventions/untrusted-content/**", "gate"],
   ["docs/standards/**", "gate"],
   ["docs/review/**", "gate"],
-  [".github/scripts/intake-triage/triage-rubric.txt", "gate"],
+  ["docs/conventions/work-items.md", "gate"],
   [".github/scripts/intake-triage/refine-schema.json", "gate"],
   [".github/scripts/plugin-eval/policy-probe-prompt.txt", "gate"],
   [".github/scripts/pr-unblock/test-scope.mjs", "gate"],
   [".github/scripts/pr-unblock/declare-test-scope.mjs", "gate"],
+  ["plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "gate"],
   [".github/workflows/intake-reenter.yml", "gate"],
   [".github/workflows/intake-triage.yml", "gate"],
   [".github/workflows/maintenance-audit-lane-runs.yml", "gate"],
   [".github/workflows/maintenance-measure-skill-edit-pass.yml", "gate"],
   [".github/workflows/maintenance-measure-skill-edit.yml", "gate"],
   [".github/workflows/maintenance-reconcile-lost-runs.yml", "gate"],
+  [".github/workflows/maintenance-scan-architecture-find.yml", "gate"],
+  [".github/workflows/maintenance-scan-architecture.yml", "gate"],
   [".github/workflows/maintenance-tidy-code-upkeep.yml", "gate"],
   [".github/workflows/post-merge-file-demotion-issues.yml", "gate"],
   [".github/workflows/post-merge-test-mutation.yml", "gate"],
@@ -472,17 +381,10 @@ export const HOLD_PATH_CLASSES = Object.freeze([
 export const HOLD_PATH_FLOOR = Object.freeze(HOLD_PATH_CLASSES.filter(([, kind]) => kind !== "enforcement").map(([glob]) => glob));
 export const REVIEW_FLOOR = Object.freeze(HOLD_PATH_CLASSES.filter(([, kind]) => kind === "enforcement").map(([glob]) => glob));
 
-// Why the head's changed `files` hold it, or null: one matching `holdPaths`
-// or HOLD_PATH_FLOOR. Null `holdPaths` or `files` (unreadable) holds it.
-// `on` false (pathHoldsOf) matches no hold path.
 export const pathHold = (files, holdPaths, on = true) => pathHoldKind(files, holdPaths, on)?.reason ?? null;
 
-// merge.diff-check.path-holds (owner decision Q15): absent or false, no
-// changed path holds for its path alone; any other value keeps every hold
-// path, as babysit_merge_policy's switch() reads it.
 export const pathHoldsOf = (value) => ![undefined, null, false, "false"].includes(value);
 
-// The switch from a resolve-config output file; unreadable keeps the holds.
 export function readPathHolds(path) {
   try {
     return pathHoldsOf(JSON.parse(readFileSync(path, "utf8"))?.merge?.["diff-check"]?.["path-holds"]);
@@ -491,9 +393,6 @@ export function readPathHolds(path) {
   }
 }
 
-// pathHold's answer with its kind: `hold-path` for a changed file a hold
-// path matches, `unread` for a list that could not be read or checked.
-// With `on` false a readable list matches nothing.
 export function pathHoldKind(files, holdPaths, on = true) {
   if (!Array.isArray(holdPaths)) {
     return { kind: "unread", reason: "the hold paths could not be read" };
@@ -512,10 +411,6 @@ export function pathHoldKind(files, holdPaths, on = true) {
   return held === undefined ? null : { kind: "hold-path", reason: `it changes ${held}, a hold path` };
 }
 
-// Why the changed `files` hold it for the owner's cost decision, or null when
-// none is a cost path or `decision` (costDecision's link) clears it. As
-// glob_match does, a glob also covers everything under it, and `*` matches a
-// segment's leading "." (so `*.tf` holds `.tf`).
 export function costHold(files, decision) {
   const held = (Array.isArray(files) ? files : []).find((path) => {
     const folded = String(path).toLowerCase().replaceAll(/(^|\/)\./g, "$1\u0001.");
@@ -524,179 +419,16 @@ export function costHold(files, decision) {
   return held === undefined || decision ? null : `it changes ${held}, a cost path`;
 }
 
-function parseStrict(text) {
-  if (typeof text !== "string") {
-    return null;
-  }
-  try {
-    JSON.parse(text);
-  } catch {
-    return null;
-  }
-  // The text is valid JSON, so the walk below needs no error handling.
-  let at = 0;
-  const space = () => {
-    while (" \t\n\r".includes(text[at] ?? "x")) at += 1;
-  };
-  const string = () => {
-    const start = at;
-    for (at += 1; text[at] !== '"'; at += 1) {
-      if (text[at] === "\\") at += 1;
-    }
-    at += 1;
-    return JSON.parse(text.slice(start, at));
-  };
-  const items = (close, read) => {
-    at += 1;
-    for (space(); text[at] !== close; space()) {
-      read();
-      space();
-      if (text[at] === ",") at += 1;
-    }
-    at += 1;
-  };
-  const value = () => {
-    space();
-    if (text[at] === "{") {
-      const object = new Map();
-      items("}", () => {
-        const key = string();
-        if (object.has(key)) throw new Error("duplicate key");
-        space();
-        at += 1;
-        object.set(key, value());
-      });
-      return { object };
-    }
-    if (text[at] === "[") {
-      const array = [];
-      items("]", () => array.push(value()));
-      return { array };
-    }
-    if (text[at] === '"') return { text: JSON.stringify(string()), string: true };
-    const token = /^(?:true|false|null|-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/.exec(text.slice(at))[0];
-    at += token.length;
-    if (!/^-?\d/.test(token)) return { text: token };
-    if (!/[.eE]/.test(token)) {
-      // json.loads refuses an integer past int_max_str_digits (4300), so the
-      // gate reads that side as malformed.
-      if (token.replace("-", "").length > 4300) throw new Error("integer too long");
-      return { text: `${BigInt(token)}` };
-    }
-    const number = Number(token);
-    return { text: `${Object.is(number, -0) ? "-0" : String(number)}.f` };
-  };
-  try {
-    const root = value();
-    return root.object ? root : null;
-  } catch {
-    return null;
-  }
-}
-
-const canonical = (node) =>
-  node.object
-    ? `{${[...node.object]
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-        .map(([key, child]) => `${JSON.stringify(key)}:${canonical(child)}`)
-        .join(",")}}`
-    : node.array
-      ? `[${node.array.map(canonical).join(",")}]`
-      : node.text;
-export const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
-
-export function actorsWidened({ status, previous = null, contents } = {}) {
-  if (status !== "modified" || previous !== null) {
-    return `${status ?? "unknown"} trusted-actor list`;
-  }
-  if (!Array.isArray(contents) || contents.length !== 2) {
-    return "contents unreadable";
-  }
-  const [base, head] = contents.map(parseStrict);
-  if (base === null || head === null) {
-    return "unreadable, malformed or a repeated key";
-  }
-  const [old, now] = [base, head].map((node) => node.object.get("actors"));
-  if (!old?.array || !now?.array) {
-    return "actors is not a list";
-  }
-  const rest = (node) => canonical({ object: new Map([...node.object].filter(([key]) => key !== "actors")) });
-  if (rest(base) !== rest(head)) {
-    return "a key other than actors changed";
-  }
-  const gained = new Map();
-  for (const [entries, step] of [[now.array, 1], [old.array, -1]]) {
-    for (const entry of entries) {
-      const key = canonical(entry);
-      gained.set(key, (gained.get(key) ?? 0) + step);
-    }
-  }
-  const added = [...gained].filter(([, n]) => n > 0).map(([key]) => key).sort();
-  return added.length ? `entries added or changed: ${added.join(", ")}` : null;
-}
-
-// Why the changes (changeOf's, with withActorContents's contents) widen the
-// trusted-actor list, or null. A change whose path or renamed-from path is the
-// list counts.
-export function actorsHold(changes) {
-  if (!Array.isArray(changes)) {
-    return "its changed files could not all be read";
-  }
-  const found = changes
-    .filter(({ path, previous }) => [path, previous].some((each) => each != null && matchesHoldPath(each, TRUSTED_ACTORS_PATH)))
-    .map((change) => [change.path, actorsWidened(change)])
-    .filter(([, why]) => why);
-  return found.length ? `it widens the trusted-actor list (${found.map(([path, why]) => `${path}: ${why}`).join("; ")})` : null;
-}
-
-// `changes` with the trusted-actor list's [base text at `base`, head text at
-// `head`] on a change that modifies it in place; a read that fails, or a base
-// that is not a commit SHA, leaves its contents out, so it holds.
-export async function withActorContents(github, repo, changes, base, head) {
-  const text = async (path, ref) => {
-    const file = await github("GET", `/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${ref}`);
-    if (file?.type !== "file" || file.encoding !== "base64" || typeof file.content !== "string") {
-      throw new Error(`${path} at ${ref} did not read`);
-    }
-    // Strict, as the gate's decode("utf-8"): invalid UTF-8 throws, so it
-    // holds, and a BOM stays, so the parse refuses it as json.loads does.
-    return new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(Buffer.from(file.content, "base64"));
-  };
-  return Promise.all(
-    changes.map(async (change) => {
-      if (!matchesHoldPath(change.path, TRUSTED_ACTORS_PATH) || change.status !== "modified" || change.previous !== null || !isSha(base)) {
-        return change;
-      }
-      try {
-        return { ...change, contents: [await text(change.path, base), await text(change.path, head)] };
-      } catch {
-        return change;
-      }
-    }),
-  );
-}
-
-// babysit_merge_policy COST_DECISION_LINK, DECISION_LINE and HTML_COMMENT.
 const DECISION_LINK = /https:\/\/github\.com\/([A-Za-z0-9-]+)\/([A-Za-z0-9._-]+)\/(?:issues|pull)\/([0-9]+)#issuecomment-([0-9]+)/g;
 const DECISION_LINE = /^\*\*Decision recorded\.\*\*[ \t]+Cost:/;
-// What a cost decision comment must also carry, outside HTML comments, as
-// babysit_merge_policy DECISION_ROW and DECISION_QUOTE: a line link to a row
-// of the owner-decisions record (rows have no anchors, and the record is
-// append-only, so a line stays its row), and the owner's words quoted after
-// `verbatim:`. The gate cannot read the private record: it checks shape only.
-const DECISION_ROW =
-  /https:\/\/github\.com\/melodic-software\/architecture\/blob\/(?:main|[0-9a-f]{40})\/docs\/owner-decisions\.md(?:\?plain=1)?#L[1-9][0-9]*(?:-L[1-9][0-9]*)?/;
 const DECISION_QUOTE = /(?<![A-Za-z0-9_])verbatim:[ \t]*"[^"\n]*[^" \t\r\n][^"\n]*"/;
 const DECISION_GAPS = {
-  row: "a link to its row in the owner-decisions record (https://github.com/melodic-software/architecture/blob/<commit or main>/docs/owner-decisions.md#L<line>)",
   quote: 'the owner\'s words quoted verbatim (`verbatim: "<his words>"`)',
 };
 
-// What cost decision comment `body` lacks of DECISION_GAPS, outside HTML
-// comments, as a list; empty when it carries both.
 export function decisionGaps(body) {
   const text = String(body ?? "").replaceAll(HTML_COMMENT, "");
-  return [...(DECISION_ROW.test(text) ? [] : [DECISION_GAPS.row]), ...(DECISION_QUOTE.test(text) ? [] : [DECISION_GAPS.quote])];
+  return [...(DECISION_QUOTE.test(text) ? [] : [DECISION_GAPS.quote])];
 }
 export const PULL_OPENED_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
@@ -705,22 +437,10 @@ export const PULL_OPENED_QUERY = `query($owner: String!, $name: String!, $number
 }`;
 export const COMMENT_EDITED_QUERY = "query($id: ID!) { node(id: $id) { ... on IssueComment { lastEditedAt } } }";
 
-// Whether `text` names pull request `number` as `#<number>`: not part of a
-// longer number, and not after a letter, digit, `_`, `#`, `&`, `/`, `.` or
-// `-`, so neither `owner/repo#<number>` nor `&#<number>` counts
-// (babysit_merge_policy.names_pull; the review lanes' hold step excludes the
-// same characters but `.` and `-`).
 export function namesPull(text, number) {
   return Number.isSafeInteger(number) && new RegExp(`(?:^|[^A-Za-z0-9_#&/.-])#${number}(?:[^0-9]|$)`).test(String(text ?? ""));
 }
 
-// The review lanes whose status job records a `claude-lane-hold` notice, as
-// [workflow file, status job names] (ci-status's cost-hold step reads the same
-// two), as pr-review-cli.yml names it, under the caller's display name first;
-// the lower-case caller is a head tested before the rename. The `Status` names
-// are pr-review-cli.yml's Title Case job name, the `Publish Review` names its
-// planned one. The notice's head and criteria,
-// and the base branch name a compare takes, as the hold step reads it.
 export const REVIEW_LANES = [
   ["pr-review-hosted.yml", ["PR Review / review-status", "pr-review / review-status", "PR Review / Status", "pr-review / Status", "PR Review / Publish Review", "pr-review / Publish Review"]],
   [
@@ -738,10 +458,6 @@ export const REVIEW_LANES = [
 const HOLD_NOTICE = /^claude-lane-hold lane=[a-z-]+ sha=([0-9a-f]{40}) criteria=([a-z,-]+) label=/;
 const BRANCH = /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]{1,255}$/;
 
-// Why a compare answer (base...head) shows a head whose lane runs cannot be
-// trusted, else null: it changes a review-lane workflow, which a
-// pull_request run takes from the head and so could write the notice, or it
-// lists 300 files or more (the compare API's cap), or no file list.
 export function laneChange(compare) {
   const files = compare?.files;
   if (!Array.isArray(files)) return "no file list";
@@ -750,9 +466,57 @@ export function laneChange(compare) {
   return files.some((f) => lanes.includes(f?.filename)) ? "a review-lane workflow" : null;
 }
 
-// The cost hold notices among one status job's `annotations`, as { sha, at }
-// with `at` the job's completion: only those naming `head`, the head its run
-// ran on, so a notice can speak for no other commit.
+// https://docs.github.com/en/rest/commits/commits#compare-two-commits
+const COMPARE_FILES_CAP = 300;
+// https://docs.github.com/en/rest/repos/contents#get-repository-content
+const DIRECTORY_CAP = 1000;
+
+const shasOf = (entries) => (Array.isArray(entries) && entries.length < DIRECTORY_CAP ? new Map(entries.map((entry) => [String(entry?.name), String(entry?.sha)])) : null);
+
+async function objectShas(read, repo, dir, ref) {
+  return shasOf(await read("GET", `/repos/${repo}/contents/${dir}?ref=${ref}`));
+}
+
+export async function changedPaths(read, repo, compare, to, paths) {
+  const files = compare?.files;
+  if (!Array.isArray(files)) return null;
+  if (files.length < COMPARE_FILES_CAP) {
+    const names = files.flatMap((f) => [f?.filename, f?.previous_filename]).filter((name) => typeof name === "string");
+    return paths.flatMap((path) => names.filter((name) => name === path || name.startsWith(`${path}/`)).slice(0, 1));
+  }
+  const from = compare?.merge_base_commit?.sha;
+  if (!isSha(from) || !isSha(to)) return null;
+  const changed = [];
+  const listings = new Map();
+  for (const path of paths) {
+    const dir = posix.dirname(path);
+    if (!listings.has(dir)) {
+      const ends = [await objectShas(read, repo, dir, from), await objectShas(read, repo, dir, to)];
+      listings.set(dir, ends.includes(null) ? null : ends);
+    }
+    const ends = listings.get(dir);
+    if (ends === null) return null;
+    const name = posix.basename(path);
+    if (ends[0].get(name) !== ends[1].get(name)) changed.push(path);
+  }
+  return changed;
+}
+
+export function laneChangeListed(compare, from, to) {
+  const why = laneChange(compare);
+  const ends = [shasOf(from), shasOf(to)];
+  if (why !== "too many files" || !isSha(compare?.merge_base_commit?.sha) || ends.includes(null)) return why;
+  return REVIEW_LANES.some(([file]) => ends[0].get(file) !== ends[1].get(file)) ? "a review-lane workflow" : null;
+}
+
+export async function laneChangeIn(read, repo, compare, head) {
+  const why = laneChange(compare);
+  const from = compare?.merge_base_commit?.sha;
+  if (why !== "too many files" || !isSha(from) || !isSha(head)) return why;
+  const listing = (ref) => read("GET", `/repos/${repo}/contents/.github/workflows?ref=${ref}`);
+  return laneChangeListed(compare, await listing(from), await listing(head));
+}
+
 export function costNotices(annotations, head, at) {
   return (Array.isArray(annotations) ? annotations : []).flatMap((a) => {
     const notice = a?.annotation_level === "notice" ? HOLD_NOTICE.exec(String(a.message ?? "")) : null;
@@ -760,9 +524,6 @@ export function costNotices(annotations, head, at) {
   });
 }
 
-// The decided head: the sha of the newest of `notices` before `at`, else
-// null; null too when two heads share that time
-// (babysit_merge_policy.decided_head, and ci-status's cost-hold step).
 export function decidedHead(notices, at) {
   const cutoff = Date.parse(at);
   const before = notices.filter((n) => Date.parse(n.at) < cutoff);
@@ -771,15 +532,6 @@ export function decidedHead(notices, at) {
   return heads.size === 1 ? [...heads][0] : null;
 }
 
-// Why the head branch's push history shows a lane run missing before a
-// decision made at `at`, else null (babysit_merge_policy.unran_head, and
-// ci-status's cost-hold step). `activity` is the repository activity API for
-// the branch read to its end (branchActivity), newest first, which deleting a
-// run leaves; `ran` lists, per REVIEW_LANES entry, the heads of its runs
-// started before `at`. Every head the branch moved to after its last push of
-// `decided` before `at` needs a run of every lane: with one deleted, an older
-// notice would become the decided head (#10437). No push of `decided` before
-// `at` keeps the hold too.
 export function unranHead(activity, ran, decided, at) {
   if (!Array.isArray(activity)) {
     return "the branch's push history is unreadable";
@@ -808,17 +560,6 @@ export function unranHead(activity, ran, decided, at) {
   return gap ? `${gap.after} was pushed after the decided head with no run of every review lane before the decision` : null;
 }
 
-// The head a decision made at `at` decided, from the review lanes' check-run
-// annotations, never a comment (any GITHUB_TOKEN workflow posts as
-// github-actions[bot]): every pull_request run of a REVIEW_LANES workflow on
-// the head `branch` of `repo` started before `at` (a run from another
-// repository's same-named branch speaks for another pull request), each
-// run's head vetted against
-// `base`, the base branch's tip commit (laneChange), its status job's cost notices (costNotices) from jobs
-// done before `at`, then decidedHead, kept only while the branch's push
-// history shows no lane run missing since the decided head (unranHead). A
-// run on a head that fails the vet, or a read that fails, decides nothing.
-// `read` holds contents: read, actions: read and checks: read.
 async function noticedHead(read, repo, branch, base, at) {
   const cutoff = Date.parse(at);
   if (!Number.isFinite(cutoff) || typeof branch !== "string" || !BRANCH.test(branch)) {
@@ -841,7 +582,7 @@ async function noticedHead(read, repo, branch, base, at) {
       }
       heads.push(head);
       if (!vetted.has(head)) {
-        if (laneChange(await read("GET", `/repos/${repo}/compare/${base}...${head}`)) !== null) {
+        if ((await laneChangeIn(read, repo, await read("GET", `/repos/${repo}/compare/${base}...${head}`), head)) !== null) {
           return null;
         }
         vetted.add(head);
@@ -860,19 +601,9 @@ async function noticedHead(read, repo, branch, base, at) {
   return unranHead(await branchActivity(read, repo, branch), ran, decided, at) === null ? decided : null;
 }
 
-// The Link header a reader (fetchGitHub, check-trusted-trigger's
-// createGitHub) keeps on a list answer, under a registered symbol so this
-// file imports no repository file.
 export const LINK = Symbol.for("github.link");
 export const ACTIVITY_PAGES = 20;
 
-// The head `branch`'s activity in `repo`, newest first, read to its end: the
-// API keeps a branch name's history across deletions, so a name recreated
-// for each sync fills any one page. It ignores `page`, so each next page is
-// the `after` cursor of the answer's Link rel="next"; only a short page ends
-// it. A page that is no list gives null (unranHead's unreadable); a full page
-// with no next link, a next link with no new cursor, or more than
-// ACTIVITY_PAGES pages throws, as a failed read does.
 export async function branchActivity(read, repo, branch) {
   const path = `/repos/${repo}/activity?ref=${encodeURIComponent(`refs/heads/${branch}`)}&direction=desc&per_page=100`;
   const rows = [];
@@ -890,7 +621,6 @@ export async function branchActivity(read, repo, branch) {
     if (!next) {
       throw new Error("the branch's push history has a full page with no next link");
     }
-    // The cursor as the link spells it, encoded: decoding would read a `+` as a space.
     after = /[?&]after=([^&#]+)/.exec(next[1])?.[1];
     if (!after || cursors.has(after)) {
       throw new Error("the branch's push history names no new page");
@@ -900,39 +630,122 @@ export async function branchActivity(read, repo, branch) {
   throw new Error(`the branch's push history runs past ${ACTIVITY_PAGES} pages`);
 }
 
-// Whether a COMMENT_EDITED_QUERY answer's node was never edited.
 const unedited = (node) => Boolean(node) && "lastEditedAt" in node && node.lastEditedAt === null;
 
-// Whether two compare answers (base...head) show the same net change of the
-// pull request: the same filenames, each with the same status,
-// previous_filename and patch. A list of 300 files or more (the compare
-// API's cap), a file with no patch, a filename listed twice, or an answer
-// with no file list is not the same (babysit_merge_policy.same_net_change).
-// The compare API reports no file mode, so a change that only flips a
-// file's mode (such as making it executable) reads as the same: a known
-// residual a merge can carry.
-export function sameNetChange(decided, current) {
-  const net = (compare) => {
-    const files = compare?.files;
-    if (!Array.isArray(files) || files.length >= 300) return null;
+export function sameNetChange(decided, current, diffs = null) {
+  const net = (files, capped) => {
+    if (!Array.isArray(files) || (capped && files.length >= COMPARE_FILES)) return null;
     const byName = new Map();
     for (const f of files) {
       if (typeof f?.filename !== "string" || typeof f.patch !== "string" || byName.has(f.filename)) return null;
-      byName.set(f.filename, JSON.stringify([f.status ?? null, f.previous_filename ?? null, f.patch]));
+      byName.set(f.filename, JSON.stringify([f.status ?? null, f.previous_filename ?? null, f.patch, f.modes ?? null]));
     }
     return byName;
   };
-  const [then, now] = [net(decided), net(current)];
+  let [then, now] = [net(decided?.files, true), net(current?.files, true)];
+  if (Array.isArray(diffs) && diffs.length === 2) {
+    const parsed = diffs.map(diffFiles);
+    if (!diffCovers(decided, parsed[0]) || !diffCovers(current, parsed[1])) return false;
+    [then, now] = parsed.map((files) => net(files, false));
+  }
   return then !== null && now !== null && then.size === now.size && [...then].every(([name, value]) => now.get(name) === value);
 }
 
-// A compare answer's commits, or null when the list is not read whole
-// (shorter than total_commits, the compare API's 250).
-const listedCommits = (compare) =>
+// https://docs.github.com/en/rest/commits/commits#compare-two-commits
+export const COMPARE_FILES = 300;
+
+export const needsDiff = (compare) =>
+  Array.isArray(compare?.files) && (compare.files.length >= COMPARE_FILES || compare.files.some((f) => typeof f?.patch !== "string"));
+
+export const DIFF = "application/vnd.github.diff";
+
+export function diffCovers(compare, files) {
+  if (!Array.isArray(files) || !Array.isArray(compare?.files) || files.length < compare.files.length) return false;
+  const byName = new Map(files.map((f) => [f.filename, f]));
+  return compare.files.every((f) => byName.has(f?.filename) && (f.previous_filename ?? null) === (byName.get(f.filename).previous_filename ?? null));
+}
+
+export async function wholeCompare(read, readDiff, path) {
+  const whole = { ...(await read(`${path}?per_page=100&page=1`)) };
+  if (Array.isArray(whole.commits)) {
+    whole.commits = [...whole.commits];
+    for (let page = 2; whole.commits.length < whole.total_commits && whole.commits.length === (page - 1) * 100; page += 1) {
+      const more = (await read(`${path}?per_page=100&page=${page}`))?.commits;
+      if (Array.isArray(more)) whole.commits.push(...more);
+    }
+  }
+  if (readDiff && Array.isArray(whole.files) && whole.files.length >= COMPARE_FILES) {
+    const files = diffFiles(await readDiff(path));
+    if (files === null) throw new Error(`the diff of ${path} does not parse`);
+    if (!diffCovers(whole, files)) throw new Error(`the diff of ${path} names fewer files than its listing`);
+    whole.files = files;
+  }
+  return whole;
+}
+
+// https://docs.github.com/en/rest/commits/commits#compare-two-commits
+export const wholeCommits = async (read, path, answer) =>
+  Array.isArray(answer?.commits) && Number.isInteger(answer.total_commits) && answer.commits.length < answer.total_commits ? wholeCompare(read, null, path) : answer;
+
+const capDiffs = async (github, repo, ranges, compares) =>
+  compares.some(needsDiff) ? Promise.all(ranges.map((range) => github("GET", `/repos/${repo}/compare/${range}`, undefined, { Accept: DIFF }))) : null;
+
+export function diffFiles(text) {
+  if (typeof text !== "string") return null;
+  const lines = text.split("\n");
+  if (lines.at(-1) === "") lines.pop();
+  const sections = [];
+  for (const line of lines) {
+    if (line.startsWith("diff --git ")) sections.push([line.slice("diff --git ".length)]);
+    else if (sections.length) sections.at(-1).push(line);
+    else return null;
+  }
+  const files = [];
+  for (const [names, ...rest] of sections) {
+    const file = { status: "modified", modes: [] };
+    const sides = {};
+    let at = 0;
+    for (; at < rest.length && !rest[at].startsWith("@@"); at += 1) {
+      const line = rest[at];
+      const [, key, value] = /^(old mode|new mode|new file mode|deleted file mode|rename from|rename to|copy from|copy to|similarity index|dissimilarity index|index|---|\+\+\+|Binary files|GIT binary patch)(?: (.*))?$/.exec(line) ?? [];
+      if (key === undefined) return null;
+      if (key.endsWith("mode")) file.modes.push(line);
+      if (key === "new file mode") file.status = "added";
+      if (key === "deleted file mode") file.status = "removed";
+      if (/^(rename|copy) /.test(key)) {
+        if (!value || value.startsWith('"')) return null;
+        file.status = key.startsWith("rename") ? "renamed" : "copied";
+        sides[key.endsWith("from") ? "from" : "to"] = value;
+      }
+      if (key === "---" || key === "+++") {
+        const path = value?.includes(" ") ? value.replace(/\t$/, "") : value;
+        const prefix = key === "---" ? "a/" : "b/";
+        if (path !== "/dev/null" && !path?.startsWith(prefix)) return null;
+        if (path !== "/dev/null") sides[key === "---" ? "old" : "new"] = path.slice(2);
+      }
+      if (key === "Binary files" || key === "GIT binary patch") {
+        at = rest.length;
+        file.binary = true;
+      }
+    }
+    const half = (names.length - 5) / 2;
+    const same = names.slice(2, 2 + half);
+    const symmetric = names === `a/${same} b/${same}` && !same.startsWith('"') ? same : undefined;
+    file.filename = sides.to ?? sides.new ?? sides.old ?? symmetric;
+    if (typeof file.filename !== "string") return null;
+    if (sides.from !== undefined) file.previous_filename = sides.from;
+    const hunks = file.binary ? [] : rest.slice(at);
+    if (!file.binary) file.patch = hunks.join("\n");
+    if (!hunks.length && file.status === "modified" && file.modes.length) file.status = "changed";
+    delete file.binary;
+    files.push(file);
+  }
+  return files;
+}
+
+export const listedCommits = (compare) =>
   Array.isArray(compare?.commits) && Number.isInteger(compare.total_commits) && compare.total_commits === compare.commits.length ? compare.commits : null;
 
-// The commits a compare answer `now` (base...H') lists beyond `then`
-// (base...H), or null when either list is not read whole.
 function newCommits(then, now) {
   const [before, after] = [listedCommits(then), listedCommits(now)];
   if (before === null || after === null) return null;
@@ -940,21 +753,11 @@ function newCommits(then, now) {
   return after.filter((c) => !old.has(c?.sha));
 }
 
-// The parents other than the first of each commit `now` lists beyond `then`
-// (newCommits), the ones a base merge must take from the base; a parent
-// that is not a 40-hex sha is left out, so it is never in the base.
 export function mergedParents(then, now) {
   const parents = (newCommits(then, now) ?? []).flatMap((c) => (Array.isArray(c?.parents) ? c.parents.slice(1).map((p) => p?.sha) : []));
   return [...new Set(parents.filter(isSha))];
 }
 
-// Whether every commit `now` (base...H') lists beyond `then` (base...H) is a
-// merge whose every parent but the first is in `inBase` (the parents the
-// base holds, read by baseParents), with `from` (H) among `now`'s commits, so
-// H' descends from H by merges of the base alone
-// (babysit_merge_policy.base_merges_only). A non-merge commit, a merge of
-// another branch, a force push that drops H, or a list not read whole
-// carries nothing.
 export function baseMergesOnly(then, now, from, inBase = new Set()) {
   const added = newCommits(then, now);
   return (
@@ -964,42 +767,16 @@ export function baseMergesOnly(then, now, from, inBase = new Set()) {
   );
 }
 
-// The one base-merge carry: whether what a person or the owner decided at
-// head `from` covers the head `now` was read at, from the compares
-// base...from (`then`) and base...head (`now`) against the base's tip commit
-// and the merged parents the base holds (`inBase`, from baseParents; an
-// array, as ci-status's cost step passes it as JSON, or a Set): every commit
-// since is a merge of the base (baseMergesOnly) and the net change is the
-// same over every file (sameNetChange), so a merge that writes any change of
-// its own carries nothing (babysit_merge_policy.base_merge_carry).
-export function baseMergeCarry(then, now, from, inBase = []) {
-  return baseMergesOnly(then, now, from, new Set(inBase)) && sameNetChange(then, now);
+export function baseMergeCarry(then, now, from, inBase = [], diffs = null, changed = undefined) {
+  const whole = diffs === null || (Array.isArray(diffs) && Number.isInteger(changed) && diffFiles(diffs[1])?.length === changed);
+  return whole && baseMergesOnly(then, now, from, new Set(inBase)) && sameNetChange(then, now, diffs);
 }
 
-// Whether the merges brought exactly the base's changes (the owner's decision
-// of 2026-10-28, part b): `merges` is the compare H...H', what the merges
-// brought into the approved head, and `based` the compare M...M' between the
-// merge bases of H and of H' with the base's tip, what the base changed over
-// that range. H' must be ahead of H and M' of (or at) M, each commit list read
-// whole, and the two file lists the same file for file (sameNetChange, so
-// each list is under 300 files and every file has a patch). A file the merges
-// changed beyond the base, or a base change they dropped, carries nothing.
-// This assumes GitHub omits no file from a compare's list of fewer than 300
-// files; nothing here reads a second listing to check that. The compare API
-// reports no file mode, so `trees` ([H' tree, M' tree], each a recursive
-// git/trees answer) decide it (sameModes): every brought file must have the
-// same mode at H' as at M', and the trees cross-check that each path is
-// present (or, removed or renamed away, absent) in both.
-export function exactBaseCarry(merges, based, trees = null) {
+export function exactBaseCarry(merges, based, trees = null, diffs = null) {
   const forward = (compare, statuses) => statuses.includes(compare?.status) && compare.behind_by === 0 && listedCommits(compare) !== null;
-  return forward(merges, ["ahead"]) && forward(based, ["ahead", "identical"]) && sameNetChange(merges, based) && sameModes(merges, trees);
+  return forward(merges, ["ahead"]) && forward(based, ["ahead", "identical"]) && sameNetChange(merges, based, diffs) && sameModes(diffs === null ? merges : { files: diffFiles(diffs[0]) }, trees);
 }
 
-// Whether each file a compare `merges` lists has one mode at both trees of
-// `trees` (two recursive git/trees answers, read whole: `truncated` false;
-// an entry whose mode is not text counts as absent):
-// present in both at one mode, or, for a removed file and a renamed file's
-// old path, in neither (babysit_merge_policy._same_modes).
 function sameModes(merges, trees) {
   const modes = (tree) => {
     if (tree?.truncated !== false || !Array.isArray(tree.tree)) return null;
@@ -1009,7 +786,7 @@ function sameModes(merges, trees) {
     }
     return byPath;
   };
-  if (!Array.isArray(trees) || trees.length !== 2) return false;
+  if (!Array.isArray(trees) || trees.length !== 2 || !Array.isArray(merges?.files)) return false;
   const [head, base] = trees.map(modes);
   if (head === null || base === null) return false;
   return merges.files.every((f) => {
@@ -1019,69 +796,27 @@ function sameModes(merges, trees) {
   });
 }
 
-// Whether an approval of `from` carries to the head `now` was read at
-// (babysit_merge_policy.approval_carry), by either of two paths:
-// - every commit since is a merge of the base (baseMergesOnly), and the net
-//   change is the same (sameNetChange) or the merges brought exactly the
-//   base's changes (exactBaseCarry over `merges`, `based` and `trees`, null
-//   when not read);
-// - the owner's decision Q10 of 2026-10-28: `merges`, the compare from...H',
-//   touches no hold path (ungatedSince, with `holdPaths` the configured
-//   globs; undefined, as a caller that read none passes, skips this path).
-// An approval GitHub dismissed as stale (autoDismissed) passes its
-// `dismissal` commit, which must be one of the commits pushed since `from`,
-// so the push the carry checks dismissed it.
-export function approvalCarry(then, now, from, inBase, merges, based, dismissal = null, trees = null, holdPaths = undefined) {
+export function approvalCarry(then, now, from, inBase, merges, based, dismissal = null, trees = null, holdPaths = undefined, diffs = null, mergeDiffs = null) {
   const pushed = (commits) => dismissal === null || (commits ?? []).some((c) => c?.sha === dismissal);
-  const merged = baseMergesOnly(then, now, from, new Set(inBase)) && pushed(newCommits(then, now)) && (sameNetChange(then, now) || exactBaseCarry(merges, based, trees));
-  return merged || (holdPaths !== undefined && ungatedSince(merges, holdPaths) && pushed(listedCommits(merges)));
+  const merged = baseMergesOnly(then, now, from, new Set(inBase)) && pushed(newCommits(then, now)) && (sameNetChange(then, now, diffs) || exactBaseCarry(merges, based, trees, mergeDiffs));
+  return merged || (holdPaths !== undefined && ungatedSince(merges, holdPaths, mergeDiffs?.[0] ?? null) && pushed(listedCommits(merges)));
 }
 
-// The code a hold-path file loads that is no hold path itself: every file of
-// each local action a hold-path workflow uses, every tracked script it names
-// by path in any directory (from the head checkout or `.base/`, the lint and
-// test scripts ci-status runs included), and the JS and Python those import
-// (test_merge_holds_sync.py derives that closure and fails on a member these
-// globs and HOLD_PATH_CLASSES miss; a shell script's own `source` is not
-// walked).
-// Holding them for a person would hold most pull requests, so a push that
-// touches one only stops an approval carrying (ungatedSince); the review
-// lanes still judge it. babysit_merge_policy.CARRY_REFUSES is the same list.
-// The trusted-actor list and the pipeline config are read too: a widening the
-// approver never saw is lifted by the same approval (actorsHold).
-export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", "plugins/testing/skills/run-e2e/scripts/**", "plugins/testing/scripts/**", ".github/recurring-schedule.json", "docs/upstream/**", "plugins/evals/skills/validate/scripts/**", "plugins/evals/skills/plugin-eval/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**", "plugins/work-items/tools/work-item-tracker/**", "plugins/harness-ops/skills/changelog/scripts/**", "plugins/instruction-placement/scripts/**", "plugins/app-control/scripts/**", "plugins/formal-verification/scripts/**", "plugins/formal-verification/lib/**", "plugins/formal-verification/defaults.json", "plugins/formal-verification/schemas/**", "plugins/code-metrics/scripts/**", "plugins/code-metrics/skills/audit/scripts/**", "plugins/guardrails/git-hooks/reference-verify.sh", "plugins/bash-format/git-hooks/lint-full.sh"]);
+export const CARRY_REFUSES = Object.freeze([".github/workflows/**", ".github/actions/**", ".github/scripts/**", ".github/standards/**", "docs/conventions/pr-pipeline/**", "scripts/**", "lib/**", "plugins/source-control/skills/babysit-prs/scripts/**", "plugins/performance/scripts/**", "plugins/harness-ops/skills/inventory/scripts/**", "plugins/ai-briefing/skills/generate/scripts/**", "plugins/harness-config/skills/audit-permission-state/scripts/**", "plugins/knowledge/skills/course-digest/scripts/**", "plugins/knowledge/skills/video-digest/scripts/**", "plugins/skill-quality/scripts/**", "plugins/source-control/scripts/**", "plugins/testing/skills/check-visual-parity/scripts/**", "plugins/testing/skills/run-e2e/scripts/**", "plugins/testing/scripts/**", ".github/recurring-schedule.json", "docs/upstream/**", "plugins/evals/skills/validate/scripts/**", "plugins/evals/skills/plugin-eval/scripts/**", "plugins/testing/evals/browser-probe/**", "plugins/work-items/scripts/**", "plugins/work-items/tools/work-item-tracker/**", "plugins/harness-ops/skills/changelog/scripts/**", "plugins/instruction-placement/scripts/**", "plugins/app-control/scripts/**", "plugins/formal-verification/scripts/**", "plugins/formal-verification/lib/**", "plugins/formal-verification/defaults.json", "plugins/formal-verification/schemas/**", "plugins/code-metrics/scripts/**", "plugins/code-metrics/skills/audit/scripts/**", "plugins/work-items/skills/triage/scripts/**", "plugins/work-items/skills/triage/schemas/**", "plugins/guardrails/git-hooks/reference-verify.sh", "plugins/bash-format/git-hooks/lint-full.sh", "plugins/code-tidying/git-hooks/comment-lint-ci.sh"]);
 
-// Whether the compare from...H' `merges` touches no hold path and no file a
-// hold path loads, old paths of renames included: pathHold with `holdPaths`
-// and HOLD_PATH_FLOOR, REVIEW_FLOOR's enforcement globs (the floored code the
-// gate holds for a security review, which a person's approval never
-// covered) and CARRY_REFUSES. H' must be ahead of `from` with nothing behind,
-// its commit list read whole, and fewer than the compare API's 300 files
-// listed, each named. Any edit to such a file, a test or a comment included,
-// needs a new approval.
-export function ungatedSince(merges, holdPaths) {
-  const files = merges?.files;
-  if (merges?.status !== "ahead" || merges.behind_by !== 0 || listedCommits(merges) === null || !Array.isArray(files) || files.length >= 300) return false;
+export function ungatedSince(merges, holdPaths, diff = null) {
+  const listed = merges?.files;
+  if (merges?.status !== "ahead" || merges.behind_by !== 0 || listedCommits(merges) === null || !Array.isArray(listed)) return false;
+  const files = listed.length >= COMPARE_FILES ? diffFiles(diff) : listed;
+  if (files !== listed && !diffCovers(merges, files)) return false;
   if (!files.every((f) => typeof f?.filename === "string")) return false;
   const paths = files.flatMap((f) => [f.filename, ...(typeof f.previous_filename === "string" ? [f.previous_filename] : [])]);
   const loaded = [...REVIEW_FLOOR, ...CARRY_REFUSES];
   return Array.isArray(holdPaths) && pathHold(paths, holdPaths) === null && !paths.some((path) => loaded.some((glob) => matchesHoldPath(path, glob)));
 }
 
-// A review id as text, from a string or a safe integer (as JSON may give
-// either), else null (babysit_merge_policy._review_key).
 const reviewKey = (value) => (typeof value === "string" ? value : Number.isSafeInteger(value) ? String(value) : null);
 
-// The reviews GitHub dismissed as stale, from the pull request's issue
-// timeline `events`, as a Map of review id (a string) to the dismissal
-// commit: a review_dismissed event of an approval with a null message, by a
-// Bot (the account whose push dismissed it), naming a commit SHA. A
-// dismissal whose actor is a User revokes: a person's own dismissal, or the
-// stale dismissal a person's push caused. That a Bot's deliberate dismissal
-// always carries a message is UNVERIFIED (the dismissal API documents the
-// message as required), so the null message is a second filter, not the
-// one that tells GitHub's dismissal from an App's. A review with any other
-// dismissal event is left out.
 export function autoDismissed(events) {
   const found = new Map();
   const revoked = new Set();
@@ -1098,10 +833,6 @@ export function autoDismissed(events) {
   return found;
 }
 
-// The merged parents (mergedParents) the base holds, through `compare` (a
-// GET of /repos/<repo>/compare/<range>) against `tip`, the base branch's
-// tip commit (baseTip): those whose compare is `ahead` or `identical`. A
-// read that fails throws, which carries nothing.
 export async function baseParents(compare, tip, then, now) {
   const inBase = new Set();
   for (const sha of mergedParents(then, now)) {
@@ -1110,10 +841,6 @@ export async function baseParents(compare, tip, then, now) {
   return inBase;
 }
 
-// The tip commit of the base branch `base`, read once by its full ref so no
-// tag or other ref of the same name stands in for it; a throw when it does
-// not read as a commit SHA. `mainTip`, main's tip the caller already
-// resolved, answers for `main` with no read.
 export async function baseTip(github, repo, base, mainTip = undefined) {
   if (base === "main" && isSha(mainTip)) return mainTip;
   const sha = (await github("GET", `/repos/${repo}/git/ref/heads/${base}`))?.object?.sha;
@@ -1121,13 +848,6 @@ export async function baseTip(github, repo, base, mainTip = undefined) {
   return sha;
 }
 
-// Each trusted person's standing approval, as { login, sha, dismissal }:
-// their newest review (REST, fromRest shape) that approves, requests changes
-// or was dismissed, when it approves a commit, with `dismissal` null; or when
-// it is an approval GitHub dismissed as stale (`dismissed`, autoDismissed's
-// Map), with `dismissal` its dismissal commit, which lifts only through the
-// carry (babysit_merge_policy.lifts_of). Only ids in `humans` count; any
-// other dismissed approval does not.
 export function liftsOf(reviews, humans, dismissed = new Map()) {
   const newest = new Map();
   for (const r of reviews ?? []) {
@@ -1143,22 +863,6 @@ export function liftsOf(reviews, humans, dismissed = new Map()) {
   });
 }
 
-// The trusted people whose approval (liftsOf) of pull request `number`'s
-// `head`, or of an earlier head that carries to it over merges of its base
-// branch (approvalCarry against the base's tip, baseTip, with baseParents),
-// lifts its hold paths, as { lifters }, sorted. An approval GitHub dismissed
-// as stale on a push (autoDismissed, from the issue timeline, read only when
-// a trusted person's newest review was dismissed) counts, but only through
-// the carry, never as an approval of the head. It lifts the hold path and the
-// trusted-actor list widening only, never the holds an approving review of
-// the head itself lifts. Reads: the pull request (a head that is no longer
-// `head`, or is in a fork, lifts nothing), the reviews, the timeline, the
-// repository's default branch (a base that is not it carries nothing), the
-// base's tip, and the compares per approved head: against the tip, and when
-// the net change differs, H...H', the range between the two merge bases and
-// the recursive trees of H' and M' (exactBaseCarry). A read that fails lifts nothing (a timeline that does not
-// read restores no dismissed approval): the caller keeps the exact-head
-// approvals it read (pathLifters). `mainTip` goes to baseTip.
 export async function liftersOf(github, repo, number, head, humans, holdPaths = undefined, { mainTip } = {}) {
   try {
     const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
@@ -1169,8 +873,6 @@ export async function liftersOf(github, repo, number, head, humans, holdPaths = 
       ? await pages(github, `/repos/${repo}/issues/${number}/timeline`).then(autoDismissed, () => new Map())
       : new Map();
     const lifts = liftsOf(reviews, humans, dismissed);
-    // A carry runs only into the repository's default branch: another base
-    // may be non-linear, with criss-cross merge bases.
     const carrying = lifts.some(({ sha }) => sha !== head) && (await github("GET", `/repos/${repo}`))?.default_branch === base;
     const tip = carrying ? await baseTip(github, repo, base, mainTip) : null;
     const compares = new Map();
@@ -1178,6 +880,7 @@ export async function liftersOf(github, repo, number, head, humans, holdPaths = 
       if (!compares.has(range)) compares.set(range, await github("GET", `/repos/${repo}/compare/${range}`));
       return compares.get(range);
     };
+    const whole = async (range) => wholeCommits((path) => github("GET", path), `/repos/${repo}/compare/${range}`, await compare(range));
     const treeReads = new Map();
     const tree = async (sha) => {
       if (!treeReads.has(sha)) treeReads.set(sha, await github("GET", `/repos/${repo}/git/trees/${sha}?recursive=1`));
@@ -1191,27 +894,29 @@ export async function liftersOf(github, repo, number, head, humans, holdPaths = 
         continue;
       }
       if (!carrying) continue;
-      const [then, now] = [await compare(`${tip}...${sha}`), await compare(`${tip}...${head}`)];
-      // A compare listing fewer files than the pull request changes is
-      // cut short, so it carries nothing.
-      if (!Array.isArray(now?.files) || now.files.length !== pull.changed_files) continue;
+      const [then, now] = [await whole(`${tip}...${sha}`), await whole(`${tip}...${head}`)];
+      const diffs = await capDiffs(github, repo, [`${tip}...${sha}`, `${tip}...${head}`], [then, now]);
+      const listed = diffs ? diffFiles(diffs[1])?.length : now?.files?.length;
+      if (!Array.isArray(now?.files) || listed !== pull.changed_files) continue;
       const inBase = await baseParents(compare, tip, then, now);
-      let [merges, based, trees] = [null, null, null];
+      let [merges, based, trees, mergeDiffs] = [null, null, null, null];
       const [from, to] = [sha40(then?.merge_base_commit?.sha), sha40(now?.merge_base_commit?.sha)];
-      if (baseMergesOnly(then, now, sha, inBase) && !sameNetChange(then, now) && from && to) {
-        [merges, based] = [await compare(`${sha}...${head}`), await compare(`${from}...${to}`)];
+      if (baseMergesOnly(then, now, sha, inBase) && !sameNetChange(then, now, diffs) && from && to) {
+        [merges, based] = [await whole(`${sha}...${head}`), await whole(`${from}...${to}`)];
+        mergeDiffs = await capDiffs(github, repo, [`${sha}...${head}`, `${from}...${to}`], [merges, based]);
         trees = [await tree(head), await tree(to)];
       }
-      if (approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees)) {
+      if (approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees, undefined, diffs, mergeDiffs)) {
         lifters.add(login);
         continue;
       }
-      // Q10's path reads from...H' when the base-merge path did not; a read
-      // that fails carries nothing by it.
       if (holdPaths !== undefined && merges === null) {
-        merges = await compare(`${sha}...${head}`).catch(() => null);
+        merges = await whole(`${sha}...${head}`).catch(() => null);
       }
-      if (holdPaths !== undefined && approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees, holdPaths)) lifters.add(login);
+      if (holdPaths !== undefined && mergeDiffs === null && merges !== null) {
+        mergeDiffs = await capDiffs(github, repo, [`${sha}...${head}`], [merges]).catch(() => null);
+      }
+      if (holdPaths !== undefined && approvalCarry(then, now, sha, inBase, merges, based, dismissal, trees, holdPaths, diffs, mergeDiffs)) lifters.add(login);
     }
     return { lifters: [...lifters].sort() };
   } catch {
@@ -1219,8 +924,6 @@ export async function liftersOf(github, repo, number, head, humans, holdPaths = 
   }
 }
 
-// Every page of the REST list at `path`: each answer itself, or the list it
-// holds under `key` when one is given.
 async function pages(github, path, key = null) {
   const rows = [];
   for (let page = 1; ; page += 1) {
@@ -1236,15 +939,7 @@ async function pages(github, path, key = null) {
   }
 }
 
-// Whether the decision `comment` covers the pull request at `head` (owner
-// decisions Q17 c and Q18 d on #9436): its decided head (noticedHead, read
-// with `actions` from the head branch `branch`'s lane runs) is `head`, or
-// every change since is a merge of the base branch `base`, so the net change
-// against it is the same at both (baseMergeCarry). The base is resolved once
-// to its tip commit (baseTip), which the lane-change vet and every compare
-// name, so no tag of the same name stands in for it. No decided head, an
-// unusable base name or a read that fails carries nothing.
-async function carries(github, actions, repo, comment, head, base, branch) {
+async function carries(github, actions, repo, comment, head, base, branch, number) {
   try {
     if (typeof base !== "string" || !BRANCH.test(base)) {
       return false;
@@ -1258,35 +953,17 @@ async function carries(github, actions, repo, comment, head, base, branch) {
       return true;
     }
     const compare = (range) => github("GET", `/repos/${repo}/compare/${range}`);
-    const then = await compare(`${tip}...${decided}`);
-    const now = await compare(`${tip}...${head}`);
-    return baseMergeCarry(then, now, decided, await baseParents(compare, tip, then, now));
+    const whole = async (range) => wholeCommits((path) => github("GET", path), `/repos/${repo}/compare/${range}`, await compare(range));
+    const then = await whole(`${tip}...${decided}`);
+    const now = await whole(`${tip}...${head}`);
+    const diffs = await capDiffs(github, repo, [`${tip}...${decided}`, `${tip}...${head}`], [then, now]);
+    const changed = diffs ? (await github("GET", `/repos/${repo}/pulls/${number}`))?.changed_files : undefined;
+    return baseMergeCarry(then, now, decided, await baseParents(compare, tip, then, now), diffs, changed);
   } catch {
     return false;
   }
 }
 
-// The comment link in `body`, outside HTML comments, that records the
-// owner's cost decision for pull request `number` of `repo` at `head`, else
-// null: the rule of babysit_merge_policy.cost_decision, with the owner a
-// person whose id is in `humans` (trusted-actors.json), as ci-status's
-// cost-only review hold step names one. The comment is on the pull request,
-// or on its linked issue in `repo` (the one closing issue, else with none the
-// one refsIssue names, read to be an issue and not a pull request), newer
-// than the pull request and naming it (namesPull); by a User, not through an
-// App; never edited; its first line `**Decision recorded.** Cost:`. Of
-// those, the decision is the newest on the pull request, else the newest on
-// the issue, as the review lanes' hold step picks it. That decision must also
-// carry a row link and a verbatim owner quote (decisionGaps), else it clears
-// nothing and what it lacks goes to `missing`, when given; this makes a
-// cleared hold auditable, not provable, since sessions post as the owner and
-// write the record too. It covers the head it
-// decided and a later one only when every change since is a base merge
-// (carries, against the pull request's base branch). `github(method, path,
-// body)` reads; `actions`, the same shape, reads the lane runs, their jobs,
-// annotations and compares (it needs actions: read and checks: read). A
-// failed read of the pull request or the Refs target decides nothing, and one
-// of a comment or its edit state skips that comment.
 export async function costDecision(github, repo, number, body, humans, head, actions = github, missing = null) {
   const links = [...String(body ?? "").replaceAll(HTML_COMMENT, "").matchAll(DECISION_LINK)].filter(
     (link) => `${link[1]}/${link[2]}`.toLowerCase() === String(repo).toLowerCase(),
@@ -1317,7 +994,6 @@ export async function costDecision(github, repo, number, body, humans, head, act
       continue;
     }
     if (target !== number && !checked) {
-      // A Refs number may name a pull request; only an issue is consulted.
       try {
         const read = await github("GET", `/repos/${repo}/issues/${refs}`);
         issue = read?.number === refs && read.pull_request == null ? refs : null;
@@ -1346,30 +1022,29 @@ export async function costDecision(github, repo, number, body, humans, head, act
         decisions.push({ link: link[0], comment, own: target === number });
       }
     } catch {
-      // An unreadable comment clears nothing.
     }
   }
   const at = (d) => {
     const made = Date.parse(d.comment.created_at);
     return Number.isNaN(made) ? -Infinity : made;
   };
-  // The newest; of two at one time, the first linked.
   const newest = (own) => decisions.filter((d) => d.own === own).reduce((best, d) => (best === undefined || at(d) > at(best) ? d : best), undefined);
   const decision = newest(true) ?? newest(false);
-  // The chosen decision, not a fallback, must carry both: an older complete
-  // comment never stands in for a newer one that lacks either.
   const gaps = decision ? decisionGaps(decision.comment.body) : [];
   missing?.push(...gaps);
-  return decision && !gaps.length && (await carries(github, actions, repo, decision.comment, head, pull?.baseRefName, pull?.headRefName)) ? decision.link : null;
+  return decision && !gaps.length && (await carries(github, actions, repo, decision.comment, head, pull?.baseRefName, pull?.headRefName, number)) ? decision.link : null;
 }
 
-// A GitHub REST and GraphQL reader on fetch, for costDecision.
-const fetchGitHub = (env) => async (method, path, body) => {
+const fetchGitHub = (env) => async (method, path, body, headers = {}) => {
   const response = await fetch(`${env.GITHUB_API_URL || "https://api.github.com"}${path}`, {
     method,
-    headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GH_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28" },
+    headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GH_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28", ...headers },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  if (headers.Accept === DIFF) {
+    if (!response.ok) throw new Error(`${method} ${path} failed with status ${response.status}`);
+    return response.text();
+  }
   const json = response.ok ? await response.json() : null;
   if (json === null || json.errors?.length) {
     throw new Error(`${method} ${path} failed with status ${response.status}`);
@@ -1380,14 +1055,10 @@ const fetchGitHub = (env) => async (method, path, body) => {
   return json;
 };
 
-// The config's denied paths, or null unless a list of strings; pathHold adds
-// the floor.
 export function holdPathsOf(denied) {
   return Array.isArray(denied) && denied.every((glob) => typeof glob === "string") ? denied : null;
 }
 
-// The trusted people (numeric `humans` ids) whose newest deciding review of
-// `head` among `items` approves it, sorted by login.
 export function pathLifters(items, humans, head) {
   const newest = new Map();
   for (const item of items) {
@@ -1407,19 +1078,8 @@ export function pathLifters(items, humans, head) {
     .sort();
 }
 
-// Why the pull request's `body`, discussion `items` and changed `files` hold
-// it; empty when nothing does. `lifters` approved the head (pathLifters, or
-// liftersOf over base merges), which lifts a
-// hold path but not an unreadable file list or hold-path list, nor a cost
-// path, which only the owner's `decision` lifts. It lifts `widened`
-// (actorsHold's reason) too. `byPerson` (personWrote) says whether the body
-// can hold; `pathHolds` false (pathHoldsOf) holds no hold path. `missing`
-// (costDecision's) names what a linked decision comment lacks.
-export function holds(body, items, files, holdPaths, lifters = [], decision = null, byPerson = true, widened = null, pathHolds = true, missing = []) {
+export function holds(files, holdPaths, lifters = [], decision = null, pathHolds = true, missing = []) {
   const reasons = [];
-  if (widened && !lifters.length) {
-    reasons.push(`${widened}; ${APPROVAL_CARRIES}`);
-  }
   const pathReason = pathHold(files, holdPaths, pathHolds);
   const readable = Array.isArray(files) && Array.isArray(holdPaths);
   if (pathReason && !(readable && lifters.length)) {
@@ -1428,31 +1088,15 @@ export function holds(body, items, files, holdPaths, lifters = [], decision = nu
   const cost = costHold(files, decision);
   if (cost) {
     reasons.push(
-      `${cost}; the owner's unedited comment opening '**Decision recorded.** Cost:' on this pull request, or on its linked issue naming this pull request, linked from the body and carrying a link to its row in the owner-decisions record and the owner's words quoted verbatim, lifts it for the head it decided and a later head that only merges the base${missing.length ? `; the linked decision comment lacks ${missing.join(" and ")}` : ""}`,
+      `${cost}; the owner's unedited comment opening '**Decision recorded.** Cost:' on this pull request, or on its linked issue naming this pull request, linked from the body and carrying the owner's words quoted verbatim, lifts it for the head it decided and a later head that only merges the base${missing.length ? `; the linked decision comment lacks ${missing.join(" and ")}` : ""}`,
     );
-  }
-  if (bodyHolds(body, byPerson)) {
-    reasons.push("its body holds it (a line opening with 'Hold:', or 'do not merge'); removing that text lifts it");
-  }
-  const vetoes = vetoers(items);
-  if (vetoes.length) {
-    reasons.push(`${vetoes.join(", ")} asked not to merge it; a later comment by the same person lifts it, then re-run ci-status`);
   }
   return reasons;
 }
 
-// The verifier workflow (resolve-pr.mjs VERIFY_PATH).
 export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
 const PASSES = Object.freeze(["pass", "pass-notes"]);
 
-// Why the head has no verifier pass, or null when a record shows one: a pass
-// or pass-notes artifact whose run is pr-verify.yml's, event workflow_run, on
-// `branch` of `repo` with its head in `repo`, completed with success: the
-// fields of babysit_verify_evidence `_origin` and a counted run, without its
-// compare read that main holds the run's commit, since main's ruleset
-// forbids the force push that could drop it. The records are
-// read for the head alone, by exact name, so a record of another head never
-// reaches here.
 export function verdictHold(records, repo, branch = "main") {
   if (!Array.isArray(records) || !isRepo(repo)) {
     return "its pr-verify verdicts could not be read";
@@ -1473,19 +1117,10 @@ export function verdictHold(records, repo, branch = "main") {
   return pass ? null : "pr-verify has not passed this head";
 }
 
-// The annotation title of a verifier hold (verdictHold, linkHold,
-// evidenceHold), so a reader of the job's annotations tells a pr-verify
-// refusal from a body hold, member veto or hold path in the same step.
 export const VERIFIER_TITLE = "pr-verify hold";
 
-// The refusals of babysit_verify_evidence.py a pass decides: verdictHold and
-// linkHold judge the pass here, and an approval lifts them as it lifts this.
 const PASS_REFUSALS = Object.freeze(["verify:missing", "verify:spec-changed", "verify:untrusted-spec"]);
 
-// Why the reader's report for `head` holds it, or null: a refusal outside
-// PASS_REFUSALS (a FAIL class, verify:unreadable, verify:too-old or one this
-// module does not know) holds, and so does a report that does not read or
-// names another head.
 export function evidenceHold(report, head) {
   if (
     report === null ||
@@ -1504,28 +1139,17 @@ export function evidenceHold(report, head) {
   return `pr-verify's reader refuses this head (${refusal}${typeof detail === "string" && detail ? `: ${detail}` : ""})`;
 }
 
-// The reader's refusal of this head's pass (one of PASS_REFUSALS), or null.
-// A refusal the workflow step got before reading any pass names leaves
-// verdictHold no pass to read, so the hold names that refusal, not a missing
-// pass. Any other refusal is evidenceHold's.
 export function passRefusalOf(evidence, head) {
   return evidence?.head === head && PASS_REFUSALS.includes(evidence.refusal) ? evidence.refusal : null;
 }
 
-// Owner decision (2026-11-04, "Hold until re-judged"): a pass the linked issue
-// changed after holds in the queue too, read or not, until pr-verify judges
-// the head again (the lost-run reconciler re-runs it) or an approval lifts it.
 const STALE = "verify:spec-changed";
 
-// A log line can carry a changed file's name: escape what would start a
-// workflow command on a new line.
 const escape = (text) => String(text).replaceAll("%", "%25").replaceAll("\r", "%0D").replaceAll("\n", "%0A");
 
-// The numeric ids of trusted-actors.json's people.
 export const humansOf = (actors) =>
   new Set(actors.filter((actor) => actor?.kind === "human" && Number.isInteger(actor?.id)).map(({ id }) => id));
 
-// The link file's verdict, a file that does not read included.
 function linkOf(file, body, repo) {
   try {
     const { record, closing } = JSON.parse(readFileSync(file, "utf8"));
@@ -1535,11 +1159,6 @@ function linkOf(file, body, repo) {
   }
 }
 
-// One files-file line as { path, previous, status }: [filename,
-// previous_filename or null, status] from the pull request files API, or an
-// object of those keys. An older line of one path and any renamed-from path
-// has no status. A module older than this one reads every entry of a line as
-// a path, null and the status matching no hold path.
 export function changeOf(line) {
   if (Array.isArray(line)) {
     const [path, previous = null, status = null] = line;
@@ -1556,13 +1175,6 @@ export function changeOf(line) {
   return { path: line.filename, previous: typeof previous === "string" && previous ? previous : null, status: typeof line.status === "string" ? line.status : null };
 }
 
-// A HEAD A PR-UNBLOCK LANE STOPPED: each `pr-unblock/*` context whose newest
-// status by github-actions[bot] is `failure` or `error`, as
-// { context, state, description }. `statuses` are a commit's REST statuses,
-// newest first as GitHub lists them, so a later `success` on the head
-// supersedes a failure, and another account's status neither holds nor
-// clears. enable-auto-merge judges a head by this; a list that is not an
-// array throws.
 export function unblockStops(statuses) {
   if (!Array.isArray(statuses)) {
     throw new Error("the head's statuses are not a list");
@@ -1582,8 +1194,6 @@ export function unblockStops(statuses) {
   return stops;
 }
 
-// Every REST status of `head`, 100 a page, newest first. A page that is not a
-// list, or more than 10 pages, throws.
 export async function readStatuses(github, repo, head) {
   const statuses = [];
   for (let page = 1; page <= 10; page += 1) {
@@ -1599,14 +1209,8 @@ export async function readStatuses(github, repo, head) {
   throw new Error("more than 1000 statuses on the head");
 }
 
-// The work-item tracker binding, at the convention home the workflows read
-// pr-pipeline.yaml from.
 export const TRACKER_BINDING_PATH = "docs/conventions/work-items.yaml";
 
-// The binding at `path` as JSON text: the `tracker` mapping of a .yaml file,
-// through yq as the workflows read it (`null` when the file binds none),
-// else the file's own text (the legacy .work-item-tracker.json). A missing
-// file throws fs's ENOENT; a yq failure throws.
 export function trackerBindingText(path) {
   const text = readFileSync(path, "utf8");
   if (!String(path).endsWith(".yaml")) {
@@ -1615,37 +1219,22 @@ export function trackerBindingText(path) {
   try {
     return execFileSync("yq", ["-o=json", "-I=0", ".tracker", "-"], { input: text, encoding: "utf8", timeout: 30_000, maxBuffer: 1 << 20 });
   } catch (error) {
-    // A missing yq binary also raises ENOENT; callers read ENOENT as "no binding file".
     throw new Error(`yq could not read ${path}: ${error.code ?? error.message}`);
   }
 }
 
-// The tracker config's human-gated role label (the binding's
-// config.role_labels["human-gated"], trimmed), `needs-human` when it names
-// none, as ci-status reads it.
 export function humanGatedLabel(tracker) {
   const label = tracker?.config?.role_labels?.["human-gated"];
   return typeof label === "string" && label.trim() ? label.trim() : "needs-human";
 }
 
-// The label intake-label-outside-actor-activity.yml puts on an item someone outside the
-// organization wrote on. It holds wherever the human-gated label holds, and
-// only a person removes it: no lane or sweep takes it off.
 export const OUTSIDE_ACTOR_LABEL = "security: outside-actor";
 
-// The label that holds untrusted-provenance work for a person.
 export const UNTRUSTED_LABEL = "provenance: untrusted";
 export const UNTRUSTED_LABELS = Object.freeze([UNTRUSTED_LABEL]);
 
-// The label a pr-verify fail puts on a person's pull request; a pass removes
-// it, at a new commit or at the same head judged again after trusted people
-// alone edited the body (resolve-pr.mjs `body-edited`).
 export const PR_VERIFY_FAILED_LABEL = "pr-verify-failed";
 
-// The hold labels on pull request `number`: `do-not-merge`, the tracker's
-// human-gated label, `pr-verify-failed` and OUTSIDE_ACTOR_LABEL, one reason
-// each. `labels` are
-// names or label objects; a list that is not an array throws.
 export function labelHolds(labels, tracker, number) {
   if (!Array.isArray(labels)) {
     throw new Error("the labels are not a list");
@@ -1662,26 +1251,25 @@ export function labelHolds(labels, tracker, number) {
   ].filter(Boolean);
 }
 
-// The lanes kill switch on a lanes App pull request: while CLAUDE_LANES_DISABLED
-// or CLAUDE_LANES_REPO_DISABLED is anything but the exact value `false`, a pull
-// request whose author is the Bot of numeric id `appId` holds. Any other
-// author, or an `appId` that is not a numeric id, holds nothing here.
-export function switchHold(pull, { appId, disabled, repoDisabled } = {}) {
+export function switchHold(pull, { appId, disabled, repoDisabled, items = null } = {}) {
   const id = Number(appId);
-  if (!/^[1-9][0-9]*$/.test(String(appId)) || pull?.user?.type !== "Bot" || pull?.user?.id !== id) {
+  if (!/^[1-9][0-9]*$/.test(String(appId))) {
+    return null;
+  }
+  const app = pull?.user?.type === "Bot" && pull?.user?.id === id;
+  const pin = app || !Array.isArray(items) ? undefined : newestPin(items, true);
+  if (!app && (pin === undefined || !PIN_RE.test(pinLine(pin)))) {
     return null;
   }
   if (disabled === "false" && repoDisabled === "false") {
     return null;
   }
-  return `#${pull.number}: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure.`;
+  const switched = "the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false')";
+  return app
+    ? `#${pull.number}: ${switched}, so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure.`
+    : `#${pull.number}: ${switched}, and the lanes App armed this pull request (its newest pin record is a pin), so it does not merge; it leaves the merge queue, and enable-auto-merge arms it again once both read 'false' and pr-verify still passes its head.`;
 }
 
-// THE HOLDS THAT COST NO LANE WORK, for a queued pull request: its hold labels
-// and the lanes kill switch, from the pull request as the pulls API returns it,
-// the tracker config (or null) and the kill switch's { appId, disabled,
-// repoDisabled }. select-tests runs this before the lanes; ci-status keeps
-// judging each hold.
 export function queueHolds({ pull, tracker = null, lanes = {} } = {}) {
   const head = pull?.head?.sha;
   if (!Number.isInteger(pull?.number) || typeof head !== "string") {
@@ -1724,9 +1312,6 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       throw new Error("the trusted-actor list has no actors");
     }
     const humans = humansOf(actors);
-    // Exact-head approvals lift every hold an approval lifts; an approval
-    // carried over base merges lifts only the hold path and the trusted-actor
-    // list widening.
     const approved = pathLifters(items, humans, head);
     const body = readFileSync(bodyFile, "utf8");
     const repo = String(env.GITHUB_REPOSITORY);
@@ -1735,9 +1320,6 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     if (decision) {
       console.log(`#${number}: ${decision} records the owner's cost decision, which lifts its cost hold.`);
     }
-    const widened = actorsHold(await withActorContents(github, repo, changes, env.BASE_SHA, head));
-    // PATH_HOLDS, merge.diff-check.path-holds as the base has it: only
-    // "false" turns the hold paths off.
     const pathHolds = env.PATH_HOLDS !== "false";
     const skipped = pathHolds ? null : pathHoldKind(files, holdPaths);
     if (skipped?.kind === "hold-path") {
@@ -1745,25 +1327,15 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     }
     const held = pathHold(files, holdPaths, pathHolds);
     let lifted = { lifters: [] };
-    if (!approved.length && ((held && Array.isArray(holdPaths)) || widened) && isRepo(repo)) {
+    if (!approved.length && held && Array.isArray(holdPaths) && isRepo(repo)) {
       lifted = await liftersOf(github, repo, Number(number), head, humans, holdPaths);
     }
     const lifters = approved.length ? approved : lifted.lifters;
-    // A body hold is not judged here: the lanes App's hold line puts on the
-    // `do-not-merge` label, which ci-status's label steps hold on. A member's
-    // veto comment holds twice: enable-auto-merge labels it `do-not-merge` on
-    // its next reader run, and this read holds it until then and whenever the
-    // label is off.
-    const reasons = holds("", items, files, holdPaths, lifters, decision, true, widened, pathHolds, missing);
+    const reasons = holds(files, holdPaths, lifters, decision, pathHolds, missing);
     const how = approved.length ? "approved this head" : "approved an earlier head whose every change since is a base merge";
     if (held && lifters.length && Array.isArray(holdPaths)) {
       console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its hold path (${escape(held)}).`);
     }
-    if (widened && lifters.length) {
-      console.log(`#${number}: ${lifters.join(", ")} ${how}, which lifts its trusted-actor list hold (${escape(widened)}).`);
-    }
-    // The verifier's holds, recorded under their own annotation title
-    // (VERIFIER_TITLE): they share this step with the path holds.
     const verifier = [];
     if (verdictsFile && baselineOnly(pullAuthor(env.BABYSIT_VERIFY_PULL), files, env.LANES_APP_ID, env.BASELINE_FILE)) {
       console.log(`#${number}: no verifier hold: ${baselineNote(env.BASELINE_FILE)}.`);
@@ -1771,8 +1343,6 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
     } else if (verdictsFile) {
       const records = lines(verdictsFile).map((line) => JSON.parse(line));
       let unverified = verdictHold(records, env.GITHUB_REPOSITORY);
-      // The reader's report; undefined when no evidence file is given or it
-      // does not read, which evidenceHold holds as unreadable.
       let evidence;
       if (evidenceFile) {
         try {
@@ -1787,13 +1357,10 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
       } else if (unverified && records.length === 0 && refused) {
         unverified = `pr-verify's reader refuses this head's pass (${refused})`;
       }
-      // An approval lifts the verifier hold whole, the link with it.
       const relinked = unverified || approved.length ? null : linkFile ? linkOf(linkFile, body, repo) : "its issue link could not be checked against its verifier pass";
       if (!unverified && !relinked) {
         console.log(`#${number}: no verifier hold: pr-verify passed this head.`);
       } else if (!unverified && approved.length === 0) {
-        // pr-verify skips a head it already passed (resolve-pr.mjs `judged`),
-        // so only a new head or an approval recovers it.
         verifier.push(`${relinked}; pr-verify does not judge this head again, so push a new head for it to judge, after which enable-auto-merge arms it again, or ${APPROVAL_LIFTS}, then re-queue`);
       } else if (approved.length) {
         console.log(`#${number}: no verifier hold: ${approved.join(", ")} approved this head, which lifts '${unverified}'.`);
@@ -1810,8 +1377,6 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
         verifier.push(`${failed}; push a new head for pr-verify to judge, after which enable-auto-merge arms it again, or ${APPROVAL_LIFTS}, then re-queue`);
       }
     }
-    // In the merge queue only, where a moved head would merge: an approval of
-    // the head lifts it, as it lifts the verifier hold.
     const unpinned = verdictsFile ? pinHold(await withPinEdit(github, items), head) : null;
     if (unpinned && approved.length) {
       console.log(`#${number}: no pin hold: ${approved.join(", ")} approved this head, which lifts '${escape(unpinned)}'.`);

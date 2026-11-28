@@ -22,11 +22,13 @@ import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
 import { ADMISSION_STATUS_READS, ADMIT_MARKER, AGENT_READY, confirmedOnly, DEFERRED, DEFERRED_AHEAD_READS, PAID_EVAL, deferredAhead, refineDue, RACE_WINDOW_MS, UNTRUSTED as UNTRUSTED_CLASS, admissionFacts, admissionSettled, admissionsAhead, admissionsSince, admit, authorAdmitted, chargeEditsOf, chargeHits, closedByTrusted, chargePattern, decide, deferralLapsed, doneReason, finishedParent, SIZE_SPLIT_DONE, SIZE_SPLIT_PENDING, loadRules, mergedRefsAfter, mergedRefsReader, noteUnrunnable, openPullsNaming, readSchedule, refsNames, reportCleared, judgedSince, refusalText, retriageText, revisionWraps, roomDeferred, titleWraps, unrunnableCriteria, unrunnableRulesOf, issueUnrunnableRules, untrustedHold, workCharges } from "./admit.mjs";
 import { readRouting } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { TRACKER_BINDING_PATH } from "../pr-merge/merge-holds.mjs";
-import { REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
+import { agentDecisionBody, REFINE_MARKER, render, sizeSplitPending, validateOutput } from "./refine.mjs";
+import { AGENT_DECIDED, agentDecision, AGENT_UNSETTLED, noTrustedSpec } from "./admit.mjs";
 import { checkRun, VERDICT_MARKER } from "./apply-verdict.mjs";
 import { main as checkBlockers } from "../work-resolve-issue/check-blockers.mjs";
 import { selectCandidates } from "../maintenance-audit-lane-runs/triage-sweep.mjs";
 import { rmSync } from "node:fs";
+import { standardsAt, standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 const VECTORS = JSON.parse(readFileSync(new URL("./split-child.vectors.json", import.meta.url), "utf8"));
 const RULES = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)));
@@ -42,7 +44,6 @@ const CONFIRMED = "status: confirmed";
 const BODY = ["## Problem", "", "`plugins/session-flow/README.md:3` says eighteen.", "", "## Done when", "", "- [ ] Line 3 says nineteen."].join(
   "\n",
 );
-// #9287's done-when, as filed.
 const CANARY = [
   "## Done when",
   "",
@@ -106,8 +107,6 @@ describe("decide", () => {
       assert.deepEqual(decide(facts({ rules: NOT_OWN, issue: appIssue, spec: { ...written(APP_ACTOR), comments: [goAhead] } })), { verdict: "refuse", reasons: [APP_FILED, NO_SPEC], hold: true, reason: "security" });
     });
 
-    // Owner decision on #10735: the lanes App's issue is admitted only as a
-    // trusted size-split sub-issue, whatever a listed human's comment carries.
     test("off the own-agent list, the same issue with a listed human's comment carrying the task list is still refused for a person", () => {
       for (const comment of [written(USER(HUMAN)), written(USER(HUMAN), { editor: USER(HUMAN) })]) {
         assert.deepEqual(decide(facts({ rules: NOT_OWN, issue: appIssue, spec: { ...written(APP_ACTOR), comments: [goAhead, comment] } })), { verdict: "refuse", reasons: [APP_FILED], hold: true, reason: "security" });
@@ -273,13 +272,87 @@ describe("decide", () => {
       const { "own-agents": _, ...bare } = JSON.parse(readFileSync(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)), "utf8"));
       const path = join(dir, "bare.json");
       writeFileSync(path, JSON.stringify(bare));
-      assert.deepEqual(loadRules(path)["own-agents"], { identities: ["lanes-app"], "source-cap": 5 });
-      for (const [name, value] of [["name", { identities: ["github-actions"] }], ["actions bot id", { identities: [ACTIONS_BOT_ID] }], ["cap", { "source-cap": 0 }]]) {
+      assert.deepEqual(loadRules(path)["own-agents"], { identities: ["lanes-app"], "source-cap": 5, "hold-sources": [] });
+      for (const [name, value] of [
+        ["name", { identities: ["github-actions"] }],
+        ["actions bot id", { identities: [ACTIONS_BOT_ID] }],
+        ["cap", { "source-cap": 0 }],
+        ["hold list not a list", { "hold-sources": "source: architecture-improve" }],
+        ["hold list entry not a source label", { "hold-sources": ["architecture-improve"] }],
+      ]) {
         const bad = join(dir, `${name}.json`);
         writeFileSync(bad, JSON.stringify({ ...bare, "own-agents": value }));
         assert.throws(() => loadRules(bad), /own-agents/, name);
       }
       rmSync(dir, { recursive: true, force: true });
+    });
+
+    test("a filing whose source label is on hold-sources is refused for a listed human with the reason, and an unlisted source is admitted", () => {
+      const HELD = "source: architecture-improve";
+      const HELD_REASON = "its producer's label `source: architecture-improve` is on own-agents.hold-sources, whose filings wait for a listed human to decide them";
+      const rules = { ...RULES, "own-agents": { ...RULES["own-agents"], "hold-sources": [HELD] } };
+      const held = ownIssue([{ name: READY }, { name: HELD }]);
+      for (const size of ["small", "medium"]) {
+        assert.deepEqual(decide(own({ issue: held, rules, verdict: sized(size) })), { verdict: "refuse", reasons: [HELD_REASON], hold: true, reason: "intent" }, size);
+        assert.deepEqual(decide(own({ rules, verdict: sized(size) })), { verdict: "admit", reasons: [] }, `${SOURCE} at ${size}`);
+      }
+      const shouted = ownIssue([{ name: READY }, { name: "Source: Architecture-Improve" }]);
+      assert.equal(decide(own({ issue: shouted, rules })).verdict, "refuse", "the label matches whatever its case");
+    });
+
+    test("an edit to hold-sources in the rules file alone changes the verdict: shipped, emptied or missing admits, listing a source holds it", () => {
+      const dir = tempDir("admit-hold-edit-");
+      const shipped = JSON.parse(readFileSync(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)), "utf8"));
+      const { "hold-sources": _, ...noKey } = shipped["own-agents"];
+      const rulesWith = (name, ownAgents) => {
+        const path = join(dir, `${name}.json`);
+        writeFileSync(path, JSON.stringify({ ...shipped, "own-agents": ownAgents }));
+        return loadRules(path);
+      };
+      const held = ownIssue([{ name: READY }, { name: "source: architecture-improve" }]);
+      assert.equal(decide(own({ issue: held, rules: rulesWith("architecture", { ...noKey, "hold-sources": ["source: architecture-improve"] }) })).verdict, "refuse");
+      for (const [name, ownAgents] of [["shipped", shipped["own-agents"]], ["missing", noKey], ["empty", { ...noKey, "hold-sources": [] }]]) {
+        assert.deepEqual(decide(own({ issue: held, rules: rulesWith(name, ownAgents) })), { verdict: "admit", reasons: [] }, name);
+      }
+      const findHeld = rulesWith("find", { ...noKey, "hold-sources": [SOURCE] });
+      assert.equal(decide(own({ rules: findHeld })).verdict, "refuse");
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    test("loadRules reads a file with no hold-sources key as an empty list, and the shipped rules hold no source", () => {
+      const dir = tempDir("admit-hold-");
+      const shipped = JSON.parse(readFileSync(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)), "utf8"));
+      const { "hold-sources": _, ...ownAgents } = shipped["own-agents"];
+      const path = join(dir, "no-hold.json");
+      writeFileSync(path, JSON.stringify({ ...shipped, "own-agents": ownAgents }));
+      assert.deepEqual(loadRules(path)["own-agents"]["hold-sources"], []);
+      assert.deepEqual(RULES["own-agents"]["hold-sources"], []);
+      assert.match(shipped.description, /`hold-sources`/);
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    test("a held source's filing by github-actions[bot] is never admitted, even shaped as an upstream-drift issue, and its body is never trusted spec", () => {
+      const ACTIONS_ACTOR = { __typename: "Bot", databaseId: ACTIONS_BOT_ID };
+      const HELD = "source: architecture-improve";
+      const HELD_REASON = "its producer's label `source: architecture-improve` is on own-agents.hold-sources, whose filings wait for a listed human to decide them";
+      const rules = { ...RULES, "own-agents": { ...RULES["own-agents"], "hold-sources": [HELD] } };
+      const modelBody = "## Problem\n\nShallow module at `src/a.mjs:1`.\n\n## Done when\n\n- [ ] Deepen it.";
+      const forgedTitle = "Upstream drift: anthropics/claude-code";
+      const forgedBody = `Upstream \`anthropics/claude-code\` changed since the pin on its docs/upstream page.\n\n${modelBody}`;
+      for (const [name, title, body] of [["plain", "Deepen module a", modelBody], ["drift-shaped", forgedTitle, forgedBody]]) {
+        const issue = issueOf({ user: { id: ACTIONS_BOT_ID }, title, body, labels: [{ name: READY }, { name: HELD }] });
+        const spec = { ...written(ACTIONS_ACTOR, { body }), title, comments: [] };
+        const result = decide(facts({ issue, spec, sourceOpen: [7], rules }));
+        assert.equal(result.verdict, "refuse", name);
+        assert.equal(result.hold, true, name);
+        assert.ok(result.reasons.includes(HELD_REASON), `${name}: ${JSON.stringify(result.reasons)}`);
+        const texts = trustedSpecTexts(spec, humans, APP, RULES["task-list"], ownAgentIds(RULES, APP));
+        assert.ok(!texts.some((text) => text.includes("Shallow module")), `${name}: the model body is no trusted text`);
+      }
+      const plain = issueOf({ user: { id: ACTIONS_BOT_ID }, title: "Deepen module a", body: modelBody, labels: [{ name: READY }, { name: HELD }] });
+      const shipped = decide(facts({ issue: plain, spec: { ...written(ACTIONS_ACTOR, { body: modelBody }), title: plain.title, comments: [] }, sourceOpen: [7] }));
+      assert.equal(shipped.verdict, "refuse", "with no hold listed, a github-actions[bot] filing still fails the author check");
+      assert.ok(shipped.reasons.includes("the author is neither a listed human nor the lanes App"), JSON.stringify(shipped.reasons));
     });
 
     test("ownAgentIds never counts github-actions[bot], listed or as the App id", () => {
@@ -468,8 +541,6 @@ describe("decide", () => {
     });
   }
 
-  // #9372: intake's split never edits the body, so it stays the listed
-  // human's text; the split refinement alone takes the person-only item out.
   describe("intake's split refinement", () => {
     const issue = issueOf({ body: CANARY });
     const SPLIT = { exact: true, outcome: "Line 9 says 27 checks.", criteria: [], dependencies: [], related: [], questions: [], sources: [], split: [2], external: { state: "none", repo: "", class: "", what: "" } };
@@ -590,16 +661,12 @@ describe("decide", () => {
       assert.deepEqual(decide(sized("medium", { comments, rules: { ...RULES, sizes: [...RULES.sizes, "large"] } })), { verdict: "admit", reasons: [] });
     });
 
-    // #13197: a trusted size-split sub-issue never splits again (owner Q93),
-    // so a cap stop on one parks it for a builder instead of re-admitting it
-    // unchanged into the same stop.
     describe("on a trusted size-split sub-issue", () => {
       const lines = ["- [ ] Line 3 says nineteen.", "- [ ] Line 4 says twenty."];
       const childBody = `${splitChildHeader(5, 1, 3)}\n${lines[0]}`;
       const spec = { body: childBody, lastEditedAt: null, author: APP_ACTOR, editor: null, comments: [], splitParent: { number: 5, spec: written(USER(HUMAN), { body: lines.join("\n") }), appId: APP } };
       const child = (comments) => sized("medium", { issue: issueOf({ user: { id: APP }, body: childBody }), spec, comments });
       const comment = (body, at) => ({ user: { id: APP }, created_at: at, body });
-      // #13197's comments as the lanes App wrote them.
       const capStop = comment(
         [
           "<!-- work-resolve-issue outcome=intake run=41831397269 -->",
@@ -1016,7 +1083,6 @@ describe("decide", () => {
       assert.equal(hits("Move the `lint` leg to larger GitHub-hosted runners.", { public: true }), "larger github-hosted runners");
       assert.equal(hits('```yaml\nmessage: "```"\n```\n\nBuy a paid subscription.\n\n```yaml\nretention-days: 5\n```'), "subscription");
       assert.equal(hits("````\n```\nretention-days: 5\n````\n\n~~~\nretention-days: 5\n~~~~"), undefined);
-      // Web-typed bodies end lines in CRLF; a fence line ending in \r still closes.
       assert.equal(hits("```yaml\r\nretention-days: 5\r\n```\r\n\r\n~~~\r\nretention-days: 5\r\n~~~\r\n"), undefined);
       assert.equal(hits('```yaml\r\nmessage: "```"\r\n```\r\n\r\nBuy a paid subscription.\r\n\r\n```yaml\r\nretention-days: 5\r\n```'), "subscription");
       assert.deepEqual(chargeHits("We pay per-seat; data-retention grows.", chargePattern()), ["seat", "retention"]);
@@ -1336,8 +1402,6 @@ describe("decide", () => {
       });
     });
 
-    // The comparison rests on `diff` holding each revision's full text, newest
-    // first, against its schema description; these fixtures pin that shape.
     describe("an edit that moves a charge word into code", () => {
       const charges = chargePattern();
       const WRAPPED = "- [ ] Reuse the `subscription` value.";
@@ -1677,11 +1741,6 @@ describe("decide", () => {
     }
   });
 
-  // Owner decision on #14215 (Q195 (a)): an issue the upstream-drift workflow
-  // filed is admitted with no owner step when github-actions[bot] (41898282)
-  // wrote it, nobody else last edited it, and its title and first body line
-  // are the two lines scripts/upstream-drift-issues.sh writes. Its criteria
-  // come from a fixed template, never its body.
   describe("a trusted upstream-drift issue", () => {
     const ACTIONS = 41898282;
     const ACTIONS_ACTOR = { __typename: "Bot", databaseId: ACTIONS };
@@ -1966,7 +2025,6 @@ const goArgs = (fake, { status = open } = {}) => ({
   log: () => {},
 });
 const go = (fake, options) => admit(goArgs(fake, options));
-// The GraphQL reads are POSTs but write nothing.
 const writes = (calls) => calls.filter((call) => call.method !== "GET" && call.path !== "/graphql").map(({ method, path, body }) => `${method} ${path} ${JSON.stringify(body)}`);
 const STATUS = (state) => `STATUS #7 ${JSON.stringify(state)}`;
 const RECORD = `POST /repos/o/r/issues/7/comments ${JSON.stringify({ body: recordBody({ actorId: APP, title: issueOf().title, body: BODY }) })}`;
@@ -2023,7 +2081,7 @@ describe("admit", () => {
       }
       return fake.github(method, path, body, ...rest);
     };
-    const { set } = await statusWriter({ env: { BASE_PATH: new URL("../../..", import.meta.url).pathname }, github, repository: "o/r" });
+    const { set } = await statusWriter({ env: { BASE_PATH: new URL("../../..", import.meta.url).pathname, STANDARDS_DIR: standardsCheckout() }, github, repository: "o/r" });
     const result = await admit({ ...goArgs(fake), github, setStatus: set });
     assert.deepEqual(result, { outcome: "held", reasons: ["a person's Work status needs-human holds it"], status: "needs-human" });
     const posts = fake.calls.filter(({ method, path }) => method === "POST" && path !== "/graphql").map(({ path, body }) => `${path} ${JSON.stringify(body)}`);
@@ -2924,7 +2982,6 @@ describe("unrunnableCriteria", () => {
     ["after days", "Confirm after 7 days that the cache stays under 1 GB.", /over time/],
     ["a page outside the lane's hosts", "The page at https://example.com/docs shows the new flag.", /example\.com/],
     ["a page an item compares against", "Confirm the table matches https://example.com/page.", /example\.com/],
-    // Done-when items from the concise-skills rollout issues (#6584, #6602, #6615).
     ["before and after numbers", "The PR body holds a per-skill decision table, description and body decided separately, with the before and after numbers behind each row.", /model eval run/],
     ["measure-invocation trigger scores", "The PR body shows `/skill-quality:check measure-invocation` trigger scores for the before and the after description on the same probes.", /model eval run/],
     [
@@ -2934,26 +2991,22 @@ describe("unrunnableCriteria", () => {
     ],
     ["a plugin-eval delta", "`/evals:plugin-eval` with and without; difference in the PR body.", /model eval run/],
     ["a run of measure-invocation", "Run `measure-invocation.sh` on the new probes and paste the output.", /model eval run/],
-    // Live CLI items from #6963, #6758, #6761, #6877 and #9914.
     ["claude -p", 'A comment on this issue records whether the `/usage` report from `claude -p "/usage" --output-format stream-json` carries its rate limits.', /Claude Code CLI/],
     ["a recorded probe", "A recorded probe: a subagent Write into a path covered by a path-scoped rule, with a logging InstructionsLoaded hook.", /Claude Code CLI/],
     ["a named Claude Code version", "A recorded probe answers questions 1 to 3 on a named Claude Code version.", /Claude Code CLI/],
     ["the probe's version", "The monitor guidance states the `-p` behavior with the probe's Claude Code version.", /Claude Code CLI/],
     ["a measured result", "The verified-mechanics row is updated with the measured result and the Claude Code version.", /Claude Code CLI/],
     ["a plugin install", "`claude plugin install testing@melodic-software` exits 0.", /Claude Code CLI/],
-    // A comment-only deliverable (#6636).
     ["a comment on this issue", "One comment on this issue with the versions released per plugin over the last 14 days.", /comment instead/],
     ["no file changed", "No file is changed.", /comment instead/],
     ["a result recorded in a comment on this issue", "The script's output is recorded in a comment on this issue.", /comment instead/],
     ["a comment on this issue listing a result (#9735)", "A comment on this issue lists the machines done.", /comment instead/],
     ["a comment on this issue starting with a heading (#7556)", "A comment on this issue starting `Probe result:` records the Cursor version.", /comment instead/],
-    // Live CLI items the corpus diff flagged (#7135, #9930).
     ["claude plugin test passing", "`claude plugin test` passes for each touched plugin; skill, eval and drift checks pass.", /Claude Code CLI/],
     ["claude plugin install exiting", "`claude plugin marketplace add \"$PWD\"` and `claude plugin install plugin-profiles@melodic-software` both exit 0.", /Claude Code CLI/],
     ["a run of claude plugin install", "Run `claude plugin install testing@melodic-software` in a fresh config directory.", /Claude Code CLI/],
     ["a headless Claude Code run", "A headless Claude Code session started with the new flag exits 0.", /Claude Code CLI/],
     ["a run result recorded in a comment on this issue (#4281)", "`/instruction-placement:migrate cutover-check` has been run, with its met/unmet output recorded in a comment on this issue.", /comment instead/],
-    // Items the lane stopped on (#12229) and the corpus replay found (#11959, #10221, #12072).
     ["a result attributed in a comment (#12229)", "The startup gap is attributed by source in a comment.", /comment instead/],
     ["a result posted as a labeled comment (#11959)", "The eval runs with 12 cases, and its result is posted as a `Probe result:` comment.", /comment instead/],
     [
@@ -3041,7 +3094,6 @@ describe("unrunnableCriteria", () => {
     ["an issue form", "The intake template is opened as an issue form with the new field."],
     ["a sub-issue closed by a PR (#10232)", "Every slice sub-issue is closed by a merged PR."],
     ["a script filing an issue (#10195)", "The detection script's test shows one unread release files one issue."],
-    // Review findings on #12248: an "Open issues" noun phrase, and a comment an automation posts.
     ["an Open issues noun phrase", "Open issues labeled `stale` are listed in the weekly digest."],
     ["an Open issue count", "Open issue count is shown in the summary table."],
     ["Open issues a sweep skips", "Open issues with the `needs-decision` label are skipped by the sweep."],
@@ -3131,9 +3183,6 @@ describe("unrunnable-rules.json", () => {
     assert.equal(result.hostRun, undefined);
   });
 
-  // Review findings on #12628: an automation's or a conditional output stays
-  // with the lane, as the built-in comment kind leaves it, and eval words
-  // count only in eval context.
   for (const line of [
     "The workflow's results are reported on this issue.",
     "When the check fails, a sub-issue is filed by the sweep.",
@@ -3259,7 +3308,6 @@ describe("host-run work", () => {
     assert.deepEqual(writes(fake.calls).slice(0, 2), [STATUS("confirmed"), `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: ["host-run"] })}`]);
   });
 
-  // #9293: the owner released it with host-run added, and admission held it again.
   test("an issue already carrying host-run parks at status: confirmed, whether all or some items are host work", async () => {
     for (const [body, by] of [
       [HOST_ONLY, HUMAN],
@@ -3401,8 +3449,6 @@ describe("host-run work", () => {
 describe("admission and the paths the issue lane cannot push", () => {
   const withBody = (lines, labels = [{ name: READY }]) => issueOf({ body: lines.join("\n"), labels });
   const DONE = ["## Done when", "", "- [ ] Line 3 says nineteen."];
-  // #15977's lines as filed: a prose sentence and a done-when item that name
-  // workflow files the fix does not change.
   const SHAPE_15977 = [
     "## Problem",
     "",
@@ -3639,9 +3685,6 @@ describe("size split sub-issues", () => {
     assert.deepEqual(decide(facts({ issue: unsplit, verdict: large })), { verdict: "wait", reasons: [SIZE_SPLIT_PENDING], pulls: [] });
   });
 
-  // A finished parent (finishedParent: every sub-issue closed as completed by
-  // a trusted close) gets one verified-done run at any Size (#12456, class A);
-  // that run is the done-check a merged Refs pull request would park it for.
   test("a finished parent at Size Large is admitted for its verify run; one with an open sub-issue still waits", () => {
     const large = { ...VERDICT, dimensions: { ...VERDICT.dimensions, size: "large" } };
     const split = issueOf({ sub_issues_summary: { total: 2, completed: 2, percent_completed: 100 } });
@@ -3717,8 +3760,6 @@ describe("size split sub-issues", () => {
     const spec = { ...written(APP_ACTOR, { body: child.body }), comments: [] };
     const fake = withIssues(fakeGitHub({ issue: child, parent, spec }), { specs: { [PARENT]: parentSpec() } });
     assert.equal((await go(fake)).outcome, "admitted");
-    // With no parent read the body is not a trusted sub-issue, so the App's
-    // issue holds for a person (owner decision on #10735).
     const orphan = fakeGitHub({ issue: child, spec });
     const refused = await go(orphan);
     assert.equal(refused.status, "needs-owner-decision");
@@ -3807,7 +3848,7 @@ describe("a Feature under a parent at needs-owner-decision", () => {
     criteria: exact ? ["Line 3 says nineteen."] : [],
     dependencies: [],
     related: [],
-    questions: exact ? [] : [{ question: "Which part ships first?", recommended: "Part A.", basis: "judgment" }],
+    questions: exact ? [] : [{ question: "Which part ships first?", recommended: "Part A.", basis: "judgment", stop_reason: "intent" }],
     sources: [],
     split: [],
     external: { state: "none", repo: "", class: "", what: "" },
@@ -3991,9 +4032,9 @@ describe("attended", () => {
   });
 });
 
-test("closedByTrusted counts the lanes App's already-done close only while its evidence holds", async () => {
+test("closedByTrusted counts the lanes App's close only with the App's own outcome comment", async () => {
   const APP = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
-  const mergeSha = "4".repeat(40);
+  const HUMAN = { login: "kyle-sexton", id: 101, type: "User" };
   const closeBody = (stop) =>
     [
       "<!-- work-resolve-issue outcome=closed run=555 -->",
@@ -4004,12 +4045,15 @@ test("closedByTrusted counts the lanes App's already-done close only while its e
       "",
       `> ${stop}: ＃5 shipped it`,
     ].join("\n");
-  const client = (stop, message) => async (method, path) => {
+  const comment = (stop, user = APP) => ({ user, created_at: "2026-10-21T00:00:00Z", body: closeBody(stop) });
+  const mergeSha = "4".repeat(40);
+  const client = (comments, closer = APP, message = "fix: tidy (#5)\n\nCloses #77") => async (method, path) => {
     const routes = {
-      "GET /repos/o/r/issues/77": { number: 77, state: "closed", closed_by: APP, created_at: "2026-10-01T00:00:00Z", repository_url: "https://api.github.com/repos/o/r" },
+      "GET /repos/o/r/issues/77": { number: 77, state: "closed", closed_by: closer, created_at: "2026-10-01T00:00:00Z", repository_url: "https://api.github.com/repos/o/r" },
       "POST /graphql": { data: { repository: { issue: { timelineItems: { nodes: [] } } } } },
-      "GET /repos/o/r/issues/77/comments?per_page=100&page=1": [{ user: APP, body: closeBody(stop) }],
+      "GET /repos/o/r/issues/77/comments?per_page=100&page=1": comments,
       "GET /repos/o/r/issues/77/sub_issues?per_page=100&page=1": [],
+      "GET /repos/o/r/issues/70/sub_issues?per_page=100&page=1": [{ number: 77, state: "closed", state_reason: "completed", closed_by: closer, repository_url: "https://api.github.com/repos/o/r" }],
       "GET /repos/o/r/issues/77/events?per_page=100&page=1": [],
       "GET /repos/o/r": { default_branch: "main" },
       "GET /repos/o/r/pulls/5": { merged_at: "2026-10-20T00:00:00Z", base: { ref: "main" }, merge_commit_sha: mergeSha },
@@ -4020,11 +4064,21 @@ test("closedByTrusted counts the lanes App's already-done close only while its e
     }
     return routes[`${method} ${path}`];
   };
-  const trusted = (stop, message, { appId = APP.id } = {}) => closedByTrusted({ github: client(stop, message), repository: "o/r", humans: new Set(), appId })(77);
-  assert.equal(await trusted("already-done", "fix: tidy (#5)\n\nCloses #77"), true);
-  assert.equal(await trusted("already-done", "fix: tidy (#5)"), false, "the merge commit no longer closes it");
-  assert.equal(await trusted("report-delivered", "fix: tidy (#5)\n\nCloses #77"), false, "a report close");
-  assert.equal(await trusted("already-done", "fix: tidy (#5)\n\nCloses #77", { appId: 1 }), false, "another App id");
+  const reader = (comments, { appId = APP.id, closer, message } = {}) => closedByTrusted({ github: client(comments, closer, message), repository: "o/r", humans: new Set([HUMAN.id]), appId });
+  const trusted = (comments, options) => reader(comments, options)(77, { blocker: true });
+  assert.equal(await trusted([comment("already-done")]), true, "already-done whose evidence holds");
+  assert.equal(await trusted([comment("already-done")], { message: "fix: tidy (#5)" }), false, "already-done whose merge commit no longer closes it");
+  assert.equal(await trusted([comment("verified-done")]), false, "verified-done with no sub-issue");
+  assert.equal(await trusted([comment("report-delivered")], { message: "fix: tidy (#5)" }), true, "a report-delivered blocker on its marker alone");
+  assert.equal(await reader([comment("report-delivered")])(77), false, "report-delivered outside a blocker read");
+  assert.equal(await trusted([]), false, "an App close with no outcome comment");
+  assert.equal(await trusted([comment("report-delivered", HUMAN)]), false, "an outcome comment the App did not write");
+  assert.equal(await trusted([comment("report-delivered")], { appId: 1 }), false, "another App id");
+  assert.equal(await trusted([], { closer: HUMAN }), true, "a listed human's close");
+  const parent = { number: 70, sub_issues_summary: { total: 1 } };
+  const finished = (comments, options) => finishedParent({ github: client(comments, options?.closer), repository: "o/r", issue: parent, trusted: reader(comments, options) });
+  assert.equal(await finished([comment("report-delivered")]), null, "a finished parent counts no report-delivered sub-issue");
+  assert.deepEqual(await finished([], { closer: HUMAN }), [77], "a listed human's sub-issue close still counts");
 });
 
 describe("authorAdmitted", () => {
@@ -4201,10 +4255,6 @@ describe("hold reason codes", () => {
   });
 });
 
-// #14215 done-when items 2 and 3, through every gate on the way: the triage
-// sweep selects the issue, intake's verdict check would mint, admission
-// admits it, and the issue lane's check-blockers runs it, with no person
-// step; a design-changing finding routes the run to a person's hold.
 describe("a trusted upstream-drift issue from sweep to the issue lane", () => {
   const ACTIONS_ID = 41898282;
   const TITLE = "Upstream drift: mattpocock/sandcastle";
@@ -4226,11 +4276,12 @@ describe("a trusted upstream-drift issue from sweep to the issue lane", () => {
       method === "POST" && path === "/graphql" && body.query.includes("ISSUE_FIELD_ADDED_EVENT") ? { data: { repository: { issue: { timelineItems: { nodes: [] } } } } } : admitGithub(method, path, body);
     const dir = tempDir("drift-chain-");
     try {
-      const actors = join(dir, "trusted-actors.json");
+      const standards = standardsAt(join(dir, "standards"));
+      const actors = standards.list;
       writeFileSync(actors, JSON.stringify({ version: 1, actors: [{ kind: "human", id: HUMAN, login: "person" }] }));
       const outputs = {};
       const lines = [];
-      const env = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "7", TRUSTED_ACTORS_PATH: actors, LANES_APP_ID: String(APP), BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) };
+      const env = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "7", TRUSTED_ACTORS_PATH: actors, LANES_APP_ID: String(APP), BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: standards.dir };
       await checkBlockers({ env, github, log: (line) => lines.push(line), write: (values) => Object.assign(outputs, values) });
       return { ...outputs, lines };
     } finally {
@@ -4303,5 +4354,96 @@ describe("a trusted upstream-drift issue from sweep to the issue lane", () => {
     assert.match(driftSpecText("mattpocock/sandcastle"), /the run stops with `design-change`/);
     assert.equal(stopRoute(runCode("design-change: the take rewrites a skill's flow")), "hold");
     assert.equal(decide(facts({ issue: filed({ labels: [{ name: "needs-human" }] }), spec: graphSpec() })).verdict, "skip", "a held drift issue is never admitted");
+  });
+});
+
+describe("agent decision", () => {
+  const thin = issueOf({ body: "The README skill count is wrong." });
+  const SETTLED = validateOutput(
+    {
+      exact: false,
+      outcome: "The README states the plugin's nineteen skills.",
+      criteria: ["`plugins/session-flow/README.md` line 3 says nineteen."],
+      dependencies: [],
+      related: [],
+      questions: [{ question: "Does line 3 count the bundled skills?", recommended: "Yes, all nineteen.", basis: "plugins/session-flow/skills/: nineteen folders", stop_reason: "none" }],
+      sources: [],
+      split: [],
+      external: { state: "none", repo: "", class: "", what: "" },
+    },
+    new Set(),
+  );
+  const node = (author, body, extra = {}) => ({ body, author, editor: null, lastEditedAt: null, ...extra });
+  const openerBy = (author, body = thin.body, extra = {}) => node(author, agentDecisionBody(SETTLED, body), extra);
+  const refinement = node(APP_ACTOR, render(SETTLED, { body: thin.body, agent: true }));
+  const ownerDecision = node(USER(HUMAN), "**Decision recorded.** Eighteen: one skill is retired.");
+  const specWith = (comments) => humanSpec(thin, comments);
+  const decideWith = (comments) => decide(facts({ issue: thin, spec: specWith(comments) }));
+  const REFUSED = { verdict: "refuse", reasons: [AGENT_UNSETTLED], hold: true, reason: "intent" };
+
+  test("the App's unedited opener for this body admits the issue and marks it agent-decided", () => {
+    assert.deepEqual(decideWith([openerBy(APP_ACTOR), refinement]), { verdict: "admit", reasons: [], agentDecided: true });
+    assert.equal(agentDecision(specWith([openerBy(APP_ACTOR), refinement]), APP, humans)?.body.split("\n")[0], "**Agent decision recorded.**");
+  });
+
+  for (const [name, opener] of [
+    ["another bot", openerBy({ __typename: "Bot", databaseId: 999 })],
+    ["a person", openerBy(USER(HUMAN))],
+    ["an edited comment", openerBy(APP_ACTOR, thin.body, { lastEditedAt: "2026-10-21T00:00:00Z", editor: APP_ACTOR })],
+    ["a stale body version", openerBy(APP_ACTOR, "The README is wrong in an older way.")],
+  ]) {
+    test(`the opener from ${name} is refused and the owner decides`, () => {
+      assert.equal(agentDecision(specWith([opener, refinement]), APP, humans), null);
+      assert.deepEqual(decideWith([opener, refinement]), REFUSED);
+    });
+  }
+
+  test("a listed human's newer Decision recorded overrides the opener, and an older one does not", () => {
+    assert.equal(agentDecision(specWith([openerBy(APP_ACTOR), refinement, ownerDecision]), APP, humans), null);
+    assert.deepEqual(
+      decideWith([openerBy(APP_ACTOR), refinement, ownerDecision]),
+      { verdict: "refuse", reasons: [noTrustedSpec("- [ ] ")], hold: true, reason: "intent" },
+      "an override with no criteria of its own waits for the owner, not for a missing opener",
+    );
+    const withCriteria = node(USER(HUMAN), "**Decision recorded.** Eighteen.\n\n- [ ] `plugins/session-flow/README.md` line 3 says eighteen.");
+    assert.deepEqual(decideWith([openerBy(APP_ACTOR), refinement, withCriteria]), { verdict: "admit", reasons: [] }, "the owner's criteria admit it, not agent-decided");
+    assert.deepEqual(decideWith([openerBy(APP_ACTOR, "an older body"), refinement, withCriteria]), { verdict: "admit", reasons: [] }, "an override also supersedes a stale opener");
+    const hostOnly = node(APP_ACTOR, render({ ...SETTLED, criteria: ["Run `/machine-health:audit` on a Windows 11 host and confirm the report lists 27 check results."] }, { body: thin.body, agent: true }));
+    assert.equal(decideWith([openerBy(APP_ACTOR), hostOnly]).verdict, "refuse", "the agent's own host-run criterion counts while its decision stands");
+    assert.deepEqual(decideWith([openerBy(APP_ACTOR), hostOnly, withCriteria]), { verdict: "admit", reasons: [] }, "after an override the agent's criteria are not judged beside the owner's");
+    assert.deepEqual(decideWith([ownerDecision, openerBy(APP_ACTOR), refinement]), { verdict: "admit", reasons: [], agentDecided: true });
+    const outsider = node(USER(OUTSIDER), "**Decision recorded.** No.");
+    assert.deepEqual(decideWith([openerBy(APP_ACTOR), refinement, outsider]), { verdict: "admit", reasons: [], agentDecided: true }, "only a listed human overrides");
+  });
+
+  test("a refinement that asks the owner is never agent-decided, opener or not", () => {
+    const asks = validateOutput({ ...SETTLED, criteria: SETTLED.criteria, questions: [{ ...SETTLED.questions[0], stop_reason: "design" }] }, new Set());
+    const owned = node(APP_ACTOR, render(asks, { body: thin.body }));
+    assert.equal(decideWith([openerBy(APP_ACTOR), owned]).agentDecided, undefined);
+    assert.equal(decideWith([openerBy(APP_ACTOR), owned]).verdict, "refuse", "its questions hold no criteria to admit on");
+  });
+
+  const ADD = `POST /repos/o/r/issues/7/labels ${JSON.stringify({ labels: [AGENT_DECIDED] })}`;
+  test("admission marks an issue admitted on the opener agent-decided, also when it defers it for room", async () => {
+    const admitted = fakeGitHub({ issue: thin, spec: specWith([openerBy(APP_ACTOR), refinement]) });
+    assert.equal((await go(admitted)).outcome, "admitted");
+    assert.deepEqual(writes(admitted.calls).filter((call) => call === ADD), [ADD], "admitted: one label write");
+    assert.equal(writes(admitted.calls).at(-1), STATUS(AGENT_READY));
+    const deferred = fakeGitHub({ issue: thin, spec: specWith([openerBy(APP_ACTOR), refinement]) });
+    assert.equal((await go(deferred, { status: { ...open, admission_open: false, admission_reason: "closed" } })).outcome, "deferred");
+    assert.ok(writes(deferred.calls).includes(ADD), "deferred: the label travels with the deferral");
+    assert.equal(writes(deferred.calls).at(-1), STATUS("deferred"));
+    const labeled = fakeGitHub({ issue: { ...thin, labels: [...thin.labels, { name: AGENT_DECIDED }] }, spec: specWith([openerBy(APP_ACTOR), refinement]) });
+    assert.equal((await go(labeled)).outcome, "admitted");
+    assert.ok(!writes(labeled.calls).includes(ADD), "already labeled: no second label write");
+  });
+
+  test("admission adds no agent-decided when it refuses the opener or admits on a person's criteria", async () => {
+    const stale = fakeGitHub({ issue: thin, spec: specWith([openerBy(APP_ACTOR, "older body"), refinement]) });
+    assert.equal((await go(stale)).outcome, "refused");
+    assert.ok(!writes(stale.calls).includes(ADD), "refused: no label");
+    const plain = fakeGitHub();
+    assert.equal((await go(plain)).outcome, "admitted");
+    assert.ok(!writes(plain.calls).includes(ADD), "a person's criteria: no label");
   });
 });

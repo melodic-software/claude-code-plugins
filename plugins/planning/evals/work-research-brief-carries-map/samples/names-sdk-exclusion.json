@@ -23,12 +23,32 @@
     {
       "answer": "Out of scope: partner client libraries; we publish the feed contract only.",
       "why": "spelled-out library stem"
+    },
+    {
+      "answer": "Scope: partner client SDKs or libraries are out of scope; we publish a feed contract only.",
+      "why": "exclusion stated"
+    },
+    {
+      "answer": "Do not recommend building SDKs: the map excludes them, since we never ship client code.",
+      "why": "exclusion stated before the term"
     }
   ],
   "fail": [
     {
       "answer": "For Q3, given Debezium, recommend which partner SDKs we should build and ship.",
       "why": "tasks SDK work, no exclusion"
+    },
+    {
+      "answer": "Evaluate which client SDKs (Python, Java, .NET) we should build to make adoption easiest.",
+      "why": "tasks SDK building, no exclusion"
+    },
+    {
+      "answer": "Find out what tooling and integration help each partner needs. Return findings per partner.",
+      "why": "no exclusion at all"
+    },
+    {
+      "answer": "Survey which client SDKs partners would adopt. Separately, the nightly batch job is out of scope and will not ship.",
+      "why": "exclusion is about the batch job, in another sentence"
     },
     {
       "answer": "The partner SDK work remains open; separately, shipping the nightly batch job is explicitly out of scope and will not ship this quarter.",

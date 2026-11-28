@@ -1,13 +1,3 @@
-"""The tracker binding reader: the `tracker` mapping of
-docs/conventions/work-items.yaml binds, a root .work-item-tracker.json never
-does, and with no binding the caller's default applies.
-
-Expected values come from the work-items seam's binding discovery
-(plugins/work-items/tools/work-item-tracker/lib/binding.sh `wit_find_binding`):
-a YAML file with no `tracker` key binds nothing, and a YAML file that does not
-parse is an error.
-"""
-
 from __future__ import annotations
 
 import json
@@ -91,7 +81,6 @@ class RoleLabel(unittest.TestCase):
             self.label(files)
 
     def test_a_scalar_tracker_key_raises(self) -> None:
-        # The seam counts it as a binding and rejects it.
         files = {YAML: "tracker: github\n"}
         with self.assertRaises(binding.BindingError):
             self.label(files)

@@ -22,13 +22,13 @@ beside `lane-rules.json` and `effect-grants.json`, keyed by leaf
 1. Each row holds `never`, a statement of what the leaf never does, and optionally
    `forbidden-effects`, effects it may never be given. A leaf with no row is valid; a missing or
    malformed file is a config error, and every forbidden effect must be one `effect-grants.json`
-   knows. Basis: [`resolve.mjs:170-195`](../../.github/actions/resolve-config/resolve.mjs).
+   knows. Basis: [`resolve.mjs:166-191`](../../.github/actions/resolve-config/resolve.mjs).
 2. The reader rejects a leaf whose `effect` its row forbids, as `forbidden-by-activity`. Today
-   `report-escalation` may never be `mutate-branch` or `merge`. Basis: `resolve.mjs:218-229`;
+   `report-escalation` may never be `mutate-branch` or `merge`. Basis: `resolve.mjs:214-225`;
    `activity-rules.json:5-8`.
 3. The file is read from the action's own trusted checkout, never from the PR head, and the token
    broker reads it at the default-branch tip as one of its trust files. It is a trust-root path.
-   Basis: [`resolve-config.mjs:34-35,184-192`](../../.github/actions/resolve-config/resolve-config.mjs);
+   Basis: [`resolve-config.mjs:34-35,169-173`](../../.github/actions/resolve-config/resolve-config.mjs);
    `melodic-software/azure-iac` `src/lanes-token-broker/src/binding.mjs:7-26`;
    [pr-pipeline README, "Trust-root paths"](../conventions/pr-pipeline/README.md#trust-root-paths).
 

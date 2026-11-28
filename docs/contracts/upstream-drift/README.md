@@ -455,7 +455,10 @@ date.
 
 `scripts/check-upstream-drift.sh` reads every page under `docs/upstream/` whose marker is in the
 pin form, or each `--page <file>`, and compares the upstream git trees at the pin and at upstream
-HEAD through `gh api`. It needs `jq`, `gh`, and a token (`GH_TOKEN` in Actions, `gh auth login`
+HEAD. It reads each upstream anonymously over git first (`ls-remote` for HEAD, one blobless
+depth-1 fetch per commit with lazy fetching off, and `ls-tree`), spending no API quota; only an
+upstream whose anonymous read fails (a private repository) is read through `gh api`. It needs
+`git`, `jq`, `gh`, and, for that fallback, a token (`GH_TOKEN` in Actions, `gh auth login`
 locally). It is a member of the check-script family
 ([scripts/README.md, "The check-script contract"](../../../scripts/README.md#the-check-script-contract)):
 
@@ -468,10 +471,11 @@ locally). It is a member of the check-script family
 A truncated tree read, a failed API call, a missing `gh` or `jq`, a near-miss marker (including an
 indented or quoted one), an `under` scope absent at the pin, or a tree path holding a control
 character exits 2 with nothing on stdout: an unread tree is never a clean
-report ([the fetch route's read rules](#reading-the-basis-the-fetch-route)). When an owner's IP
-allow list refuses the token, that owner's repositories are read anonymously over git (`ls-remote`
-for HEAD, one blobless depth-1 fetch per commit with lazy fetching off, and `ls-tree`), not anonymous REST, whose
-per-address limit a hosted runner's shared address may already have spent. A page with any read
+report ([the fetch route's read rules](#reading-the-basis-the-fetch-route)). The git read refuses a
+control character in any path of the tree; the API read checks the entries it reads: the scope
+for a scoped row, the subtree for a folder row, and the parent folder's own entries for a file row. When the API fallback meets
+an owner's IP allow list, that owner's repositories go back to anonymous git, not anonymous REST,
+whose per-address limit a hosted runner's shared address may already have spent. A page with any read
 (pin, HEAD or tree) still failing is named on stderr with git's error and listed as
 `status=unreachable` with `head=unknown`, the other pages are still read, and every mode but
 `--report` then exits 2. The script writes no file outside the temporary directory a git read
@@ -717,7 +721,7 @@ a pointer and loses its stamp the same way.
 | [plugin-philosophy](../../plugin-philosophy.md) component-stances staleness disclaimer | unlabeled discipline | Conforming records: per-row decision, linked section, and as-of date; the re-read-before-acting rule is [read-time validation](#read-time-validation-is-not-a-firing), and every row's stated trigger is a read diverging from the row. |
 | [plugin-philosophy](../../plugin-philosophy.md#recorded-gate-runs) recorded gate runs | new with this table | Conforming records of the second kind: **recorded decisions**, one per platform surface the Native-first adoption gate has been run against, carrying an adopt/defer/decline verdict, a pointer to the upstream section it rests on, and a trigger written per row rather than the generic divergence-at-read. A verdict is re-derived when its own trigger fires, not on any read that differs. |
 | [official-docs](../../official-docs.md) evaluation-guidance rows | unlabeled discipline | Conforming records: same shape as the component-stances table: link + date, divergence-at-read as the stated trigger. |
-| [migration-playbook](../../migration-playbook.md) decision records | "Revisit trigger", and "Re-trigger" on the plugin-acceptance review records ([ADR 0093](../../adr/0093-record-plugin-acceptance-security-reviews.md)) | Named triggers only: the org-internal records (e.g. the ratification and plugin-acceptance review records) are named triggers; the skill-quality retrofit record states "no recheck trigger" by design, decided out, so nothing fires. The dated component-decision records keep the 1.x shape and are tracked in #5684. |
+| [migration-playbook](../../migration-playbook.md) decision records | "Revisit trigger", and "Re-trigger" on the plugin-acceptance review records ([security-review log](../../plugin-acceptance-security-reviews.md)) | Named triggers only: the org-internal records (e.g. the ratification and plugin-acceptance review records) are named triggers; the skill-quality retrofit record states "no recheck trigger" by design, decided out, so nothing fires. The dated component-decision records keep the 1.x shape and are tracked in #5684. |
 | [ecosystem-commands](../ecosystem-commands/README.md) task-runner deferral | "Revisit triggers" | Named triggers only: an undated in-repo deferral with no upstream pointer. |
 | `/ai-slop:audit`, the tell catalog it loads, §Upstream-drift record | new with 1.5.0 | Conforming record: a revision-pinned pointer to the Wikipedia source page (`oldid`), as-of date, and a recurring recheck trigger: each `ai-slop` release and each fleet audit, chosen over per-revision after measuring the page at 50+ edits/week. |
 | `/docs-hygiene:write-for-humans`, the source records it loads | new with docs-hygiene 0.18.0 | Conforming records: one pointer record per external writing standard the skill falls back to, each carrying the pointer, as-of date, and an observable recheck trigger: a publication event for an edition-pinned standard, a page-content divergence for a continuously edited one. The record names which. |

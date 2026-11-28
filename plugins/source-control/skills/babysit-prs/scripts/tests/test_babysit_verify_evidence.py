@@ -69,10 +69,10 @@ del _leaked_git_var
 REPO = "example-org/example-repo"
 PR = 41
 HEAD = "a" * 40
-EARLIER = "b" * 40  # an earlier head of PR 41, force-pushed away
+EARLIER = "b" * 40
 MAIN_SHA = "c" * 40
 OFF_MAIN = "d" * 40
-IN_PR = "e" * 40  # a commit still on PR 41
+IN_PR = "e" * 40
 UNRELATED = "f" * 40
 WORKFLOW = ".github/workflows/pr-verify.yml"
 NOW = datetime(2026, 10, 16, tzinfo=UTC)
@@ -228,6 +228,22 @@ def file_payload(text: str) -> dict[str, Any]:
     }
 
 
+CAPTURED_LIST_COMMITS = (
+    pathlib.Path(__file__).resolve().parents[6]
+    / ".github/scripts/lib/fixtures/standards-list-commits.json"
+)
+
+
+def list_commits(date: str | None) -> list[Any]:
+    """The captured `GET /repos/{owner}/{repo}/commits?path=...&per_page=1`
+    response, its newest commit dated `date`; none when `date` is None."""
+    if date is None:
+        return []
+    commits = json.loads(CAPTURED_LIST_COMMITS.read_text())
+    commits[0]["commit"]["committer"]["date"] = date
+    return commits
+
+
 class FakeGitHub:
     """Answers the reader's reads: the artifact listing, runs, a compare of a
     run head against main, the pull request's commits, the trusted-actor list,
@@ -245,78 +261,45 @@ class FakeGitHub:
         self.records = records or {}
         self.on_main = {MAIN_SHA}
         self.commits = [IN_PR, HEAD]
-        # Each commit's git tree, as the commit list and `git/commits` give it.
-        # The pull request's own change at each commit: the compare diff from
-        # its merge base with main, each unlike the others.
         self.diffs = {s: change(s[:4]) for s in (HEAD, EARLIER, IN_PR, UNRELATED)}
         self.actors: Any = {"version": 1, "actors": [MAINTAINER, LANES]}
         self.team_yaml: str | None = None
         self.standards_actors: Any = None
+        self.standards_list_changed: str | None = None
         self.calls: list[list[str]] = []
         self.envs: list[tuple[list[str], Any]] = []
         self.fail: set[str] = set()
         self.fail_status = 502
-        # The PR's closing issues now: (number, repository).
         self.closing: list[tuple[int, str]] = [(7, REPO)]
         self.closing_total: int | None = None
-        # Each closing issue's body lastEditedAt now, by number.
         self.closing_edited: dict[int, str | None] = {}
         self.issue_bodies: dict[int, dict[str, Any]] = {}
-        # Each closing issue's comments now, and a totalCount that cuts them.
         self.closing_comments: dict[int, list[dict[str, Any]]] = {}
         self.comments_total: dict[int, int] = {}
-        # Each closing issue's comments as GraphQL pages of up to 100, the
-        # first in the closing read and the rest behind cursors "p1", "p2"...
         self.comment_pages: dict[int, list[list[dict[str, Any]]]] = {}
-        # How a later comment page answers instead: "error" (gh fails) or
-        # "empty" (a page with no comments).
         self.comment_page_fail: str | None = None
-        # The pull requests, open or closed, that close each issue:
-        # (number, repository), and a totalCount that cuts them.
         self.closers: dict[int, list[tuple[int, str]]] = {}
-        # Each closing pull request's state: the one judged is open, others
-        # closed unless named; its author, unless named none.
         self.closer_states: dict[int, str] = {}
         self.closer_authors: dict[int, dict[str, Any]] = {}
-        # The REST record of another pull request, by number: open unless
-        # named.
         self.pulls: dict[int, dict[str, Any]] = {}
         self.closers_total: dict[int, int] = {}
-        # The pull requests each issue's cross-reference timeline shows:
-        # (number, repository), or None for an issue as the source; and a
-        # totalCount that cuts them. The gate reads no timeline.
         self.mentions: dict[int, list[tuple[int, str] | None]] = {}
         self.mentions_total: dict[int, int] = {}
-        # The pull request's body now, and what each number a `Refs:` line
-        # may name is: an issue's repository, or "PullRequest".
         self.body: str | None = None
         self.refs: dict[int, str] = {}
-        # Each issue's label names now, and a totalCount that cuts them.
         self.labels: dict[int, list[str]] = {}
         self.labels_total: dict[int, int] = {}
-        # Each issue's REST timeline events, and each login's permission.
         self.timeline: dict[int, list[dict[str, Any]]] = {}
         self.permissions: dict[str, str] = {}
-        # The single pages the reader checks a listing against: the live
-        # `total_count` they report (None: the artifacts' count), and a gh
-        # error for each.
         self.live_total: int | None = None
         self.page_fail: str | None = None
-        # Ids each whole listing leaves out in turn, as one that pages while
-        # an earlier artifact expires skips the one at a page boundary.
         self.full_skips: list[set[int]] = []
-        # The count reads before whole listings, and a gh error for each.
         self.count_reads: list[list[str]] = []
         self.count_timeouts: list[float | None] = []
         self.count_fail: str | None = None
-        # The pull request's RELINK_QUERY answer (its `pullRequest`), or
-        # "error" for a failed read; None answers as the closing read does.
         self.relink: Any = None
-        # The pr-require-checks pull_request runs at each head, and a
-        # total_count that cuts them; a head with none named answers 404.
         self.checks_runs: dict[str, list[dict[str, Any]]] = {}
         self.checks_total: dict[str, int] = {}
-        # Each checks run's latest jobs; a run with none named answers 404.
         self.jobs: dict[int, dict[str, Any]] = {}
 
     def listed(self) -> list[dict[str, Any]]:
@@ -405,8 +388,6 @@ class FakeGitHub:
             if any("issueOrPullRequest" in a for a in args):
                 n = int(next(a for a in args if a.startswith("n="))[2:])
                 if n not in self.refs:
-                    # GitHub's answer for a number that names nothing, as a
-                    # live read of a missing number returned it: gh exits 1.
                     missing = {
                         "data": {"repository": {"issueOrPullRequest": None}},
                         "errors": [
@@ -425,7 +406,6 @@ class FakeGitHub:
                         args, 1, "", "gh: boom (HTTP 502)"
                     )
                 if kind == "errors":
-                    # gh exits 0 on an answer that carries data and errors.
                     return ok(
                         {
                             "data": {"repository": {"issueOrPullRequest": None}},
@@ -546,14 +526,12 @@ class FakeGitHub:
                 )
             return subprocess.CompletedProcess(args, 0, zipped(self.records[name]), "")
         if found := re.fullmatch(rf"repos/{REPO}/actions/artifacts/([0-9]+)", path):
-            # One artifact by id, as GitHub's "Get an artifact" answers.
             held = [a for a in self.artifacts if a.get("id") == int(found[1])]
             return ok(held[0]) if held else missing()
         by_name = re.fullmatch(
             rf"repos/{REPO}/actions/artifacts\?name=([^&]+)&per_page=100", path
         )
         if by_name:
-            # Every artifact with exactly that name, as GitHub's filter answers.
             held = [a for a in self.artifacts if a.get("name") == by_name[1]]
             return ok({"total_count": len(held), "artifacts": held})
         prefix = f"repos/{REPO}/actions/artifacts?per_page="
@@ -616,9 +594,17 @@ class FakeGitHub:
         )
         if path == standards:
             return ok(file_payload(json.dumps(self.standards_actors)))
+        if path == (
+            f"repos/{STANDARDS_REPO}/commits?path={policy.STANDARDS_TRUSTED_ACTORS}"
+            f"&sha={STANDARDS_SHA}&per_page=1"
+        ):
+            return ok(list_commits(self.standards_list_changed))
         if path.startswith(f"repos/{REPO}/contents/"):
-            # Read at main's tip only, never by the branch's name.
-            return ok(self.actors) if path.endswith(f"?ref={MAIN_SHA}") else missing()
+            if not path.endswith(f"?ref={MAIN_SHA}") or self.actors is None:
+                return missing()
+            if "Accept: application/vnd.github.raw" in args:
+                return ok(self.actors)
+            return ok(file_payload(json.dumps(self.actors)))
         issues = f"repos/{REPO}/issues/"
         if path.startswith(issues) and path.endswith("/timeline?per_page=100"):
             n = int(path[len(issues) :].split("/")[0])
@@ -671,7 +657,6 @@ class OrderedSet(set[str]):
 
 
 def passing(*extra: dict[str, Any], runs: dict[int, Any] | None = None) -> FakeGitHub:
-    """A counted pass at the head (run 1) beside `extra` artifacts."""
     return FakeGitHub(
         [artifact(named(HEAD, "pass"), 1), *extra],
         {1: run(1), **(runs or {})},
@@ -680,8 +665,6 @@ def passing(*extra: dict[str, Any], runs: dict[int, Any] | None = None) -> FakeG
 
 
 def read(fake: FakeGitHub, pr: dict[str, Any] | None = None) -> ve.Evidence:
-    # The single-page patch too, for modules that import this helper without
-    # this module's setUpModule.
     with (
         mock.patch.object(postmerge, "gh_capture", side_effect=fake),
         mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
@@ -747,14 +730,11 @@ class EveryPassAtTheHeadIsChecked(unittest.TestCase):
         self.assertEqual(self.each_order({}), {None})
 
     def test_one_judged_before_a_spec_edit_is_superseded_either_way(self) -> None:
-        # Run 2 started before the issue's edit; run 1, started after it,
-        # judged the live spec and decides (`_newest`).
         second = {
             "run": {"run_started_at": "2026-10-13T00:00:00Z"},
             "edited": {7: "2026-10-14T00:00:00Z"},
         }
         self.assertEqual(self.each_order(second), {None})
-        # The stale one alone refuses.
         second["edited"] = {7: "2026-10-15T00:00:01Z"}
         self.assertEqual(self.each_order(second), {"verify:spec-changed"})
 
@@ -764,9 +744,6 @@ class EveryPassAtTheHeadIsChecked(unittest.TestCase):
         self.assertEqual(self.each_order(second), {"verify:untrusted-spec"})
 
     def test_a_changed_spec_is_reported_before_an_untrusted_one(self) -> None:
-        # The README's order: the spec must be the judged one before its
-        # authors are weighed. Both runs start together (so both decide):
-        # run 2 records an untrusted spec, and both predate the issue's edit.
         bot = {**TRUSTED_ISSUE, "author_type": "Bot", "author_id": 200}
         second = {
             "record": {"linked_issues": [bot]},
@@ -799,7 +776,6 @@ class AVerdictForAnotherShaDoesNotCount(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:missing")
 
     def test_another_prs_pass_at_this_head_does_not_count(self) -> None:
-        # PR 4 and PR 411 share a prefix with 41; the name is parsed.
         names = (named(HEAD, "pass", 4), named(HEAD, "pass", 411))
         fake = FakeGitHub(
             [artifact(names[0], 1), artifact(names[1], 2)],
@@ -841,7 +817,6 @@ class AFailCountsUnderAnyNumber(unittest.TestCase):
 
 
 def pull_reads(fake: FakeGitHub) -> list[str]:
-    """The pull request records the reader fetched, by REST path."""
     return [a for c in fake.calls for a in c if re.search(r"/pulls/[0-9]+$", a)]
 
 
@@ -880,7 +855,6 @@ class ABranchTieToAFinishedPullRequestDoesNotHold(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_a_fail_under_this_pull_requests_number_holds_unread(self) -> None:
-        # Tied by number: no state is read, whatever #41's would say.
         fake = self.branch_fail(PR, state="closed")
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
         self.assertEqual(pull_reads(fake), [], "a tied FAIL read a state")
@@ -925,14 +899,10 @@ class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
         self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
 
     def test_a_fail_started_after_the_pass_refuses(self) -> None:
-        # Head B passed, A was pushed and failed, the branch went back to B.
         fake = self.earlier_fail("2026-10-15T00:00:01Z")
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_a_re_attempted_earlier_pass_does_not_clear_a_later_fail(self) -> None:
-        # Run 39652492098's record: attempt 2 keeps the run's created_at and
-        # moves run_started_at later. The pass run was created before the
-        # FAIL's and re-attempted after it.
         fake = self.earlier_fail("2026-10-15T00:00:01Z")
         fake.runs[1] = run(
             1,
@@ -948,7 +918,6 @@ class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
         self.assertIsNone(read(fake).refusal)
 
     def test_a_run_record_whose_id_is_true_counts_nothing(self) -> None:
-        # True == 1 in Python, so the id must be an int, not equal to one.
         fake = self.earlier_fail()
         fake.runs[1] = {**run(1), "id": True}
         self.assertNotEqual(read(fake).refusal, None)
@@ -968,7 +937,6 @@ class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_an_earlier_fail_with_no_verdict_at_the_head_waits(self) -> None:
-        # The head a fix round pushed, before the verifier judges it.
         fake = FakeGitHub([artifact(named(EARLIER, "fail"), 2)], {2: run(2)})
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:earlier-fail")
@@ -997,7 +965,6 @@ class ACountedPassAtTheHeadClearsAnEarlierFail(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:untrusted-spec")
 
     def test_an_unreadable_tied_fail_refuses_without_a_human(self) -> None:
-        # Run 7 is not in the fake, so the tied FAIL at the head is unread.
         fake = self.earlier_fail(OLDER_START, artifact(named(HEAD, "fail"), 7))
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
@@ -1019,7 +986,6 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
 
     def test_a_head_that_only_merges_main_still_refuses(self) -> None:
         fake = self.earlier_fail()
-        # Main's merge moved the hunk down; the change itself is the same.
         fake.diffs[EARLIER] = change("fix", at=1)
         fake.diffs[HEAD] = change("fix", at=40)
         evidence = read(fake)
@@ -1029,7 +995,6 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
     def test_a_base_merge_that_edits_a_line_beside_the_fix_still_refuses(
         self,
     ) -> None:
-        # Main changed the context line next to the fix; the fix is the same.
         fake = self.earlier_fail()
         fake.diffs[EARLIER] = change("fix", before="one")
         fake.diffs[HEAD] = change("fix", at=40, before="one, edited on main")
@@ -1082,8 +1047,6 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_a_head_github_no_longer_has_keeps_the_fail(self) -> None:
-        # A compare that answers 404 (a garbage-collected or force-pushed-away
-        # head) holds no readable change, which no later read will find.
         for sha in (EARLIER, HEAD):
             with self.subTest(sha=sha):
                 fake = self.earlier_fail()
@@ -1093,7 +1056,6 @@ class AFailCarriesToAHeadOfTheSameChange(unittest.TestCase):
                 self.assertFalse(evidence.needs_human)
 
     def test_the_verdict_does_not_depend_on_the_order_of_failed_heads(self) -> None:
-        # EARLIER holds the head's own change; UNRELATED's read fails.
         fake = self.earlier_fail()
         fake.diffs[EARLIER] = fake.diffs[HEAD]
         fake.fail = {f"compare/main...{UNRELATED}"}
@@ -1151,7 +1113,6 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
     def test_a_refs_pass_never_clears_a_closes_fail_of_the_same_change(
         self,
     ) -> None:
-        # The live link is `Refs:`, so the refs pass would otherwise allow.
         fake = self.same_change("closes", "refs", live_refs=True)
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
@@ -1169,8 +1130,6 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
         )
 
     def test_a_spec_kind_that_is_missing_or_unknown_keeps_the_fail(self) -> None:
-        # A record from before the kind was written reads as `closes` where a
-        # pass is checked against the live link; here it clears nothing.
         for fail_kind, pass_kind in (
             (None, "closes"),
             ("refs", None),
@@ -1215,8 +1174,6 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
         self.assertIsNone(read(self.closing_another(7)).refusal)
 
     def test_a_closes_pass_of_another_issue_keeps_the_fail(self) -> None:
-        # Failed as a slice of one issue, then relinked to close a different
-        # issue on the same diff.
         self.assertEqual(read(self.closing_another(8)).refusal, "verify:earlier-fail")
 
     def test_a_closes_pass_of_more_issues_keeps_the_fail(self) -> None:
@@ -1256,8 +1213,6 @@ class AWholeSpecPassClearsASliceFailOnTheSameChange(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
 
-# Times between the FAIL's creation (OLDER_START) and the pass's start
-# (RUN_STARTED), while the pass ran, its completion, and after it.
 RELINK_AT = "2026-10-14T12:00:00Z"
 PASS_RUNNING = "2026-10-15T00:05:00Z"
 PASS_DONE = "2026-10-15T00:10:00Z"
@@ -1271,10 +1226,6 @@ def relink_answer(
     edits_total: int | None = None,
     events_filtered: int | None = None,
 ) -> dict[str, Any]:
-    """The pull request's RELINK_QUERY answer: body edits (newest first, then
-    the original text, stamped before the FAIL, by the lanes App that opened
-    the pull request) and issue connect or disconnect events, as a live read
-    of an edited pull request answered, with identifying details changed."""
     nodes = [{"editedAt": at, "editor": who} for at, who in edits]
     nodes.append({"editedAt": "2026-10-10T00:00:00Z", "editor": LANES_ACTOR})
     timeline = [{"createdAt": at, "actor": who} for at, who in events]
@@ -1323,7 +1274,6 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
 
     def test_a_relink_by_people_only_lets_the_pass_decide(self) -> None:
         self.assertIsNone(read(self.relinked()).refusal)
-        # The pass still decides: an untrusted spec refuses as it would alone.
         fake = self.relinked()
         bot = {**TRUSTED_ISSUE, "author_type": "Bot", "author_id": 200}
         fake.records[named(HEAD, "pass")] = record(linked_issues=[bot])
@@ -1346,7 +1296,6 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
             ("outsider connect", relink_answer([], [(RELINK_AT, outsider)])),
             ("at the FAIL's creation", relink_answer([(OLDER_START, LANES_ACTOR)])),
             ("at the pass's start", relink_answer([], [(RUN_STARTED, LANES_ACTOR)])),
-            # The pass's run reads the linked issues after it starts.
             ("while the pass ran", relink_answer([], [(PASS_RUNNING, LANES_ACTOR)])),
             ("at the pass's completion", relink_answer([], [(PASS_DONE, LANES_ACTOR)])),
         ):
@@ -1356,7 +1305,6 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:fail")
 
     def test_the_apps_acts_outside_the_window_do_not_count(self) -> None:
-        # Its original text before the FAIL, and an edit after the pass began.
         fake = self.relinked()
         fake.relink = relink_answer([(AFTER_PASS, LANES_ACTOR), (RELINK_AT, HUMAN)])
         self.assertIsNone(read(fake).refusal)
@@ -1371,8 +1319,6 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
                 relink_answer([], [(RELINK_AT, HUMAN)], events_filtered=2),
             ),
             ("timeless event", relink_answer([], [(None, HUMAN)])),
-            # Only the original text, before the FAIL: the link changed some
-            # way the read cannot see (an issue deleted or moved).
             ("nothing in the window", relink_answer()),
             ("a pass run with no completion time", relink_answer([(RELINK_AT, HUMAN)])),
         ):
@@ -1391,8 +1337,6 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:fail")
 
     def test_the_same_linked_issues_with_no_body_edit_keep_the_fail(self) -> None:
-        # A person's connect alone, no body edit: a body-edit re-judgment
-        # needs one (ATrustedBodyEditSupersedesAFailAtItsHead).
         fake = self.relinked()
         fake.records[named(HEAD, "fail")]["linked_issues"] = [TRUSTED_ISSUE]
         fake.relink = relink_answer([], [(RELINK_AT, HUMAN)])
@@ -1480,8 +1424,6 @@ class ARelinkByPeopleSupersedesAFailAtItsHead(unittest.TestCase):
         )
 
     def test_an_earlier_fail_refusal_names_the_failed_head(self) -> None:
-        # pr-unblock verify-cap.mjs hands these heads to address-feedback,
-        # which works their notes from the verdict artifacts.
         evidence = read(self.merge_only(superseded=False))
         self.assertEqual(evidence.refusal, "verify:earlier-fail")
         self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
@@ -1569,7 +1511,6 @@ class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
         self.assertIsNone(read(self.edited()).refusal)
 
     def test_any_other_actor_or_no_body_edit_keeps_the_fail(self) -> None:
-        # The paired case: the same window with only a person's edit clears.
         self.assertIsNone(
             read(self.edited(relink_answer([(RELINK_AT, HUMAN)]))).refusal
         )
@@ -1591,21 +1532,16 @@ class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
                 self.assertEqual(read(self.edited(answer)).refusal, "verify:fail")
 
     def test_an_edit_before_the_last_fail_keeps_it(self) -> None:
-        # The person's edit falls between the two FAILs: the second judged it.
         fake = self.edited()
         fake.artifacts.append(artifact(named(HEAD, "fail"), 3))
         fake.runs[3] = judged(3, "2026-10-14T18:00:00Z")
         self.assertEqual(read(fake).refusal, "verify:fail")
-        # An edit after the second FAIL lets the pass decide.
         fake.relink = relink_answer(
             [("2026-10-14T20:00:00Z", HUMAN), (RELINK_AT, HUMAN)]
         )
         self.assertIsNone(read(fake).refusal)
 
     def test_the_report_names_a_fail_superseded_at_the_head(self) -> None:
-        # pr-unblock resolves that FAIL's fail-note threads on this field
-        # alone (feedback-dispatch.mjs), so it is true only where the FAIL at
-        # the head gave way.
         self.assertIs(read(self.edited()).report()["supersededAtHead"], True)
         for label, answer in (
             ("App edit", relink_answer([(RELINK_AT, LANES_ACTOR)])),
@@ -1618,7 +1554,6 @@ class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
                 self.assertIs(evidence.report()["supersededAtHead"], False)
 
     def test_the_report_names_no_fail_superseded_elsewhere(self) -> None:
-        # Superseded at an earlier head only: nothing at this head gave way.
         merge_only = ARelinkByPeopleSupersedesAFailAtItsHead().merge_only(
             superseded=True
         )
@@ -1649,8 +1584,6 @@ class ATrustedBodyEditSupersedesAFailAtItsHead(unittest.TestCase):
         self.assertIs(evidence.report()["supersededAtHead"], False)
 
 
-# Pull request #16602's FAIL notes at head 27fe8d09, as its pr-verify
-# fail-note review comment quoted them.
 BODY_NOTES_16602 = [
     'PR body (Summary, "Recorded list"): the quoted list is cut off after'
     ' `/planning:design` with "-…", so it is not true that every existing'
@@ -1863,6 +1796,18 @@ class ATrustedSpecAmendmentClearsAnEarlierFailOnTheSameChange(unittest.TestCase)
                 fake = self.amended(body=body)
                 self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
+    def test_with_no_record_configured_quote_only_clears_and_plain_text_keeps_it(
+        self,
+    ) -> None:
+        with mock.patch.object(policy, "DECISION_ROW", None):
+            self.assertIsNone(
+                read(self.amended(body='verbatim: "amend item 1"')).refusal
+            )
+            self.assertEqual(
+                read(self.amended(body="Item 1 now reads as amended.")).refusal,
+                "verify:earlier-fail",
+            )
+
     def test_an_untrusted_comment_keeps_it(self) -> None:
         for label, author in (
             ("a stranger", self.STRANGER),
@@ -2039,7 +1984,6 @@ class TheChangeDigestKeysOnChangedLines(unittest.TestCase):
         )
 
     def test_added_blank_lines_do_not_count(self) -> None:
-        # A re-roll must not cost one empty line.
         base = change("x = 2")
         for blank in ("+", "+    ", "+\t"):
             with self.subTest(blank=blank):
@@ -2060,7 +2004,7 @@ class TheChangeDigestKeysOnChangedLines(unittest.TestCase):
                 self.assertIsNone(self.digest(diff))
 
 
-SIBLING = 40  # another pull request, open, that closes issue 7 too
+SIBLING = 40
 SIBLING_HEADS = ("1" * 40, "2" * 40, "3" * 40)
 
 
@@ -2078,8 +2022,6 @@ def capped_record(
     tail: str = " attempt=1 of=1",
     **extra: Any,
 ) -> dict[str, Any]:
-    """A capped-close record on issue 7 naming pull request `number`, written
-    after every FAIL `artifact` uploads by default."""
     return {
         "databaseId": 900 + number,
         "createdAt": "2026-10-05T00:00:00Z",
@@ -2093,7 +2035,6 @@ def capped_record(
 
 
 def read_as_lane(fake: FakeGitHub) -> ve.Evidence:
-    """`read` with the lanes App as `merge.agent-identity`."""
     with (
         mock.patch.object(postmerge, "gh_capture", side_effect=fake),
         mock.patch.object(ve.merge_policy, "gh_capture", side_effect=fake),
@@ -2108,8 +2049,6 @@ def read_as_lane(fake: FakeGitHub) -> ve.Evidence:
 
 
 def also_closes_issue_8(fake: FakeGitHub, *closers: int) -> FakeGitHub:
-    """The judged pull request closes issue 8 too, as do `closers`, and the
-    lanes App's capped-close record is on issue 8 alone."""
     fake.closing.append((8, REPO))
     fake.closers[8] = [(n, REPO) for n in (*closers, PR)]
     fake.records[named(HEAD, "pass")] = record(
@@ -2120,8 +2059,6 @@ def also_closes_issue_8(fake: FakeGitHub, *closers: int) -> FakeGitHub:
 
 
 def failing_at_head(fake: FakeGitHub) -> FakeGitHub:
-    """`fake` with a FAIL of this pull request at the head (run 9): the cap
-    closes only on a head whose own FAIL stands (owner decision Q245)."""
     fake.artifacts.append(artifact(named(HEAD, "fail"), 9))
     fake.runs[9] = judged(9, OLDER_START)
     return fake
@@ -2165,7 +2102,6 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:repeated-fail")
 
     def test_two_there_and_a_fail_at_the_head_reach_the_cap(self) -> None:
-        # Not verify:fail: a fix round whose push could never merge.
         fake = failing_at_head(self.sibling_fails(*SIBLING_HEADS[:2]))
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
@@ -2186,7 +2122,6 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertIsNone(read(fake).refusal)
 
     def test_a_merged_or_lanes_app_closed_pull_request_counts_no_more(self) -> None:
-        # Owner decision 2026-10-29: each fresh attempt starts its own count.
         fake = self.sibling_fails(*SIBLING_HEADS)
         fake.closer_states[SIBLING] = "MERGED"
         self.assertIsNone(read(fake).refusal)
@@ -2195,7 +2130,6 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertIsNone(read_as_lane(fake).refusal)
 
     def test_a_closed_pull_request_of_anyone_else_still_counts(self) -> None:
-        # Closing and reopening would otherwise re-roll the verifier.
         for author in (
             {"__typename": "User", "login": "someone", "databaseId": 3},
             {"__typename": "Bot", "login": "other-app", "databaseId": 2},
@@ -2215,8 +2149,6 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertIsNone(read_as_lane(fake).refusal)
 
     def test_a_capped_close_record_starts_the_count_again(self) -> None:
-        # An open pull request's FAILs uploaded before the record judged the
-        # attempt it closed; parked or not, the record ends that attempt.
         for tail in (" attempt=1 of=1", " attempt=1 of=1 parked", ""):
             with self.subTest(tail):
                 fake = self.sibling_fails(*SIBLING_HEADS)
@@ -2235,9 +2167,6 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
 
     def test_only_the_caps_own_close_resets_the_count(self) -> None:
-        # A third pull request for the issue closed unmerged with no record,
-        # the lanes App's included: the lane closes its own for other reasons,
-        # and anyone can open one naming the issue and close it.
         for author in (
             LANES_APP_ACTOR,
             {"__typename": "User", "login": "someone", "databaseId": 3},
@@ -2252,10 +2181,8 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
                 self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
 
     def test_a_record_resets_only_its_own_issue(self) -> None:
-        # A close on one issue ends no attempt at another, whose FAILs stay.
         fake = also_closes_issue_8(failing_at_head(self.sibling_fails(*SIBLING_HEADS)))
         self.assertEqual(read_as_lane(fake).refusal, "verify:repeated-fail")
-        # Records on both of them end the attempts at both.
         fake.closing_comments[7] = [capped_record(SIBLING + 2, LANES_APP_ACTOR)]
         self.assertEqual(
             read_as_lane(fake).refusal,
@@ -2325,7 +2252,6 @@ class FailsOnAnotherPullRequestForTheSameIssueCount(unittest.TestCase):
         del fake.runs[3]
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
-        # pr-unblock verify-cap.mjs reads this detail as the cap.
         self.assertEqual(evidence.detail, ve.SIBLING_UNREADABLE)
 
     def test_an_unreadable_fail_run_of_a_closed_sibling_holds_by_its_author(
@@ -2411,7 +2337,6 @@ class AFreshAttemptAfterIssue9241sAttemptsStartsItsOwnCount(unittest.TestCase):
             )
         ]
         self.assertIsNone(read_as_lane(fake).refusal)
-        # Every FAIL predates the record: no pull request's state is read.
         self.assertFalse(
             [c for c in fake.calls if any(re.search(r"/pulls/[0-9]+$", a) for a in c)]
         )
@@ -2515,8 +2440,6 @@ class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertIsNone(read(self.sibling_fails(*SIBLING_HEADS[:2])).refusal)
 
     def test_only_names_that_carry_the_issue_count(self) -> None:
-        # A plain FAIL (an unnamable issue set, or a name from before the
-        # writer named issues) counts only for its own pull request.
         for suffix, refusal in (
             ("-i7.8", "verify:repeated-fail"),
             ("-i8", "verify:fail"),
@@ -2529,10 +2452,6 @@ class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, refusal)
 
     def test_a_long_cross_reference_timeline_holds_nothing(self) -> None:
-        # Anyone can cross-reference an issue, so a hundred and one mentions, from
-        # issues here or in another repository, a page of 100 cut from the
-        # count, hold no pull request for it, closing or `Refs:`, and its
-        # FAILs still count by name.
         mentions = [None] * 99 + [(SIBLING, "example-org/other")]
         closing = passing()
         closing.mentions[7], closing.mentions_total[7] = mentions, 101
@@ -2545,8 +2464,6 @@ class FailsOnARefsPullRequestForTheSameIssueCount(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:repeated-fail")
 
     def test_a_refs_pull_requests_own_state_decides(self) -> None:
-        # A `Refs:` pull request is in no closing list, so its state is read
-        # on its own; a failed read is unreadable, never an excuse.
         for answer, refusal in (
             ({"state": "closed", "merged_at": "2026-10-02T00:00:00Z"}, "verify:fail"),
             ({"state": "closed", "user": LANES_APP_USER}, "verify:fail"),
@@ -2621,7 +2538,6 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:repeated-fail")
 
     def test_a_name_without_the_issue_does_not_count(self) -> None:
-        # Another issue, or an older name with no issues.
         for suffix in ("-i8", "-i8.70", ""):
             with self.subTest(suffix):
                 fake = self.named_fails(*SIBLING_HEADS, suffix=suffix)
@@ -2634,15 +2550,12 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
         "-i7,8",
         "-I7",
         "-i" + ".".join(str(n) for n in range(1, 12)),
-        # One verdict has one name: ascending, each issue once.
         "-i12.7",
         "-i7.7",
         "-i3.7.7",
     )
 
     def test_an_off_grammar_fail_of_verifier_origin_holds(self) -> None:
-        # A FAIL name no reader takes is held, never skipped: it may be a
-        # FAIL the cap or the head should count.
         for suffix in self.OFF_GRAMMAR:
             with self.subTest(suffix):
                 fake = self.named_fails(*SIBLING_HEADS[:1], suffix=suffix)
@@ -2652,17 +2565,13 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:unreadable")
 
     def test_a_fail_shaped_name_with_any_number_holds(self) -> None:
-        # The hold reads any digits, so a number no reader takes (11 digits,
-        # a leading zero) never turns a FAIL at the head into a skip.
-        # 4301 digits passes Python's limit on converting a string to an
-        # int, which must never raise out of the judgment.
         for number in ("12345678901", "041", "1" * 4301):
             with self.subTest(number[:12]):
                 fake = passing(artifact(f"pr-verify-{number}-{HEAD}-fail", 9))
                 fake.runs[9] = judged(9, OLDER_START)
                 self.assertEqual(read(fake).refusal, "verify:unreadable")
                 if number.lstrip("0") == str(PR):
-                    continue  # 041 is this pull request's number: tied
+                    continue
                 untied = f"pr-verify-{number}-{SIBLING_HEADS[0]}-fail"
                 for run_record in (judged(9, OLDER_START, event="push"), None):
                     fake = passing(artifact(untied, 9))
@@ -2678,8 +2587,6 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
         self.assertIsNone(read(untied).refusal)
 
     def test_an_unreadable_off_grammar_fail_of_a_closer_holds(self) -> None:
-        # Untied, but its pull request closes the same issue: the cap
-        # cannot be counted without it.
         fake = passing(artifact(f"{named(SIBLING_HEADS[0], 'fail', SIBLING)}-i07", 9))
         fake.closers[7] = [(SIBLING, REPO), (PR, REPO)]
         fake.closer_states[SIBLING] = "OPEN"
@@ -2696,8 +2603,6 @@ class AFailNamingTheIssueCounts(unittest.TestCase):
                 self.assertIsNone(read(fake).refusal)
 
     def test_a_pass_never_carries_issues(self) -> None:
-        # Only a FAIL's name carries issues: a lone pass named with them at
-        # the head is no verdict, so the head still waits for one.
         for name in (
             f"{named(HEAD, 'pass')}-i7",
             f"{named(HEAD, 'pass-notes')}-i7",
@@ -2788,17 +2693,12 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
         )
 
     def test_the_cap_fails_closed_when_its_fails_cannot_be_read(self) -> None:
-        # A listing that does not read refuses rather than letting the pass
-        # decide, so a short read never lifts the cap.
         fake = self.failed_at(EARLIER, IN_PR, UNRELATED)
         fake.fail = {"actions/artifacts"}
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
 
     def test_a_fresh_pass_clears_an_old_pull_request_whose_fails_expired(self) -> None:
-        # Owner decision 2026-11-01: a fresh pass at the head of
-        # a pull request past TOO_OLD_DAYS allows it, so FAILs that expired
-        # past the 90-day retention no longer count toward its cap.
         expired = passing(
             *(
                 artifact(named(sha, "fail"), i, expired=True)
@@ -2810,9 +2710,6 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
         self.assertIsNone(evidence.refusal)
 
     def test_fail_findings_with_no_judgment_name_its_own_fails(self) -> None:
-        # The capped close quotes them for the fresh attempt; with no
-        # judgment read first they come from the listing (`_own_fails`). A
-        # sibling's FAIL and a foreign run's are not this pull request's.
         fake = passing(
             artifact(named(EARLIER, "fail"), 2),
             artifact(named(IN_PR, "fail"), 3),
@@ -2843,8 +2740,6 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
             [(f["head"], f["run"]) for f in findings], [(EARLIER, 2), (IN_PR, 3)]
         )
         self.assertEqual(findings[0]["summary"], "misses the error path")
-        # A run whose origin is not verified is never downloaded: its text
-        # could be anyone's.
         self.assertEqual(findings[1]["unreadable"], "run origin not verified")
         self.assertFalse(any("artifacts/30/zip" in " ".join(c) for c in fake.calls))
 
@@ -2853,7 +2748,6 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
 
     def test_fails_at_one_head_count_once(self) -> None:
         fake = self.failed_at(EARLIER, IN_PR)
-        # A second FAIL at IN_PR, under another number, tied by the commit.
         fake.artifacts.append(artifact(named(IN_PR, "fail", 99), 4))
         fake.runs[4] = judged(4, OLDER_START)
         evidence = read(fake)
@@ -2861,8 +2755,6 @@ class RepeatedFailsHoldForTheLanes(unittest.TestCase):
         self.assertEqual(len([v for v in evidence.verdicts if v.verdict == "fail"]), 3)
 
     def test_a_fail_at_the_head_that_reaches_the_cap_is_repeated_fail(self) -> None:
-        # The third failing head is refused for good, not sent to a fourth
-        # fix round.
         fake = self.failed_at(EARLIER, IN_PR, HEAD)
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:repeated-fail")
@@ -2937,7 +2829,6 @@ class UnauthenticatedArtifactsAreIgnored(unittest.TestCase):
     def test_each_forgery_counts_neither_as_pass_nor_fail(self) -> None:
         for label, overrides in self.FORGERIES.items():
             with self.subTest(label):
-                # Only the off-main case may fail on the compare.
                 on_main = (
                     set()
                     if label == "a run head off main"
@@ -2970,7 +2861,6 @@ class UnauthenticatedArtifactsAreIgnored(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:missing")
 
     def test_a_fail_shaped_name_that_does_not_parse_holds(self) -> None:
-        # It starts like a FAIL of verifier origin, so it may be one: held.
         fake = FakeGitHub(
             [artifact(f"pr-verify-{PR}-{HEAD}-fail-extra", 1)], {1: run(1)}
         )
@@ -3121,7 +3011,6 @@ class AFailedReadRefusesWithoutAHuman(unittest.TestCase):
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
         self.assertFalse(evidence.needs_human)
-        # The next run reads the record and the cleared FAIL merges.
         fake.records[named(UNRELATED, "fail", 99)] = record(
             99, UNRELATED, verdict="fail", head_ref="feat/y"
         )
@@ -3144,8 +3033,6 @@ class AFailedReadRefusesWithoutAHuman(unittest.TestCase):
         self.assertFalse(evidence.needs_human)
 
     def test_a_failed_run_time_read(self) -> None:
-        # A second gate process counts the FAIL from the shared run record,
-        # then reads its run again for the time, under a rate limit.
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         cache = str(pathlib.Path(tmp.name, "run.json"))
@@ -3176,8 +3063,6 @@ class AnOldPullRequestIsRefused(unittest.TestCase):
         self.assertFalse(evidence.needs_human)
 
     def test_a_fresh_pass_at_the_head_clears_it(self) -> None:
-        # Owner decision 2026-11-01: the lane re-runs the
-        # verifier at the head, and its fresh pass clears verify:too-old.
         self.assertIsNone(
             read(passing(), pull(created_at="2026-07-27T23:00:00Z")).refusal
         )
@@ -3185,8 +3070,6 @@ class AnOldPullRequestIsRefused(unittest.TestCase):
         self.assertNotIn(ve.TOO_OLD, ve.STANDING)
 
     def test_a_fail_at_the_head_stays_a_fail(self) -> None:
-        # A FAIL at an old pull request's head goes to a fix round as on any
-        # other pull request, not to the age refusal.
         fake = passing(
             artifact(named(HEAD, "fail"), 2), runs={2: judged(2, OLDER_START)}
         )
@@ -3256,7 +3139,6 @@ class TheSpecMustBeTrusted(unittest.TestCase):
                 )
 
     def test_every_linked_issue_must_be_trusted(self) -> None:
-        # A trivially satisfied human issue beside the lanes App's own.
         bot = {**TRUSTED_ISSUE, "number": 8, "author_type": "Bot", "author_id": 200}
         self.assertEqual(
             self.with_issues([bot, TRUSTED_ISSUE]).refusal, "verify:untrusted-spec"
@@ -3298,7 +3180,6 @@ class TheSpecMustBeTrusted(unittest.TestCase):
             "editor_type": "User",
         }
         self.assertIsNone(self.with_issues([trusted]).refusal)
-        # The PR author editing their own issue is still a trusted human.
         self.assertIsNone(
             self.with_issues([trusted], user={"login": "maintainer"}).refusal
         )
@@ -3322,6 +3203,7 @@ class TheSpecMustBeTrusted(unittest.TestCase):
             ("trusted_actors_source: standards\n", valid, valid, "verify:unreadable"),
             ("trusted_actors_source: standards\nstandards_repository: x\n", valid, valid, "verify:unreadable"),
             ("trusted_actors_source: repository\n", valid, {"version": 2}, None),
+            (f"standards_repository: {STANDARDS_REPO}\n", valid, {"version": 2}, None),
             ("trusted_actors_source: elsewhere\n", valid, valid, "verify:unreadable"),
         ):  # fmt: skip
             with self.subTest(team=team, ours=ours):
@@ -3431,7 +3313,6 @@ class TheSpecCommentsMustBeTheJudgedOnes(unittest.TestCase):
         fake = self.paged(both)
         self.assertIsNone(read(fake).refusal)
         self.assertTrue(any("after=p1" in c for c in fake.calls))
-        # A pass that recorded only the first page's comment missed one.
         self.assertEqual(read(self.paged(self.RECORDED)).refusal, "verify:spec-changed")
 
     def test_a_comment_page_that_never_comes_or_fails_refuses(self) -> None:
@@ -3478,7 +3359,7 @@ class TheNewestPassDecides(unittest.TestCase):
     """A pass judged again at the same head after a spec change supersedes
     the earlier pass, which judged a spec that is gone."""
 
-    EDITED = "2026-10-15T12:00:00Z"  # after run 1 started, before run 2
+    EDITED = "2026-10-15T12:00:00Z"
 
     def fake(self, *, second: bool) -> FakeGitHub:
         fake = passing()
@@ -3496,8 +3377,6 @@ class TheNewestPassDecides(unittest.TestCase):
         self.assertIsNone(read(self.fake(second=True)).refusal)
 
     def test_a_re_attempt_after_the_change_decides_by_its_start(self) -> None:
-        # Run 1 created first but re-attempted after the edit; run 2 created
-        # later but started before it. The later start judged the live spec.
         fake = self.fake(second=True)
         fake.runs[1] = run(
             1, created_at=RUN_STARTED, run_started_at="2026-10-15T14:00:00Z"
@@ -3510,8 +3389,6 @@ class TheNewestPassDecides(unittest.TestCase):
     def test_every_pass_decides_when_a_start_time_is_missing(self) -> None:
         fake = self.fake(second=True)
         fake.runs[2] = run(2, created_at="2026-10-15T13:00:00Z", run_started_at=None)
-        # Run 2 then decides too, and a pass with no start refuses as an
-        # unreadable time does in `_pass_refusal`: never allowed.
         self.assertEqual(read(fake).refusal, "verify:unreadable")
 
 
@@ -3523,7 +3400,7 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
         fake.closing = [
             (7, REPO),
             (3, "someone/else"),
-        ]  # another repository's is left out
+        ]
         self.assertIsNone(read(fake).refusal)
 
     def test_a_changed_set_refuses(self) -> None:
@@ -3549,8 +3426,6 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
         return fake
 
     def test_the_one_refs_issue_binds_like_a_closing_one(self) -> None:
-        # Owner decision 2026-10-23: a plain `Refs:` line reads the one
-        # issue it names as the pull request's issue.
         self.assertIsNone(read(self.refs("Refs: #7\n\nPart one.")).refusal)
         fake = self.refs("Refs: #7")
         fake.closing_edited = {7: "2026-10-15T00:00:01Z"}
@@ -3573,13 +3448,7 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
                 )
 
     def test_a_refs_number_that_names_nothing_names_no_issue(self) -> None:
-        # GitHub answers a number with no issue or pull request NOT_FOUND
-        # and gh exits 1: no issue, so the pass recording the issue refuses
-        # as for any other link that names none, and no read error.
         self.assertEqual(read(self.refs("Refs: #99999")).refusal, "verify:spec-changed")
-        # Any other failed read stays unreadable: gh failing, an answer with
-        # other errors gh exits 0 on, one with no repository, and a null
-        # issue without NOT_FOUND.
         for kind in ("error", "errors", "no-repository", "null"):
             with self.subTest(kind):
                 self.assertEqual(
@@ -3587,8 +3456,6 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
                 )
 
     def test_a_pass_binds_to_how_the_issue_was_linked(self) -> None:
-        # A Refs pass was judged as a partial slice: it never covers the same
-        # issue closed, and a closing pass never covers it as a Refs link.
         fake = passing()
         fake.records[named(HEAD, "pass")] = record(spec_kind="refs")
         self.assertEqual(read(fake).refusal, "verify:spec-changed")
@@ -3613,10 +3480,6 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
     def test_a_closing_pass_that_credited_siblings_counts_as_any_closing_one(
         self,
     ) -> None:
-        # pr-verify credits the merged `Refs:` siblings a `Siblings:` line
-        # names in the spec text it judges (resolve-pr.mjs creditedSiblings),
-        # which the record does not carry: the gate weighs such a pass by its
-        # closing issues and spec comments alone, and reads no sibling.
         fake = passing()
         fake.body = "Closes #7\n\nSiblings: #12917, #12937"
         fake.records[named(HEAD, "pass")] = record(spec_kind="closes")
@@ -3658,8 +3521,6 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
         self.assertEqual(evidence.refusal, "verify:unreadable")
 
     def test_the_pull_request_is_the_intent_when_it_closes_no_issue(self) -> None:
-        # Owner decision 2026-10-22: a trusted PR with no closing issue is
-        # judged against its own title and body, recorded as the intent.
         pr = pull()
         text = f"{pr.get('title') or ''}\n\n{pr.get('body') or ''}"
         digest = hashlib.sha256(text.encode()).hexdigest()
@@ -3680,7 +3541,6 @@ class TheSpecMustBeTheJudgedOne(unittest.TestCase):
         )
 
     def test_a_pull_request_intent_edited_since_its_verdict_refuses(self) -> None:
-        # S&C D: the verdict records the hash of the title and body it judged.
         def evidence(title: str, body: str, digest: str | None) -> Any:
             fake = passing()
             fake.closing = []
@@ -3821,7 +3681,6 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
     def test_a_failed_listing_refuses_every_entry_and_is_not_read_per_entry(
         self,
     ) -> None:
-        # One outage holds the whole queue rather than merging blind.
         fake = passing()
         fake.fail = {"actions/artifacts"}
         with (
@@ -3831,8 +3690,6 @@ class TheListingIsReadOncePerReader(unittest.TestCase):
             reader = ve.Reader(REPO, "main", now=NOW)
             holds = [reader.queued_hold(n) for n in (PR, PR, PR)]
         self.assertEqual(holds, ["verify:unreadable"] * 3)
-        # The count read before the whole listing fails first, and is read
-        # again after each wait only: no listing starts.
         listings = [c for c in fake.calls if any("actions/artifacts" in a for a in c)]
         self.assertEqual(listings, [])
         self.assertEqual(fake.probes(), len(ve.LISTING_WAITS) + 1)
@@ -3845,7 +3702,6 @@ def listings(fake: FakeGitHub) -> int:
 
 
 def name_reads(fake: FakeGitHub) -> int:
-    """Reads of artifacts by exact name (`Reader._late_pass`)."""
     return sum(any("actions/artifacts?name=" in a for a in c) for c in fake.calls)
 
 
@@ -3887,7 +3743,6 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
             self.assertEqual(reader.evidence(PR, HEAD, pull()).refusal, "verify:fail")
         self.assertFalse(reader.saved)
         self.assertEqual(listings(fake), 1)
-        # The fresher listing is saved for the rest of the run.
         _, evidence = self.gate(fake)
         self.assertEqual(evidence.refusal, "verify:fail")
         self.assertEqual(listings(fake), 1)
@@ -3903,7 +3758,6 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
         self.assertIsNone(evidence.refusal)
 
     def test_a_failure_before_a_whole_listing_is_not_noted_for_the_job(self) -> None:
-        # Even by a Reader whose earlier listing paged a whole one.
         fake = passing()
         fake.count_fail = "gh: boom (HTTP 502)"
         with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
@@ -3941,8 +3795,6 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
             fake = self.failed_since()
             self.assertEqual(self.hold(fake), "verify:fail")
             self.assertEqual(listings(fake), 1)
-            # The listing that hold read is saved and recent: the candidate
-            # after it reads it, and the FAIL refuses that candidate too.
             _, evidence = self.gate(fake)
             self.assertEqual(evidence.refusal, "verify:fail")
             self.assertEqual(listings(fake), 1)
@@ -3967,7 +3819,6 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
     def test_a_fail_on_an_older_saved_listing_refuses_a_provisional_judgment(
         self,
     ) -> None:
-        # An upload since cannot clear a FAIL at the head: no listing.
         failed = FakeGitHub([artifact(named(HEAD, "fail"), 1)], {1: run(1)})
         fake = FakeGitHub([artifact(named(HEAD, "fail"), 1)], {1: run(1)})
         fake.artifacts.append(artifact(named(HEAD, "pass"), 2))
@@ -3977,7 +3828,6 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
         self.assertEqual(listings(fake), 0)
 
     def test_a_provisional_allow_stands_on_an_older_saved_listing(self) -> None:
-        # babysit_merge.py lists again before the gate allows (`saved`).
         fake = passing()
         reader, evidence = self.saved_then(passing(), fake)
         self.assertIsNone(evidence.refusal)
@@ -3987,8 +3837,6 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
     def test_a_clearable_refusal_on_an_older_saved_listing_is_judged_again(
         self,
     ) -> None:
-        # The saved listing has no verdict; a pass uploaded since allows, so
-        # a missing verdict there would dequeue the candidate's entry wrongly.
         reader, evidence = self.saved_then(FakeGitHub([], {}), fake := passing())
         self.assertIsNone(evidence.refusal)
         self.assertFalse(reader.saved)
@@ -4005,14 +3853,12 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
         )
 
     def test_a_pass_uploaded_after_the_saved_listing_is_read_by_name(self) -> None:
-        # #11854: the pass-notes landed after the run's listing was read.
         self.gate(FakeGitHub([], {}))
         fake = self.late_notes()
         reader, evidence = self.provisional(fake)
         self.assertIsNone(evidence.refusal)
         self.assertTrue(reader.saved)
         self.assertEqual((listings(fake), name_reads(fake)), (0, 2))
-        # babysit_merge.py allows only on a listing of the gate's own.
         with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
             reader.refresh()
             self.assertIsNone(reader.evidence(PR, HEAD, pull()).refusal)
@@ -4039,15 +3885,12 @@ class TheListingIsReadOncePerRun(unittest.TestCase):
         fake.fail = {"?name="}
         _, evidence = self.provisional(fake)
         self.assertEqual(evidence.refusal, "verify:missing")
-        # The first name, read again after each wait, and no other read.
         self.assertEqual(name_reads(fake), len(ve.LISTING_WAITS) + 1)
         self.assertEqual(listings(fake), 0)
         for suffix in (ve.FAILED_LISTING_SUFFIX, ve.OVERCOUNT_FALLBACK_SUFFIX):
             self.assertFalse(pathlib.Path(f"{self.path}{suffix}").exists())
 
     def test_only_a_provisional_missing_on_the_saved_listing_reads_names(self) -> None:
-        # The first candidate read its listing just now; a judgment that is
-        # not the gate's own (`evidence`, queued entries) reads no name.
         fake = self.late_notes()
         fake.artifacts.clear()
         _, evidence = self.provisional(fake)
@@ -4135,7 +3978,6 @@ class OneRunSharesItsVerifierReads(unittest.TestCase):
         self.assertEqual(self.compares(fake, off), 2)
 
     def test_a_judgment_notes_its_oldest_shared_read(self) -> None:
-        # The trusted list another process read 90 s ago dates the judgment.
         clock = [datetime(2026, 10, 18, 11, 58, 30, tzinfo=UTC)]
         fake = passing()
         with (
@@ -4149,7 +3991,7 @@ class OneRunSharesItsVerifierReads(unittest.TestCase):
                 self.candidates(fake, 1)
         self.assertEqual(self.trusted_reads(fake), 1)
         self.assertEqual(min(taken), listed_before)
-        self.assertIn(clock[0], taken)  # this process's own listing
+        self.assertIn(clock[0], taken)
 
     def test_the_trusted_list_is_read_once_within_the_bound(self) -> None:
         clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
@@ -4209,14 +4051,11 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
             self.assertIsNone(read(fake).refusal)
         self.assertEqual(self.run_reads(fake, 2), 1)
         self.assertEqual(self.downloads(fake, 2), 1)
-        # The pass's run is read by every candidate.
         self.assertEqual(self.run_reads(fake, 1), 3)
 
     def test_a_replaced_artifact_of_the_same_name_is_read_again(self) -> None:
-        # An overwrite uploads a new id under the same name: the head ref
-        # shared for the old id must not stand for the new contents.
         fake = self.other_fail()
-        del fake.artifacts[0]  # no pass, so a tied FAIL refuses
+        del fake.artifacts[0]
         self.assertEqual(read(fake).refusal, "verify:missing")
         name = named(self.OTHER, "fail", 99)
         fake.artifacts[0] = {**fake.artifacts[0], "id": 21}
@@ -4225,8 +4064,6 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
         self.assertEqual(self.downloads(fake, 2), 2)
 
     def test_a_fail_run_is_not_read_again_past_the_shared_bound(self) -> None:
-        # Origin rests on fields a re-run keeps, so the record serves the
-        # whole run, however long the sweep takes.
         clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
         fake = self.other_fail()
         with mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]):
@@ -4244,7 +4081,6 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
         stored = json.loads(path.read_text())["run-record"][f"{REPO}|2"]["value"]
         self.assertEqual(stored["repository"], {"full_name": REPO})
         self.assertEqual(stored["head_repository"], {"full_name": REPO})
-        # The slim record serves the next candidate as the full one did.
         self.assertIsNone(read(fake).refusal)
         self.assertEqual(self.run_reads(fake, 2), 1)
 
@@ -4260,6 +4096,180 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
         fake.runs[2] = run(2, status="in_progress", conclusion=None, run_attempt=2)
         self.assertEqual(read(fake).refusal, "verify:fail")
         self.assertEqual(self.run_reads(fake, 2), 1)
+
+
+class RunArtifactsGitHub(FakeGitHub):
+    """The fake GitHub, also answering one run's artifacts and a run still
+    in progress."""
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.running: set[int] = set()
+
+    def rest(self, args, ok, missing, kwargs):  # type: ignore[no-untyped-def]
+        path = next(a for a in args if a.startswith("repos/"))
+        of_run = re.fullmatch(
+            rf"repos/{REPO}/actions/runs/([0-9]+)/artifacts\?per_page=100", path
+        )
+        if of_run and not any(k in path for k in self.fail):
+            held = [
+                a for a in self.artifacts if a["workflow_run"]["id"] == int(of_run[1])
+            ]
+            return ok({"total_count": len(held), "artifacts": held})
+        ran = re.fullmatch(rf"repos/{REPO}/actions/runs/([0-9]+)", path)
+        if ran and int(ran[1]) in self.running:
+            return ok(run(int(ran[1]), status="in_progress", conclusion=None))
+        return super().rest(args, ok, missing, kwargs)
+
+
+class OneRunSharesARunsFinalArtifacts(unittest.TestCase):
+    """With `BABYSIT_RUN_CACHE` named, the gate processes of one run share,
+    for `run_cache.MAX_AGE`, the artifacts of an index's run that hold a
+    FAIL. A set with no FAIL, completed or still uploading, is read again by
+    every process, since a re-run keeps the run's id."""
+
+    FAILED, DONE = 3, 4
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.path = pathlib.Path(tmp.name, "run.json")
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": str(self.path)})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.fake = RunArtifactsGitHub(
+            [
+                artifact(named(HEAD, "fail", 90), self.FAILED),
+                artifact(f"{ve.INDEX_PREFIX}pr-90", self.FAILED) | {"id": 31},
+                artifact(f"{ve.INDEX_PREFIX}pr-{PR}", self.DONE),
+            ],
+            {self.FAILED: run(self.FAILED), self.DONE: run(self.DONE)},
+        )
+
+    def process(self, run_id: int) -> list[str]:
+        """One gate process's reader asked for the run's artifacts."""
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=self.fake),
+            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=self.fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            found = reader._run_artifacts(
+                run_id, ve._listing_clock() + ve.listing_cap()[0]
+            )
+        return sorted(a["name"] for a in found)
+
+    def reads(self, run_id: int) -> tuple[int, int]:
+        """The run's artifact listings and run-record reads so far."""
+        listings = f"repos/{REPO}/actions/runs/{run_id}/artifacts?per_page=100"
+        record = f"repos/{REPO}/actions/runs/{run_id}"
+        return (
+            sum(listings in c for c in self.fake.calls),
+            sum(record in c for c in self.fake.calls),
+        )
+
+    def test_a_run_holding_a_fail_is_listed_once_per_run(self) -> None:
+        first = self.process(self.FAILED)
+        self.assertEqual(self.reads(self.FAILED), (1, 0), "first process reads it")
+        self.assertEqual(self.process(self.FAILED), first)
+        self.assertEqual(self.reads(self.FAILED), (1, 0), "second process reads none")
+        self.assertIn(named(HEAD, "fail", 90), first)
+
+    def test_a_completed_run_without_a_fail_is_read_by_every_process(self) -> None:
+        first = self.process(self.DONE)
+        self.assertEqual(self.reads(self.DONE), (2, 1), "read, run record, re-read")
+        self.assertEqual(self.process(self.DONE), first)
+        self.assertEqual(self.reads(self.DONE), (4, 2), "second process reads again")
+        self.assertEqual(first, [f"{ve.INDEX_PREFIX}pr-{PR}"])
+
+    def test_a_fail_a_re_run_uploads_reaches_the_next_process(self) -> None:
+        self.process(self.DONE)
+        late = named(HEAD, "fail", 91)
+        self.fake.artifacts.append(artifact(late, self.DONE) | {"id": 41})
+        self.assertIn(late, self.process(self.DONE), "same run id, new FAIL")
+
+    def test_a_judgment_notes_when_its_run_artifacts_were_read(self) -> None:
+        read_at = datetime(2026, 10, 18, 11, 58, 30, tzinfo=UTC)
+        clock = [read_at]
+        with mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]):
+            with ve.run_cache.track() as fresh:
+                self.process(self.FAILED)
+            clock[0] += timedelta(seconds=90)
+            with ve.run_cache.track() as shared:
+                self.process(self.FAILED)
+        self.assertEqual(self.reads(self.FAILED), (1, 0), "second process reads none")
+        self.assertEqual(fresh, [read_at], "a fresh read notes when it began")
+        self.assertEqual(shared, [read_at], "a shared read notes when it was read")
+
+    def test_a_run_still_uploading_is_read_again_by_the_next_process(self) -> None:
+        self.fake.running.add(self.DONE)
+        with self.assertRaises(ve._Unreadable):
+            self.process(self.DONE)
+        self.assertEqual(self.reads(self.DONE), (1, 1), "no re-read while running")
+        self.fake.running.clear()
+        self.process(self.DONE)
+        self.assertEqual(self.reads(self.DONE), (3, 2), "nothing was shared")
+
+    def test_a_listing_older_than_the_bound_is_read_again(self) -> None:
+        clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
+        with mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]):
+            self.process(self.FAILED)
+            clock[0] += ve.run_cache.MAX_AGE + timedelta(seconds=1)
+            self.process(self.FAILED)
+        self.assertEqual(self.reads(self.FAILED), (2, 0))
+
+    def test_no_run_cache_reads_in_every_process(self) -> None:
+        with mock.patch.dict("os.environ"):
+            os.environ.pop(ve.run_cache.ENV)
+            for _ in range(2):
+                self.process(self.FAILED)
+                self.process(self.DONE)
+        self.assertEqual(self.reads(self.FAILED), (2, 0))
+        self.assertEqual(self.reads(self.DONE), (4, 2))
+
+    def stored(self) -> dict[str, Any]:
+        """The run-artifacts entries the run cache file holds."""
+        if not self.path.exists():
+            return {}
+        return json.loads(self.path.read_text()).get(ve.RUN_ARTIFACTS_SECTION, {})
+
+    def test_a_stored_set_of_another_shape_is_read_again(self) -> None:
+        fail = named(HEAD, "fail", 90)
+        listed = artifact(fail, self.FAILED)
+        for label, value in (
+            ("an object", {"artifacts": [listed]}),
+            ("a string", fail),
+            ("an entry with no id", [{"name": fail, "expired": False}]),
+            ("an entry with a non-boolean expired", [listed | {"expired": "no"}]),
+            ("an entry with an unzoned time", [listed | {"created_at": "2026-10-01"}]),
+        ):
+            with self.subTest(label):
+                self.fake.calls.clear()
+                ve.run_cache.put(
+                    ve.RUN_ARTIFACTS_SECTION, f"{REPO}|{self.FAILED}", value
+                )
+                self.assertIn(fail, self.process(self.FAILED))
+                self.assertEqual(self.reads(self.FAILED), (1, 0), "listed again")
+
+    def test_a_stored_set_without_a_fail_is_read_again(self) -> None:
+        index = artifact(f"{ve.INDEX_PREFIX}pr-90", self.FAILED) | {"id": 31}
+        ve.run_cache.put(ve.RUN_ARTIFACTS_SECTION, f"{REPO}|{self.FAILED}", [index])
+        self.assertIn(named(HEAD, "fail", 90), self.process(self.FAILED))
+        self.assertEqual(self.reads(self.FAILED), (1, 0), "listed again")
+
+    def test_a_failed_listing_stores_nothing(self) -> None:
+        self.fake.fail = {f"runs/{self.FAILED}/artifacts"}
+        for status in (403, 502):
+            with self.subTest(status):
+                self.fake.fail_status = status
+                with self.assertRaises(ve._Unreadable):
+                    self.process(self.FAILED)
+                self.assertEqual(self.stored(), {}, "nothing stored")
+        self.fake.fail = set()
+        self.process(self.FAILED)
+        self.assertEqual(
+            list(self.stored()), [f"{REPO}|{self.FAILED}"], "a read stores"
+        )
 
 
 class ACarriedHeadServesOnlyAFail(unittest.TestCase):
@@ -4294,11 +4304,8 @@ class ACarriedHeadServesOnlyAFail(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:fail")
 
     def test_a_pass_run_is_compared_and_not_counted_off_the_branch(self) -> None:
-        # The same run uploads another PR's FAIL first: its judgment rests on
-        # the carried yes, and the PASS must not reuse it.
         other = named(UNRELATED, "fail", 99)
         fake = FakeGitHub(
-            # Two artifacts of one run, so two ids.
             [artifact(other, 1), artifact(named(HEAD, "pass"), 1) | {"id": 11}],
             {1: run(1)},
             {named(HEAD, "pass"): record(), other: record(99, UNRELATED, head_ref="o")},
@@ -4316,8 +4323,6 @@ NODE_ENV = {k: os.environ[k] for k in ("PATH", "SYSTEMROOT") if k in os.environ}
 
 
 def restore(directory: pathlib.Path, sections: dict[str, Any]) -> None:
-    """Carry `sections`, as the cache restored them, into the run cache
-    `directory`/run.json, as pr-merge.yml does before the gate."""
     at = datetime.now(UTC).isoformat()
     restored = directory / "restored.json"
     restored.write_text(
@@ -4383,8 +4388,6 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_a_forged_old_start_never_clears_an_earlier_fail(self) -> None:
-        # GitHub says the FAIL's run started after the pass's; the cache
-        # claims it started before.
         fake = passing(
             artifact(named(EARLIER, "fail"), 2),
             runs={2: judged(2, "2026-10-15T00:00:01Z")},
@@ -4410,8 +4413,6 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
         self.assertEqual(OneRunSharesItsFailRunReads.downloads(fake, 2), 0)
 
     def test_slim_and_full_run_records_both_count_a_fail(self) -> None:
-        # Records saved before repositories were trimmed to their names
-        # still carry and count, as trimmed ones do.
         name = named(UNRELATED, "fail", 99)
         full = {"full_name": REPO, "id": 1, "owner": {"login": "o"}}
         for label, repository in (("slim", {"full_name": REPO}), ("full", full)):
@@ -4435,13 +4436,10 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
                     )
 
     def test_a_slim_record_of_another_repository_is_not_origin(self) -> None:
-        # A trimmed record naming another repository is no origin, so the
-        # run is read from GitHub, as for a full one.
         name = named(UNRELATED, "fail", 99)
         fake = FakeGitHub([artifact(name, 2)], {2: run(2)})
         other = {"full_name": "someone/fork"}
         at = datetime.now(UTC).isoformat()
-        # Written as it lands, past carry-run-cache.mjs, which would drop it.
         (self.dir / "run.json").write_text(
             json.dumps(
                 {
@@ -4461,15 +4459,9 @@ class APoisonedCarriedCacheNeverRemovesARefusal(unittest.TestCase):
         self.assertTrue(any(c[-1].endswith("/actions/runs/2") for c in fake.calls))
 
 
-# --- A transient listing failure is read again --------------------------------
-
-# Every test runs without the backoff sleep; `judge` reads the waits off it.
 _no_sleep = mock.patch.object(ve, "_listing_sleep")
 
 
-# Single pages go to whatever fake `postmerge.gh_capture` is patched to, with
-# GitHub's `Date` header (`DATE`); a test that needs other headers patches
-# this again.
 def _page_with_date(args: list[str], **kwargs: Any) -> Any:
     return postmerge.gh_capture(args, **kwargs), {"date": DATE}
 
@@ -4477,14 +4469,9 @@ def _page_with_date(args: list[str], **kwargs: Any) -> Any:
 _no_pages = mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date)
 
 
-# The tracker's human-gated label read an autonomous gate makes: stubbed so
-# no test reads GitHub; a test that remaps it patches it again.
 _role_label = mock.patch.object(postmerge, "_role_label", return_value="needs-human")
 
 
-# The branch tip `merge_policy.base_tip` reads goes to whatever fake
-# `postmerge.gh_capture` is patched to; a test that answers it otherwise
-# patches it again.
 _tip_reads = mock.patch.object(
     ve.merge_policy,
     "gh_capture",
@@ -4507,7 +4494,6 @@ def tearDownModule() -> None:
 
 
 def timed_out() -> RuntimeError:
-    """What babysit_util.run_command raises when gh outlives its timeout."""
     try:
         raise subprocess.TimeoutExpired(["gh"], 60)
     except subprocess.TimeoutExpired as exc:
@@ -4556,9 +4542,6 @@ class FlakyListing(FakeGitHub):
 
 
 class ATransientListingFailureIsReadAgain(unittest.TestCase):
-    # gh prints an API error as `gh: <message> (HTTP <status>)`
-    # (babysit_gh.GH_HTTP_STATUS_RE); a request that got no response prints
-    # gh's "error connecting to <host>" or Go's net/http error instead.
     TRANSIENT: tuple[str | BaseException, ...] = (
         "gh: Bad Gateway (HTTP 502)",
         "gh: Service Unavailable (HTTP 503)",
@@ -4566,26 +4549,17 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         "check your internet connection or https://githubstatus.com",
         'Get "https://api.github.com/repos/o/r/actions/artifacts": '
         "read tcp 10.0.0.1:443: read: connection reset by peer",
-        # A page body cut short: Go's JSON decoder error, as gh printed it in
-        # pr-merge run 40819274416 (skip step, 2026-10-29T04:59:05Z).
         "unexpected end of JSON input",
-        # A page body cut short while gh exits 0 (babysit_gh._run_pages).
         "page 2 is not JSON",
     )
     NOT_TRANSIENT: tuple[str | BaseException, ...] = (
-        # A rate limit stays a rate limit when gh also printed a parse error.
         "unexpected end of JSON input\ngh: API rate limit exceeded (HTTP 403)",
         "gh: Not Found (HTTP 404)",
         "gh: Bad credentials (HTTP 401)",
         "gh: Validation Failed (HTTP 422)",
-        # GitHub's answer to a GITHUB_TOKEN without the needed permission.
         "gh: Resource not accessible by integration (HTTP 403)",
-        # Rate limits (GitHub docs, "Rate limits for the REST API"): a fixed
-        # short wait outlasts neither, so neither is read again.
         "gh: Too Many Requests (HTTP 429)",
         "gh: You have exceeded a secondary rate limit. (HTTP 403)",
-        # As run 39906176584 logged it (pr-merge.yml, dispatch-full-run,
-        # 2026-10-23T05:30:57Z).
         "gh: API rate limit exceeded for installation. If you reach out to"
         " GitHub Support for help, please include the request ID"
         " 8000:1DF2D:1EE39F:657D15:6ADAF110 and timestamp 2026-10-23"
@@ -4593,8 +4567,6 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         " your rights, please review our Terms of Service"
         " (https://docs.github.com/en/site-policy/github-terms/"
         "github-terms-of-service) (HTTP 403)",
-        # A read that used the whole gh timeout, gh with no credential
-        # (exit 4), and gh missing from PATH (babysit_util.run_command).
         timed_out(),
         "To get started with GitHub CLI, please run:  gh auth login\n"
         "Alternatively, populate the GH_TOKEN environment variable with a "
@@ -4629,8 +4601,6 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
     def test_a_whole_listing_cut_short_every_time_refuses_after_three_reads(
         self,
     ) -> None:
-        # ci-status run 41475913026 refused #12404 after two cut-short reads;
-        # a cut short is read again after every wait, as a 5xx is.
         fake = FlakyListing(["unexpected end of JSON input"] * 3)
         evidence, sleeps = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
@@ -4658,12 +4628,10 @@ class ATransientListingFailureIsReadAgain(unittest.TestCase):
         return fake
 
     def test_the_retries_share_one_read_timeout(self) -> None:
-        # Deadline 0 + 60; each retry gets what is left after its wait ends.
         fake = self.timed([0.0, 1.0, 3.0, 20.0, 24.0])
         self.assertEqual(fake.timeouts, [60.0, 60.0 - 3.0, 60.0 - 24.0])
 
     def test_a_late_sleep_shortens_the_retry_timeout(self) -> None:
-        # The 2s sleep returned at 30s: the retry gets 30s, not 57s.
         fake = self.timed([0.0, 1.0, 30.0, 59.0])
         self.assertEqual(fake.timeouts, [60.0, 30.0])
 
@@ -4722,7 +4690,6 @@ class AListingOfManyPagesReadsWhole(unittest.TestCase):
         self.assertEqual(len(sent), self.PAGES)
 
     def test_a_page_body_cut_short_reads_the_listing_again(self) -> None:
-        # gh exits 0 with page 2's body cut short on the first listing only.
         sent: list[str] = []
 
         def send(args, *, timeout_seconds, env_overrides, binary):
@@ -4759,7 +4726,6 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
     running into a reader's step timeout as a bare `verify:unreadable`."""
 
     def setUp(self) -> None:
-        # `evidence` requires --base-sha and reads the config there.
         config = policy.PipelineConfig(EARLIER, "C2", "pr-merge", None, None, (), None)
         for name in ("read_config_at", "_default_branch_config"):
             patcher = mock.patch.object(policy, name, return_value=config)
@@ -4776,15 +4742,11 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
     def test_the_timeout_is_three_whole_listings_and_top_ups_at_a_second_a_page(
         self,
     ) -> None:
-        # 2,000 artifacts: 20 pages, and 7 top-up pages, for each of 3 reads.
         self.assertEqual(self.first_timeout(2_000), 81.0)
-        # 2,001 artifacts start a 21st page.
         self.assertEqual(self.first_timeout(2_001), 84.0)
 
     def test_the_timeout_stops_at_the_cap(self) -> None:
-        # 10,450 artifacts, 105 pages, as on 2026-10-30: 336 s, capped.
         self.assertEqual(self.first_timeout(10_450), 300.0)
-        # 293 pages and a 7-page top-up read in exactly the cap.
         self.assertEqual(self.first_timeout(29_300), 300.0)
 
     def test_a_listing_past_the_cap_refuses_before_paging_with_its_reason(
@@ -4829,8 +4791,6 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
     def test_a_caller_limit_too_short_for_the_listing_refuses_naming_it(
         self,
     ) -> None:
-        # verify-cap.mjs kills its reader at 120 s: 120 - 15 leaves 105 s, and
-        # 10,450 artifacts (105 pages and a 7-page top-up) need 112 s.
         evidence, fake = self.caller("120", 10_450)
         self.assertEqual(evidence.refusal, "verify:unreadable")
         self.assertIn(
@@ -4840,8 +4800,6 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
             evidence.detail or "",
         )
         self.assertEqual(fake.timeouts, [])
-        # pr-unblock verify-cap.mjs skips the round on this detail, for this
-        # run only; the 300 s cap's own refusal is not the caller's.
         self.assertTrue((evidence.detail or "").startswith(ve.DEADLINE_UNREADABLE))
         evidence, _ = self.caller("900", 29_301)
         self.assertEqual(evidence.refusal, "verify:unreadable")
@@ -4849,17 +4807,14 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
         self.assertFalse((evidence.detail or "").startswith(ve.DEADLINE_UNREADABLE))
 
     def test_the_count_read_fits_in_what_the_caller_leaves(self) -> None:
-        # 60 s into verify-cap.mjs's 120 s: 120 - 60 - 15 leaves 45 s.
         _, fake = self.caller("120", 2_000, elapsed=60.0)
         self.assertEqual(fake.count_timeouts, [45.0])
-        # With no caller limit the count read keeps gh's default timeout.
         _, fake = self.caller("", 2_000)
         self.assertEqual(fake.count_timeouts, [None])
 
     def test_a_caller_limit_already_spent_refuses_before_the_count_read(
         self,
     ) -> None:
-        # 110 s into a 120 s limit leaves nothing after the 15 s margin.
         evidence, fake = self.caller("120", 2_000, elapsed=110.0)
         self.assertEqual(evidence.refusal, "verify:unreadable")
         self.assertTrue((evidence.detail or "").startswith(ve.DEADLINE_UNREADABLE))
@@ -4867,20 +4822,13 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
         self.assertEqual((fake.probes(), fake.timeouts), (0, []))
 
     def test_a_small_listing_keeps_gh_s_60_s_default_as_its_floor(self) -> None:
-        # 100 artifacts: 1 page and a 7-page top-up, three times, is 24 s,
-        # under gh's 60 s per-call default the listing timeout replaced.
         self.assertEqual(self.first_timeout(100), 60.0)
-        # The floor never passes what a caller leaves: 50 - 15 is 35 s.
         _, fake = self.caller("50", 100)
         self.assertEqual(fake.timeouts[0], 35.0)
 
     def test_a_caller_limit_bounds_the_listing_timeout(self) -> None:
-        # enable-auto-merge.mjs kills its reader at 240 s: 225 s left, under
-        # the 300 s cap and over the 112 s one whole listing needs.
         _, fake = self.caller("240", 10_450)
         self.assertEqual(fake.timeouts[0], 225.0)
-        # A limit past the cap leaves the cap; one that is not a number is
-        # ignored.
         for limit in ("900", "soon", "0"):
             with self.subTest(limit):
                 _, fake = self.caller(limit, 10_450)
@@ -4901,8 +4849,6 @@ class TheWholeListingTimeoutGrowsWithItsPages(unittest.TestCase):
                 self.assertEqual((fake.probes(), fake.full_listings()), (reads, 0))
 
 
-# The runner's clock while these tests list, and GitHub's `Date` a few seconds
-# later.
 LISTED_AT = datetime(2026, 10, 16, 12, 0, tzinfo=UTC)
 DATE = "Fri, 16 Oct 2026 12:00:05 GMT"
 
@@ -4967,7 +4913,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     doubt."""
 
     def setUp(self) -> None:
-        # `evidence` requires --base-sha and reads the config there.
         _config = policy.PipelineConfig(EARLIER, "C2", "pr-merge", None, None, (), None)
         for _name in ("read_config_at", "_default_branch_config"):
             _patcher = mock.patch.object(policy, _name, return_value=_config)
@@ -4992,8 +4937,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         sleep = mock.patch.object(ve, "_listing_sleep")
         self.sleep = sleep.start()
         self.addCleanup(sleep.stop)
-        # The base: a pass at the head (run 1) and three older artifacts,
-        # read 10 minutes ago.
         self.base_at = LISTED_AT - timedelta(minutes=10)
         old = self.base_at - timedelta(hours=3)
         self.base = [
@@ -5035,8 +4978,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:fail")
         self.assertEqual(reader.listing_mode, "incremental")
-        # Page 1 holds 1100 and 1000 (created within the overlap), page 2
-        # holds 900, created before it: two pages, no full listing.
         self.assertEqual((fake.pages(), fake.full_listings()), (2, 0))
         saved = json.loads(self.saved.read_text())
         self.assertEqual(saved["fetchedAt"], LISTED_AT.isoformat())
@@ -5045,10 +4986,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         )
 
     def test_the_overlap_reads_a_lower_id_created_after_the_base(self) -> None:
-        # 950 is below the base's highest id (1000) but was created after the
-        # base was read, so the base lacks it. The first page (1000, 990)
-        # already reaches the highest id; paging goes on to 900, created
-        # before the overlap, so the second page brings 950.
         base = [
             self.base[0],
             dated("pr-merge-gate-cursor", 3, 990, self.base_at - timedelta(minutes=30)),
@@ -5062,9 +4999,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual((fake.pages(), fake.full_listings()), (2, 0))
 
     def test_an_expired_carried_entry_is_dropped_by_githubs_date(self) -> None:
-        # GitHub no longer lists 800 (its expiry passed by the page's Date,
-        # 12:00:05, though not by the runner's clock, 12:00:00) nor 700
-        # (marked expired); its live count leaves both out.
         lapsed = dated(
             "pr-merge-gate-cursor",
             3,
@@ -5083,7 +5017,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual(ids, [1000, 900])
 
     def test_a_carried_entry_the_pages_no_longer_hold_is_dropped(self) -> None:
-        # An overwrite deletes 1000's artifact and uploads 1050 in its place.
         self.write_saved(self.base)
         fake = self.fake(
             dated(named(HEAD, "pass"), 1, 1050, LISTED_AT), base=self.base[1:]
@@ -5118,10 +5051,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         ]
 
     def test_a_carried_entry_deleted_before_its_expiry_is_read_again(self) -> None:
-        # GitHub deleted 500 half an hour before its expires_at, as it did on
-        # 2026-11-01; 400 expires 40 minutes on and stands. The base holds both,
-        # so first page and base hold one more than the live count. The pages
-        # around the entries near expiry decide them instead of a full listing.
         base = self.tail((500, 30), (400, 40))
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] != 500])
@@ -5129,22 +5058,17 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertIsNone(evidence.refusal)
         self.assertEqual(reader.listing_mode, "incremental")
         self.assertEqual(fake.full_listings(), 0)
-        # Page 1 (1000, 900) reaches the base; page 3 (600, 400) brackets 500
-        # and 400, the entries near expiry.
         self.assertEqual(fake.pages(), 2)
         ids = [a["id"] for a in json.loads(self.saved.read_text())["artifacts"]]
         self.assertEqual(ids, [1000, 900, 800, 700, 600, 400, 300])
 
     def test_an_early_deletion_out_of_expiry_order_is_read_again(self) -> None:
-        # 400 expires before 500 but GitHub deleted only 400: the pages, not
-        # the expiry order, decide which entry went.
         base = self.tail((500, 30), (400, 20))
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] != 400])
         reader, _ = self.judge(fake)
         self.assertEqual(reader.listing_mode, "incremental")
         self.assertEqual(fake.full_listings(), 0)
-        # Page 3 (600, 500) does not reach 400; page 4 (300) ends the listing.
         self.assertEqual(fake.pages(), 3)
         ids = [a["id"] for a in json.loads(self.saved.read_text())["artifacts"]]
         self.assertEqual(ids, [1000, 900, 800, 700, 600, 500, 300])
@@ -5152,8 +5076,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_a_fail_a_forged_carry_drops_beside_an_early_deletion_counts(
         self,
     ) -> None:
-        # A forged carry leaves out the FAIL 450 GitHub lists between 500 and
-        # 400, both deleted early: the region's pages bring the FAIL back.
         base = self.tail((500, 30), (400, 40))
         self.write_saved(base)
         fail = dated(named(EARLIER, "fail"), 2, 450, self.base_at - timedelta(days=2))
@@ -5167,11 +5089,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual(ids, [1000, 900, 800, 700, 600, 450, 300])
 
     def test_a_failed_read_of_the_pages_near_expiry_lists_every_page(self) -> None:
-        # Page 3, the one around 500 and 400, answers a 502 on every read:
-        # past the page's own retries (`LISTING_WAITS`), like any failed
-        # incremental read, every page is listed with no `INCREMENTAL_WAITS`.
-        # The top-up's count is exact, but 400 is near expiry, so it reads
-        # page 3 too and refuses as transient: nothing noted for the job.
         base = self.tail((500, 30), (400, 40))
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] != 500])
@@ -5197,8 +5114,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertFalse(self.failed.exists())
 
     def test_a_deletion_far_from_expiry_still_lists_every_page(self) -> None:
-        # 300 expires in 90 days but GitHub no longer lists it, and nothing
-        # in the base is near expiry: no region to read, so every page.
         base = self.tail()
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] != 300])
@@ -5218,13 +5133,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_a_deletion_between_region_pages_keeps_the_fail_it_shifts(
         self,
     ) -> None:
-        # The carry holds 1000 to 300 and FAIL 450. By page 1 GitHub dropped
-        # 800 (90 days from expiry) and 500 (expiring in 30 minutes): live
-        # count 7, the listing 9. The re-read around 500 takes page 2 (700,
-        # 600); 600 is deleted; page 3 is then (400, 300), so 450 is in
-        # neither read. Dropping it would leave 7, the live count, with the
-        # FAIL gone: it is read by id (live) and kept, so the count stays
-        # over and the one whole listing judges the FAIL.
         old = self.base_at - timedelta(hours=3)
         near = LISTED_AT + timedelta(minutes=30)
         fail = dated(named(EARLIER, "fail"), 2, 450, self.base_at - timedelta(days=2))
@@ -5258,10 +5166,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual(fake.full_listings(), 1)
 
     def test_an_id_the_region_pages_omit_is_dropped_only_on_a_404(self) -> None:
-        # GitHub deleted 500 early; the region's page shows it gone. A 404
-        # for 500 drops it (incremental), after a 502 too; a 502 through the
-        # read's waits fails the incremental read, and no id reads left keeps
-        # 500: either way the over-count takes the one whole listing.
         attempts = 1 + len(ve.LISTING_WAITS)
         for label, fail, cap, mode, reads in (
             ("404", set(), ve.NEAR_EXPIRY_ID_READ_CAP, "incremental", 1),
@@ -5331,28 +5235,18 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         return reader, fake
 
     def test_the_region_walks_up_to_the_page_that_holds_its_top(self) -> None:
-        # Surplus 1, 500 at listing index 9: the start page is 5 (250, 240),
-        # page 4 (400, 300) is still below 500, page 3 (600, 500) holds it.
         reader, fake = self.climbing(4)
         self.assertEqual(self.page_numbers(fake), [1, 5, 4, 3])
         self.assertEqual(reader.listing_mode, "incremental")
         self.assertEqual(fake.full_listings(), 0)
 
     def test_the_region_walk_stops_at_its_upward_bound(self) -> None:
-        # Surplus 1, 500 at listing index 12: the start page is 6, and the
-        # walk may climb surplus // 2 + 2 = 2 pages, to 4, short of page 3:
-        # the group stays unbracketed and the over-count takes a whole listing.
         reader, fake = self.climbing(6)
         self.assertEqual(self.page_numbers(fake)[:4], [1, 6, 5, 4])
         self.assertEqual(reader.listing_mode, "full")
         self.assertEqual(fake.full_listings(), 1)
 
     def test_the_pages_near_expiry_stop_at_their_cap(self) -> None:
-        # Out of expiry order, the region takes two pages (3 and 4). Capped
-        # at one, the count stays over: one whole listing, whose top-up
-        # (page 1) holds the count, and no INCREMENTAL_WAITS. That top-up
-        # keeps 500, near expiry, and reads its page under a cap of its own,
-        # which the incremental read did not spend: it settles and allows.
         base = self.tail((500, 30), (400, 20))
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] != 400])
@@ -5361,8 +5255,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertIsNone(evidence.refusal, evidence.detail)
         self.assertEqual(reader.listing_mode, "full")
         self.assertEqual(fake.full_listings(), 1)
-        # Page 1, one capped region page, the top-up's page 1 and its one
-        # region page.
         self.assertEqual(fake.pages(), 4)
         self.assertEqual(reader._near_expiry_reads, 1)
         self.assertEqual(self.sleep.call_args_list, [])
@@ -5380,7 +5272,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
                 return rest(args, *rest_args)
             skipped = True
             held, live = fake.artifacts, fake.live_total
-            # The live count still holds it.
             fake.live_total = len({a["id"] for a in held})
             fake.artifacts = [a for a in held if a["id"] != artifact_id]
             try:
@@ -5405,10 +5296,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_a_skip_after_the_pages_near_expiry_is_read_again_after_a_wait(
         self,
     ) -> None:
-        # The ci-status and enable-auto-merge refusals of 2026-11-02: one to
-        # three short once the pages near expiry were read, then 134 to 293
-        # whole-listing pages. Read again after one wait, the pages hold the
-        # FAIL and the count, with no whole listing.
         fake = self.early_deletion_and_a_new_fail()
         reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:fail", evidence.detail)
@@ -5421,11 +5308,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_an_over_count_left_short_by_a_skip_is_read_again_after_a_wait(
         self,
     ) -> None:
-        # ci-status job 125052787044's shape: the carry holds 500 and 400,
-        # both deleted early, so the first read over-counts; the pages near
-        # expiry drop both and leave it one short of the FAIL the first page
-        # skipped. Read again after one wait, it holds the count: no whole
-        # listing, so the job's over-count slot and failure note stay unused.
         base = self.tail((500, 30), (400, 40))
         self.write_saved(base)
         fail = dated(named(HEAD, "fail"), 2, 1100, LISTED_AT)
@@ -5443,9 +5325,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_a_skip_a_callers_limit_cannot_wait_for_takes_a_whole_listing(
         self,
     ) -> None:
-        # Under a 50 s caller limit, 35 s are left: not enough for the 30 s
-        # wait and a 12 s whole listing (5 pages and the top-up's 7), so the
-        # whole listing comes at once.
         fake = self.early_deletion_and_a_new_fail()
         with (
             mock.patch.dict("os.environ", {ve.DEADLINE_ENV: "50"}),
@@ -5460,10 +5339,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_a_skip_no_whole_listing_fits_the_callers_limit_is_read_again(
         self,
     ) -> None:
-        # Run 41402303868's shape: verify-cap.mjs leaves 105 s, and at 10 s a
-        # page the 11-page whole listing needs 110 s, as 13.6k artifacts need
-        # 143 s at 1 s, so falling back to it can only refuse. Read again
-        # after one wait, the pages hold the FAIL and the count.
         fake = self.early_deletion_and_a_new_fail()
         with (
             mock.patch.dict("os.environ", verify_cap_env()),
@@ -5479,9 +5354,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_a_skip_the_caps_left_cannot_read_again_takes_a_whole_listing(
         self,
     ) -> None:
-        # As above with one region page a listing: the first read spends it,
-        # so no read on this base could settle 500 again. The whole listing,
-        # with no wait, holds the FAIL.
         fake = self.early_deletion_and_a_new_fail()
         with mock.patch.object(ve, "NEAR_EXPIRY_PAGE_CAP", 1):
             reader, evidence = self.judge(fake)
@@ -5493,10 +5365,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_two_readers_that_over_count_take_one_whole_listing_a_job(
         self,
     ) -> None:
-        # GitHub dropped 300, 90 days from expiry, so both Readers' pages over
-        # the carry hold one more than the live count. The first takes the
-        # whole listing, which holds the count, and allows. The second, its
-        # saved listing back at the old base, refuses without another.
         base = self.tail()
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] != 300])
@@ -5509,15 +5377,11 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertIn("already took its whole listing", second.detail or "")
         self.assertEqual(reader.listing_mode, "full")
         self.assertEqual(fake.full_listings(), 1)
-        # Not a failed listing: #11926's note stays unwritten.
         self.assertFalse(self.failed.exists())
 
     def test_an_over_count_refused_before_paging_leaves_the_job_its_listing(
         self,
     ) -> None:
-        # pr-dispatch-feedback's order: PR A's Reader over-counts under
-        # verify-cap's limit, and its whole listing does not fit, so it
-        # refuses before paging. PR B's Reader, with the time, takes it.
         base = self.tail()
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] != 300])
@@ -5532,9 +5396,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_an_over_count_listing_out_of_the_callers_time_refuses_so_later(
         self,
     ) -> None:
-        # A's whole listing pages, then its top-up runs out of the caller's
-        # time. B's Reader takes no second whole listing, and its refusal
-        # keeps the caller-limit prefix, so verify-cap skips B's round too.
         base = self.tail()
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] != 300])
@@ -5550,11 +5411,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_an_over_count_the_pages_near_expiry_leave_takes_one_whole_listing(
         self,
     ) -> None:
-        # GitHub dropped 500 early, which the region's pages settle, and 300,
-        # 90 days from expiry, which no page near expiry reaches. The whole
-        # listing skips 700 at a page boundary, so its top-up is one short:
-        # another whole listing would restore 700, but an over-count takes
-        # one a job, and the refusal is noted for the job's later Readers.
         base = self.tail((500, 30))
         self.write_saved(base)
         fake = self.fake(base=[a for a in base if a["id"] not in (500, 300)])
@@ -5572,25 +5428,18 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual((fake.pages(), fake.full_listings()), listed)
 
     def test_a_count_other_than_githubs_lists_every_page(self) -> None:
-        # A forged carry drops an old FAIL (600): the live count holds it, so
-        # the merged listing is one short and every page is read.
         fail = dated(named(EARLIER, "fail"), 2, 600, self.base_at - timedelta(days=2))
         self.write_saved(self.base)
         fake = self.fake(fail)
         reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:earlier-fail")
         self.assertEqual(reader.listing_mode, "full")
-        # The incremental first page, read three times with a 15 s and a 30 s
-        # wait between, then the whole listing's own check.
         self.assertEqual((fake.pages(), fake.full_listings()), (3 + 1, 1))
         self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0, 30.0])
 
     def test_a_caller_that_skips_the_waits_lists_every_page_after_one_miss(
         self,
     ) -> None:
-        # A forged carry under BABYSIT_VERIFY_NO_INCREMENTAL_WAITS=1: one
-        # incremental first page, no wait, then the whole listing, which still
-        # holds the dropped FAIL.
         fail = dated(named(EARLIER, "fail"), 2, 600, self.base_at - timedelta(days=2))
         self.write_saved(self.base)
         fake = self.fake(fail)
@@ -5602,7 +5451,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual(reader.listing_mode, "full")
         self.assertEqual((fake.pages(), fake.full_listings()), (1 + 1, 1))
         self.sleep.assert_not_called()
-        # Any other value keeps the waits (the base saved again).
         self.write_saved(self.base)
         self.sleep.reset_mock()
         with mock.patch.dict(
@@ -5653,9 +5501,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.sleep.assert_not_called()
 
     def test_a_failed_first_read_is_not_read_again_on_the_base(self) -> None:
-        # A 429, a rate-limit 403 or a timeout on the first incremental page
-        # is never read again (`_read_listing`'s rule): the whole listing
-        # follows at once, as before the count-miss retry.
         failures: dict[str, Any] = {
             "429": subprocess.CompletedProcess(
                 [], 1, "", "gh: API rate limit exceeded (HTTP 429)"
@@ -5689,8 +5534,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
                     evidence = reader.evidence(PR, HEAD, pull())
                 self.assertEqual(evidence.refusal, "verify:fail")
                 self.assertEqual(reader.listing_mode, "full")
-                # The failed page, then the whole listing and its top-up, two
-                # pages down to 900; no second read on the carried base.
                 self.assertEqual((fake.pages(), fake.full_listings()), (3, 1))
                 self.sleep.assert_not_called()
 
@@ -5717,8 +5560,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
             return reader, reader.evidence(PR, HEAD, pull()), fake
 
     def test_a_cut_short_page_is_read_again_without_a_full_listing(self) -> None:
-        # As gh printed it in pr-merge run 40819274416, and a body cut short
-        # that gh still exits 0 on.
         failures = {
             "gh error": subprocess.CompletedProcess(
                 [], 1, "", "unexpected end of JSON input"
@@ -5735,14 +5576,11 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
                 reader, evidence, fake = self.cut_short(1, failure)
                 self.assertEqual(evidence.refusal, "verify:fail")
                 self.assertEqual(reader.listing_mode, "incremental")
-                # The failed page, then pages 1 and 2 down to 900.
                 self.assertEqual((fake.pages(), fake.full_listings()), (3, 0))
                 self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [2.0])
 
     def test_a_page_cut_short_every_time_lists_every_page(self) -> None:
         failure = subprocess.CompletedProcess([], 1, "", "unexpected end of JSON input")
-        # The first page fails all three reads, so the whole listing follows
-        # and its top-up reads the pages.
         reader, evidence, fake = self.cut_short(3, failure)
         self.assertEqual(evidence.refusal, "verify:fail")
         self.assertEqual(reader.listing_mode, "full")
@@ -5750,9 +5588,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [2.0, 4.0])
 
     def test_a_count_off_once_is_read_again_on_the_same_base(self) -> None:
-        # The first read's live count is one more than its pages hold, as
-        # when a page boundary moves during the read; the next read holds it
-        # and no page is listed whole.
         self.write_saved(self.base)
         fake = self.fake(dated(named(HEAD, "fail"), 2, 1100, LISTED_AT))
         rest, off = fake.rest, [len(self.base) + 2]
@@ -5790,16 +5625,11 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         return fake, stderr.getvalue()
 
     def test_a_miss_that_outlasts_one_read_is_read_again_after_a_wait(self) -> None:
-        # Two misses, then the third read holds the count: three reads of two
-        # pages, a 15 s and a 30 s wait between them, and no whole listing.
         fake, _ = self.misses_then_reads(2)
         self.assertEqual((fake.pages(), fake.full_listings()), (6, 0))
         self.assertEqual([c.args[0] for c in self.sleep.call_args_list], [15.0, 30.0])
 
     def test_each_miss_prints_its_counts_on_stderr(self) -> None:
-        # Read 1: pages (1100, 1000) and (900, 800), 900 created before the
-        # overlap, so 4 fresh and the base's 700 kept: 5 listed against a
-        # live count of 6, the base read 10 min before GitHub's Date (12:00:05).
         _, stderr = self.misses_then_reads(1)
         lines = [
             line
@@ -5827,9 +5657,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.sleep.assert_not_called()
 
     def test_no_wait_runs_past_the_reads_timeout(self) -> None:
-        # The reads' deadline is 0 + 300 s. After the first miss (clock 3 s)
-        # the 15 s wait fits; after the second (clock 271 s) 29 s are left,
-        # short of the 30 s wait, so a whole listing follows at once.
         clock = iter([0.0, 1.0, 2.0, 3.0, 260.0, 261.0, 271.0])
         with mock.patch.object(
             ve, "_listing_clock", side_effect=lambda: next(clock, 300.0)
@@ -5842,8 +5669,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual(reader.listing_mode, "full")
 
     def test_a_live_count_no_listing_can_hold_refuses(self) -> None:
-        # One short is a skip another whole listing may restore; one over is
-        # an entry GitHub no longer counts, which no further listing drops.
         for delta, reads in ((-1, 1), (1, ve.LISTING_READS)):
             with self.subTest(delta):
                 self.write_saved(self.base)
@@ -5887,8 +5712,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_a_count_github_drops_early_is_settled_by_the_pages_near_expiry(
         self,
     ) -> None:
-        # 600 and 610 expire within EARLY_DELETION_LEAD, so the pages around
-        # them decide them: no whole listing, nothing noted for the job.
         fake = self.skewed()
         reader, evidence = self.judge(fake)
         self.assertIsNone(evidence.refusal, evidence.detail)
@@ -5901,19 +5724,15 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_a_count_the_pages_near_expiry_miss_takes_one_whole_listing_a_job(
         self,
     ) -> None:
-        # Dropped three hours before expiry, past EARLY_DELETION_LEAD: no page
-        # near expiry is read, and the over-count goes to one whole listing.
         fake = self.skewed(timedelta(hours=3))
         base_text = self.saved.read_text()
         reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
         self.assertIn("held more artifacts than", evidence.detail or "")
         self.assertEqual(reader.listing_mode, "full")
-        # Another whole listing only adds ids, so it would hold 650 too.
         self.assertEqual(fake.full_listings(), 1)
         self.assertEqual(self.saved.read_text(), base_text)
         self.assertIn("held more artifacts than", self.failed.read_text())
-        # The job's next Reader, in this process or another, pages nothing.
         listed = (fake.pages(), fake.full_listings())
         _, again = self.judge(fake)
         self.assertEqual(again.refusal, "verify:unreadable")
@@ -5958,16 +5777,12 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_a_top_up_out_of_the_callers_time_is_not_noted_for_the_job(
         self,
     ) -> None:
-        # A 60 s caller limit leaves 45 s, under the 60 s the five artifacts'
-        # listings take with no caller. The whole listing spends 50 s, so its
-        # top-up has no time left: this caller refuses, a later one may list.
         fake = self.fake()
         evidence = self.against_the_clock(fake, 50.0, limit="60")
         self.assertEqual(evidence.refusal, "verify:unreadable")
         self.assertTrue(evidence.detail.startswith(ve.DEADLINE_UNREADABLE))
         self.assertIn("could not be checked against", evidence.detail)
         self.assertFalse(self.failed.exists())
-        # The job's next Reader, with the whole cap, lists and judges.
         evidence = self.against_the_clock(fake, 0.0)
         self.assertIsNone(evidence.refusal, evidence.detail)
         self.assertEqual(fake.full_listings(), 2)
@@ -5984,8 +5799,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertFalse(self.failed.exists())
 
     def test_a_top_up_lost_to_a_5xx_is_not_noted_for_the_job(self) -> None:
-        # The top-up's page answers 502 through its waits: this Reader
-        # refuses, and the next one, the blip over, lists and judges.
         fake = self.fake()
         fake.page_fail = "gh: Bad Gateway (HTTP 502)"
         evidence = self.against_the_clock(fake, 0.0)
@@ -5998,11 +5811,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual(fake.full_listings(), 2)
 
     def test_a_5xx_on_a_top_up_id_read_is_not_noted_for_the_job(self) -> None:
-        # No carry, so a whole listing, which lists 650 (expiring in 30
-        # minutes); GitHub then drops it early. The top-up's page 1 stops at
-        # 1000, keeping 650, one over the live count; the page near expiry
-        # omits it, and its read by id answers 502 through its waits: this
-        # Reader refuses, transient, and the next one, the blip over, lists.
         old, soon = self.base_at - timedelta(days=2), LISTED_AT + timedelta(minutes=30)
         dropping = dated("pr-merge-gate-cursor", 3, 650, old, expires=soon)
         fake = self.fake(dropping)
@@ -6028,8 +5836,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual(fake.full_listings(), 2)
 
     def test_a_top_up_read_after_a_5xx_with_no_date_is_noted(self) -> None:
-        # The top-up's page 1 answers 502 once, then reads with no `Date`:
-        # the failure is the missing header, not the 502, so it is noted.
         fake = self.fake()
         failed = [False]
 
@@ -6064,7 +5870,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual(fake.listings(), 4)
 
     def test_a_whole_listing_cut_short_after_its_waits_is_noted(self) -> None:
-        # Each later Reader in the job would page the whole listing again.
         for detail in (
             "unexpected end of JSON input",
             "page 2 is not JSON",
@@ -6082,8 +5887,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
                 self.assertEqual(fake.listings(), 3)
 
     def test_a_whole_listing_failure_not_the_callers_is_noted(self) -> None:
-        # A timeout of the whole cap's own budget (60 s for five artifacts),
-        # and a top-up page 404, with or without a caller's time left.
         cases: dict[str, tuple[FakeGitHub, float, str, BaseException | None]] = {
             "cap timeout": (self.fake(), 60.0, "", timed_out()),
             "404": (self.fake(), 0.0, "", None),
@@ -6104,8 +5907,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
     def test_uploads_stamped_ahead_of_the_runner_still_read_incrementally(
         self,
     ) -> None:
-        # After the skew: a FAIL and another upload stamped an hour ahead of
-        # the runner's clock, and a count that holds.
         self.write_saved(self.base)
         ahead = LISTED_AT + timedelta(hours=1)
         fake = self.fake(
@@ -6119,7 +5920,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertFalse(self.failed.exists())
 
     def test_a_carry_past_its_age_bound_lists_every_page(self) -> None:
-        # The bound is three hours (LISTING_CARRY_MAX_AGE's basis).
         for age, mode in (
             (timedelta(hours=3), "incremental"),
             (timedelta(hours=3, seconds=1), "full"),
@@ -6152,7 +5952,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
                 fake = self.fake()
                 reader, _ = self.judge(fake)
                 self.assertEqual(reader.listing_mode, "full")
-                # No incremental page: the whole listing and its own check.
                 self.assertEqual((fake.pages(), fake.full_listings()), (1, 1))
 
     def test_no_carry_lists_every_page(self) -> None:
@@ -6170,8 +5969,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
                 fake.page_fail = error
                 reader, evidence = self.judge(fake)
                 self.assertEqual(reader.listing_mode, "full")
-                # The whole listing is read, but no page can check it: it
-                # refuses rather than judge on it, and reads it once.
                 self.assertEqual(evidence.refusal, "verify:unreadable")
                 self.assertEqual(fake.full_listings(), 1)
 
@@ -6209,8 +6006,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         }
 
     def test_a_whole_listing_with_an_undated_artifact_lists_fully(self) -> None:
-        # No carry: the whole listing's top-up stops on its dated entries, and
-        # the undated FAIL is kept, so the listing holds the live count.
         fake = self.fake(self.undated(named(HEAD, "fail"), 2, 850))
         reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:fail")
@@ -6220,8 +6015,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual(ids, [1000, 900, 850, 800, 700])
 
     def test_an_undated_carried_entry_is_kept_below_the_new_pages(self) -> None:
-        # The carry holds an undated FAIL below the pages read now: no date
-        # prunes it, and the incremental listing still holds the live count.
         fail = self.undated(named(HEAD, "fail"), 2, 850)
         self.write_saved([*self.base[:2], fail, *self.base[2:]])
         fake = self.fake(fail)
@@ -6241,8 +6034,6 @@ class TheListingBuildsOnASavedOne(unittest.TestCase):
         self.assertEqual((fake.pages(), fake.full_listings()), (2, 0))
 
     def test_a_refresh_builds_on_the_listing_it_drops(self) -> None:
-        # The gate's re-list before an allow (babysit_merge.py `refresh`)
-        # pages only past the run's own listing.
         self.write_saved(self.base)
         fake = self.fake()
         page = lambda args, **kwargs: (fake(args, **kwargs), {"date": DATE})  # noqa: E731
@@ -6276,8 +6067,6 @@ class AWholeListingMustHoldTheLiveCount(unittest.TestCase):
         self.saved = pathlib.Path(tmp.name, "verify-listing.json")
         for patcher in (
             mock.patch.dict("os.environ", {"BABYSIT_VERIFY_LISTING": str(self.saved)}),
-            # One artifact a page, so the top-up's first page holds only the
-            # newest id and the FAIL sits below it.
             mock.patch.object(ve, "LISTING_PAGE_SIZE", 1),
         ):
             patcher.start()
@@ -6297,7 +6086,6 @@ class AWholeListingMustHoldTheLiveCount(unittest.TestCase):
         fake = self.fake()
         fake.full_skips = [{20}]
         evidence = read(fake)
-        # On the first listing alone the pass would allow.
         self.assertEqual(evidence.refusal, "verify:earlier-fail")
         self.assertEqual(listings(fake), 2)
         self.assertEqual(
@@ -6315,8 +6103,6 @@ class AWholeListingMustHoldTheLiveCount(unittest.TestCase):
         self.assertFalse(self.saved.exists())
 
     def test_a_duplicate_at_a_page_boundary_is_counted_once(self) -> None:
-        # An upload while it pages moves an artifact down a page, so the
-        # whole listing returns it twice.
         fake = self.fake()
         listed = fake.listed
 
@@ -6332,8 +6118,6 @@ class AWholeListingMustHoldTheLiveCount(unittest.TestCase):
         self.assertEqual(sorted(ids), [20, 50])
 
     def test_the_refresh_before_an_allow_holds_the_live_count_too(self) -> None:
-        # babysit_merge.py calls `refresh()` before an allow: with no listing
-        # to build on, its whole listing is checked the same way.
         fake = self.fake()
         del fake.artifacts[1]
         with mock.patch.object(postmerge, "gh_capture", side_effect=fake):
@@ -6408,9 +6192,6 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
     def test_a_whole_listing_that_skips_a_fail_beside_an_early_deletion(
         self,
     ) -> None:
-        # The top-up's page 1 (1000, 900) keeps 800, 700 and 600: five, the
-        # live count. 600 is near expiry, so page 3 is read (650 alone),
-        # bringing the FAIL back, and 600, which it omits, answers 404.
         fake = self.skipped()
         reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:earlier-fail", evidence.detail)
@@ -6421,12 +6202,6 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         self.assertEqual(ids, [1000, 900, 800, 700, 650])
 
     def test_a_stale_carry_whose_early_deletion_hides_a_missed_fail(self) -> None:
-        # The carry lacks FAIL 750 and still holds 600, which GitHub deleted
-        # 30 minutes before its expiry: five against a live count of five.
-        # Page 3 (700) does not reach 750, but 600's own read answers 404,
-        # so the count is one short. A short count reads again after each
-        # wait, as for a skip in the fresh pages; this one is the carry's, so
-        # every read stays short and the whole listing holds the FAIL.
         self.write_saved([*self.base, self.entry(600, timedelta(minutes=30))])
         fake = self.fake(self.earlier_fail(750))
         reader, evidence = self.judge(fake)
@@ -6436,16 +6211,12 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         self.assertEqual(len(self.by_id(fake)), ve.INCREMENTAL_READS)
         waits = [c.args[0] for c in self.sleep.call_args_list]
         self.assertEqual(waits, list(ve.INCREMENTAL_WAITS))
-        # An exact count is not an over-count: the job's slot stays free.
         overcount = pathlib.Path(f"{self.saved}{ve.OVERCOUNT_FALLBACK_SUFFIX}")
         self.assertFalse(overcount.exists())
         ids = [a["id"] for a in json.loads(self.saved.read_text())["artifacts"]]
         self.assertEqual(ids, [1000, 900, 800, 750, 700])
 
     def test_a_top_up_left_short_reads_another_whole_listing(self) -> None:
-        # The first whole listing skips FAIL 850, far from 600's page: the
-        # top-up keeps 600, whose read answers 404, and is one short. A
-        # second whole listing, not a refusal, restores the FAIL.
         fake = self.skipped(850)
         reader, evidence = self.judge(fake)
         self.assertEqual(evidence.refusal, "verify:earlier-fail", evidence.detail)
@@ -6454,10 +6225,6 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         self.assertFalse(self.failed.exists())
 
     def test_a_dropped_entry_does_not_spend_the_top_ups_page_cap(self) -> None:
-        # As above, with 650 live and near expiry too: each incremental read
-        # takes pages 3 and 4, all six of the cap after the two waits. The
-        # whole listing's top-up, which keeps 650, takes page 3 again under a
-        # cap of its own, and settles.
         near = self.entry(650, timedelta(minutes=30))
         self.write_saved([*self.base, near, self.entry(600, timedelta(minutes=30))])
         fake = self.fake(self.earlier_fail(750), near)
@@ -6471,9 +6238,6 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         self.assertFalse(self.failed.exists())
 
     def test_a_short_count_reads_no_pages_near_expiry(self) -> None:
-        # The carry lacks FAIL 750 and 600 is live, near expiry: five of six.
-        # A short count is never kept, so it waits and reads again as before;
-        # only the whole listing's exact top-up reads 600's page.
         near = self.entry(600, timedelta(minutes=30))
         self.write_saved([*self.base, near])
         fake = self.fake(self.earlier_fail(750), near)
@@ -6486,7 +6250,6 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
         self.assertEqual(self.by_id(fake), [])
 
     def test_an_exact_count_with_none_near_expiry_reads_nothing_more(self) -> None:
-        # 600 expires three hours on, past EARLY_DELETION_LEAD: page 1 alone.
         self.write_saved([*self.base, self.entry(600, timedelta(hours=3))])
         fake = self.fake(self.entry(600, timedelta(hours=3)))
         reader, evidence = self.judge(fake)
@@ -6498,11 +6261,6 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
     def test_an_exact_count_the_pages_near_expiry_cannot_settle_refuses(
         self,
     ) -> None:
-        # 600, live and expiring in 30 minutes, is on page 3: read, it settles
-        # the count. With no page left under the cap, neither the incremental
-        # read nor the whole listing's top-up can, and the gate refuses. The
-        # caps alone left it unsettled, so nothing is noted for the job and
-        # the next Reader, its caps fresh, settles the count and allows.
         near = self.entry(600, timedelta(minutes=30))
         self.write_saved([*self.base, near])
         fake = self.fake(near)
@@ -6539,14 +6297,6 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
     def test_near_expiry_reads_out_of_the_listings_time_are_not_noted(
         self,
     ) -> None:
-        # The skipped listing, each read taking `step` seconds of the whole
-        # listings' 60 s (`listing_timeout` for five artifacts), the caps out
-        # of reach. The first top-up reads 600's page and id and comes out
-        # short; at 15 s a read the second whole listing finds no time left,
-        # at 12 s the second top-up's page 1 does, and at 10 s its page near
-        # expiry does. Each way the time ran out after near-expiry reads
-        # began: refused, not noted. `whole` marks the miss line printed for
-        # a failed whole listing or top-up page, not a region read.
         for step, stage, whole in (
             (15.0, "whole-listing", True),
             (12.0, "top-up", True),
@@ -6591,9 +6341,6 @@ class AnExactCountChecksItsEntriesNearExpiry(unittest.TestCase):
                 self.assertIn((stage, ve.NEAR_EXPIRY_DEADLINE_CAUSE, whole), causes)
 
     def test_a_5xx_on_an_exact_count_id_read_refuses_as_transient(self) -> None:
-        # The skipped listing, with 600's read by id answering 502 through its
-        # waits: the Reader refuses, nothing is noted for the job, and the
-        # next Reader, the blip over, judges the FAIL.
         fake = self.skipped()
         fake.fail = {"artifacts/600"}
         reader, evidence = self.judge(fake)
@@ -6652,27 +6399,20 @@ class TheColdReadHeadroomCoversTheListingCaps(unittest.TestCase):
                     + ve.INCREMENTAL_READS * 13
                     + 1
                     + ve.LISTING_READS * (attempts * pages + ve.LISTING_TOP_UP_PAGES)
-                    # Once for the incremental reads, once for the top-ups.
                     + 2 * (ve.NEAR_EXPIRY_PAGE_CAP + ve.NEAR_EXPIRY_ID_READ_CAP)
                 )
                 self.assertEqual(self.cold_cost(total, fails), worst)
 
     def test_the_cost_of_two_listings_differs_by_hand(self) -> None:
-        # 10,450 artifacts (106 pages) and 300 FAILs against 7,522 (77) and
-        # 264: 2,137 against 1,739, worked by hand in ci-lanes-pr-hold.test.sh.
         self.assertEqual(self.cold_cost(10_450, 300), 2_137)
         self.assertEqual(self.cold_cost(7_522, 264), 1_739)
 
-
-# --- The --authority pr-merge path ------------------------------------------------
 
 
 def evidence(refusal: str | None) -> ve.Evidence:
     return ve.Evidence(refusal=refusal, head=unattended.HEAD, verdicts=(), ignored=0)
 
 
-# A manifest the floor switch's manifest review holds; the floor itself holds
-# no path.
 MANIFEST = "plugins/foo/.claude-plugin/plugin.json"
 
 
@@ -6691,7 +6431,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
 
     def setUp(self) -> None:
         super().setUp()
-        # The lane's own setup (LaneMode): its config, no local re-reads.
         self.config = policy.PipelineConfig(
             unattended.BASE, "C2", "pr-merge", unattended.IDENTITY, 200,
             (".github/**",), "c2-mechanical", require_verifier_verdict=True,
@@ -6700,7 +6439,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.promotion = policy.Promotion(None, "resolver-failed")
         self.kill = []
         self.verdicts: dict[int, ve.Evidence] = {}
-        # Each judgment's pull request and whether it was provisional.
         self.provisional: list[tuple[int, bool]] = []
         self.read = mock.Mock(
             side_effect=lambda number, head: self.verdicts.get(number, evidence(None))
@@ -6708,8 +6446,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         patcher = mock.patch.object(ve.Reader, "evidence", side_effect=self._evidence)
         patcher.start()
         self.addCleanup(patcher.stop)
-        # The tracker binding's human-gated role label (`babysit_tracker_binding`);
-        # every other role reads its default.
         self.human_gated = "needs-human"
         self.role_label = mock.Mock(
             side_effect=lambda *_, role="human-gated", default="needs-human", **__: (
@@ -6720,7 +6456,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-        # Writes whose argv holds one of these fail (HTTP 502).
         self.failing: set[str] = set()
 
     def _evidence(
@@ -6772,7 +6507,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
                 for e in out["unattended"]["writes"]["errors"]
             )
         )
-        # The next run reads the comment the first one posted.
         self.failing = set()
         self.comments = [self.escalation_comment()]
         _, out = self.lane()
@@ -6806,7 +6540,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
                 self.verdicts[unattended.PR] = evidence(refusal)
                 code, out = self.lane()
                 self.assert_no_merge(code)
-                # The comment explains the label, so it is written first.
                 comment, label = self.escalation_writes()
                 self.assertEqual(
                     label[-4:],
@@ -6862,13 +6595,9 @@ class LaneRequiresAVerdict(unattended.Unattended):
             out["unattended"]["writes"]["escalation"],
             {"label": "present", "comment": "unchanged"},
         )
-        # The escalation's own label is a merge hold too; the reason still
-        # names the verifier refusal.
         self.assertEqual(out["unattended"]["reason"], "verify:untrusted-spec")
 
     def test_a_fail_at_the_head_writes_no_escalation(self) -> None:
-        # A fix round answers it (pr-dispatch-feedback.yml); a label would
-        # hold that round as awaiting-human.
         self.verdicts[unattended.PR] = evidence("verify:fail")
         code, out = self.lane()
         self.assert_no_merge(code)
@@ -6877,8 +6606,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertNotIn("escalation", out["unattended"]["writes"])
 
     def test_an_old_pull_request_waits_for_a_fresh_pass_and_is_not_closed(self) -> None:
-        # Owner decision 2026-11-01: the lost-run reconciler
-        # re-runs the verifier at the head, whose fresh pass clears it.
         self.verdicts[unattended.PR] = evidence("verify:too-old")
         with mock.patch.object(ve, "capped_close") as close:
             code, out = self.lane()
@@ -6889,11 +6616,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertEqual(self.escalation_writes(), [])
 
     def test_the_cap_closes_for_a_fresh_attempt(self) -> None:
-        # Owner rule 2026-10-27: it is no intent, design or security
-        # question, so it gets no person's label. Owner decision
-        # 2026-10-29: the gate closes the pull request for a fresh attempt at
-        # its issue (capped_close, which judges it again and checks the
-        # author), under merge.verify-cap-attempts.
         self.config = dataclasses.replace(self.config, verify_cap_attempts=2)
         for refusal in ("verify:repeated-fail",):
             with self.subTest(refusal):
@@ -6925,9 +6647,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
                 )
 
     def test_a_hold_the_gate_reads_on_the_pull_request_closes_nothing(self) -> None:
-        # A body hold, a member's veto or a hold label (`entry_hold`) keeps
-        # it open, as enable-auto-merge.mjs decide() does on the native path.
-        for hold in ("body-hold", "human-blocking-comment:kyle-sexton", "unreadable"):
+        for hold in ("do-not-merge", "needs-human", "unreadable"):
             with self.subTest(hold):
                 self.verdicts[unattended.PR] = evidence("verify:repeated-fail")
                 self.holds[unattended.PR] = hold
@@ -6936,7 +6656,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
                 with mock.patch.object(ve, "capped_close") as close:
                     _, out = self.lane()
                 close.assert_not_called()
-                # Read as a pull request never enqueued.
                 never_queued = [kw for kw in seen if kw.get("queued") is False]
                 self.assertTrue(never_queued)
                 for kw in never_queued:
@@ -6947,7 +6666,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
                 )
 
     def test_an_unreadable_human_gated_label_closes_nothing(self) -> None:
-        # Its default could miss the label the tracker maps, and so the hold.
         self.verdicts[unattended.PR] = evidence("verify:repeated-fail")
         self.role_label.side_effect = postmerge.PostMergeReadError("tracker gone")
         with mock.patch.object(ve, "capped_close") as close:
@@ -7000,7 +6718,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         return refresh
 
     def test_an_allow_on_the_saved_listing_is_judged_again_on_its_own(self) -> None:
-        # A FAIL uploaded after the run saved its listing still refuses.
         refresh = self.saved_listing()
         self.read.side_effect = [evidence(None), evidence("verify:fail")]
         code, out = self.lane()
@@ -7010,8 +6727,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertEqual(self.read.call_count, 2)
 
     def test_a_candidate_refused_otherwise_does_not_list_again(self) -> None:
-        # Already refused, it is not enqueued: an allow on the saved listing
-        # decides nothing, so it pages nothing.
         refresh = self.saved_listing()
         self.lanes = unattended.UNBOUND
         code, out = self.lane()
@@ -7021,8 +6736,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.read.assert_called_once_with(unattended.PR, unattended.HEAD)
 
     def test_only_the_candidate_is_judged_provisional(self) -> None:
-        # Its allow is judged again on its own listing before the gate allows
-        # it; a queued entry kept on the judgment has no such second read.
         other = unattended.PR + 1
         self.queued = [other]
         self.lane()
@@ -7044,7 +6757,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assert_no_merge(code)
         self.assertEqual(out["unattended"]["reason"], "verify:fail")
         self.assertIn(f"dequeue:[{unattended.PR}]", self.log)
-        # Its own entry is decided once, not read again in the queue loop.
         self.assertEqual(self.read.call_count, 1)
 
     def test_a_missing_verdict_refuses(self) -> None:
@@ -7070,7 +6782,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertEqual(
             out["unattended"]["writes"]["holds"], {str(other): "verify:missing"}
         )
-        # The queued entry is judged at the head its pull request reads now.
         self.read.assert_any_call(other, self.scored_head)
 
     def test_a_crash_on_one_queued_entry_refuses_it_and_the_sweep_goes_on(self) -> None:
@@ -7104,8 +6815,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.read.assert_called_once_with(other, self.scored_head)
 
     def test_a_verifier_refusal_is_judged_before_the_diff(self) -> None:
-        # The refusal stands whatever the diff scores, so neither the lane
-        # evidence nor the score is read, and the reason is the verifier's.
         self.verdicts[unattended.PR] = evidence("verify:fail")
         self.lanes = unattended.UNBOUND
         self.queued = [unattended.PR]
@@ -7132,8 +6841,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.read.assert_not_called()
 
     def test_a_real_dependabot_pull_request_is_refused_before_the_reader(self) -> None:
-        # The real lane eligibility over a dependabot[bot]-authored pull
-        # request (babysit_merge_policy._foreign_refusal).
         self.lane_eligible = None
         node = {
             "number": unattended.PR,
@@ -7150,7 +6857,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.read.assert_not_called()
 
     def test_the_lane_without_the_key_refuses(self) -> None:
-        # Design 3: the verdict is the lane's only merge criterion.
         self.config = dataclasses.replace(self.config, require_verifier_verdict=False)
         code, out = self.lane()
         self.assert_no_merge(code)
@@ -7158,15 +6864,12 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.read.assert_not_called()
 
     def test_a_lane_pr_touching_the_merge_gate_merges_on_a_pass(self) -> None:
-        # Owner decision Q624: no denied path, no HIGH floor, no size caps and
-        # no C2 contradictions in the lane by default; the verdict still gates.
         self.config = dataclasses.replace(
             self.config, denied_paths=(), max_changed_lines=None
         )
         self.unlabeled_lane_pr(real_denied_paths=True)
         gate = "plugins/source-control/scripts/source-control-babysit-merge"
         paths = (gate, ".github/workflows/x.yml", *(f"lib/f{i}.sh" for i in range(8)))
-        # The workflow's patch adds no cost line, so the cost hold passes it.
         self.files = (
             tuple(
                 dataclasses.replace(changed(path, 300), patch="@@ -1 +1 @@\n-a\n+b")
@@ -7174,7 +6877,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
             ),
             True,
         )
-        # The cost hold reads the workflow's text: it starts no model leg.
         reader = mock.patch.object(policy, "_file_at", return_value="jobs: {}\n")
         reader.start()
         self.addCleanup(reader.stop)
@@ -7182,7 +6884,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         self.assertEqual(code, 0, out["blockers"])
         self.assertEqual(out["unattended"]["risk"]["score"], "LOW")
         self.assertEqual(self.log, ["pin", f"enqueue:{unattended.HEAD}:merge_queue"])
-        # The verdict still decides: a missing one refuses the same pull request.
         self.verdicts[unattended.PR] = evidence("verify:missing")
         self.log = []
         code, out = self.lane()
@@ -7224,7 +6925,6 @@ class LaneRequiresAVerdict(unattended.Unattended):
         reads = [
             ("_graphql", {"repository": {"pullRequest": node}}),
             ("_base_refusal", None),
-            # The trust hold's label history: no removal.
             ("_timeline", []),
         ]
         if not real_denied_paths:
@@ -7259,7 +6959,6 @@ class LocalBabysitReadsNoVerdict(unattended.Unattended):
         read.assert_not_called()
 
     def test_the_lane_switches_do_not_reach_the_local_path(self) -> None:
-        # Q624 turns the floor and caps off for the pr-merge lane only.
         self.config = dataclasses.replace(
             self.config, high_path_floor=False, max_changed_files=None,
         )  # fmt: skip
@@ -7326,7 +7025,6 @@ class TheSweepKeepsTheListingBound(unattended.Unattended):
         for patcher in (
             mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path}),
             mock.patch.object(ve.run_cache, "now", side_effect=lambda: self.clock),
-            # The verdict is judged on a listing begun 90 s before the run.
             mock.patch.object(
                 ve.Reader,
                 "evidence",
@@ -7343,13 +7041,10 @@ class TheSweepKeepsTheListingBound(unattended.Unattended):
             self.clock = datetime(2026, 10, 18, 12, 0, seconds, tzinfo=UTC)
             code, _ = unattended.LaneMode.lane(self)
             self.assert_no_merge(code)
-        # Judged at 12:00:00 on a listing from 11:58:30: skipped at :29, not :31.
         self.assertEqual(self.reads.count(5), 2)
 
 
-# --- Verdict downloads ---------------------------------------------------------
-
-TIE = "9" * 40  # a head of PR 97, whose verdict records PR 41's head ref
+TIE = "9" * 40
 
 
 def download_requests(fake: FakeGitHub) -> int:
@@ -7403,13 +7098,11 @@ class EachVerdictIsOneRequest(unittest.TestCase):
         evidence = read(fake)
         self.assertIsNone(evidence.refusal)
         self.assertEqual(evidence.report()["earlierFails"], sorted([EARLIER, TIE]))
-        # The pass and the two untied FAILs' records.
         self.assertEqual(download_requests(fake), 3)
 
     def test_a_tied_fail_after_the_pass_holds(self) -> None:
         fake = self.heads("2026-10-15T00:00:01Z")
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
-        # Only the untied FAILs' records: the pass decides nothing.
         self.assertEqual(download_requests(fake), 2)
 
     def test_a_third_failed_head_at_the_head_reaches_the_cap(self) -> None:
@@ -7421,8 +7114,6 @@ class EachVerdictIsOneRequest(unittest.TestCase):
         self.assertFalse(evidence.needs_human)
 
     def test_a_listing_with_an_artifact_of_no_id_refuses(self) -> None:
-        # An entry with no id cannot be counted against the live total, so
-        # the listing is never whole and no pass allows on it.
         fake = self.heads(ids=False)
         evidence = read(fake)
         self.assertEqual(evidence.refusal, "verify:unreadable")
@@ -7460,7 +7151,6 @@ class EachVerdictIsOneRequest(unittest.TestCase):
             ):
                 evidence = ve.Reader(REPO, "main", now=NOW).evidence(PR, HEAD, pull())
                 self.assertEqual(evidence.refusal, "verify:unreadable")
-        # The same verdict as verdict.json allows.
         self.assertIsNone(read(fake).refusal)
 
 
@@ -7623,7 +7313,6 @@ class AnUnreadableRecordIsSharedForTheRun(unittest.TestCase):
     def test_a_later_candidate_refuses_without_downloading_again(self) -> None:
         fake = self.foreign()
         self.assertEqual(read(fake).refusal, "verify:unreadable")
-        # The record is readable now, but this run already failed on it.
         fake.records[named(UNRELATED, "fail", 98)] = record(
             98, UNRELATED, verdict="fail", head_ref="feat/other"
         )
@@ -7631,14 +7320,11 @@ class AnUnreadableRecordIsSharedForTheRun(unittest.TestCase):
         self.assertEqual(evidence.refusal, "verify:unreadable")
         self.assertEqual(evidence.detail, f"record of {named(UNRELATED, 'fail', 98)}")
         self.assertEqual(OneRunSharesItsFailRunReads.downloads(fake, 3), 1)
-        # The next run reads it again, and the pass allows.
         with mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": self.cache + "2"}):
             self.assertIsNone(read(fake).refusal)
         self.assertEqual(OneRunSharesItsFailRunReads.downloads(fake, 3), 2)
 
     def test_an_artifact_without_an_id_refuses_every_read(self) -> None:
-        # A listing entry with no id cannot be counted against the live
-        # total, so the listing never reads whole, record or not.
         fake = self.foreign()
         del fake.artifacts[1]["id"]
         self.assertEqual(read(fake).refusal, "verify:unreadable")
@@ -7648,15 +7334,11 @@ class AnUnreadableRecordIsSharedForTheRun(unittest.TestCase):
         self.assertEqual(read(fake).refusal, "verify:unreadable")
 
 
-# --- The head-ref digest in a verdict's name ------------------------------------
-
-# The first 16 hex digits of `printf %s <ref> | sha256sum`.
-DIGEST_X = "79b4cc554b80dca6"  # feat/x, PR 41's head branch
-DIGEST_OTHER = "3b0035df584451e9"  # feat/other
+DIGEST_X = "79b4cc554b80dca6"
+DIGEST_OTHER = "3b0035df584451e9"
 
 
 def downloads(fake: FakeGitHub) -> int:
-    """Verdict downloads of every run, by artifact id or by run and name."""
     return sum(OneRunSharesItsFailRunReads.downloads(fake, r) for r in fake.runs)
 
 
@@ -7697,8 +7379,6 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
         return fake
 
     def test_both_formats_decide_alike_and_the_named_one_downloads_less(self) -> None:
-        # Before (no digest): the pass and both untied records, 3 downloads.
-        # After: the pass only.
         for digests, count in ((False, 3), (True, 1)):
             with self.subTest(digests=digests):
                 fake = self.heads(digests=digests)
@@ -7716,13 +7396,12 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
 
     def test_a_digest_of_another_branch_unties_without_a_download(self) -> None:
         fake = self.heads()
-        fake.artifacts.pop()  # PR 97's tie
+        fake.artifacts.pop()
         evidence = read(fake)
         self.assertEqual(evidence.report()["earlierFails"], [EARLIER])
-        self.assertEqual(downloads(fake), 1)  # the pass
+        self.assertEqual(downloads(fake), 1)
 
     def test_a_pull_request_with_no_head_ref_ties_nothing_by_name(self) -> None:
-        # e3b0c44298fc1c14: the first 16 hex digits of `printf '' | sha256sum`.
         fake = FakeGitHub(
             [artifact(named(TIE, "fail", 97) + "-e3b0c44298fc1c14", 4)], {4: run(4)}
         )
@@ -7731,7 +7410,6 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
         )
 
     def test_a_name_from_a_run_not_of_verifier_origin_is_never_trusted(self) -> None:
-        # Each forgery names PR 41's head branch: trusted, it would hold.
         for label, overrides in UnauthenticatedArtifactsAreIgnored.FORGERIES.items():
             with self.subTest(label):
                 fake = FakeGitHub(
@@ -7742,14 +7420,12 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
                 self.assertEqual(evidence.refusal, "verify:missing")
                 self.assertEqual(evidence.report()["earlierFails"], [])
                 self.assertEqual(downloads(fake), 0)
-        # The same name from a run of verifier origin holds.
         fake = FakeGitHub(
             [artifact(named(TIE, "fail", 97) + f"-{DIGEST_X}", 4)], {4: run(4)}
         )
         self.assertEqual(read(fake).refusal, "verify:earlier-fail")
 
     def test_any_branch_name_ties_by_its_digest(self) -> None:
-        # The first 16 hex digits of `printf %s <ref> | sha256sum`.
         for ref, digest in (
             ("feat/a+b", "a27da2afd9962004"),
             ("fix/\u00e9", "8c8a071ad0e51f5e"),
@@ -7763,8 +7439,6 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
                 self.assertEqual(downloads(fake), 0)
 
     def test_a_malformed_digest_is_no_verdict_and_holds(self) -> None:
-        # No verdict name, but a FAIL-shaped one of verifier origin: held,
-        # never skipped.
         for suffix in ("-79B4CC554B80DCA6", "-79b4cc554b80dca", "-79b4cc554b80dca6x"):
             with self.subTest(suffix):
                 fake = FakeGitHub(
@@ -7772,8 +7446,6 @@ class AnUntiedFailIsTiedByItsNamedHeadRef(unittest.TestCase):
                 )
                 self.assertEqual(read(fake).refusal, "verify:unreadable")
 
-
-# --- The head-ref map an earlier pr-merge run kept ------------------------------
 
 HEAD_REF_MAP = (
     pathlib.Path(__file__).resolve().parents[6]
@@ -7785,7 +7457,6 @@ ZIP_KIND = "override GET repos/{}/{}/actions/artifacts/{}/zip"
 def head_ref_map(
     path: pathlib.Path, refs: dict[int, Any], *, repo: str = REPO, version: Any = 1
 ) -> str:
-    """Write a head-ref map, in the shape head-ref-map.mjs writes, to `path`."""
     payload = {
         "version": version,
         "repo": repo,
@@ -7796,8 +7467,6 @@ def head_ref_map(
 
 
 def keep_head_refs(directory: pathlib.Path, previous: str | None) -> dict[str, Any]:
-    """Run head-ref-map.mjs `write` as pr-merge.yml does after the gate, and
-    return the map it wrote."""
     out = directory / "out.json"
     env = {
         **NODE_ENV,
@@ -7898,15 +7567,12 @@ class TheHeadRefMapDecidesAsTheDownloads(unittest.TestCase):
         self.assertEqual(requests, 2)
         for label, (path, expected) in self.cases().items():
             with self.subTest(label):
-                # The pass decides nothing, so its record is never read.
                 self.assertEqual(
                     self.judge("2026-10-15T00:00:01Z", path),
                     (downloaded, expected - 1),
                 )
 
     def test_a_map_entry_answers_where_the_record_is_unreadable(self) -> None:
-        # The map holds what a successful download read, so the FAIL is
-        # judged as that download would judge it.
         path = head_ref_map(self.dir / "m.json", {30: "feat/other", 40: "feat/x"})
         fake = EachVerdictIsOneRequest.heads()
         fake.records.pop(named(UNRELATED, "fail", 98))
@@ -7941,7 +7607,6 @@ class TheHeadRefMapCarriesOnlyDownloads(unittest.TestCase):
         with mock.patch.dict("os.environ", {ve.HEAD_REFS_ENV: old}):
             self.assertIsNone(read(fake).refusal)
         written = keep_head_refs(self.dir, old)
-        # 30 was downloaded, 40 came from the map, 990 is no longer listed.
         self.assertEqual(
             written,
             {
@@ -7952,9 +7617,6 @@ class TheHeadRefMapCarriesOnlyDownloads(unittest.TestCase):
         )
 
     def test_a_forged_cache_entry_never_reaches_the_map(self) -> None:
-        # PR 98's FAIL (id 30) records feat/other. A forged untie is read
-        # again from the record; a forged tie holds this run, and the map
-        # lacks the id, so the next run downloads it.
         for forged_ref, kept in (("feat/forged", "feat/other"), ("feat/x", None)):
             with self.subTest(forged_ref):
                 (self.dir / "run.json").unlink(missing_ok=True)
@@ -7983,7 +7645,6 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
             {
                 "BABYSIT_RUN_CACHE": str(self.dir / "run.json"),
                 ve.LISTING_ENV: str(self.dir / "listing.json"),
-                # As in pr-merge.yml: the Actions reads carry the job's token.
                 ve.TOKEN_ENV: "job-token",
             },
         )
@@ -8006,7 +7667,6 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
         import babysit_gh as gh
 
         def answer(cmd: list[str], **kwargs: Any) -> Any:
-            # The fake answers without headers, so the guard's `-i` is dropped.
             args = [a for i, a in enumerate(cmd[1:]) if (i, a) != (1, "-i")]
             base, _, number = (args[1] if args[:1] == ["api"] else "").partition(
                 "&page="
@@ -8020,8 +7680,6 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
             )
             if not (number or base in paged) or proc.returncode != 0:
                 return proc
-            # A paged read goes page by page: serve the fake's slurped pages
-            # one at a time, linked as GitHub links them.
             pages, at = json.loads(proc.stdout), int(number or 1)
             link = (
                 f'Link: <https://api.github.com/{base}&page={at + 1}>; rel="next"\r\n'
@@ -8051,7 +7709,6 @@ class TheHeadRefMapSparesASweepItsDownloads(unittest.TestCase):
         self.assertEqual(before[ZIP_KIND], 201)
         kept = self.dir / "kept.json"
         kept.write_text(json.dumps(keep_head_refs(self.dir, None)))
-        # The next run: a new run cache, five FAILs uploaded since.
         self.add_fails(fake, range(1200, 1205))
         with mock.patch.dict(
             "os.environ",
@@ -8079,9 +7736,6 @@ class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
     START = LISTED_AT
     UPLOAD_EVERY = timedelta(seconds=15)
     FILLER = 6240
-    # Each candidate in turn: refused by a FAIL ("fail"), its verdict allows
-    # and the risk score refuses ("risk"), or allowed ("allow"); the last two
-    # judge PR 41 at its head.
     KINDS = "fail risk fail risk fail risk fail risk allow fail risk fail risk fail risk allow fail".split()
     GATE_EVERY = timedelta(seconds=20)
 
@@ -8095,8 +7749,6 @@ class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
         first = self.START - self.UPLOAD_EVERY * self.FILLER
         for k in range(self.FILLER):
             self.upload(fake, "pr-merge-run-cache", 3, first + self.UPLOAD_EVERY * k)
-        # The verdicts: a pass at PR 41's head, a FAIL at each other
-        # candidate's head, all uploaded within the last hour.
         self.upload(fake, named(HEAD, "pass"), 1, self.START - timedelta(minutes=50))
         for n in self.refused():
             sha, run_id = self.head(n), 1000 + n
@@ -8204,8 +7856,6 @@ class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
             self.environ("merge"),
             mock.patch.object(gh, "run_command", side_effect=self.answer),
         ):
-            # The skip filter (babysit_merge_skip.py filter) lists first, on
-            # an empty job listing, and saves it for the gate.
             skip = ve.Reader(REPO, "main")
             skip.listing()
             self.assertEqual(skip.listing_mode, "full")
@@ -8215,16 +7865,12 @@ class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
                 self.tick(self.START + every * (i + 1))
                 number = next(refused) if kind == "fail" else PR
                 head, pr = self.head(number), self.pull(REPO, number)
-                # babysit_merge.py `_evaluate`: a fresh Reader per candidate,
-                # and its own listing before an allow.
                 reader = ve.Reader(REPO, "main", now=NOW)
                 evidence = reader.evidence(number, head, pr, provisional=True)
                 if evidence.refusal is None and kind == "allow" and reader.saved:
                     reader.refresh()
                     evidence = reader.evidence(number, head, pr)
                 refusals.append(evidence.refusal)
-                # `unattended_writes`: a queued entry judged again once its
-                # keep is past `run_cache.MAX_AGE` (`_kept_recently`).
                 if queued and (
                     kept_at is None or self.clock[0] - kept_at > run_cache.MAX_AGE
                 ):
@@ -8242,8 +7888,6 @@ class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
             mock.patch.object(gh, "run_command", side_effect=self.answer),
         ):
             for number in [PR, *self.refused()[:4]]:
-                # enable-auto-merge.mjs: one `evidence --shared-listing`
-                # process per pull request.
                 reader = ve.Reader(REPO, "main", now=NOW, listing_max_age=None)
                 refusals.append(
                     reader.evidence(
@@ -8271,9 +7915,6 @@ class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
         self.assertEqual(
             refusals.count(None), len(self.KINDS) - self.KINDS.count("fail")
         )
-        # The skip filter's whole listing and its top-up's first page, and
-        # each allowed candidate's own: no refused candidate lists, whatever
-        # the saved listing's age.
         self.assertEqual(self.listings, 2 + self.KINDS.count("allow"))
 
     def test_the_merge_job_with_a_queued_entry(self) -> None:
@@ -8284,7 +7925,6 @@ class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
         )
 
     def slow_merge_job(self, queued: bool) -> int:
-        # As run 40594967390's merge job: a candidate about every two minutes.
         kinds = "risk fail risk fail risk allow".split()
         counts, refusals = self.merge_job(queued, kinds, timedelta(minutes=2))
         self.report(f"merge-job slow queue={int(queued)}", counts)
@@ -8292,20 +7932,15 @@ class APrMergeTickListsOnlyBeforeAnAllowOrAKeep(unittest.TestCase):
         return self.listings
 
     def test_a_slow_merge_job_with_an_empty_queue(self) -> None:
-        # The skip filter's whole listing and its top-up, and the allowed
-        # candidate's own.
         self.assertEqual(self.slow_merge_job(False), 3)
 
     def test_a_slow_merge_job_with_a_queued_entry(self) -> None:
-        # The queued keeps at 6 and 10 minutes find the listing past the
-        # bound and list again; the allow at 12 lists on its own.
         self.assertEqual(self.slow_merge_job(True), 5)
 
     def test_enable_auto_merge(self) -> None:
         counts, refusals = self.arm_job()
         self.report("enable-auto-merge", counts)
         self.assertEqual(refusals, [None, *["verify:fail"] * 4])
-        # One whole listing for the five Readers, and its top-up's first page.
         self.assertEqual(self.listings, 2)
 
 
@@ -8314,7 +7949,6 @@ class EvidenceCommandTest(unittest.TestCase):
     enable-auto-merge.mjs, which arms only on a null refusal."""
 
     def setUp(self) -> None:
-        # `evidence` requires --base-sha and reads the config there.
         config = policy.PipelineConfig(EARLIER, "C2", "pr-merge", None, None, (), None)
         for name in ("read_config_at", "_default_branch_config"):
             patcher = mock.patch.object(policy, name, return_value=config)
@@ -8361,10 +7995,6 @@ class EvidenceCommandTest(unittest.TestCase):
         self.assertIs(report["needsHuman"], False)
 
     def test_only_an_untrusted_spec_goes_to_a_person(self) -> None:
-        # Owner rule 2026-10-27: a person only for intent, a design-altering
-        # finding or a CRITICAL security issue, trust holds kept. An untrusted
-        # spec is a trust boundary; the cap, an old pull request and a changed
-        # spec hold for the lanes.
         for refusal, person in (
             (ve.UNTRUSTED_SPEC, True),
             (ve.REPEATED_FAIL, False),
@@ -8392,7 +8022,6 @@ class EvidenceCommandReadsAsTheGateDoes(unittest.TestCase):
     FAIL cap is the lower of the base's and the default branch head's."""
 
     def setUp(self) -> None:
-        # `evidence` requires --base-sha and reads the config there.
         _config = policy.PipelineConfig(EARLIER, "C2", "pr-merge", None, None, (), None)
         for _name in ("read_config_at", "_default_branch_config"):
             _patcher = mock.patch.object(policy, _name, return_value=_config)
@@ -8426,10 +8055,8 @@ class EvidenceCommandReadsAsTheGateDoes(unittest.TestCase):
         return json.loads(out.getvalue())
 
     def test_a_pass_on_the_saved_listing_meets_a_fail_uploaded_since(self) -> None:
-        # The first pull request of the run saves a listing with a pass only.
         self.assertIsNone(self.cli(passing())["refusal"])
         self.assertTrue(pathlib.Path(self.path).exists())
-        # A FAIL at the head lands; the next process's saved listing lacks it.
         fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
         self.assertEqual(self.cli(fake)["refusal"], "verify:fail")
         self.assertEqual(listings(fake), 1)
@@ -8441,9 +8068,6 @@ class EvidenceCommandReadsAsTheGateDoes(unittest.TestCase):
         self.assertEqual(listings(fake), 1)
 
     def test_a_shared_listing_is_read_once_for_every_candidate(self) -> None:
-        # enable-auto-merge's run: every candidate allowed, the later ones
-        # well past LISTING_MAX_AGE, and still one listing in all, since
-        # ci-status's merge-queue step judges FAILs again at the head.
         fake = passing()
         start = datetime.now(UTC)
         for n in range(5):
@@ -8453,7 +8077,6 @@ class EvidenceCommandReadsAsTheGateDoes(unittest.TestCase):
         self.assertEqual(listings(fake), 1)
 
     def test_a_shared_listing_does_not_see_a_fail_uploaded_since(self) -> None:
-        # The merge queue holds this one (ci-status runs this reader there).
         self.assertIsNone(self.cli(passing(), "--shared-listing")["refusal"])
         fake = passing(artifact(named(HEAD, "fail"), 2), runs={2: run(2)})
         self.assertIsNone(self.cli(fake, "--shared-listing")["refusal"])
@@ -8542,7 +8165,6 @@ class EvidenceCommandReadsTheLaneLink(unittest.TestCase):
     verdict."""
 
     def setUp(self) -> None:
-        # `evidence` requires --base-sha and reads the config there.
         config = policy.PipelineConfig(EARLIER, "C2", "pr-merge", None, None, (), None)
         for name in ("read_config_at", "_default_branch_config"):
             patcher = mock.patch.object(policy, name, return_value=config)
@@ -8580,7 +8202,6 @@ class EvidenceCommandReadsTheLaneLink(unittest.TestCase):
         fake = passing()
         report = self.cli(fake)
         self.assertEqual((report["ineligible"], report["refusal"]), (None, None))
-        # The verdict read takes the link read's pull request: one read.
         closing = [c for c in fake.calls if any("closingIssues" in a for a in c)]
         self.assertEqual(len(closing), 1)
 
@@ -8626,8 +8247,6 @@ class EvidenceCommandReadsTheLaneLink(unittest.TestCase):
             self.assertEqual(listings(fake), 0)
 
     def test_an_untrusted_label_on_the_issue_refuses_for_a_person(self) -> None:
-        # The label lands on the linked issue after admission, while the lane
-        # builds: the arm-time read sees it, on either link.
         for fake in (passing(), self.refs("Refs: #7\n\n## Summary", n7=REPO)):
             fake.labels[7] = ["agent-ready", policy.UNTRUSTED_PROVENANCE_LABEL]
             report = self.cli(fake)
@@ -8712,8 +8331,6 @@ class EvidenceCommandReadsTheLaneLink(unittest.TestCase):
                 self.assertEqual(
                     (report["ineligible"], report["refusal"]), (None, None)
                 )
-                # The labels ride the link's one GraphQL read; the timeline
-                # is one REST read.
                 timelines = [c for c in fake.calls if any("/timeline" in a for a in c)]
                 self.assertEqual(len(timelines), 1)
 
@@ -8976,9 +8593,6 @@ def ci_status_with(steps: list[dict[str, Any]]) -> dict[str, Any]:
     return {"total_count": 1, "jobs": [job]}
 
 
-# The jobs API can list a finished job's steps empty or cut short
-# (pr-require-checks.yml, the ci-status review-lanes note), so only a listed
-# conclusion of the draft step decides; each of these is unreadable.
 UNREADABLE_DRAFT_STATE: dict[str, dict[str, Any]] = {
     "an empty step list": ci_status_with([]),
     "the draft step listed with no conclusion": ci_status_with(
@@ -8993,9 +8607,6 @@ UNREADABLE_DRAFT_STATE: dict[str, dict[str, Any]] = {
     },
 }
 DRAFT_CHECKS, READY_CHECKS = 41273054889, 41273113342
-# #11832's times: the draft checks run was created at 04:25:39, the verifier
-# run that judged it and uploaded the FAIL at 04:26:22, and the ready checks
-# run at 04:26:33.
 FAIL_JUDGED = "2026-11-01T04:26:22Z"
 
 
@@ -9130,6 +8741,178 @@ class AFailJudgedFromADraftRunCountsAsNone(unittest.TestCase):
                 self.assertEqual(read(fake).refusal, "verify:fail")
 
 
+class OneRunSharesADraftJudgmentReadWhole(unittest.TestCase):
+    """Two gate processes of one pr-merge run judging the same FAIL at the
+    head: the second lists no checks runs, reads no jobs and no verifier run
+    when the first judged it from whole reads. A judgment cut short by a
+    failed read is judged again by the next process, and with no run cache
+    named every process reads as before."""
+
+    def setUp(self) -> None:
+        self.dir = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(mock.patch.dict(os.environ, {}))
+        self.runs = 0
+
+    def new_run(self) -> None:
+        self.runs += 1
+        os.environ[run_cache.ENV] = str(self.dir / f"run-{self.runs}.json")
+
+    @staticmethod
+    def reads(fake: FakeGitHub) -> tuple[int, int, int]:
+        joined = [" ".join(c) for c in fake.calls]
+        return (
+            sum("/pr-require-checks.yml/runs?head_sha=" in c for c in joined),
+            sum("/jobs?filter=latest" in c for c in joined),
+            sum(c.endswith(f"repos/{REPO}/actions/runs/2") for c in joined),
+        )
+
+    def two_processes(
+        self, fake: FakeGitHub, refusal: str | None
+    ) -> tuple[tuple[int, int, int], tuple[int, int, int]]:
+        self.assertEqual(read(fake).refusal, refusal, "first process")
+        first = self.reads(fake)
+        fake.calls.clear()
+        self.assertEqual(read(fake).refusal, refusal, "second process")
+        return first, self.reads(fake)
+
+    def test_a_draft_judgment_is_read_once_per_run(self) -> None:
+        fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
+        for label, jobs, refusal in (
+            ("judged a draft", DRAFT_JOBS, None),
+            ("judged a ready run", READY_JOBS, "verify:fail"),
+        ):
+            with self.subTest(label):
+                self.new_run()
+                fake = draft_race(fail_at(HEAD), HEAD, jobs)
+                first, second = self.two_processes(fake, refusal)
+                self.assertEqual(first, (1, 1, 1), "first process reads")
+                self.assertEqual(second, (0, 0, 0), "second process reads")
+
+    def test_a_judgment_cut_short_is_judged_again(self) -> None:
+        fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
+        def listed_short(fake: FakeGitHub) -> None:
+            fake.checks_total[HEAD] = 3
+
+        def verifier_creation_unreadable(fake: FakeGitHub) -> None:
+            fake.runs[2]["created_at"] = "not a time"
+
+        def checks_creation_unreadable(fake: FakeGitHub) -> None:
+            fake.checks_runs[HEAD].append(
+                {"id": 41273000002, "created_at": "not a time"}
+            )
+
+        def checks_id_not_an_integer(fake: FakeGitHub) -> None:
+            fake.checks_runs[HEAD].append(
+                {"id": "41273000003", "created_at": "2026-11-01T04:25:00Z"}
+            )
+
+        def unchanged(fake: FakeGitHub) -> None:
+            pass
+
+        cases = [
+            (label, jobs, unchanged) for label, jobs in UNREADABLE_DRAFT_STATE.items()
+        ]
+        cases += [
+            (change.__name__, DRAFT_JOBS, change)
+            for change in (
+                listed_short,
+                verifier_creation_unreadable,
+                checks_creation_unreadable,
+                checks_id_not_an_integer,
+            )
+        ]
+        for label, jobs, change in cases:
+            with self.subTest(label):
+                self.new_run()
+                fake = draft_race(fail_at(HEAD), HEAD, jobs)
+                change(fake)
+                first, second = self.two_processes(fake, "verify:fail")
+                self.assertEqual(second[0], 1, "second process lists again")
+                self.assertEqual(second[:2], first[:2], "jobs read again")
+
+    def test_with_no_run_cache_every_process_reads(self) -> None:
+        os.environ.pop(run_cache.ENV, None)
+        fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
+        fake = draft_race(fail_at(HEAD), HEAD)
+        first, second = self.two_processes(fake, None)
+        self.assertEqual(first, (1, 1, 1), "first process reads")
+        self.assertEqual(second, (1, 1, 1), "second process reads")
+
+
+class AStoredDraftJudgmentServesOnlyItsHeadAndRun(unittest.TestCase):
+    """A draft judgment one gate process stored answers another process only
+    for the same head and verifier run; a stored value that is not a boolean
+    is judged again, and a judgment a failed read cut short is not stored."""
+
+    LATER = 3
+
+    def setUp(self) -> None:
+        self.path = pathlib.Path(
+            self.enterContext(tempfile.TemporaryDirectory()), "run.json"
+        )
+        self.enterContext(mock.patch.dict(os.environ, {run_cache.ENV: str(self.path)}))
+        self.fake = draft_race(
+            FakeGitHub(
+                [],
+                {
+                    2: judged(2, FAIL_JUDGED),
+                    self.LATER: judged(self.LATER, "2026-11-01T04:27:00Z"),
+                },
+            ),
+            HEAD,
+        )
+        self.fake.checks_runs[EARLIER] = [
+            {"id": 41273000009, "created_at": "2026-11-01T04:25:00Z"}
+        ]
+        self.fake.jobs[41273000009] = READY_JOBS
+
+    def process(self, sha: str, run_id: int) -> bool:
+        """One gate process's reader judging the FAIL run `run_id` left at `sha`."""
+        with mock.patch.object(postmerge, "gh_capture", side_effect=self.fake):
+            return ve.Reader(REPO, "main", now=NOW)._draft_judged(sha, run_id)
+
+    def listings(self, sha: str) -> int:
+        return sum(f"head_sha={sha}&" in " ".join(c) for c in self.fake.calls)
+
+    def stored(self) -> dict[str, Any]:
+        if not self.path.exists():
+            return {}
+        return json.loads(self.path.read_text()).get(ve.DRAFT_JUDGMENT_SECTION, {})
+
+    def test_another_run_or_head_is_judged_by_its_own_reads(self) -> None:
+        self.assertIs(self.process(HEAD, 2), True, "run 2 judged a draft at HEAD")
+        self.fake.calls.clear()
+        self.assertIs(self.process(HEAD, 2), True, "same head and run: shared")
+        self.assertEqual(self.listings(HEAD), 0, "shared with no listing")
+        self.assertIs(self.process(HEAD, self.LATER), False, "a later run at HEAD")
+        self.assertEqual(self.listings(HEAD), 1, "another run lists its own")
+        self.assertIs(self.process(EARLIER, 2), False, "run 2 at another head")
+        self.assertEqual(self.listings(EARLIER), 1, "another head lists its own")
+
+    def test_a_stored_value_that_is_not_a_boolean_is_judged_again(self) -> None:
+        for value in (1, 0, "true", "false", None, [True], {"judged": True}):
+            with self.subTest(value=value):
+                self.fake.calls.clear()
+                run_cache.put(
+                    ve.DRAFT_JUDGMENT_SECTION, f"{REPO}|{HEAD}|{self.LATER}", value
+                )
+                self.assertIs(self.process(HEAD, self.LATER), False)
+                self.assertEqual(self.listings(HEAD), 1, "judged again")
+
+    def test_a_failed_listing_stores_nothing(self) -> None:
+        self.fake.fail = {"pr-require-checks.yml/runs"}
+        for status in (403, 502):
+            with self.subTest(status):
+                self.fake.fail_status = status
+                self.assertIs(self.process(HEAD, 2), False, "the FAIL counts")
+                self.assertEqual(self.stored(), {}, "nothing stored")
+        self.fake.fail = set()
+        self.assertIs(self.process(HEAD, 2), True)
+        self.assertEqual(
+            self.stored(), {f"{REPO}|{HEAD}|2": {"at": mock.ANY, "value": True}}
+        )
+
+
 class EvidenceCommandTakesWhatTheQueueJobHolds(unittest.TestCase):
     """ci-status's merge-queue step runs `evidence --base-sha` with the
     default branch from the event (`merge_policy.DEFAULT_BRANCH_ENV`) and the
@@ -9188,7 +8971,6 @@ class EvidenceCommandTakesWhatTheQueueJobHolds(unittest.TestCase):
         self.assertNotIn(["api", f"repos/{REPO}"], fake.calls)
         tips = [c for c in fake.calls if c[1:] == [f"repos/{REPO}/git/ref/heads/main"]]
         self.assertEqual(len(tips), 1)
-        # The trusted list is read, at that one tip.
         self.assertTrue(
             any(
                 c[-1].endswith(f"/contents/{ve.TRUSTED_ACTORS_PATH}?ref={MAIN_SHA}")
@@ -9247,6 +9029,191 @@ class FilesAtTheTipFromTheCheckout(unittest.TestCase):
             f"repos/{REPO}/contents/{ve.TRUSTED_ACTORS_PATH}?ref={MAIN_SHA}",
             read.call_args.args[0],
         )
+
+
+RESOLVE_PR = (
+    pathlib.Path(__file__).resolve().parents[6] / ".github/scripts/pr-verify/resolve-pr.mjs"
+)
+TRUSTED_LIB = (
+    pathlib.Path(__file__).resolve().parents[6] / ".github/scripts/lib/trusted-actors.mjs"
+)
+LIST_V1 = {"version": 1, "actors": [MAINTAINER, LANES]}
+LIST_V2 = {"version": 1, "actors": [MAINTAINER]}
+
+
+class TheTrustedListMustBeTheJudgedOne(unittest.TestCase):
+    """For a repository that opts in to the standards list, a pass refuses
+    `verify:spec-changed` unless the trusted list's blob it records
+    (write-verdict.mjs `trusted_actors_blob`) is the live list's; one
+    recording none stands while the `.github/standards/` copy is at the tip,
+    and once it is gone, only when it started after the list last changed."""
+
+    def refusal(
+        self,
+        live: Any,
+        copy: Any = LIST_V1,
+        team: str = OPTED_IN,
+        changed: str | None = None,
+        **recorded: Any,
+    ) -> Any:
+        fake = passing()
+        fake.records[named(HEAD, "pass")] = record(**recorded)
+        fake.team_yaml, fake.actors, fake.standards_actors = team, copy, live
+        fake.standards_list_changed = changed
+        with (
+            mock.patch.object(policy, "_STANDARDS_SHA", {}),
+            mock.patch.object(policy, "_STANDARDS_TEXT", {}),
+        ):
+            return read(fake).refusal
+
+    def test_a_changed_list_is_stale_and_the_same_list_fresh(self) -> None:
+        judged = ve.git_blob(json.dumps(LIST_V1).encode())
+        self.assertEqual(self.refusal(LIST_V2, trusted_actors_blob=judged), ve.SPEC_CHANGED)
+        self.assertIsNone(self.refusal(LIST_V1, trusted_actors_blob=judged))
+        for malformed in (None, 7, judged.upper()):
+            with self.subTest(malformed=malformed):
+                self.assertEqual(
+                    self.refusal(LIST_V1, trusted_actors_blob=malformed), ve.SPEC_CHANGED
+                )
+
+    def test_no_recorded_blob_stands_while_the_copy_is_there(self) -> None:
+        self.assertIsNone(self.refusal(LIST_V2, changed="2026-10-20T00:00:00Z"))
+
+    def test_no_recorded_blob_without_the_copy_is_judged_by_the_list_s_change_time(self) -> None:
+        self.assertIsNone(self.refusal(LIST_V1, copy=None, changed="2026-10-01T00:00:00Z"))
+        self.assertIsNone(self.refusal(LIST_V1, copy=None))
+        self.assertEqual(
+            self.refusal(LIST_V1, copy=None, changed="2026-10-20T00:00:00Z"), ve.SPEC_CHANGED
+        )
+        self.assertEqual(self.refusal(LIST_V1, copy=None, changed=RUN_STARTED), ve.SPEC_CHANGED)
+
+    def test_a_copy_the_tip_checkout_lacks_reads_no_contents_for_it(self) -> None:
+        copy_reads = (
+            f"repos/{REPO}/contents/{ve.TRUSTED_ACTORS_PATH}?ref={MAIN_SHA}",
+            f"repos/{REPO}/contents?ref={MAIN_SHA}",
+        )
+        for lacks, expected_reads in ((True, []), (False, list(copy_reads))):
+            with self.subTest(lacks=lacks):
+                fake = passing()
+                fake.records[named(HEAD, "pass")] = record()
+                fake.team_yaml, fake.actors, fake.standards_actors = OPTED_IN, None, LIST_V1
+                fake.standards_list_changed = "2026-10-20T00:00:00Z"
+                with (
+                    mock.patch.object(policy, "_STANDARDS_SHA", {}),
+                    mock.patch.object(policy, "_STANDARDS_TEXT", {}),
+                    mock.patch.object(policy, "checkout_lacks", return_value=lacks),
+                ):
+                    self.assertEqual(read(fake).refusal, ve.SPEC_CHANGED)
+                reads = [c[-1] for c in fake.calls if c[-1] in copy_reads]
+                self.assertEqual(reads, expected_reads)
+
+    def test_a_repository_that_does_not_opt_in_compares_no_blob(self) -> None:
+        stale = ve.git_blob(json.dumps(LIST_V2).encode())
+        self.assertIsNone(self.refusal(LIST_V1, team="", trusted_actors_blob=stale))
+
+    def test_the_blob_is_git_s_object_id(self) -> None:
+        self.assertEqual(ve.git_blob(b""), "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391")
+        self.assertEqual(ve.git_blob(b"hello\n"), "ce013625030ba8dba906f756967f9e9ca394464a")
+
+
+class TheResolverAndTheGateAgreeOnTheList(unittest.TestCase):
+    """One standards history in a real git repository: the gate weighs the
+    blob the writer records (trusted-actors.mjs `listBlob`) against the live
+    list, the resolver the pass start against the committer time of the newest
+    commit touching the list (resolve-pr.mjs `specChanged`, as `listChangedAt`
+    reads it), and the two call the same pass stale."""
+
+    PASS_STARTED = "2026-10-10T00:00:00Z"
+
+    def setUp(self) -> None:
+        self.enterContext(mock.patch.object(policy, "_STANDARDS_SHA", {}))
+        self.enterContext(mock.patch.object(policy, "_STANDARDS_TEXT", {}))
+        self.root = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+        self.git("init", "-q")
+        self.commit("2026-10-01T00:00:00Z", list_text=json.dumps(LIST_V1), readme="one")
+
+    def git(self, *args: str, at: str | None = None) -> str:
+        env = {**self.env, **({"GIT_AUTHOR_DATE": at, "GIT_COMMITTER_DATE": at} if at else {})}
+        return subprocess.run(
+            ["git", "-C", str(self.root), "-c", "user.name=t", "-c", "user.email=t@t",
+             "-c", "commit.gpgsign=false", *args],
+            check=True, capture_output=True, text=True, env=env,
+        ).stdout.strip()  # fmt: skip
+
+    def commit(self, at: str, list_text: str | None = None, readme: str | None = None) -> None:
+        listed = self.root / policy.STANDARDS_TRUSTED_ACTORS
+        if list_text is not None:
+            listed.parent.mkdir(parents=True, exist_ok=True)
+            listed.write_text(list_text)
+        if readme is not None:
+            (self.root / "README.md").write_text(readme)
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "change", at=at)
+
+    def node(self, script: str) -> Any:
+        return json.loads(
+            subprocess.run(
+                ["node", "--input-type=module", "-e", script],
+                check=True, capture_output=True, text=True,
+            ).stdout.strip().splitlines()[-1]
+        )  # fmt: skip
+
+    def judged_blob(self) -> str:
+        """The blob the writer records from the checkout, which is git's."""
+        listed = self.root / policy.STANDARDS_TRUSTED_ACTORS
+        blob = self.node(
+            f"import {{ readFileSync }} from 'node:fs';"
+            f"import {{ listBlob }} from {json.dumps(TRUSTED_LIB.as_uri())};"
+            f"console.log(JSON.stringify(listBlob(readFileSync({json.dumps(str(listed))}))));"
+        )
+        self.assertEqual(blob, self.git("rev-parse", f"HEAD:{policy.STANDARDS_TRUSTED_ACTORS}"))
+        return blob
+
+    def list_changed(self) -> str:
+        return self.git("log", "-1", "--format=%cI", "--", policy.STANDARDS_TRUSTED_ACTORS)
+
+    def resolver_stale(self, started: str = PASS_STARTED) -> bool:
+        changed = self.list_changed()
+        return self.node(
+            f"import {{ specChanged }} from {json.dumps(RESOLVE_PR.as_uri())};"
+            f"console.log(JSON.stringify(specChanged([{json.dumps(started)}],"
+            f" {{ linkedIssues: [], specKind: 'closes', listChangedAt: {json.dumps(changed)} }})));"
+        )
+
+    def gate_stale(self, blob: str | None, copy: bool = True) -> bool:
+        fake = passing()
+        fake.records[named(HEAD, "pass")] = record(
+            **({} if blob is None else {"trusted_actors_blob": blob})
+        )
+        live = (self.root / policy.STANDARDS_TRUSTED_ACTORS).read_text()
+        fake.team_yaml, fake.standards_actors = OPTED_IN, json.loads(live)
+        fake.standards_list_changed = self.list_changed()
+        if not copy:
+            fake.actors = None
+        refusal = read(fake).refusal
+        self.assertIn(refusal, (None, ve.SPEC_CHANGED))
+        return refusal == ve.SPEC_CHANGED
+
+    def test_a_list_change_after_the_pass_is_stale_to_both(self) -> None:
+        blob = self.judged_blob()
+        self.commit("2026-10-15T00:00:00Z", list_text=json.dumps(LIST_V2))
+        self.assertEqual((self.gate_stale(blob), self.resolver_stale()), (True, True))
+
+    def test_another_standards_file_changed_after_the_pass_is_fresh_to_both(self) -> None:
+        blob = self.judged_blob()
+        self.commit("2026-10-15T00:00:00Z", readme="two")
+        self.assertEqual((self.gate_stale(blob), self.resolver_stale()), (False, False))
+
+    def test_no_recorded_blob_with_the_copy_there_is_fresh_to_both(self) -> None:
+        self.assertEqual((self.gate_stale(None), self.resolver_stale()), (False, False))
+
+    def test_no_recorded_blob_with_the_copy_gone_weighs_the_list_s_change_time_for_both(self) -> None:
+        self.commit("2026-10-05T00:00:00Z", list_text=json.dumps(LIST_V2))
+        fresh = (self.gate_stale(None, copy=False), self.resolver_stale(RUN_STARTED))
+        self.commit("2026-10-20T00:00:00Z", list_text=json.dumps(LIST_V1))
+        stale = (self.gate_stale(None, copy=False), self.resolver_stale(RUN_STARTED))
+        self.assertEqual((fresh, stale), ((False, False), (True, True)))
 
 
 if __name__ == "__main__":

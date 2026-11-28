@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"validate: PASS /workspace/.work/handoffs/20301101T120000Z-handoff-color-index.md\"}]}}"
+    },
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"WARN: transcript unresolved\\nvalidate: WARN (1) /workspace/.work/handoffs/20301101T120000Z-handoff-color-index.md\"}]}}"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"content\":\"validate: FAIL (1) /workspace/.work/handoffs/20301101T120000Z-handoff-color-index.md\"}]}}"
+    },
+    {
+      "answer": "I validated the handoff."
+    }
+  ]
+}

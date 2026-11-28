@@ -3,6 +3,30 @@
 All notable changes to the `eol-normalizer` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.42] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [1.0.41] - 2026-11-28
+
+### Changed
+
+- Trimmed `/eol-normalizer:setup` user-invoked frontmatter description (379 -> 118 chars) to a one-line summary without trigger phrasing.
+
+## [1.0.40] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [1.0.39] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [1.0.38] - 2026-11-21
 
 ### Changed

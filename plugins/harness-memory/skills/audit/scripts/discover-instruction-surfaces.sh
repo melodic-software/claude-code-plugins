@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# discover-instruction-surfaces.sh — enumerate the CLAUDE.md, AGENTS.md and rules files in
-# audit scope, each tagged with the scope it loads from.
-# Exists because a bare `find` from the current directory never sees the user-global
-# surfaces, which load in every session; the scope tag keeps project-only criteria off them.
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -58,8 +53,6 @@ done
 
 emit() {
   local scope="$1" kind="$2" path="$3"
-  # A `both` record satisfies every filter: the file really is reachable by each layer,
-  # so suppressing it from either view would hide a surface that view is about.
   case "$SCOPE_FILTER" in
   all | "$scope") ;;
   *) [[ "$scope" == "both" ]] || return 0 ;;
@@ -79,7 +72,6 @@ canon_dir() {
   (cd "$1" 2>/dev/null && pwd -P) || true
 }
 
-# Avoids readlink -f, which is absent on some platforms.
 canon_file() {
   [[ -f "$1" ]] || return 0
   local d
@@ -88,8 +80,6 @@ canon_file() {
   printf '%s/%s' "$d" "$(basename "$1")"
 }
 
-# A file both scopes reach is emitted once as `both`. A `~`-rooted repo collides only the
-# rules dir and a `~/.claude`-rooted repo only CLAUDE.md, so each comparison is independent.
 config_root="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 proj_rules_canon="$(canon_dir ".claude/rules")"
@@ -103,9 +93,6 @@ md_overlap=0
 if [[ -n "$proj_md_canon" && "$proj_md_canon" == "$(canon_file "$config_root/CLAUDE.md")" ]]; then
   md_overlap=1
 fi
-
-# Depth 1 by design: CLAUDE.md files nested deeper are subtree memory that loads only
-# on demand, and are not this checklist's subject.
 
 if [[ -f "CLAUDE.md" ]]; then
   proj_md_scope=project

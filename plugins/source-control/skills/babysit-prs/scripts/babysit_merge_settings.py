@@ -221,7 +221,6 @@ def read_operator_options(
 
 
 def _entries(value: Any) -> list[str]:
-    """A list key's entries: a list as stored, or one value per line."""
     items = value if isinstance(value, list) else str(value).splitlines()
     return [item.strip() for item in items if item.strip()]
 
@@ -357,12 +356,12 @@ def glob_regex(globs: tuple[str, ...], star: str) -> str:
     return "|".join(star.join(re.escape(part) for part in g.split("*")) for g in globs)
 
 
-def decision_row_pattern(record: str) -> re.Pattern[str]:
+def decision_row_pattern(record: str) -> re.Pattern[str] | None:
     """A line link to a row of `record` (owner/repo/path) at main or a commit, or
-    a pattern that matches nothing when no record is set."""
+    None when no record is configured (row link not required)."""
     m = _RECORD.fullmatch(record)
     if not m:
-        return re.compile(r"(?!)")
+        return None
     owner, repo, path = (re.escape(p) for p in m.groups())
     return re.compile(
         rf"https://github\.com/{owner}/{repo}/blob/(?:main|[0-9a-f]{{40}})"

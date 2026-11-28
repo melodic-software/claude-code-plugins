@@ -173,8 +173,8 @@ class PersistedIdentityValidationTests(unittest.TestCase):
 
 
 GEN = "2026-07-10T00:00:00Z"
-OLD_TS = "2026-07-09T00:00:00Z"  # 24h before GEN -> aged out
-NOW_TS = "2026-07-10T00:00:00Z"  # age 0 -> not aged out
+OLD_TS = "2026-07-09T00:00:00Z"
+NOW_TS = "2026-07-10T00:00:00Z"
 THRESHOLD = 1800.0
 
 
@@ -240,7 +240,6 @@ class ClassifyStuckChecksTests(unittest.TestCase):
         self.assertGreater(stuck[0]["age_seconds"], THRESHOLD)
 
     def test_queued_without_start_time_is_unflagged(self) -> None:
-        # A QUEUED CheckRun gh reports without startedAt has no provable age.
         no_ts = _norm(__typename="CheckRun", name="build", status="QUEUED")
         self.assertEqual(self._stuck([no_ts]), [])
 
@@ -268,8 +267,6 @@ class ClassifyStuckChecksTests(unittest.TestCase):
         self.assertGreater(stuck[0]["age_seconds"], THRESHOLD)
 
     def test_orphaned_status_without_inception_has_null_age(self) -> None:
-        # An app that posts a pending status with no createdAt still classifies
-        # as orphaned (structural, not age-gated), with a null age_seconds.
         orphan = _norm(
             __typename="StatusContext", context="ext", state="PENDING", targetUrl=""
         )

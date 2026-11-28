@@ -55,10 +55,9 @@ class TestTheJoinEvent(ProposalCase):
         ev = self.events("person-joined")
         self.assertEqual(len(ev), 1)
         self.assertEqual((ev[0]["person"], ev[0]["waiting"], [m["pid"] for m in ev[0]["sameName"]]), (twin, False, [ann]))
-        # the join's own device, and the first Ann's device and last beat (her join, before the offline gap)
         self.assertEqual((ev[0]["device"], ev[0]["sameName"][0]["device"]), ("phone", "computer"))
         self.assertEqual(ev[0]["sameName"][0]["lastSeen"], session.iso(ts.Clock().t + 4.0))
-        self.assertNotIn("Ann", json.dumps(ev[0]))  # digestNames is off by default
+        self.assertNotIn("Ann", json.dumps(ev[0]))
 
     def test_with_digest_names_on_the_event_carries_both_names(self):
         self.s.update_settings(HOST, {"digestNames": True})
@@ -66,13 +65,12 @@ class TestTheJoinEvent(ProposalCase):
         self.offline()
         self.join("ann")
         ev = self.events("person-joined")[0]
-        # the joiner's name as the session shows it: a taken name gets " 2" (_unique_name)
         self.assertEqual((ev["name"], [m["name"] for m in ev["sameName"]]), ("ann 2", ["Ann"]))
 
     def test_a_different_name_or_a_person_still_here_wakes_no_one(self):
         self.join("Ann")
-        self.join("Bo")  # a different name
-        self.join("Ann")  # the first Ann is still here
+        self.join("Bo")
+        self.join("Ann")
         self.assertEqual(self.events("person-joined"), [])
 
     def test_a_join_waiting_under_approve_new_joins_tells_claude(self):
@@ -95,7 +93,7 @@ class TestTheJoinEvent(ProposalCase):
         self.assertEqual([(e["person"], [m["pid"] for m in e["sameName"]]) for e in ev], [(twin, [agent])])
 
     def test_the_owner_is_never_offered_as_the_same_person(self):
-        self.join("Kim")  # the owner's name
+        self.join("Kim")
         self.assertEqual(self.events("person-joined"), [])
 
 
@@ -139,7 +137,6 @@ class TestProposeOps(ProposalCase):
         self.refused_ops("dismissed", self.merge_op(self.twin, self.ann))
 
     def test_only_the_pair_a_join_reported_can_be_proposed(self):
-        # person-joined named the twin as the joiner and Ann as the match: no other pair, and not the reverse
         self.refused_ops("not-reported", self.merge_op(self.ann, self.twin))
         self.refused_ops("not-reported", self.merge_op(self.bo, self.ann))
         self.refused_ops("not-reported", self.merge_op(self.twin, self.bo))
@@ -168,7 +165,7 @@ class TestProposeOps(ProposalCase):
             jib, _ = self.join("Jib")
             self.act("act_on_claude_proposal", HOST, {"id": self.propose(self.admit_op(jib)), "action": "approve"})
             kay, _ = self.join("Kay")
-            self.propose(self.admit_op(kay))  # the list is full: the approved admit makes room
+            self.propose(self.admit_op(kay))
             self.refused_ops("dismissed", self.merge_op(self.twin, self.ann))
 
     def test_when_only_dismissed_ones_are_kept_a_new_proposal_waits_for_room(self):

@@ -9,7 +9,7 @@ measured against a stated standard, as one small PR, ready or draft by the repos
 |---|---|
 | `/improvement:improve` | Improve-one-thing. Point it at any target (a symbol, file, feature, skill, doc, or process) with an optional focus such as performance, naming, or currency with current upstream guidance. It finds one gap against the repo's written standards (and upstream guidance when the focus asks for it), ships the smallest complete fix as one PR (ready or draft by the repository's open-state rule) within the [PR scope budget](reference/pr-scope-budget.md), and hands larger changes to planning. With no arguments it reads the conversation and confirms target and focus with you first. Runnable unattended on a schedule. |
 | `/improvement:find` | Evidence-first improvement finder. Point it at a repo, a feature, a concept, or a process surface, with a vague or specific prompt, and it produces a ranked, evidence-cited list of improvement candidates led by the highest value-to-effort, deliberates on the picked candidate through an interview, and hands off to the planning pipeline. Runnable unattended as a tech-debt-sweep routine. |
-| `/improvement:setup` | Verifies or writes the config cascade and reports the effective evidence-source configuration. `check` (default) is read-only across every layer and names any old-location file; `apply` moves an old file's settings to the new location after a yes, then interviews and writes the team file. Key contract: [reference/config.md](reference/config.md). |
+| `/improvement:setup` | Verifies or writes the config cascade and reports the effective evidence-source configuration. `check` (default) is read-only across every layer; `apply` interviews and writes the team file. Key contract: [reference/config.md](reference/config.md). |
 
 ## Install
 
@@ -47,10 +47,6 @@ then the gitignored `docs/conventions/improvement.local.yaml`, per
 [config locations](reference/config-locations.md). The key contract lives in
 [reference/config.md](reference/config.md).
 
-The old files `~/.claude/improvement.md`, `.claude/improvement.md` and
-`.claude/improvement.local.md` are still read while they exist, with a warning on each run;
-`/improvement:setup apply` moves their settings to the new locations and deletes them.
-
 ## Running it as a standing routine
 
 `/improvement:find`'s unattended mode implements the tech-debt-sweep routine shape: a scheduled
@@ -69,6 +65,11 @@ visible to the session that ran it. So the plugin must be pre-installed by the c
 setup script (or otherwise present before the session process starts). That is why the template
 below opens with a hard guard: if `/improvement:find` is unavailable, stop and report. A run
 that improvises an "improvement sweep" without the skill's contract is worse than no run.
+
+### Prerequisite: `node` on PATH to file
+
+Unattended filing runs `scripts/filing-plan.mjs` with `node`. Without `node` on PATH the run
+still persists its report but files nothing, and says so in a `gap:` line.
 
 ### Recommended Routine prompt (weekly)
 

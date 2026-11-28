@@ -56,8 +56,6 @@ def write(path: Path, text: str) -> None:
 
 
 def handoff(path: Path, body: str = "") -> None:
-    """A handoff as the writer produces it: no issue or PR keys in the frontmatter,
-    and a closing Resume prompt unless the body brings its own."""
     write(
         path,
         "---\ntype: handoff\nhandoff_shape: 2\ndate: 2026-01-01T10:00:00Z\n"
@@ -71,7 +69,6 @@ CLOSED_NEXT = "Next: none (closed)"
 
 
 def resume_prompt(next_lines: str) -> str:
-    """A Resume prompt section laid out as save_point.py writes it."""
     return (
         f"## Resume prompt\n\nRun `/clear`, then paste this:\n\n{RAIL}\n"
         "Read @.work/handoffs/x.md, then invoke /session-flow:handoff via the Skill tool.\n"
@@ -83,7 +80,6 @@ def resume_prompt(next_lines: str) -> str:
 
 
 def closing(body: str) -> str:
-    """The body, then a `Next: none (closed)` Resume prompt unless it has one."""
     if "## Resume prompt" in body:
         return body
     return f"{body}\n\n{resume_prompt(CLOSED_NEXT)}"
@@ -211,7 +207,6 @@ needs_posix_sh = pytest.mark.skipif(
 
 
 def fake_gh(tmp_path: Path, body: str) -> dict[str, str]:
-    """A `gh` on PATH that logs each call to gh-calls.log; returns the env to use."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
     gh = bin_dir / "gh"
@@ -544,6 +539,26 @@ def test_sidecar_leaves_with_its_handoff_and_an_orphan_stays(env):
     assert (handoffs / SIDECAR_ORPHAN).exists()
 
 
+def test_prompt_files_are_kept_and_pruned_with_their_handoffs(env):
+    build(env)
+    _, _, repo = env
+    handoffs = repo / ".work" / "handoffs"
+    stale = (handoffs / HANDOFF_STALE).with_suffix(".prompt.txt")
+    fresh = (handoffs / HANDOFF_FRESH).with_suffix(".prompt.txt")
+    standalone = handoffs / "20260107T100000Z-handoff-prompt-only.prompt.txt"
+    for prompt in (stale, fresh, standalone):
+        write(prompt, "Read the handoff.")
+        age(prompt, 60)
+    items = report(env, "--offline")
+    assert stale.name not in items and fresh.name not in items
+    assert items[standalone.name]["keep"]
+    result = clean(env, "--apply")
+    assert result.returncode == 0, result.stderr
+    assert not (handoffs / HANDOFF_STALE).exists() and not stale.exists()
+    assert (handoffs / HANDOFF_FRESH).is_file() and fresh.is_file()
+    assert standalone.is_file()
+
+
 def test_root_equivalent_memory_dir_is_rejected_by_every_command(env):
     build(env)
     _, home, repo = env
@@ -789,27 +804,26 @@ def test_normalize_apply_reports_an_oserror_and_keeps_going(env, monkeypatch, ca
     assert (repo / ".work" / "running-retros" / RETRO).exists()
 
 
-# Names as they sit in a real .work, each with the state of the number it carries.
 SCRATCH = (
     "lint-5371.log",
     "measure-4608",
     "pr4120.md",
     "reverify-4186",
     "scratch-4586-d2cc1ea4d",
-    "pr2026.md",  # a year-like number takes the prefix
+    "pr2026.md",
 )
 NOT_ATTRIBUTED = (
-    "native-surfaces-2-1-284",  # a version
-    "triage-2026-09-28",  # a date
-    "backup-2026.tar",  # a year, though #2026 is a closed PR here
-    "notes-2025.md",  # a year, though #2025 is a merged PR here
-    "compare-4608-4609",  # two numbers
+    "native-surfaces-2-1-284",
+    "triage-2026-09-28",
+    "backup-2026.tar",
+    "notes-2025.md",
+    "compare-4608-4609",
     "t1",
     "12.txt",
     "verify-ci-r2",
     "audit-cursor-prs-full.json",
     "scratch-notes",
-    "20260101T100000Z-notes-4608.txt",  # a writer's timestamp
+    "20260101T100000Z-notes-4608.txt",
 )
 SCRATCH_STATE = {
     "#5371": "closed",
@@ -852,7 +866,8 @@ def test_scratch_is_attributed_by_the_number_in_its_name(env):
     assert items["pr4120.md"]["reasons"] == ["link #4120 is open"]
     assert items["reverify-4186"]["reasons"] == ["link #4186 is closed-unmerged"]
     for name in NOT_ATTRIBUTED:
-        assert items[name]["kind"] == "unknown", name
+        expected_kind = "recovery-archive" if name.endswith(".tar") else "unknown"
+        assert items[name]["kind"] == expected_kind, name
         assert items[name]["keep"], name
         assert items[name]["links"] == {}, name
 
@@ -1050,8 +1065,6 @@ HOP3_2 = "20260102T100000Z-handoff-three.md"
 
 
 def hot_file(path: Path, chain_root: str, body: str = "") -> None:
-    """A shape-3 hot file as the writer produces it: `chain_root` names its chain,
-    and a closing Resume prompt unless the body brings its own."""
     write(
         path,
         "---\ntype: handoff\nhandoff_shape: 3\ndate: 2026-01-01T10:00:00Z\n"
@@ -1111,7 +1124,7 @@ def test_an_archive_with_no_hot_file_of_its_chain_left_is_kept(env):
         (repo / ".work" / "handoffs" / name).unlink()
     items = report(env, *links(env[0], STATE))
     assert items[archive.name]["kind"] == "archive"
-    assert items[archive.name]["reasons"] == ["no hot file of its chain is on disk"]
+    assert items[archive.name]["reasons"] == ["no handoff file of its chain is on disk"]
     assert clean(env, "--apply").returncode == 0
     assert archive.is_dir()
 
@@ -1141,10 +1154,3 @@ def test_an_archive_stays_when_a_hot_file_of_its_chain_is_refused(env):
         f"refused: {(repo / '.work' / 'handoffs' / ROOT3).as_posix()}" in result.stdout
     )
 
-
-def test_a_stray_file_in_the_archive_dir_is_unknown_and_kept(env):
-    archive = three_chain(env)
-    write(archive.parent / "notes.txt", "stray")
-    age(archive.parent / "notes.txt", 60)
-    items = report(env, *links(env[0], STATE))
-    assert items["notes.txt"]["kind"] == "unknown"

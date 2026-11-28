@@ -1,10 +1,3 @@
-// The collector's unit rules from docs/conventions/pr-pipeline/README.md,
-// "The lane sweep": slice A takes the four workflows with the most failed
-// runs, slice D the two lane workflows with the most runs, slice C open PRs by
-// listed authors in tens, fork runs never count, at most 8 units, and the
-// collector stops at its call budget. The listing reads every run of the
-// window: GitHub's run listing returns at most 1,000 runs per filtered search
-// (REST "List workflow runs for a workflow"), so a range over that is split.
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -118,9 +111,6 @@ test("a log tail keeps the last lines without ANSI codes or timestamps", () => {
   assert.equal(tailLog(log, 2), "two\nthree");
 });
 
-// A fake of the two listing endpoints over a fixed run set. A run listing
-// answers at most 1,000 runs of a created range, as GitHub does, and its
-// total_count is every run in the range.
 const FROM = Date.parse("2026-10-22T00:00:00Z");
 const TO = Date.parse("2026-10-23T00:00:00Z");
 const WORKFLOWS = [

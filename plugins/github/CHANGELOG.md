@@ -3,6 +3,27 @@
 All notable changes to the `github` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.1] - 2026-11-28
+
+### Changed
+
+- Fixed a missing space in the setup skill's config-file list (no behavior change).
+
+## [0.6.0] - 2026-11-28
+
+### Added
+
+- Primary-tier `projects-and-issues` audit recipe (`reference/recipes/projects-and-issues.md`) covering native issue statuses (including actor-provenance trust-boundary separation), Repository Boards versus organization Projects, native Issue Artifacts, symmetric `"Relates to"` links and sub-issues, issue types and fields, and label archiving hygiene.
+
+### Changed
+
+- Updated `reference/recipes/actions-policy.md` to audit workflow action lockfiles (`actions.lock`), self-repository local action shorthand (`$/...`) and nested `parallel:` step policy coverage, unarchived single-file artifact (`archive: false`) basename alignment with retention rules, repository Actions event/actor policies with active-workflow existence verification, and OIDC repository-property (`repo_property_*`) custom-property inclusions with org-admin-only editability.
+- Updated `reference/recipes/billing.md` to audit per-product metered usage summaries on the enhanced billing platform and org/repository artifact and log retention ceilings.
+- Updated `reference/recipes/rulesets-repo-drift.md` to audit immutable-release enablement alongside tag-protection rulesets on release-publishing repositories.
+- Promoted `projects-and-issues` to primary tier in `reference/areas.md` and extended `github.test.sh` to enforce full recipe inventory and `areas.md` link parity.
+
+- Trimmed `github` skill frontmatter descriptions (`advise` 528 -> 345 chars, `audit` 728 -> 348 chars, `setup` 284 -> 126 chars; total 1540 -> 819 chars, -721 chars) while preserving coverage areas, live `gh` and official docs grounding, read-only posture, actions, and `/github:advise` <-> `/github:audit` boundaries.
+
 ## [0.5.10] - 2026-11-23
 
 ### Changed

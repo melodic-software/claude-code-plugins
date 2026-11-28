@@ -1,5 +1,5 @@
 ---
-description: "Audit an arbitrary directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftover artifacts; classify evidence into confidence tiers; and optionally remove exact validated paths after explicit per-tier approval. Read-only by default; removes nothing without the user's own answer naming one tier and its paths. Use when: 'audit this directory', 'find orphaned files', 'what junk can I clean up', 'reclaim disk space', 'find temp or lock leftovers', 'clean up my home directory'. Skip when: repository cache/build cleanup belongs to repo-hygiene, a product has its own prune/GC command, or the target is an OS-managed root."
+description: "Audit a directory tree for orphaned, temp, stale-lock, failed-write, partial-download, and empty leftovers; classify by tier; remove validated paths after explicit per-tier approval (read-only by default). Use when: 'audit this directory', 'what junk can I clean up', 'find temp or lock leftovers'. Not for repos: /repo-hygiene:clean, GC, OS roots."
 argument-hint: "[--execute] [--deep] [--max-depth <N>] [--sizes-only] [--policy <file>] [--quiet] <target-directory>"
 user-invocable: true
 disable-model-invocation: false
@@ -155,15 +155,15 @@ naming what the question never presented cannot be met.
 |---|---|
 | Target selection (no target given) | one directory, which must then clear every rejection in "Arguments and boundaries" |
 | Scan scope (`--confirmed-large-scan`, §1) | that target and a deliberate unbounded full walk of it |
-| Root-children selection (`--root-children`, §1) | one or more admitted immediate children just listed (directories, or regular files on a volume root), never "everything" or the scan target itself |
+| Root-children selection (`--root-children`, §1) | one or more admitted immediate children just listed (directories or regular files), never "everything" or the scan target itself |
 | Removal approval (§5, §6) | exactly the one tier and the exact path list just shown; the hook `ask` on that tier's `apply` (Linux) or `handoff-apply` (Windows) asks it, and macOS's manual lane asks it in the session (§6) |
 
 **`--sizes-only`** goes through the same large-scan question as an ordinary unbounded walk, so a known-large root needs `--max-depth` or `--confirmed-large-scan`; it sums through VCS and protected directories, read-only, keeps no per-path entries, and has no entry cap. Detail: [scan-flags.md](reference/scan-flags.md#--sizes-only).
 
 ## Deep inventory
 
-A home-directory target, or any target with `--deep`, starts with the read-only `inventory` subcommand (`hygiene.py inventory --target <target> --data-root <data-root> [--deep]`).
-A bare `/disk-hygiene:clean ~` runs it before any `scan`. It asks no question and passes no confirmation-gate row. Present its report grouped by category, `CANDIDATE` rows first and `UNKNOWN` rows as coverage gaps.
+A home-directory target, or any target with `--deep`, starts with the read-only `inventory` subcommand (`hygiene.py inventory --target <target> --data-root <data-root> [--deep]`, plus the same policy flags §1's `scan` takes).
+A bare `/disk-hygiene:clean ~` runs it before any `scan`. It asks no question and passes no confirmation-gate row. Present its report grouped by category, `CANDIDATE` rows first; report `UNKNOWN` rows and each `bounded_rows` entry (a known-large store summed under an entry budget, not listed) as coverage gaps, a `size_is_lower_bound` size as a lower bound, and never call the report complete while `fully_inventoried` is false ([scan-flags.md](reference/scan-flags.md#--deep)).
 It only reports: removing a listed entry still takes `scan`, a fresh `preview` and the removal approval, and every `KEEP` row needs a specific reason ([safety-model.md](reference/safety-model.md#deep-inventory-is-report-only), [scan-flags.md](reference/scan-flags.md#--deep)).
 
 ## 1. Create a read-only snapshot
@@ -192,8 +192,8 @@ coverage gap, not a clean result. (Derivation and its fail-closed rationale: `re
 For a large root (a home directory, anything whose recursive walk could exceed the engine's entry cap),
 a `scan` starts with a bounded pass (a home directory gets the [deep inventory](#deep-inventory) first): add `--max-depth 1` to inventory the target's loose files and immediate children,
 then fan out deeper scans per subtree that the evidence justifies. After that depth-1 pass, re-inventory
-the directories the operator approved with `--root-children` and one `--root-child <name>` per approved
-immediate child: one snapshot, paths relative to the original target, no whole-home walk. The engine backs this with a
+the directories and loose files the operator approved with `--root-children` and one `--root-child <name>` per approved
+immediate child: one snapshot and one plan, paths relative to the original target, no whole-home walk. The engine backs this with a
 deterministic gate: a scan whose target resolves to the user home directory or a non-OS volume root (a
 Windows Dev Drive, an OS-managed root still cannot be walked as a whole, and reaches the engine only via
 `--root-children`) and carries neither `--max-depth` nor `--confirmed-large-scan` returns

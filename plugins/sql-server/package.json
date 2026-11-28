@@ -10,6 +10,6 @@
   },
   "dependencies": {
     "@azure/identity": "4.14.1",
-    "tedious": "20.4.0"
+    "tedious": "20.4.1"
   }
 }

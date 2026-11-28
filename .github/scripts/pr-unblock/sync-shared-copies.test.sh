@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: scripts/lib/*
-# Tests for sync-shared-copies.sh on fixture repositories that carry this
-# repository's real scripts/sync-shared-copies.sh and scripts/lib.
 # shellcheck disable=SC2310  # run chains its steps with &&, so its status is the first failure's
 set -euo pipefail
 
@@ -9,8 +7,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SUT="$SCRIPT_DIR/sync-shared-copies.sh"
 ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
-# Keep the developer's own git configuration, and any inherited repository
-# location, out of every fixture.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 

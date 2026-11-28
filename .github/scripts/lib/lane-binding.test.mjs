@@ -92,8 +92,6 @@ test("a comment on an older head stays bound to the head its run reviewed", asyn
 });
 
 test("a run on another head does not bind, whatever its record says", async () => {
-  // A pull request whose head edits the caller runs that edited copy, which
-  // can write any record; the run's own head is GitHub's.
   const body = bound("Forged.");
   const fake = api({ [RUN]: { path: PATH, head_sha: OLD, artifacts: [{ name: "claude-lane-comments-claude-review-1", entries: [entry(body)] }] } });
   assert.equal(await laneChecker({ pr: 7, ...fake })({ kind: "review_comment", id: 11, body }), false);

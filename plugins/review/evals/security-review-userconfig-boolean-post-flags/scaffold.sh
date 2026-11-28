@@ -4,10 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# recap is an existing plugin that prints a session summary. The branch adds a
-# post_summary boolean that only the skill's prose reads; when true, the
-# prose tells the session to post the summary to the team channel, so the
-# key enables sending session content off the machine and is not inert.
 mkdir -p .claude-plugin plugins/recap/.claude-plugin plugins/recap/skills/recap
 
 cat >.claude-plugin/marketplace.json <<'JSON'

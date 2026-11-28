@@ -1,6 +1,3 @@
-// Suite for scripts/setup-env.sh. Every tool it installs with (python, npm,
-// node, sudo) is a stub on PATH that logs its arguments, so the suite checks
-// what the script asks for, not what the network returns.
 import { strict as assert } from "node:assert";
 import { spawnSync } from "node:child_process";
 import {
@@ -63,7 +60,6 @@ beforeEach(() => {
   mkdirSync(join(root, "scripts/ci-deps"), { recursive: true });
   mkdirSync(join(root, ".github"));
   mkdirSync(stubs);
-  // A version no real interpreter has, so only the stub can match it.
   writeFileSync(join(root, ".python-version"), "3.99\n");
   writeFileSync(
     join(root, ".github/requirements-ci.txt"),
@@ -88,7 +84,6 @@ fi`,
   shellcheck("0.11.0");
 });
 
-// A shellcheck on PATH that reports VERSION and logs nothing.
 function shellcheck(version) {
   writeFileSync(
     join(stubs, "shellcheck"),
@@ -101,7 +96,6 @@ const pin = readFileSync(script, "utf8").match(
   /shellcheck_sha256=([0-9a-f]{64})/,
 )?.[1];
 
-// curl writes a release tarball holding a shellcheck that reports VERSION.
 function release(version) {
   const src = join(dir, "release", `shellcheck-v${version}`);
   mkdirSync(src, { recursive: true });
@@ -203,7 +197,6 @@ test("under Actions the venv and node_modules/.bin go on GITHUB_PATH", () => {
 
 test("no matching Python and no uv fails without installing", () => {
   rmSync(join(stubs, "python3.99"));
-  // Only the stubs and the coreutils the script reads with, so no real python or uv resolves.
   const tools = join(dir, "tools");
   mkdirSync(tools);
   for (const tool of ["cat", "cut", "tr", "sha256sum"])
@@ -296,8 +289,6 @@ test("an older shellcheck on PATH gets the pinned release in the venv's bin", ()
   shellcheck("0.9.0");
   stub("uname", 'echo "Linux x86_64"');
   release("0.11.0");
-  // The fixture tarball cannot match the real release's checksum, so the
-  // checksum tool reports the pin for it.
   stub(
     "sha256sum",
     `case "$1" in *.tar.gz) echo "${pin}  $1" ;; *) ${which("sha256sum")} "$@" ;; esac`,
@@ -319,7 +310,6 @@ test("an older shellcheck on PATH gets the pinned release in the venv's bin", ()
     { encoding: "utf8" },
   );
   assert.equal(installed.stdout.trim(), "version: 0.11.0");
-  // The installed copy satisfies the next run.
   assert.ok(!run().calls.some((c) => c.startsWith("curl ")));
 });
 

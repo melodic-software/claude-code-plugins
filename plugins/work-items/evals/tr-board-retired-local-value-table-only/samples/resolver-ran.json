@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "node \"/p/lib/view-settings.mjs\" resolve --lane work-items:triage --option \"auto\""
+            "command": "node \"/p/lib/view-settings.mjs\" resolve --producer work-items:triage --option \"auto\""
           }
         }
       ],

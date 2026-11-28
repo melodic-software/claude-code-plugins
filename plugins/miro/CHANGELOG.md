@@ -3,6 +3,24 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.63] - 2026-11-28
+
+### Changed
+
+- Trimmed `/miro:setup` user-invoked frontmatter description (436 -> 137 chars) to a one-line summary without trigger phrasing.
+
+## [0.6.62] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [0.6.61] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.6.60] - 2026-11-24
 
 ### Changed

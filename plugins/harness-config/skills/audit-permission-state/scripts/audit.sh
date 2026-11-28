@@ -1,39 +1,4 @@
 #!/usr/bin/env bash
-# audit.sh — run the permission-state stages once each, in order, with sectioned
-# output.
-#
-# WHY THIS EXISTS
-#
-# Every stage downstream of the inventory consumes the inventory's records. Run
-# as separate pipelines, `permission-state.sh` executes once per pipeline: five
-# pipelines walked every scope five times and re-printed the whole surface
-# inventory at the head of each. This runs it once and fans the records out.
-#
-# The stage scripts stay independently invocable and are not modified by this
-# file. That is load-bearing rather than incidental: draft-auto-mode-rules
-# invokes automode-block-lint.sh by path, and audit-pass composes the stages on
-# its own terms. This is one convenience caller among several, never a gateway.
-#
-# DEFAULT BREADTH
-#
-# Bare invocation runs every read-only stage. The full pipeline is sub-second, and
-# the stages a narrower default skipped (the plane lint, managed conformance, the
-# autoMode block lint) are the ones most likely to carry an actionable finding.
-# Flags narrow; they never widen.
-#
-# Two lanes stay opt-in because neither is read-only in the way the rest are:
-#   --oracle    spawns a real `claude -p` session (rewrites ~/.claude.json and
-#               adds state under the config directory). Priced; never default.
-#   --critique  shells out to `claude auto-mode critique`, which is slow and, in
-#               measured runs, truncates or returns nothing while exiting 0.
-#
-# EXIT STATUS
-#
-# 0 when every stage that ran reported. Non-zero from a stage propagates: the
-# inventory exits 2 without jq, and the merge exits 2 on empty input. A stage's
-# own `status=` token, not this script's exit code, says whether what it read was
-# complete — a run can exit 0 having been unable to open a single scope, which is
-# exactly the confusion the status tokens exist to resolve.
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -104,8 +69,6 @@ run_block_lint() {
 
 rc=0
 
-# The autoMode block lint reads the CLI, not stdin, so it is the one stage that
-# needs no inventory. Run it alone when it is all that was asked for.
 if [[ "$want_scopes" -eq 0 && "$want_entry" -eq 0 && "$want_lint" -eq 0 && "$want_managed" -eq 0 && "$want_block" -eq 1 ]]; then
   run_block_lint || rc=$?
   exit "$rc"
@@ -128,8 +91,6 @@ fi
 if [[ "$want_entry" -eq 1 ]]; then
   if merged="$(printf '%s\n' "$records" | bash "$HERE/permission-merge.sh")"; then
     section "Effective set"
-    # The merge re-emits the inventory it was given; the section above already
-    # printed that, so show only what the merge itself decided.
     printf '%s\n' "$merged" | grep -E '^(CAVEAT:|effective |inert |carveout |merge summary)' || true
   else
     rc=$?

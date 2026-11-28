@@ -99,6 +99,12 @@ Then verify prerequisites with `/actionlint:setup check` and register the pre-co
 
 ## Configuration
 
+A repository whose `docs/conventions/source-control.yaml` names a `standards_repository`
+(`<owner>/<repo>`) uses that repository's `.github/actionlint.yaml`, read from a local checkout: `STANDARDS_DIR`
+when set, else `<ghq root>/github.com/<owner>/<repo>` (`git config ghq.root`, default `~/ghq`).
+It is passed with `-config-file` when the repository has no actionlint config of its own;
+actionlint reads one config and has no extends, so the repository's own file replaces it whole. With no such checkout or file, actionlint's defaults apply.
+
 The repository's own actionlint configuration file, when present, tunes actionlint; see
 [actionlint configuration: Configuration file](https://github.com/kjanat/actionlint/blob/v1.17.0/docs/config.md#configuration-file).
 Two `userConfig` options tune the hooks themselves:

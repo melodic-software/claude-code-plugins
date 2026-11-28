@@ -25,7 +25,7 @@ import re
 import sys
 from typing import List, Optional, Tuple
 
-sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from digest_fences import (  # noqa: E402
     ATX_H2,
@@ -40,8 +40,6 @@ from digest_fences import (  # noqa: E402
 
 PROG = "check-prose-terms"
 
-# (label shown in a failure, pattern). Case-insensitive; "unit" must be a word
-# so "community 3" or "opportunity 2" do not match.
 TERMS: Tuple[Tuple[str, "re.Pattern[str]"], ...] = (
     ("unit NN", re.compile(r"\bunit[ \t]+\d+\b", re.IGNORECASE)),
     ("SOURCES.md", re.compile(r"\bSOURCES\.md\b", re.IGNORECASE)),
@@ -50,7 +48,6 @@ PREAMBLE = "(before the first ## heading)"
 
 
 def prose_lines(text: str):
-    """Yield (line_number, section_title, line) for each line outside a fence."""
     section = PREAMBLE
     in_fence = False
     open_ticks = 0
@@ -73,7 +70,6 @@ def prose_lines(text: str):
 
 
 def check_digest(path: str, failures: Failures) -> int:
-    """Return the number of prose lines scanned on this digest."""
     text = read_text(path, PROG, "digest")
     try:
         lines = list(prose_lines(text))

@@ -15,7 +15,7 @@ export PATH="$bin_dir:$PATH"
 
 shellcheck_pin="v0.11.0"
 shellcheck_sha="8c3be12b05d5c177a04c29e3c78ce89ac86f1595681cab149b65b97c4e227198"
-actionlint_pin="1.17.0" # the kjanat/actionlint fork CI runs (ci-workflows actionlint/action.yml `version`); its numbers overlap upstream's, so the SHA-256 is the anchor
+actionlint_pin="1.17.0"
 actionlint_sha="620abd485a12b6ab1125b844a876414e1d5bd2af8a3125b27f82b01d0d9d6e5a"
 typos_pin="v1.42.1"
 typos_sha="fe1492d6c1079c328ef66de2094b7a3a4569987ec972ab56002c5db4746a8d1b"
@@ -25,8 +25,6 @@ gitleaks_pin="8.28.0"
 gitleaks_sha="a65b5253807a68ac0cafa4414031fd740aeb55f54fb7e55f386acb52e6a840eb"
 shfmt_pin="v3.14.1"
 shfmt_sha="76e77641faa025814b77f153b29796b8e6fa2fca03e0c76a691608b86c7ea7bf"
-# markdownlint-cli2: root package-lock.json (npm ci) — never npm -g into the
-# nvm prefix; hook processes do not inherit that PATH segment (#2739 / #2748).
 check_jsonschema_pin="0.37.4"
 
 node_pin="$(tr -d '[:space:]' <.node-version)"
@@ -223,8 +221,6 @@ if ((plugin_stage)); then
   echo "$plugin_summary"
 fi
 
-# --- Python CI deps (required) -------------------------------------------------
-# pip rather than uv: uv's PyPI fetches time out against this VM's egress proxy.
 python3 -m pip install --user --quiet --only-binary=:all: --require-hashes \
   --requirement .github/requirements-ci.txt
 
@@ -303,12 +299,9 @@ if [[ -f "$git_dir/shallow" ]]; then
   git fetch --quiet --unshallow ||
     echo "cloud-bootstrap: warning: could not unshallow; base-ref diffs may fail" >&2
 fi
-# Explicit destination refspec: in a single-branch clone a bare `fetch origin
-# main` only writes FETCH_HEAD and never creates refs/remotes/origin/main.
 git fetch --quiet origin "+main:refs/remotes/origin/main" ||
   echo "cloud-bootstrap: warning: could not fetch origin/main" >&2
 
-# --- Git author (best effort) ---------------------------------------------------
 gh_user="$(gh api user --jq 'select((.login // "") != "" and (.id // "" | tostring) != "")
   | [.login, (.id | tostring), (.name // "")] | @tsv' 2>/dev/null)" || gh_user=''
 IFS=$'\t' read -r gh_login gh_id gh_name <<<"$gh_user" || true
@@ -320,7 +313,6 @@ if [[ -z "$gh_login" || -z "$gh_id" ]] ||
   echo "cloud-bootstrap: warning: could not derive the git author from the connected GitHub account; author.* cleared" >&2
 fi
 
-# --- Report --------------------------------------------------------------------
 hook_safe_path="$PATH"
 if [[ -n "${node_bin:-}" ]]; then
   hook_safe_path="$(

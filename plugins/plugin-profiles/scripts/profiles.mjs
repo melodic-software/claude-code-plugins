@@ -1,100 +1,4 @@
 #!/usr/bin/env node
-// Apply a plugin profile to a folder, to user settings, or to one session.
-//
-//   profiles.mjs apply <name> --for session|folder|initial [--dry-run [--json]] [--yes] [--defer-off]
-//   profiles.mjs launch [<name>] [--folder <dir>] [--with <settings file or JSON>] [--unattended] [--dry-run] [--json]
-//   profiles.mjs status [--for folder|initial] [--json] [--session-start]
-//   profiles.mjs list [--json]
-//   profiles.mjs inventory [--json]
-//   profiles.mjs usage [--json]
-//   profiles.mjs install <name@marketplace> [--dry-run] [--yes]
-//   profiles.mjs save <name> --level user|repository [--description <text>] [--plugins <ids>]
-//                [--optional <ids>] [--remove <ids>] [--exclude <ids>] [--hide-skills <names>] [--dry-run] [--yes]
-//   profiles.mjs check [--catalog <marketplace.json>] [--shipped <dir>]
-//
-// apply    Prints what the profile changes, then writes it on --yes or a yes typed at the prompt;
-//          with nobody to ask and no --yes it writes nothing. --dry-run prints and stops; with
-//          --json it prints the preview lines and what a caller branches on as one object. A plugin
-//          it would switch on whose required prerequisites are missing stops the write unless a
-//          person types yes to the stated consequence; --yes alone never covers that. --for folder
-//          writes the .claude/settings.local.json Claude Code reads, at the repository root in git
-//          (lib/folder-file.mjs; https://code.claude.com/docs/en/settings#where-claude-code-keeps-the-local-file-in-a-git-repository); initial writes user settings.json; session writes a file for
-//          `claude --settings` and changes no settings file. The record of a folder in git goes
-//          under its .git/plugin-profiles, of user settings under ~/.claude/plugin-profiles-state. --defer-off writes the
-//          entries that switch plugins on and records the ones that switch plugins off as
-//          pending, for an in-session switch; the next apply writes them. --finish-pending is that
-//          next apply: it writes only while the target's record is still off-pending for <name>,
-//          and otherwise prints that there is nothing to finish and writes nothing. A target the surface
-//          does not support (lib/surface.mjs) is refused, and so is --for folder when the
-//          remember_folder_profile option is false, and --defer-off in a session that
-//          PLUGIN_PROFILES_SESSION names.
-// launch   The one way a launcher starts a session in a profile. It writes the one-session file
-//          for the folder and profile (one per folder and profile, rewritten on every launch) and
-//          prints the command that starts a session with it; it asks nothing and changes no
-//          settings file. The name defaults to this session's profile: the one
-//          PLUGIN_PROFILES_SESSION names, else the folder's recorded one; with neither, the command
-//          carries no profile. --with adds a launcher's own settings (claude keeps only the last
-//          --settings), written to a file keyed by the folder, profile and merged content. The
-//          command always clears an inherited PLUGIN_PROFILES_SESSION,
-//          PLUGIN_PROFILES_SESSION_FILE and SESSION_SETTINGS_FILE; the file sets its own. A
-//          session file no launch has written for 30 days is removed by the next launch. The
-//          session it starts is a claude CLI process whatever surface runs launch, so no surface
-//          refuses it. The file sets PLUGIN_PROFILES_SESSION_FILE to its own path for status, and
-//          SESSION_SETTINGS_FILE to the same path for the prerequisite readers.
-//          --unattended stops (exit 1) when the profile switches on a plugin missing a required
-//          prerequisite; otherwise that is printed and the launch goes ahead. --dry-run does every
-//          check and prints the same result but writes no file. --json prints the
-//          result as data, with argv the words a launcher runs before its own arguments and, with a
-//          profile, enabledPlugins: each plugin any settings layer names, on or off as the session
-//          will start with it, the session file read as the session layer.
-// status   The profile recorded for the folder (or user settings), each entry that differs from
-//          it, plugins installed since, a switch still pending, a one-session profile named by
-//          PLUGIN_PROFILES_SESSION and the surface. With remember_folder_profile false it reports
-//          the initial profile and names a folder record as not in force. It reads the installed
-//          plugins from disk, never from a nested claude. --session-start prints a SessionStart
-//          systemMessage only where a profile was applied, and in a one-session profile gives the
-//          model, at start and again after compaction, the line that reopens the conversation with
-//          a plugin the profile switched off.
-// start    Starts claude in a profile through the one-session file launch writes. With --resume <id>
-//          it resumes the session in the profile its start hook recorded, reusing its file.
-//          --profile-add (repeatable, never passed to claude) reopens that conversation with an
-//          installed plugin, and its dependencies, on for that conversation only: it always writes a
-//          new file, whose added plugins a later resume of the same conversation keeps and a launch
-//          or new session never gets. An ambiguous word, a plugin that is not installed (with its
-//          install line) and settings text are refused, exit 2.
-// clear    Puts every entry the tool wrote back to its value before the first apply and removes
-//          a settings file the tool created. Like apply it prints what it changes first and writes
-//          on --yes or a yes typed at the prompt; --dry-run prints and stops.
-// reset    Clears every settings file on this machine that holds a profile's record, user settings
-//          included, behind one preview and one yes: each file is replaced whole, its record is
-//          marked restoring before the write and removed after it, and a file whose folder is gone,
-//          or that is not a .claude/settings.local.json or user settings, keeps its record.
-// list    The profiles a folder apply can name, each with its description line.
-// inventory  The installed plugins, their dependencies, what each ships and its skills.
-// usage    How often each skill and plugin was used on this machine (lib/usage.mjs), most used
-//          first, or that no usage history was found.
-// install  Installs one missing plugin at user scope, only from a marketplace this machine already
-//          knows and never for a plugin only a repository profile names. It prints what it does
-//          first and installs on --yes or a yes typed at the prompt; with neither it installs
-//          nothing. Afterwards it switches the plugin off in user settings unless the initial
-//          profile (always-on plus the profile applied --for initial) includes it. It never
-//          updates or uninstalls.
-// save     Writes a profile file at the user or repository level: the lists given are added to
-//          the file's own lists, --description replaces its description, and every list is
-//          written in alphabetical order. It prints the whole file first and writes on --yes or a
-//          yes typed at the prompt; ids are comma-separated.
-// check    Checks the profile files at every level (lib/check.mjs says what fails and what is
-//          only reported). --catalog defaults to the marketplace.json of the marketplace this
-//          plugin was installed from (plugins/known_marketplaces.json), or of the repository a
-//          checkout sits in; --shipped to this plugin's profiles/. Reads installed plugins from disk
-//          or checks a repository tree with --skills. --changed takes one repository path per line.
-//
-// Exit 0: done, previewed, nothing to change, or the check passed. Exit 1: not applied (no
-// consent, a missing required prerequisite, settings changed by another writer), nothing
-// written, or the check failed. Exit 2: usage, profile or settings
-// file error. Exit 3: a reset wrote what it could and named each file it skipped (scenario row
-// 37 of https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/plugin-profiles/reference/scenarios.md).
-// apply names a missing plugin with its install command and installs nothing.
 import { spawn } from "node:child_process";
 import { appendFileSync, existsSync, readdirSync, realpathSync, readFileSync, rmdirSync, rmSync, statSync } from "node:fs";
 import { constants as osConstants, homedir } from "node:os";
@@ -115,6 +19,7 @@ import { readText, replaceFile } from "../lib/atomic-file.mjs";
 import { appendExceptions, exceptionCounts, exceptionsToReview, PROFILE_NAME, readExceptions, SESSION_DAYS } from "../lib/exceptions.mjs";
 import { ALWAYS_ON, PLUGIN_ID, ProfileError, everyProfile, ignoredLine, parseProfile, profileLevels, profileNamed, profileText, readCatalog, readProfileFiles, resolveCatalog, sourcesOf } from "../lib/profile-files.mjs";
 import { folderLevel } from "../lib/folder-file.mjs";
+import { SESSION_START_KEY, hookEnabled } from "../lib/hook-enablement.mjs";
 import { listRecords, machineSettingsFiles, readPointers, repositoryHome, sessionFolders, writePointer } from "../lib/machine-records.mjs";
 import {
   ABSENT,
@@ -154,8 +59,6 @@ import { knownFolders, readUsage, usageFile } from "../lib/usage.mjs";
 const OWN_ROOT = dirname(dirname(realpathSync(fileURLToPath(import.meta.url))));
 const SESSION_VAR = "PLUGIN_PROFILES_SESSION";
 const SESSION_FILE_VAR = "PLUGIN_PROFILES_SESSION_FILE";
-// The variable the prerequisite readers in plugin-diagnostics and harness-ops define (their
-// lib/enabled-plugin-roots.mjs), so they read this file as the session layer.
 const SESSION_SETTINGS_VAR = "SESSION_SETTINGS_FILE";
 const sessionProfile = (env) => env[SESSION_VAR] || null;
 const CLEARED = [SESSION_VAR, SESSION_FILE_VAR, SESSION_SETTINGS_VAR];
@@ -262,7 +165,6 @@ function locate(env, cwd, folder = null) {
   };
 }
 
-/** Data folders of other copies of this plugin, such as a --plugin-dir copy's plugin-profiles-inline. */
 function otherDataDirs(where) {
   const root = join(where.configDir, "plugins", "data");
   try {
@@ -296,7 +198,6 @@ const recordOf = (where, file) => {
   return own.record ? own : { ...own, record: adoptedRecord(where, file) };
 };
 
-/** A worktree's own file copied from the main checkout after an apply carries the root file's entries but no record: it takes the root file's. */
 function adoptedRecord(where, file) {
   const { earlier, local } = where.paths;
   if (!earlier || realPath(file) !== realPath(earlier)) return null;
@@ -390,7 +291,6 @@ const shortHash = (text) => createHash("sha256").update(text).digest("hex").slic
 const sessionsDir = (where) => join(where.dataDir, "sessions");
 const sessionFile = (where, name, content = null) =>
   join(sessionsDir(where), `${shortHash(realPath(where.projectDir))}-${name}${content ? `-${shortHash(content)}` : ""}.json`);
-/** Beside a one-session file, the plugins it adds for one conversation; no variable carries them, so a launch from that session adds nothing. */
 const addedFile = (file) => file.replace(/\.json$/, ".added.json");
 const addedIn = (file) => {
   const ids = file ? readJson(addedFile(file))?.added : null;
@@ -405,10 +305,8 @@ function diff(now, final) {
   return out;
 }
 
-/** Every skill some profile hides; a one-session file names each, so a folder file's entry for one never reaches the session. */
 const hideableSkills = (catalog) => new Set(everyProfile(catalog).flatMap((p) => [...p.hideSkills]));
 
-/** Every marketplace some profile names a plugin of; a one-session file freezes each one's plugins at launch, so no other profile's write or reset reaches that session. */
 const governedMarketplaces = (catalog) =>
   new Set(everyProfile(catalog).flatMap((p) => [...p.plugins, ...p.optional, ...p.exclude]).map(marketplaceOf));
 
@@ -694,7 +592,6 @@ function sweepSessions(where, keep, dir = sessionsDir(where)) {
 
 const quoted = (word) => (/^[A-Za-z0-9_@%+=:,./-]+$/.test(word) ? word : `"${word.replace(/(["\\$`])/g, "\\$1")}"`);
 
-/** The plan for a one-session profile and its missing required prerequisites; with nobody there to decide, a missing one refuses. */
 function profileGate(name, opts, where, env, verb) {
   const p = prepare({ ...opts, name, target: "session" }, where, catalogFor(where, "session"), () => opts.records ?? recordsFromCli());
   const gate = missingRequired(
@@ -1095,7 +992,6 @@ function statusLines(s) {
   return lines;
 }
 
-/** The session-start notice, one short line each: what is in force and what needs the person, without status's commands; the surface only off the CLI. */
 function noticeLines(s, sessionId) {
   if (doesNotApply(s.surface)) return [surfaceLine(s.surface)];
   const lines = [];
@@ -1124,7 +1020,6 @@ function noticeLines(s, sessionId) {
 
 const addedLine = (ids) => `Added for this conversation only: ${list(ids)}`;
 
-/** What the model is told in a one-session profile, at start and again after compaction: how to reopen this conversation with a plugin the profile switched off. */
 function reopenContext(where, env, sessionId) {
   const name = sessionProfile(env);
   if (!name || doesNotApply(where.surface)) return null;
@@ -1180,12 +1075,14 @@ function sessionStartRecord(where, env, input) {
   return rec ? `This session ran in profile ${rec.profile}; it is now running without it. Resume it in that profile with: claude --resume ${input.session_id} (the plugin-profiles claude shell function restores the profile; without it, run node "${join(OWN_ROOT, "scripts", "profiles.mjs")}" start --resume ${input.session_id}).` : null;
 }
 
-/** Points the dotfiles claude function at this installed copy when the pointer differs; never a worktree or --plugin-dir copy, and never throws. */
 function writeRootPointer(where) {
-  if (doesNotApply(where.surface) || !resolveInstall(OWN_ROOT).pluginId) return;
+  const { pluginId } = resolveInstall(OWN_ROOT);
+  if (doesNotApply(where.surface) || !pluginId) return;
   const file = join(where.configDir, "plugin-profiles-state", "root");
   const text = `${OWN_ROOT}\n`;
   try {
+    const installPath = recordsFromDisk(where.configDir).find((r) => r.id === pluginId && r.scope === "user")?.installPath;
+    if (typeof installPath !== "string" || realpathSync(installPath) !== OWN_ROOT) return;
     if (!existsSync(file) || readFileSync(file, "utf8") !== text) replaceFile(file, text);
   } catch {
     return;
@@ -1194,6 +1091,7 @@ function writeRootPointer(where) {
 
 function status(opts, where, env, io) {
   if (opts.sessionStart) {
+    if (!hookEnabled(SESSION_START_KEY, true, { env })) return 0;
     const input = hookInput(io);
     const context = (() => {
       try {
@@ -1227,7 +1125,6 @@ function status(opts, where, env, io) {
         }
       }
     } catch {
-      // A session start never fails on a profile problem; status run by hand reports it.
     }
     if (lines.length) reply.systemMessage = `plugin-profiles:\n${lines.join("\n")}`;
     if (Object.keys(reply).length) io.out(JSON.stringify(reply));

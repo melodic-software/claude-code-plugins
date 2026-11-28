@@ -1,8 +1,3 @@
-/**
- * Convert acquired captions (or the optional ASR rung's output) into cleaned
- * timestamped transcript.txt artifacts, per the resolved transcript strategy.
- */
-
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -27,14 +22,6 @@ import { resolveTranscriptStrategy } from "./transcript-strategy.js";
 /** @import { TranscriptStrategy } from '../adapters/adapter-contract.js' */
 /** @import { HarvestedLink } from '../harvesting/models.js' */
 
-/**
- * Paragraph count of a formatted transcript: {@link formatTranscript} joins
- * timestamped paragraphs with a blank line, and empty text has none. Shared by
- * the caption and ASR routes so the two cannot drift.
- *
- * @param {string} transcript
- * @returns {number}
- */
 function countParagraphs(transcript) {
   return transcript ? transcript.split("\n\n").length : 0;
 }
@@ -68,24 +55,12 @@ function comparableWord(word) {
   return plain.slice(start, end);
 }
 
-/**
- * Sentence punctuation (quotes, brackets, ellipses) trimmed from a word's ends
- * by a scan rather than a regex, so a long punctuation run costs linear time.
- * Hyphens and dashes stay, so C-- and C never compare equal.
- */
 const EDGE_PUNCTUATION = new Set('.,;:!?"\u2018\u201a\u201c\u201d\u201e\u2039\u203a\u00ab\u00bb()[]{}\u2026');
 
-/**
- * The lexical words of `text`: punctuation-only tokens such as `>>` are not
- * words, so they never count toward a run's length.
- *
- * @param {string} text
- */
 function words(text) {
   return tokens(text).filter(isWord);
 }
 
-/** @param {string} token - a word holds at least one letter or digit */
 function isWord(token) {
   return /[\p{L}\p{N}]/u.test(token);
 }
@@ -107,9 +82,6 @@ function comparableRun(run) {
  * @param {readonly { startSec: number, endSec: number, text: string, carriedLineDropped?: boolean }[]} cues
  */
 function carriesOverFromPreviousCue(stamp, run, cues) {
-  // The paragraph stamp floors the opening cue's start to the second, so it
-  // identifies the opener only when exactly one cue starts in that second.
-  // With several, the evidence is ambiguous and the words stay.
   const openers = cues.flatMap((cue, at) =>
     `[${formatTimestamp(cue.startSec)}]` === stamp ? [at] : [],
   );
@@ -158,9 +130,6 @@ export function dropParagraphBoundaryRepeats(transcript, cues) {
     for (let length = longest; length >= BOUNDARY_REPEAT_MIN_WORDS; length--) {
       const run = currentWords.slice(0, length);
       if (comparableRun(previousWords.slice(-length)) !== comparableRun(run)) continue;
-      // Every match, whatever its length, needs cue-level carry-over evidence:
-      // a speaker may genuinely repeat several words ("I don't know." / "I
-      // don't know why.").
       if (!carriesOverFromPreviousCue(current[1].trim(), run, cues)) continue;
       const kept = [
         ...currentTokens.slice(0, wordAt[0]),
@@ -193,7 +162,6 @@ export function buildTranscriptText(
   let cues;
 
   if (isAutoCaption) {
-    // Decode after parsing: the cleaner's VTT output must keep `&lt;` escaped.
     cues = cleanAutoCaptions(vttText)
       .cues.map((cue) => ({ ...cue, text: stripCaptionHtmlEntities(cue.text) }))
       .filter((cue) => cue.text.length > 0);
@@ -406,9 +374,6 @@ export async function writeEnvelopeTranscriptArtifacts(
     requested === "asr" || entries.some((entry) => !entry.caption && entry.mediaPath);
   const asrDetection = needAsrProbe ? await detectAsr() : null;
 
-  // Every strategy gets the lexicon, repair-only: captions+repair and ASR cues
-  // are repaired against it. It is never fed to ASR as an initial prompt (the
-  // probe in reference/sources/x.md showed no gain and a worse hallucination).
   const repairLexicon = buildRepairLexicon(metadata.description, harvestedLinks, metadata.title);
 
   /** @type {EnvelopeTranscriptEntry[]} */
@@ -439,8 +404,6 @@ export async function writeEnvelopeTranscriptArtifacts(
         python: /** @type {string} */ (asrDetection?.python),
       });
       if (!asr.success || !asr.cues) {
-        // An ASR failure degrades the entry explicitly rather than failing the
-        // digest — same posture as capability absence, never silent.
         entryDegradations.push({
           entryIndex,
           reason: asr.error ?? "ASR transcription failed",

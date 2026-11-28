@@ -1,5 +1,3 @@
-// The transcript sink: its layout, the metrics row read from one transcript,
-// retention, and queries. Nothing here reads a key or prints transcript text.
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmdirSync, rmSync, truncateSync, writeFileSync } from "node:fs";
 import path from "node:path";
@@ -16,14 +14,12 @@ export const ARTIFACT = /^lane-transcript-(.+)-([1-9][0-9]{0,4})$/;
 const DATE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 const SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$/;
 
-// `lane-transcript-<job-id>-<attempt>`, as upload-lane-transcript names it.
 export function parseArtifactName(name) {
   const match = ARTIFACT.exec(String(name));
   if (!match || !JOB_ID.test(match[1])) return null;
   return { jobId: match[1], attempt: Number(match[2]) };
 }
 
-// The lane is the workflow file's stem: `.github/workflows/pr-verify.yml` is `pr-verify`.
 export function laneOf(workflowPath) {
   const stem = path.basename(String(workflowPath ?? "")).replace(/\.ya?ml$/, "");
   return SEGMENT.test(stem) ? stem : "unknown";
@@ -114,7 +110,6 @@ export function ensureDir(dir) {
   mkdirSync(dir, { recursive: true, mode: 0o700 });
 }
 
-// The stored file's path relative to the sink.
 export function transcriptPath({ date, lane, run_id: runId, run_attempt: attempt, job_id: jobId }) {
   if (!DATE.test(date) || !SEGMENT.test(lane) || !JOB_ID.test(jobId)) throw new Error("bad-input: the row does not name a storable transcript");
   return path.join("transcripts", date, lane, `${runId}-${attempt}-${jobId}.json.gz`);
@@ -148,9 +143,6 @@ export function telemetrySpans(text, traceId) {
   return { telemetry_spans: spans, telemetry_joined_spans: joined };
 }
 
-// The rows every complete line holds. An append cut short (a full disk, a
-// kill) leaves a last line with no newline: it is not a row, so its artifact
-// is pulled again and the next append replaces it.
 const completeText = (text) => text.slice(0, text.lastIndexOf("\n") + 1);
 
 function readJsonl(file) {
@@ -222,7 +214,6 @@ export function readState(sink) {
 
 export const writeState = (sink, state) => writeAtomic(paths(sink).state, `${JSON.stringify(state, null, 2)}\n`);
 
-// Every regular file under dir, with its size and modification time.
 function files(dir) {
   if (!existsSync(dir)) return [];
   const out = [];
@@ -271,7 +262,6 @@ export function prune(sink, now = Date.now(), { capBytes = CAP_BYTES } = {}) {
     else if (entry.field === "telemetry") entry.row.telemetry = null;
   };
   for (const entry of stored) if (now - entry.at > TRANSCRIPT_DAYS * DAY) drop(entry, "age");
-  // A row whose file is gone keeps its metrics but no path.
   for (const row of rows) {
     if (row.transcript && !existsSync(path.join(sink, row.transcript))) Object.assign(row, { transcript: null, pruned: row.pruned ?? "missing" });
     if (row.telemetry && !existsSync(path.join(sink, row.telemetry))) row.telemetry = null;
@@ -290,9 +280,6 @@ export function prune(sink, now = Date.now(), { capBytes = CAP_BYTES } = {}) {
   return { ...removed, bytes: sinkBytes(sink) };
 }
 
-// A row is `error` when is_error is true, whatever an older row stored as its
-// outcome. Its subtype still matches, except `success`, which an errored leg is
-// not. An older row has no subtype field: its outcome is the subtype.
 function hasOutcome(row, outcome) {
   if (row.is_error !== true) return row.outcome === outcome;
   return outcome === "error" || (outcome !== "success" && (row.subtype ?? row.outcome) === outcome);
@@ -317,8 +304,6 @@ export function query(rows, { lane, model, outcome, class: failureClass, trace, 
   );
 }
 
-// The last successful pull, and whether it is more than 5 days old (or never
-// happened), or a budget-stopped backlog's kept cutoff is.
 export function staleness(state, now = Date.now()) {
   const days = (at) => {
     const ms = Date.parse(at ?? "");

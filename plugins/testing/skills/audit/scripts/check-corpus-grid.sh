@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# check-corpus-grid.sh: every adapter has a GRID.md row, and every `pair` cell
-# has a bad and a good corpus file for its rule.
-#
-# Usage: check-corpus-grid.sh [<corpus-dir> [<adapters-dir>]]
 # Exit: 0 the grid holds; 1 a missing row, file or malformed cell.
 set -uo pipefail
 
@@ -21,16 +17,12 @@ problem() {
   exit 1
 }
 
-# has_header <dir> <header>: a corpus file in <dir> carries the header line.
 has_header() {
   [[ -d "$1" ]] && grep -rlqE "(^|[^a-z-])$2([^a-z-]|$)" "$1"
 }
 
 rules=()
 declare -A rowed=()
-# Only the table whose header's first cell is Adapter is the grid; any other
-# table in GRID.md (Pocock examples, planted tests) is prose for readers. A
-# line that does not start with | ends a table.
 in_grid=0
 while IFS= read -r line; do
   if [[ "$line" != '|'* ]]; then
@@ -38,7 +30,6 @@ while IFS= read -r line; do
     continue
   fi
   IFS='|' read -ra cells <<<"$line"
-  # Trim the spaces (not tabs) around each cell.
   for i in "${!cells[@]}"; do
     cell="${cells[i]}"
     cell="${cell#"${cell%%[! ]*}"}"

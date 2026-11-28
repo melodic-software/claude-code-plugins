@@ -19,7 +19,6 @@ const arrow = (id, from, to) => ({ id, type: "arrow", x: 160, y: 30, width: 80, 
 const lane = (id, name) => ({ id, type: "frame", x: -20, y: -20, width: 600, height: 120, name });
 const file = (elements, top = {}) => JSON.stringify({ type: "excalidraw", version: 2, source: "https://excalidraw.com", elements, appState: {}, files: {}, ...top });
 
-/** A two-lane swim-lane flow: every element type the skill draws, every reference resolved. */
 const SWIM_LANES = [
   lane("lane-user", "User"),
   lane("lane-service", "Service"),

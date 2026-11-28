@@ -48,12 +48,23 @@ VALIDATE_CASES_PY = os.path.normpath(
     os.path.join(HERE, os.pardir, os.pardir, "validate", "scripts", "validate-cases.py")
 )
 SELECT_MAPPING_PY = os.path.join(HERE, "select_mapping.py")
+EVAL_VISIBILITY_PY = os.path.join(HERE, "eval_visibility.py")
 SELECT_PLUGINS_MJS = (".github", "scripts", "plugin-eval", "select-plugins.mjs")
+COMPARE_ARMS_SH = (".github", "scripts", "plugin-eval", "compare-arms.sh")
 SELECT_PLUGINS_HEADER = "a selected plugin changes more than"
 REFUSED_PLUGIN_RE = re.compile(r'^"?plugins/([^/:"\\]+)[/:]')
+COMPARE_DIRS = frozenset(["skills", "agents", "context", "evals"])
+SUITE_ONLY_REASON = (
+    "no file of this plugin under skills/, agents/, context/ or evals/ changed,"
+    " so a compare run refuses it; run these in a suite run on the default branch after merge"
+)
 COMPARE_REFUSED_ADVICE = (
     "a compare run refuses these, so run the cases in a suite run"
     " on the default branch after merge"
+)
+NO_RUN_EXEMPT_REASON = (
+    "the description or when_to_use edit changes only routing clauses, skill tokens"
+    " or glossary-decided terms, so it runs no case"
 )
 
 
@@ -70,6 +81,7 @@ def _load_module(name, path):
 case_skills = _load_module("evals_case_skills", CASE_SKILLS_PY)
 validate_cases = _load_module("evals_validate_cases", VALIDATE_CASES_PY)
 select_mapping = _load_module("evals_select_mapping", SELECT_MAPPING_PY)
+eval_visibility = _load_module("evals_eval_visibility", EVAL_VISIBILITY_PY)
 
 CaseInfo = collections.namedtuple(
     "CaseInfo",
@@ -387,18 +399,9 @@ def load_all_suites(repo_root):
     return eval_dirs, cases_by_plugin
 
 
-def compare_refusals(repo_root, merge_base):
-    """Map each plugin name to the `<path>: <reason>` lines compare mode refuses.
-
-    Runs the repository's own select-plugins.mjs on the plugin paths changed
-    since merge_base, listed as compare-arms.sh lists them (git's default path
-    quoting, so a quoted path is refused the same way) and without each
-    plugin's tests/, which compare-arms.sh leaves out.
-    Returns {} when the repository has no such script, None when it cannot run.
-    """
-    script = os.path.join(repo_root, *SELECT_PLUGINS_MJS)
-    if not os.path.isfile(script):
-        return {}
+def plugin_diff_paths(repo_root, merge_base):
+    """List the plugin paths changed since merge_base as compare-arms.sh lists
+    them (no renames, git's default path quoting), or None when git fails."""
     diff = subprocess.run(
         ["git", "-C", repo_root, "diff", "--no-renames", "--name-only", merge_base, "HEAD", "--", "plugins"],
         capture_output=True,
@@ -408,11 +411,36 @@ def compare_refusals(repo_root, merge_base):
     )
     if diff.returncode != 0:
         return None
-    paths = [
-        path
-        for path in diff.stdout.split("\n")
-        if path and path.split("/")[2:3] != ["tests"]
-    ]
+    return [path for path in diff.stdout.split("\n") if path]
+
+
+def compare_plugins(repo_root, diff_paths):
+    """Return the plugins a compare run takes: compare-arms.sh refuses a
+    plugin with no changed path under its skills/, agents/, context/ or evals/.
+    Returns None when the repository has no such script or git failed."""
+    if diff_paths is None or not os.path.isfile(os.path.join(repo_root, *COMPARE_ARMS_SH)):
+        return None
+    return {
+        parts[1]
+        for parts in (path.split("/") for path in diff_paths)
+        if len(parts) >= 4 and parts[2] in COMPARE_DIRS
+    }
+
+
+def compare_refusals(repo_root, merge_base, diff_paths):
+    """Map each plugin name to the `<path>: <reason>` lines compare mode refuses.
+
+    Runs the repository's own select-plugins.mjs on diff_paths, the plugin
+    paths changed since merge_base, without each plugin's tests/, which
+    compare-arms.sh leaves out.
+    Returns {} when the repository has no such script, None when it cannot run.
+    """
+    script = os.path.join(repo_root, *SELECT_PLUGINS_MJS)
+    if not os.path.isfile(script):
+        return {}
+    if diff_paths is None:
+        return None
+    paths = [path for path in diff_paths if path.split("/")[2:3] != ["tests"]]
     if not paths:
         return {}
     node = shutil.which("node")
@@ -444,7 +472,9 @@ def select_cases(repo_root, diff_base, merge_base):
     entries = select_mapping.changed_entries(repo_root, diff_base)
     if entries is None:
         return None
-    refused = compare_refusals(repo_root, merge_base)
+    diff_paths = plugin_diff_paths(repo_root, merge_base)
+    comparable = compare_plugins(repo_root, diff_paths)
+    refused = compare_refusals(repo_root, merge_base, diff_paths)
     if refused is None:
         sys.stderr.write(
             "warning: select-plugins.mjs gave no readable result; compare-mode refusals are unchecked\n"
@@ -457,6 +487,7 @@ def select_cases(repo_root, diff_base, merge_base):
     run_cases = collections.defaultdict(set)
     after_merge_cases = collections.defaultdict(set)
     no_run_cases = collections.defaultdict(set)
+    no_run_exempt = collections.defaultdict(set)
     uncovered = collections.defaultdict(set)
     plugin_wide = collections.defaultdict(set)
     unmapped = collections.defaultdict(set)
@@ -469,6 +500,27 @@ def select_cases(repo_root, diff_base, merge_base):
     added_agents = []
     modified_dispatchers = []
     skill_or_agent_plugins = set()
+
+    no_run_paths = set()
+
+    def no_run_edit(code, rel_path, eval_abs=None, cases=(), owning_case=None):
+        if rel_path in no_run_paths:
+            return True
+        if code != "M":
+            return False
+        deleted = ()
+        if owning_case is not None and rel_path.endswith("/case.yaml"):
+            deleted = eval_visibility.deleted_lines(repo_root, merge_base, rel_path)
+        hidden = bool(cases) and eval_visibility.hidden_from_agent(
+            eval_abs,
+            os.path.join(repo_root, rel_path),
+            cases,
+            owning_case,
+            deleted,
+        )
+        return select_mapping.is_no_run_file_change(
+            repo_root, merge_base, rel_path, rel_path, hidden
+        )
 
     expanded = []
     for code, path_a, path_b in entries:
@@ -492,12 +544,26 @@ def select_cases(repo_root, diff_base, merge_base):
                     changed_agents[old_agent] = "cut"
                     skill_or_agent_plugins.add(old_agent[0])
                 continue
+            if select_mapping.is_no_run_file_change(repo_root, merge_base, path_a, path_b):
+                no_run_paths.add(path_b)
+                expanded.append(("M", path_b))
+                continue
             expanded.append(("D", path_a))
             expanded.append(("A", path_b))
         elif code == "C" and path_b is not None:
             expanded.append(("A", path_b))
         else:
             expanded.append((code, path_a))
+
+    for old_path, new_path in select_mapping.swap_rename_pairs(
+        repo_root,
+        merge_base,
+        [p for c, p in expanded if c == "D" and p.startswith("plugins/")],
+        [p for c, p in expanded if c == "A" and p.startswith("plugins/")],
+    ):
+        expanded.remove(("D", old_path))
+        expanded[expanded.index(("A", new_path))] = ("M", new_path)
+        no_run_paths.add(new_path)
 
     for code, rel_path in expanded:
         parts = rel_path.split("/")
@@ -531,6 +597,8 @@ def select_cases(repo_root, diff_base, merge_base):
                     changed_skills[(plugin, skill)].add("desc_cut")
                 elif desc_cls == "additive":
                     changed_skills[(plugin, skill)].add("desc_additive")
+                elif desc_cls == "exempt":
+                    changed_skills[(plugin, skill)].add("desc_exempt")
                 skill_or_agent_plugins.add(plugin)
             elif select_mapping._is_script_path(inner_parts):
                 script_only_skills.add((plugin, skill))
@@ -594,9 +662,18 @@ def select_cases(repo_root, diff_base, merge_base):
                 if rel_path.startswith(case.rel_dir + "/"):
                     owning_case = case
                     break
+            eval_abs = os.path.join(repo_root, "plugins", plugin, ed_name)
             if owning_case is not None:
                 inner = rel_path[len(owning_case.rel_dir) + 1 :]
-                if inner.startswith("samples/"):
+                sharing = [owning_case] + select_mapping.cases_citing_suite_file(
+                    eval_abs,
+                    os.path.join(repo_root, *parts),
+                    suite_cases,
+                    ref_cache=fixture_ref_cache,
+                )
+                if inner.startswith("samples/") or no_run_edit(
+                    code, rel_path, eval_abs, sharing, owning_case
+                ):
                     no_run_cases[plugin].add(owning_case)
                 elif (
                     inner in ("case.yaml", "prompt.md")
@@ -606,27 +683,20 @@ def select_cases(repo_root, diff_base, merge_base):
                 ):
                     no_run_cases[plugin].add(owning_case)
                 else:
-                    run_cases[plugin].add(owning_case)
-                    run_cases[plugin].update(
-                        select_mapping.cases_citing_suite_file(
-                            os.path.join(repo_root, "plugins", plugin, ed_name),
-                            os.path.join(repo_root, *parts),
-                            suite_cases,
-                            ref_cache=fixture_ref_cache,
-                        )
-                    )
+                    run_cases[plugin].update(sharing)
                 unread_graders[plugin].update(owning_case.unread_graders)
             else:
                 if parts[3] == "results" or select_mapping._is_test_script(parts[-1]):
                     continue
-                eval_abs = os.path.join(repo_root, "plugins", plugin, ed_name)
                 target_abs = os.path.join(repo_root, *parts)
                 cited_cases = select_mapping.cases_citing_suite_file(
                     eval_abs, target_abs, suite_cases, ref_cache=fixture_ref_cache
                 )
                 if cited_cases:
+                    no_run = no_run_edit(code, rel_path, eval_abs, cited_cases)
+                    target = no_run_cases if no_run else run_cases
                     for case in cited_cases:
-                        run_cases[plugin].add(case)
+                        target[plugin].add(case)
                 elif os.path.exists(target_abs):
                     unmapped[plugin].add(rel_path)
             continue
@@ -673,6 +743,10 @@ def select_cases(repo_root, diff_base, merge_base):
         elif "desc_additive" in reasons:
             for case in trigger_cases:
                 after_merge_cases[case.plugin].add(case)
+        elif "desc_exempt" in reasons:
+            no_run_exempt[plugin].add("%s:%s" % (plugin, skill))
+            for case in trigger_cases:
+                no_run_cases[case.plugin].add(case)
 
         desc_only = reasons <= {"desc_cut", "desc_additive"}
         if not skill_cases or (desc_only and not trigger_cases):
@@ -706,6 +780,7 @@ def select_cases(repo_root, diff_base, merge_base):
         set(run_cases)
         | set(after_merge_cases)
         | set(no_run_cases)
+        | set(no_run_exempt)
         | set(uncovered)
         | set(plugin_wide)
         | set(unmapped)
@@ -719,6 +794,9 @@ def select_cases(repo_root, diff_base, merge_base):
         det_cases = sorted({c.name for c in run_set if not c.judged_only})
         judged = sorted({c.name for c in run_set if c.judged_only})
         run_names = set(det_cases) | set(judged)
+        suite_only = []
+        if comparable is not None and plugin not in comparable:
+            suite_only, det_cases = det_cases, []
 
         ram_set = {
             c for c in after_merge_cases.get(plugin, set()) if c.name not in run_names
@@ -733,6 +811,7 @@ def select_cases(repo_root, diff_base, merge_base):
                 if c.name not in scheduled_names
             }
         )
+        exempt_list = sorted(no_run_exempt.get(plugin, set()))
         uncovered_list = sorted(uncovered.get(plugin, set()))
         plugin_wide_list = sorted(plugin_wide.get(plugin, set()))
         unmapped_list = sorted(unmapped.get(plugin, set()))
@@ -742,8 +821,10 @@ def select_cases(repo_root, diff_base, merge_base):
         if not any(
             (
                 det_cases,
+                suite_only,
                 judged,
                 no_run_names,
+                exempt_list,
                 uncovered_list,
                 ram_names,
                 plugin_wide_list,
@@ -761,8 +842,10 @@ def select_cases(repo_root, diff_base, merge_base):
 
         result["plugins/" + plugin] = {
             "cases": det_cases,
+            "suite-only": suite_only,
             "judged": judged,
             "affected-no-run": no_run_names,
+            "no-run-exempt": exempt_list,
             "uncovered": uncovered_list,
             "run-after-merge": ram_names,
             "plugin-wide": plugin_wide_list,
@@ -796,6 +879,15 @@ def format_text(result):
             values = data[key]
             if values:
                 lines.append("%s: %s" % (key, " ".join(values)))
+            if key == "affected-no-run" and data["no-run-exempt"]:
+                lines.append(
+                    "no-run-exempt: %s; %s"
+                    % (" ".join(data["no-run-exempt"]), NO_RUN_EXEMPT_REASON)
+                )
+        if data.get("suite-only"):
+            lines.append(
+                "suite-only: %s; %s" % (" ".join(data["suite-only"]), SUITE_ONLY_REASON)
+            )
         if data.get("compare-refused"):
             lines.append(
                 "compare-refused: %s; %s"

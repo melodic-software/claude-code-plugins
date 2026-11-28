@@ -20,7 +20,7 @@
     },
     {
       "answer": "The last handoff noted nothing about memory.",
-      "why": "read only the hot file"
+      "why": "read only the handoff file"
     }
   ]
 }

@@ -29,14 +29,10 @@ flip is done, so run 2.5.2, 2.5.3 and 2.5.5 and skip 2.5.4 and 2.5.6.
 
 Still a draft: refuse a held or superseded one before touching the branch
 ([GitHub](../../../reference/providers/github/pull-request/ready-for-review.md#check-for-a-hold)).
-Held means a `do-not-merge` label, a body that says "do not merge", or a WIP marker in the title;
-superseded means an issue the PR closes is already closed. A body line starting `Hold:` holds the
-merge only, so it does not stop the flip. Neither does a `do-not-merge` label whose only stated
-reason is an eval hold: each `<!-- pr-hold reason=... -->` line posted since the label's newest
-labeled event reads `reason=eval`, and a human on the trusted-actors list or the lanes App posted
-it (the loop-lane contract's "Record the reason"). Flip with the label on, and leave it for the
-pr-merge release step to take off once the eval-pair record posts: removing and re-adding it voids
-the eval reason line, so the release step keeps the hold. An unattended
+Held means a WIP marker in the title; superseded means an issue the PR closes is already closed.
+The `do-not-merge` label holds the merge only, never the flip: flip a labeled draft with the label
+on, and leave the label for whoever set it to take off, except an eval-only hold, which pr-merge's
+release step (`release-eval-hold.mjs`) takes off once a no-loss eval record for the current head is posted. An unattended
 run (invoked as `ready --unattended`, or no person drives it: a loop lane, a CI lane, a `dontAsk`
 session, a dispatched worker) passes `--unattended`, which also holds a draft whose body has a
 line starting `Draft:` (any case, such as create's `Draft: requested early look` or
@@ -323,9 +319,10 @@ This repository's one scripted exception. When the conflicted paths include a pl
 `bash "<plugin-root>/scripts/resolve-version-bump-conflict.sh"` from the repository root before
 resolving them by hand. It sets the version to the default branch's current version plus one bump
 at the PR's level (a number neither side wrote), keeps the default branch's changelog entries,
-re-heads the PR's entry under the new version, and stages both files. Exit 0 means every such pair
-was resolved; exit 1 names a plugin it left untouched, which you resolve by hand under the steps
-above. A plugin listed in the repository's `fragment-plugins.txt` (under `scripts/`) is in
+re-heads the PR's entry under the new version, three-way merges every other edit to the two files,
+and stages both. Exit 0 means every such pair was resolved; exit 1 names a plugin it left untouched
+because that merge conflicted or the pair did not have this shape, which you resolve by hand under
+the steps above. A plugin listed in the repository's `fragment-plugins.txt` (under `scripts/`) is in
 changelog-fragment mode and gets no version from a pull request: the script leaves it untouched,
 and the resolution is the default branch's `plugin.json` and `CHANGELOG.md` with the PR's entry
 moved into a changelog fragment. `<plugin-root>/scripts/convert-bump-to-fragment.sh` makes that

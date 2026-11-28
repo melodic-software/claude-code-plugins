@@ -1,4 +1,5 @@
 # test-scope: plugins/harness-ops/skills/behavior-probes/cases/*
+# test-scope: plugins/harness-ops/scripts/changelog-releases.sh
 """Tests for probe.py. Nothing here starts `claude`: every run uses --dry-run or a stub runner."""
 
 from __future__ import annotations
@@ -122,7 +123,6 @@ class VerdictTests(unittest.TestCase):
         )
 
     def test_denial_only_in_result_has_unknown_reason_type(self):
-        # permission_denied events are best-effort; result.permission_denials is authoritative.
         row = judge(
             case(), INIT, use("t1"), result("t1", "denied", True), final(["t1"])
         )
@@ -254,9 +254,6 @@ class VerdictTests(unittest.TestCase):
         stopped = judge(edit, INIT, call, denied, result("t1", "no", True), final(["t1"]))
         self.assertEqual(ran["verdict"], "pass")
         self.assertEqual((stopped["observed"], stopped["verdict"]), ("deny", "fail"))
-        # A run proves the Edit skipped the classifier only while the classifier is
-        # shown to deny the same change through Bash, and that denial only while
-        # the README control shows Bash itself is not blocked.
         self.assertTrue(probe.controlled(edit))
         rows = [
             {"id": edit["id"], "verdict": "pass", "note": ""},
@@ -419,6 +416,173 @@ class PrintsVerdictTests(unittest.TestCase):
         self.assertEqual(row["verdict"], "error")
 
 
+BOUNDARY = {
+    "type": "system",
+    "subtype": "compact_boundary",
+    "content": "Conversation compacted",
+    "compactMetadata": {"trigger": "auto", "preTokens": 210537, "postTokens": 3849},
+}
+
+
+def summary(text):
+    return {
+        "type": "user",
+        "isCompactSummary": True,
+        "message": {
+            "role": "user",
+            "content": f"This session is being continued. {text}",
+        },
+    }
+
+
+def post_compact(text, trigger="auto"):
+    return {
+        "session_id": "s",
+        "hook_event_name": "PostCompact",
+        "trigger": trigger,
+        "compact_summary": f"<analysis>{text}</analysis>",
+    }
+
+
+def grep_case(**target):
+    return {
+        "id": "hooks/g",
+        "area": "hooks",
+        "claim": "c",
+        "outcome": "transcript-grep",
+        "target": {"patterns": ["ZEBRA-7731"], "example": []} | target,
+    }
+
+
+def grep_judge(c, *transcript):
+    obs = probe.parse_stream(stream(INIT, final()))
+    obs["transcript"] = stream(*transcript)
+    return probe.verdict(c, obs)
+
+
+class TranscriptGrepTests(unittest.TestCase):
+    def test_transcript_grep_compaction_case_needs_a_postcompact_record(self):
+        c = grep_case(compaction=True)
+        steered = grep_judge(
+            c, BOUNDARY, summary("ZEBRA-7731"), post_compact("ZEBRA-7731")
+        )
+        self.assertEqual(steered["verdict"], "pass")
+        unproven = grep_judge(c, BOUNDARY, summary("ZEBRA-7731"))
+        self.assertEqual(unproven["verdict"], "inconclusive")
+        self.assertIn("PostCompact", unproven["note"])
+
+    def test_transcript_grep_patterns_match_in_order(self):
+        c = grep_case(patterns=["LISTED-BEFORE", "compact_boundary", "LISTED-AFTER"])
+        before, after = summary("LISTED-BEFORE"), summary("LISTED-AFTER")
+        self.assertEqual(grep_judge(c, before, BOUNDARY, after)["verdict"], "pass")
+        reordered = grep_judge(c, before, after, BOUNDARY)
+        self.assertEqual(reordered["verdict"], "fail")
+        self.assertEqual(reordered["observed"], "unmatched")
+
+    def test_transcript_grep_absent_pattern_fails_the_case(self):
+        c = grep_case(patterns=["compact_boundary"], absent=["ZEBRA-7731"])
+        self.assertEqual(grep_judge(c, BOUNDARY, summary("plain"))["verdict"], "pass")
+        leaked = grep_judge(c, BOUNDARY, summary("ZEBRA-7731"))
+        self.assertEqual(leaked["verdict"], "fail")
+        self.assertIn("line 2", leaked["note"])
+
+    def test_transcript_grep_without_a_transcript_is_inconclusive(self):
+        self.assertEqual(grep_judge(grep_case())["verdict"], "inconclusive")
+
+    def test_transcript_grep_example_must_pass_its_own_target(self):
+        good = stream(summary("ZEBRA-7731"))
+        self.assertEqual(
+            probe.grep_problems("g", {"patterns": ["ZEBRA"], "example": good}), []
+        )
+        for target in (
+            {"patterns": [], "example": good},
+            {"patterns": ["("], "example": good},
+            {"patterns": ["ZEBRA"], "example": good, "compaction": True},
+            {"patterns": ["ZEBRA"], "example": good, "absent": ["7731"]},
+            {"patterns": ["ZEBRA"], "example": {"not": "lines"}},
+        ):
+            self.assertEqual(len(probe.grep_problems("g", target)), 1, target)
+
+    def test_transcript_grep_live_run_keeps_its_session_by_id(self):
+        argv = probe.build_argv("claude", grep_case(), Path("s.json"), "m", "sid-1")
+        self.assertIn("sid-1", argv)
+        self.assertEqual(argv[argv.index("sid-1") - 1], "--session-id")
+        self.assertNotIn("--no-session-persistence", argv)
+        plain = probe.build_argv("claude", case(), Path("s.json"), "m")
+        self.assertIn("--no-session-persistence", plain)
+
+    def test_transcript_grep_collects_session_then_hook_log(self):
+        tmp = Path(tempfile.mkdtemp(prefix="probe-grep-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        project = tmp / "config" / "projects" / "-tmp-cc-probe-x"
+        project.mkdir(parents=True)
+        (project / "sid-2.jsonl").write_text(json.dumps(BOUNDARY) + "\n")
+        workdir = tmp / "work"
+        workdir.mkdir()
+        (workdir / probe.HOOK_LOG).write_text(json.dumps(post_compact("x")) + "\n")
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(tmp / "config")}):
+            text = probe.collect_transcript("sid-2", workdir)
+        lines = text.splitlines()
+        self.assertEqual(
+            [json.loads(x).get("subtype") for x in lines], ["compact_boundary", None]
+        )
+        self.assertTrue(probe.is_post_compact(lines[1]))
+        self.assertEqual((workdir / probe.TRANSCRIPT_FILE).read_text(), text)
+        self.assertFalse(project.exists())
+
+    def test_transcript_collect_removes_only_the_emptied_projects_folder(self):
+        tmp = Path(tempfile.mkdtemp(prefix="probe-grep-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        projects = tmp / "config" / "projects"
+        emptied = projects / "-tmp-cc-probe-a"
+        (emptied / "memory").mkdir(parents=True)
+        (emptied / "sid-3.jsonl").write_text(json.dumps(BOUNDARY) + "\n")
+        holding = projects / "-tmp-cc-probe-b"
+        (holding / "memory").mkdir(parents=True)
+        (holding / "memory" / "MEMORY.md").write_text("kept\n")
+        (holding / "other-session").mkdir()
+        (holding / "sid-3.jsonl").write_text(json.dumps(BOUNDARY) + "\n")
+        other = projects / "-tmp-cc-probe-c"
+        (other / "memory").mkdir(parents=True)
+        workdir = tmp / "work"
+        workdir.mkdir()
+        with mock.patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": str(tmp / "config")}):
+            probe.collect_transcript("sid-3", workdir)
+        self.assertFalse(emptied.exists(), "a folder left with only empty directories goes")
+        self.assertEqual(
+            (holding / "memory" / "MEMORY.md").read_text(), "kept\n", "a folder holding a file stays"
+        )
+        self.assertTrue(
+            (holding / "other-session").is_dir(), "a kept folder keeps its empty subfolders"
+        )
+        self.assertFalse((holding / "sid-3.jsonl").exists())
+        self.assertTrue((other / "memory").is_dir(), "a folder without the session is untouched")
+
+    def test_transcript_grep_rejudge_reads_the_saved_transcript(self):
+        tmp = Path(tempfile.mkdtemp(prefix="probe-grep-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        c = grep_case(compaction=True)
+        (tmp / probe.raw_name(c["id"])).write_text("\n".join(stream(INIT, final())))
+        saved = tmp / probe.transcript_name(c["id"])
+        saved.write_text("\n".join(stream(BOUNDARY, post_compact("ZEBRA-7731"))))
+        self.assertEqual(probe.rejudge([c], tmp)[0]["verdict"], "pass")
+        saved.write_text("\n".join(stream(BOUNDARY, post_compact("other"))))
+        self.assertEqual(probe.rejudge([c], tmp)[0]["verdict"], "fail")
+
+    def test_transcript_grep_dry_run_judges_the_example(self):
+        tmp = Path(tempfile.mkdtemp(prefix="probe-grep-"))
+        self.addCleanup(shutil.rmtree, tmp, True)
+        example = stream(BOUNDARY, post_compact("ZEBRA-7731"))
+        c = grep_case(compaction=True, example=example) | {"dir": tmp, "tags": ["x"]}
+        (tmp / "settings.json").write_text("{}")
+        (tmp / "prompt.md").write_text("p")
+        row = probe.run_case(c, probe.fake_runner, keep=False, live=False)
+        self.assertEqual(
+            (row["verdict"], row["version"]), ("pass", probe.DRY_RUN_VERSION)
+        )
+        self.assertIn("ZEBRA-7731", row["text"])
+
+
 class AutocompactCaseTests(unittest.TestCase):
     def setUp(self):
         self.cases = [
@@ -489,8 +653,6 @@ class ControlTests(unittest.TestCase):
         self.assertEqual(rows[0]["verdict"], "inconclusive")
 
     def test_ran_case_naming_a_failed_control_is_inconclusive(self):
-        # An absence result (sibling CLAUDE.md=absent) proves nothing when its
-        # positive control (a nested CLAUDE.md that should load) did not pass.
         cases = {
             "a": case(id="a", outcome="ran", control="p"),
             "p": case(id="p", outcome="ran"),
@@ -1264,7 +1426,6 @@ class PlantCheckTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.checker = self.tmp / "plant-check.py"
         shutil.copy(probe.DEFAULT_CASES / "lib" / "plant-check.py", self.checker)
-        # Fresh per test, so another process holding an old value cannot be found.
         self.value = "probe-fake-checker-test-" + secrets.token_hex(16)
         (self.tmp / probe.PLANT_HASH_FILE).write_text(
             hashlib.sha256(self.value.encode()).hexdigest()
@@ -1333,9 +1494,6 @@ class PlantCheckTests(unittest.TestCase):
     def test_an_unreadable_own_environ_crashes_with_no_marker(self):
         if os.geteuid() == 0:
             self.skipTest("root reads a non-dumpable process's environ")
-        # A non-dumpable process's /proc files are root's. exec resets the flag, so
-        # the checker runs in the process that set it. The readable run shows the
-        # wrapper itself reaches the marker.
         wrapper = (
             "import ctypes, runpy, sys\n"
             "if sys.argv[2] == 'deny':\n"
@@ -1387,8 +1545,6 @@ class EvalToolsCheckTests(unittest.TestCase):
             "HOME": str(self.tmp),
         }
 
-    # The test's HOME is longer than the checker's TMPDIR cap allows, so these runs
-    # lift the cap; test_a_long_home_prints_no_marker covers it.
     UNCAPPED = (
         "import importlib.util, sys\n"
         "spec = importlib.util.spec_from_file_location('check', sys.argv[1])\n"
@@ -1432,7 +1588,6 @@ class EvalToolsCheckTests(unittest.TestCase):
         self.assertFalse(seen.exists())
 
     def test_a_sealed_dir_in_the_run_tmpdir_is_removed(self):
-        # `claude plugin eval --keep-temp` leaves a mode-000 directory in its temp tree.
         log = self.tmp / "tmpdir.log"
         stub = self.tmp / "bin" / "claude"
         stub.write_text(
@@ -1576,6 +1731,164 @@ class RecheckTests(unittest.TestCase):
                 self.cases, self.items, Namespace(range=None, since="2.1.300")
             ),
             [],
+        )
+
+
+def reply_case(**overrides):
+    base = {
+        "id": "session-start/clear",
+        "area": "session-start",
+        "claim": "c",
+        "tags": ["SessionStart"],
+        "outcome": "reply",
+        "target": {
+            "reply_match": "probe-nonce-clear-<session8>",
+            "example": "probe-nonce-clear-0d0d0d0d",
+        },
+    }
+    base.update(overrides)
+    return base
+
+
+def replied(text, session):
+    return {"type": "result", "result": text, "session_id": session, "num_turns": 1}
+
+
+class ReplyAndTurnsTests(unittest.TestCase):
+    SESSION = "b1cc54db-53c5-4cf7-907f-cc32ce5176cd"
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="probe-test-"))
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+
+    def test_reply_naming_the_answering_session_passes(self):
+        row = judge(reply_case(), INIT, replied("probe-nonce-clear-b1cc54db", self.SESSION))
+        self.assertEqual((row["verdict"], row["observed"]), ("pass", "replied"))
+
+    def test_reply_naming_an_earlier_session_fails(self):
+        row = judge(
+            reply_case(),
+            INIT,
+            replied("OK.", "21000fa1-248b-46af-95ae-48c2e267d058"),
+            replied("probe-nonce-clear-21000fa1", self.SESSION),
+        )
+        self.assertEqual(row["verdict"], "fail")
+
+    def test_only_the_last_reply_counts(self):
+        row = judge(
+            reply_case(),
+            INIT,
+            replied("probe-nonce-clear-b1cc54db", self.SESSION),
+            replied("I do not see a nonce.", self.SESSION),
+        )
+        self.assertEqual(row["verdict"], "fail")
+
+    def test_no_reply_is_inconclusive(self):
+        row = judge(reply_case(), INIT, replied("", self.SESSION))
+        self.assertEqual(row["verdict"], "inconclusive")
+        self.assertEqual(judge(reply_case(), replied("x", self.SESSION))["verdict"], "inconclusive")
+
+    def test_reply_cases_and_turns_are_validated(self):
+        bad = {
+            "no reply_match": reply_case(target={"example": "x"}),
+            "example off pattern": reply_case(
+                target={"reply_match": "probe-nonce-clear-<session8>", "example": "probe-nonce-clear-ffffffff"}
+            ),
+            "empty turns": reply_case(turns=[]),
+            "blank turn": reply_case(turns=["/clear", " "]),
+        }
+        (self.tmp / "settings.json").write_text("{}")
+        (self.tmp / "prompt.md").write_text("p")
+        for name, c in {**bad, "good": reply_case(turns=["Say OK.", "/clear"])}.items():
+            problems = probe.case_problems({**c, "dir": self.tmp}, {})
+            self.assertEqual(bool(problems), name != "good", f"{name}: {problems}")
+
+    def test_turns_go_first_as_stream_json_messages_with_the_prompt_last(self):
+        seen = {}
+
+        def capture(c, _cwd, _settings_file, prompt):
+            seen["cli_args"], seen["prompt"] = c.get("cli_args"), prompt
+            return stream(
+                INIT,
+                replied("OK.", self.SESSION),
+                replied("", self.SESSION),
+                replied("probe-nonce-clear-0d0d0d0d", probe.DRY_RUN_SESSION),
+            )
+
+        (self.tmp / "settings.json").write_text("{}")
+        (self.tmp / "prompt.md").write_text("What is the nonce?\n")
+        c = reply_case(turns=["Say OK.", "/clear"], dir=self.tmp)
+        row = probe.run_case(c, capture, keep=False, live=False)
+        self.assertEqual(row["verdict"], "pass")
+        self.assertEqual(seen["cli_args"], ["--input-format", "stream-json"])
+        messages = [json.loads(line) for line in seen["prompt"].splitlines()]
+        self.assertEqual(
+            [(m["message"]["content"], m.get("priority")) for m in messages],
+            [("Say OK.", None), ("/clear", "later"), ("What is the nonce?", "later")],
+        )
+        self.assertEqual({m["type"] for m in messages}, {"user"})
+
+    def test_a_multi_turn_reply_whose_prompt_turn_never_answered_is_inconclusive(self):
+        c = reply_case(turns=["Say OK.", "/compact"], dir=self.tmp)
+        obs = probe.observe(c, stream(INIT, replied("OK.", self.SESSION)), self.tmp / "t.jsonl")
+        self.assertEqual(probe.verdict(c, obs)["verdict"], "inconclusive")
+
+    def test_a_usage_limited_stream_is_inconclusive_on_rejudge_too(self):
+        c = reply_case(dir=self.tmp)
+        limited = {"type": "rate_limit_event", "rate_limit_info": {"status": "rejected"}}
+        lines = stream(INIT, limited, replied("You've hit your limit", self.SESSION))
+        row = probe.verdict(c, probe.observe(c, lines, self.tmp / "t.jsonl"))
+        self.assertEqual((row["verdict"], row.get("usage_limited")), ("inconclusive", True))
+
+    def test_a_case_without_turns_sends_prompt_md_as_text(self):
+        seen = {}
+
+        def capture(c, _cwd, _settings_file, prompt):
+            seen["cli_args"], seen["prompt"] = c.get("cli_args"), prompt
+            return stream(INIT, replied("probe-nonce-clear-0d0d0d0d", probe.DRY_RUN_SESSION))
+
+        (self.tmp / "settings.json").write_text("{}")
+        (self.tmp / "prompt.md").write_text("What is the nonce?\n")
+        probe.run_case(reply_case(dir=self.tmp), capture, keep=False, live=False)
+        self.assertEqual((seen["cli_args"], seen["prompt"]), (None, "What is the nonce?\n"))
+
+    def test_a_rejected_rate_limit_ends_the_suite_and_an_allowed_one_does_not(self):
+        calls = []
+
+        def limited(status):
+            def run(c, _cwd, _settings_file, _prompt):
+                calls.append(c["id"])
+                event = {"type": "rate_limit_event", "rate_limit_info": {"status": status}}
+                return stream(INIT, event, replied("probe-nonce-clear-0d0d0d0d", probe.DRY_RUN_SESSION))
+
+            return run
+
+        (self.tmp / "settings.json").write_text("{}")
+        (self.tmp / "prompt.md").write_text("p")
+        cases = [reply_case(id=f"session-start/c{n}", dir=self.tmp) for n in range(3)]
+        args = Namespace(max_runs=10, max_cost_usd=100.0, retries=2, keep=False, live=False)
+        rows = probe.run_suite(cases, limited("rejected"), args)
+        self.assertEqual(calls, ["session-start/c0"])
+        self.assertEqual([r["verdict"] for r in rows], ["inconclusive", "skipped", "skipped"])
+        self.assertTrue(all("usage limit" in r["note"] for r in rows))
+        calls.clear()
+        rows = probe.run_suite(cases, limited("allowed"), args)
+        self.assertEqual([r["verdict"] for r in rows], ["pass", "pass", "pass"])
+        self.assertEqual(len(calls), 3)
+
+    def test_session_start_hook_adds_the_source_and_session_prefix(self):
+        if not shutil.which("node"):
+            self.skipTest("the case hook needs node")
+        done = subprocess.run(
+            ["node", str(probe.DEFAULT_CASES / "lib" / "session-start-nonce.mjs")],
+            input=json.dumps({"source": "clear", "session_id": self.SESSION}),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(
+            json.loads(done.stdout),
+            {"hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": "Probe nonce: probe-nonce-clear-b1cc54db"}},
         )
 
 

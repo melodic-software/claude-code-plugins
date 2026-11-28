@@ -1,12 +1,3 @@
-// Optional plugin offers (offers/offer-source.mjs): AC10 (freshness by the newest commit on the
-// plugin's source path; no offer when renamed, unlisted, a lookup fails or the run is unattended;
-// the install command carries user scope) and the 24-hour lookup cache.
-//
-// Canned responses are recorded, never written from the code's guess: fixtures/offers/catalog.json
-// is GET repos/anthropics/claude-plugins-community/contents/.claude-plugin/marketplace.json
-// (raw) on 2026-11-03, trimmed to two of its entries, and commits-html-plan.json is
-// GET repos/anthropics/claude-plugins-community/commits?path=html-plan&per_page=1 on 2026-11-03,
-// trimmed to the fields read. Commit ages are set by replacing that one date.
 import { after, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
@@ -21,8 +12,6 @@ const made = []
 const dataDir = () => made[made.push(mkdtempSync(join(tmpdir(), 'offer-source-'))) - 1]
 after(() => made.forEach(d => rmSync(d, { recursive: true, force: true })))
 
-// Hand-computed: 2026-11-03 is day 307 of 2026, so 30, 120 and 200 days earlier are
-// 2026-10-04, 2026-07-06 and 2026-04-17.
 const NOW = new Date('2026-11-03T00:00:00Z')
 const HTML_PLAN = {
   name: 'html-plan',

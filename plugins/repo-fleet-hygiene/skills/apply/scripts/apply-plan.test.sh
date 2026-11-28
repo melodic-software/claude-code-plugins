@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
-# apply-plan.test.sh — dry-run, confirmation stop, OID drift skip, ordering.
 # shellcheck disable=SC2310 # pass/fail helpers return status in if/||; every false path is handled
 # shellcheck disable=SC2015 # `cond && pass || fail`: pass never fails, so fail runs only when cond is false
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -60,7 +57,6 @@ assert_branch_deleted() {
   fi
 }
 
-# --- Fixture helpers --------------------------------------------------------
 make_repo() {
   local path=$1
   mkdir -p "$path"
@@ -73,7 +69,6 @@ make_repo() {
 }
 
 add_merged_branch() {
-  # Create branch at tip OID; return OID on stdout.
   local repo=$1 branch=$2
   git -C "$repo" checkout -q -b "$branch"
   printf '%s\n' "$branch" >"$repo/feat.txt"
@@ -86,8 +81,6 @@ add_merged_branch() {
 }
 
 write_plan() {
-  # Usage: write_plan PATH <<'EOF' ... JSON ... EOF
-  # Copy stdin to a temp file first so the python here-doc does not consume the JSON.
   local out=$1
   local raw
   raw="$(mktemp "$TMP/plan-raw.XXXXXX")"
@@ -103,7 +96,6 @@ with open(out, "w", encoding="utf-8") as f:
 PY
 }
 
-# Two repos with merged-local-branch candidates (ordering: branches before worktrees).
 REPO_A="$TMP/repo-a"
 REPO_B="$TMP/repo-b"
 make_repo "$REPO_A"
@@ -224,14 +216,12 @@ write_plan "$PLAN" <<EOF
 }
 EOF
 
-# --- 1) Dry-run: preview, no mutations --------------------------------------
 dry_out="$TMP/dry.txt"
 bash "$SCRIPT" --plan-file "$PLAN" >"$dry_out" 2>&1
 assert_contains "dry-run mode banner" "Mode: dry-run (no mutations)" "$dry_out"
 assert_contains "dry-run lists mutable units" "Mutable: 3" "$dry_out"
 assert_contains "dry-run names delete-branch" "[delete-branch]" "$dry_out"
 assert_contains "dry-run names worktree remove" "[remove-worktree-then-branch]" "$dry_out"
-# Ordering: first two are branch deletes (alpha/beta), then worktree.
 python3 - "$dry_out" <<'PY' || fails=1
 import sys
 text = open(sys.argv[1], encoding="utf-8").read().splitlines()
@@ -258,7 +248,6 @@ else
   fail "dry-run mutated nothing"
 fi
 
-# --- 2) Confirmation stop: --apply without --yes on non-tty -----------------
 stop_out="$TMP/stop.txt"
 rc=0
 bash "$SCRIPT" --plan-file "$PLAN" --apply </dev/null >"$stop_out" 2>&1 || rc=$?
@@ -270,8 +259,6 @@ else
 fi
 assert_branch_kept "confirmation stop mutated nothing" "$REPO_A" feat/alpha
 
-# --- 3) OID drift skip ------------------------------------------------------
-# Advance feat/alpha so tip != plan OID.
 git -C "$REPO_A" checkout -q feat/alpha
 printf 'drift\n' >>"$REPO_A/feat.txt"
 git -C "$REPO_A" add feat.txt
@@ -291,9 +278,6 @@ else
     "$(git -C "$REPO_A" show-ref --verify --quiet refs/heads/feat/wt && echo yes || echo no)" >&2
 fi
 
-# --- 4) Confirmation stop on a fresh plan; --yes positive control ------------
-# Rebuild a small plan with one remaining branch (feat/alpha still present, drifted —
-# use a fresh matching branch).
 OID_C="$(add_merged_branch "$REPO_B" "feat/gamma")"
 PLAN2="$TMP/plan2.json"
 write_plan "$PLAN2" <<EOF
@@ -343,10 +327,6 @@ write_plan "$PLAN2" <<EOF
 }
 EOF
 
-# An interactive "n" decline needs a pty (the script checks -t 0, so piped stdin
-# hits the non-interactive stop instead). Re-assert that stop on this fresh plan,
-# then a --yes apply as the positive control that the same plan would mutate.
-
 decline_rc=0
 bash "$SCRIPT" --plan-file "$PLAN2" --apply </dev/null >/dev/null 2>&1 || decline_rc=$?
 [[ "$decline_rc" -eq 3 ]] || fail "plan2 confirmation stop rc=$decline_rc"
@@ -357,7 +337,6 @@ bash "$SCRIPT" --plan-file "$PLAN2" --apply --yes >"$yes_out" 2>&1
 assert_contains "yes apply deleted gamma" "APPLIED: deleted branch feat/gamma" "$yes_out"
 assert_branch_deleted "--yes applied matching branch delete" "$REPO_B" feat/gamma
 
-# --- 5) Usage / schema ------------------------------------------------------
 rc=0
 bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
 if [[ "$rc" -eq 2 ]]; then
@@ -376,7 +355,6 @@ else
   fail "bad schema exits 2"
 fi
 
-# --- 6) Reject non-audit / unbound action plans (P1 safety) -----------------
 fake="$TMP/fake-plan.json"
 write_plan "$fake" <<EOF
 {
@@ -406,7 +384,6 @@ else
 fi
 
 unbound="$TMP/unbound-plan.json"
-# Fresh matching tip so a naive apply would otherwise delete.
 add_merged_branch "$REPO_A" "feat/unbound" >/dev/null
 write_plan "$unbound" <<EOF
 {
@@ -448,13 +425,8 @@ else
 fi
 assert_branch_kept "unbound plan mutated nothing" "$REPO_A" feat/unbound
 
-# --- 7) Empty TSV fields for prune-only worktree kinds (P2) -----------------
-# Register a missing worktree path so prune is meaningful, then plan a
-# prunable-worktree action whose ref_name and expected_oid are intentionally empty.
 PRUNE_REPO="$TMP/repo-prune"
 make_repo "$PRUNE_REPO"
-# Create and remove a linked worktree so porcelain may still list stale entries
-# after a forced path removal; apply's prune path only needs the kind decode.
 WT_STALE="$TMP/wt-stale"
 git -C "$PRUNE_REPO" worktree add -q "$WT_STALE" -b feat/stale
 rm -rf "$WT_STALE"
@@ -508,9 +480,6 @@ assert_contains "prunable empty fields decode to prune" "[prune-worktrees]" "$pr
 assert_contains "prunable kind preserved" "kind: prunable-worktree" "$prune_out"
 assert_not_contains "prunable not misread as merged-worktree skip" "target has no branch name" "$prune_out"
 
-# --- 8) delete-remote-branches: gated by --remote-branches, per branch --------
-# Fixtures use a local bare repository as the remote; nothing here reaches GitHub. The per-branch
-# prompt reads a terminal, so the interactive cases run under a pty driver; without one they SKIP.
 HAVE_PTY=0
 python3 -c 'import pty' >/dev/null 2>&1 && HAVE_PTY=1
 PTY_DRIVER="$TMP/pty-run.py"
@@ -541,7 +510,6 @@ _, status = os.waitpid(pid, 0)
 sys.exit(os.WEXITSTATUS(status) if os.WIFEXITED(status) else 1)
 PY
 
-# run_pty OUT ANSWER... -- COMMAND...: answers each "[y/N]" prompt in order, returns the exit code.
 run_pty() {
   local out=$1
   shift
@@ -561,7 +529,6 @@ make_remote_repo() {
   git -C "$REMOTE_REPO" push -q origin main
 }
 
-# Pushes a new branch and drops the local copy, so only the remote head remains. Prints the tip.
 add_remote_branch() {
   local repo=$1 branch=$2 oid
   git -C "$repo" checkout -q -b "$branch"
@@ -575,7 +542,6 @@ add_remote_branch() {
   printf '%s\n' "$oid"
 }
 
-# Advances a remote head from a second clone, the way a concurrent pusher would. Prints the new tip.
 move_remote_branch() {
   local bare=$1 branch=$2 clone
   clone="$(mktemp -d "$TMP/mover.XXXXXX")"
@@ -602,8 +568,6 @@ assert_remote_head() {
   fi
 }
 
-# write_remote_plan OUT CANONICAL KIND ROW...: one delete-remote-branches action, each ROW being
-# branch|class|expected_oid[|evidence_oid[|evidence_class]]. LOCAL_ROW=branch|oid adds a merged-local-branch action.
 write_remote_plan() {
   local out=$1 canonical=$2 kind=$3
   shift 3
@@ -675,9 +639,6 @@ with open(out, "w", encoding="utf-8") as f:
 PY
 }
 
-# gh stand-in for the apply-time PR recheck. It logs "<repo> <head>" per call and answers with the
-# rows in $GH_STUB_DIR/<branch with / as _> (tab-separated state and headRefOid), or exits 1 when
-# $GH_STUB_DIR/fail exists.
 export GH_STUB_DIR="$TMP/gh-stub" GH_STUB_LOG="$TMP/gh-stub.log"
 mkdir -p "$GH_STUB_DIR" "$TMP/bin"
 : >"$GH_STUB_LOG"
@@ -700,7 +661,6 @@ STUB
 chmod +x "$TMP/bin/gh"
 export PATH="$TMP/bin:$PATH"
 
-# set_pr_rows BRANCH [STATE OID]...: what the stubbed GitHub reports for the branch's PRs.
 set_pr_rows() {
   local branch=$1 f
   shift
@@ -714,7 +674,6 @@ set_pr_rows() {
 
 NP=unmerged-remote-branch
 
-# (a) No --remote-branches: local deletion proceeds, the remote head stays, no push runs.
 make_remote_repo ra
 RA_NP="$(add_remote_branch "$REMOTE_REPO" feat/np)"
 RA_LOCAL="$(add_merged_branch "$REMOTE_REPO" feat/local)"
@@ -731,7 +690,6 @@ assert_remote_head "remote head survives apply without --remote-branches" "$REMO
 assert_not_contains "no git push ran without --remote-branches" "built-in: git push" "$TMP/ra.trace"
 [[ ! -e "$RA_PLAN.tip-ledger" ]] && pass "no ledger without --remote-branches" || fail "no ledger without --remote-branches"
 
-# (b) A scripted 'n' (and a blank line) skips both branches, and --yes does not bypass the gate.
 make_remote_repo rb
 RB_NP="$(add_remote_branch "$REMOTE_REPO" feat/np)"
 RB_CL="$(add_remote_branch "$REMOTE_REPO" feat/closed)"
@@ -755,7 +713,6 @@ if [[ "$HAVE_PTY" -eq 1 ]]; then
   assert_contains "declined branch reports a skip" "remote deletion not confirmed" "$rb_out"
   [[ ! -e "$RB_PLAN.tip-ledger" ]] && pass "declined run writes no ledger" || fail "declined run writes no ledger"
 
-  # (c) 'y' for the first branch only: it is deleted, recorded first, and restorable.
   rc_out="$TMP/rc.txt"
   rc_rc=0
   run_pty "$rc_out" y n -- bash "$SCRIPT" --plan-file "$RB_PLAN" --apply --yes --remote-branches || rc_rc=$?
@@ -779,7 +736,6 @@ if [[ "$HAVE_PTY" -eq 1 ]]; then
   bash -c "$restore_cmd" >/dev/null 2>&1
   assert_remote_head "restore command brings the head back at the recorded tip" "$RB_BARE" feat/np "$RB_NP"
 
-  # (c2) The tip object is absent locally: it is fetched so the restore command can work.
   make_remote_repo rc2
   RC2_TIP="$(add_remote_branch "$REMOTE_REPO" feat/other)"
   RC2_TIP="$(move_remote_branch "$REMOTE_BARE" feat/other)"
@@ -798,7 +754,6 @@ else
   skip_no_pty "(b)/(c) per-branch prompt, ledger and restore cases"
 fi
 
-# (d) The remote tip moved after the audit: skipped before any prompt, with an OID-drift reason.
 make_remote_repo rd
 RD_OLD="$(add_remote_branch "$REMOTE_REPO" feat/moved)"
 RD_NEW="$(move_remote_branch "$REMOTE_BARE" feat/moved)"
@@ -822,7 +777,6 @@ assert_contains "default branch is protected" "protected default branch" "$rd2_o
 assert_contains "gone head is skipped" "remote head already gone" "$rd2_out"
 assert_not_contains "no command is printed for skipped rows" "command: git" "$rd2_out"
 
-# (e) Non-interactive --remote-branches --yes prints the rows and deletes nothing, local rows included.
 make_remote_repo re
 RE_NP="$(add_remote_branch "$REMOTE_REPO" feat/np)"
 RE_LOCAL="$(add_merged_branch "$REMOTE_REPO" feat/local)"
@@ -837,7 +791,6 @@ assert_contains "non-interactive run says nothing was mutated" "mutate nothing" 
 assert_remote_head "non-interactive run deletes no remote head" "$REMOTE_BARE" feat/np "$RE_NP"
 assert_branch_kept "non-interactive run deletes no local branch" "$REMOTE_REPO" feat/local
 
-# (f) Dry-run rows are the commands the gated path runs.
 make_remote_repo rf
 RF_A="$(add_remote_branch "$REMOTE_REPO" feat/a)"
 RF_B="$(add_remote_branch "$REMOTE_REPO" feat/b)"
@@ -866,10 +819,8 @@ else
   skip_no_pty "(f) gated half of the dry-run parity case"
 fi
 
-# The printed command carries a literal full-width lease, the shape the guardrails hook allows.
 HOOK="$SCRIPT_DIR/../../../../guardrails/hooks/block-dangerous-git.sh"
 if [[ -f "$HOOK" ]] && command -v jq >/dev/null 2>&1; then
-  # The attended flag turns the guard's deny into an ask (exit 0), so it is unset.
   hook_rc() {
     local cmd=$1 rc=0
     python3 -c 'import json, sys; print(json.dumps({"tool_name": "Bash", "tool_input": {"command": sys.argv[1]}, "cwd": sys.argv[2]}))' \
@@ -886,7 +837,6 @@ else
   printf 'SKIP: guardrails hook or jq unavailable; lease-guarded delete not checked against block-dangerous-git\n'
 fi
 
-# The lease refuses a head that moved after the dry-run listed its command.
 make_remote_repo ri
 RI_OLD="$(add_remote_branch "$REMOTE_REPO" feat/lease)"
 RI_PLAN="$TMP/ri-plan.json"
@@ -898,7 +848,6 @@ bash -c "$ri_cmd" >/dev/null 2>&1 || ri_rc=$?
 [[ "$ri_rc" -ne 0 ]] && pass "stale lease rejects the delete" || fail "stale lease rejects the delete"
 assert_remote_head "concurrent push survives the stale-lease delete" "$REMOTE_BARE" feat/lease "$RI_NEW"
 
-# (g) A merged-class action forged into delete-remote-branches is rejected by kind validation.
 make_remote_repo rg
 RG_OID="$(add_remote_branch "$REMOTE_REPO" feat/merged)"
 for forged in merged-remote-branch merged-local-branch; do
@@ -916,7 +865,6 @@ for forged in merged-remote-branch merged-local-branch; do
 done
 assert_remote_head "forged plans deleted nothing" "$REMOTE_BARE" feat/merged "$RG_OID"
 
-# A tip that is not the audit finding's tip, or is abbreviated, is a bad plan (exit 2).
 RG_BAD="$TMP/rg-bad.json"
 write_remote_plan "$RG_BAD" "$REMOTE_REPO" "$NP" "feat/merged|never-pr|${RG_OID:0:7}|${RG_OID:0:7}"
 rg_rc=0
@@ -941,7 +889,6 @@ bash "$SCRIPT" --plan-file "$RG_BAD" --remote-branches >"$TMP/rg-bad.txt" 2>&1 |
 [[ "$rg_rc" -eq 2 ]] && grep -Fq "branch is not a valid ref name" "$TMP/rg-bad.txt" &&
   pass "invalid branch ref name is rejected" || fail "invalid branch ref name is rejected (rc=$rg_rc)"
 
-# (h) A remote retargeted after the audit no longer names the audited repository: skipped, no push.
 make_remote_repo rj
 RJ_OID="$(add_remote_branch "$REMOTE_REPO" feat/np)"
 RJ_REPO="$REMOTE_REPO"
@@ -982,7 +929,6 @@ rj_run_gh="$TMP/rj-gh.txt"
 bash "$SCRIPT" --plan-file "$RJ_PLAN" --remote-branches >"$rj_run_gh" 2>&1
 assert_contains "a different GitHub repository is refused" "remote no longer names the audited repository" "$rj_run_gh"
 
-# (i) PR state is re-read before a row becomes deletable; anything but the audited class skips it.
 make_remote_repo rk
 RK_REPO="$REMOTE_REPO"
 RK_OPEN="$(add_remote_branch "$RK_REPO" feat/open)"
@@ -1019,7 +965,6 @@ assert_contains "an unreadable PR state fails closed" "GitHub PR state could not
 assert_not_contains "no row is deletable while PR state is unreadable" "[delete-remote-branch]" "$rk_fail"
 rm -f "$GH_STUB_DIR/fail"
 
-# (j) A PR that appears while the prompt is open stops the delete after the yes, before any ledger.
 if [[ "$HAVE_PTY" -eq 1 ]]; then
   make_remote_repo rl
   RL_OID="$(add_remote_branch "$REMOTE_REPO" feat/late)"
@@ -1038,7 +983,6 @@ else
   skip_no_pty "late PR case"
 fi
 
-# A ledger that cannot be written aborts that branch before the push.
 if [[ "$HAVE_PTY" -eq 1 ]]; then
   make_remote_repo rh
   RH_OID="$(add_remote_branch "$REMOTE_REPO" feat/np)"

@@ -3,6 +3,50 @@
 All notable changes to the `autonomy` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.2.21] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [5.2.20] - 2026-11-28
+
+### Changed
+
+- Trimmed `/autonomy:setup` user-invoked frontmatter description (511 -> 138 chars) to a one-line summary without trigger phrasing.
+
+### Fixed
+
+- Updated the retired `code.claude.com/docs/en/slack#access-and-permissions` pointer in `trigger-adapters.md` to link the live Slack retirement page and Claude Tag migration guide.
+
+## [5.2.19] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [5.2.18] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [5.2.17] - 2026-11-26
+
+### Changed
+
+- **The `drift-delta-sweep` routine runs three checks.** Its definition and the routines catalog
+  call the instruction-placement delta, the enforcement-surface delta and the repository drift
+  audit "checks", since "lane" now means only a worker that serves one pipeline stage. What the
+  sweep runs is unchanged.
+
+## [5.2.16] - 2026-11-24
+
+### Changed
+
+- The README describes the trigger-dispatch contract's stamping as work-class stamping from the
+  security surface's classification rules, matching `reference/trigger-dispatch.md`.
+
 ## [5.2.15] - 2026-11-23
 
 ### Changed

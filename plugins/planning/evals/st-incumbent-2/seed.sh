@@ -256,7 +256,6 @@ Delete the `holdfast` branch and the `HOLDS_BACKEND` setting from `src/seats/hol
 - Production check: the Phase 2 scan and dashboard reading.
 MD
 
-# Each phase heading takes its status tag here, outside the heredoc.
 plan=.work/review-target/PLAN.md
 text="$(cat "$plan")"
 printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"

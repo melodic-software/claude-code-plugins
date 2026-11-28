@@ -5,13 +5,13 @@
 - Related: [#18395](https://github.com/melodic-software/claude-code-plugins/pull/18395) (the
   change); owner interview and answers, 2026-11-22 and 2026-11-23 (Q35, the registry-mode fetch
   path, the two added hosts);
-  [ADR 0126](0126-route-vendors-on-a-consensus-of-independent-current-benchmarks.md) (the registry
-  this rechecks); [ADR 0057](0057-share-a-user-scope-docs-cache-across-plugins.md) (the cache the
+  [the benchmark registry](../../plugins/multi-agent/reference/benchmarks.json)
+  (what this rechecks); [ADR 0057](0057-share-a-user-scope-docs-cache-across-plugins.md) (the cache the
   fetch goes through)
 
 ## Context
 
-The benchmark registry (ADR 0126) goes stale as boards change, move or stop testing current
+The benchmark registry goes stale as boards change, move or stop testing current
 models. A recheck has to read leaderboard pages, which are untrusted third-party text, and turn
 them into proposed registry changes. The existing `multi-agent:docs-fetcher` gate admits only
 first-party docs hosts, and widening it would widen every audit that uses it.

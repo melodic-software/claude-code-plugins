@@ -6,8 +6,9 @@ fixtures to the skills and eval cases that depend on them. Python 3.8+,
 standard library only.
 """
 
-import collections
+import functools
 import importlib.util
+import json
 import os
 import re
 import subprocess
@@ -16,24 +17,6 @@ import sys
 MIN_PYTHON = (3, 8)
 
 DESC_TOKEN_RE = re.compile(r"\w+|[^\w\s]")
-HUNK_HEADER_RE = re.compile(r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@")
-MEANING_FLIP_WORDS = frozenset(
-    ["not", "never", "no", "don't", "only", "except", "unless", "cannot", "can't", "won't"]
-)
-DELIM_REL_PATH_RES = (
-    re.compile(r"<((?:\.\.?/)+[^<>#\r\n]+)(?:#[^<>\r\n]*)?>"),
-    re.compile(r'"((?:\.\.?/)+[^"#\r\n]+)(?:#[^"\r\n]*)?"'),
-    re.compile(r"'((?:\.\.?/)+[^'#\r\n]+)(?:#[^'\r\n]*)?'"),
-    re.compile(r"`((?:\.\.?/)+[^`#\r\n]+)(?:#[^`\r\n]*)?`"),
-)
-UNQUOTED_REL_PATH_RE = re.compile(r"(?:\.\.?/)+[^\s)\]`\"'>#;]+")
-SHELL_ASSIGN_RE = re.compile(
-    r"^[ \t]*(?:(?:local|readonly|export)[ \t]+)?([A-Za-z_][A-Za-z0-9_]*)=(.+)$"
-)
-DIRNAME_INNER_RE = re.compile(
-    r"""\$\(\s*dirname\s+["']?(?:\$\{?BASH_SOURCE(?:\[0\])?\}?|\$0)["']?\s*\)"""
-)
-PWD_TAIL_RE = re.compile(r"""["']?\s*&&\s*pwd(?:\s+-[PL])?\s*\)""")
 YAML_TOP_KEY_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_.\-]*)[ \t]*:(?:[ \t]+(.*))?$")
 
 SCRIPT_EXTENSIONS = frozenset(
@@ -70,6 +53,8 @@ PLUGIN_WIDE_FILES = frozenset(
 PLUGIN_WIDE_DIRS = frozenset(["hooks"])
 DESCRIPTION_KEYS = ("description", "when_to_use")
 
+GLOSSARY_PATHS = ("docs/glossary.md", "GLOSSARY.md")
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 VALIDATE_CASES_PY = os.path.normpath(
     os.path.join(HERE, os.pardir, os.pardir, "validate", "scripts", "validate-cases.py")
@@ -87,6 +72,15 @@ def _load_module(name, path):
 
 
 validate_cases = _load_module("evals_validate_cases", VALIDATE_CASES_PY)
+no_run_text = _load_module("evals_no_run_text", os.path.join(HERE, "no_run_text.py"))
+suite_refs = _load_module("evals_suite_refs", os.path.join(HERE, "suite_refs.py"))
+DIRNAME_INNER_RE = suite_refs.DIRNAME_INNER_RE
+HIDDEN_SCRIPT_EXTS = suite_refs.HIDDEN_SCRIPT_EXTS
+_parse_case_yaml_text = suite_refs._parse_case_yaml_text
+_read_text_safe = suite_refs._read_text_safe
+_extract_relative_paths = suite_refs._extract_relative_paths
+_case_suite_files = suite_refs._case_suite_files
+cases_citing_suite_file = suite_refs.cases_citing_suite_file
 
 
 def _git(repo_dir, *args):
@@ -170,27 +164,43 @@ def git_show(repo_root, rev, rel_path):
     return done.stdout
 
 
-def _flips_meaning(word):
-    token = word.replace("\u2019", "'").strip(".,;:!?()\"'`*_").lower()
-    return token in MEANING_FLIP_WORDS or token.endswith("n't")
-
-
-def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0):
+def _diff_has_cut_hunks(
+    diff_text,
+    skip_old_lines_upto=0,
+    skip_old_ranges=(),
+    allow_heading_renames=False,
+    pairs=(),
+    comment_style=None,
+):
     """A hunk that edits an existing line is a cut unless every old word survives, in order, in
-    its new lines and no inserted word flips their meaning: a re-wrap or a pure insertion."""
+    its new lines and no inserted word flips their meaning: a re-wrap or a pure insertion. A hunk
+    whose old lines all sit inside one of `skip_old_ranges` (inclusive line pairs) is not a cut,
+    nor one that only swaps glossary-decided terms (`pairs`) or only deletes whole comment lines
+    (`comment_style`), nor, with `allow_heading_renames`, one that only renames routing headings."""
     hunks = []
     for line in diff_text.splitlines():
         if line.startswith("Binary files "):
             return True
-        match = HUNK_HEADER_RE.match(line)
+        match = no_run_text.HUNK_HEADER_RE.match(line)
         if match:
             old_start = int(match.group(1))
             old_count = 1 if match.group(2) is None else int(match.group(2))
-            hunks.append([old_count > 0 and old_start + old_count - 1 > skip_old_lines_upto, [], []])
+            old_end = old_start + old_count - 1
+            skipped = any(lo <= old_start and old_end <= hi for lo, hi in skip_old_ranges)
+            keep = old_count > 0 and old_end > skip_old_lines_upto and not skipped
+            hunks.append([keep, [], [], [], [], old_start])
         elif hunks and line.startswith("-") and not line.startswith("---"):
             hunks[-1][1].extend(line[1:].split())
+            hunks[-1][3].append(line[1:])
         elif hunks and line.startswith("+") and not line.startswith("+++"):
             hunks[-1][2].append(line[1:].split())
+            hunks[-1][4].append(line[1:])
+    for hunk in hunks:
+        if hunk[0] and (
+            (allow_heading_renames and no_run_text._is_routing_heading_rename(hunk[3], hunk[4]))
+            or no_run_text._hunk_is_no_run(hunk[3], hunk[4], pairs, comment_style, hunk[5])
+        ):
+            hunk[0] = False
 
     def is_cut(old, new_lines):
         """Old words must survive in order; a flip word inserted into a line that keeps old words
@@ -205,15 +215,23 @@ def _diff_has_cut_hunks(diff_text, skip_old_lines_upto=0):
                     kept_here = True
                 else:
                     added.append(word)
-            if kept_here and any(_flips_meaning(word) for word in added):
+            if kept_here and any(no_run_text.flips_meaning(word) for word in added):
                 return True
         return index != len(old)
 
-    return any(edits and is_cut(old, new) for edits, old, new in hunks)
+    return any(edits and is_cut(old, new) for edits, old, new, *_ in hunks)
 
 
-def diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=0):
-    """True when any `-U0` hunk modifies or removes an existing line past the skipped prefix."""
+def diff_has_cut(
+    repo_root,
+    diff_base,
+    rel_path,
+    skip_old_lines_upto=0,
+    skip_old_ranges=(),
+    allow_heading_renames=False,
+):
+    """True when any `-U0` hunk modifies or removes an existing line past the skipped prefix and
+    outside the skipped ranges."""
     done = _git(
         repo_root,
         "diff",
@@ -225,7 +243,16 @@ def diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=0):
     )
     if done.returncode != 0:
         return True
-    return _diff_has_cut_hunks(done.stdout, skip_old_lines_upto=skip_old_lines_upto)
+    merge_base = resolve_merge_base(repo_root, diff_base)
+    base = git_show(repo_root, merge_base, rel_path) or ""
+    return _diff_has_cut_hunks(
+        done.stdout,
+        skip_old_lines_upto=skip_old_lines_upto,
+        skip_old_ranges=skip_old_ranges,
+        allow_heading_renames=allow_heading_renames,
+        pairs=decided_term_pairs(repo_root, merge_base),
+        comment_style=no_run_text.comment_style(rel_path, base),
+    )
 
 
 def diff_blobs_has_cut(repo_root, merge_base, old_path, new_path):
@@ -239,7 +266,12 @@ def diff_blobs_has_cut(repo_root, merge_base, old_path, new_path):
     )
     if done.returncode != 0:
         return True
-    return _diff_has_cut_hunks(done.stdout)
+    base = git_show(repo_root, merge_base, old_path) or ""
+    return _diff_has_cut_hunks(
+        done.stdout,
+        pairs=decided_term_pairs(repo_root, merge_base),
+        comment_style=no_run_text.comment_style(new_path, base),
+    )
 
 
 def _frontmatter_end_line(text):
@@ -315,7 +347,63 @@ def _is_subsequence(old_tokens, new_tokens):
     return all(token in it for token in old_tokens)
 
 
-def _classify_description_change(base_fm, head_fm):
+@functools.lru_cache(maxsize=None)
+def decided_term_pairs(repo_root, rev):
+    """The glossary's rejected-to-decided term pairs at `rev`, empty when no glossary exists."""
+    for path in GLOSSARY_PATHS:
+        text = git_show(repo_root, rev, path)
+        if text is not None:
+            return no_run_text._parse_rejected_terms(text)
+    return ()
+
+
+def swap_rename_pairs(repo_root, merge_base, deleted, added):
+    """(deleted, added) path pairs git did not pair as a rename whose path and content differ only
+    by decided-term swaps."""
+    pairs = []
+    unused = list(added)
+    for old_path in deleted:
+        for new_path in unused:
+            if is_no_run_file_change(repo_root, merge_base, old_path, new_path):
+                pairs.append((old_path, new_path))
+                unused.remove(new_path)
+                break
+    return pairs
+
+
+def is_no_run_file_change(repo_root, merge_base, old_path, new_path, hidden=False):
+    """True when `old_path` at merge_base and `new_path` at HEAD differ only by decided-term swaps
+    (path and content) and whole-comment-line deletions; under `evals/`, comment deletions count
+    only when `hidden`."""
+    pairs = decided_term_pairs(repo_root, merge_base)
+    if os.path.splitext(new_path)[1].lower() in SCRIPT_EXTENSIONS:
+        pairs = ()
+    old_id, new_id = old_path.split("/")[:4], new_path.split("/")[:4]
+    if old_id != new_id and old_id[2:3] in (["skills"], ["agents"], ["commands"]):
+        return False
+    if old_path != new_path and not no_run_text.is_term_swap_only(old_path, new_path, pairs):
+        return False
+    done = _git(
+        repo_root, "diff", "-U0", "%s:%s" % (merge_base, old_path), "HEAD:%s" % new_path
+    )
+    if done.returncode != 0:
+        return False
+    hunks = no_run_text._raw_hunks(done.stdout)
+    style = no_run_text.comment_style(
+        new_path, git_show(repo_root, merge_base, old_path) or "", hidden, _parse_case_yaml_text
+    )
+    return bool(hunks) and all(
+        no_run_text._hunk_is_no_run(old, new, pairs, style, start) for start, old, new in hunks
+    )
+
+
+def _value_text(value):
+    return value if isinstance(value, str) else json.dumps(value, sort_keys=True)
+
+
+def _classify_description_change(base_fm, head_fm, pairs=(), plugins=frozenset()):
+    """`cut`, `additive`, `exempt` (routing clauses, skill tokens or decided terms only) or
+    None; a cut in either key wins, then an additive edit."""
     status = None
     for key in DESCRIPTION_KEYS:
         old_val = base_fm.get(key)
@@ -326,6 +414,8 @@ def _classify_description_change(base_fm, head_fm):
             key_status = "additive"
         elif new_val is None:
             key_status = "cut"
+        elif no_run_text.is_routing_only_change(str(old_val), str(new_val), pairs, plugins):
+            key_status = "exempt"
         else:
             old_tokens = DESC_TOKEN_RE.findall(str(old_val))
             new_tokens = DESC_TOKEN_RE.findall(str(new_val))
@@ -334,17 +424,24 @@ def _classify_description_change(base_fm, head_fm):
             )
         if key_status == "cut":
             return "cut"
-        status = "additive"
+        if status != "additive":
+            status = key_status
     return status
 
 
-def _classify_other_frontmatter(base_fm, head_fm):
+def _classify_other_frontmatter(base_fm, head_fm, pairs=()):
+    """An added key, or a non-`name` value changed only by decided-term swaps, is additive."""
     base_other = {k: v for k, v in base_fm.items() if k not in DESCRIPTION_KEYS}
     head_other = {k: v for k, v in head_fm.items() if k not in DESCRIPTION_KEYS}
     if base_other == head_other:
         return None
     for key, old_val in base_other.items():
-        if key not in head_other or head_other[key] != old_val:
+        new_val = head_other.get(key)
+        if new_val != old_val and (
+            new_val is None
+            or key == "name"
+            or not no_run_text.is_term_swap_only(_value_text(old_val), _value_text(new_val), pairs)
+        ):
             return "cut"
     return "additive"
 
@@ -367,15 +464,24 @@ def classify_skill_md(repo_root, diff_base, merge_base, rel_path):
     base_fm = _parse_frontmatter_loose(base_fm_raw)
     head_fm = _parse_frontmatter_loose(head_fm_raw)
 
-    desc_class = _classify_description_change(base_fm, head_fm)
-    other_fm_class = _classify_other_frontmatter(base_fm, head_fm)
+    pairs = decided_term_pairs(repo_root, merge_base)
+    plugin_dir = os.path.join(repo_root, "plugins")
+    plugins = frozenset(os.listdir(plugin_dir) if os.path.isdir(plugin_dir) else ())
+    desc_class = _classify_description_change(base_fm, head_fm, pairs, plugins)
+    other_fm_class = _classify_other_frontmatter(base_fm, head_fm, pairs)
 
     body_class = None
     if base_body != head_body:
-        fm_end = _frontmatter_end_line(base_text)
         body_class = (
             "cut"
-            if diff_has_cut(repo_root, diff_base, rel_path, skip_old_lines_upto=fm_end)
+            if diff_has_cut(
+                repo_root,
+                diff_base,
+                rel_path,
+                skip_old_lines_upto=_frontmatter_end_line(base_text),
+                skip_old_ranges=no_run_text._no_run_section_lines(base_text),
+                allow_heading_renames=True,
+            )
             else "additive"
         )
 
@@ -388,11 +494,18 @@ def classify_skill_md(repo_root, diff_base, merge_base, rel_path):
     return combined_body, desc_class
 
 
-def _parse_case_yaml_text(text):
-    stripped = text.lstrip()
-    if stripped.startswith("---"):
-        stripped = stripped[3:]
-    return validate_cases.parse_yaml(stripped)
+def _comment_lines(text):
+    """Every YAML comment in `text`: each whole comment line, and each comment after a value that
+    starts outside a quoted scalar; every line holding a `#` when a quoted scalar spans lines."""
+    found, lines = [], text.splitlines()
+    for line in lines:
+        stripped = line.strip()
+        start, open_quote = (None, False) if stripped.startswith("#") else no_run_text.yaml_comment_scan(line)
+        if open_quote:
+            return [line.strip() for line in lines if "#" in line]
+        if stripped.startswith("#") or start is not None:
+            found.append(stripped if start is None else line[start:])
+    return found
 
 
 def is_description_only_case_edit(repo_root, merge_base, rel_path, filename):
@@ -409,7 +522,9 @@ def is_description_only_case_edit(repo_root, merge_base, rel_path, filename):
                 return False
             base_rest = {k: v for k, v in base_doc.items() if k != "description"}
             head_rest = {k: v for k, v in head_doc.items() if k != "description"}
-            return base_rest == head_rest
+            return base_rest == head_rest and _comment_lines(base_text) == _comment_lines(
+                head_text
+            )
         if filename == "prompt.md":
             base_fm_raw, base_body = validate_cases.split_markdown(base_text)
             head_fm_raw, head_body = validate_cases.split_markdown(head_text)
@@ -423,14 +538,6 @@ def is_description_only_case_edit(repo_root, merge_base, rel_path, filename):
     except validate_cases.ParseError:
         return False
     return False
-
-
-def _read_text_safe(path):
-    try:
-        with open(path, "r", encoding="utf-8", errors="ignore") as handle:
-            return handle.read()
-    except OSError:
-        return ""
 
 
 def _iter_skill_files(repo_root, plugin_filter=None):
@@ -457,23 +564,6 @@ def _iter_skill_files(repo_root, plugin_filter=None):
                     if filename.startswith("."):
                         continue
                     yield plugin, skill, skill_dir, os.path.join(dirpath, filename)
-
-
-def _extract_relative_paths(text):
-    paths = []
-    seen = set()
-    for pat in DELIM_REL_PATH_RES:
-        for match in pat.finditer(text):
-            token = match.group(1)
-            if token not in seen:
-                seen.add(token)
-                paths.append(token)
-    for token in UNQUOTED_REL_PATH_RE.findall(text):
-        for candidate in (token, token.rstrip(".,:")):
-            if candidate and candidate not in seen:
-                seen.add(candidate)
-                paths.append(candidate)
-    return paths
 
 
 def _build_file_citation_patterns(plugin, rel_in_plugin):
@@ -603,185 +693,6 @@ def skills_for_agent(repo_root, plugin, agent_name):
                     matched.update(
                         skills_for_workflow(repo_root, wf_plugin, filename[:-3])
                     )
-    return matched
-
-
-def _suffix_after(text, start, end):
-    if end >= len(text) or text[end] != "/":
-        return ""
-    quote = text[start - 1] if start > 0 and text[start - 1] in ('"', "'") else None
-    stop_chars = (quote, "\r", "\n") if quote else tuple(" \t\r\n\"'`)&|;<>#")
-    pos = end
-    while pos < len(text) and text[pos] not in stop_chars:
-        pos += 1
-    return text[end:pos]
-
-
-def _resolve_shell_subpath(base_dir, suffix):
-    if not suffix:
-        return os.path.normpath(base_dir)
-    parts = [seg for seg in suffix.split("/") if seg]
-    static = []
-    for seg in parts:
-        if "$" in seg:
-            break
-        static.append(seg)
-    if not static:
-        return os.path.normpath(base_dir)
-    return os.path.normpath(os.path.join(base_dir, *static))
-
-
-def _dirname_resolved(text, dn_match, base_dir):
-    suffix = _suffix_after(text, dn_match.start(), dn_match.end())
-    resolved = _resolve_shell_subpath(base_dir, suffix)
-    tail_pos = dn_match.end() + len(suffix)
-    pwd_tail = PWD_TAIL_RE.match(text, tail_pos)
-    if pwd_tail:
-        outer_start = text.rfind("$(", 0, dn_match.start())
-        outer_suffix = _suffix_after(
-            text, outer_start if outer_start >= 0 else 0, pwd_tail.end()
-        )
-        if outer_suffix:
-            resolved = _resolve_shell_subpath(resolved, outer_suffix)
-    return resolved
-
-
-def _in_eval_suite(path, eval_norm):
-    return path != eval_norm and path.startswith(eval_norm + os.sep)
-
-
-def _extract_suite_refs(fpath, text, eval_norm):
-    base_dir = os.path.dirname(fpath)
-    refs = set()
-    var_dirs = {}
-    assign_lines = set()
-    lines = text.splitlines()
-
-    for line_no, line in enumerate(lines):
-        stripped = line.lstrip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        assign = SHELL_ASSIGN_RE.match(line)
-        if not assign:
-            continue
-        var_name, rhs = assign.group(1), assign.group(2).strip()
-        dn_match = DIRNAME_INNER_RE.search(rhs)
-        if dn_match:
-            var_dirs[var_name] = _dirname_resolved(rhs, dn_match, base_dir)
-            assign_lines.add(line_no)
-            continue
-        for known_var, known_dir in list(var_dirs.items()):
-            var_use = re.match(
-                r"""^["']?(?:\$\{"""
-                + re.escape(known_var)
-                + r"""\}|\$"""
-                + re.escape(known_var)
-                + r"""(?![A-Za-z0-9_]))""",
-                rhs,
-            )
-            if var_use:
-                start_offset = 1 if rhs[0] in ('"', "'") else 0
-                suffix = _suffix_after(rhs, start_offset, var_use.end())
-                var_dirs[var_name] = _resolve_shell_subpath(known_dir, suffix)
-                assign_lines.add(line_no)
-                break
-
-    for line_no, line in enumerate(lines):
-        if line_no in assign_lines:
-            continue
-        stripped = line.lstrip()
-        if not stripped or stripped.startswith("#"):
-            continue
-        for dn_match in DIRNAME_INNER_RE.finditer(line):
-            resolved = _dirname_resolved(line, dn_match, base_dir)
-            if _in_eval_suite(resolved, eval_norm):
-                refs.add(resolved)
-        for token in _extract_relative_paths(line):
-            resolved = os.path.normpath(os.path.join(base_dir, token))
-            if _in_eval_suite(resolved, eval_norm):
-                refs.add(resolved)
-        for var_name, var_dir in var_dirs.items():
-            var_re = re.compile(
-                r"\$\{"
-                + re.escape(var_name)
-                + r"\}|\$"
-                + re.escape(var_name)
-                + r"(?![A-Za-z0-9_])"
-            )
-            for match in var_re.finditer(line):
-                suffix = _suffix_after(line, match.start(), match.end())
-                resolved = _resolve_shell_subpath(var_dir, suffix)
-                if _in_eval_suite(resolved, eval_norm):
-                    refs.add(resolved)
-
-    if os.path.basename(fpath) == "case.yaml":
-        try:
-            doc = _parse_case_yaml_text(text)
-        except validate_cases.ParseError:
-            doc = None
-        context = doc.get("context") if isinstance(doc, dict) else None
-        if isinstance(context, dict):
-            for field in ("scaffold_script", "history_file", "add_dirs"):
-                value = context.get(field)
-                entries = value if isinstance(value, list) else [value]
-                for entry in entries:
-                    if isinstance(entry, str) and entry:
-                        resolved = os.path.normpath(os.path.join(base_dir, entry))
-                        if _in_eval_suite(resolved, eval_norm):
-                            refs.add(resolved)
-
-    return refs
-
-
-def _case_suite_references(case, eval_norm):
-    queue = collections.deque()
-    for dirpath, dirnames, filenames in os.walk(case.abs_dir):
-        dirnames[:] = sorted(
-            d
-            for d in dirnames
-            if d not in ("samples", "node_modules", "__pycache__")
-            and not d.startswith(".")
-        )
-        for filename in sorted(filenames):
-            if filename.startswith("."):
-                continue
-            queue.append(os.path.normpath(os.path.join(dirpath, filename)))
-
-    visited = set()
-    referenced = set()
-    while queue:
-        fpath = queue.popleft()
-        if fpath in visited:
-            continue
-        visited.add(fpath)
-        text = _read_text_safe(fpath)
-        if not text:
-            continue
-        for ref_path in _extract_suite_refs(fpath, text, eval_norm):
-            referenced.add(ref_path)
-            if os.path.isfile(ref_path) and ref_path not in visited:
-                queue.append(ref_path)
-    return referenced
-
-
-def cases_citing_suite_file(eval_abs, target_abs, suite_cases, ref_cache=None):
-    """Cases in `suite_cases` whose files or helper scripts cite `target_abs`."""
-    eval_norm = os.path.normpath(eval_abs)
-    target_norm = os.path.normpath(target_abs)
-    matched = []
-    for case in suite_cases:
-        if ref_cache is not None and case.abs_dir in ref_cache:
-            referenced = ref_cache[case.abs_dir]
-        else:
-            referenced = _case_suite_references(case, eval_norm)
-            if ref_cache is not None:
-                ref_cache[case.abs_dir] = referenced
-        hit = target_norm in referenced or any(
-            not os.path.isfile(ref_path) and target_norm.startswith(ref_path + os.sep)
-            for ref_path in referenced
-        )
-        if hit:
-            matched.append(case)
     return matched
 
 

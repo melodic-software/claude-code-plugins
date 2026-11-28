@@ -220,8 +220,8 @@ test("a job's span ends at its last non-blank line, before the next job's commen
 test("an eval lane gets no fallback job, and a subscription job only on the token alone", () => {
   for (const workflow of [".github/workflows/pr-run-plugin-evals.yml", ".github/workflows/maintenance-measure-skill-edit-pass.yml"]) {
     assert.throws(() => checkFunding(FUNDING, workflow, "run-eval-fallback", ""), /funds no/, workflow);
-    assert.doesNotThrow(() => checkFunding(FUNDING, workflow, "run-eval-subscription", "${{ secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN }}"), workflow);
-    assert.throws(() => checkFunding(FUNDING, workflow, "run-eval-subscription", "${{ secrets.MAINTENANCE_CLAUDE_API_KEY }}"), /reads MAINTENANCE_CLAUDE_API_KEY/, workflow);
+    assert.doesNotThrow(() => checkFunding(FUNDING, workflow, "run-eval-subscription", "${{ secrets.EVALS_CLAUDE_CODE_OAUTH_TOKEN }}"), workflow);
+    assert.throws(() => checkFunding(FUNDING, workflow, "run-eval-subscription", "${{ secrets.EVALS_CLAUDE_API_KEY }}"), /reads EVALS_CLAUDE_API_KEY/, workflow);
     assert.throws(() => checkFunding(FUNDING, workflow, "run-eval-subscription", "${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}"), /reads FALLBACK_CLAUDE_CODE_OAUTH_TOKEN/, workflow);
   }
 });

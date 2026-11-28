@@ -308,8 +308,6 @@ def grade(slice_dir: Path, expected: str | None) -> tuple[int, str]:
     index = slice_dir / "RESEARCH.md"
     if not index.is_file():
         raise Ungradeable(f"no index: {index}")
-    # fnmatchcase, not glob: pathlib's glob is case-insensitive on Windows and
-    # would take the lowercase research-checklist.md ledger for a sidecar.
     sidecars = sorted(
         p
         for p in slice_dir.iterdir()

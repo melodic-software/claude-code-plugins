@@ -1,7 +1,3 @@
-// pr-run-plugin-evals.yml's pull request path keeps the eval credential out
-// of what a pull request's prompts can read or publish: a root-owned managed
-// policy denies reads of process and runner state before sudo is removed,
-// the summary is redacted, and no results artifact is uploaded.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -26,7 +22,6 @@ test("a pull request run denies reads of /proc and runner state before sudo is r
   for (const rule of ["Read(//proc/**)", "Read(//sys/**)", "Read(//home/runner/runners/**)", "Read(//home/runner/actions-runner/**)"]) {
     assert.ok(deny.includes(`"${rule}"`), rule);
   }
-  // The runner's own directory comes from the Runner.Worker process, and _temp and _actions sit beside the workspace.
   assert.match(deny, /case "\$exe" in \*\/bin\/Runner\.Worker\) runner_root=/);
   assert.match(deny, /--arg runner "Read\(\/\$runner_root\/\*\*\)" --arg temp "Read\(\/\$work\/_temp\/\*\*\)" --arg actions "Read\(\/\$work\/_actions\/\*\*\)"/);
   assert.match(deny, /if \[ -z "\$runner_root" \]; then\n\s+echo "::error::[^"]+"\n\s+exit 1/);
@@ -44,11 +39,9 @@ test("a pull request run proves the policy denies the reads before any case runs
   const judge = 'reason=$(env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="$out" node .base/.github/scripts/plugin-eval/policy-probe.mjs) || judged=$?';
   assert.ok(probe.includes(judge), "the judge runs from the base checkout without the credential");
   assert.match(probe, /\n {10}case \$judged in\n {12}0\) echo "\$reason" ;;\n {12}3\) echo "::error::[^\n]*"; exit 1 ;;\n {12}\*\) echo "::error::[^\n]*"; exit 1 ;;\n {10}esac\n/);
-  // The leak check looks for the leg's own credential, whichever leg runs.
   assert.match(probe, /credential=\$\{ANTHROPIC_API_KEY:-\$\{CLAUDE_CODE_OAUTH_TOKEN:-\}\}\n {10}\[ -n "\$credential" \] \|\| /);
   assert.match(probe, /if grep -qF "\$credential" "\$out"; then\n[^\n]*\n {14}exit 1/);
   assert.match(probe, /trap 'rm -f "\$out"' EXIT/);
-  // A probe the credential's own stop ended hands off before the denial checks, never past them.
   assert.ok(probe.indexOf("eval-handoff.mjs") < probe.indexOf("policy-probe.mjs"));
   assert.ok(probe.indexOf('if grep -qF "$credential"') < probe.indexOf("eval-handoff.mjs"), "the leak check runs before the classifier");
   assert.match(probe, /env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN PROBE="\$out"/, "the classifier runs without the credential");
@@ -68,10 +61,8 @@ test("each summary also reaches the job log and the results folder, with workflo
 test("a red summary names the failed cases or the suite that did not run in one ::error", () => {
   const summarize = step("Summarize the results");
   assert.match(summarize, /summarize\.mjs "\$results" [^\n]*--annotation "\$annotation" >"\$summary"/);
-  // The annotation prints after the stop-commands block ends, so the runner reads it.
   assert.ok(summarize.indexOf('echo "::$token::"') < summarize.indexOf('head -n 1 "$annotation"'));
   assert.match(summarize, /echo "::error title=Plugin eval did not run%3A \$\{name\/\/\[\$'\\r\\n%:,'\]\/_\}::No result was written/);
-  // A result summarize.mjs cannot read (exit 2) writes no file, and still annotates.
   assert.match(summarize, /elif \[ ! -e "\$annotation" \]; then\n\s+echo "::error title=Plugin eval did not run%3A [^\n]*::The result could not be read\."/);
 });
 
@@ -80,8 +71,6 @@ test("a dispatched run writes the validity bash ran and verdict lines and the no
   assert.match(summarize, /DISPATCHED: \$\{\{ github\.event_name == 'workflow_dispatch' \}\}\n/);
   assert.match(summarize, /RUNS: \$\{\{ inputs\.runs \}\}\n/);
   assert.match(summarize, /if \[ "\$DISPATCHED" = true \]; then\n\s+validity=\$\(python3 \.base\/plugins\/evals\/skills\/plugin-eval\/scripts\/run-validity\.py "\$results" --runs "\$RUNS" --scaffolded\) \|\| true\n/);
-  // Only the count-only bash ran line and the last line leave the runner:
-  // run-validity's detail lines can quote a trace.
   assert.match(summarize, /bash_ran=\$\(printf '%s\\n' "\$validity" \| tail -n 2 \| head -n 1 \| grep -xE 'bash ran: \(n\/a\|\[a-z-\]\+ /);
   assert.match(summarize, /\(, unknown \[0-9\]\+\)\?\)\(, absent tool \[0-9\]\+\)\?' \|\| true\)\n/);
   assert.match(summarize, /verdict=\$\(printf '%s\\n' "\$validity" \| tail -n 1\)\n/);
@@ -105,8 +94,6 @@ test("both legs of a dispatched suite run keep each run's final reply beside its
 test("a pull request run redacts its summary and uploads no results", () => {
   assert.match(step("Summarize the results"), /REDACT: \$\{\{ github\.event_name == 'workflow_run' && '--redact' \|\| '' \}\}/);
   assert.match(step("Summarize the results"), /summarize\.mjs "\$results" --plugin "\$name" "\$\{redact\[@\]\}"/);
-  // Only a dispatched run scans and uploads, and the upload needs the scan's clean output.
-  // A leg that handed off to the next credential uploads nothing.
   const scan = step("Scan the upload for credentials");
   assert.match(scan, /if: >-\n {10}always\(\) && steps\.stage\.outputs\.go == 'true' && github\.event_name == 'workflow_dispatch' && steps\.judge\.outputs\.handoff != 'true'\n/);
   assert.match(scan, /\n {8}id: scan-upload\n/);
@@ -150,25 +137,26 @@ test("compare mode reads the pull request's commits only as git objects for the 
   assert.doesNotMatch(armsScript, /\b(?:source|\.)\s+"?\$REPO|bash "?\$REPO|node "?\$REPO|checkout|worktree|apply/);
 });
 
-test("compare mode hands each arm only the credential input's secret and stops without a cost cap", () => {
+test("compare mode hands each arm the evals key, and the token only for a trusted human's pull request, and stops without a cost cap", () => {
   for (const name of ["compare-before", "compare-after"]) {
     const arm = job(name);
     const secrets = /\n {4}secrets:\n((?: {6}.*\n?)+)/.exec(arm)[1];
     const passed = Object.fromEntries([...secrets.matchAll(/^ {6}([\w-]+): (.*)$/gm)].map((m) => [m[1], m[2]]));
-    assert.deepEqual(Object.keys(passed), ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"], name);
-    for (const credential of ["api-key", "subscription"]) {
-      const ctx = { "inputs.credential": credential, "secrets.MAINTENANCE_CLAUDE_API_KEY": "key", "secrets.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN": "token" };
-      assert.equal(evaluate(passed.MAINTENANCE_CLAUDE_API_KEY, ctx), credential === "api-key" ? "key" : "", `${name} ${credential}`);
-      assert.equal(evaluate(passed.MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN, ctx), credential === "subscription" ? "token" : "", `${name} ${credential}`);
+    assert.deepEqual(Object.keys(passed), ["EVALS_CLAUDE_API_KEY", "EVALS_CLAUDE_CODE_OAUTH_TOKEN"], name);
+    const allow = /\n {6}allow-subscription: (.*)\n/.exec(arm)[1];
+    for (const subscription of ["true", "false", ""]) {
+      const ctx = { "needs.compare-prepare.outputs.subscription": subscription, "secrets.EVALS_CLAUDE_API_KEY": "key", "secrets.EVALS_CLAUDE_CODE_OAUTH_TOKEN": "token" };
+      assert.equal(evaluate(passed.EVALS_CLAUDE_API_KEY, ctx), "key", `${name} subscription=${subscription}`);
+      assert.equal(evaluate(passed.EVALS_CLAUDE_CODE_OAUTH_TOKEN, ctx), subscription === "true" ? "token" : "", `${name} subscription=${subscription}`);
+      assert.equal(evaluate(allow, ctx), subscription === "true", `${name} subscription=${subscription}`);
     }
-    assert.match(arm, /\n {6}credential: \$\{\{ inputs\.credential \}\}\n/, name);
     assert.match(arm, /max-cost-usd: \$\{\{ fromJSON\(inputs\.cost-cap-usd\) \}\}/, name);
     assert.match(arm, /\n {6}cases: \$\{\{ inputs\.cases \}\}\n/, name);
     assert.match(arm, /\n {6}ablation: none\n/, name);
     assert.match(job(name), /\n {4}needs: compare-prepare\n {4}if: >-\n {6}needs\.compare-prepare\.result == 'success'\n/, `${name} runs only after compare-prepare passed`);
   }
   assert.doesNotMatch(compare, /FALLBACK_CLAUDE_CODE_OAUTH_TOKEN|secrets: inherit/);
-  assert.match(text, /\n {6}credential:\n(?: {8}[^\n]*\n)*? {8}type: choice\n {8}options: \[api-key, subscription\]\n {8}default: api-key\n/);
+  assert.doesNotMatch(text, /\n {6}credential:\n|inputs\.credential/, "no input chooses the credential: the key runs first");
   assert.match(text, /cost-cap-usd:\n(?: {8}[^\n]*\n)*? {8}default: ""\n/);
   const guard = /if ! \[\[ \$COST_CAP .*?\n\s+fi\n/s.exec(job("compare-prepare"))[0];
   const passes = (value) => spawnSync("bash", ["-c", guard], { env: { COST_CAP: value } }).status === 0;
@@ -203,10 +191,15 @@ test("the record job's name is the one the release requires to have succeeded", 
   assert.match(job("compare-record"), new RegExp(`^ {2}compare-record:\\n {4}name: ${RECORD_JOB}\\n`));
 });
 
+test("the verdict job's name is the one whose failure keeps a cannot-start release back", async () => {
+  const { VERDICT_JOB } = await import("../pr-merge/release-eval-hold.mjs");
+  assert.match(job("compare-verdict"), new RegExp(`^ {2}compare-verdict:\\n {4}name: ${VERDICT_JOB}\\n`));
+});
+
 test("compare mode leaves the suite legs out, and its run name is the one the release reads back", async () => {
   assert.match(text, /name: Check Key Credit\n(?: {4}#[^\n]*\n)* {4}if: >-\n {6}vars\.CLAUDE_EVALS_DISABLED == 'false' && \(\(github\.event_name == 'workflow_dispatch' && inputs\.mode != 'compare'\n/);
   assert.match(job("compare-prepare"), /if: >-\n {6}vars\.CLAUDE_EVALS_DISABLED == 'false'\n {6}&& github\.event_name == 'workflow_dispatch' && inputs\.mode == 'compare'\n/);
-  assert.match(text, /format\('eval-compare pr=\{0\} head=\{1\}', inputs\.pr, inputs\.head-sha\)/);
+  assert.match(text, /format\('eval-compare pr=\{0\} head=\{1\} target=\{2\}', inputs\.pr, inputs\.head-sha, inputs\.target\)/);
   const { runVouches } = await import("../pr-merge/release-eval-hold.mjs");
   const head = "d".repeat(40);
   const run = {
@@ -217,11 +210,66 @@ test("compare mode leaves the suite legs out, and its run name is the one the re
     conclusion: "success",
     run_attempt: 1,
     head_sha: "f".repeat(40),
-    display_title: `eval-compare pr=12 head=${head}`,
+    display_title: `eval-compare pr=12 head=${head} target=plugins/demo`,
     repository: { full_name: "o/r" },
     head_repository: { full_name: "o/r" },
   };
-  assert.deepEqual(runVouches(run, "o/r", "main"), { pr: 12, head });
+  assert.deepEqual(runVouches(run, "o/r", "main"), { pr: 12, head, plugin: "demo" });
+  assert.deepEqual(runVouches({ ...run, display_title: `eval-compare pr=12 head=${head} target=plugins/demo/` }, "o/r", "main"), { pr: 12, head, plugin: "demo" });
+  assert.equal(runVouches({ ...run, display_title: `eval-compare pr=12 head=${head} target=demo` }, "o/r", "main"), null);
+});
+
+test("a compare run records that compare mode refuses the pull request, after its dispatcher, input and head checks, and runs no arm", async () => {
+  const { stepNamed, steps, outputs, jobIf } = workflowText(text);
+  const names = steps("compare-prepare").map((s) => s.name);
+  const at = (name) => names.indexOf(name);
+  for (const check of ["Check the dispatcher is a trusted human", "Check the compare inputs", "Check the pull request head", "Check a listed human wrote the pull request"]) {
+    assert.ok(at(check) >= 0 && at(check) < at("Build the arm patches"), check);
+  }
+  assert.ok(!names.includes("Check the evals switch"), "compare-prepare stays behind the switch and records no evals-disabled cause");
+  const script = (s) => /\n {8}run: \|\n((?: {10}.*\n|\n)+)/.exec(s.text)[1].replace(/^ {10}/gm, "");
+  const work = mkdtempSync(join(tmpdir(), "cannot-start-"));
+  try {
+    const runIn = (body, env) => {
+      const output = join(work, `out-${Math.random().toString(36).slice(2)}`);
+      writeFileSync(output, "");
+      const result = spawnSync("bash", ["-e", "-c", body], { cwd: work, env: { PATH: process.env.PATH, GITHUB_OUTPUT: output, ...env }, encoding: "utf8" });
+      return { status: result.status, output: readFileSync(output, "utf8") };
+    };
+    const arms = stepNamed("compare-prepare", "Build the arm patches");
+    mkdirSync(join(work, ".base/.github/scripts/plugin-eval"), { recursive: true });
+    for (const [body, status, output] of [
+      ["exit 0", 0, ""],
+      ['echo refused=true >>"$GITHUB_OUTPUT"; exit 3', 0, "refused=true\ncannot-start=compare-refused\n"],
+      ["exit 3", 3, ""],
+      ["exit 1", 1, ""],
+      ["exit 2", 2, ""],
+    ]) {
+      writeFileSync(join(work, ".base/.github/scripts/plugin-eval/compare-arms.sh"), `${body}\n`);
+      assert.deepEqual(runIn(script(arms), {}), { status, output }, `compare-arms.sh: ${body}`);
+    }
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+  assert.equal(outputs("compare-prepare")["cannot-start"], "${{ steps.arms.outputs.cannot-start }}");
+  for (const name of ["compare-before", "compare-after"]) {
+    const ctx = (cause) => ({
+      "needs.compare-prepare.result": "success",
+      "needs.compare-prepare.outputs.cannot-start": cause,
+      "github.event_name": "workflow_dispatch",
+    });
+    assert.equal(evaluate(jobIf(name), ctx("")), true, name);
+    assert.equal(evaluate(jobIf(name), ctx("compare-refused")), false, name);
+  }
+  const { CANNOT_START_JOB, CANNOT_START_CAUSES } = await import("../pr-merge/release-eval-hold.mjs");
+  assert.deepEqual(CANNOT_START_CAUSES, ["compare-refused"]);
+  assert.match(job("compare-cannot-start"), new RegExp(`^ {2}compare-cannot-start:\\n {4}name: "${CANNOT_START_JOB}: \\$\\{\\{ needs\\.compare-prepare\\.outputs\\.cannot-start \\}\\}"\\n {4}needs: compare-prepare\\n`));
+  assert.match(job("compare-cannot-start"), /\n {4}permissions: \{\}\n/);
+  for (const cause of [...CANNOT_START_CAUSES, "evals-disabled", "", "other"]) {
+    const ctx = { "needs.compare-prepare.result": "success", "needs.compare-prepare.outputs.cannot-start": cause };
+    assert.equal(evaluate(jobIf("compare-cannot-start"), ctx), CANNOT_START_CAUSES.includes(cause), JSON.stringify(cause));
+  }
+  assert.equal(evaluate(jobIf("compare-cannot-start"), { "needs.compare-prepare.result": "failure", "needs.compare-prepare.outputs.cannot-start": "compare-refused" }), false);
 });
 
 test("cases input reaches stage-suites and run-eval through env, and rejects case+cases together", () => {
@@ -291,30 +339,31 @@ test("stage-suites.sh stages evals-selected when CASES is set on a non-determini
   }
 });
 
-test("a subscription compare refuses a pull request whose author is not a trusted actor, before any pass", async () => {
-  const { step, steps } = workflowText(text);
+test("a compare moves to the subscription token only when its pull request's author is a trusted actor and a listed human", async () => {
+  const { step, steps, outputs } = workflowText(text);
   const gate = step("compare-prepare", "author");
-  const stop = workflowText(text).stepNamed("compare-prepare", "Stop on an untrusted pull request author");
+  const human = step("compare-prepare", "human");
   assert.match(gate.text, /uses: \.\/\.base\/\.github\/actions\/check-trusted-trigger /);
+  assert.equal(gate.if, "", "the author check runs on every compare");
   assert.equal(gate.inputs["pr-number"], "${{ inputs.pr }}");
   assert.equal(gate.inputs["standards-path"], "${{ steps.standards.outputs.path }}");
-  assert.match(stop.text, /\n {10}exit 1\n/);
   const names = steps("compare-prepare").map((s) => s.name);
-  assert.ok(names.indexOf("Stop on an untrusted pull request author") < names.indexOf("Build the arm patches"), "the refusal comes before any arm is built");
+  assert.ok(names.indexOf("Check a listed human wrote the pull request") < names.indexOf("Build the arm patches"), "the author is settled before any arm is built");
   assert.match(job("compare-prepare"), /\n {6}actions: read\n/, "check-trusted-trigger reads this run's re-runner");
-  for (const [credential, proceed, stops] of [
-    ["api-key", "", false],
-    ["subscription", "true", false],
-    ["subscription", "false", true],
-    ["subscription", "", true],
+  const subscription = outputs("compare-prepare").subscription;
+  for (const [proceed, humanOutcome, moves] of [
+    ["true", "success", true],
+    ["true", "failure", false],
+    ["false", "skipped", false],
+    ["", "skipped", false],
   ]) {
-    const ctx = { "inputs.credential": credential, "steps.author.outputs.proceed": proceed };
-    assert.equal(evaluate(gate.if, ctx), credential === "subscription", `${credential}: the author check runs`);
-    assert.equal(evaluate(stop.if, ctx), stops, `${credential} proceed=${proceed}`);
+    const ctx = { "steps.author.outputs.proceed": proceed, "steps.human.outcome": humanOutcome };
+    assert.equal(evaluate(human.if, ctx), proceed === "true", `proceed=${proceed}: the human check runs`);
+    assert.equal(evaluate(subscription, ctx), moves, `proceed=${proceed} human=${humanOutcome}`);
   }
 
   const { evaluateTrigger, loadTrustedList } = await import("../../actions/check-trusted-trigger/check-trusted-trigger.mjs");
-  const list = loadTrustedList(fileURLToPath(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url)));
+  const list = loadTrustedList(fileURLToPath(new URL("../../scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json", import.meta.url)));
   const owner = 153232337;
   const repository = "melodic-software/claude-code-plugins";
   const head = "a".repeat(40);
@@ -340,15 +389,12 @@ test("a subscription compare refuses a pull request whose author is not a truste
   assert.deepEqual(await verdict(12345), { proceed: "false", reason: "untrusted-author" }, "anyone else's pull request");
 });
 
-test("a subscription compare refuses a pull request a bot wrote, before any pass", () => {
+test("a compare on a pull request a bot wrote stays on the key", () => {
   const { stepNamed, steps } = workflowText(text);
-  const stop = stepNamed("compare-prepare", "Stop on a pull request a bot wrote");
-  for (const credential of ["api-key", "subscription"]) {
-    assert.equal(evaluate(stop.if, { "inputs.credential": credential }), credential === "subscription", credential);
-  }
+  const stop = stepNamed("compare-prepare", "Check a listed human wrote the pull request");
+  assert.match(stop.text, /\n {8}continue-on-error: true\n/, "a bot's pull request still compares on the key");
   const names = steps("compare-prepare").map((s) => s.name);
-  assert.ok(names.indexOf("Stop on an untrusted pull request author") < names.indexOf("Stop on a pull request a bot wrote"));
-  assert.ok(names.indexOf("Stop on a pull request a bot wrote") < names.indexOf("Build the arm patches"), "the refusal comes before any arm is built");
+  assert.ok(names.indexOf("Check the pull request author") < names.indexOf("Check a listed human wrote the pull request"));
 
   const script = /\n {8}run: \|\n((?: {10}.*\n|\n)+)/.exec(stop.text)[1].replace(/^ {10}/gm, "");
   const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
@@ -360,17 +406,17 @@ test("a subscription compare refuses a pull request a bot wrote, before any pass
       writeFileSync(join(work, "bin/gh"), `#!/usr/bin/env bash\n${reply}\n`, { mode: 0o755 });
       return spawnSync("bash", ["-c", script], {
         cwd: work,
-        env: { PATH: `${join(work, "bin")}:${process.env.PATH}`, PR: "7", GITHUB_REPOSITORY: "o/r", LIST: ".base/.github/standards/trusted-actors/trusted-actors.json" },
+        env: { PATH: `${join(work, "bin")}:${process.env.PATH}`, PR: "7", GITHUB_REPOSITORY: "o/r", LIST: ".base/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json" },
         encoding: "utf8",
       });
     };
     assert.equal(run("echo 153232337").status, 0, "our own login's pull request");
     const bot = run("echo 337595936");
     assert.equal(bot.status, 1, "our lanes bot's pull request");
-    assert.match(bot.stdout, /::error::bot-author:/);
+    assert.match(bot.stdout, /::notice::bot-author:/);
     const unread = run("exit 1");
     assert.equal(unread.status, 1, "an unread author");
-    assert.match(unread.stdout, /::error::read-fault:/);
+    assert.match(unread.stdout, /::notice::read-fault:/);
   } finally {
     rmSync(work, { recursive: true, force: true });
   }

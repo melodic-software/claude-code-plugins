@@ -1,5 +1,5 @@
 ---
-description: "When the bundled fewer-permission-prompts skill resolves in this session, prefer it to reduce prompts via an allowlist; this skill to see the state in effect. Report-only: merges every settings scope into the allow/ask/deny set in effect with source and precedence per rule, and flags allow rules auto mode drops. Use when: 'what permissions are actually in effect', 'which of my rules survive auto mode', 'is my managed policy being read'. A rule ignored for its shape: `audit-permission-grants`."
+description: "If fewer-permission-prompts resolves in this session, prefer it for prompts; this skill merges every settings scope read-only into allow/ask/deny set in effect (source/precedence per rule), flagging auto-mode drops. Use when: 'what permissions are actually in effect', 'which of my rules survive auto mode', 'is my managed policy being read'."
 argument-hint: "[--unattended] [--scopes] [--entry-diff] [--lint] [--managed] [--block] [--oracle] [--critique]"
 user-invocable: true
 disable-model-invocation: false
@@ -195,8 +195,10 @@ entry-diff summary allow_before=<n> dropped=<n> suspended=<n> kept=<n>
 - **The diff covers allow rules only.** We treat deny and ask as evaluated before the classifier
   in every mode, so they are not part of this diff. Do not report them as "surviving".
 - **Neither label is permanent.** `dropped` and `suspended` both describe what is in force while auto
-  mode is active; the rules are restored when the session leaves it, and nothing edits a settings
-  file. The two labels are kept apart because the remedies differ: a `dropped` rule is fixable by
+  mode is active, and this skill edits no settings file. What Claude Code does with those rules
+  when the session leaves auto mode:
+  [how auto mode evaluates actions](https://code.claude.com/docs/en/permission-modes#how-auto-mode-evaluates-actions).
+  The two labels are kept apart because the remedies differ: a `dropped` rule is fixable by
   narrowing that rule, while `suspended` is a global switch no rule edit reaches.
 - **`class` names the reason**: `blanket`, `interpreter-wildcard`, `wrapper-wildcard`,
   `leading-wildcard`, `path-wildcard`, `package-manager-run`, `agent`, or `monitor`. The six shell

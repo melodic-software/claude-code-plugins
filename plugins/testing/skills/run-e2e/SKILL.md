@@ -1,5 +1,5 @@
 ---
-description: "When the bundled run skill resolves in this session, prefer it to launch the app for a quick look; this skill for evidenced verification flows. End-to-end live app verification. Check prerequisites, start the app, drive UI/API flows, and capture evidence (screenshots, responses, logs); includes a non-UI smoke-test playbook for libraries, MCP servers, hooks, and scripts. Use when: the user wants the running app verified end to end (e2e, smoke test, 'does it actually work'), the UI clicked through, or UI/API changes need runtime verification; for comprehensive build+test+lint use /verification:confirm."
+description: "When bundled run resolves in this session, prefer it for quick launch; use for evidenced end-to-end live app verification: start app, drive UI/API/non-UI smoke tests (libs/MCP/hooks/scripts), capture screenshots/logs. Use verifying running app end to end ('e2e', 'smoke test', 'does it actually work'). Not for build/test/lint: /verification:confirm."
 argument-hint: "[map|worst-case…] [--unattended] [app=<app>] [base=<ref>] [trusted-root=<dir>] [scenario|<target>]"
 user-invocable: true
 disable-model-invocation: false
@@ -63,7 +63,7 @@ e.g., `/testing:run-e2e`, `/testing:run-e2e the login flow`, `/testing:run-e2e n
 | UI flows, browser evidence, API + UI orchestration | [context/e2e.md](context/e2e.md) |
 | Non-UI runtime surface (library, MCP server, hooks, scripts, infrastructure) | [context/non-ui.md](context/non-ui.md) |
 
-UI changes (Blazor / Razor / HTML / CSS / JS shipped to browser) take the e2e route, where the UI
+UI changes (Blazor / Razor / HTML / CSS / JS shipped to browser) take the e2e route, where the UI <!-- portability-ok: R6 UI surface routing examples for e2e route -->
 evidence contract applies.
 
 A non-UI run skips Step 1: its rows run test suites and handshakes, which `/app-control:drive` (if enabled) does
@@ -401,8 +401,7 @@ records live in [context/bundled-run.md](context/bundled-run.md).
 - All scenarios pass, the change is not yet reviewed, and no other Test-stage check (coverage plan, test quality) is still pending: `/review:quality-gate`.
 - All scenarios pass after review: `/verification:confirm outcome`.
 - A scenario fails: `/testing:fix-failing`.
-- Touched features not matched (app-control not installed): enable app-control, installing it
-  first if it is not installed, then run this skill again.
+- Touched features not matched (app-control not installed): enable app-control, installing it first if it is not installed, then rerun `/testing:run-e2e`.
 
 ## Gotchas
 

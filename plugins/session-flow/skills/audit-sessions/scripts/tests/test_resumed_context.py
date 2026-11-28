@@ -1,8 +1,8 @@
-"""resumed_context.py: context at the 10th assistant message after a handoff resume, grouped by plugin version."""
+# test-scope: plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/resumed/proj-o/* plugins/session-flow/skills/audit-sessions/scripts/tests/fixtures/resumed/proj-r/*
 
 from __future__ import annotations
 
-from conftest import envelope, run_cli
+from conftest import config_env, envelope, run_cli
 
 
 def sessions_by_id(env: dict) -> dict[str, dict]:
@@ -54,3 +54,12 @@ def test_groups_by_version_and_compares_two_versions(copy_fixture):
     short = run_cli("resumed_context.py", *args)
     assert short.returncode == 1, "below the default 10 sessions per side the comparison is a warning"
     assert envelope(short)["data"]["comparison"]["rise"] is None
+
+
+def test_default_root_is_the_resolved_local_source(copy_fixture):
+    root = copy_fixture("resumed")
+    explicit = envelope(run_cli("resumed_context.py", "--projects-root", str(root)))
+    resolved = run_cli("resumed_context.py", env=config_env(root))
+    assert resolved.returncode == 0, resolved.stderr
+    assert sessions_by_id(envelope(resolved)) == sessions_by_id(explicit)
+    assert sessions_by_id(explicit), "the fixture holds sessions to compare"

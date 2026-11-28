@@ -1,20 +1,4 @@
 // test-scope: .github/actions/resolve-config/package.json
-// Expected values come from the requested behavior for answered issues: a
-// listed human's `**Decision recorded.**` first line on a
-// `needs-owner-decision` issue, or the author's or a listed human's reply
-// on a `needs-reporter-info` issue, removes that status label and sets the
-// Work status field to needs-triage; it dispatches intake-triage.yml once with the issue number
-// only when the issue's author is one intake admits on open (a listed human
-// or the lanes App). A decision on an issue that carries `needs-human`
-// re-enters nothing and gets one reply saying how the hold is released
-// (https://github.com/melodic-software/claude-code-plugins/issues/18251), and
-// a listed human's removal of `needs-human` re-enters an
-// issue at `needs-owner-decision` (owner decision on #10735). A decision on
-// a `status: confirmed` issue whose only status that is, with no
-// `agent-ready`, re-enters it whether admission parked it or a person
-// confirmed it (requested behavior: a person's confirmation followed by that
-// person's decision must reach triage). Anything else
-// changes nothing, and `agent-ready` is never added.
 import assert from "node:assert/strict";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -25,6 +9,7 @@ import { main } from "./reenter.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { mirroredStatusOf, OPTION, STATUS_CONFIG, STRANGER_ID, TRUSTED_ACTORS, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
+import { standardsAt } from "../lib/trusted-actors.fixtures.mjs";
 
 const REPO = "melodic-software/claude-code-plugins";
 const OWNER = { id: 153232337, login: "kyle-sexton", type: "User" };
@@ -48,7 +33,8 @@ const fieldState = (nodes) =>
 const DECISION = "**Decision recorded.**\n\nOption 1.";
 
 const dir = tempDir("intake-reenter-");
-const TRUSTED = join(dir, "trusted-actors.json");
+const STANDARDS = standardsAt(join(dir, "standards"));
+const TRUSTED = STANDARDS.list;
 writeFileSync(
   TRUSTED,
   JSON.stringify({
@@ -61,11 +47,6 @@ writeFileSync(
   }),
 );
 
-// One issue with its comments. `editors` maps a comment id to its last
-// editor's id; `author` opened the issue; `gone` names labels GitHub answers 404 for on removal (a run
-// that already took them); `fail` names one `METHOD path` write that answers 500 once.
-// `fieldNodes` are its Work status field events; the field holds what they
-// leave, and a field write adds the job token's event.
 function world({ labels, author = OWNER, state = "open", pullRequest = false, comments = [], events = [], fieldNodes = [], editors = {}, gone = [], fail = null }) {
   let failing = fail;
   const current = new Set(labels);
@@ -155,7 +136,7 @@ const run = (w, commentId, env = {}) =>
       COMMENT_ID: String(commentId),
       TRUSTED_ACTORS_PATH: TRUSTED,
       LANES_APP_ID: String(LANES_APP.id),
-      BASE_PATH: ROOT,
+      BASE_PATH: ROOT, STANDARDS_DIR: STANDARDS.dir,
       ...env,
     },
   });
@@ -477,7 +458,7 @@ test("a run that loses the status label to another run dispatches nothing", asyn
   );
 });
 
-const fieldEnv = { KILL_SWITCH: "proceed", GITHUB_REPOSITORY: REPO, ISSUE_NUMBER: String(NUMBER), COMMENT_ID: "1", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(LANES_APP.id), BASE_PATH: ROOT };
+const fieldEnv = { KILL_SWITCH: "proceed", GITHUB_REPOSITORY: REPO, ISSUE_NUMBER: String(NUMBER), COMMENT_ID: "1", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(LANES_APP.id), BASE_PATH: ROOT, STANDARDS_DIR: STANDARDS.dir };
 const runWithField = (w, fields) => {
   const github = withFields(w.github, fields);
   return main({
@@ -610,6 +591,49 @@ for (const [name, labels, user, body] of statuslessQuiet) {
     assert.deepEqual(w.writes, []);
   });
 }
+
+test("an owner's decision on an agent-decided issue sends it back to triage, where the agent-ready one alone stays", async () => {
+  for (const labels of [["agent-decided", "agent-ready"], ["agent-decided", "status: ready", "agent-ready"], ["agent-decided", "admission-deferred"]]) {
+    const w = world({ labels, comments: [{ id: 1, user: OWNER, body: DECISION }] });
+    assert.equal(await run(w, 1), 0);
+    assert.ok(!w.labels().includes("agent-decided"), `${labels}: the agent's decision is overridden`);
+    assert.equal(w.field(), "needs-triage", `${labels}: triage again`);
+    expectDispatched(w);
+  }
+});
+
+test("an owner's decision on an agent-decided issue parked for a decision re-enters it the way a decision label does", async () => {
+  const w = world({ labels: ["agent-decided", "needs-owner-decision"], comments: [{ id: 1, user: OWNER, body: DECISION }] });
+  assert.equal(await run(w, 1), 0);
+  expectTriage(w, ["agent-decided"], "the decision label is lifted");
+  expectDispatched(w);
+  for (const by of [LANES_APP, OWNER]) {
+    const held = world({ labels: ["agent-decided"], comments: [{ id: 1, user: OWNER, body: DECISION }], fieldNodes: [fieldNode("IssueFieldAddedEvent", by, { value: "needs-owner-decision" })] });
+    assert.equal(await run(held, 1), 0);
+    assert.equal(held.field(), "needs-triage", `a field-only decision hold set by ${by.login} is released by the owner's decision`);
+    expectDispatched(held);
+  }
+});
+
+test("an agent-decided issue does not re-enter on the agent's own opener, an unlisted person, or an edited decision", async () => {
+  for (const [name, comment, editors] of [
+    ["the agent opener", { id: 1, user: OWNER, body: "**Agent decision recorded.**\n1. Yes." }, {}],
+    ["an unlisted person", { id: 1, user: STRANGER, body: DECISION }, {}],
+    ["the lanes App", { id: 1, user: LANES_APP, body: DECISION }, {}],
+    ["a decision a bot edited", { id: 1, user: OWNER, body: DECISION }, { 1: LISTED_BOT.id }],
+  ]) {
+    const w = world({ labels: ["agent-decided", "agent-ready"], comments: [comment], editors });
+    assert.equal(await run(w, 1), 0);
+    assert.equal(w.dispatches().length, 0, name);
+    assert.deepEqual(w.labels(), ["agent-decided", "agent-ready"], name);
+  }
+});
+
+test("a failed re-entry of an agent-decided issue puts the agent-decided label back", async () => {
+  const w = world({ labels: ["agent-decided", "agent-ready"], comments: [{ id: 1, user: OWNER, body: DECISION }], fail: `POST /repos/${REPO}/actions/workflows/intake-triage.yml/dispatches` });
+  assert.equal(await run(w, 1), 1);
+  assert.ok(w.labels().includes("agent-decided"), w.labels().join());
+});
 
 test("a bot's decision on an issue with no status label changes nothing", async () => {
   const w = world({ labels: [], comments: [{ id: 1, user: LISTED_BOT, body: DECISION }] });
@@ -814,9 +838,6 @@ test("the workflow runs on a needs-human unlabel", () => {
   assert.match(workflow, /github\.event\.label\.name == 'needs-human'/);
 });
 
-// The reenter job's folded `if:`, evaluated against one event. Covers only
-// what that gate uses: &&, ||, ==, !, and contains() over the issue's labels
-// and, case-insensitively as GitHub does, over the comment body.
 function reenterGate({ event, labels, label = null, comment = null, sender = null, action = event === "issues" ? "unlabeled" : "created", fieldId = null, author = OWNER.id }) {
   const workflow = readFileSync(new URL("../../workflows/intake-reenter.yml", import.meta.url), "utf8");
   const block = /\n {2}reenter:\n(?: {4}#.*\n)*(?: {4}name: .*\n)? {4}if: >-\n((?: {6}.*\n)+)/.exec(workflow)?.[1];
@@ -891,7 +912,7 @@ test("the issue author's comment starts the job with no status label", () => {
 });
 
 const runField = (w, action, sender = OWNER) =>
-  run(w, "", { EVENT_NAME: "issues", EVENT_ACTION: action, SENDER_ID: String(sender.id), COMMENT_ID: "", BASE_PATH: ROOT });
+  run(w, "", { EVENT_NAME: "issues", EVENT_ACTION: action, SENDER_ID: String(sender.id), COMMENT_ID: "", BASE_PATH: ROOT, STANDARDS_DIR: STANDARDS.dir });
 const heldBy = (actor = LANES_APP, value = "needs-human") => fieldNode("IssueFieldAddedEvent", actor, { value });
 const changed = (actor, previousValue, newValue) => fieldNode("IssueFieldChangedEvent", actor, { previousValue, newValue });
 const removed = (actor, createdAt) => fieldNode("IssueFieldRemovedEvent", actor, createdAt ? { createdAt } : {});
@@ -1032,7 +1053,7 @@ test("a field write that fails takes the record back and fails the run, and a re
   const code = await main({
     github: w.github,
     log: (line) => lines.push(line),
-    env: { KILL_SWITCH: "proceed", GITHUB_REPOSITORY: REPO, ISSUE_NUMBER: String(NUMBER), COMMENT_ID: "", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(LANES_APP.id), EVENT_NAME: "issues", EVENT_ACTION: "field_removed", SENDER_ID: String(OWNER.id), BASE_PATH: ROOT },
+    env: { KILL_SWITCH: "proceed", GITHUB_REPOSITORY: REPO, ISSUE_NUMBER: String(NUMBER), COMMENT_ID: "", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(LANES_APP.id), EVENT_NAME: "issues", EVENT_ACTION: "field_removed", SENDER_ID: String(OWNER.id), BASE_PATH: ROOT, STANDARDS_DIR: STANDARDS.dir },
   });
   assert.equal(code, 1);
   assert.equal(w.dispatches().length, 0);
@@ -1079,7 +1100,7 @@ for (const [name, options, action, sender] of fieldQuiet) {
 
 test("a field change with no action reads as a label removal, whose history holds the person's field removal", async () => {
   const w = world({ labels: [], events: [], fieldNodes: [heldBy(), removed(OWNER)] });
-  assert.equal(await run(w, "", { EVENT_NAME: "issues", COMMENT_ID: "", SENDER_ID: String(OWNER.id), BASE_PATH: ROOT }), 0);
+  assert.equal(await run(w, "", { EVENT_NAME: "issues", COMMENT_ID: "", SENDER_ID: String(OWNER.id), BASE_PATH: ROOT, STANDARDS_DIR: STANDARDS.dir }), 0);
   expectTriage(w, []);
   expectDispatched(w);
 });
@@ -1189,7 +1210,7 @@ const runRouted = (w, env, { log = () => {}, routing } = {}) =>
     github: w.github,
     log,
     routing,
-    env: { KILL_SWITCH: "proceed", GITHUB_REPOSITORY: REPO, ISSUE_NUMBER: String(NUMBER), TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(LANES_APP.id), BASE_PATH: ROOT, ...env },
+    env: { KILL_SWITCH: "proceed", GITHUB_REPOSITORY: REPO, ISSUE_NUMBER: String(NUMBER), TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(LANES_APP.id), BASE_PATH: ROOT, STANDARDS_DIR: STANDARDS.dir, ...env },
   });
 
 test("an answer, a needs-human lift or a field release on a routing-labeled issue removes no label, writes no status and dispatches nothing", async () => {

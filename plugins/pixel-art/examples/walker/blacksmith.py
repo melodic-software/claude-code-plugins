@@ -9,7 +9,6 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-# kit.py beside this file (a copied example) wins; in the plugin tree it lives in ../../scripts.
 sys.path[:0] = [str(HERE), str(HERE.parent.parent / "scripts")]
 
 import kit  # noqa: E402

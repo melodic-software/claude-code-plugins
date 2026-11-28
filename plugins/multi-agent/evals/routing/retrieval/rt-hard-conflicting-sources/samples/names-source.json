@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "authoritative_source: docs/contracts/webhook-delivery.md\nmax_backoff_seconds: 90\njitter_mode: decorrelated\n",
+      "why": "plain lines with authoritative contract path"
+    },
+    {
+      "answer": "- **authoritative_source:** `./docs/contracts/webhook-delivery.md`\n- **max_backoff_seconds:** `90`\n- **jitter_mode:** `decorrelated`\n",
+      "why": "markdown formatting with leading ./"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "authoritative_source: docs/adr/0004-webhook-retries.md\nmax_backoff_seconds: 300\njitter_mode: equal\n",
+      "why": "cites superseded ADR"
+    },
+    {
+      "answer": "authoritative_source: README.md\nmax_backoff_seconds: 300\njitter_mode: equal\n",
+      "why": "cites README summary"
+    },
+    {
+      "answer": "authoritative_source: docs/adr/0004-webhook-retries.md (superseded by docs/contracts/webhook-delivery.md)\nmax_backoff_seconds: 90\njitter_mode: decorrelated\n",
+      "why": "names the superseded ADR first as the authoritative source"
+    }
+  ]
+}

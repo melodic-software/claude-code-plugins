@@ -35,11 +35,11 @@ die() {
   exit 2
 }
 
-pr_number() { # <commit>: the pull request number its subject ends with
+pr_number() {
   git log -1 --format=%s "$1" | sed -nE 's/.* \(#([0-9]+)\)$/\1/p'
 }
 
-original_of() { # <revert>: the commit it reverts; nothing when <revert> is not a revert
+original_of() {
   local named subject text
   named="$(sed -nE 's/^This reverts commit ([0-9a-f]{7,40}).*/\1/p' <<<"$(git log -1 --format=%b "$1")")"
   if [[ -n "$named" ]]; then
@@ -54,7 +54,7 @@ original_of() { # <revert>: the commit it reverts; nothing when <revert> is not 
   return 0
 }
 
-named_originals() { # <revert>: the merged commit of each other non-revert pull request its message names
+named_originals() {
   local ref commit own
   own="$(pr_number "$1")"
   while IFS= read -r ref; do
@@ -68,14 +68,14 @@ named_originals() { # <revert>: the merged commit of each other non-revert pull 
   done < <(git log -1 --format=%B "$1" | grep -oE '#[0-9]+' | tr -d '#' | sort -un)
 }
 
-is_revert() { # <commit>: its subject or body has a revert form
+is_revert() {
   [[ "$(git log -1 --format=%s "$1")" =~ $REVERT_SUBJECT ]] ||
     grep -qE '^This reverts commit [0-9a-f]{7,40}' <<<"$(git log -1 --format=%b "$1")"
 }
 
 changed() { git diff --name-only --no-renames "$1^" "$1" | sort; }
 
-caught_lines() { # <original> <revert> <path>: lines of <path> at <original> it added and <revert> removed
+caught_lines() {
   awk '
     FNR == 1 { hunk = 0 }
     /^diff --git / { hunk = 0; next }
@@ -87,7 +87,7 @@ caught_lines() { # <original> <revert> <path>: lines of <path> at <original> it 
     <(git diff -U0 --no-color --no-renames "$1^" "$1" -- "$3")
 }
 
-pair_lines() { # <original> <revert>: "<path><TAB><n>,<n>..." per file holding a caught line
+pair_lines() {
   local path lines
   while IFS= read -r path; do
     lines="$(caught_lines "$1" "$2" "$path" | paste -sd, -)"
@@ -95,7 +95,7 @@ pair_lines() { # <original> <revert>: "<path><TAB><n>,<n>..." per file holding a
   done < <(comm -12 <(changed "$2") <(changed "$1"))
 }
 
-reverses_cleanly() { # <original> <revert> <path>...
+reverses_cleanly() {
   local dir status
   dir="$(mktemp -d)"
   GIT_INDEX_FILE="$dir/index" git read-tree "$2^" &&
@@ -106,7 +106,7 @@ reverses_cleanly() { # <original> <revert> <path>...
   return "$status"
 }
 
-ranges() { # <n>,<n>...: the same ascending numbers as runs, 3,4,5,9 -> 3-5,9
+ranges() {
   tr , '\n' <<<"$1" | awk '
     function run() { return s == e ? s : s "-" e }
     NR == 1 { s = e = $1; next }
@@ -205,7 +205,6 @@ build() {
       git cat-file -e "$at:$path" 2>/dev/null || continue
       mkdir -p "$(dirname "$fixtures/$side/$path")"
       git cat-file blob "$at:$path" >"$fixtures/$side/$path.txt"
-      # A copy keeps the mode git recorded, so an executable script stays one.
       if [[ "$(git ls-tree --format='%(objectmode)' "$at" -- "$path")" == 100755 ]]; then chmod +x "$fixtures/$side/$path.txt"; fi
     done
   done
@@ -229,14 +228,7 @@ build() {
   done <<<"$lines"
 
   {
-    echo "# Revert case: a merged pull request that a later revert undid, rebuilt offline."
-    echo "# pr: $REPO#$pr (merged as $orig)"
-    echo "# base: $(git rev-parse "$orig^")"
-    echo "# revert: ${rpr:+#$rpr }$rev"
-    echo "# lines: at the merge, the lines the pull request added that the revert removed:"
-    echo "#   $where"
     echo "# confirmed-by: pending; a verifier agent checks the lines against the revert and names itself here"
-    echo "# rebuilt: only the files above, at base and merge."
     echo 'schema_version: "1.1"'
     echo "name: $name"
     echo "context:"
@@ -268,7 +260,7 @@ MD
   echo "$case_dir"
 }
 
-place() { # <fixture dir>: copy each <path>.txt under it to <path> in the workspace
+place() {
   [[ -d "$1" ]] || return 0
   local file rel
   while IFS= read -r -d '' file; do

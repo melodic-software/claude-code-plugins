@@ -3,6 +3,64 @@
 All notable changes to the `playwright` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.4] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [2.2.3] - 2026-11-28
+
+### Changed
+
+- Trim skill frontmatter descriptions across `demo-video` (568 -> 341 chars), `playwright` (489 -> 326 chars), and `setup` (456 -> 137 chars), reducing total frontmatter description length from 1,513 to 804 characters (-709 chars).
+
+## [2.2.2] - 2026-11-28
+
+### Changed
+
+- Removed unregistered metadata keys (`source`, `upstream-package`) with no consumer from `/playwright:playwright` frontmatter.
+
+## [2.2.1] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [2.2.0] - 2026-11-27
+
+### Added
+
+- `install_python_deps_enabled` option (boolean, default `false`) in `plugin.json` and `schemas/playwright.schema.json` controls the SessionStart `install-python-deps` hook across the plugin default, user layer (`CLAUDE_PLUGIN_OPTION_INSTALL_PYTHON_DEPS_ENABLED`), and repository layer (`docs/conventions/playwright.yaml`) through `lib/hook-enabled.sh`.
+
+### Changed
+
+- The SessionStart `install-python-deps` hook now defaults to off per the hook-enablement convention because it installs packages over the network without an explicit request; running `/playwright:demo-video` without the packages prints the one-line install command.
+
+## [2.1.9] - 2026-11-27
+
+### Fixed
+
+- `/playwright:playwright` no longer says `close-all` reaches every browser on the machine; it and its sessions reference point at upstream's Sessions section for the scope of `close-all` and `kill-all`, and at upstream's Installation section for the install command ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [2.1.8] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [2.1.7] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [2.1.6] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
 ## [2.1.5] - 2026-11-24
 
 ### Changed

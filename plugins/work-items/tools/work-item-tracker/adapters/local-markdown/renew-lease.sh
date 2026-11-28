@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# renew-lease <id> --lease-comment-id <n> — CONTRACT.md "Lease protocol". Bumps
-# renewed_at in place on the addressed lease. The handle is store-global, so a
-# stale or cross-item handle would otherwise renew a DIFFERENT item's lease and
-# report success for <id>; the handle's owning item is verified against <id> first.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -46,8 +42,6 @@ fi
 file="$(wit_item_file "$number")"
 lease_json="$(wit_lease_json "$old_line")"
 
-# The addressed lease must BE the active lease (newest non-superseded). A
-# superseded/older handle renewing would resurrect a lease its owner no longer holds.
 active_id="$(jq -r '.lease_comment_id // empty' <<<"$(wit_active_lease_json "$file")")"
 if [[ "$active_id" != "$lease_comment_id" ]]; then
   printf 'renew-lease: lease %s is not the active lease (active: %s)\n' \
@@ -55,9 +49,6 @@ if [[ "$active_id" != "$lease_comment_id" ]]; then
   exit "$EX_CONFLICT"
 fi
 
-# The active lease can still be expired, including a born-expired ttl-0 claim.
-# Reviving it would undo a handoff another worker made on expiry; recovery is a
-# fresh claim.
 if ! wit_lease_is_live "$lease_json" "$(date -u +%s)"; then
   printf 'renew-lease: lease %s is expired (renewed_at + ttl_hours elapsed); not renewing\n' \
     "$lease_comment_id" >&2
@@ -68,11 +59,6 @@ now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 renewed="$(jq -c --arg ts "$now" '. + {renewed_at: $ts}' <<<"$lease_json")"
 new_line="${WIT_LEASE_MARKER}${renewed} -->"
 
-# The renewal is only real once it lands in the store. A rewrite that cannot run
-# (no temp file, a full or unwritable store) must fail the verb: reporting a
-# renewed_at no reader will ever see hands the holder a lease the next reader
-# still expires on the old timestamp. Exit 1 is internal/unexpected store I/O
-# failure (CONTRACT.md "Exit codes"), distinct from the exit-7 conflicts above.
 if ! { tmp="$(mktemp)" &&
   awk -v old="$old_line" -v new="$new_line" '$0 == old { print new; next } { print }' "$file" >"$tmp" &&
   mv "$tmp" "$file"; }; then

@@ -1,0 +1,33 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "declined, nothing written"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/ws/docs/adr/0001-publish-plugins-through-one-marketplace.md"
+          }
+        }
+      ],
+      "why": "reading a record is not writing one"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/ws/docs/adr/0002-run-lint-before-tests-in-the-release-checklist.md",
+            "content": "# 2. Run lint before tests in the release checklist\n"
+          }
+        }
+      ],
+      "why": "wrote the record for a two-way door"
+    }
+  ]
+}

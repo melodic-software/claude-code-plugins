@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Expected values pinned against Biome 2.6.7: `check --write --linter-enabled=false`
-# formats and sorts imports and applies no lint fix, so a `let` useConst would
-# rewrite stays `let` (https://biomejs.dev/reference/cli/#biome-check).
-# BIOME_TEST_BIN names a native Biome binary; else `biome` on PATH is used.
 # test-scope: plugins/javascript-format/git-hooks/entries.json plugins/javascript-format/git-hooks/adapters.sh
 # test-scope: plugins/javascript-format/lib/git-hooks/check-lib.sh plugins/javascript-format/lib/git-hooks/install.mjs
 # test-scope: plugins/javascript-format/lib/git-hooks/resolve-tool.sh
@@ -42,7 +38,7 @@ chmod +x "$BIN/stubfmt"
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -53,7 +49,7 @@ expect() { # <label> <want> <got>
 }
 
 n=0
-new_repo() { # [biome.json body; "NONE" for no config]
+new_repo() {
   n=$((n + 1))
   REPO="$WORK/r$n"
   git init -q -b main "$REPO"
@@ -75,7 +71,7 @@ record() {
   git -C "$REPO" commit -q -m record --no-verify
 }
 
-check() { # <repo> [args...] -> "<rc>|<stdout>|<stderr>"
+check() {
   local repo="$1" out rc
   shift
   out="$(cd "$repo" && PATH="$BIN:$PATH" bash "$CHECK" "$@" 2>"$WORK/stderr")"
@@ -105,7 +101,6 @@ expect "a partly staged file is refused with the contract line" "1||a.ts: partly
 expect "a refused file is left byte for byte" "$(printf 'export const a=1\nexport const b=2')" "$(cat "$REPO/a.ts")"
 expect "a refused file's index entry is left byte for byte" "export const a=1" "$(git -C "$REPO" show :a.ts)"
 
-# Biome reads its config from the work tree; the commit holds the index's.
 DRIFT='config differs between the index and the work tree; stage it or restore it, then commit'
 new_repo
 printf 'export const a=1\n' >"$REPO/a.ts"
@@ -229,7 +224,6 @@ printf 'export const a=1\n' >"$REPO/a.ts"
 expect "--worktree: the format entry rewrites nothing and passes" "0||" "$(check "$REPO" --worktree)"
 expect "--worktree: the file keeps its bytes" "export const a=1" "$(cat "$REPO/a.ts")"
 
-# A PATH with the tools the script runs, git and no biome.
 NOBIOME="$WORK/nobiome"
 mkdir -p "$NOBIOME"
 for t in git bash sh sed awk cat mktemp rm dirname grep tr env head; do
@@ -270,8 +264,6 @@ git -C "$REPO" add pkg/a.ts
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOBIOME" bash "$CHECK" 2>&1)"
 expect "biome found in the governing config directory's node_modules/.bin" "0|pkg/a.ts" "$?|$out"
 
-# A node_modules the repository commits is never run, even when it shadows the
-# biome on PATH.
 new_repo
 mkdir -p "$REPO/node_modules/.bin"
 printf '#!/bin/sh\ntouch "%s"\nexit 0\n' "$WORK/committed-ran" >"$REPO/node_modules/.bin/biome"
@@ -324,7 +316,6 @@ new_repo NONE
 printf '{}\n' >"$REPO/.biome.json"
 expect "--resolve with nothing resolved says why the adapter did not opt in" "javascript-format	format	none		n/a	no Biome config: a hidden .biome.json does not opt in" "$(cd "$REPO" && PATH="$BIN:$PATH" bash "$CHECK" --resolve)"
 
-# End to end through the plugin's vendored installer and real commits.
 new_repo
 INSTALL="$PLUGIN/lib/git-hooks/install.mjs"
 status="$(PATH="$BIN:$PATH" node "$INSTALL" copy --scope local --repo "$REPO")"

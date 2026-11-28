@@ -1,12 +1,7 @@
 # test-scope: plugins/planning/surface/tests/fixtures/*.json
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/.claude-plugin/plugin.json
 # test-scope: plugins/planning/shared/schema/event.schema.json
-"""Tests for round.py V1: schema validation, refusals and warnings, affects, apply, archive,
-status --latency, the sidecar lock and the rebuild check.
-
-Every test drives round.py through its CLI (`sys.executable round.py ...`) in a temporary data dir.
-Only `TestRebuild` needs a server; it starts one through `ensure-running --port 0` and stops it.
-"""
+# test-scope: plugins/planning/skills/interview/templates/checklist.md
 
 from __future__ import annotations
 
@@ -22,6 +17,11 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+
+for _var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
+    os.environ.pop(_var, None)
+os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
 HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
@@ -65,7 +65,6 @@ STOCK_RESTATE = {
 
 
 def with_restates(data):
-    """`data` (a round file or an ops file) with STOCK_RESTATE on every add-round that adds questions and names no `restate`."""
     if not isinstance(data, dict):
         return data
     if data.get("questions") and "restate" not in data:
@@ -85,7 +84,6 @@ def with_restates(data):
 
 
 def base_doc():
-    """A v2.1-shaped questions.json: no schemaVersion, two groups, three questions."""
     return {
         "meta": {"title": "Test interview"},
         "rev": 3,
@@ -1666,7 +1664,7 @@ class TestStatusLive(DirCase):
         )
         ledger = self.tmp / "ledger.md"
 
-        def counts():  # (answered per status --json, Q1's export-ledger status)
+        def counts():
             rc, out, err = self.rp("status", "--json")
             self.assertEqual(rc, 0, out + err)
             answered = sum(g["answered"] for g in json.loads(out)["groups"])
@@ -3999,6 +3997,23 @@ class TestDoctor(DirCase):
         self.assertNotIn("missing:", out)
         self.assertNotIn("note:", out)
 
+    def test_a_constraint_free_ledger_copied_from_the_template_exits_zero(self):
+        doc = self.doc()
+        for q in doc["questions"]:
+            q["facts"] = "Checked against: none\n\nWhat the code does."
+        doc["meta"]["pluginVersion"] = self.running()
+        self.write_doc(doc)
+        template = (
+            HERE.parent / "skills" / "interview" / "templates" / "checklist.md"
+        ).read_text(encoding="utf-8")
+        copied = template[template.index("Planning version:"):]
+        copied = re.sub(r"^Planning version: .*$", f"Planning version: {self.running()}",
+                        copied, count=1, flags=re.M)
+        self.assertNotRegex(copied, r"(?m)^- C\d+ \|", "the copy records no constraint")
+        rc, out, err = self.rp("doctor", "--ledger", self.ledger(copied))
+        self.assertEqual(rc, 0, out + err)
+        self.assertNotIn("missing:", out)
+
     def test_an_answered_question_is_not_checked(self):
         doc = self.doc()
         for q in doc["questions"]:
@@ -4031,7 +4046,7 @@ class TestEndWatcher(DirCase):
         proc = subprocess.Popen(argv)
         self.addCleanup(proc.wait)
         self.addCleanup(proc.kill)
-        time.sleep(0.3)  # bash must exec its script before a command line is read
+        time.sleep(0.3)
         return proc
 
     def test_ends_a_watch_sh_for_this_data_dir(self):
@@ -4168,7 +4183,6 @@ class TestRoundTooling(DirCase):
 
     def test_a_failed_sync_after_the_write_keeps_the_round_and_names_the_recovery(self):
         ledger = self.ledger()
-        # A directory where sync-ledger writes its temp file: the pre-check passes, the write fails.
         (self.tmp / f".{ledger.name}.sync").mkdir()
         rc, out, err = self.rp(
             "add-round",
@@ -4185,7 +4199,6 @@ class TestRoundTooling(DirCase):
         self.assertIn("round 2 posted; register not synced (", err)
         recover = f"--dir {shlex.quote(str(self.dir))} sync-ledger --ledger {shlex.quote(str(ledger))}"
         self.assertIn(f"run: round.sh {recover}", err)
-        # Once the cause is gone, the named command writes the round's row.
         (self.tmp / f".{ledger.name}.sync").rmdir()
         rc, out, err = self.rp("sync-ledger", "--ledger", str(ledger))
         self.assertEqual(rc, 0, out + err)
@@ -4265,8 +4278,6 @@ class TestRoundTooling(DirCase):
             self.assertEqual(ledger.read_text(encoding="utf-8"), text)
 
     def test_questions_in_one_file_date_against_the_round_before_the_write(self):
-        # The page's newest round is 1; Q4 opens round 2 and Q5 is a round 1 question in the
-        # same file, so neither was asked after a later round was posted.
         rc, out, err = self.rp(
             "add-round",
             "--file",
@@ -4291,7 +4302,6 @@ class TestRoundTooling(DirCase):
         self.assertEqual(rc, 0, out + err)
         row = "- Q5 | open | round 1 (sweep) (added in round 2) | Question Q5? |"
         self.assertIn(row, ledger.read_text(encoding="utf-8").splitlines())
-        # A second sync leaves the note it wrote alone.
         rc, out, err = self.rp("sync-ledger", "--ledger", str(ledger))
         self.assertEqual(rc, 0, out + err)
         self.assertIn(row, ledger.read_text(encoding="utf-8").splitlines())
@@ -5002,7 +5012,6 @@ class TestLedgerCheck(DirCase):
     def drift_one_row(self):
         text = self.ledger.read_text(encoding="utf-8")
         row = next(x for x in text.splitlines() if x.startswith("- Q2 |"))
-        # Keep the status, round and title cells; the resolution cell is the last.
         edited = "|".join(row.split("|")[:4]) + "| edited in the ledger"
         self.ledger.write_text(text.replace(row, edited), encoding="utf-8")
 
@@ -5171,7 +5180,20 @@ class TestConfirmationRecap(DirCase):
 
 class TestRecapFromTheLedger(unittest.TestCase):
     """export-ledger --recap --ledger reads the ledger alone with no data dir (the terminal lane),
-    saves its rows beside the ledger, and --changed lists only the rows changed since."""
+    saves the rows as the first recap showed them beside the ledger, and lists the rows changed
+    since that first recap under Changed after you first saw it.
+
+    ROWS by hand: Q2 has no answer, so it goes under Needs your eye; Q1 and Q3 carry no topic::
+    tag, so they go under Other; withdrawn Q4 is left out."""
+
+    FULL = [
+        "**Needs your eye**",
+        "- Which runner image: no answer yet",
+        "",
+        "**Other**",
+        "- Share the cache: share it",
+        "- Keep the lock file: keep it",
+    ]
 
     ROWS = [
         "- Q1 | answered | round 1 | Share the cache? | answer:: accepted: share it",
@@ -5214,52 +5236,61 @@ class TestRecapFromTheLedger(unittest.TestCase):
 
     def test_the_recap_reads_the_ledger_alone_and_saves_its_rows(self):
         lines, _ = self.recap()
-        self.assertEqual(
-            lines,
-            [
-                "Q1 answered: Share the cache? (accepted: share it)",
-                "Q2 open: Which runner image? ()",
-                "Q3 answered: Keep the lock file? (keep it)",
-                "Withdrawn (1): Q4",
-            ],
-        )
+        self.assertEqual(lines, self.FULL)
         rows = json.loads(self.state.read_text(encoding="utf-8"))["rows"]
         self.assertEqual(sorted(rows), ["Q1", "Q2", "Q3", "Q4"])
         self.assertEqual(rows["Q3"], "answered: Keep the lock file? (keep it)")
 
     def test_a_missing_data_dir_reads_the_ledger_alone_too(self):
         lines, _ = self.recap("--dir", str(self.tmp / "no-such-dir"))
-        self.assertEqual(lines[0], "Q1 answered: Share the cache? (accepted: share it)")
+        self.assertEqual(lines, self.FULL)
 
     def test_changed_lists_every_row_until_a_recap_is_saved(self):
         lines, _ = self.recap("--changed")
-        self.assertEqual(len(lines), 4)
-        self.assertFalse(any(x.startswith("Unchanged") for x in lines), lines)
+        self.assertEqual(lines, self.FULL)
 
-    def test_changed_lists_only_the_changed_rows_and_counts_the_rest(self):
+    def test_changed_lists_the_rows_changed_since_the_first_recap(self):
         self.recap()
         rows = list(self.ROWS)
         rows[1] = "- Q2 | answered | round 1 | Which runner image? | the slim image"
         rows.append("- Q5 | open | round 3 | Cache the test data? |")
         self.write_ledger(rows)
+        want = [
+            "**Needs your eye**",
+            "- Cache the test data: no answer yet",
+            "",
+            "**Other**",
+            "- Share the cache: share it",
+            "- Keep the lock file: keep it",
+            "",
+            "**Changed after you first saw it**",
+            "- Which runner image: the slim image",
+        ]
         lines, _ = self.recap("--changed")
-        self.assertEqual(
-            lines,
-            [
-                "Q2 answered: Which runner image? (the slim image)",
-                "Q5 open: Cache the test data? ()",
-                "Unchanged since the last recap (3): 2 answered, 1 withdrawn",
-            ],
-        )
+        self.assertEqual(lines, want)
         lines, _ = self.recap("--changed")
-        self.assertEqual(
-            lines, ["Unchanged since the last recap (5): 3 answered, 1 open, 1 withdrawn"]
+        self.assertEqual(lines, want, "a second recap still compares against the first")
+        lines, _ = self.recap()
+        self.assertEqual(lines, want, "the recap lists changes without --changed too")
+
+    def test_a_recap_over_the_restate_cap_is_refused_and_saves_nothing(self):
+        long = "x" * 21000
+        self.write_ledger([f"- Q1 | answered | round 1 | Share the cache? | {long}"])
+        p = subprocess.run(
+            [sys.executable, str(ROUND), "export-ledger", "--recap", "--ledger",
+             str(self.ledger), "--out", str(self.tmp / "recap.md")],
+            capture_output=True,
+            text=True,
+            timeout=60,
         )
+        self.assertEqual(p.returncode, 1, p.stdout + p.stderr)
+        self.assertIn("refused: the compact recap is", p.stderr)
+        self.assertFalse(self.state.exists(), "an unshown recap became the first one seen")
 
     def test_an_unreadable_saved_recap_warns_and_lists_every_row(self):
         self.state.write_text("not json", encoding="utf-8")
         lines, err = self.recap("--changed")
-        self.assertEqual(len(lines), 4)
+        self.assertEqual(lines, self.FULL)
         self.assertIn("cannot read the last recap", err)
 
     def test_a_ledger_with_no_register_is_refused(self):
@@ -5407,7 +5438,6 @@ class TestCliHygiene(DirCase):
         fake.mkdir()
         for name in ("python3", "python"):
             stub = fake / name
-            # Runs the trivial probe, but reports Python 2 to a version check.
             stub.write_text(
                 '#!/bin/sh\ncase "$2" in *version_info*) exit 1;; esac\nexit 0\n',
                 encoding="utf-8",
@@ -5750,8 +5780,6 @@ class TestConstraintRecheck(DirCase):
         self.assertEqual(self.status(), {})
         self.new_constraint()
         self.assertEqual(self.status(), {"Q1": ["C2"], "Q2": ["C2"]})
-        # Both wait on Claude: only a revise or reconfirm clears the mark, so an answered
-        # question must not read stale, which asks the user to pick again.
         self.assertEqual(self.state("Q1"), "upstream-changed")
         self.assertEqual(self.state("Q2"), "upstream-changed")
 
@@ -5851,7 +5879,6 @@ ROUND_FULL = FIXTURES / "round-file" / "round-full.md"
 
 
 def run_bytes(*args):
-    """(exit code, stdout bytes, stderr text) of round.py run with no data dir."""
     p = subprocess.run(
         [sys.executable, str(ROUND), *args], capture_output=True, timeout=60
     )
@@ -5905,6 +5932,79 @@ STANDARD_DROPPED = [
     "Checked against: the no-new-store constraint",
 ]
 STANDARD_ALT_A = "- (a) Log only the final failure. The log stays short, but the retry history is lost."
+ROUND_NEW = FIXTURES / "round-file" / "round-new.md"
+NEW_HEADER = [
+    "Round 4",
+    "Scope check: 12 questions asked so far",
+    "Wayfind: the last two rounds each opened more questions than they settled; "
+    "/planning:wayfind chart can map what is left.",
+    "Open: the queue choice, waiting on the queue lookup",
+    "Next round (over the cap of 4): alert routing",
+    "Later: the on-call rota",
+]
+NEW_Q14_ANSWER = [
+    "➡️ My recommendation: **yes, one entry per failed retry**",
+    "- Why: the log already takes one write per job.",
+    "- Gains: the retry history stays in the log.",
+    "- Costs: a second write for each failed job.",
+    "- Evidence: the worker writes once per attempt today.",
+    "- Flips if: the audit log starts dropping batched writes.",
+]
+NEW_Q15_ANSWER = [
+    "No recommendation: no reader has been named, so any answer would be a guess.",
+    "Your answer settles: whether the entries need a dashboard.",
+]
+NEW_CLOSING = "You can answer in any order. Is there something else that would change these recommendations?"
+NEW_STANDARD = [
+    *NEW_HEADER,
+    "",
+    "❓ Q14 (audit log): **Should a failed retry write to the audit log?**",
+    "",
+    "Context:",
+    "1. Each retry runs in its own worker (retry.ts:12)",
+    "2. Your answer to Q4, one write per job, still holds (ledger)",
+    "3. The guide batches extra writes (audit-guide.md:80-100)",
+    "",
+    "Source: [Audit log guide, Writes](https://example.com/audit#writes)",
+    "",
+    *NEW_Q14_ANSWER,
+    "",
+    "Alternatives:",
+    "- (a) Log only the final failure. The log stays short, but the retry history is lost.",
+    "- (b) Log nothing for retries.",
+    "",
+    "---",
+    "",
+    "❓ Q15 (readers): **Who reads the retry entries?**",
+    "",
+    "Context:",
+    "1. No reader is named yet (team wiki)",
+    "",
+    *NEW_Q15_ANSWER,
+    "",
+    "---",
+    "",
+    NEW_CLOSING,
+]
+NEW_MINIMAL = [
+    *NEW_HEADER,
+    "",
+    "❓ Q14 (audit log): **Should a failed retry write to the audit log?**",
+    "",
+    *NEW_Q14_ANSWER,
+    "",
+    'Alternatives: 2 (say "more Q14")',
+    "",
+    "---",
+    "",
+    "❓ Q15 (readers): **Who reads the retry entries?**",
+    "",
+    *NEW_Q15_ANSWER,
+    "",
+    "---",
+    "",
+    NEW_CLOSING,
+]
 
 
 class TestRoundShow(unittest.TestCase):
@@ -6023,89 +6123,505 @@ class TestRoundShow(unittest.TestCase):
         self.assertEqual(out, b"")
         self.assertIn("--level", err)
 
+    def test_standard_of_the_new_layout_keeps_the_bullets_under_a_dropped_basis(self):
+        self.assertEqual(
+            self.show("standard", ROUND_NEW).decode("utf-8").splitlines(), NEW_STANDARD
+        )
 
-SCOPE_LEDGER = (
-    "# Interview ledger\n\n## Open-question register\n\n"
-    "- Q1 | answered | round 1 | One? | yes\n"
-    "- Q2 | answered | round 1 | Two? | yes\n"
-    "- Q3 | deferred | round 1 | Three? | later\n"
-    "- Q4 | answered | round 2 | Four? | yes\n"
-    "- Q5 | deferred | round 2 | Five? | later\n"
-    "- Q6 | withdrawn | round 2 | Six? | dropped\n"
-    "- Q7 | superseded-by-plan | round 2 | Seven? | plan proposes: x; was: y\n"
-    "- Q8 | discussing | round 3 | Eight? |\n"
-    "- Q9 | blocked | round 3 | Nine? | needs the owner\n"
+    def test_minimal_of_the_new_layout_keeps_the_answer_bullets_and_the_discovery_pair(self):
+        self.assertEqual(
+            self.show("minimal", ROUND_NEW).decode("utf-8").splitlines(), NEW_MINIMAL
+        )
+
+
+def register(rows):
+    """A ledger whose register holds `rows`, each (n, status, round, title)."""
+    return "# Interview ledger\n\n## Open-question register\n\n" + "".join(
+        f"- Q{n} | {status} | round {rnd} | {title} | x\n" for n, status, rnd, title in rows
+    )
+
+
+def round_text(n, asked, held=None):
+    """Round n's saved file: the questions in `asked` ((n, title) pairs) and, unless `held` is
+    None, a held-back block of (title, waits) entries."""
+    head = f"Round {n}\nScope check: 1 questions asked so far\n"
+    if held is not None:
+        entries = ", ".join(json.dumps({"title": t, "waits": w}) for t, w in held)
+        head += f"```held-back\n[{entries}]\n```\n"
+    body = "".join(
+        f"\n❓ Q{q}: **{title}**\n\n➡️ My recommendation: **yes**\n" for q, title in asked
+    )
+    return head + body
+
+
+def answered(first, last, rnd):
+    return [(n, "answered", rnd, f"Question {n}?") for n in range(first, last + 1)]
+
+
+EXPOSING_LEDGER = register(
+    answered(1, 8, 1)[:4]
+    + answered(5, 8, 2)
+    + [(9, "answered", 3, "Which log format?"), (10, "answered", 3, "Who reads the log?")]
+    + answered(11, 12, 3)
+)
+EXPOSING_ROUNDS = {
+    1: round_text(1, [(n, f"Question {n}?") for n in range(1, 5)], []),
+    2: round_text(
+        2,
+        [(n, f"Question {n}?") for n in range(5, 9)],
+        [("Which log format?", "next"), ("Who reads the log?", "next")],
+    ),
+    3: round_text(
+        3,
+        [(9, "Which log format?"), (10, "Who reads the log?"), (11, "Question 11?"), (12, "Question 12?")],
+        [("How long is the log kept?", "next"), ("Who may delete it?", "next"), ("replay controls", "later")],
+    ),
+}
+
+SKIPPING_LEDGER = register(
+    answered(1, 4, 1)
+    + [(5, "answered", 2, "Question 5?"), (6, "answered", 2, "Question 6?")]
+    + [(7, "answered", 2, "Question 7?"), (8, "open", 3, "Question 8?")]
+)
+SKIPPING_ROUNDS = {
+    1: round_text(
+        1,
+        [(n, f"Question {n}?") for n in range(1, 5)],
+        [(f"Question {n}?", "next") for n in range(5, 9)],
+    ),
+    2: round_text(
+        2,
+        [(n, f"Question {n}?") for n in range(4, 8)],
+        [("Question 8?", "next")],
+    ),
+    3: round_text(3, [(7, "Question 7?"), (8, "Question 8?")], []),
+}
+
+WAYFIND_LINE = (
+    "Wayfind: the last two rounds each opened more questions than they settled; "
+    "/planning:wayfind chart can map what is left.\n"
 )
 
 
 class TestScopeCheck(unittest.TestCase):
-    """scope-check prints the counts half of the round header's Scope check: line."""
+    """scope-check prints the round header's Scope check: line, records the two rounds before
+    it and this one under the ledger's `## Round counts`, and adds a Wayfind: line when each of
+    those two rounds opened more questions than it settled. A round opens the questions it first
+    names, asked or held back; it closes the rows settled while it was the last round to show
+    them."""
 
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="iv-scope-"))
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         self.ledger = self.tmp / "interview-checklist.md"
-        self.ledger.write_bytes(SCOPE_LEDGER.encode("utf-8"))
+        self.rounds = self.tmp / "rounds"
+        self.rounds.mkdir()
 
-    def scope(self, *args):
-        rc, out, err = run_bytes(
-            "scope-check", "--ledger", str(self.ledger), "--limit", "12", *args
-        )
+    def given(self, ledger, rounds):
+        self.ledger.write_bytes(ledger.encode("utf-8"))
+        for n, text in rounds.items():
+            (self.rounds / f"round-{n}.md").write_bytes(text.encode("utf-8"))
+
+    def run_ok(self, *args):
+        rc, out, err = run_bytes(*args)
         self.assertEqual(rc, 0, err)
         return out.decode("utf-8").replace("\r\n", "\n")
 
-    def test_the_last_two_rounds_before_the_shown_one(self):
+    def scope(self, *args):
+        return self.run_ok(
+            "scope-check", "--ledger", str(self.ledger), "--rounds-dir", str(self.rounds), *args
+        )
+
+    def next_ids(self, *args):
+        return self.run_ok("next-id", "--ledger", str(self.ledger), *args)
+
+    def counts(self):
+        return self.ledger.read_bytes().decode("utf-8").split("## Round counts\n", 1)[1]
+
+    def test_rounds_whose_answers_expose_more_than_they_settle_print_a_wayfind_line(self):
+        """Every question asked is answered. Round 2 asks Q5-Q8 and holds back two (6 opened,
+        4 closed); round 3 asks those two as Q9 and Q10 plus Q11 and Q12, and holds back three
+        (2 new rows + 3 held = 5 opened, 4 closed)."""
+        self.given(EXPOSING_LEDGER, EXPOSING_ROUNDS)
         self.assertEqual(
-            self.scope("--round", "3"),
-            "9 of 12 questions registered; round 2 added 4, settled 3; "
-            "round 1 added 3, settled 3\n",
+            self.scope("--round", "4"), "Scope check: 12 questions asked so far\n" + WAYFIND_LINE
+        )
+        self.assertEqual(
+            self.counts(),
+            "\nround 2 | opened 6 | closed 4\n"
+            "round 3 | opened 5 | closed 4\n"
+            "round 4 | opened unknown | closed 0\n",
+        )
+
+    def test_one_skipped_question_per_round_with_nothing_new_is_not_the_signal(self):
+        """Round 1 already holds back Q5-Q8; round 2 restates the skipped Q4 and asks Q5-Q7
+        (0 opened, Q4-Q6 closed); round 3 restates the skipped Q7 and asks Q8, which is skipped
+        (0 opened, Q7 closed)."""
+        self.given(SKIPPING_LEDGER, SKIPPING_ROUNDS)
+        self.assertEqual(self.scope("--round", "4"), "Scope check: 8 questions asked so far\n")
+        self.assertEqual(
+            self.counts(),
+            "\nround 2 | opened 0 | closed 3\n"
+            "round 3 | opened 0 | closed 1\n"
+            "round 4 | opened unknown | closed 0\n",
         )
 
     def test_round_two_has_one_earlier_round_and_round_one_none(self):
-        self.assertEqual(
-            self.scope("--round", "2"),
-            "9 of 12 questions registered; round 1 added 3, settled 3\n",
-        )
-        self.assertEqual(self.scope("--round", "1"), "9 of 12 questions registered\n")
+        """Round 1 asks Q1-Q4 and holds back one (5 opened, 4 closed), but one round is not
+        two."""
+        held = [("Who reads the log?", "later")]
+        self.given(register(answered(1, 4, 1)), {1: round_text(1, [(n, f"Question {n}?") for n in range(1, 5)], held)})
+        for rnd in ("2", "1"):
+            with self.subTest(round=rnd):
+                self.assertEqual(self.scope("--round", rnd), "Scope check: 4 questions asked so far\n")
+                self.assertEqual(
+                    self.counts(), "\nround 1 | opened 5 | closed 4\nround 2 | opened unknown | closed 0\n"
+                )
 
     def test_the_rounds_dir_names_the_rounds_that_were_shown(self):
-        rounds = self.tmp / "rounds"
-        rounds.mkdir()
-        for n in (1, 3, 5):
-            (rounds / f"round-{n}.md").write_bytes(b"Scope check: x\n")
+        """Rounds 1 and 3 each ask two and hold back one (3 opened, 2 closed); round 4 was never
+        shown."""
+        self.given(
+            register(answered(1, 2, 1) + answered(3, 4, 3)),
+            {
+                1: round_text(1, [(1, "Question 1?"), (2, "Question 2?")], [("Who reads the log?", "later")]),
+                3: round_text(3, [(3, "Question 3?"), (4, "Question 4?")], [("Who may delete it?", "later")]),
+                5: round_text(5, [], []),
+            },
+        )
+        self.assertEqual(self.scope("--round", "5"), "Scope check: 4 questions asked so far\n" + WAYFIND_LINE)
         self.assertEqual(
-            self.scope("--round", "5", "--rounds-dir", str(rounds)),
-            "9 of 12 questions registered; round 3 added 2, settled 1; "
-            "round 1 added 3, settled 3\n",
+            self.counts(),
+            "\nround 1 | opened 3 | closed 2\nround 3 | opened 3 | closed 2\nround 5 | opened 0 | closed 0\n",
         )
 
-    def test_a_round_below_one_is_refused(self):
-        rc, out, err = run_bytes(
-            "scope-check", "--ledger", str(self.ledger), "--limit", "12", "--round", "0"
+    def test_a_held_back_question_asked_in_the_next_round_counts_once(self):
+        self.given(EXPOSING_LEDGER, EXPOSING_ROUNDS)
+        self.scope("--round", "3")
+        self.assertIn("round 2 | opened 6 | closed 4\n", self.counts())
+        self.assertIn("round 3 | opened 5 | closed 4\n", self.counts())
+
+    def test_a_rerun_rewrites_each_round_line(self):
+        self.given(EXPOSING_LEDGER, EXPOSING_ROUNDS)
+        self.ledger.write_bytes(
+            (EXPOSING_LEDGER + "\n## Round counts\n\nround 2 | opened 9 | closed 9\n\n## Notes\n\n- keep me\n").encode("utf-8")
         )
+        for _ in range(2):
+            self.scope("--round", "4")
+        self.assertEqual(
+            self.counts(),
+            "\nround 2 | opened 6 | closed 4\n"
+            "round 3 | opened 5 | closed 4\n"
+            "round 4 | opened unknown | closed 0\n"
+            "\n## Notes\n\n- keep me\n",
+        )
+
+    def test_round_files_without_a_held_back_list_record_opened_unknown(self):
+        old = {n: re.sub(r"```held-back\n.*?\n```\n", "", t, flags=re.S) for n, t in EXPOSING_ROUNDS.items()}
+        self.given(EXPOSING_LEDGER, old)
+        self.assertEqual(self.scope("--round", "4"), "Scope check: 12 questions asked so far\n")
+        self.assertEqual(
+            self.counts(),
+            "\nround 2 | opened unknown | closed 4\n"
+            "round 3 | opened unknown | closed 4\n"
+            "round 4 | opened unknown | closed 0\n",
+        )
+        out = self.run_ok("show", "--level", "standard", str(self.rounds / "round-2.md"))
+        self.assertTrue(out.startswith("Round 2\nScope check: 1 questions asked so far\n\n❓ Q5:"), out)
+
+    def test_without_a_rounds_dir_no_round_has_a_list_and_nothing_fires(self):
+        self.given(EXPOSING_LEDGER, EXPOSING_ROUNDS)
+        out = self.run_ok("scope-check", "--ledger", str(self.ledger), "--round", "4")
+        self.assertEqual(out, "Scope check: 12 questions asked so far\n")
+        self.assertIn("round 3 | opened unknown | closed 4\n", self.counts())
+
+    def test_next_id_with_round_prints_the_ids_then_the_line_counting_them(self):
+        self.given(EXPOSING_LEDGER, EXPOSING_ROUNDS)
+        self.assertEqual(
+            self.next_ids("--count", "2", "--round", "4", "--rounds-dir", str(self.rounds)),
+            "Q13\nQ14\nScope check: 14 questions asked so far\n" + WAYFIND_LINE,
+        )
+        self.assertIn("round 4 | opened unknown | closed 0\n", self.counts())
+
+    def test_the_current_rounds_saved_list_counts_its_new_ids(self):
+        rounds = dict(EXPOSING_ROUNDS)
+        rounds[4] = round_text(4, [], [("Who signs off?", "later")])
+        self.given(EXPOSING_LEDGER, rounds)
+        self.next_ids("--count", "2", "--round", "4", "--rounds-dir", str(self.rounds))
+        self.assertIn("round 4 | opened 3 | closed 0\n", self.counts())
+
+    def test_next_id_without_round_leaves_the_ledger_alone(self):
+        self.given(EXPOSING_LEDGER, {})
+        self.assertEqual(self.next_ids("--count", "1"), "Q13\n")
+        self.assertEqual(self.ledger.read_bytes(), EXPOSING_LEDGER.encode("utf-8"))
+
+    def test_a_round_below_one_is_refused(self):
+        self.given(EXPOSING_LEDGER, {})
+        rc, out, err = run_bytes("scope-check", "--ledger", str(self.ledger), "--round", "0")
         self.assertNotEqual(rc, 0)
         self.assertEqual(out, b"")
         self.assertIn("--round", err)
+        self.assertEqual(self.ledger.read_bytes(), EXPOSING_LEDGER.encode("utf-8"))
 
-    def test_next_id_with_round_prints_the_ids_then_the_line_counting_them(self):
+    def test_a_malformed_held_back_list_is_refused(self):
+        rounds = dict(EXPOSING_ROUNDS)
+        rounds[3] = round_text(3, [], [("Which log format?", "soon")])
+        self.given(EXPOSING_LEDGER, rounds)
         rc, out, err = run_bytes(
-            "next-id", "--ledger", str(self.ledger), "--count", "2",
-            "--round", "4", "--limit", "12",
-        )
-        self.assertEqual(rc, 0, err)
-        self.assertEqual(
-            out.decode("utf-8").replace("\r\n", "\n"),
-            "Q10\nQ11\nScope check: 11 of 12 questions registered; "
-            "round 3 added 2, settled 1; round 2 added 4, settled 3\n",
-        )
-
-    def test_next_id_refuses_round_without_limit(self):
-        rc, out, err = run_bytes(
-            "next-id", "--ledger", str(self.ledger), "--count", "2", "--round", "4"
+            "scope-check", "--ledger", str(self.ledger), "--rounds-dir", str(self.rounds), "--round", "4"
         )
         self.assertNotEqual(rc, 0)
+        self.assertIn("held-back", err)
+        self.assertEqual(self.ledger.read_bytes(), EXPOSING_LEDGER.encode("utf-8"))
+
+    def test_limit_is_no_longer_an_option(self):
+        self.given(EXPOSING_LEDGER, {})
+        for cmd in ("next-id", "scope-check"):
+            with self.subTest(cmd=cmd):
+                rc, out, err = run_bytes(
+                    cmd, "--ledger", str(self.ledger), "--round", "4", "--limit", "12"
+                )
+                self.assertNotEqual(rc, 0)
+                self.assertEqual(out, b"")
+                self.assertIn("--limit", err)
+
+
+class TestHeldBackHeader(unittest.TestCase):
+    """show prints a round file's held-back list as the header's `Next round (over the cap of
+    <n>):` and `Later:` lines at every level, <n> being the round's question count; a file
+    without the list prints as before."""
+
+    def show(self, level, text):
+        with tempfile.TemporaryDirectory(prefix="iv-held-") as tmp:
+            path = Path(tmp) / "round-3.md"
+            path.write_bytes(text.encode("utf-8"))
+            rc, out, err = run_bytes("show", "--level", level, str(path))
+        self.assertEqual(rc, 0, err)
+        return out.decode("utf-8")
+
+    def test_the_list_prints_as_the_next_round_and_later_lines(self):
+        text = EXPOSING_ROUNDS[3]
+        for level in ("full", "standard", "minimal"):
+            with self.subTest(level=level):
+                self.assertTrue(
+                    self.show(level, text).startswith(
+                        "Round 3\nScope check: 1 questions asked so far\n"
+                        "Next round (over the cap of 4): How long is the log kept?, Who may delete it?\n"
+                        "Later: replay controls\n\n❓ Q9:"
+                    )
+                )
+
+    def test_an_empty_list_prints_no_line(self):
+        out = self.show("full", EXPOSING_ROUNDS[1])
+        self.assertTrue(out.startswith("Round 1\nScope check: 1 questions asked so far\n\n❓ Q1:"), out)
+
+    def test_a_list_with_an_unknown_key_is_refused(self):
+        text = "Round 3\n```held-back\n[{\"title\": \"x\", \"waits\": \"next\", \"id\": \"Q9\"}]\n```\n"
+        with tempfile.TemporaryDirectory(prefix="iv-held-") as tmp:
+            path = Path(tmp) / "round-3.md"
+            path.write_bytes(text.encode("utf-8"))
+            rc, out, err = run_bytes("show", "--level", "full", str(path))
+        self.assertNotEqual(rc, 0)
         self.assertEqual(out, b"")
-        self.assertIn("--limit", err)
+        self.assertIn("held-back", err)
+
+
+def git_repo(path):
+    subprocess.run(
+        ["git", "init", "-q", str(path)], check=True, capture_output=True, timeout=60
+    )
+    return path
+
+
+class TestCitationLinks(unittest.TestCase):
+    """show --links rewrites a citation label `(path:line)` at a line's end: plain prints the
+    file name, vscode a vscode:// link (the WSL remote form when WSL_DISTRO_NAME is set), file a
+    file:// link with no line. Paths resolve against the round file's repository top, else its
+    folder."""
+
+    ROUND = (
+        "Round 2\n"
+        "Scope check: 3 questions asked so far\n"
+        "\n"
+        "❓ Q3 (retries): **Should a retry page anyone?**\n"
+        "\n"
+        "Context:\n"
+        "1. Each retry runs alone (src/retry.ts:12)\n"
+        "2. The guide batches writes (docs/guide.md:80-100)\n"
+        "3. Two places in one file (src/retry.ts:12, 40-44)\n"
+        "4. A label mid-line (src/retry.ts:7) is left as written\n"
+        "5. A link already in place ([guide](https://example.com/a:80))\n"
+        "```text\n"
+        "(src/fenced.ts:3)\n"
+        "```\n"
+        "\n"
+        "➡️ My recommendation: **no**\n"
+    )
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="iv-links-")).resolve()
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.env = {k: v for k, v in os.environ.items() if k != "WSL_DISTRO_NAME"}
+
+    def write_round(self, folder):
+        folder.mkdir(parents=True, exist_ok=True)
+        path = folder / "round-2.md"
+        path.write_bytes(self.ROUND.encode("utf-8"))
+        return path
+
+    def show(self, path, *links, env=None):
+        p = subprocess.run(
+            [sys.executable, str(ROUND), "show", "--level", "full", *links, str(path)],
+            capture_output=True,
+            timeout=60,
+            env=env or self.env,
+        )
+        self.assertEqual(p.returncode, 0, p.stderr.decode("utf-8", "replace"))
+        return p.stdout.decode("utf-8").splitlines()
+
+    def context(self, lines):
+        at = lines.index("Context:")
+        return lines[at + 1 : at + 9]
+
+    def test_plain_is_the_default_and_prints_the_file_name(self):
+        path = self.write_round(self.tmp / "loose")
+        want = [
+            "1. Each retry runs alone (retry.ts:12)",
+            "2. The guide batches writes (guide.md:80-100)",
+            "3. Two places in one file (retry.ts:12, 40-44)",
+            "4. A label mid-line (src/retry.ts:7) is left as written",
+            "5. A link already in place ([guide](https://example.com/a:80))",
+            "```text",
+            "(src/fenced.ts:3)",
+            "```",
+        ]
+        self.assertEqual(self.context(self.show(path)), want)
+        self.assertEqual(self.context(self.show(path, "--links", "plain")), want)
+
+    def test_vscode_links_resolve_against_the_repository_top(self):
+        repo = git_repo(self.tmp / "repo")
+        path = self.write_round(repo / ".work" / "topic")
+        top = repo.as_posix().lstrip("/")
+        self.assertEqual(
+            self.context(self.show(path, "--links", "vscode"))[:3],
+            [
+                f"1. Each retry runs alone ([retry.ts:12](vscode://file/{top}/src/retry.ts:12))",
+                f"2. The guide batches writes ([guide.md:80-100](vscode://file/{top}/docs/guide.md:80))",
+                f"3. Two places in one file ([retry.ts:12, 40-44](vscode://file/{top}/src/retry.ts:12))",
+            ],
+        )
+
+    def test_a_round_outside_any_repository_resolves_against_its_folder(self):
+        folder = self.tmp / "loose"
+        path = self.write_round(folder)
+        env = {**self.env, "GIT_CEILING_DIRECTORIES": str(self.tmp)}
+        base = folder.as_posix().lstrip("/")
+        self.assertEqual(
+            self.context(self.show(path, "--links", "vscode", env=env))[0],
+            f"1. Each retry runs alone ([retry.ts:12](vscode://file/{base}/src/retry.ts:12))",
+        )
+
+    def test_inside_wsl_vscode_links_take_the_remote_form(self):
+        repo = git_repo(self.tmp / "repo")
+        path = self.write_round(repo / ".work")
+        top = repo.as_posix().lstrip("/")
+        env = {**self.env, "WSL_DISTRO_NAME": "Ubuntu-24.04"}
+        self.assertEqual(
+            self.context(self.show(path, "--links", "vscode", env=env))[0],
+            "1. Each retry runs alone ([retry.ts:12]"
+            f"(vscode://vscode-remote/wsl+Ubuntu-24.04/{top}/src/retry.ts:12))",
+        )
+
+    def test_file_links_carry_no_line(self):
+        repo = git_repo(self.tmp / "repo")
+        path = self.write_round(repo / ".work")
+        top = repo.as_posix().lstrip("/")
+        self.assertEqual(
+            self.context(self.show(path, "--links", "file"))[:2],
+            [
+                f"1. Each retry runs alone ([retry.ts:12](file:///{top}/src/retry.ts))",
+                f"2. The guide batches writes ([guide.md:80-100](file:///{top}/docs/guide.md))",
+            ],
+        )
+
+    def test_an_unknown_link_form_is_refused(self):
+        path = self.write_round(self.tmp / "loose")
+        p = subprocess.run(
+            [sys.executable, str(ROUND), "show", "--level", "full", "--links", "html", str(path)],
+            capture_output=True,
+            timeout=60,
+        )
+        self.assertNotEqual(p.returncode, 0)
+        self.assertEqual(p.stdout, b"")
+        self.assertIn(b"--links", p.stderr)
+
+
+class TestAddRoundCap(DirCase):
+    """add-round --cap N refuses a round of more than N questions and writes nothing."""
+
+    def spec(self, n):
+        return self.file(
+            "capped-round.json",
+            {"questions": [question(f"Q{k}", round=2, dependsOn=[]) for k in range(4, 4 + n)]},
+        )
+
+    def test_a_round_over_the_cap_is_refused_naming_the_count_and_the_cap(self):
+        out = self.assert_refused("add-round", "--file", self.spec(3), "--cap", "2")
+        self.assertIn("3 questions", out)
+        self.assertIn("cap is 2", out)
+
+    def test_check_refuses_it_too(self):
+        out = self.assert_refused("add-round", "--file", self.spec(3), "--cap", "2", "--check")
+        self.assertIn("cap is 2", out)
+
+    def test_a_round_at_the_cap_is_posted(self):
+        rc, out, err = self.rp("add-round", "--file", self.spec(2), "--cap", "2")
+        self.assertEqual(rc, 0, out + err)
+        self.assertEqual(sum(q.get("round") == 2 for q in self.doc()["questions"]), 2)
+
+    def test_a_cap_below_one_is_refused(self):
+        out = self.assert_refused("add-round", "--file", self.spec(1), "--cap", "0")
+        self.assertIn("--cap must be 1 or more", out)
+
+
+class TestRestateDecided(DirCase):
+    """The page restate needs text, decided and open (G7); decided may be empty."""
+
+    def test_a_restate_with_an_empty_decided_list_is_posted(self):
+        spec = {
+            "questions": [question("Q4", round=2, dependsOn=[])],
+            "restate": {"text": "Q4 is open. The round turns on it.", "decided": [], "open": ["Q4"]},
+        }
+        path = self.tmp / "restate.json"
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        rc, out, err = self.rp("add-round", "--file", str(path))
+        self.assertEqual(rc, 0, out + err)
+        (entry,) = self.doc()["rounds"]
+        self.assertEqual(entry["restate"]["decided"], [])
+        self.assertEqual(entry["restate"]["open"], ["Q4"])
+        rc, out, err = self.rp("validate")
+        self.assertEqual(rc, 0, out + err)
+
+    def test_a_restate_with_no_decided_key_is_refused(self):
+        spec = {
+            "questions": [question("Q4", round=2, dependsOn=[])],
+            "restate": {"text": "Q4 is open. The round turns on it.", "open": ["Q4"]},
+        }
+        path = self.tmp / "restate.json"
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        out = self.assert_refused("add-round", "--file", str(path))
+        self.assertIn("restate decided is a list of question ids (G7)", out)
+        self.assertNotIn("rounds", self.doc())
+
+    def test_open_is_still_required(self):
+        spec = {
+            "questions": [question("Q4", round=2, dependsOn=[])],
+            "restate": {"text": "Q4 is open.", "decided": []},
+        }
+        path = self.tmp / "restate.json"
+        path.write_text(json.dumps(spec), encoding="utf-8")
+        out = self.assert_refused("add-round", "--file", str(path))
+        self.assertIn("open", out)
 
 
 class TestMeasures(unittest.TestCase):

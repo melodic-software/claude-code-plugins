@@ -6,7 +6,6 @@ import { spawnYtDlpWithAuthFallback } from "./spawn-yt-dlp-with-auth-fallback.js
 
 const BOT_ERROR = "ERROR: Sign in to confirm you're not a bot";
 
-/** The production derivation of a fallback-capable source's classification. */
 const FALLBACK_SOURCE = adapterSourceDeclarations(youtubeAdapter);
 
 /**
@@ -85,7 +84,6 @@ describe("spawnYtDlpWithAuthFallback", () => {
   });
 
   it("advances past Edge and Chrome cookie-extraction failures to Firefox on Windows", async () => {
-    // stderr lines as yt-dlp prints them when Chrome holds its cookie database open.
     const stderrByBrowser = {
       edge: "ERROR: Failed to decrypt with DPAPI. See  https://github.com/yt-dlp/yt-dlp/issues/10927  for more info",
       chrome:

@@ -44,8 +44,6 @@ $PassThru = $false
 $CheckBody = {
     $read = Get-ListenerOwner
 
-    # Folders a standard user can write to: a listener binary there can be
-    # swapped without elevation (judgment).
     $writableRoots = @($env:LOCALAPPDATA, $env:APPDATA, $env:TEMP,
         $(if ($env:USERPROFILE) { Join-Path $env:USERPROFILE 'Downloads' })) |
         Where-Object { $_ } | ForEach-Object { $_.TrimEnd('\') + '\' }
@@ -103,7 +101,6 @@ $CheckBody = {
 
     $readStates = @($read.ReadState, $read.ServiceState)
     $severity = Get-UnmutedSeverity -Items $items -ReadState $readStates
-    # An unread socket table or service list can hide any listener, so no item verdict stands.
     if (@($readStates | Where-Object { $_ -notin @('ok', 'absent') }).Count -gt 0) { $severity = 'UNKNOWN' }
     $unresolved = @($items | Where-Object { $null -eq $_.key }).Count
     $warned = @($items | Where-Object { $_.severity -eq 'WARN' }).Count

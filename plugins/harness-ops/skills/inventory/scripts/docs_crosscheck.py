@@ -41,9 +41,6 @@ STATUSES = (
 )
 
 _SECTION = "## All commands"
-# Only a table row's first cell is a regex (here and in _TOOL_ROW_RE); the rest
-# is split with string methods, because a lazy `.*?` cell between `\s*` runs
-# backtracks super-linearly on a long whitespace run.
 _ROW_RE = re.compile(r"\|\s*`/(?P<name>[a-z0-9][a-z0-9:_-]*)(?P<args>[^`]*)`\s*\|")
 _KIND_RE = re.compile(r"^\*\*\[?(Skill|Workflow)\]?(?:\([^)]*\))?\.?\*\*\.?\s*")
 _ALIAS_OF_RE = re.compile(r"^Alias (?:for|of) \[?`/([a-z0-9:_-]+)")
@@ -68,10 +65,6 @@ _EVENT_WORDS = (
     ("alias", re.compile(r"\balias(?:es|ed)?\b", re.I)),
 )
 _EVENT_TEXT_MAX = 240
-# Bounds on untrusted fetched text. _ROW_MAX is the longest table line parsed; a
-# longer one is skipped. It caps how much text each row's parsing scans; it does
-# not bound backtracking within that text, which is why the row parsers use no
-# backtracking cell pattern. _FETCH_MAX is the largest page file read.
 _ROW_MAX = 8_000
 _FETCH_MAX = 16_000_000
 
@@ -162,7 +155,6 @@ def fetch_text(profile: str, url: str) -> tuple[str | None, str | None, dict[str
 def _read_source(
     file: str | None, url: str, profile: str = "anthropic"
 ) -> tuple[str | None, str | None, dict[str, Any]]:
-    """Text from `file` when given, else fetched from `url`: (text, error, source)."""
     if file:
         try:
             return Path(file).read_text(encoding="utf-8"), None, {"file": file}
@@ -185,15 +177,12 @@ def _count(
 
 
 def _stale(page: str, source: dict[str, Any]) -> list[str]:
-    """The advisory for a page served stale from the cache, or none."""
     if not source.get("stale"):
         return []
     return [f"{page} page served stale ({source.get('reason') or 'unknown'})"]
 
 
 def _row_rest(pattern: re.Pattern[str], line: str) -> tuple[re.Match[str], str] | None:
-    """The first-cell match and the text between it and the row's closing pipe,
-    or None when `line` is not such a row."""
     m = pattern.match(line)
     rest = line[m.end() :].rstrip() if m else ""
     return (m, rest[:-1]) if m and rest.endswith("|") else None
@@ -402,7 +391,6 @@ def parse_changelog(text: str, names: set[str]) -> dict[str, dict[str, Any]]:
 def _binary_index(
     report: dict[str, Any],
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
-    """Registered names with their lane facts, and each binary alias's owner."""
     names: dict[str, dict[str, Any]] = {}
     alias_owner: dict[str, str] = {}
     lanes = (

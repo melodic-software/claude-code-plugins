@@ -15,7 +15,6 @@ DEFAULTS = HERE / 'defaults.json'
 
 SMOOTH_PEAK_V = 1.875
 SMOOTH_PEAK_A = 10 / 3 ** 0.5
-# Fraction of an eased move between 10% and 90% of its change (s(u) = 0.1 at u ~ 0.2466).
 SMOOTH_10_90 = 0.5068
 
 FONT_CANDIDATES = (
@@ -87,7 +86,7 @@ def move_duration(r0, r1, nominal, W, motion):
     f = motion['combined_fraction']
     if SMOOTH_PEAK_V * dz / t > f * zr and SMOOTH_PEAK_V * dp / t > f * pr:
         t = max(t, SMOOTH_PEAK_V * min(dz / (f * zr), dp / (f * pr)))
-    return round(t * 1.02, 3)   # 2% headroom so frame-measured peaks land inside the limits
+    return round(t * 1.02, 3)
 
 
 def pan_travel(r0, r1, W):

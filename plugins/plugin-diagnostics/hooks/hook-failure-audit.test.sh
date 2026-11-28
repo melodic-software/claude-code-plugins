@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# The fixture failure record is a structural copy of a REAL transcript
-# attachment from the #1416/#2577 incident host (session ac1c95e3, 2026-08-13):
-# a disk-hygiene destructive-guard registration resolving `bash` to the Windows
-# WSL relay and dying at launch. The two false-positive shapes asserted below
-# (a `hook_success` quoting an error in stdout, and a message record quoting a
-# failure record as a string) are the exact traps hit while mining the incident
-# transcripts — see #2577.
 # test-scope: plugins/plugin-diagnostics/hooks/hooks.json
 set -uo pipefail
 
@@ -20,12 +13,12 @@ unset CLAUDE_PROJECT_DIR
 
 WSL_STDERR='Failed with non-blocking status code: <3>WSL (10 - Relay) ERROR: CreateProcessCommon:818: execvpe(/bin/bash) failed: No such file or directory'
 
-failure_record() { # <hookName> <command>
+failure_record() {
   printf '{"parentUuid":"p","isSidechain":false,"attachment":{"type":"hook_non_blocking_error","hookName":"%s","toolUseID":"toolu_x","hookEvent":"PreToolUse","stderr":"%s","stdout":"","exitCode":1,"command":"%s","durationMs":2080},"type":"attachment","uuid":"u","timestamp":"2026-08-13T13:56:38.155Z","session_id":"s","sessionId":"s","version":"2.1.228"}\n' \
     "$1" "${WSL_STDERR//\"/\\\"}" "$2"
 }
 
-make_transcript() { # <path> — base fixture: 1 real failure + both false-positive shapes
+make_transcript() {
   local t="$1"
   {
     printf 'garbage-not-json {"half": \n'
@@ -35,11 +28,7 @@ make_transcript() { # <path> — base fixture: 1 real failure + both false-posit
   } >"$t"
 }
 
-# Execute the script DIRECTLY, the way the hooks.json registration invokes it
-# (no `bash` prefix) — so a non-executable committed mode fails here the same
-# way it would fail in production (exit 126) instead of being masked by an
-# explicit interpreter.
-run_hook() { # <transcript> <data_dir> [extra env pairs...]
+run_hook() {
   local transcript="$1" data_dir="$2"
   shift 2
   env CLAUDE_PLUGIN_DATA="$data_dir" "$@" "$HOOK" <<<"{\"session_id\":\"test-session\",\"transcript_path\":\"$transcript\",\"hook_event_name\":\"Stop\"}" 2>&1
@@ -93,22 +82,13 @@ assert_contains "no marker home -> still warns" "$OUT4" "PreToolUse:Bash"
 OUT5=$(env -u CLAUDE_PLUGIN_DATA bash "$HOOK" <<<"{\"session_id\":\"test-session\",\"transcript_path\":\"$T2\",\"hook_event_name\":\"Stop\"}" 2>&1)
 assert_contains "no marker home -> re-warns rather than suppresses" "$OUT5" "PreToolUse:Bash"
 
-# --- Launch failure vs completed non-zero exit are DIFFERENT diagnoses ------
-# #2849: the "fails to launch" sentence was unconditional, so a hook that ran
-# to completion and exited non-zero was told it never launched and was handed a
-# restart-the-session remedy that changes nothing for it. The corpus behind that
-# issue (175 records, 2026-08-16) has zero records with an EMPTY stderr — the
-# harness synthesizes a sentence instead — so the empty-stderr placeholder the
-# #2593 fix shipped never fired, and the synthesized sentence reached operators
-# verbatim as though the hook had emitted it.
 HARNESS_NO_STDERR='Failed with non-blocking status code: No stderr output'
 
-custom_record() { # <hookName> <command> <stderr> <exitCode> <durationMs>
+custom_record() {
   printf '{"parentUuid":"p","isSidechain":false,"attachment":{"type":"hook_non_blocking_error","hookName":"%s","toolUseID":"toolu_x","hookEvent":"Stop","stderr":"%s","stdout":"","exitCode":%s,"command":"%s","durationMs":%s},"type":"attachment","uuid":"u","timestamp":"2026-08-13T13:56:38.155Z","session_id":"s","sessionId":"s","version":"2.1.228"}\n' \
     "$1" "${3//\"/\\\"}" "$4" "$2" "$5"
 }
 
-# 2593's own record: ran 1190 ms, exited 1, carrying the harness placeholder.
 T_DONE="$TEST_TMPDIR/completed.jsonl"
 custom_record "Stop:ran-and-failed" "node stop-hook.mjs" "$HARNESS_NO_STDERR" 1 1190 >"$T_DONE"
 OUT_DONE=$(run_hook "$T_DONE" "$TEST_TMPDIR/data-done")
@@ -138,8 +118,6 @@ assert_contains "execvpe keeps the fails-to-launch wording" "$OUT_EXECVPE" "fail
 assert_contains "execvpe keeps the restart remedy" "$OUT_EXECVPE" "restart"
 assert_absent "execvpe at exit 1 is not called ambiguous" "$OUT_EXECVPE" "ambiguous"
 
-# Claude Code's own missing-executable wording is printed before any hook process
-# exists, so it is a launch failure at exit 1 with no exec-family text in it.
 T_NOTFOUND="$TEST_TMPDIR/notfound.jsonl"
 # shellcheck disable=SC2016 # literal $PATH and ${CLAUDE_PROJECT_DIR} must not expand
 custom_record "PreToolUse:Bash" 'node ${CLAUDE_PROJECT_DIR}/probe-hook.mjs' \
@@ -169,11 +147,6 @@ OUT_SIG126=$(run_hook "$T_SIG126" "$TEST_TMPDIR/data-sig126")
 assert_contains "signature at exit 126 is a launch failure" "$OUT_SIG126" "launch failure"
 assert_absent "signature at exit 126 is not ambiguous" "$OUT_SIG126" "ambiguous"
 
-# A BARE 126/127 with no signature is AMBIGUOUS, not a launch failure. A
-# registered shell hook launches fine and still exits 126/127 when a command
-# INSIDE it is not invocable, so the code alone cannot carry the split; asserting
-# a launch failure there hands out the restart remedy for a defect restarting
-# cannot touch, which is the misdiagnosis #2849 exists to fix.
 T_127="$TEST_TMPDIR/exit127.jsonl"
 custom_record "PreToolUse:Bash" "missing-binary --guard" "$HARNESS_NO_STDERR" 127 12 >"$T_127"
 OUT_127=$(run_hook "$T_127" "$TEST_TMPDIR/data-127")
@@ -196,22 +169,15 @@ assert_absent "bare exit 126 is not asserted to be a launch failure" "$OUT_126" 
 assert_absent "bare exit 126 is not asserted to have completed" "$OUT_126" "no exec-failure evidence"
 assert_contains "bare exit 126 still offers the restart remedy" "$OUT_126" "restart"
 
-# STALE CONFIG: the session's startup-loaded config names a script the checkout
-# has since deleted, and bash reports its missing script operand at exit 127.
-# The first two stderr forms are copied from real records (context-usage
-# zone-gate.sh, source-control pr-ready-evidence-gate.sh); the backslash-only
-# and MSYS forms are synthetic. Backslashes are JSON-escaped here. Every
-# statusMessage-shaped command is a real row's statusMessage, which is what
-# the attachment's `command` holds when the row sets one.
 STALE_LABEL="stale config: registered script missing from disk"
 STATUS_MSG="Checking the context-zone gate..."
 PFX="Failed with non-blocking status code: "
-stale_case() { # <name> <command> <stderr>
+stale_case() {
   local t="$TEST_TMPDIR/stale-$1.jsonl"
   custom_record "PreToolUse:Edit" "$2" "$3" 127 40 >"$t"
   run_hook "$t" "$TEST_TMPDIR/data-stale-$1"
 }
-assert_stale() { # <name> <output>
+assert_stale() {
   assert_contains "$1: classed stale config" "$2" "$STALE_LABEL"
   assert_contains "$1: names /reload-plugins before restart" "$2" \
     "Run /reload-plugins to load the current config, or restart the session."
@@ -247,7 +213,6 @@ assert_contains "missing child inside a running hook stays ambiguous" "$OUT_S" \
 assert_absent "missing child inside a running hook is not stale config" "$OUT_S" "$STALE_LABEL"
 OUT_S=$(stale_case bash-c-line "$STATUS_MSG" "${PFX}bash: line 1: helper.sh: No such file or directory")
 assert_absent "bash -c line-numbered error is not stale config" "$OUT_S" "$STALE_LABEL"
-# A command line that names a different script than the missing path.
 # shellcheck disable=SC2016 # literal ${CLAUDE_PLUGIN_ROOT} must not expand
 OUT_S=$(stale_case other-basename 'bash ${CLAUDE_PLUGIN_ROOT}/hooks/wrapper.sh' \
   "${PFX}bash: C:/code/plugins/x/hooks/child-helper.sh: No such file or directory")
@@ -261,10 +226,6 @@ OUT_S=$(run_hook "$T_S1" "$TEST_TMPDIR/data-stale-exit1")
 assert_contains "missing-operand line at exit 1 stays completed" "$OUT_S" "completed non-zero exit"
 assert_absent "missing-operand line at exit 1 is not stale config" "$OUT_S" "$STALE_LABEL"
 
-# A hook that LAUNCHED and whose own subcommand was missing must NOT be called a
-# launch failure. cmd.exe's not-found phrasing is the Windows spelling of
-# "command not found", and a launched hook prints it about a command IT ran; the
-# discriminator excludes it for the same reason it excludes the POSIX spelling.
 T_SUBCMD="$TEST_TMPDIR/missing-subcommand.jsonl"
 custom_record "Stop:lint" "bash lint-stop.sh" \
   "'ripgrep' is not recognized as an internal or external command, operable program or batch file." \
@@ -328,8 +289,6 @@ for ORDER in ambiguous-first ambiguous-last; do
   assert_contains "$ORDER: restart remedy kept" "$OUT_MIX3" "restart"
 done
 
-# The maintainer-facing prose describing the #2593 fix is gone from the
-# operator-facing message (#2849).
 assert_absent "no maintainer-facing implementation prose" "$OUT_EXECVPE" "empty-stderr placeholder"
 assert_absent "no maintainer-facing implementation prose (completed)" "$OUT_DONE" "empty-stderr placeholder"
 
@@ -348,18 +307,14 @@ assert_contains "in-window failure reported" "$OUT6" "PreToolUse:InWindow"
 assert_absent "out-of-window failure not read" "$OUT6" "PreToolUse:OutOfWindow"
 
 
-# A PATH shim that fails loudly instead of doing the work. `command -v jq` still
-# succeeds — that is what lets the library's builtin field parser proceed — so
-# any surviving spawn reaches a shim and breaks silence. `tail` is left real:
-# it is the warm read itself.
 SHIM="$TEST_TMPDIR/shim"
 mkdir -p "$SHIM"
 for PROG in jq grep wc sed find cat mkdir; do
   printf '#!/bin/sh\necho "SPAWNED %s" >&2\nexit 99\n' "$PROG" >"$SHIM/$PROG"
   chmod +x "$SHIM/$PROG"
 done
-cursor_of() { head -1 "$1/hook-failure-audit/test-session.cursor"; } # <data_dir>
-size_of() { wc -c <"$1" | tr -d ' '; }                               # <file>
+cursor_of() { head -1 "$1/hook-failure-audit/test-session.cursor"; }
+size_of() { wc -c <"$1" | tr -d ' '; }
 benign_line() { printf '{"type":"assistant","message":{"content":[{"type":"text","text":"fine ✓"}]},"uuid":"c","session_id":"s"}\n'; }
 
 T_CUR="$TEST_TMPDIR/cursor.jsonl"
@@ -500,8 +455,6 @@ mkdir -p "$DATA_OVERSIZED/hook-failure-audit"
 printf 'b%s\n%s\n' "11111111111111111111" "$T_OVERSIZED" \
   >"$DATA_OVERSIZED/hook-failure-audit/test-session.cursor"
 OUT_C7=$(run_hook "$T_OVERSIZED" "$DATA_OVERSIZED")
-# bash wraps an overlong digit string silently rather than erroring, so the
-# diagnostic to rule out here is any stray output line, not one exact string.
 if [[ "$OUT_C7" == *$'\n'* ]]; then
   bad "cursor: 20-digit cursor prints no shell diagnostic: unexpected extra line(s) in: $OUT_C7"
 else
@@ -548,40 +501,6 @@ else
   bad "no envelope written when sink wired"
 fi
 
-# --- Spawn budget on the common path (strace, not xtrace) --------------------
-# This hook runs on EVERY Stop, and `docs/contracts/hook-budget/README.md`
-# states each always-on hook's budget as k x S plus measured work (k = fewest
-# spawns, S = one no-op spawn's time), not a fixed millisecond figure. On the host in #3508 one process creation costs 180-2,841 ms,
-# so the budget here is a PROCESS COUNT, not a duration: durations on that host
-# are not comparable across time, and wall clock on a Linux runner says nothing
-# about the Windows spawn tax.
-#
-# Counted with strace, NOT with `bash -x`. Shard #3520 established that xtrace
-# undercounts badly — it reads command POSITIONS, and bash forks a subshell for
-# a command substitution ON TOP OF the exec inside it whenever the substituted
-# command carries a redirection of its own. Those forks are invisible to xtrace
-# and are the whole cost this budget guards.
-#
-# `-ff` writes one file per pid, so no syscall line is ever split across an
-# <unfinished>/<resumed> pair where a naive grep would silently undercount.
-#
-# TWO paths are measured, because the cursor splits them. The COLD path is the
-# first Stop of a session, under the tail cap:
-#   1 wc     `wc -c`: the byte count the cap decision needs and the offset the
-#            cursor starts from, in one process
-#   1 mkdir  the marker/cursor directory, created once per data home
-#   0 jq     the payload fields ride on hook::buffer_stdin_to, and the library
-#            answers a plain-string field with its builtin parser
-#   0 grep   the pre-filter is `[[ $line == *needle* ]]` over a `mapfile` read
-#   0 cat, 0 tail, 0 sed
-# The WARM path — every later Stop, which is the cadence this hook actually runs
-# at — creates ONE process, the `tail` that reads the bytes past the cursor.
-#
-# MUTATION-CHECKED: moving a silenced redirect back inside its substitution
-# (`SIZE=$(wc -c <"$TRANSCRIPT" 2>/dev/null)`) adds a fork with NO new exec,
-# leaves every behavioral assertion above green, and trips the cold creation
-# ceiling below. Dropping the cursor write sends every Stop down the cold path
-# instead, which trips the one-tail assertion on the warm trace.
 TRACE_OK=1
 command -v strace >/dev/null 2>&1 || TRACE_OK=0
 if ((TRACE_OK)); then
@@ -593,7 +512,7 @@ else
   TB="$TEST_TMPDIR/budget.jsonl"
   printf '{"type":"assistant","message":{"content":[{"type":"text","text":"all fine"}]},"uuid":"c","session_id":"s"}\n' >"$TB"
   TRACE_ALL=""
-  trace_hook() { # <trace-name>
+  trace_hook() {
     local prefix="$TEST_TMPDIR/$1"
     env CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/data-budget" HOOK_TELEMETRY_SINK="" \
       strace -ff -qq -s 400 -e trace=clone,clone3,fork,vfork,execve -o "$prefix" \
@@ -603,18 +522,13 @@ else
     cat "$prefix".* >"$TRACE_ALL" 2>/dev/null
   }
   creations() { grep -cE '^(clone|clone3|fork|vfork)\(' "$TRACE_ALL"; }
-  # Successful execs only: a PATH search emits failing execve calls that spawn
-  # nothing. The `bash <hook>` exec at the top is strace's own, not a cost of
-  # the hook, and is excluded by matching the hook path in its argv — which is
-  # why the trace runs with `-s 400`: at strace's 32-byte default that path is
-  # abbreviated and the exclusion silently matches nothing.
   execs() { grep -E '^execve\(.*= 0$' "$TRACE_ALL" | grep -c -v -e "$HOOK"; }
   progs() {
     grep -E '^execve\(.*= 0$' "$TRACE_ALL" | grep -v -e "$HOOK" |
       grep -oE '^execve\("[^"]+"' | sed 's|.*/||; s|"||' | sort | uniq -c | tr -s ' \n' ' '
   }
   prog_count() { grep -cE "^execve\\(\"[^\"]*/$1\"" "$TRACE_ALL"; }
-  ceiling() { # <label> <actual> <max>
+  ceiling() {
     if (($2 <= $3)); then ok "budget: $1 is $2 (ceiling $3)"; else bad "budget: $1 is $2, ceiling is $3 —$(progs)"; fi
   }
 
@@ -637,9 +551,6 @@ else
   assert_eq "budget: the warm read is one tail" 1 "$(prog_count tail)"
 fi
 
-# --- #3713 advisory abort boundary ------------------------------------------
-# Empty / malformed / missing-transcript payloads already skip with exit 0.
-# An injected non-zero must also exit 0 and write exactly one stderr line.
 : >"$TEST_TMPDIR/empty.err"
 empty_rc=0
 printf '' | bash "$HOOK" >/dev/null 2>"$TEST_TMPDIR/empty.err" || empty_rc=$?
@@ -664,9 +575,6 @@ if needle not in text:
     raise SystemExit("abort-boundary trap line missing")
 p.write_text(text.replace(needle, needle + "exit 3\n", 1))
 PY
-# File-fed stdin: the injected exit happens before the hook reads the payload.
-# A pipe would leave printf writing to a closed fd; with `pipefail` that is
-# SIGPIPE (141), the #4458 abort-boundary harness bug, not a hook failure.
 abort_rc=0
 printf '%s' '{"session_id":"s","transcript_path":"/no/such.jsonl","hook_event_name":"Stop"}' \
   >"$TEST_TMPDIR/abort.in"
@@ -677,9 +585,6 @@ assert_contains "injected failure names the hook on stderr" "$abort_err" \
 abort_lines=$(printf '%s\n' "$abort_err" | grep -c . || true)
 assert_eq "injected failure writes one stderr line" "1" "$abort_lines"
 
-# --- async Stop row: two audits can overlap on one transcript (#8772) ---
-# The marker's warn-once rule bounds a duplicate: two runs that both read an empty
-# marker warn once each, and any later run is silent. The cursor stays valid.
 T_OV="$TEST_TMPDIR/overlap.jsonl"
 DATA_OV="$TEST_TMPDIR/data-overlap"
 make_transcript "$T_OV"
@@ -702,12 +607,10 @@ else
   bad "overlapping audits leave a valid cursor file: ${ov_cursor:-none found}"
 fi
 
-# --- the Stop row is shell form: a launcher through node could not report a missing node ---
 row="$(jq -c '[.hooks.Stop[].hooks[] | select((.command // "") | contains("hook-failure-audit.sh"))]' "$HOOK_DIR/hooks.json")"
 assert_eq "one hook-failure-audit Stop row" "1" "$(jq 'length' <<<"$row")"
 assert_eq "the row is shell-form bash with no args and no node" "true" \
   "$(jq '.[0] | .type == "command" and .shell == "bash" and (has("args") | not) and (.command | contains("node") | not)' <<<"$row")"
-# Advisory and always exit 0, so the turn does not wait on it (async, #8772).
 assert_eq "the row runs async so the audit stays off the Stop wall" "true" "$(jq '.[0].async == true' <<<"$row")"
 row_cmd="$(jq -r '.[0].command' <<<"$row")"
 row_rc=0

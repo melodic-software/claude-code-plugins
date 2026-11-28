@@ -3,6 +3,69 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.10] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across all 9 `testing` skills (total 5175 -> 2895 chars, -2280 chars / -44.1%): `/testing:audit` (528 -> 340), `/testing:check-visual-parity` (387 -> 348), `/testing:cleanup` (1005 -> 350), `/testing:fix-failing` (606 -> 347), `/testing:plan` (411 -> 342), `/testing:run-e2e` (607 -> 350), `/testing:setup` (652 -> 143), `/testing:test-value` (401 -> 332), and `/testing:write` (578 -> 343) while preserving read-only contracts, mutation/unattended gates, bundled-run overlap phrasing, and house-style sibling exclusions.
+
+## [6.0.9] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [6.0.8] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [6.0.7] - 2026-11-27
+
+### Changed
+
+- Synced shared `reference/detector-findings.md` with `portability-ok` annotations from `docs/contracts/detector-findings/README.md` and annotated surviving ecosystem specifics under ADR 0101 (#17746); no behavior change.
+
+## [6.0.6] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [6.0.5] - 2026-11-26
+
+### Changed
+
+- `/testing:audit` says applying repairs belongs to the remediation skills, not lanes.
+
+## [6.0.4] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [6.0.3] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk` synced (comment-only removal).
+- The audit skill's adapter file format moved from the `adapter-load.awk` header comment to `skills/audit/reference/adapter-format.md`; the audit scanners lose their comments, with no behavior change.
+
+- Shared detector-findings contract synced where this plugin carries it: it registers `code-tidying/remove-comments/rule-glossary-candidate`; no other change to this plugin.
+
+## [6.0.2] - 2026-11-25
+
+### Changed
+
+- The detector-findings reference links the organization's `REVIEW.md` on melodic-software/standards main as the live severity-crosswalk instance.
+
+## [6.0.1] - 2026-11-25
+
+### Changed
+
+- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
+
 ## [6.0.0] - 2026-11-24
 
 ### Added

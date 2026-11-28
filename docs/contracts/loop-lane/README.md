@@ -345,7 +345,7 @@ The owner's rule, 2026-10-27, verbatim, with reason 3 as the owner reworded it o
 | Original intent or vision changes, or the item cannot answer an intent question | `needs-owner-decision`, `Flags: intent` | Intake triage ([`intake-triage.yml`](../../../.github/workflows/intake-triage.yml)) |
 | A finding during implementation alters intent, vision or the primary design | human-gated role label (`needs-human` by default) | The lane doing the work: `work-loop`, `work-resolve-issue`, or pr-verify once address-feedback's [round cap](../../conventions/pr-pipeline/README.md#loop-caps) is spent |
 | A HIGH or CRITICAL security issue, such as leaked tokens or secrets, an account compromise, or real money at risk (the repository is public) | human-gated role label for an existing weakness; `needs-owner-decision`, `Flags: security` for work whose result would carry one | Intake triage for issues; the security review lane for pull requests |
-| Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests, which clears only on an owner cost decision comment that links its row in the owner-decisions record and quotes the owner verbatim ([the cost hold](../../conventions/pr-pipeline/README.md#the-local-babysit-lane)) |
+| Anything that can bill the owner | human-gated role label, `Flags: cost` | Intake triage for issues; the pr-merge lane's cost hold for pull requests, which clears only on an owner cost decision comment that quotes the owner verbatim ([the cost hold](../../conventions/pr-pipeline/README.md#the-local-babysit-lane)) |
 
 Before a security concern is raised as a question, a plan or a stop, it names the surface that runs
 today, or that the work would ship, and is exposed, and in what mode. With none, it is recorded in one line with the condition
@@ -450,10 +450,9 @@ On a pull request, a recorded owner decision lifts a lane's escalation. When a l
 human-gated label on with a trusted escalation marker
 ([`escalation-marker.md`](../../../plugins/work-items/reference/escalation-marker.md)) and each
 reason the escalation names is an intent, vision or primary-design question (a disputed finding
-that turns on what the change is meant to do included), a session removes the label once a row in
-the owner-decisions record (`docs/owner-decisions.md` in `melodic-software/architecture`) or the
+that turns on what the change is meant to do included), a session removes the label once the
 owner's words quoted verbatim cover every one of those reasons. In the same pass it comments on the
-pull request with the row's line link or the quote and the escalation it answers, then takes the
+pull request with the quote and the escalation it answers, then takes the
 resume step the escalation comment names. Where no recorded decision covers a reason, the label
 stays the owner's to remove. The rule reaches no hold the owner keeps: an operator-parked item,
 which carries no marker; a review-lane hold
@@ -503,7 +502,7 @@ or malicious-package report, a leaked secret, a compromised publisher).
 
 The owner's standing direction for every session and lane, 2026-10-28, verbatim. Sections 2, 3
 and 10 (2026-10-29) are quoted in [When work stops for the owner](#when-work-stops-for-the-owner); section 6 is
-[design-for-change](../../standards/design-for-change.md).
+[design-for-change](https://github.com/melodic-software/standards/blob/main/standards/engineering/design-for-change.md).
 
 <!-- spellchecker:off -->
 > **1. Decide from evidence**
@@ -535,22 +534,16 @@ it separately because the two acts fail differently: a tracker escalation waits 
 queue, while a merge-capable lane may act on a PR within minutes, so a hold carries a hard
 real-time deadline. A hold that lands after the merge is not a hold.
 
-- **The `do-not-merge` label is the only cross-lane hold.** A lanes App hold line, a member's veto
-  comment on a lanes App pull request and a person merging by hand use it; ci-status reads no body
-  hold text or `pr-unblock/*` stop status. pr-merge's enable-auto-merge job labels a member's veto
-  on the next scheduled run that reads the pull request's discussion, at the latest before any
-  run arms it, and takes that label off once a later comment by each vetoing member
-  lifts it, never a `do-not-merge` anyone else added. ci-status's merge-holds step still fails a
-  lanes App pull request on the veto comment itself, so the veto holds before the label lands and
-  if the label is removed. The label is the one hold mechanism enforced
+- **The `do-not-merge` label is the only cross-lane hold.** Lanes, sessions and people set it; a
+  PR held from creation opens with it (`gh pr create --label do-not-merge`). ci-status reads no
+  body or comment text and no `pr-unblock/*` stop status. The label is enforced
   server-side: the org ruleset requires the `ci-status` check, whose `check-contract` step fails on the
   `do-not-merge` label and re-evaluates on `labeled`/`unlabeled`, so applying the label flips a
   SHA-bound required check with no bypass actors. A PR already in the merge queue is held by the
   same check: its merge-group run's `ci-status` re-reads the label and fails, and the queue removes
   the PR. A label that lands after that run's `ci-status` passed does not stop the merge, so on a
   queued PR also dequeue it (the `dequeuePullRequest` command under **Hold a PR** in
-  [§7](#7-operator-steering-through-github-state)). A PR **comment is advisory, except a member's
-  veto comment, which holds a lanes App pull request and gets the label** (above): an escalation
+  [§7](#7-operator-steering-through-github-state)). A PR **comment is advisory**: an escalation
   comment on the PR obliges nothing until the label is on.
 - **Hold first, explain second.** The moment a lane decides a PR must not merge, it applies
   `do-not-merge`, before drafting the escalation comment and before assembling the supporting
@@ -568,7 +561,8 @@ real-time deadline. A hold that lands after the merge is not a hold.
   `<!-- eval-pair verdict=no-loss validity=VALID head=<40-hex head SHA> -->` when the run is VALID
   and shows no loss. `pr-run-plugin-evals.yml`'s compare mode posts the same line, with
   `<!-- eval-pair-run id=<run id> -->` beside it, as `github-actions[bot]`. work-resolve-issue opens a lane PR whose issue carries `eval-gated` with
-  `do-not-merge` and a `reason=eval` comment in the same step. The same pr-merge step that releases
+  `do-not-merge` and a `reason=eval` comment in the same step; a lane PR it holds for a person gets
+  a `reason=person` line too, eval-gated or not, so no eval evidence releases it. The same pr-merge step that releases
   the hold also adds it, label first, to any open PR that closes an `eval-gated` issue, whoever
   opened it, unless the PR already carries `do-not-merge`, was held for eval before, or its newest
   record names its head. pr-merge's scheduled run or sweep dispatch (one with no `pr` input) then
@@ -578,9 +572,17 @@ real-time deadline. A hold that lands after the merge is not a hold.
   default branch with this PR and this head in its run name and its Compare Record job run to
   success (the author alone counts for nothing),
   the reason line by a listed human or the lanes App, both on a
-  line of their own outside a quote or fence, and no other reason, body hold or member veto stands
-  ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). Keep "do not
-  merge" and `do-not-merge` out of the record comment: they read as a veto.
+  line of their own outside a quote or fence, no other reason stands, and the label is the eval
+  hold's own: the newest label event and an eval reason line are by the same listed human or by the
+  lanes App, the line posted within 10 minutes after the label. A label anyone else added stays
+  ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). With no
+  record at the head, the same step also removes it when, for every plugin whose skill, agent or
+  context text the PR changes (or, when it changes none, every plugin it changes), the newest compare run naming this PR, its head and that plugin as
+  its target reads back the same way but ran its `Compare Cannot Start: <cause>` job to success
+  instead, the run's own record that compare mode refused the PR (`compare-refused`);
+  its comment carries `<!-- eval-hold-released head=<sha> cannot-start=<cause> run=<run ids> -->`,
+  and the PR merges first and owes the default-branch run in
+  [evals.md](../../review/evals.md#where-and-on-what). A missing record alone releases nothing.
 
 ### Escalation record write
 
@@ -775,7 +777,7 @@ Claude Code alias (see "Alias binding" below):
 | Tier | Role | Alias |
 |---|---|---|
 | frontier | Complex-stamped items; all security-surface work, always; orchestrator where the organization chooses it | `best` |
-| strong | Orchestrator by default ([ADR 0100](../../adr/0100-run-the-orchestrator-on-the-session-model-opus-by-default.md)); default implementer / worker for unrouted or complex work | `opus` |
+| strong | Orchestrator by default ([`defaults.yaml`](../../../plugins/multi-agent/reference/defaults.yaml) orchestrator row); default implementer / worker for unrouted or complex work | `opus` |
 | fast | Mechanical items an objective check backs (a build, a test run, a schema or exit-code check), and phases a plan routes `sonnet` as well-scoped | `sonnet` |
 
 **Security-surface work** is work that changes authentication, authorization, the handling of
@@ -1095,15 +1097,15 @@ threshold, because nothing is writing it.
 adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, its
 cycle count, and its instance-identity fields in a machine-readable block of that same #502
 telemetry comment, and re-reads them at each cycle start. Every counter in the block is
-**per-instance**: each measures the experience of one lane instance, which averaging two instances'
-experience into one block never did.
+**per-instance**, because each measures the experience of one lane instance, which averaging two
+instances' experience into one block never did.
 
 **No-progress detector.** Every stall mechanism below the loop layer is per-PR or per-item, so a
 lane cycling repeatedly with no aggregate progress goes undetected: each gate correctly declines to
 spend a worker, and nothing counts the aggregate. Each unattended
 lane (worker and merge; the attended queue is exempt, its operator being present by definition)
 therefore persists a consecutive-no-progress counter, `no_progress_streak`, beside its other
-durable counters in the #502 state block (absent from a re-read block = 0). What counts as a
+durable counters in the #502 state block (a counter absent from a re-read block counts as 0). What counts as a
 qualifying progress event is lane-specific and defined in each lane body; the semantics here are
 shared. A cycle whose cycle-start snapshot held actionable work for the lane and that ended with no
 qualifying progress increments the counter; an idle cycle, with nothing actionable in view, leaves it
@@ -1593,7 +1595,8 @@ gh pr comment <n> -R "$R" --body "Held by operator: <reason>.
 
 `babysit-loop` respects the label at every tier and rung; only `--strip-do-not-merge` typed into
 that lane's own invocation overrides it. Remove the label to release the PR; an eval hold is
-released by its record ([Cross-lane PR hold](#cross-lane-pr-hold)).
+released by its record or by a compare run that recorded it cannot start
+([Cross-lane PR hold](#cross-lane-pr-hold)).
 
 **Run a PR's plugin evals.** The `eval: run` label runs
 [`pr-run-plugin-evals.yml`](../../../.github/workflows/pr-run-plugin-evals.yml) on a

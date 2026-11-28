@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# One part of the babysit-prs engine's unittest suite, run by engine.test.sh
-# (part a) and engine-b.test.sh to engine-d.test.sh: the tests/test_*.py modules
-# the case below puts in <part>, in one unittest process. Every module lands in
-# exactly one part, so the four parts run the whole suite between them; the
-# split keeps each part under the 120 s per-suite budget in CI (scripts/README.md,
-# Per-suite time budget in CI). SKIPs (exit 0) when Python 3.11+ is unavailable.
-#   bash plugins/source-control/skills/babysit-prs/scripts/engine-run.sh <part>
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 1
@@ -17,7 +10,6 @@ if [[ ! "$part" =~ ^[a-d]$ ]]; then
   exit 2
 fi
 
-# A part with no wrapper would never run, so its modules would drop out of CI.
 for wrapper in engine.test.sh engine-b.test.sh engine-c.test.sh engine-d.test.sh; do
   if [[ ! -f "$wrapper" ]]; then
     echo "FAIL: $wrapper is missing, so its part of tests/ never runs" >&2

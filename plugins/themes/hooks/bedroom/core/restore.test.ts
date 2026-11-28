@@ -2,7 +2,6 @@ import { expect, test, type Engine, type Plugin } from 'claude-code/testing'
 
 import { QUIET, startRoom } from './testing.js'
 
-/** Another mod with a show of its own, as theme-examples' fireworks: `/fireworks show` sets its theme, `/fireworks clear` clears whatever stands. */
 const FIREWORKS: Plugin = {
   name: 'fireworks',
   register(on) {
@@ -14,7 +13,6 @@ const FIREWORKS: Plugin = {
   },
 }
 
-/** A mod that, like the bedroom, sets its own look again when another mod clears the theme. */
 const RIVAL: Plugin = {
   name: 'rival',
   register(on) {

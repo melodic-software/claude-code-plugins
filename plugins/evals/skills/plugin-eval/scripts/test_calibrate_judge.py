@@ -520,7 +520,7 @@ class ScoreTest(Base):
     def test_the_verdict_is_the_vote_majority_not_passed(self):
         result = copy.deepcopy(self.result)
         grader = self.rows(result, 3)[0]["graders"][0]
-        grader["passed"] = True  # votes stay FAIL FAIL PASS
+        grader["passed"] = True
         proc = self.score(result)
         self.assertIn(
             "false negative: capital-city--names-paris--03 with-arm run 1", proc.stdout

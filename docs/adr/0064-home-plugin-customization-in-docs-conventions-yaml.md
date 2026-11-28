@@ -8,7 +8,7 @@
 - Amends: the expression criterion of
   [ADR 0018](0018-express-team-shared-conventions-as-consumer-convention-docs.md) Decision 1, so a
   structured surface and a policy floor are expressed as the YAML file below.
-- Related: [ADR 0061](0061-adopt-a-five-layer-plugin-config-cascade-read-through-one-shared-resolver.md), the five-layer config cascade; the two layout shapes coexist until [#6594](https://github.com/melodic-software/claude-code-plugins/issues/6594) decides, and contradictions between them are tracked in [#7104](https://github.com/melodic-software/claude-code-plugins/issues/7104).
+- Related: [ADR 0075](0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md), the config cascade; the two layout shapes coexist until [#6594](https://github.com/melodic-software/claude-code-plugins/issues/6594) decides, and contradictions between them are tracked in [#7104](https://github.com/melodic-software/claude-code-plugins/issues/7104).
 
 ## Context
 
@@ -24,7 +24,7 @@ config values only in `<root>/pr-pipeline.yaml` and agent instructions only in M
 schema in the convention folder. This repository has several other homes in use at once: `.claude/*`
 files, three ADR 0044 blocks (multi-agent, testing, `docs/conventions/review-digest.md`), and
 guardrails' folder-form `docs/conventions/source-control/commit-convention.yml`
-(`plugins/guardrails/hooks/block-convention-violation.sh:141,185`). The shared reader,
+(`plugins/guardrails/hooks/block-convention-violation.sh:152,171`). The shared reader,
 `lib/parse-concern-value.sh`, read only root scalars, so it could not read a nested key or a list
 from a pipeline-shaped file.
 
@@ -75,7 +75,7 @@ from a pipeline-shaped file.
    from user and managed settings. Every resolver reports which layer supplied each value.
 9. **Where to read.** A remote reader keeps its own fetch (babysit reads a target repository through
    the contents API from the default branch,
-   `plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py:4-7,303`) and passes the
+   `plugins/source-control/skills/babysit-prs/scripts/babysit_repo_config.py:4-7,302`) and passes the
    text to the shared reader on stdin. The reader's `--ref` option is for a local or CI checkout: it
    accepts only a 40-hex commit id or `origin/<name>` and passes it to git after `--end-of-options`.
    A reader a CI lane calls reads team config at the lane's base SHA

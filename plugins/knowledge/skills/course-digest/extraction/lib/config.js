@@ -1,10 +1,3 @@
-/**
- * Platform config validation and adapter resolution.
- *
- * Validates platformConfig at startup (fail-fast) and looks up the adapter
- * module for the course platform in the static registry.
- */
-
 import { fail, ok } from "@melodic/video-digestion/shared/result";
 
 import { lookupAdapter } from "../adapters/registry.js";

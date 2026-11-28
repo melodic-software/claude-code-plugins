@@ -7,7 +7,7 @@ async page => {
   const events = async () => (await (await page.request.get(base + "api/state")).json()).responses.events;
   const sel = async () => page.evaluate(() => (document.querySelector('.qbtn[aria-current="true"]') || {}).dataset?.q || (document.querySelector('.sumbtn[aria-current="true"]') ? "summary" : null));
   try {
-  await page.waitForTimeout(800); // SSE brings the external revise
+  await page.waitForTimeout(800);
   ok("revised text is on screen", /Changed by Claude/.test(await page.textContent("#choices .choice.rec")));
   const n0 = (await events()).length;
   await page.keyboard.press("Control+Enter"); await page.waitForTimeout(600);
@@ -20,7 +20,6 @@ async page => {
   ok("AC15: an Accept with a new note stays on N2", await sel() === "N2" && /Accept with note/.test(await page.textContent("#toast")), await sel() + " " + await page.textContent("#toast"));
   ok("group unlocks when its prerequisite group is answered", !(await page.$('.sec[data-key="g:g10"] .lock')));
 
-  // status while Claude has events: deliver them with one wait, like the watcher
   const token = await page.$eval('meta[name="interview-token"]', m => m.content);
   await page.request.get(base + "api/wait?after=" + (ev[ev.length - 1].seq - 1) + "&timeout=2", {headers: {"X-Interview-Token": token}});
   await page.waitForTimeout(900);

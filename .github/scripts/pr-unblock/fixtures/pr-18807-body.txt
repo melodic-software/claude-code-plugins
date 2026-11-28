@@ -1,0 +1,26 @@
+No related issue: hub daily-pass finding L1103/L1108
+
+## Summary
+
+`enable-auto-merge` leaves its `<!-- babysit-merge-risk -->` refusal comment ("native auto-merge leaves this pull request unarmed at head ...") in place after a later run pins the head and arms native auto-merge. A merged pull request then still says it is unarmed, as on [#18737](https://github.com/melodic-software/claude-code-plugins/pull/18737).
+
+## Fix
+
+- After a successful arm, `enable-auto-merge.mjs` edits each of the lanes App's own refusal comments on that pull request to say the arm at that head superseded it. A new pure helper, `supersededRefusals`, selects them by the same author and first-two-lines marker test `priorRefusal` uses.
+- The rewrite carries no marker, so `priorRefusal`, `clear-escalations` and the `CI Status` human-gated reason reader no longer take it for a standing refusal, and a later refusal starts afresh.
+- Edit, not delete: the comment keeps its place on the timeline and GitHub keeps its edit history, so the reasons it gave stay readable.
+- A failed edit logs a warning and leaves the arm standing. A failed arm, a report-only run, or a person's comment edits nothing.
+- `docs/conventions/pr-pipeline/README.md` states the new behavior, with a patch fragment for the `pr-pipeline` convention.
+
+## Verification
+
+- `node --test --test-concurrency=4` over every `.github/scripts/pr-merge/*.test.mjs`: all pass.
+- Three new tests cover the edit at the armed head with no marker left, the no-edit cases, and the failed edit. Six existing arm-after-escalation tests now expect the edit as well.
+- With the hook given an empty comment list, the presence tests fail (checked by hand).
+- `markdownlint-cli2` on the README: 0 issues. `scripts/check-changelog-fragments.sh --check-required origin/main`: passes.
+
+## Related
+
+- [#18737](https://github.com/melodic-software/claude-code-plugins/pull/18737) and [#18763](https://github.com/melodic-software/claude-code-plugins/pull/18763): both showed the stale unarmed comment after merging.
+
+🤖 Generated with [Claude Code](https://claude.com/claude-code)

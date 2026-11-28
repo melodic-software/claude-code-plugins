@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
-# Always exits 0: a failed install must not block the session.
 set -uo pipefail
 
 [[ "${EVAL_PLAYWRIGHT_SKIP_PYDEPS:-}" == 1 ]] && exit 0
 
+SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
+# shellcheck source=hook-enabled.sh
+source "$SCRIPT_DIR/hook-enabled.sh"
+rc=0
+hook_enabled::resolve playwright install_python_deps_enabled false || rc=$?
+((rc != 1)) || exit 0
+
 data="${CLAUDE_PLUGIN_DATA:-}"
 [[ -n "$data" ]] || exit 0
 
-SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 ROOT="${SCRIPT_DIR%/*}"
 
 notice() {
@@ -16,7 +21,6 @@ notice() {
   hook::emit_skip_notice SessionStart "" "$1"
 }
 
-# python3.12+, skipping a zero-length WindowsApps alias: it opens the Store instead of running.
 py=""
 for candidate in python3 python; do
   resolved="$(command -v "$candidate" 2>/dev/null)" || continue
@@ -32,10 +36,6 @@ if [[ -z "$py" ]]; then
   exit 0
 fi
 
-# to_native <path> -> the path as a native Windows Python reads it. Under Git Bash or Cygwin a POSIX
-# path (/c/...) goes through cygpath -m: a session with MSYS path conversion switched off hands it
-# over as is, and Python resolves it against the current drive (C:\c\...). Fails rather than
-# return the unconverted path.
 to_native() {
   if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]] && [[ "$1" == /* ]]; then
     local converted

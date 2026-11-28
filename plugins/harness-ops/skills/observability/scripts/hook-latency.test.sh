@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract tests for hook-latency.sh against tiny OTLP/JSON fixture stores
-# (CC_OTEL_STORE points at a temp dir; the real store is never read). The cases need the real
-# duckdb query, so they gate on `command -v duckdb` (CI installs it in ci.yml test-linux).
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,8 +15,6 @@ fail() {
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# Shape of a real Collector record; cc_logs_from binds intValue, traceId and spanId, so the
-# fixture must carry them.
 record() {
   printf '{"timeUnixNano":"%s000000000","body":{"stringValue":"claude_code.hook_execution_complete"},"attributes":[{"key":"claude.lane","value":{"stringValue":"windows"}},{"key":"session.id","value":{"stringValue":"%s"}},{"key":"event.name","value":{"stringValue":"hook_execution_complete"}},{"key":"event.sequence","value":{"intValue":"7"}},{"key":"hook_event","value":{"stringValue":"%s"}},{"key":"total_duration_ms","value":{"stringValue":"%s"}}],"traceId":"","spanId":""}' \
     "$((EPOCHSECONDS - $4))" "$1" "$2" "$3"
@@ -44,7 +38,6 @@ run() {
   rc=$?
 }
 flagged() { grep '^!' <<<"$out"; }
-# A cannot-evaluate exit names both routes: the telemetry switch and the Stop-hook transcript route.
 assert_routes() {
   assert_contains "$1 names the telemetry-enable step" "$out" "CLAUDE_CODE_ENABLE_TELEMETRY=1"
   assert_contains "$1 names the setup doc" "$out" "context/operator-setup.md"
@@ -92,7 +85,6 @@ if command -v duckdb >/dev/null 2>&1; then
   run "$slow" --budget Bogus=5
   assert_contains "an unknown --budget event warns" "$out" "Bogus is not a known hook event"
 
-  # The gates: each fixture rises, but fails exactly one slope condition.
   run "$(store few-sessions '100 + 40 * p' 4 25)"
   assert_eq "rising over 4 sessions is below --min-sessions" 0 "$rc"
   run "$(store few-fires '100 + 40 * p' 6 19)"
@@ -127,8 +119,6 @@ else
 fi
 assert_routes "missing store"
 
-# --transcript fallback: the hand-built fixture's Stop p50/p95 are 500/860 (see
-# hook-transcript-timing.test.sh); its PreToolUse rows are sampled, so a budget never flags them.
 if command -v jq >/dev/null 2>&1; then
   run "$TMP/missing" --transcript "$SCRIPT_DIR/fixtures/hook-timing-transcript.jsonl" --budget Stop=800 --budget PreToolUse=1
   assert_eq "missing store with --transcript reads the transcript" 1 "$rc"
@@ -139,7 +129,6 @@ else
   skip_case "jq not found — skipping the --transcript fallback"
 fi
 
-# duckdb missing: PATH without every directory that holds a duckdb.
 nodb_path=""
 IFS=: read -ra path_dirs <<<"$PATH"
 for d in "${path_dirs[@]}"; do

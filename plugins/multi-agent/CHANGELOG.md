@@ -3,6 +3,91 @@
 All notable changes to the `multi-agent` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.0] - 2026-11-28
+
+### Removed
+
+- Drop legacy `~/.claude/multi-agent.yaml` and `.claude/multi-agent.local.yaml` dual-reads, warnings, and `/multi-agent:setup apply --migrate` from role resolution and setup.
+
+## [5.2.5] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across all four `multi-agent` skills (`assess` 417 -> 287 chars, `audit-defaults` 692 -> 346 chars, `route` 822 -> 350 chars, `setup` 167 -> 124 chars; total 2098 -> 1107 chars, -991 chars) while preserving all modes, read-only/propose-only safety posture, and sibling exclusions. The `assess` description names its verdict values as `workflow`, `subagent` and `single`, the values its output emits.
+
+## [5.2.4] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [5.2.3] - 2026-11-26
+
+### Changed
+
+- `/multi-agent:audit-defaults` points at the tools reference's WebFetch section for how WebFetch reads a page, instead of describing its truncation ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [5.2.2] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [5.2.1] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+## [5.2.0] - 2026-11-24
+
+### Changed
+
+- A proven vendor pair keeps recording Claude's review verdicts: `vendor-state record` keeps its newest `trials_prove` results and sends the pair back to trial when `trials_fail` of them are rejected. `/multi-agent:route vendors` records the verdict for proven pairs too, and `vendor-state send-back` also clears those results.
+- A heavy-task trial (`--task-class heavy`) runs at the level the vendor's own effort guidance gives, passed as the new `vendor-decide --heavy-effort <vendor>=<level>`, else one step above the model's default effort; an everyday trial keeps the default. Heavy and everyday trials are separate pairs, each proven on its own: a pair proven below the heavy effort does not route a heavy task.
+
+## [5.1.0] - 2026-11-24
+
+### Changed
+
+- While trials run, `/multi-agent:route vendors` tries the first model each vendor's `external-agents models` lists, at that model's default effort, instead of the model and effort a benchmark board leads with, and fetches no support-only or provider-own board.
+
+### Fixed
+
+- `vendor-state record` no longer fails on Windows when a concurrent record holds a file open in the trial folder it is removing; the rename is retried briefly.
+
+## [5.0.0] - 2026-11-24
+
+### Changed
+
+- `/multi-agent:route vendors` fetches, and dispatches a board reader for, only registry rows that can lead (`status` not `support-only`, `provider_own` false). Support-only and provider-own rows are still fetched while trials are active, because their records seed trial candidates. A skipped row is listed in the decision's sources as `not-read` with its link. Registry rechecks (`/multi-agent:audit-defaults registry`) are unchanged.
+
+### Removed
+
+- **Breaking:** `vendors.tiebreak` is gone from `multi-agent.schema.json`, so a config that sets it fails validation; delete the key. `resolve-roles.sh` now ignores it as an unknown key, `/multi-agent:setup apply` no longer writes it, and `vendor-decide` no longer takes `--tiebreak` or `--usage`. A consensus tie now always resolves as it did with no tiebreak set: the work stays on Claude unless exactly one non-Claude vendor remains eligible. `/multi-agent:route vendors` no longer reads plan usage (`external-agents usage`, the `rate-limits` status tool).
+
+## [4.0.0] - 2026-11-24
+
+### Removed
+
+- **Breaking:** `vendors.promotion_audits` and `vendors.promotion_days` are gone from `multi-agent.schema.json`, so a config that sets either fails validation; delete both keys. `resolve-roles.sh` now ignores them as unknown keys.
+- `/multi-agent:audit-defaults registry` no longer records per-machine audit history or proposes promoting a `support-only` row to `permanent`: `skills/audit-defaults/scripts/registry-history.mjs` is deleted, and the registry judge no longer returns `error_range` or `tests_required_vendors`. A row leads only with an error range and consensus needs two clusters, so with today's rows a promotion could never change a routing decision. Demotion is unchanged.
+- `reference/vendor-routing-audit.md` is deleted; nothing referenced it.
+
+## [3.8.2] - 2026-11-24
+
+### Fixed
+
+- `/multi-agent:route vendors` no longer loses board-reader records to a display name: the
+  VerdictRecord schema and the `board-reader` rules now require `model` to be a current model id
+  copied verbatim and `version` and `effort` to be id tokens or null, the shape `vendor-decide`
+  already accepts. Before, a reader wrote names such as `GPT-6.2 Astra` into `version` and the
+  decider dropped the record.
+- `fetch-boards` no longer dates a page from a model snapshot suffix such as
+  `Qwen Image 2.0 Pro (2026-04-22)` or a model id such as `gpt-5.4-mini-2026-03-17`.
+- The `vals-vibe-code` registry row also counts for `coding`: the board scores agents building
+  complete applications with file-editing and shell tools.
+
 ## [3.8.1] - 2026-11-24
 
 ### Fixed

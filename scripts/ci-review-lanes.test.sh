@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Require both review lanes on this head` step body of
-# .github/workflows/pr-require-checks.yml's ci-status under the shell Actions
-# gives a step with no `shell:` (bash -e), against stub `gh` and `sleep`.
-#
-# On a ready pull request, ci-status passes only when the newest pull_request
-# run of each review caller on the head has a successful status job whose
-# `Apply the hold` step ran, or whose no-change skip record leads back to such
-# a review on the pull request. Pending, failed, skipped or missing reviews fail
-# with the cause named, a lane the kill switch stopped among them; Dependabot, the
-# release App and the standards-sync App are exempt by numeric author id, but
-# not from a trust-gate path (with merge.diff-check.path-holds false, only
-# Dependabot is held for one, unless it only bumps actions of owners in the
-# base's merge.dependabot.trusted-action-owners) unless a person on the base's
-# trusted-actor list approves the head, and neither is a pull request an agent App
-# (merge.trust-path-hold-apps at the base) opened, wrote a commit of or pushed
-# to. It fails closed when it cannot read.
 # test-scope: .github/workflows/pr-require-checks.yml docs/conventions/pr-pipeline.yaml
 set -uo pipefail
 
@@ -43,17 +27,32 @@ if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' 
 else
   fail "step lost its ready pull_request condition or its draft re-run widening"
 fi
-# The skip-chain lookup (`lane_at`, `carried`) filters runs to this pull
-# request by PR_NUMBER, so the step's env must set it from the event.
 if [[ "$step" == *$'\n          PR_NUMBER: ${{ github.event.pull_request.number }}\n'* ]]; then
   ok "step env sets PR_NUMBER from the pull_request event"
 else
   fail "step env does not set PR_NUMBER from github.event.pull_request.number"
 fi
-if [[ "$step" == *"REVIEW_WAIT_SECONDS: \${{ (steps.draft_rerun.outputs.ready != 'true' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '480' }}"* ]]; then
-  ok "a contract-only run does not wait, but a draft run re-run on a ready pull request waits the full 480 s"
+if [[ "$step" == *"REVIEW_WAIT_SECONDS: \${{ (steps.draft_rerun.outputs.ready != 'true' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '900' }}"* ]]; then
+  ok "a contract-only run does not wait, but a draft run re-run on a ready pull request waits the full 900 s"
 else
   fail "REVIEW_WAIT_SECONDS lost its contract-only zero or gives a ready draft re-run no wait"
+fi
+ci_job="$(awk '/^  ci-status:$/ { on = 1; next } on && /^  [a-z-]+:$/ { exit } on { print }' "$WORKFLOW")"
+timeout_seconds=$(($(sed -nE 's/^    timeout-minutes: ([0-9]+)$/\1/p' <<<"$ci_job") * 60))
+export GH_READ_JOB_SECONDS GH_READ_MARGIN_SECONDS REVIEW_JOB_SECONDS REVIEW_STOP_MARGIN_SECONDS
+GH_READ_JOB_SECONDS="$(sed -nE 's/^      GH_READ_JOB_SECONDS: ([0-9]+)$/\1/p' <<<"$ci_job")"
+GH_READ_MARGIN_SECONDS="$(sed -nE 's/^      GH_READ_MARGIN_SECONDS: ([0-9]+)$/\1/p' <<<"$ci_job")"
+REVIEW_JOB_SECONDS="$(sed -nE 's/^          REVIEW_JOB_SECONDS: ([0-9]+)$/\1/p' <<<"$step")"
+REVIEW_STOP_MARGIN_SECONDS="$(sed -nE 's/^          REVIEW_STOP_MARGIN_SECONDS: ([0-9]+)$/\1/p' <<<"$step")"
+if [[ -n "$REVIEW_JOB_SECONDS" && "$REVIEW_JOB_SECONDS" == "$timeout_seconds" ]]; then
+  ok "the wait's job limit, REVIEW_JOB_SECONDS ($REVIEW_JOB_SECONDS), is ci-status's timeout-minutes in seconds"
+else
+  fail "REVIEW_JOB_SECONDS '$REVIEW_JOB_SECONDS' is not ci-status's timeout-minutes in seconds ($timeout_seconds)"
+fi
+if [[ -n "$REVIEW_STOP_MARGIN_SECONDS" && $((628 + 900 + REVIEW_STOP_MARGIN_SECONDS)) -le "$timeout_seconds" ]]; then
+  ok "a 900 s wait from the latest measured start, 628 s, and the ${REVIEW_STOP_MARGIN_SECONDS}s stop margin fit the ${timeout_seconds}s timeout"
+else
+  fail "a 900 s wait from 628 s with margin '$REVIEW_STOP_MARGIN_SECONDS' does not fit the ${timeout_seconds}s timeout"
 fi
 if [[ "$step" == *"continue-on-error"* ]]; then
   fail "step must not continue on error: its exit code is the gate"
@@ -115,9 +114,7 @@ rerun_case "a re-run draft run whose pull request is still a draft stays a draft
 rerun_case "an unreadable pull request counts as ready" true '' fail
 rerun_case "an answer with no draft field counts as ready" true '{"number":18358}'
 
-# The exempt ids are the trusted-actor list's Dependabot, release App and
-# standards-sync App.
-ACTORS="$ROOT/.github/standards/trusted-actors/trusted-actors.json"
+ACTORS="$ROOT/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json"
 want_ids="$(jq -r '[.actors[] | select(.login == "dependabot[bot]" or .id == 337859524 or .login == "melodic-standards-sync[bot]") | .id] | sort | join(" ")' "$ACTORS")"
 got_ids="$(sed -nE "s/^exempt_author_ids='([0-9 ]+)'$/\1/p" "$TMP_ROOT/body.sh" | tr ' ' '\n' | sort -n | paste -sd' ')"
 if [[ -n "$got_ids" && "$got_ids" == "$want_ids" ]]; then
@@ -126,8 +123,6 @@ else
   fail "exempt author ids '$got_ids' are not the trusted-actor list's Dependabot, release App and standards-sync App '$want_ids'"
 fi
 
-# Each review caller publishes comments with a hold label, the only runs whose
-# `Apply the hold` step runs, and keeps the job id the check name starts with.
 for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-review-security:'; do
   read -r file job <<<"$pair"
   caller="$ROOT/.github/workflows/$file"
@@ -138,19 +133,14 @@ for pair in 'pr-review-hosted.yml pr-review:' 'pr-review-security-hosted.yml pr-
   else
     fail "$file lost its job id, publish: comments, hold-label or @main ref"
   fi
-  # pr-review-cli's check-key-credit job requests actions: read; a caller that
-  # does not grant it fails at startup.
   if awk -v job="  $job" '$0 == job { on = 1; next } on && /^  [^ ]/ { exit } on && /^      actions: read( |$)/ { found = 1 } END { exit !found }' "$caller"; then
     ok "$file grants actions: read to job ${job%:}"
   else
     fail "$file does not grant actions: read to job ${job%:}"
   fi
   paths="$(awk '/^      hold-paths: \|$/ { on = 1; next } on && /^        / { sub(/^ +/, ""); print; next } on { exit }' "$caller")"
-  # test_merge_holds_sync.py checks the list covers the path floor; here the
-  # two callers agree and keep the trusted-actor list and the security
-  # review's own files.
   first_paths="${first_paths-$paths}"
-  if [[ "$paths" == "$first_paths" && $'\n'"$paths"$'\n' == *$'\n.github/standards/trusted-actors/**\n'* &&
+  if [[ "$paths" == "$first_paths" &&
     $'\n'"$paths"$'\n' == *$'\nplugins/review/skills/security-review/**\nplugins/review/evals/security-review-*/**\n' ]]; then
     ok "$file names the same hold-paths as pr-review-hosted.yml, ending with the security review's own files"
   else
@@ -165,9 +155,6 @@ else
   fail "the review callers run pr-review-cli at different or no refs: ${pins//$'\n'/ }"
 fi
 
-# The trust-gate paths in bash form, as sync-hold-floor.py writes them:
-# `**/X` is X or */X, a trailing `**` is `*`. The security review's own files
-# in hold-paths are scrutiny only.
 want_patterns="$(grep -v '^plugins/review/' <<<"$first_paths" | sed -E 's#/\*\*$#/*#; s#^\*\*/(.*)$#\1\n*/\1#' | sort)"
 got_patterns="$(sed -nE 's/^ *hold_patterns=\((.*)\)$/\1/p' "$TMP_ROOT/body.sh" | tr ' ' '\n' | tr -d "'" | sort)"
 if [[ -n "$want_patterns" && "$got_patterns" == "$want_patterns" ]]; then
@@ -175,9 +162,6 @@ if [[ -n "$want_patterns" && "$got_patterns" == "$want_patterns" ]]; then
 else
   fail "exempt-author hold patterns '$got_patterns' are not the trust-gate paths '$want_patterns'"
 fi
-# Owner decisions Q21 and Q24 (2026-10-29): with merge.diff-check.path-holds
-# false a generated guard empties the list for every author but Dependabot,
-# whose action-pin bumps bring in third-party code; true holds them all.
 dependabot_id="$(jq -r '.actors[] | select(.login == "dependabot[bot]") | .id' "$ACTORS")"
 guard="[ \"\$AUTHOR_ID\" = $dependabot_id ] || hold_patterns=()"
 guards="$(grep -cxF "  $guard" "$TMP_ROOT/body.sh")"
@@ -186,9 +170,6 @@ if [[ "$(yq '.merge."diff-check"."path-holds" // false' "$ROOT/docs/conventions/
 else
   fail "the Dependabot guard '$guard' appears $guards times; it does not follow merge.diff-check.path-holds false"
 fi
-# body.live.sh is the step as committed (path-holds false). body.sh, used
-# below, has the block as the generator writes it with path-holds true, so
-# turning path-holds back on is tested before it is needed.
 cp "$TMP_ROOT/body.sh" "$TMP_ROOT/body.live.sh"
 hardened="hold_patterns=($(awk -v q="'" '{ printf "%s%s%s%s", (NR > 1 ? " " : ""), q, $0, q }' <<<"$want_patterns"))"
 awk -v line="$hardened" '/# BEGIN hold-floor hold_patterns/ { print; match($0, /^ */); print substr($0, 1, RLENGTH) line; skip = 1; next }
@@ -204,13 +185,6 @@ mkdir -p "$TMP_ROOT/base-config/docs/conventions" "$TMP_ROOT/bare-config/docs/co
 printf 'merge:\n  trust-path-hold-apps:\n    - melodic-agent[bot]\n' >"$TMP_ROOT/base-config/docs/conventions/pr-pipeline.yaml"
 printf 'merge:\n  rung: C2\n' >"$TMP_ROOT/bare-config/docs/conventions/pr-pipeline.yaml"
 
-# The stub logs its arguments. A runs read fails its first STUB_RUNS_FAILS
-# calls, then prints RUNS_CODE or RUNS_SEC by caller file. The head's runs of
-# every workflow are both together, with total_count their sum; STUB_HIDE_SEC
-# leaves RUNS_SEC's runs off that page but in its total_count. STUB_HEAD_SHAPE
-# reshapes that page: no-total drops total_count, text-total makes it a
-# string, null-runs answers {"total_count":0,"workflow_runs":null}. A jobs read fails
-# when STUB_JOBS_FAIL is set, else prints the JOBS_<run id> variable.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -246,11 +220,31 @@ case "$*" in
   printf '%s\n' "${!var:-}"
   ;;
 */actions/runs/*)
-  # One run by id, as the review wait polls it: RUN_<id>, else a failed read.
+  # One run by id, as the review wait polls it: RUN_<id>, else a failed read;
+  # RUN_<id>_DONE from the STUB_DONE_AT-th read of a run by id on, and from
+  # the STUB_RUN_FAIL_AT-th on, a 502 (STUB_RUN_FAIL_STATUS). With -i its
+  # headers lead, with a weak ETag of the body. A read whose If-None-Match
+  # matches that ETag gets a 304 as gh gives it: headers whose ETag drops
+  # the W/, `gh: HTTP 304` on stderr, and exit 1.
   id="$*"
   id="${id##*actions/runs/}"
   var="RUN_$id"
+  n=$(grep -cE '/actions/runs/[0-9]+$' "$STUB_LOG")
+  if [[ -n "${STUB_RUN_FAIL_AT:-}" && $n -ge $STUB_RUN_FAIL_AT ]]; then
+    printf 'gh: Server Error (HTTP %s)\n' "${STUB_RUN_FAIL_STATUS:-502}" >&2
+    exit 1
+  fi
+  [[ -z "${STUB_DONE_AT:-}" || $n -lt $STUB_DONE_AT ]] || var="RUN_${id}_DONE"
   [[ -n "${!var:-}" ]] || exit 1
+  if [[ " $* " == *" -i "* ]]; then
+    tag="\"$(cksum <<<"${!var}" | cut -d' ' -f1)\""
+    if [[ "$*" == *"If-None-Match: W/$tag "* ]]; then
+      printf 'HTTP/2.0 304 Not Modified\r\nEtag: %s\r\n\r\n' "$tag"
+      echo 'gh: HTTP 304' >&2
+      exit 1
+    fi
+    printf 'HTTP/2.0 200 OK\r\nEtag: W/%s\r\nContent-Type: application/json\r\n\r\n' "$tag"
+  fi
   printf '%s\n' "${!var}"
   ;;
 */pulls/*/files*)
@@ -321,25 +315,19 @@ CODE=pr-review-hosted.yml
 SEC=pr-review-security-hosted.yml
 CODE_CHECK='PR Review / Status'
 SEC_CHECK='PR Review Security / Status'
-# The names a head tested before the rename shows: the caller job ids.
 OLD_CODE_CHECK='pr-review / review-status'
 OLD_SEC_CHECK='pr-review-security / review-status'
-# pr-review-cli.yml's status job before its Title Case name, under the
-# callers' display names, and its Title Case name under the caller job ids.
 RENAMED_CODE_CHECK='PR Review / review-status'
 RENAMED_SEC_CHECK='PR Review Security / review-status'
 ID_CODE_CHECK='pr-review / Status'
 ID_SEC_CHECK='pr-review-security / Status'
-# run <id> <file> [status] [sha] [event] [head repository] [pull request number]
 run() { jq -cn --argjson id "$1" --arg f "$2" --arg st "${3:-completed}" --arg sha "${4:-$HEAD}" --arg ev "${5:-pull_request}" --arg hr "${6:-o/r}" \
   --argjson pr "${7:-77}" '{id: $id, path: (".github/workflows/" + $f), status: $st, head_sha: $sha, event: $ev, head_repository: {full_name: $hr},
     pull_requests: [{number: $pr}], html_url: ("https://github.com/o/r/actions/runs/\($id)")}'; }
 runs() { local IFS=,; printf '{"workflow_runs":[%s]}' "$*"; }
-# status <name> <status> <conclusion> [hold-step-conclusion]
 status() { jq -cn --arg n "$1" --arg st "$2" --arg c "$3" --arg h "${4:-success}" \
   '{id: 9, name: $n, status: $st, conclusion: (if $c == "" then null else $c end),
     steps: [{name: "Publish the review", conclusion: $c}, {name: "Apply the hold", conclusion: $h}, {name: "Upload the shadow report", conclusion: "skipped"}]}'; }
-# kill <conclusion> <report-step-conclusion> [job name]
 kill_job() { jq -cn --arg c "$1" --arg r "$2" --arg n "${3:-Check Kill Switch}" '{id: 1, name: $n, status: "completed", conclusion: $c,
   steps: [{name: "Check the kill switch", conclusion: $c}, {name: "Report the kill switch", conclusion: $r}]}'; }
 jobs() { local IFS=,; printf '{"jobs":[%s]}' "$*"; }
@@ -348,12 +336,11 @@ expect() {
   local label="$1" want_rc="$2" out rc
   : >"$TMP_ROOT/log"
   : >"$TMP_ROOT/log.sleeps"
-  # SHARED_FILES stands for the pages the broker step left under RUNNER_TEMP.
   rm -rf "$TMP_ROOT/pr-files.json" "$TMP_ROOT/pr-reads"
   [[ -z "${SHARED_FILES:-}" ]] || printf '%s\n' "$SHARED_FILES" >"$TMP_ROOT/pr-files.json"
   out="$(PATH="${STUB_PATH:+$STUB_PATH:}$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r GITHUB_REPOSITORY_ID=1 HEAD_SHA="${HEAD_SHA-$HEAD}" BASE_SHA="${BASE_SHA-fedcba9876543210fedcba9876543210fedcba98}" \
     AUTHOR_ID="${AUTHOR_ID-153232337}" HEAD_REPO="${HEAD_REPO-o/r}" PR_NUMBER="${PR_NUMBER-77}" HEAD_REF="${HEAD_REF-feature/x}" \
-    BASE_CONFIG="${BASE_CONFIG-$TMP_ROOT/base-config}" RUNNER_TEMP="$TMP_ROOT" bash -e "${BODY-$TMP_ROOT/body.sh}" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="${BASE_CONFIG-$TMP_ROOT/base-config}" STANDARDS_DIR="${STUB_STANDARDS-$TMP_ROOT/standards}" RUNNER_TEMP="$TMP_ROOT" bash -e "${BODY-$TMP_ROOT/body.sh}" 2>&1)" && rc=0 || rc=$?
   if [[ "$rc" -ne "$want_rc" ]]; then
     fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
   elif [[ -n "${3:-}" && "$out" != *"$3"* ]]; then
@@ -377,8 +364,6 @@ if grep -qxF "api repos/o/r/actions/runs?head_sha=$HEAD&event=pull_request&per_p
 else
   fail "unexpected reads: '$(sort -u "$TMP_ROOT/log")'"
 fi
-# listings <kind>: how many run listings the last case read, of the head's
-# runs of every workflow (head) or of one workflow file (file).
 listings() {
   case $1 in
   head) grep -c '/actions/runs?head_sha=' "$TMP_ROOT/log" ;;
@@ -392,20 +377,15 @@ else
   fail "nothing waited, yet the head's runs were listed $(listings head) times and a file's $(listings file) times, want 1 and 0"
 fi
 
-# A head tested before the rename lists the caller job ids.
 JOBS_10="$(jobs "$(kill_job success skipped kill-switch)" "$(status "$OLD_CODE_CHECK" completed success)")"
 JOBS_20="$(jobs "$(kill_job success skipped kill-switch)" "$(status "$OLD_SEC_CHECK" completed success)")"
 expect "a head tested before the rename passes under the job ids" 0 "'$CODE_CHECK' passed on $HEAD" "::error::"
 JOBS_10="$(jobs "$(kill_job success success kill-switch)")"
 expect "a kill switch job named by its id still stops the lane" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): an API budget defer or a kill switch was on when it started."
-# The kill switch job's name before its rename to Check Kill Switch.
 JOBS_10="$(jobs "$(kill_job success success 'Kill Switch')")"
 expect "a kill switch job under its name before the rename still stops the lane" 1 "::error::'$CODE_CHECK' did not run on $HEAD (https://github.com/o/r/actions/runs/10): an API budget defer or a kill switch was on when it started."
 JOBS_10="$PASS_CODE" JOBS_20="$PASS_SEC"
 
-# The status job named review-status, before its Title Case name, still counts,
-# and so does its Title Case name under the caller job ids, and its planned
-# name `Publish Review` under both.
 for pair in "$RENAMED_CODE_CHECK|$RENAMED_SEC_CHECK" "$ID_CODE_CHECK|$ID_SEC_CHECK" \
   'PR Review / Publish Review|PR Review Security / Publish Review' 'pr-review / Publish Review|pr-review-security / Publish Review'; do
   JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "${pair%%|*}" completed success)")"
@@ -414,15 +394,12 @@ for pair in "$RENAMED_CODE_CHECK|$RENAMED_SEC_CHECK" "$ID_CODE_CHECK|$ID_SEC_CHE
 done
 JOBS_10="$PASS_CODE" JOBS_20="$PASS_SEC"
 
-# The status job names pr-review-cli.yml gave before it named both review-status,
-# and the Title Case name pr-review.yml and pr-review-security.yml give theirs.
 for pair in 'pr-review / claude-review-status|pr-review-security / security-review' 'pr-review / Claude|pr-review-security / Claude' \
   'PR Review / Claude|PR Review Security / Claude'; do
   JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "${pair%%|*}" completed success)")"
   JOBS_20="$(jobs "$(kill_job success skipped)" "$(status "${pair#*|}" completed success)")"
   expect "status jobs named '${pair%%|*}' and '${pair#*|}' do not count" 1 "'$CODE_CHECK' did not run on $HEAD" "passed on $HEAD"
 done
-# A status job counts only under its own lane's caller job.
 for name in 'other / review-status' 'review-status' 'other / Status' 'Status' "$CODE_CHECK" "$OLD_CODE_CHECK" "$RENAMED_CODE_CHECK" "$ID_CODE_CHECK" \
   'other / Publish Review' 'Publish Review' 'PR Review / Publish Review'; do
   JOBS_20="$(jobs "$(kill_job success skipped)" "$(status "$name" completed success)")"
@@ -430,24 +407,63 @@ for name in 'other / review-status' 'review-status' 'other / Status' 'Status' "$
 done
 JOBS_10="$PASS_CODE" JOBS_20="$PASS_SEC"
 
-# The newest run decides, whatever the list order.
 RUNS_CODE="$(runs "$(run 11 $CODE)" "$(run 10 $CODE)")"
 JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" in_progress '')")"
 expect "a newer run still reviewing is pending" 1 "::error::'$CODE_CHECK' has not finished on $HEAD (https://github.com/o/r/actions/runs/11)."
 RUNS_CODE="$(runs "$(run 11 $CODE in_progress)" "$(run 10 $CODE)")" JOBS_11="$(jobs "$(kill_job success skipped)")"
 expect "a newer run whose review jobs are not listed yet is pending" 1 "'$CODE_CHECK' has not finished"
-# The wait (#12447): a run not completed is polled by id until it completes,
-# then judged as before; one still running at the cap fails as before, saying
-# no manual re-run is needed.
 export RUN_11 RUNS_CODE_LATER
 RUN_11="$(run 11 $CODE in_progress)"
 expect "a review still running at the cap fails pending, naming the automatic re-run" 1 \
-  "has not finished on $HEAD (https://github.com/o/r/actions/runs/11). ci-status waited 480s for it; pr-dispatch-feedback re-runs ci-status"
-if [[ "$(grep -cxF 'api repos/o/r/actions/runs/11' "$TMP_ROOT/log")" == 8 ]]; then
-  ok "the wait reads the waiting run once a poll, 8 polls at most"
+  "has not finished on $HEAD (https://github.com/o/r/actions/runs/11). ci-status waited 900s for it; pr-dispatch-feedback re-runs ci-status"
+run_reads() { grep -cE " repos/o/r/actions/runs/$1\$" "$TMP_ROOT/log"; }
+if [[ "$(run_reads 11)" == 15 ]]; then
+  ok "the wait reads the waiting run once a poll, 15 polls at most"
 else
-  fail "the wait read run 11 $(grep -cxF 'api repos/o/r/actions/runs/11' "$TMP_ROOT/log") times: '$(sort "$TMP_ROOT/log" | uniq -c)'"
+  fail "the wait read run 11 $(run_reads 11) times: '$(sort "$TMP_ROOT/log" | uniq -c)'"
 fi
+etag_11="W/\"$(cksum <<<"$RUN_11" | cut -d' ' -f1)\""
+if [[ "$(grep -cxF 'api -i repos/o/r/actions/runs/11' "$TMP_ROOT/log")" == 1 &&
+  "$(grep -cxF "api -i -H If-None-Match: $etag_11 repos/o/r/actions/runs/11" "$TMP_ROOT/log")" == 14 ]]; then
+  ok "the first poll of a run sends no condition, and each later one sends the ETag of its 200 verbatim"
+else
+  fail "the wait's conditions on run 11: '$(grep -E '/actions/runs/11$' "$TMP_ROOT/log" | uniq -c)'"
+fi
+saved_deadline="$(cat "$TMP_ROOT/gh-read.deadline")"
+echo "$(($(date +%s) + 150))" >"$TMP_ROOT/gh-read.deadline"
+expect "a gh_read deadline 150 s away does not cut the wait: it runs the full 900 s" 1 "ci-status waited 900s for it"
+echo "$(($(date +%s) + GH_READ_JOB_SECONDS - GH_READ_MARGIN_SECONDS - REVIEW_JOB_SECONDS + REVIEW_STOP_MARGIN_SECONDS + 30))" >"$TMP_ROOT/gh-read.deadline"
+expect "a job 30 s from its stop margin waits no poll of 60 s" 1 "ci-status waited 0s for it" "Waited"
+rm -f "$TMP_ROOT/gh-read.deadline"
+expect "with no gh_read deadline file the step does not wait" 1 "ci-status waited 0s for it" "Waited"
+echo "$saved_deadline" >"$TMP_ROOT/gh-read.deadline"
+export RUN_11_DONE STUB_DONE_AT STUB_RUN_FAIL_AT STUB_RUN_FAIL_STATUS
+RUN_11_DONE="$(run 11 $CODE)" STUB_DONE_AT=3 RUNS_CODE_LATER="$(runs "$(run 11 $CODE)" "$(run 10 $CODE)")"
+JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success)")"
+expect "a 304 keeps waiting and a 200 for the finished run ends the wait" 0 "Waited 180s for the review lanes on $HEAD." "::error::"
+if [[ "$(run_reads 11)" == 3 && "$(grep -c "If-None-Match: $etag_11 " "$TMP_ROOT/log")" == 2 ]]; then
+  ok "the wait read run 11 three times, the last two conditional"
+else
+  fail "the wait's reads of run 11: '$(grep -E '/actions/runs/11$' "$TMP_ROOT/log" | uniq -c)'"
+fi
+unset STUB_DONE_AT
+RUNS_CODE_LATER="$(runs "$(run 11 $CODE in_progress)" "$(run 10 $CODE)")"
+JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" in_progress '')")"
+STUB_RUN_FAIL_AT=3 expect "a 5xx on a conditional read ends the wait and fails closed as before" 1 \
+  "::error::could not read run 11; re-run this run."
+if [[ "$(run_reads 11)" == 5 ]]; then
+  ok "the failed conditional read was sent 3 times after a 200 and a 304"
+else
+  fail "the failed conditional read took $(run_reads 11) reads of run 11, want 5"
+fi
+STUB_RUN_FAIL_AT=3 STUB_RUN_FAIL_STATUS=404 expect "a 404 on a conditional read ends the wait, and the judgment still reads the lane" 1 \
+  "has not finished on $HEAD (https://github.com/o/r/actions/runs/11). ci-status waited 180s for it"
+if [[ "$(run_reads 11)" == 3 ]]; then
+  ok "a 4xx on a conditional read is sent once"
+else
+  fail "a 4xx on a conditional read took $(run_reads 11) reads of run 11, want 3"
+fi
+unset STUB_RUN_FAIL_AT STUB_RUN_FAIL_STATUS RUN_11_DONE
 RUN_11="$(run 11 $CODE)" RUNS_CODE_LATER="$(runs "$(run 11 $CODE)" "$(run 10 $CODE)")"
 JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success)")"
 expect "a review that finishes during the wait passes without a re-run" 0 "Waited 60s for the review lanes on $HEAD." "::error::"
@@ -456,8 +472,6 @@ if [[ "$(listings head) $(listings file)" == "2 0" ]]; then
 else
   fail "a wait listed the head's runs $(listings head) times and a file's $(listings file) times, want 2 and 0"
 fi
-# A run that appears during the wait is judged: the listing from before the
-# wait names only run 11, whose review failed.
 export JOBS_12
 SAVED_RUNS_CODE=$RUNS_CODE
 RUNS_CODE="$(runs "$(run 11 $CODE in_progress)")" RUNS_CODE_LATER="$(runs "$(run 12 $CODE)" "$(run 11 $CODE)")"
@@ -476,14 +490,12 @@ fi
 RUNS_CODE_LATER='' RUN_11=''
 RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 11 $CODE completed "${HEAD//0/f}")" "$(run 12 pr-review-shadow.yml)" "$(run 13 $CODE completed "$HEAD" push)")"
 expect "runs on another head, of another file or event do not count" 0 "passed on $HEAD (https://github.com/o/r/actions/runs/10)" "::error::"
-# A fork's run on the same commit is newest; only this repository's head counts.
 RUNS_CODE="$(runs "$(run 11 $CODE completed "$HEAD" pull_request fork/r)" "$(run 10 $CODE)")"
 JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed failure)")"
 expect "a newer run from a fork's head with the same commit does not count" 0 "passed on $HEAD (https://github.com/o/r/actions/runs/10)" "::error::"
 RUNS_CODE="$(runs "$(run 11 $CODE completed "$HEAD" pull_request fork/r)")"
 expect "a fork's run alone leaves the lane missing" 1 "::error::'$CODE_CHECK' is missing: no $CODE run on $HEAD yet."
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
-# A fork pull request is named as a fork before any run is read, never as missing.
 RUNS_CODE="$(runs "$(run 11 $CODE completed "$HEAD" pull_request fork/r)")"
 HEAD_REPO=fork/r expect "a fork pull request fails as a fork, not as missing" 1 \
   "::error::'$SEC_CHECK' did not run on $HEAD (head repository: fork/r): a fork, or a bot outside the caller's allowed-bot-sender-ids, gets no review" "is missing"
@@ -494,8 +506,6 @@ RUNS_CODE="$(runs)"
 expect "no review run yet fails" 1 "::error::'$CODE_CHECK' is missing: no $CODE run on $HEAD yet. ci-status does not wait for a lane with no run" "Waited"
 if [[ "$(listings head) $(listings file)" == "1 0" && ! -s "$TMP_ROOT/log.sleeps" ]]; then ok "a lane with no run is not waited for"; else fail "a lane with no run was polled: $(listings head) head and $(listings file) file run-list reads"; fi
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
-# A listing GitHub cut short (total_count above the runs on the page) is not
-# trusted to show a lane missing: each lane's own runs are read and judged.
 STUB_HIDE_SEC=1 expect "a lane left off a cut-short listing is read from its own runs, not called missing" 0 \
   "'$SEC_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/20)." "is missing"
 if [[ "$(listings head)" == 1 ]] && grep -qxF "api repos/o/r/actions/workflows/$SEC/runs?head_sha=$HEAD&event=pull_request&per_page=100" "$TMP_ROOT/log" &&
@@ -504,9 +514,6 @@ if [[ "$(listings head)" == 1 ]] && grep -qxF "api repos/o/r/actions/workflows/$
 else
   fail "a cut-short listing read: '$(sort "$TMP_ROOT/log" | uniq -c)'"
 fi
-# A listing whose total_count is missing or not a number, or whose
-# workflow_runs is not a list, cannot show it is whole: each lane's own runs
-# are read and judged.
 for shape in no-total text-total null-runs; do
   STUB_HEAD_SHAPE=$shape expect "a $shape listing is read from each lane's own runs" 0 \
     "'$SEC_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/20)." "is missing"
@@ -520,18 +527,13 @@ done
 JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success skipped)")"
 expect "a green status job whose hold step did not run (summary mode) does not count" 1 \
   "::error::'$CODE_CHECK' passed in https://github.com/o/r/actions/runs/10, but its 'Apply the hold' step did not run"
-# A skipped hold step reads the job's annotations, for a no-change skip record.
 if grep -qxF "api repos/o/r/check-runs/9/annotations?per_page=100" "$TMP_ROOT/log"; then
   ok "a skipped hold step reads the status job's annotations"
 else
   fail "a skipped hold step did not read the annotations: '$(sort -u "$TMP_ROOT/log")'"
 fi
 
-# The jobs API can list a finished job's steps empty or cut short; then the
-# status job's review-complete notice for this lane and head decides.
-# listed <name> <id> <steps json>: a green status job with the given steps.
 listed() { jq -cn --arg n "$1" --argjson id "$2" --argjson steps "$3" '{id: $id, name: $n, status: "completed", conclusion: "success", steps: $steps}'; }
-# note <level> <title> <message>
 note() { jq -cn --arg l "$1" --arg t "$2" --arg m "$3" '{annotation_level: $l, title: $t, message: $m}'; }
 notes() { local IFS=,; printf '[%s]'"\n" "$*"; }
 COMPLETE="claude-lane-review-complete lane=claude-review sha=$HEAD"
@@ -569,15 +571,12 @@ expect "the security lane counts on its own lane's notice" 0 "'$SEC_CHECK' passe
 NOTES_32="$GOOD_NOTES"
 expect "the security lane does not count on the code lane's notice" 1 "no review-complete notice for claude-security-review on $HEAD"
 JOBS_20="$PASS_SEC"
-# A listed hold step keeps the step rule, whatever the notices say.
 JOBS_10="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 31 '[{"name":"Publish the review","status":"completed","conclusion":"success"},{"name":"Apply the hold","status":"completed","conclusion":"skipped"}]')")" NOTES_31="$GOOD_NOTES"
 expect "a listed skipped hold step stays uncounted despite a review notice" 1 "but its 'Apply the hold' step did not run"
 JOBS_10="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 31 '[{"name":"Apply the hold","status":"completed","conclusion":"success"}]')")"
 expect "a listed successful hold step passes" 0 "'$CODE_CHECK' passed on $HEAD (https://github.com/o/r/actions/runs/10)." "::error::"
 if grep -q '/annotations' "$TMP_ROOT/log"; then fail "a successful hold step read the annotations"; else ok "a successful hold step reads no annotations"; fi
 
-# A leg that held (pr-review-cli's leg warning and the status job's held
-# notice) is named with its cause, not as summary mode.
 held_leg() { jq -cn '{id: 40, name: "PR Review / Review Subscription", status: "completed", conclusion: "success",
   steps: [{name: "Scope the review", conclusion: "success"}, {name: "Claude review", conclusion: "skipped"}]}'; }
 HOLDS="the compare read of the merge base failed; this leg holds and runs no review."
@@ -600,15 +599,9 @@ expect "a held notice for another head keeps the summary-mode message" 1 "the la
 if grep -q "check-runs/40/" "$TMP_ROOT/log"; then fail "a review with no held notice read a leg's annotations"; else ok "a review with no held notice reads no leg annotations"; fi
 JOBS_10="$PASS_CODE" NOTES_9='' NOTES_40=''
 
-# A push that changed no file of the pull request since a counted review (a
-# clean base merge) is a no-change skip: its status job succeeds, its hold
-# step is skipped, and its review-complete record names the head it carries
-# forward. ci-status counts it only when that head, followed through any
-# further no-change skips, had a counted review on this pull request.
 T1=1111111111111111111111111111111111111111
 T2=2222222222222222222222222222222222222222
 SKIPPED_HOLD='[{"name":"Publish the review","status":"completed","conclusion":"skipped"},{"name":"Apply the hold","status":"completed","conclusion":"skipped"}]'
-# skip_rec <sha> <through> [suffix]: the no-change skip record notices.
 skip_rec() { notes "$(note notice claude-lane-review-complete "claude-lane-review-complete lane=claude-review sha=$1 skip=no-change through=$2${3:-}")"; }
 export JOBS_12 JOBS_13 NOTES_33 NOTES_34
 JOBS_10="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 33 "$SKIPPED_HOLD")")" NOTES_33="$(skip_rec "$HEAD" "$T1")"
@@ -616,13 +609,11 @@ RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 12 $CODE completed "$T1")")" JOBS_12=
 expect "a merge-only push after a full review carries that review" 0 "'$CODE_CHECK' skipped $HEAD (https://github.com/o/r/actions/runs/10) as unchanged since $T1, whose review counts" "::error::"
 NOTES_33="$(skip_rec "$HEAD" "$T1" " account=fallback")"
 expect "a fallback-account skip record carries the review too" 0 "as unchanged since $T1, whose review counts" "::error::"
-# Two clean merges: the first merge's own run is a no-change skip too.
 PR_NUMBER='' expect "an empty pull request number fails closed before any skip is followed" 1 "::error::the pull request number '' is not a number."
 NOTES_33="$(skip_rec "$HEAD" "$T1")"
 JOBS_12="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 34 "$SKIPPED_HOLD")")" NOTES_34="$(skip_rec "$T1" "$T2")"
 RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 12 $CODE completed "$T1")" "$(run 13 $CODE completed "$T2")")" JOBS_13="$PASS_CODE"
 expect "two merge-only pushes after a full review carry that review" 0 "as unchanged since $T1, whose review counts" "::error::"
-# The through head's review must count on its own terms.
 JOBS_13="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success skipped)")"
 expect "a skip chain ending in a summary-mode run does not count" 1 \
   "::error::'$CODE_CHECK' skipped $HEAD in https://github.com/o/r/actions/runs/10 as unchanged since $T1, but no counted review of claude-review on #77 covers $T1"
@@ -640,7 +631,6 @@ expect "a skip through a head reviewed only from a fork does not count" 1 "no co
 RUNS_CODE="$(runs "$(run 10 $CODE)" "$(run 12 $CODE completed "$T1")")"
 NOTES_33="$(skip_rec "$HEAD" "${T1:0:39}")"
 expect "a skip record with a malformed through head stays uncounted" 1 "but its 'Apply the hold' step did not run"
-# The empty-step-list path reads the same record and follows it the same way.
 JOBS_10="$(jobs "$(kill_job success skipped)" "$(listed "$CODE_CHECK" 33 '[]')")" NOTES_33="$(skip_rec "$HEAD" "$T1")"
 expect "an unlisted hold step with a skip record carries a counted review" 0 "as unchanged since $T1, whose review counts" "::error::"
 JOBS_12="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success skipped)")"
@@ -650,8 +640,6 @@ expect "an unlisted hold step with any other skip record stays uncounted" 1 "the
 JOBS_10="$PASS_CODE" RUNS_CODE="$(runs "$(run 10 $CODE)")"
 
 
-# A kill-switch job listed without its report step counts as a stop only on
-# the notice that step writes, as both callers write it.
 for caller in pr-review-hosted.yml pr-review-security-hosted.yml; do
   if grep -qE '^ +echo "::notice::a kill switch stops this (security )?review \(' "$ROOT/.github/workflows/$caller"; then
     ok "$caller's kill-switch report writes the notice ci-status reads"
@@ -690,10 +678,6 @@ expect "a failed kill-switch job fails" 1 "kill-switch job: failure"
 JOBS_10="$(jobs "$(kill_job success skipped)")"
 expect "a kill-switch job that let the review run, with no review, fails" 1 "did not run on $HEAD"
 
-# An upstream-status skip is named, not read as a fork or an unlisted bot:
-# the hosted callers' `Stop on upstream status` step fails the kill-switch job
-# with its error, and an older run's gate left its notice on a kill-switch job
-# that succeeded with the review skipped (runs 41102428120, 41106612430).
 for caller in pr-review-hosted.yml pr-review-security-hosted.yml; do
   if grep -qE '^ +echo "::error::an upstream outage stops this (security )?review \(' "$ROOT/.github/workflows/$caller"; then
     ok "$caller's upstream stop writes the error ci-status reads"
@@ -749,9 +733,7 @@ if grep -qxF 'api repos/o/r/pulls/77/files?per_page=100 --paginate --jq .[] | [.
 else
   fail "unexpected file read: '$(sort -u "$TMP_ROOT/log")'"
 fi
-# Every hold path the callers list holds an exempt author's PR, nested and renamed ones too,
-# in any letter case, as the floor folds case.
-for changed in .github/standards/trusted-actors/trusted-actors.json .github/actions/check-trusted-trigger/lib/x.mjs CODEOWNERS .github/CODEOWNERS \
+for changed in .github/actions/check-trusted-trigger/lib/x.mjs CODEOWNERS .github/CODEOWNERS \
   .github/actions/resolve-config/package-lock.json .github/actions/request-lane-token/action.yml .github/actions/check-kill-switch/check-kill-switch.mjs \
   .github/scripts/pr-merge/merge-holds.mjs plugins/source-control/skills/babysit-prs/scripts/diff_risk.py \
   .gitmodules vendor/sub/.gitmodules 'docs/new.md<.github/CODEOWNERS' \
@@ -759,15 +741,12 @@ for changed in .github/standards/trusted-actors/trusted-actors.json .github/acti
   STUB_FILES="$(files README.md "$changed")"
   AUTHOR_ID=300666570 expect "an exempt author changing $changed fails" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths:"
 done
-# With path-holds true, each exempt author changing a trust-gate path is held.
 for id in 49699333 337859524 300666570; do
   for changed in CODEOWNERS .github/actions/request-lane-token/action.yml .gitmodules; do
     STUB_FILES="$(files "$changed")" STUB_CHANGED=1
     AUTHOR_ID=$id expect "with path-holds on author $id changing $changed fails" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths: $changed."
   done
 done
-# The step as committed, path-holds false: Dependabot is still held (owner
-# decision Q24), the release and standards-sync Apps pass (Q21).
 for changed in CODEOWNERS .github/actions/request-lane-token/action.yml .gitmodules; do
   STUB_FILES="$(files "$changed")" STUB_CHANGED=1
   BODY="$TMP_ROOT/body.live.sh" AUTHOR_ID=49699333 expect "with path-holds off Dependabot changing $changed fails" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths: $changed."
@@ -792,12 +771,8 @@ STUB_FILES_FAIL=1 STUB_CHANGED=4 SHARED_FILES="$(files README.md)" \
   AUTHOR_ID=49699333 expect "a reused list shorter than the change fails closed" 1 "::error::GitHub listed fewer files than #77 changes"
 STUB_FILES='[]' STUB_CHANGED=0
 AUTHOR_ID=49699333999 expect "an id that only contains an exempt id is not exempt" 1 "is missing"
-# A person on the base commit's trusted-actor list approving the head in their
-# newest review clears an exempt author's trust-gate hold.
-mkdir -p "$TMP_ROOT/base-config/.github/standards/trusted-actors"
-printf '%s\n' '{"actors":[{"kind":"human","id":153232337,"login":"kyle-sexton"},{"kind":"app","id":49699333,"login":"dependabot[bot]"}]}' \
-  >"$TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json"
-# review <user id> <state> [commit]
+mkdir -p "$TMP_ROOT/base-config" "$TMP_ROOT/standards/components/trusted-actors"
+printf '%s\n' '{"actors":[{"kind":"human","id":153232337,"login":"kyle-sexton"},{"kind":"app","id":49699333,"login":"dependabot[bot]"}]}' >"$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
 review() { jq -cn --argjson id "$1" --arg st "$2" --arg sha "${3:-$HEAD}" \
   '{user: {id: $id, login: "u\($id)"}, state: $st, commit_id: $sha}'; }
 reviews() { local IFS=,; printf '[%s]\n' "$*"; }
@@ -826,16 +801,10 @@ STUB_REVIEWS_FAIL=
 STUB_REVIEWS='{"message":"not a list"}'
 AUTHOR_ID=49699333 expect "a review answer that is not a list keeps the hold" 1 "A person merges it; $CLEAR"
 STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED)")"
-BASE_CONFIG="$TMP_ROOT/bare-config" AUTHOR_ID=49699333 expect "an unreadable trusted-actor list keeps the hold" 1 "A person merges it; $CLEAR"
+STUB_STANDARDS="$TMP_ROOT/bare-config" AUTHOR_ID=49699333 expect "an unreadable trusted-actor list keeps the hold" 1 "A person merges it; $CLEAR"
+STUB_STANDARDS='' AUTHOR_ID=49699333 expect "with no standards checkout the hold config's copy is never read, and the hold stays" 1 "A person merges it; $CLEAR" "approved $HEAD"
 STUB_REVIEWS='[]'
 AUTHOR_ID=49699333 expect "with no approval the hold stays" 1 "::error::#77 is by an author no review lane reviews and changes trust-gate paths: CODEOWNERS. A person merges it; $CLEAR"
-# Owner decision Q-ANTHROPIC-DEPS: a Dependabot PR whose every change block
-# only swaps the ref of an action by an owner the base lists in
-# merge.dependabot.trusted-action-owners skips the trust-gate hold; any other
-# line, file, status, owner or ref keeps it, and so does an unread patch. Each
-# new ref must be a 40-hex SHA a tag of the action's repository points to; the
-# git stub answers `ls-remote --tags` with STUB_TAGS, or fails with
-# STUB_LSREMOTE_FAIL set; STUB_UNTAGGED_REPO names a repository with no tags.
 cat >"$TMP_ROOT/bin/git" <<'EOF'
 #!/usr/bin/env bash
 printf 'git %s\n' "$*" >>"$STUB_LOG"
@@ -846,7 +815,6 @@ EOF
 chmod +x "$TMP_ROOT/bin/git"
 SHA_OLD=1111111111111111111111111111111111111111 SHA_NEW=2222222222222222222222222222222222222222
 SHA_BASE=4444444444444444444444444444444444444444 SHA_UNTAGGED=3333333333333333333333333333333333333333
-# The new SHA is the peeled commit of an annotated tag; SHA_BASE a lightweight one.
 export STUB_TAGS="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa	refs/tags/v1.0.266
 $SHA_NEW	refs/tags/v1.0.266^{}
 $SHA_BASE	refs/tags/v2.0.0
@@ -862,12 +830,10 @@ else
   fail "could not list the tags of a throwaway repository with git ls-remote"
 fi
 mkdir -p "$TMP_ROOT/dep-config/docs/conventions"
-cp -R "$TMP_ROOT/base-config/.github" "$TMP_ROOT/dep-config/"
 printf 'merge:\n  dependabot:\n    trusted-action-owners:\n      - anthropics\n' >"$TMP_ROOT/dep-config/docs/conventions/pr-pipeline.yaml"
 WF=.github/workflows/pr-review-hosted.yml
 CCA_OLD="anthropics/claude-code-action@$SHA_OLD # v1.0.265"
 CCA_NEW="anthropics/claude-code-action@$SHA_NEW # v1.0.266"
-# patch_file <file> <changed lines, each starting with + or -> [status]
 patch_file() {
   jq -cn --arg f "$1" --arg st "${3:-modified}" --arg body "$2" '($body | split("\n")) as $l
     | [{filename: $f, status: $st, additions: ($l | map(select(startswith("+"))) | length),
@@ -1079,11 +1045,8 @@ STUB_COMMENTS='[]'
 STUB_FILES='[]' STUB_CHANGED=0
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
 
-# A trust-gate path an agent App touched waits for a person, whoever opened
-# the pull request; with no App on it the review lanes decide, as before.
 APP='melodic-agent[bot]'
 SHA_A=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa SHA_B=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-# commit <sha> <author login> <committer login> <email>: "" is an unlinked account.
 commit() { jq -cn --arg sha "$1" --arg a "$2" --arg c "$3" --arg e "$4" \
   '{sha: $sha, author: (if $a == "" then null else {login: $a} end), committer: (if $c == "" then null else {login: $c} end),
     commit: {author: {email: $e}, committer: {email: $e}}}'; }
@@ -1110,9 +1073,6 @@ if grep -q '/actions/workflows/' "$TMP_ROOT/log"; then fail "a held App change r
 BASE_CONFIG="$ROOT" expect "the repository's own pr-pipeline.yaml holds no agent App while path holds are off (owner decision Q21)" 0 "No agent App opened, wrote or pushed to #77"
 STUB_PUSHES="$(list "$(push kyle-sexton $SHA_A)")"
 STUB_AUTHOR="$APP" expect "an App-authored pull request changing a trust-gate path is held" 1 "and melodic-agent[bot] opened it, so no review lane decides it"
-# The committed step (path-holds false): the Dependabot guard empties the
-# shared list for an App author too, so no App hold applies and the review
-# lanes decide.
 STUB_AUTHOR="$APP" BODY="$TMP_ROOT/body.live.sh" expect "with path-holds off an App-authored trust-gate change is not held" 0
 if grep -q '/commits' "$TMP_ROOT/log"; then fail "with path-holds off the App hold read the commits"; else ok "with path-holds off the App hold reads no commit"; fi
 STUB_COMMITS="$(list "$(commit $SHA_A kyle-sexton kyle-sexton "$PERSON")" "$(commit $SHA_B Melodic-Agent[bot] web-flow '')")" STUB_COMMIT_COUNT=2 \
@@ -1122,8 +1082,6 @@ STUB_COMMITS="$(list "$(commit $SHA_B '' '' "1234+$APP@users.noreply.github.com"
 STUB_COMMITS_FAIL=1 expect "an unreadable commit list is held" 1 "::error::could not read the commits of #77; re-run this run."
 STUB_COMMIT_COUNT=2 expect "a commit list shorter than the pull request is held" 1 "::error::GitHub listed fewer commits than #77 has"
 STUB_PUSHES_FAIL=1 expect "an unreadable push history is held" 1 "::error::could not read the push history of feature/x; re-run this run."
-# The activity API keeps a branch name's history across deletions, so a
-# reused name passes a page of 100; every page is read, up to 20.
 export STUB_PUSHES_2 STUB_PUSHES_3 STUB_PUSHES_ENDLESS
 page() { jq -cn --argjson p "$(push "$1" $SHA_A)" --argjson n "$2" '[range($n) | $p]'; }
 STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2="$(page kyle-sexton 50)" \
@@ -1169,10 +1127,6 @@ for link in 'repositories/1/activity?ref=refs%2Fheads%2Ffeature%2Fx&after={owner
 done
 STUB_PUSHES_3="$(page kyle-sexton 1)" STUB_PUSHES="$(page kyle-sexton 100)" STUB_PUSHES_2='{"message":"Conflict"}' \
   expect "a non-array page before a readable one is held" 1 "is unreadable"
-# yq failing or missing leaves no list: held, also on a file list at GitHub's
-# 3000-file cap that names no trust-gate path, where held is empty.
-# yq-fails prints a list and then fails, so only pipefail catches it, whatever
-# jq does with empty input.
 mkdir -p "$TMP_ROOT/yq-fails" "$TMP_ROOT/yq-missing"
 printf '#!/usr/bin/env bash\necho "[]"\necho "Error: boom" >&2\nexit 1\n' >"$TMP_ROOT/yq-fails/yq"
 printf '#!/usr/bin/env bash\necho "yq: command not found" >&2\nexit 127\n' >"$TMP_ROOT/yq-missing/yq"
@@ -1196,11 +1150,7 @@ STUB_AUTHOR="$APP" expect "an App's pull request with no trust-gate path and no 
 RUNS_CODE="$(runs "$(run 10 $CODE)")"
 STUB_FILES='[]' STUB_CHANGED=0 STUB_AUTHOR=
 
-# gh_read is the only retry layer: a run-list read is sent 3 times at most,
-# after full-jitter waits of at most 5 and then 10 s, and the step reads it
-# once for the review wait, and the judgment reuses it when nothing waited.
 runs_reads() { listings head; }
-# waits_within <ceiling>...: one logged sleep per ceiling, each 0 to it.
 waits_within() {
   local -a got want=("$@")
   local i
@@ -1217,8 +1167,6 @@ if [[ "$(runs_reads)" -eq 2 ]] && waits_within 5; then
 else
   fail "a run list that fails once took $(runs_reads) reads and waits '$(paste -sd' ' "$TMP_ROOT/log.sleeps")', want 2 reads and one wait of 0 to 5 s"
 fi
-# Three failed sends end the review wait and keep nothing; three more fail the
-# judgment closed, though a 7th send would read the list.
 export STUB_RUNS_FAILS=6
 expect "an unreadable run list fails closed" 1 "::error::could not read the pull_request runs on $HEAD; re-run this run."
 if [[ "$(runs_reads)" -eq 6 ]] && waits_within 5 10 5 10; then
@@ -1248,5 +1196,49 @@ JOBS_10="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed 
 expect "a cancelled status job asks for a re-run and reads no annotations" 1 "'$CODE_CHECK' ended cancelled on $HEAD"
 if grep -q '/annotations' "$TMP_ROOT/log"; then fail "a cancelled status job read annotations"; else ok "a cancelled status job reads no annotations"; fi
 JOBS_10="$PASS_CODE" NOTES_9=""
+
+if [[ "$step" == *"FORMATTER_PROOF: \${{ needs.prove-formatting.outputs.proof }}"* &&
+  "$step" == *"PROOF_HEAD: \${{ needs.prove-formatting.outputs.head }}"* ]]; then
+  ok "the step reads prove-formatting's proof and the head it proved"
+else
+  fail "the step lost FORMATTER_PROOF or PROOF_HEAD from prove-formatting"
+fi
+prove_if="$(awk '/^  prove-formatting:$/ { on = 1; next } on && /^  [^ ]/ { exit } on && /^    if: / { sub(/^    if: /, ""); print; exit }' "$WORKFLOW")"
+if [[ "$prove_if" == "\${{ github.event_name == 'pull_request' && github.event.pull_request.draft != true }}" ]]; then
+  ok "prove-formatting runs on every non-draft pull_request event, contract-only ones included"
+else
+  fail "prove-formatting's if: is not exactly the pull_request and non-draft condition: '$prove_if'"
+fi
+export FORMATTER_PROOF PROOF_HEAD
+proof() { BODY="$TMP_ROOT/body.live.sh" expect "$@"; }
+RUNS_CODE="$(runs)" RUNS_SEC="$(runs)" STUB_REVIEWS='[]'
+STUB_FILES="$(files plugins/x/a.sh plugins/x/b.py)" STUB_CHANGED=2 FORMATTER_PROOF=true PROOF_HEAD=$HEAD
+proof "a proven head that changes no trust-gate path needs no review lane" 0 \
+  "The pinned formatters reproduce $HEAD from its base byte for byte, and it changes no trust-gate path" "::error::"
+if grep -q 'repos/o/r/actions/' "$TMP_ROOT/log"; then fail "a proven head's run read the review runs"; else ok "a proven head's run reads no review run"; fi
+if grep -q '/statuses' "$TMP_ROOT/log"; then fail "a proven head's run read or wrote a commit status"; else ok "a proven head's run neither reads nor writes a commit status"; fi
+FORMATTER_PROOF='' PROOF_HEAD=''
+proof "a run whose prove-formatting gave no proof leaves the lanes to decide" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
+FORMATTER_PROOF=true PROOF_HEAD="${HEAD//0/f}"
+proof "a proof of another head leaves the lanes to decide" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
+PROOF_HEAD=$HEAD FORMATTER_PROOF=false
+proof "no proof leaves the lanes to decide" 1 "'$CODE_CHECK' is missing" "formatter-only proof"
+FORMATTER_PROOF=true STUB_FILES="$(files plugins/x/a.sh .github/workflows/pr-require-checks.yml)"
+proof "a proven head on a trust-gate path with no approval leaves the lanes to decide" 1 \
+  "::notice::the pinned formatters reproduce $HEAD, but it changes trust-gate paths: .github/workflows/pr-require-checks.yml." "lanes are not required"
+STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED)")"
+proof "a listed person's approval of a proven head covers its trust-gate paths" 0 \
+  "u153232337, a person on the trusted-actor list, approved it, which covers its trust-gate paths: .github/workflows/pr-require-checks.yml" "::error::"
+STUB_REVIEWS="$(reviews "$(review 153232337 APPROVED "${HEAD//0/f}")")"
+proof "an approval of an older head does not cover a proven head's trust-gate paths" 1 "'$CODE_CHECK' is missing" "lanes are not required"
+STUB_REVIEWS="$(reviews "$(review 777 APPROVED)")"
+proof "an approval by an account not a listed person does not cover them" 1 "'$CODE_CHECK' is missing" "lanes are not required"
+STUB_REVIEWS='[]' STUB_FILES="$(files plugins/x/a.sh)" STUB_CHANGED=3
+proof "a proven head whose file list GitHub cut short leaves the lanes to decide" 1 \
+  "::notice::the pinned formatters reproduce $HEAD, but GitHub listed fewer files than #77 changes" "lanes are not required"
+STUB_CHANGED=1
+HEAD_REPO=fork/r proof "a fork's proven head still gets no pass" 1 "::error::'$CODE_CHECK' did not run on $HEAD (head repository: fork/r)" "formatter-only proof"
+FORMATTER_PROOF='' PROOF_HEAD=''
+RUNS_CODE="$(runs "$(run 10 $CODE)")" RUNS_SEC="$(runs "$(run 20 $SEC)")"
 
 test_harness::report

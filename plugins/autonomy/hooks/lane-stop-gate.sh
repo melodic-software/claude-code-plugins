@@ -112,8 +112,6 @@ gate_arm_owned() {
   local claim="$1" me="${SESSION_ID//[$'\r\n']/}" owner=""
   [[ ! -e "$claim" || (-f "$claim" && ! -L "$claim") ]] || return 0
   if [[ -n "$me" ]] && (
-    # umask 077 is best-effort on MSYS (the claim may still land 644); the
-    # exclusive-create is what binds the record, not the file mode.
     umask 077
     set -o noclobber
     printf '%s\n' "$me" >"$claim"
@@ -253,8 +251,6 @@ fi
 marker_identity_to() {
   local __id=""
   # portability-ok: GNU-first of a dual-dialect ladder — the BSD `-f` spelling is
-  # the next alternative, and a host with neither returns the empty identity this
-  # function documents (#1784)
   { __id=$(stat -c '%Y %s' -- "$2"); } 2>/dev/null ||
     # portability-ok: BSD ladder rung paired with GNU `stat -c` above (#1784)
     { __id=$(stat -f '%m %z' -- "$2"); } 2>/dev/null ||

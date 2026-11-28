@@ -1,14 +1,14 @@
 ---
-description: "When the built-in EnterWorktree or ExitWorktree tool resolves in this session, prefer ExitWorktree with action keep to leave a worktree; this skill to create one, to enter an existing one (claim check, then EnterWorktree by path), and to inventory, clean up, or audit worktrees. Manage git worktree lifecycle for parallel-session isolation: create (external root, then enter), status (PR + staleness inventory), cleanup (file-lock-aware removal), audit (infrastructure health). Use when: 'create worktree', 'worktree status', 'clean up worktrees', 'orphaned worktrees', or proactively when on main before writing code, not for PR lifecycle (use /pull-request)."
+description: "Manage git worktrees for parallel work: create, enter existing, status, cleanup, audit, review kept (use ExitWorktree keep to leave if EnterWorktree/ExitWorktree resolves in this session). Use on main before editing: 'create worktree', 'worktree status', 'clean up worktrees', 'orphaned worktrees'. Not for PRs: /source-control:pull-request."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[create|status|cleanup|audit] [args]"
+argument-hint: "[create|status|cleanup|audit|review] [args]"
 metadata:
   workflow-stage: session
   summary: Create, inspect, and clean git worktrees for parallel sessions
 ---
 
-**Arguments.** `[create|status|cleanup|audit] [args]`. e.g., /worktree create feat/my-feature, /worktree status, /worktree cleanup [<path>...] [--dry-run], /worktree audit
+**Arguments.** `[create|status|cleanup|audit|review] [args]`. e.g., /worktree create feat/my-feature, /worktree status, /worktree cleanup [<path>...] [--dry-run], /worktree audit, /worktree review
 
 ## Repository context. Gather first
 
@@ -57,10 +57,11 @@ This skill is self-contained: every action runs on plain `git`, plus the forge C
 | Action | Entry point | Use case |
 |--------|-------------|----------|
 | *(empty)* | Smart default | Detect current state, suggest appropriate action |
-| `create [name]` | Create worktree | Validate name, explain setup, call EnterWorktree |
+| `create [name]` | Create worktree | Validate name, explain setup, work by path or call EnterWorktree |
 | `status` | Inventory | List all worktrees with PR status and staleness |
 | `cleanup [<path>...] [--dry-run]` | Remove stale | Prune orphans, detect merged PRs and stale locks, remove with confirmation; named paths limit it to exactly those worktrees |
 | `audit` | Health check | Run status + verify configuration health |
+| `review` | Judge reap review rows | Read the newest reap run file's `review` rows, write a cited verdict per worktree, resolve only by push or `sync-back`; never deletes: [context/review.md](context/review.md) |
 
 ---
 
@@ -97,8 +98,8 @@ Create a worktree with guided naming and setup verification. Full procedure (pre
 - **Scripts directory (resolved): `${CLAUDE_PLUGIN_ROOT}/scripts`.** The `context/` files call it `<scripts-dir>`; substitute this resolved absolute path before any of their commands reaches Bash. Observed 2026-09-29 (Claude Code 2.1.284) in two headless `claude -p` runs on a disposable `--plugin-dir` plugin, which quoted the token back from the skill body and from a context file, then ran the context file's Bash line: `${CLAUDE_PLUGIN_ROOT}` expands in this file but stays literal in a `context/` file read via `Read`, and a command with the literal token exits 127 from `/scripts/...`. **Pointer**: when checking where plugin variables resolve, fetch [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves) live. **As of**: 2026-11-10. **Recheck trigger**: that section or a Claude Code release note changes plugin-variable substitution or the Bash tool environment, or a run of the same probe shows the token expanded in a context file.
 - **Plugin data directory: `${CLAUDE_PLUGIN_DATA}`**. This file is the only surface where that token expands (a `context/` file is read as raw bytes and carries it literally, and a Bash-tool subprocess's environment copy is not per-plugin). Pass the resolved path to the helper's `--data-root-file` flag through the same `Write`-tool temp file channel as the root above, so an unconfigured `worktree_root` still resolves outside every repository. If the token arrives unexpanded, the helper detects it and refuses rather than creating a literally-named directory.
 - **Run the Workspace environment `setup` after the worktree exists and before entering it.** When origin's default branch declares a "Workspace environment" entry, read it from the fetched default-branch commit (never the working tree) and run its `setup` command through the Bash tool from the new worktree root with `WORKSPACE_ID` and `WORKSPACE_ROOT` set, on both the helper path and the plain `git worktree add` path; skip it for a worktree whose stage reads untrusted input. The `WorktreeCreate` hook runs no verb. Contract: `docs/contracts/workspace-environment/README.md` in this plugin's marketplace repository; procedure in [context/create.md § Workspace environment setup](context/create.md#workspace-environment-setup).
-- **Enter with `EnterWorktree(path: "<printed-path>")` as the final action**: the working directory and session state change on that call, so nothing may run after it. The out-of-`.claude/worktrees/` path prompts for approval; the next bullet's pointer covers when that prompt fires.
-- **With no user present, skip `EnterWorktree` outside `.claude/worktrees/`.** A headless, background or auto-mode run has no one to answer that approval, so the call is denied. Report the printed path and work by explicit path: `git -C <literal path>` for git, and the literal absolute path for every other command and file tool, since the shell's working directory resets after each call. Observed 2026-10-09: the ask was denied in a headless probe. Pointer: [Ask Claude to create a worktree](https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree), which states when the approval prompt fires and what suppresses it.
+- **Work by explicit path when the session can already reach the worktree root.** Entering a path outside `.claude/worktrees/` asks the person for approval each time, and we do not ask for an approval a session does not need. When the worktree root is one of the session's working directories (an `additionalDirectories` entry), do not call `EnterWorktree`: report the printed path and work by explicit path, `git -C <literal path>` for git and the literal absolute path for every other command and file tool, since the shell's working directory resets after each call. Pointer: [Ask Claude to create a worktree](https://code.claude.com/docs/en/worktrees#ask-claude-to-create-a-worktree), which states when the approval prompt fires and what suppresses it.
+- **Otherwise enter with `EnterWorktree(path: "<printed-path>")` as the final action**: the working directory and session state change on that call, so nothing may run after it. With no user present, skip the call and work by explicit path: a headless, background or auto-mode run has no one to answer the approval, so the call is denied. Observed 2026-10-09: the ask was denied in a headless probe.
 
 **Orchestrated (autonomous) provisioning does not use this action.** An orchestrator that must stay resident to keep dispatching (e.g. `/work-items:work` (if enabled)) cannot invoke `create`: the `EnterWorktree` terminal above would transition its own session and end its ability to orchestrate. It provisions **non-interactively**: the dispatched worker runs the shared `worktree-create.sh` helper directly (its output contract prints the path; the caller omits the `EnterWorktree` step), or a plain `git worktree add` followed by `scripts/worktree-claim.sh claim <path>` (the PostToolUse hook does this for Bash-tool adds, claiming only the parsed target), then runs the Workspace environment `setup` for it exactly as [context/create.md § Workspace environment setup](context/create.md#workspace-environment-setup) describes, then works the worktree via `git -C <path>` **without entering it**. When that direct invocation runs from outside the repository, add `--repo-dir <repo-toplevel>` to the flags the interactive path already passes (`--name`, `--fallback-root-file`, `--data-root-file`; see context/create.md). `--repo-dir` alone is incomplete: with `worktreeroot.path` unset, the helper gets the plugin-data default only through `--data-root-file` and otherwise exits 3. Also pass `--base-ref head` when the effective `worktree.baseRef` setting is `head`, resolved one settings layer per call as [context/create.md § Base branch](context/create.md#base-branch) orders it; an omitted `--base-ref` defaults to `fresh`. The dispatching orchestrator (`/work-items:work` (if enabled)) owns that worker-side lifecycle end to end.
 
@@ -209,24 +210,22 @@ basis or changing the placement rule. A routine `create` follows the rule withou
 When built-in worktree tools resolve in this session, a request to "make a worktree" can reach
 either a tool or this skill.
 
-- **`EnterWorktree` (built-in tool)**: creates a worktree by name in the in-repo
-  `.claude/worktrees/` and switches the session into it, or, given a `path`, switches into an
-  existing worktree. The model invokes it; the person does not.
-- **`ExitWorktree` (built-in tool)**: leaves a worktree session and restores the original
-  directory. `action: "keep"` leaves the worktree and its branch on disk; `action: "remove"`
-  deletes both, but the tool will not remove a worktree that was entered by `path`. Since
-  2.1.327, `remove` asks first when the worktree may hold unsaved work, and is refused in
-  don't-ask mode or with nobody to answer unless an allow rule, auto mode or bypass permissions
-  mode allows it (changelog item 2.1.327-131). Since 2.1.330, neither `remove` nor the worktree exit dialog deletes a worktree that another running
-  Claude Code session is working in (changelog item 2.1.330-012).
+- **`EnterWorktree` (built-in tool)**: creates an in-repo worktree by name or enters one by
+  `path` ([EnterWorktree tool behavior](https://code.claude.com/docs/en/tools-reference#enterworktree-tool-behavior)).
+  The model invokes it; the person does not.
+- **`ExitWorktree` (built-in tool)**: leaves a worktree session; Routing below says which `action`
+  this skill passes. What `remove` deletes, when it asks first and when it keeps a worktree another session uses:
+  [clean up worktrees](https://code.claude.com/docs/en/worktrees#clean-up-worktrees).
 - **This skill (marketplace plugin).** Creates the worktree at an external root through the
-  shared helper, then enters it with `EnterWorktree(path:)`; checks the session claim before
-  entering an existing worktree; owns `status`, `cleanup`, and `audit`.
+  shared helper, then works in it by explicit path or enters it with `EnterWorktree(path:)`;
+  checks the session claim before writing in an existing worktree; owns `status`, `cleanup`, and
+  `audit`.
 
 **Routing.** When `ExitWorktree` resolves in this session, use it with `action: "keep"` to leave a
 worktree. Use this skill to create a worktree, and never `EnterWorktree(name:)`, which places it
 inside the repository (see the nesting invariant above). Entering a worktree that already exists
-also goes through this skill: run the claim gate above (`check-enter`), then, when
+also goes through this skill: run the claim gate above (`check-enter`), then work in it by
+explicit path when the worktree root is a working directory of the session, else, when
 `EnterWorktree` resolves in this session, call `EnterWorktree(path:)` as the final action.
 Removing a worktree is `cleanup`: this skill enters by `path`, and `ExitWorktree` will not remove
 a worktree entered that way.

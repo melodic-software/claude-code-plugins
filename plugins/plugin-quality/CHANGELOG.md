@@ -5,6 +5,54 @@ All notable changes to the `plugin-quality` plugin.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project
 adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-11-28
+
+### Changed
+
+- Trim skill frontmatter descriptions across `audit` (905 -> 347 chars) and `setup` (693 -> 144 chars), reducing changed description length from 1,598 to 491 characters (-1,107 chars; plugin total 1,801 -> 694 chars with `report` unchanged at 203 chars).
+
+## [1.0.5] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [1.0.4] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [1.0.3] - 2026-11-26
+
+### Changed
+
+- The `plugin-quality:auditor` agent points at the tools reference's WebFetch section for how WebFetch reads a page, instead of describing its truncation ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [1.0.2] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [1.0.1] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+## [1.0.0] - 2026-11-25
+
+### Removed
+
+- The `/plugin-quality:audit arm` entry. The session-flow observer runs by itself when session-flow's `observer_enabled` is on, so `arm` now launches nothing and says so.
+
+## [0.22.8] - 2026-11-25
+
+### Changed
+
+- The issue house style also reads `issue-tracker.md` from the org layer, the standards repository `standards_repository` names, when the repository has none of its own.
+
 ## [0.22.7] - 2026-11-24
 
 ### Changed

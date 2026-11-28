@@ -1,8 +1,4 @@
 # test-scope: scripts/sync-hold-floor.py .github/scripts/pr-merge/merge-holds.mjs .github/workflows/* docs/conventions/pr-pipeline.yaml
-"""`merge.diff-check.floor-paths`: this repository's effective floor stays what
-it was when its rows moved out of the plugin default, the built-in floor holds
-only what every consumer shares, a row can only tighten the floor, and the
-loader refuses a row it cannot trust."""
 
 from __future__ import annotations
 
@@ -55,13 +51,14 @@ REVIEW_SURFACE = (
     "docs/review/**",
 )
 PROMPT_TEXT = (
-    ".github/scripts/intake-triage/triage-rubric.txt",
+    "docs/conventions/work-items.md",
     ".github/scripts/intake-triage/refine-schema.json",
     ".github/scripts/plugin-eval/policy-probe-prompt.txt",
 )
 LANE_SCRIPTS = (
     ".github/scripts/pr-unblock/test-scope.mjs",
     ".github/scripts/pr-unblock/declare-test-scope.mjs",
+    BABYSIT + "babysit_verify_evidence.py",
 )
 
 
@@ -100,21 +97,21 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
     change updates these pins in the pull request that makes it."""
 
     def test_each_glob_keeps_its_class(self):
-        self.assertEqual(len(FLOOR.classes), 169)
+        self.assertEqual(len(FLOOR.classes), 189)
         self.assertEqual(
             digest(f"{g}\t{c}" for g, c in FLOOR.classes),
-            "9724c939fda2fa4948a0f053ba909e495e47baa6e85aecd56f9b2289b41506b7",
+            "f9009ffea648d2404cec572492a7c3607822a52a29081f652d0f5e73e02f2ede",
         )
 
     def test_each_clearing_route_keeps_its_globs(self):
         pins = {
-            FLOOR.high: "7d24642993e4cc936335fb453e84966c8b7e54133bc877c2517f388148add26b",
-            FLOOR.review: "10394ff1368cfe85fac636ba592a5b8c3d67f860ea89a4b3e77a2fa2fc4fb0c7",
-            FLOOR.author_review: "2276b8962a6172040fe454176c3d883dcf28b50f6c42086cb27fca58d22dc33f",
+            FLOOR.high: "2d5039c4f763aead5605d2e47836f6e6a5ec99f928df4b6c3cf5f38733350f89",
+            FLOOR.review: "4f9c6b39884eb35d63961ad34881434452cc2b6bb7674aa1782124b00785047f",
+            FLOOR.author_review: "2a46fb05fab0dedaa119e7174ac7daa14570b61d93740a1aee609a7ee1165c8e",
         }
         self.assertEqual(
             (len(FLOOR.high), len(FLOOR.review), len(FLOOR.author_review)),
-            (99, 70, 24),
+            (104, 85, 25),
         )
         for globs, pin in pins.items():
             self.assertEqual(digest(globs), pin)
@@ -123,11 +120,7 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
         hold_paths = re.compile(
             r"BEGIN hold-floor hold-paths.*?\n(.*?)\n\s*# END", re.S
         )
-        wanted = (
-            {g for g, _ in FLOOR.classes}
-            | {sync.TRUSTED_ACTORS}
-            | set(sync.SCRUTINY_ONLY)
-        )
+        wanted = {g for g, _ in FLOOR.classes} | set(sync.SCRUTINY_ONLY)
         for name in ("pr-review-hosted.yml", "pr-review-security-hosted.yml"):
             with self.subTest(name):
                 text = (ROOT / ".github/workflows" / name).read_text(encoding="utf-8")
@@ -152,11 +145,7 @@ class TheEffectiveFloorDidNotMove(unittest.TestCase):
         quoted = re.search(r"hold_patterns=\((.*?)\)\n", patterns)[1]
         self.assertEqual(
             set(re.findall(r"'([^']+)'", quoted)),
-            {
-                p
-                for g in (sync.TRUSTED_ACTORS, *(g for g, _ in FLOOR.classes))
-                for p in sync.bash_patterns(g)
-            },
+            {p for g, _ in FLOOR.classes for p in sync.bash_patterns(g)},
         )
 
     def test_row_order_decides_nothing(self):
@@ -180,7 +169,7 @@ class TheBuiltInFloorIsShared(unittest.TestCase):
         self.assertEqual(len(risk.FLOOR_CLASSES), 32)
 
     def test_every_other_row_sits_in_the_config(self):
-        self.assertEqual(len(ROWS), 169 - 32)
+        self.assertEqual(len(ROWS), 189 - 32)
         self.assertFalse(table(ROWS) & set(risk.FLOOR_CLASSES))
 
     def test_the_config_every_consumer_reads_is_held_by_a_built_in_row(self):
@@ -236,7 +225,6 @@ class ReviewSurfaceRowsNeverTakeTheLift(unittest.TestCase):
                 self.assertTrue(risk.holds(result))
 
     def test_dropping_the_marker_is_what_grants_the_lift(self):
-        # The control: the same path, the row without `author-lift: false`.
         path = "docs/standards/REVIEW.md"
         loosened = tuple(
             (g, c, True) if g == "docs/standards/**" else (g, c, lift)

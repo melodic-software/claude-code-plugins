@@ -1,5 +1,5 @@
 ---
-description: "Hands a task, investigation or review to OpenAI's Codex CLI as a background job and reads back its jobs. Use when the user asks for Codex: 'ask Codex', 'have Codex do X', 'Codex second opinion', 'Codex review of this branch', 'resume the Codex thread', 'is the Codex job done', 'cancel the Codex run', 'is Codex ready', 'update codex'. A multi-reviewer panel is /review:council."
+description: "Delegate a task, investigation, or read-only review to OpenAI's Codex CLI as a background job (status, result, cancel, update); delegate only when asked for Codex. Use when: 'ask Codex', 'Codex review of this branch', 'resume the Codex thread'. Not for a multi-reviewer panel: /review:council."
 argument-hint: "[run <prompt>|review --base <ref>|status [<job>]|result <job>|cancel <job>|update]"
 user-invocable: true
 disable-model-invocation: false
@@ -56,14 +56,17 @@ convention, else the session scratchpad) and pass it with `--prompt-file`; the c
 own copy in the job folder. Name the files and paths Codex should read; never paste file contents,
 diffs or logs into the prompt. Codex reads them itself inside its sandbox.
 
-Before a write task, list every directory outside the worktree it will write, pass each with
-`--add-dir` and name them in the prompt; pass none when the worktree is enough
+Before a write task, list every directory it will write outside the worktree and outside the temp
+directories (which the sandbox already allows), pass each with `--add-dir` and name them in the
+prompt; pass none when the worktree and temp directories are enough. Codex cannot stage
+or commit inside its sandbox: tell it to leave Git to you, and stage and commit after the run
 ([reference/run.md](reference/run.md#run)).
 
 ## Background runs
 
 Run every `run` and `review` with the Bash tool's `run_in_background`: a run can last up to
-`codex.timeout_seconds`, longer than a foreground Bash call may wait, and a call cut off by its own
+`codex.timeout_seconds`, which can outlast a foreground Bash call (how long one may wait:
+[timeout and output limits](https://code.claude.com/docs/en/tools-reference#timeout-and-output-limits)), and a call cut off by its own
 timeout leaves the job without its result. You are notified when it exits, so do not poll. The job id prints only at the end, so while it runs, find it with bare
 `external-agents status`. Stop a run with `external-agents cancel <job>`, which stops Codex's whole
 process tree; stopping the background Bash task alone may leave Codex running.
@@ -77,7 +80,14 @@ process tree; stopping the background Bash task alone may leave Codex running.
 - **`blocked-by-mode` is not success.** The command records a run `blocked-by-mode`, exits `3`,
   and still prints the final message whenever the sandbox refused a command, whatever Codex's own
   exit was; that message may describe work that never happened. Say the run was blocked, give the
-  blocked count and commands from the first line, and never report the task done.
+  blocked count and commands from the first line, and never report the task done. Any failed
+  command whose output reads like a refusal records the run `blocked-by-mode`, including one
+  Codex then worked around, such as a cache write it retried under a temp directory: the command
+  cannot tell the two apart. The first line names the command, not what was refused; read the
+  job's `log_path` to see which write failed. When the refusals were only `git add`,
+  `git commit` or cache writes, the edits may all be in place, but each refused command did not
+  finish: check the edits, rerun what those commands were for, then stage and commit yourself
+  ([reference/run.md](reference/run.md#run)).
 - **A review can be blocked and still count as `ran`.** `codex: ran (...)` with a blocked-commands
   part means Codex tried something the read-only sandbox refused; the findings stand, and the
   blocked part is worth one line in the reply.

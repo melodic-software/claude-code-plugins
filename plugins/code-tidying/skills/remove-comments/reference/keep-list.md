@@ -12,7 +12,8 @@ The shipped keep list. A repository replaces it through the `comment_keep_list` 
   nothing in this repository could remove the reason. The outside fact itself need not be provable
   from here; a comment the code contradicts is class A;
 - an **issue or RFC link that explains a constraint** the code cannot state (`# Header order is
-  fixed by RFC 9110 section 5.3`);
+  fixed by RFC 9110 section 5.3`). The comment lint passes the paragraph holding the link, within
+  `class_c_max_lines`, and not the rest of its comment;
 - an **ADR pointer**: one line that names one of this repository's decision records by the id or
   path form its ADR folder uses (`# See docs/adr/0042`), restates none of the record's reason, and
   sits at a module header or on a line whose decision the code does not make obvious. Keep it only

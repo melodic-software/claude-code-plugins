@@ -1,18 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Fail a lanes App pull request on kill switch, hold path, verifier or veto` step body
-# of .github/workflows/pr-require-checks.yml's ci-status under the shell Actions
-# gives a step with no `shell:` (bash -e), against stub `gh` and `sleep`.
-#
-# Native auto-merge (pr-merge.yml's enable-auto-merge job) merges a lanes App
-# pull request without pr-merge's gate, so ci-status holds it on the kill
-# switch, a member's newest comment saying not to merge, a changed or
-# renamed-from path matching the merge lane's denied paths, and a trusted-actor
-# list change that adds or widens an entry. Body text holds nothing: the
-# do-not-merge label is the veto. It reads them live, on a pull
-# request event and in the merge queue, runs the base commit's
-# merge-holds.mjs, and fails closed when it cannot tell. In the merge queue it
-# also runs pr-merge's verdict reader (babysit_verify_evidence.py, stubbed
-# here) from main's checkout, whose FAIL refusals hold.
 # test-scope: .github/workflows/pr-require-checks.yml .github/scripts/pr-merge/merge-holds.mjs docs/conventions/pr-pipeline.yaml
 set -uo pipefail
 
@@ -26,8 +12,7 @@ MODULE="$ROOT/.github/scripts/pr-merge/merge-holds.mjs"
 . "$ROOT/scripts/lib/ci-step.sh"
 
 TMP_ROOT="$(mktemp -d)"
-API_PID=
-trap '[[ -z "$API_PID" ]] || kill "$API_PID" 2>/dev/null; rm -rf "$TMP_ROOT"' EXIT
+trap 'rm -rf "$TMP_ROOT"' EXIT
 
 # shellcheck source=lib/ci-gh-read.sh
 . "$ROOT/scripts/lib/ci-gh-read.sh"
@@ -37,9 +22,6 @@ ci_gh_read::install "$WORKFLOW" "$TMP_ROOT" || fail "the ci-status gh_read helpe
 NAME='Fail a lanes App pull request on kill switch, hold path, verifier or veto'
 step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
 budget="$(sed -nE 's/^ +MERGE_GROUP_WAIT_SECONDS: ([0-9]+)$/\1/p' <<<"$step")"
-# A draft's ci-status passes by design (`Note a draft`), so the step makes no
-# read there; the ready_for_review run judges the holds. A merge group has no
-# pull_request.draft, which is not true, so the queue still runs it.
 if [[ "$step" == *"if: \${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}"* ]]; then
   ok "step runs on pull_request and merge_group, and skips on a draft unless a re-run finds the pull request ready"
 else
@@ -58,11 +40,11 @@ fi
 # shellcheck disable=SC2016 # workflow literals to match, not shell expansions
 if [[ "$step" == *"BASE_CONFIG: \${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}"* ]] &&
   grep -qxF '            /docs/conventions/pr-pipeline.yaml' "$WORKFLOW"; then
-  ok "step reads the base commit's pr-pipeline.yaml and trusted-actor list from the base checkout"
+  ok "step reads the base commit's pr-pipeline.yaml from the base checkout"
 else
   fail "step lacks BASE_CONFIG, or the base checkout lacks pr-pipeline.yaml"
 fi
-for file in /.github/scripts/pr-merge/merge-holds.mjs /docs/conventions/pr-pipeline.yaml /.github/standards/trusted-actors/trusted-actors.json; do
+for file in /.github/scripts/pr-merge/merge-holds.mjs /docs/conventions/pr-pipeline.yaml; do
   if grep -qxF "            $file" "$WORKFLOW"; then ok "the base checkout carries $file"; else fail "the base checkout lacks $file"; fi
 done
 if [[ "$step" != *"/contents/"* ]]; then
@@ -87,245 +69,33 @@ if [[ -n "${agg_line:-}" && "$job_line" -lt "$hold_line" && "$hold_line" -lt "$a
 else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
-# The step reads the lanes App's numeric id from ci-status's job-level
-# LANES_APP_ID, whose one source is the AUTOMATION_LANES_APP_SENDER_ID
-# repository variable: the workflow names LANES_APP_ID once, as that variable,
-# and no step overrides it.
 pins="$(grep -nE '^ +LANES_APP_ID:' "$WORKFLOW")"
 if [[ "$pins" =~ ^[0-9]+:"      LANES_APP_ID: \${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}"$ ]]; then
   ok "ci-status's job-level LANES_APP_ID is the AUTOMATION_LANES_APP_SENDER_ID variable, set once"
 else
   fail "LANES_APP_ID is not set once, at ci-status's job level, from vars.AUTOMATION_LANES_APP_SENDER_ID: '$pins'"
 fi
-# The runs below stand the variable in with merge.agent-identity's
-# trusted-actor id, the account the variable names.
 identity="$(sed -nE 's/^  agent-identity: (.+)$/\1/p' "$ROOT/docs/conventions/pr-pipeline.yaml")"
-LANES_APP_ID="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/standards/trusted-actors/trusted-actors.json")"
+LANES_APP_ID="$(jq -r --arg login "$identity" '.. | objects | select(.login? == $login) | .id' "$ROOT/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json")"
 [[ "$LANES_APP_ID" =~ ^[1-9][0-9]*$ ]] || fail "no trusted-actor id for merge.agent-identity '$identity': '$LANES_APP_ID'"
 
-# The stub logs its arguments. A pull read prints STUB_PULL. A contents read
-# fails: the step reads merge-holds.mjs, pr-pipeline.yaml and the
-# trusted-actor list from the hold config checkout (BASE_CONFIG), never
-# through the API. A discussion read fails its first STUB_FAILS calls,
-# then prints STUB_ISSUE, STUB_REVIEWS or STUB_INLINE (JSON arrays) as the
-# API's page. A files read answers STUB_FILES (a JSON array of [path,
-# renamed-from or null, status] arrays, status renamed with a renamed-from
-# path and modified otherwise) as the files API's rows, through the step's
-# own --jq. An artifacts read by name prints the run ids
-# STUB_ARTIFACTS (a JSON object of name to run ids) gives that name, through
-# the step's own --jq, each artifact's id ten times its run's; a run read
-# prints that id's entry of STUB_RUNS, or answers 404. An artifact archive
-# holds STUB_RECORD as its verdict.json (one judging #1, closing, by
-# default), or answers 404 when STUB_NO_RECORD is set and 503 on its first
-# STUB_ZIP_503 calls; the closing-issues
-# query answers STUB_CLOSING (#1 of o/r by default) through the step's --jq.
-mkdir -p "$TMP_ROOT/bin"
-cat >"$TMP_ROOT/bin/gh" <<'EOF'
-#!/usr/bin/env bash
-printf '%s\n' "$*" >>"$STUB_LOG"
-rows() { printf '%s\n' "${1:-[]}"; }
-discussion() {
-  [[ "$(grep -cE '/(comments|reviews)\?' "$STUB_LOG")" -gt "${STUB_FAILS:-0}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
-}
-case "$*" in
-"api graphql "*closingIssuesReferences*)
-  closing=${STUB_CLOSING:-}
-  [[ -n "$closing" ]] || closing='{"totalCount":1,"nodes":[{"number":1,"repository":{"nameWithOwner":"o/r"}}]}'
-  jq -c --argjson closing "$closing" \
-    '{data: {repository: {pullRequest: {closingIssuesReferences: $closing}}}}' <<<null | jq -c "${*: -1}"
-  ;;
-*/actions/artifacts/*/zip)
-  [[ -z "${STUB_NO_RECORD:-}" ]] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
-  [[ "$(grep -c '/zip$' "$STUB_LOG")" -gt "${STUB_ZIP_503:-0}" ]] || { echo 'gh: HTTP 503' >&2; exit 1; }
-  record=${STUB_RECORD:-}
-  [[ -n "$record" ]] || record='{"linked_issues":[{"number":1}],"spec_kind":"closes"}'
-  python3 -c 'import io, sys, zipfile
-buffer = io.BytesIO()
-with zipfile.ZipFile(buffer, "w") as archive:
-    archive.writestr("verdict.json", sys.argv[1])
-sys.stdout.buffer.write(buffer.getvalue())' "$record"
-  ;;
-"api graphql "*)
-  echo '{"data":{}}'
-  ;;
-*/contents/*) exit 1 ;;
-*/pulls/*/files\?*)
-  jq -c '[.[] | {filename: .[0], previous_filename: .[1], status: (.[2] // (if .[1] then "renamed" else "modified" end))}]' <<<"$STUB_FILES" | jq -r "${*: -1}"
-  ;;
-*/issues/*/comments\?*) discussion; rows "${STUB_ISSUE:-}" ;;
-*/pulls/*/reviews\?*) discussion; rows "${STUB_REVIEWS:-}" ;;
-*/pulls/*/comments\?*) discussion; rows "${STUB_INLINE:-}" ;;
-*/actions/artifacts\?name=*)
-  all="$*" name=${all##*actions/artifacts?name=}
-  name=${name%%&*}
-  # The step's own --jq filter, the last argument, runs over a listing that
-  # also holds an expired artifact of that name and an unexpired one whose
-  # name only starts with it, both of run 11, which neither may count.
-  jq -c --arg name "$name" '{artifacts: ([.[$name][]? | {name: $name, id: (. * 10), expired: false, workflow_run: {id: .}}]
-    + [{name: $name, id: 110, expired: true, workflow_run: {id: 11}}, {name: ($name + "-i1"), id: 110, expired: false, workflow_run: {id: 11}}])}' \
-    <<<"${STUB_ARTIFACTS:-{\}}" | jq -r "${*: -1}"
-  ;;
-*/actions/artifacts\?per_page=100*)
-  # The whole listing, as two pages of STUB_TOTAL's total_count holding
-  # STUB_LISTED_FAILS FAILs between them, a pass and a name that only starts like a
-  # FAIL, through the step's own --jq filter.
-  [[ -n "${STUB_TOTAL-x}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
-  jq -nc --argjson total "${STUB_TOTAL:-7522}" --argjson fails "${STUB_LISTED_FAILS:-264}" '
-    def fail: {name: "pr-verify-\(.)-0123456789abcdef0123456789abcdef01234567-fail-i\(.)"};
-    {total_count: $total, artifacts: ([range(0; $fails / 2 | floor) | fail] + [{name: "pr-verify-7-0123456789abcdef0123456789abcdef01234567-pass"}])},
-    {total_count: $total, artifacts: ([range($fails / 2 | floor; $fails) | fail] + [{name: "pr-verify-7-0123456789abcdef-fail"}])}' |
-    jq -r "${*: -1}"
-  ;;
-*/actions/runs/*)
-  all="$*" id=${all##*actions/runs/}
-  jq -ce --arg id "$id" '.[$id] // error' <<<"${STUB_RUNS:-{\}}" 2>/dev/null || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
-  ;;
-*/pulls/*) printf '%s\n' "$STUB_PULL" ;;
-*/rules/branches/*)
-  [[ -n "${STUB_RULES-x}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
-  jq -nc --argjson n "${STUB_RULES:-1}" '[{type: "pull_request"}, {type: "merge_queue", parameters: {max_entries_to_build: $n, grouping_strategy: "ALLGREEN"}}]'
-  ;;
-*rate_limit*)
-  [[ -n "${STUB_RATE:-}" ]] || { echo 'gh: Server Error (HTTP 502)' >&2; exit 1; }
-  printf '%s\n' "$STUB_RATE"
-  ;;
-*) exit 1 ;;
-esac
-EOF
-# The sleep stub logs `sleep <seconds>` and returns at once.
-cat >"$TMP_ROOT/bin/sleep" <<'EOF'
-#!/usr/bin/env bash
-printf 'sleep %s\n' "$*" >>"$STUB_LOG"
-EOF
-chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
-
-# The verdict reader stub logs `reader <args>`, exits STUB_READER_RC when set,
-# and otherwise saves the run's listing as the reader does (unless
-# STUB_NO_LISTING is set): each STUB_ARTIFACTS name's artifacts, plus an
-# expired one of that name and an unexpired one whose name only starts with
-# it, both of run 11, which neither may count. It then prints STUB_EVIDENCE,
-# or by default a report with no refusal for the head it was given.
-cat >"$TMP_ROOT/reader.py" <<'EOF'
-import json, os, sys
-with open(os.environ["STUB_LOG"], "a") as log:
-    log.write("reader " + " ".join(sys.argv[1:]) + "\n")
-    log.write("reader-env floor-wait=" + os.environ.get("BABYSIT_READ_FLOOR_WAIT_SECONDS", "") + "\n")
-if os.environ.get("STUB_READER_RC"):
-    sys.exit(int(os.environ["STUB_READER_RC"]))
-if not os.environ.get("STUB_NO_LISTING"):
-    listing = []
-    for name, runs in json.loads(os.environ.get("STUB_ARTIFACTS") or "{}").items():
-        listing += [{"name": name, "id": run * 10, "expired": False, "workflow_run": {"id": run}} for run in runs]
-        listing += [{"name": name, "id": 110, "expired": True, "workflow_run": {"id": 11}},
-                    {"name": name + "-i1", "id": 110, "expired": False, "workflow_run": {"id": 11}}]
-    with open(os.environ["BABYSIT_VERIFY_LISTING"], "w") as out:
-        json.dump({"fetchedAt": "2026-10-25T10:00:00+00:00", "artifacts": listing}, out)
-print(os.environ.get("STUB_EVIDENCE") or json.dumps({"refusal": None, "head": sys.argv[-1], "detail": None}))
-EOF
-# The head-ref map stub logs `head-ref-map <args>` and fails when
-# STUB_MAP_FAILS is set, as a read that warns and writes nothing.
-mkdir -p "$TMP_ROOT/pr-merge"
-cat >"$TMP_ROOT/pr-merge/head-ref-map.mjs" <<'EOF'
-import { appendFileSync } from "node:fs";
-import process from "node:process";
-appendFileSync(process.env.STUB_LOG, `head-ref-map ${process.argv.slice(2).join(" ")}\n`);
-process.exitCode = process.env.STUB_MAP_FAILS ? 1 : 0;
-EOF
-
-SHA=0123456789abcdef0123456789abcdef01234567
-BASE=89abcdef0123456789abcdef0123456789abcdef
+# shellcheck source=lib/ci-lanes-pr-hold-stubs.sh
+. "$ROOT/scripts/lib/ci-lanes-pr-hold-stubs.sh" "$identity" "$budget" "$TMP_ROOT"
 QUEUE="refs/heads/gh-readonly-queue/main/pr-7-$SHA"
-LANES='{"id":337595936,"login":"melodic-automation-lanes[bot]","type":"Bot"}'
-pull() { jq -nc --argjson user "${2:-$LANES}" --arg body "$1" --arg ref "${STUB_BASE_REF:-main}" --arg sha "${STUB_BASE_SHA:-$BASE}" \
-  --argjson changed "${STUB_CHANGED:-1}" '{number: 7, node_id: "PR_7", user: $user, body: $body, head: {sha: "'"$SHA"'", ref: "work-resolve-issue/issue-1"}, base: {ref: $ref, sha: $sha}, changed_files: $changed,
-    auto_merge: (if env.STUB_ARMED then {merge_method: "squash"} else null end)}'; }
-comment() { jq -nc --arg login "$1" --arg type "${2:-User}" --arg assoc "$3" --arg at "$4" --arg body "$5" \
-  '{user: {login: $login, type: $type}, author_association: $assoc, created_at: $at, body: $body}'; }
-# approval <login> <id> <state> <at> <commit>: a review of a commit.
-approval() { jq -nc --arg login "$1" --argjson id "$2" --arg state "$3" --arg at "$4" --arg commit "$5" \
-  '{user: {login: $login, id: $id, type: "User"}, author_association: "OWNER", state: $state, submitted_at: $at, commit_id: $commit, body: ""}'; }
-review() { jq -nc --arg login "$1" --arg assoc "$2" --arg at "$3" --arg body "$4" \
-  '{user: {login: $login, type: "User"}, author_association: $assoc, submitted_at: $at, body: $body}'; }
 
-# The hold config, as the base_config checkout holds it, rebuilt for each
-# run: STUB_CONFIG with merge.agent-identity as pr-pipeline.yaml, STUB_ACTORS
-# as the trusted-actor list and STUB_MODULE (this tree's merge-holds.mjs by
-# default), whose switchHold judges the kill switch and whose main judges the
-# holds. STUB_NO_CONFIG, STUB_NO_ACTORS and STUB_NO_MODULE leave that file
-# out. STUB_BASE_CONFIG replaces the whole directory.
-base_config() {
-  local dir="$TMP_ROOT/base-config"
-  rm -rf "$dir"
-  mkdir -p "$dir/docs/conventions" "$dir/.github/standards/trusted-actors" "$dir/.github/scripts/pr-merge"
-  [[ -n "${STUB_NO_CONFIG:-}" ]] ||
-    IDENTITY="$identity" yq '.merge."agent-identity" = strenv(IDENTITY)' <<<"$STUB_CONFIG" >"$dir/docs/conventions/pr-pipeline.yaml"
-  [[ -n "${STUB_NO_ACTORS:-}" ]] || cp "$STUB_ACTORS" "$dir/.github/standards/trusted-actors/trusted-actors.json"
-  [[ -n "${STUB_NO_MODULE:-}" ]] || cp "${STUB_MODULE:-$MODULE}" "$dir/.github/scripts/pr-merge/merge-holds.mjs"
-}
-
-# expect <label> <want-rc> <want-discussion-calls> [want-out]
-# The event is pull_request with PR_NUMBER 7 unless EVENT/REF say otherwise.
-WARM_CARRIED='{"carried-run-record":{"o/r|1":{"at":"2026-10-25T10:00:00Z","value":{}}},"carried-fail-head-ref":{},"carried-on-branch":{}}'
-expect() {
-  local label="$1" want_rc="$2" want_calls="$3" out rc calls
-  : >"$TMP_ROOT/log"
-  rm -rf "$TMP_ROOT/verify-listing.json" "$TMP_ROOT/pr-files.json"
-  [[ -n "${STUB_BASE_CONFIG+x}" ]] || base_config
-  # STUB_KEEP_READS keeps the pr_read answers an earlier step left.
-  [[ -n "${STUB_KEEP_READS:-}" ]] || rm -rf "$TMP_ROOT/pr-reads"
-  # The broker step's file pages (STUB_PR_FILES, as that step saved them).
-  [[ -z "${STUB_PR_FILES:-}" ]] || printf '%s\n' "$STUB_PR_FILES" >"$TMP_ROOT/pr-files.json"
-  # The payload's author, on a pull request event STUB_PULL's own unless
-  # STUB_AUTHOR_ID or STUB_AUTHOR_TYPE replace it; a merge group names none.
-  # The payload's head is the pull's unless STUB_HEAD replaces it.
-  local author_id='' author_type='' head_sha=''
-  if [[ "${EVENT:-pull_request}" == pull_request ]]; then
-    head_sha="${STUB_HEAD-$SHA}"
-    author_id="${STUB_AUTHOR_ID-$(jq -r '.user.id // ""' <<<"$STUB_PULL")}"
-    author_type="${STUB_AUTHOR_TYPE-$(jq -r '.user.type // ""' <<<"$STUB_PULL")}"
-  fi
-  # A warm reader: the carry step wrote pr-merge's carried reads (STUB_COLD: none).
-  # STUB_CARRIED replaces the carried file (all-empty sections are cold too).
-  if [[ -n "${STUB_COLD:-}" ]]; then
-    rm -f "$TMP_ROOT/babysit-run-cache.json"
-  else
-    printf '%s\n' "${STUB_CARRIED:-$WARM_CARRIED}" >"$TMP_ROOT/babysit-run-cache.json"
-  fi
-  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" \
-    GITHUB_EVENT_NAME="${EVENT:-pull_request}" GITHUB_REF="${REF:-refs/pull/7/merge}" PR_NUMBER="${PR_NUMBER-7}" PR_AUTHOR_ID="$author_id" PR_AUTHOR_TYPE="$author_type" PR_HEAD_SHA="$head_sha" \
-    GITHUB_REPOSITORY=o/r GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GROUP_BASE_SHA="${GROUP_BASE_SHA-}" GROUP_BASE_REF="${GROUP_BASE_REF-refs/heads/main}" \
-    VERIFY_EVIDENCE_SCRIPT="$TMP_ROOT/reader.py" BABYSIT_VERIFY_LEGACY_FAILS="$TMP_ROOT/base/.github/verify-legacy-fails.json" PR_MERGE_SCRIPTS="$TMP_ROOT/pr-merge" BABYSIT_VERIFY_LISTING="$TMP_ROOT/verify-listing.json" \
-    BABYSIT_RUN_CACHE="$TMP_ROOT/babysit-run-cache.json" API_BUDGET_READ_FLOOR=0.1 MERGE_GROUP_WAIT_SECONDS="$budget" QUEUED_PR_WAITED="${STUB_WAITED-0}" BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" LANES_DISABLED="${KILL-false}" LANES_REPO_DISABLED="${REPO_KILL-false}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
-  calls=$(grep -cE '/(comments|reviews)\?' "$TMP_ROOT/log")
-  if [[ "$rc" -ne "$want_rc" ]]; then
-    fail "$label: expected rc=$want_rc got rc=$rc out='$out'"
-  elif [[ "$calls" -ne "$want_calls" ]]; then
-    fail "$label: expected $want_calls discussion call(s) got $calls: '$(sort -u "$TMP_ROOT/log")'"
-  elif grep -q '/contents/' "$TMP_ROOT/log"; then
-    fail "$label: the hold config was read through the contents API, not the base_config checkout: '$(grep '/contents/' "$TMP_ROOT/log")'"
-  elif [[ -n "${4:-}" && "$out" != *"$4"* ]]; then
-    fail "$label: output lacks '$4': '$out'"
-  else
-    ok "$label"
-  fi
-}
-
-export STUB_PULL STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE='' STUB_FILES='[["docs/guide.md"]]'
-export STUB_ACTORS="$ROOT/.github/standards/trusted-actors/trusted-actors.json"
+export STUB_PULL STUB_ISSUE='' STUB_REVIEWS='' STUB_FILES='[["docs/guide.md"]]'
+export STUB_ACTORS="$ROOT/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json"
+export STUB_SAMPLES="$ROOT/scripts/fixtures/verify-pass-out"
 export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 KYLE_VETO="$(comment kyle User MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')"
 
 STUB_PULL="$(pull 'Closes #1')"
-expect "a lanes App pull request with no hold passes" 0 3 "#7: no member veto and no hold path"
+expect "a lanes App pull request with no hold passes" 0 2 "#7: no member veto and no hold path."
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 expect "a person's pull request is left to pr-merge's gate, with no discussion read" 0 0 "not the lanes App's"
 STUB_PULL="$(pull 'Closes #1' '{"id":1,"login":"melodic-automation-lanes[bot]","type":"User"}')"
 expect "a user account with the lanes App's login is not the lanes App" 0 0 "not the lanes App's"
 
-# ON A PULL REQUEST EVENT THE PAYLOAD'S AUTHOR DECIDES A NON-APP PULL REQUEST
-# WITH NO READ: the pull is read only for the lanes App's (whose changed-file
-# count, base and head the step uses), and when the payload names no
-# well-formed author, which falls through to the live read and its test.
 pull_reads() { grep -cE 'repos/o/r/pulls/7$' "$TMP_ROOT/log"; }
 expect_pull_reads() {
   if [[ "$(pull_reads)" -eq "$2" ]]; then ok "$1"; else fail "$1: expected $2 pull read(s): '$(sort -u "$TMP_ROOT/log")'"; fi
@@ -337,7 +107,7 @@ for user in '{"id":153232337,"login":"kyle-sexton","type":"User"}' '{"id":496993
   expect_pull_reads "a non-App payload author ($(jq -r .login <<<"$user")) reads no pull" 0
 done
 STUB_PULL="$(pull 'Closes #1')"
-expect "the lanes App's payload author goes on to the live read" 0 3 "#7: no member veto and no hold path"
+expect "the lanes App's payload author goes on to the live read" 0 2 "#7: no member veto and no hold path."
 expect_pull_reads "the lanes App's pull request is read once" 1
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 for payload in "STUB_AUTHOR_ID=" "STUB_AUTHOR_ID=x" "STUB_AUTHOR_TYPE="; do
@@ -346,17 +116,15 @@ for payload in "STUB_AUTHOR_ID=" "STUB_AUTHOR_ID=x" "STUB_AUTHOR_TYPE="; do
   expect_pull_reads "with $payload the pull is read" 1
   unset STUB_AUTHOR_ID STUB_AUTHOR_TYPE
 done
-# A payload claiming another author never skips the lanes App's holds: the
-# read author is tested, and the lanes App's pull request is still held.
 STUB_PULL="$(pull 'Closes #1')"
-STUB_FILES='[["docs/held/a.md"]]' STUB_AUTHOR_ID='' expect "an empty payload id for the lanes App's pull request still holds it" 1 3 "it changes docs/held/a.md, a hold path"
+STUB_FILES='[["docs/held/a.md"]]' STUB_AUTHOR_ID='' expect "an empty payload id for the lanes App's pull request still holds it" 1 2 "it changes docs/held/a.md, a hold path"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 STUB_AUTHOR_ID='' STUB_PULL='{}' expect "an unreadable author with no payload author fails closed" 1 0 "the author of #7 could not be read"
+NOT_JUDGED="#7: not held: pr-verify does not judge its author, so no verdict is read."
 EVENT=merge_group REF="refs/heads/gh-readonly-queue/main/pr-7-$SHA" PR_NUMBER='' GROUP_BASE_SHA=$BASE \
-  expect "in the merge queue a non-App pull request is read, as no payload names its author" 0 0 "not the lanes App's"
+  expect "in the merge queue a non-App pull request is read, as no payload names its author, and its pin is checked, with no review read under no pin hold" 0 1 "$NOT_JUDGED"
 expect_pull_reads "in the merge queue the pull is read" 1
 
-# The lanes kill switch stops every lanes App pull request, and only those.
 for kill in "KILL=true" "KILL=" "REPO_KILL=true" "REPO_KILL=1"; do
   STUB_PULL="$(pull 'Closes #1')"
   export "${kill?}"
@@ -368,14 +136,11 @@ for kill in "KILL=true" "KILL=" "REPO_KILL=true" "REPO_KILL=1"; do
   STUB_PULL="$(pull 'Closes #1')"
   unset KILL REPO_KILL
 done
-# The switch holds before the base-branch exit, so one into another branch fails too.
 STUB_PULL="$(STUB_BASE_REF=release pull 'Closes #1')"
 KILL=true expect "with the kill switch on, a lanes App pull request into another branch fails" 1 0 \
   "::error::#7: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), so no lanes App pull request merges; it merges once both read 'false' and ci-status is re-run, which the lost-runs reconciler does when this is the run's only failure."
 EVENT=merge_group REF="refs/heads/gh-readonly-queue/main/pr-7-$SHA" PR_NUMBER='' GROUP_BASE_SHA=$BASE KILL=true \
   expect "with the kill switch on, a queued lanes App pull request fails" 1 0 "::error::#7: the lanes kill switch is on"
-# The rule is the base checkout's merge-holds.mjs switchHold: a base that cannot
-# judge it fails closed before any further read.
 STUB_PULL="$(pull 'Closes #1')"
 for stub in '' 'export const holds = () => [];' 'export const switchHold = () => 7;' 'export const switchHold = () => "";' \
   'export const switchHold = () => { process.exit(0); };' 'export const switchHold = () => { throw new Error("x"); };'; do
@@ -394,10 +159,6 @@ else
   fail "the step does not read both kill switches from the vars context"
 fi
 
-# THE QUEUE'S VERDICT READER IS MAIN'S, WARM FROM PR-MERGE'S LAST RUN: the
-# step runs babysit_verify_evidence.py and head-ref-map.mjs from the .base
-# checkout of the default branch, with the run cache the carry step starts
-# from pr-merge's carried reads.
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
 for line in 'VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py' \
   'PR_MERGE_SCRIPTS: .base/.github/scripts/pr-merge' \
@@ -416,8 +177,6 @@ for line in 'VERIFY_EVIDENCE_SCRIPT: .base/plugins/source-control/skills/babysit
     fail "the step does not set $line"
   fi
 done
-# No gate saves an artifact listing to carry: the reader reads the FAIL index
-# by exact name, so the step names no carried listing and runs no carry for one.
 if [[ "$step" != *BABYSIT_VERIFY_LISTING_CARRY* && "$step" != *listing-carry* ]]; then
   ok "the step names no carried artifact listing"
 else
@@ -426,9 +185,6 @@ fi
 step_of() { awk -v name="      - name: $1" '$0 == name { on = 1; print; next }
   on && /^      - / { exit }
   on { print }' "$WORKFLOW"; }
-# The reader takes the pull request from the record the step writes before it
-# runs, and its config files from the hold config checkout, which must hold
-# every file merge_policy.read_config_at reads.
 # shellcheck disable=SC2016 # literal workflow text, not shell
 if [[ "$step" == *'printf '"'"'%s\n'"'"' "$pull" >"$RUNNER_TEMP/lanes-pull.json"'* ]]; then
   ok "the step writes the record BABYSIT_VERIFY_PULL names"
@@ -447,8 +203,6 @@ else
   fail "the hold config checkout lacks: ${config_missing[*]}"
 fi
 base_step="$(step_of "Check out main's Node pin and verdict reader")"
-# The default branch tip arrives as the SHA its job's tip step resolved, which
-# saves checkout's REST call for a branch ref; an empty SHA skips the checkout.
 tip_step="$(awk -v tip="      - name: Resolve main's tip" -v name="      - name: Check out main's Node pin and verdict reader" '
   /^  [A-Za-z0-9_-]+:$/ { buf = ""; on = 0 }
   $0 == tip { buf = ""; on = 1 }
@@ -465,8 +219,8 @@ else
 fi
 sparse="$(awk '/sparse-checkout: \|/ { on = 1; next } on && /^            \// { print substr($0, 13); next } on { exit }' <<<"$base_step")"
 want_sparse=(/.node-version '/plugins/source-control/skills/babysit-prs/scripts/*.py' /.github/verify-legacy-fails.json /.github/source-control-settings.json /plugins/source-control/.claude-plugin/plugin.json /plugins/source-control/lib/parse-concern-value.sh /plugins/source-control/lib/yaml-subset.awk
-  /.github/standards/trusted-actors/trusted-actors.json /.github/actions/resolve-config/admission-rules.json /docs/conventions/pr-pipeline.yaml)
-# Every module head-ref-map.mjs and carry-run-cache.mjs import, transitively.
+  /.github/actions/resolve-config/admission-rules.json /docs/conventions/pr-pipeline.yaml /docs/conventions/source-control.yaml
+  /.github/recurring-schedule.json)
 queue=(.github/scripts/pr-merge/head-ref-map.mjs .github/scripts/pr-merge/carry-run-cache.mjs)
 while ((${#queue[@]})); do
   file=${queue[0]}
@@ -498,9 +252,6 @@ if [[ "$restore" == *"run: node .base/.github/scripts/pr-merge/carry-run-cache.m
 else
   fail "no merge_group-only, continue-on-error 'carry-run-cache.mjs read' of pr-merge's carried reads"
 fi
-# ci-status holds actions, pull-requests and statuses write: no step restores
-# an Actions cache, whose archive any job in main's cache scope can write and
-# whose restore extracts it anywhere in the workspace (#9455).
 ci_status="$(awk '/^  ci-status:/ { on = 1; print; next } on && /^  [A-Za-z0-9_-]+:$/ { exit } on { print }' "$WORKFLOW")"
 if grep -qE '^ +uses: actions/cache(/restore)?@' <<<"$ci_status"; then
   fail "ci-status restores an Actions cache"
@@ -526,12 +277,6 @@ else
   fail "the reader's steps are out of order: $order"
 fi
 
-# A QUEUED PULL REQUEST WHOSE AUTHOR PR-VERIFY DOES NOT JUDGE SKIPS THE CARRY
-# STEPS, AT NO REST COST: the author step reads the pull through pr_read with
-# the args the pr-unblock step and this step read it with, so their reads
-# answer from that cache; an unread author leaves `lanes` and `verify_judged`
-# unset and the carry steps run, and an unread hold config leaves
-# `verify_judged` unset.
 author_step="$(step_of "$AUTHOR_STEP")"
 awk '/^        run: \|$/ { on = 1; next }
   on && /^          / { print substr($0, 11); next }
@@ -545,17 +290,16 @@ if [[ "$author_step" == *"id: queued_author"* && "$author_step" == *"continue-on
 else
   fail "no merge_group-only, continue-on-error author step reading the pull with pr_read"
 fi
-# author_run <label> <want lanes output> <want verify_judged output>, each
-# empty for none.
 author_run() {
   local label="$1" want="$2" want_judged="$3" out rc got judged
   : >"$TMP_ROOT/log"
   : >"$TMP_ROOT/author-output"
   rm -rf "$TMP_ROOT/pr-reads"
   [[ -n "${STUB_BASE_CONFIG+x}" ]] || base_config
+  standards_stub
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REF="${REF:-$QUEUE}" GITHUB_REPOSITORY=o/r \
     GITHUB_API_URL="${STUB_API:-http://127.0.0.1:9}" RUNNER_TEMP="$TMP_ROOT" GITHUB_OUTPUT="$TMP_ROOT/author-output" \
-    BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" bash -e "$TMP_ROOT/author.sh" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="${STUB_BASE_CONFIG-$TMP_ROOT/base-config}" STANDARDS_DIR="${STUB_STANDARDS-$TMP_ROOT/standards}" LANES_APP_ID="${STUB_APP_ID-$LANES_APP_ID}" bash -e "$TMP_ROOT/author.sh" 2>&1)" && rc=0 || rc=$?
   got="$(sed -n 's/^lanes=//p' "$TMP_ROOT/author-output")"
   judged="$(sed -n 's/^verify_judged=//p' "$TMP_ROOT/author-output")"
   if [[ "$rc" -ne 0 ]]; then
@@ -567,8 +311,6 @@ author_run() {
   fi
 }
 KYLE='{"id":153232337,"login":"kyle-sexton","type":"User"}'
-# merge.verify-authors as main has it: the owner's and the lanes App's pull
-# requests are judged (owner decision Q22).
 OWNER_CONFIG=$'merge:\n  verify-authors: lane-or-owner\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 STUB_PULL="$(pull 'Closes #1')"
 author_run "a queued lanes App pull request runs the carry steps" true true
@@ -591,81 +333,59 @@ STUB_PULL='{}' author_run "an unreadable author leaves the carry steps running" 
 STUB_PULL="$(pull 'Closes #1' "$KYLE")"
 REF=refs/heads/main author_run "an unparsable queue ref leaves the carry steps running" '' ''
 STUB_APP_ID='' author_run "an unset lanes App id leaves the carry steps running" '' ''
-# The author step's pull answers the lanes-hold step's read in the queue.
 author_run "the author step reads the queued pull" false false
 if [[ "$(pull_reads)" -eq 1 ]]; then ok "the author step reads the pull once"; else fail "the author step read the pull $(pull_reads) time(s)"; fi
 EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA=$BASE STUB_KEEP_READS=1 \
-  expect "after the author step, the queued step answers from its read" 0 0 "not the lanes App's"
+  expect "after the author step, the queued step answers from its read" 0 1 "$NOT_JUDGED"
 expect_pull_reads "the queued step makes no pull read of its own after the author step" 0
 # shellcheck disable=SC2016 # literal workflow expressions, not shell
-for gated in "$(step_of "List main's tip for the carry readers")" "$restore" "$carry"; do
+for gated in "$restore" "$carry"; do
   if [[ "$gated" == *'steps.queued_author.outputs.verify_judged != '"'false'"* ]]; then
     ok "$(sed -n 's/^      - name: //p' <<<"$gated") skips a queued pull request whose author the author step proved pr-verify does not judge"
   else
     fail "$(sed -n 's/^      - name: //p' <<<"$gated") does not skip on the author step's verify_judged=false"
   fi
 done
-# Both steps judge the author by one predicate: their jq programs match line
-# for line, indentation aside.
-predicate() { awk '/judged=\$\(jq -r --arg authors/ { on = 1; next } on { print } on && /else false end/ { exit }' | sed 's/^ *//'; }
-if [[ -n "$(predicate <"$TMP_ROOT/author.sh")" && "$(predicate <"$TMP_ROOT/author.sh")" == "$(predicate <"$TMP_ROOT/body.sh")" ]]; then
-  ok "the author step and the lanes-hold step judge the author by the same predicate"
+# shellcheck disable=SC2016 # literal step text, not shell
+if grep -qF 'judged=$(verify_judged "$authors" "$identity" <<<"$pull")' "$TMP_ROOT/author.sh" &&
+  grep -qF 'judged=$(verify_judged "$authors" "$identity" <<<"$pull")' "$TMP_ROOT/body.sh"; then
+  ok "the author step and the lanes-hold step judge the author by the same verify_judged"
 else
-  fail "the author step's and the lanes-hold step's author predicates differ"
+  fail "the author step or the lanes-hold step does not judge the author through verify_judged"
 fi
 
 STUB_PULL="$(pull $'Closes #1\n\nHold: wait for the canary')"
-expect "a Hold: line in the body does not hold: do-not-merge is the veto" 0 3 "no member veto and no hold path"
+expect "a Hold: line in the body does not hold: do-not-merge is the hold" 0 2 "no hold path."
 STUB_PULL="$(pull $'Closes #1\r\n  hold: owner call')"
-expect "an indented, lower-case hold line after a CRLF does not hold" 0 3 "no member veto and no hold path"
+expect "an indented, lower-case hold line after a CRLF does not hold" 0 2 "no hold path."
 STUB_PULL="$(pull $'Closes #1\n\nDo not merge before Friday.')"
-expect "'do not merge' in the body does not hold" 0 3 "no member veto and no hold path"
+expect "'do not merge' in the body does not hold" 0 2 "no hold path."
 STUB_PULL="$(pull $'Closes #1\n\nThe threshold: unchanged')"
-expect "a line that only contains 'hold:' later does not hold" 0 3
+expect "a line that only contains 'hold:' later does not hold" 0 2
 
 STUB_PULL="$(pull 'Closes #1')"
 STUB_ISSUE="[$KYLE_VETO]"
-expect "a member's veto comment fails, naming the member" 1 3 "::error::#7: kyle asked not to merge it"
-STUB_ISSUE="[$(comment drive-by User NONE 2026-10-23T10:00:00Z 'do not merge')]"
-expect "a NONE-association veto does not hold" 0 3
-STUB_ISSUE="[$(comment outsider User CONTRIBUTOR 2026-10-23T10:00:00Z "don't merge")]"
-expect "a CONTRIBUTOR veto does not hold" 0 3
-STUB_ISSUE="[$(comment helper Bot MEMBER 2026-10-23T10:00:00Z 'do-not-merge')]"
-expect "a bot's veto does not hold" 0 3
-STUB_ISSUE="[$(comment owner User OWNER 2026-10-23T10:00:00Z "Don’t merge")]"
-expect "an OWNER's curly-apostrophe veto holds" 1 3 "owner asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO,$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'Go ahead now.')]"
-expect "a later comment by the same member lifts the veto" 0 3
-STUB_ISSUE="[$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'Go ahead now.'),$KYLE_VETO]"
-expect "the newest comment decides, not the listing order" 0 3
-STUB_ISSUE="[$KYLE_VETO,$(comment other User COLLABORATOR 2026-10-23T11:00:00Z 'LGTM')]"
-expect "another member's later comment does not lift it" 1 3 "kyle asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T11:00:00Z '')]"
-expect "a later review with no text does not lift it" 1 3 "kyle asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T11:00:00Z 'Fine, ship it.')]"
-expect "a later review with text lifts it" 0 3
+expect "a member's comment saying not to merge holds nothing: the do-not-merge label is the one hold" 0 2 "#7: no member veto and no hold path."
 STUB_ISSUE='[]' STUB_REVIEWS="[$(review kyle COLLABORATOR 2026-10-23T11:00:00Z 'do not merge')]"
-expect "a review summary veto holds" 1 3 "kyle asked not to merge it"
-STUB_REVIEWS='[]' STUB_INLINE="[$KYLE_VETO]"
-expect "an inline review comment veto holds" 1 3 "kyle asked not to merge it"
-STUB_INLINE='[]' STUB_ISSUE="[$KYLE_VETO,$(comment ana User OWNER 2026-10-23T09:00:00Z 'do not merge')]"
-expect "every vetoing member is named, sorted" 1 3 "ana, kyle asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO]" STUB_PULL="$(pull $'Hold: x')"
-expect "beside a body hold, which holds nothing, the veto holds" 1 3 "kyle asked not to merge it"
-STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE=''
+expect "a review summary saying not to merge holds nothing" 0 2 "#7: no member veto and no hold path."
+STUB_REVIEWS='[]'
+expect "the lanes App's pull request reads two discussion lists, its issue comments and reviews" 0 2 "#7: no member veto and no hold path."
+if grep -q 'issues/7/comments?' "$TMP_ROOT/log" && grep -q 'pulls/7/reviews?' "$TMP_ROOT/log" && ! grep -q 'pulls/7/comments?' "$TMP_ROOT/log"; then
+  ok "the lanes App's pull request reads no inline review comments: nothing in them holds or lifts"
+else
+  fail "the lanes App's pull request read inline review comments, or skipped its issue comments or reviews: '$(sort -u "$TMP_ROOT/log")'"
+fi
+STUB_ISSUE='' STUB_REVIEWS=''
 
 STUB_PULL="$(pull 'Closes #1')"
 STUB_FILES='[["docs/held/a.md"]]'
-expect "a file under the config's denied paths fails" 1 3 "::error::#7: it changes docs/held/a.md, a hold path; an approving review of this head by a person on the trusted-actor list lifts it"
+expect "a file under the config's denied paths fails" 1 2 "::error::#7: it changes docs/held/a.md, a hold path; an approving review of this head by a person on the trusted-actor list lifts it"
 STUB_FILES='[["docs/guide.md"],["docs/moved.md","docs/held/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
-expect "a rename away from a denied path fails on its old path" 1 3 "it changes docs/held/x.md, a hold path"
+expect "a rename away from a denied path fails on its old path" 1 2 "it changes docs/held/x.md, a hold path"
 STUB_FILES='[["docs/held/x\n::stop-commands::t"]]' STUB_PULL="$(pull 'Closes #1')"
-expect "a newline in a held file name cannot start a workflow command" 1 3 "it changes docs/held/x%0A::stop-commands::t, a hold path"
+expect "a newline in a held file name cannot start a workflow command" 1 2 "it changes docs/held/x%0A::stop-commands::t, a hold path"
 STUB_FILES='[["docs/guide.md"],["docs/held/.x.mjs"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
-expect "a dot-prefixed file under a denied tree fails" 1 3 "it changes docs/held/.x.mjs, a hold path"
-# ON A PULL REQUEST EVENT THE BROKER STEP'S FILE PAGES ARE THE LIST: every page,
-# read live earlier in this job, saved raw as gh prints them. A page set that
-# is missing, unparsable, or in the merge queue leaves the live read.
+expect "a dot-prefixed file under a denied tree fails" 1 2 "it changes docs/held/.x.mjs, a hold path"
 file_reads() { grep -cE 'repos/o/r/pulls/7/files\?' "$TMP_ROOT/log"; }
 expect_file_reads() {
   if [[ "$(file_reads)" -eq "$2" ]]; then ok "$1"; else fail "$1: expected $2 files read(s): '$(sort -u "$TMP_ROOT/log")'"; fi
@@ -674,29 +394,26 @@ page() { jq -c '[.[] | {filename: .[0], previous_filename: .[1], status: (.[2] /
 STUB_FILES='[["docs/guide.md"]]'
 STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 STUB_PR_FILES="$(page '[["docs/guide.md"]]')$(page '[["docs/moved.md","docs/held/x.md"]]')" \
-  expect "the broker step's pages hold a renamed-from denied path across pages" 1 3 "it changes docs/held/x.md, a hold path"
+  expect "the broker step's pages hold a renamed-from denied path across pages" 1 2 "it changes docs/held/x.md, a hold path"
 expect_file_reads "the broker step's pages leave no files read" 0
 STUB_PR_FILES="$(page '[["docs/guide.md"]]')" \
   expect "broker pages listing fewer files than changed_files fail closed" 1 0 "GitHub listed fewer files than #7 changes"
 expect_file_reads "the short broker pages are not read again" 0
 STUB_PULL="$(pull 'Closes #1')"
-STUB_PR_FILES="$(page '[["docs/guide.md"]]')" expect "clean broker pages pass" 0 3 "#7: no member veto and no hold path"
+STUB_PR_FILES="$(page '[["docs/guide.md"]]')" expect "clean broker pages pass" 0 2 "#7: no member veto and no hold path."
 expect_file_reads "clean broker pages leave no files read" 0
 STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES='not json' \
-  expect "unparsable broker pages fall back to the live read" 1 3 "it changes docs/held/a.md, a hold path"
+  expect "unparsable broker pages fall back to the live read" 1 2 "it changes docs/held/a.md, a hold path"
 expect_file_reads "unparsable broker pages are read again live" 1
 for head in fedcba9876543210fedcba9876543210fedcba98 ''; do
   STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES="$(page '[["docs/guide.md"]]')" STUB_HEAD="$head" \
-    expect "broker pages for another head (payload head '${head:-none}') leave the live read" 1 3 "it changes docs/held/a.md, a hold path"
+    expect "broker pages for another head (payload head '${head:-none}') leave the live read" 1 2 "it changes docs/held/a.md, a hold path"
   expect_file_reads "broker pages for another head (payload head '${head:-none}') are read again live" 1
 done
 STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES="$(page '[["docs/guide.md"]]')" EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA=$BASE \
-  expect "in the merge queue the files are read live, whatever the file holds" 1 3 "it changes docs/held/a.md, a hold path"
+  expect "in the merge queue the files are read live, whatever the file holds" 1 2 "it changes docs/held/a.md, a hold path"
 expect_file_reads "in the merge queue the files are read" 1
 STUB_FILES='[["docs/guide.md"]]'
-# Owner decisions Q-FLOOR (B), Q-ENFORCE (A) and Q26 option B: the floor's
-# trust and gate entries hold with no denied path configured, a dot-prefixed
-# file and a renamed-from path included.
 for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-config/resolve.mjs \
   .github/actions/check-trusted-trigger/.x.mjs .github/actions/request-lane-token/action.yml \
   .github/actions/check-kill-switch/check-kill-switch.mjs .github/actions/log-api-budget/rate-guard.mjs \
@@ -705,16 +422,14 @@ for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-confi
   .github/scripts/pr-merge/superseded.mjs .github/scripts/pr-merge/clear-escalations.mjs \
   .github/scripts/pr-merge/gate-check.mjs .github/scripts/pr-merge/who.mjs \
   plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py \
-  plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py docs/conventions/pr-pipeline.yaml \
+  plugins/source-control/skills/babysit-prs/scripts/babysit_review_evidence.py \
+  plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py docs/conventions/pr-pipeline.yaml \
   .github/workflows/pr-merge.yml .github/workflows/pr-review-main.yml \
   .github/scripts/pr-review-main/write-verdict.mjs; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
-  expect "the floor holds $path" 1 3 "it changes $path, a hold path"
+  expect "the floor holds $path" 1 2 "it changes $path, a hold path"
 done
-# Its enforcement entries are the merge gate's, which a clean security review
-# bound to the head clears; ci-status leaves them to it.
-for path in plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py \
-  .github/scripts/pr-unblock/address-feedback.mjs .github/scripts/pr-unblock/gate-source.mjs \
+for path in .github/scripts/pr-unblock/address-feedback.mjs .github/scripts/pr-unblock/gate-source.mjs \
   .github/scripts/pr-unblock/thread-scope.mjs .github/scripts/lib/retry-fetch.mjs \
   .github/scripts/work-resolve-issue/report-outcome.mjs .github/scripts/work-resolve-issue/limits.mjs \
   .github/scripts/lib/lane-hold-marker.mjs .github/scripts/work-resolve-issue/stop-routes.json \
@@ -728,67 +443,24 @@ for path in plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evi
   .github/scripts/pr-unblock/fix-ci-context.mjs \
   .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
-  expect "the gate, not ci-status, holds $path" 0 3 "no hold path"
+  expect "the gate, not ci-status, holds $path" 0 2 "no hold path"
 done
-# ci-status's own workflow, and a job-token dispatcher of a gated workflow, are
-# gate paths: ci-status holds them for a person.
 for path in .github/workflows/pr-require-checks.yml .github/workflows/intake-reenter.yml; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
-  expect "ci-status holds $path for a person" 1 3 "it changes $path, a hold path"
+  expect "ci-status holds $path for a person" 1 2 "it changes $path, a hold path"
 done
 STUB_FILES='[["docs/guide.md"],["docs/moved.md",".github/actions/resolve-config/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
-expect "a rename away from a floor path fails on its old path" 1 3 "it changes .github/actions/resolve-config/x.md, a hold path"
-# Owner direction 2026-10-24: no other path holds for being trusted alone, and
-# a manifest change is the security lane's finding. The lanes App's token
-# never carries the workflows permission, so no lanes App push changes a
-# workflow.
+expect "a rename away from a floor path fails on its old path" 1 2 "it changes .github/actions/resolve-config/x.md, a hold path"
 for path in .github/standards/trusted-actors/README.md docs/conventions/pr-pipeline/README.md \
   plugins/p/.claude-plugin/plugin.json .github/workflows/x.yml .github/scripts/pr-unblock/other.mjs .github/actions/other/action.yml \
   .github/actions/log-api-budget/action.yml docs/CODEOWNERS.md; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
-  expect "$path is no hold path" 0 3 "no hold path"
+  expect "$path is no hold path" 0 2 "no hold path"
 done
 STUB_FILES='[[".claude-plugin/marketplace.json",null,"removed"]]' STUB_PULL="$(pull 'Closes #1')"
-expect "a removed manifest is no hold" 0 3 "no hold path"
-# The trust gate: merge-holds.mjs reads the trusted-actor list at the base and
-# the head itself, through GITHUB_API_URL, and holds a change that adds or
-# widens an entry; one that only removes entries passes. A local server
-# answers those reads from $TMP_ROOT/list-<ref>, and 404 for anything else.
-cat >"$TMP_ROOT/api.mjs" <<'API'
-import { createServer } from "node:http";
-import { readFileSync, writeFileSync } from "node:fs";
-const [dir] = process.argv.slice(2);
-const server = createServer((request, response) => {
-  const ref = /^\/repos\/o\/r\/contents\/\.github\/standards\/trusted-actors\/trusted-actors\.json\?ref=([0-9a-f]{40})$/.exec(request.url)?.[1];
-  let content;
-  try {
-    content = ref && readFileSync(`${dir}/list-${ref}`).toString("base64");
-  } catch {}
-  response.writeHead(content ? 200 : 404, { "content-type": "application/json" });
-  response.end(JSON.stringify(content ? { type: "file", encoding: "base64", content } : { message: "Not Found" }));
-});
-server.listen(0, "127.0.0.1", () => writeFileSync(`${dir}/port`, String(server.address().port)));
-API
-node "$TMP_ROOT/api.mjs" "$TMP_ROOT" &
-API_PID=$!
-for _ in $(seq 50); do
-  [[ ! -s "$TMP_ROOT/port" ]] || break
-  sleep 0.1
-done
-if [[ -s "$TMP_ROOT/port" ]]; then
-  api="http://127.0.0.1:$(cat "$TMP_ROOT/port")"
-  list() { jq -n --argjson actors "$1" '{version: 1, actors: $actors}'; }
-  list '[{"id":1,"login":"kyle","kind":"human"},{"id":2,"login":"lanes[bot]","kind":"bot"}]' >"$TMP_ROOT/list-$BASE"
-  STUB_FILES='[[".github/standards/trusted-actors/trusted-actors.json",null,"modified"]]' STUB_PULL="$(pull 'Closes #1')"
-  list '[{"id":1,"login":"kyle","kind":"human"},{"id":2,"login":"lanes[bot]","kind":"bot"},{"id":3,"login":"new","kind":"human"}]' >"$TMP_ROOT/list-$SHA"
-  STUB_API=$api expect "a trusted-actor list widening fails" 1 3 "it widens the trusted-actor list"
-  list '[{"id":1,"login":"kyle","kind":"human"}]' >"$TMP_ROOT/list-$SHA"
-  STUB_API=$api expect "a trusted-actor list removal passes" 0 3 "no hold path"
-  rm "$TMP_ROOT/list-$SHA"
-  STUB_API=$api expect "a trusted-actor list whose head does not read fails" 1 3 "contents unreadable"
-else
-  fail "the local API server for the trusted-actor list reads did not start"
-fi
+expect "a removed manifest is no hold" 0 2 "no hold path"
+STUB_FILES='[[".github/standards/trusted-actors/trusted-actors.json",null,"modified"]]' STUB_PULL="$(pull 'Closes #1')"
+expect "a change at the retired synced trusted-actor list path passes" 0 2 "no hold path"
 if grep -qF "[.filename, .previous_filename, .status]" <<<"$step"; then
   ok "the step hands merge-holds.mjs each file's status"
 else
@@ -797,53 +469,50 @@ fi
 STUB_FILES='[["docs/held/x.md"]]'
 KYLE_OK="$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")"
 STUB_REVIEWS="[$KYLE_OK]"
-expect "a trusted person's approval of the head lifts a hold path" 0 3 "kyle-sexton approved this head, which lifts its hold path"
+expect "a trusted person's approval of the head lifts a hold path" 0 2 "kyle-sexton approved this head, which lifts its hold path"
 STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$BASE")]"
-expect "an approval of an earlier head does not lift it" 1 3 "it changes docs/held/x.md, a hold path"
+expect "an approval of an earlier head does not lift it" 1 2 "it changes docs/held/x.md, a hold path"
 STUB_REVIEWS="[$KYLE_OK,$(approval kyle-sexton 153232337 CHANGES_REQUESTED 2026-10-23T12:00:00Z "$SHA")]"
-expect "a later request for changes by the same person takes the lift back" 1 3 "a hold path"
+expect "a later request for changes by the same person takes the lift back" 1 2 "a hold path"
 STUB_REVIEWS="[$KYLE_OK,$(approval kyle-sexton 153232337 COMMENTED 2026-10-23T12:00:00Z "$SHA")]"
-expect "a later comment-only review keeps the lift" 0 3 "lifts its hold path"
+expect "a later comment-only review keeps the lift" 0 2 "lifts its hold path"
 STUB_REVIEWS="[$(approval someone 99 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
-expect "an approval by a person off the trusted-actor list does not lift it" 1 3 "a hold path"
+expect "an approval by a person off the trusted-actor list does not lift it" 1 2 "a hold path"
 STUB_REVIEWS="[$KYLE_OK]" STUB_PULL="$(pull $'Hold: x')"
-expect "an approval lifts the hold path, and the body's hold text holds nothing" 0 3 "lifts its hold path"
+expect "an approval lifts the hold path, and the body's hold text holds nothing" 0 2 "lifts its hold path"
 STUB_PULL="$(pull 'Closes #1')"
+NO_IDENTITY="::error::cannot read merge.agent-identity from the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
+NO_IDENTITY_ID="::error::cannot read $identity's trusted-actor id from the standards checkout's trusted-actor list; re-run this run."
 export STUB_NO_ACTORS=1
-expect "an unreadable trusted-actor list fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id from the hold config"
+expect "an unreadable trusted-actor list fails closed" 1 0 "$NO_IDENTITY_ID"
 unset STUB_NO_ACTORS
+STUB_STANDARDS='' expect "with no standards checkout the hold config's copy is never read, and it fails closed" 1 0 "$NO_IDENTITY_ID"
 STUB_REVIEWS=''
 STUB_FILES='[["docs/guide.md"]]' STUB_CONFIG='merge: {}'
-expect "a config with no denied paths holds no path" 0 3 "no hold path"
-# Owner decision Q15: merge.diff-check.path-holds absent or false turns the
-# hold paths off; the module still prints its no-hold line.
+expect "a config with no denied paths holds no path" 0 2 "no hold path"
 STUB_FILES='[[".github/scripts/pr-merge/clear-escalations.mjs"]]'
 for config in $'merge:\n  diff-check:\n    denied-paths: [docs/held/**]' $'merge:\n  diff-check:\n    path-holds: false'; do
   STUB_CONFIG=$config
-  expect "path holds off ($(tr '\n' ' ' <<<"$config")) holds no floor path" 0 3 "path holds are off (merge.diff-check.path-holds), so nothing holds it for this: it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path."
+  expect "path holds off ($(tr '\n' ' ' <<<"$config")) holds no floor path" 0 2 "path holds are off (merge.diff-check.path-holds), so nothing holds it for this: it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path."
 done
 STUB_CONFIG=$'merge:\n  diff-check:\n    path-holds: true'
-expect "path holds on holds a floor path" 1 3 "it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path"
+expect "path holds on holds a floor path" 1 2 "it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path"
 STUB_FILES='[["docs/guide.md"]]'
 STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: docs/held/**\n    path-holds: true'
-expect "denied paths that are not a list fail closed" 1 3 "the hold paths could not be read"
+expect "denied paths that are not a list fail closed" 1 2 "the hold paths could not be read"
 STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a file list shorter than changed_files fails closed before the discussion" 1 0 "::error::GitHub listed fewer files than #7 changes"
 STUB_PULL="$(pull 'Closes #1')"
 export STUB_NO_CONFIG=1
-expect "an unreadable config fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id from the hold config"
+expect "an unreadable config fails closed" 1 0 "$NO_IDENTITY"
 unset STUB_NO_CONFIG
 
-# verifier runs: run <id> [path] [event] [branch] [status] [conclusion]
 run() { jq -nc --argjson id "$1" --arg path "${2:-.github/workflows/pr-verify.yml}" --arg event "${3:-workflow_run}" \
   --arg branch "${4:-main}" --arg status "${5:-completed}" --arg conclusion "${6:-success}" \
   '{id: $id, path: $path, event: $event, head_branch: $branch, status: $status, conclusion: $conclusion,
     repository: {full_name: "o/r"}, head_repository: {full_name: "o/r"}}'; }
-DIGEST="$(printf '%s' work-resolve-issue/issue-1 | sha256sum | cut -c1-16)"
 OLD=fedcba9876543210fedcba9876543210fedcba98
-# lookups: the artifact-by-name reads the last run made; readers: the verdict
-# reader runs; maps: the head-ref map reads; runs: the run reads.
 lookups() { grep -c 'actions/artifacts?name=' "$TMP_ROOT/log"; }
 readers() { grep -c '^reader ' "$TMP_ROOT/log"; }
 maps() { grep -c '^head-ref-map ' "$TMP_ROOT/log"; }
@@ -854,37 +523,34 @@ $(run 13 .github/workflows/other.yml)
 $(run 14 .github/workflows/pr-verify.yml pull_request)
 $(run 15 .github/workflows/pr-verify.yml workflow_run work-resolve-issue/issue-1)
 $(run 16 .github/workflows/pr-verify.yml workflow_run main completed failure)")"
-# Run 17's read answers with run 11's record: another run than its artifact names.
 STUB_RUNS="$(jq -c '. + {"17": .["11"]}' <<<"$STUB_RUNS")"
 export STUB_RUNS
 
 STUB_PULL="$(pull 'Closes #1')"
-expect "a pull request event reads no verdict" 0 3 "no hold path"
+expect "a pull request event reads no verdict" 0 2 "no hold path"
 if [[ "$(lookups)" -eq 0 && "$(readers)" -eq 0 && "$(maps)" -eq 0 ]] && ! grep -q 'actions/runs/' "$TMP_ROOT/log"; then
   ok "a pull request event makes no verdict read, so pr-verify can follow a green ci-status"
 else
   fail "a pull request event read a verdict: '$(sort -u "$TMP_ROOT/log")'"
 fi
 
-# disarms: the auto-merge mutations the last run sent. Disarming needs
-# contents: write, which the step's GITHUB_TOKEN lacks, so it sends none; the
-# merge queue's pr-verify check at the head it merges holds an armed pull
-# request's new head.
 disarms() { grep -c '^api graphql .*disablePullRequestAutoMerge' "$TMP_ROOT/log"; }
 STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
-expect "a push to an armed lanes App pull request passes" 0 3 "no hold path"
+expect "a push to an armed lanes App pull request passes" 0 2 "no hold path"
 if [[ "$(disarms)" -eq 0 ]]; then ok "a push sends no disarm"; else fail "a push sent a disarm"; fi
 STUB_PULL="$(pull 'Closes #1')"
 
 export EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA="$SHA"
 export STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
-expect "in the merge queue, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
-if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 1 ]]; then
-  ok "the pass comes from the reader's listing, with no lookup by name and one run read"
+expect "in the merge queue, a pass at the head passes" 0 2 "#7: no verifier hold: pr-verify passed this head."
+zips() { grep -c '/zip$' "$TMP_ROOT/log"; }
+closings() { grep -c 'closingIssuesReferences' "$TMP_ROOT/log"; }
+if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 0 && "$(zips)" -eq 0 && "$(closings)" -eq 0 ]]; then
+  ok "the pass, its run, its record and the closing issues come from the reader's pass file, with no read of the step's own"
 else
-  fail "a plain-named pass took $(lookups) lookups and $(runs) run reads"
+  fail "a pass took $(lookups) lookups, $(runs) run reads, $(zips) record downloads and $(closings) closing-issues reads"
 fi
-if [[ "$(readers)" -eq 1 ]] && grep -qxF "reader evidence --repo o/r --base-sha $SHA 7 $SHA" "$TMP_ROOT/log"; then
+if [[ "$(readers)" -eq 1 ]] && grep -qxF "reader evidence --pass-out $TMP_ROOT/verify-pass.json --repo o/r --base-sha $SHA 7 $SHA" "$TMP_ROOT/log"; then
   ok "the queue runs the verdict reader once, for the pull request at its head, with the group's base for the FAIL cap"
 else
   fail "the verdict reader ran as: '$(grep '^reader ' "$TMP_ROOT/log")'"
@@ -897,7 +563,7 @@ fi
 for case in "300 $((budget - 300))" "$budget 0" "$((budget + 60)) 0" " 0" "x 0"; do
   read -r waited want <<<"$case"
   [[ -n "$want" ]] || { want=$waited; waited=; }
-  STUB_WAITED="$waited" expect "in the merge queue, after a ${waited:-unread} s wait, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+  STUB_WAITED="$waited" expect "in the merge queue, after a ${waited:-unread} s wait, a pass at the head passes" 0 2 "#7: no verifier hold: pr-verify passed this head."
   if grep -qxF "reader-env floor-wait=$want" "$TMP_ROOT/log"; then
     ok "after a ${waited:-unread} s wait the verdict reader may wait $want s"
   else
@@ -910,265 +576,265 @@ if [[ "$(maps)" -eq 1 ]] && grep -qxF "head-ref-map read" "$TMP_ROOT/log" &&
 else
   fail "the head-ref map was read as: '$(grep -E '^(head-ref-map|reader) ' "$TMP_ROOT/log")'"
 fi
-# THE READER'S FAIL REFUSALS HOLD (merge-holds.mjs evidenceHold).
 evidence() { jq -nc --arg refusal "$1" --arg head "${2:-$SHA}" '{refusal: $refusal, head: $head, detail: "why"}'; }
 for refusal in verify:fail verify:earlier-fail verify:repeated-fail verify:unreadable verify:too-old; do
-  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds a passed head" 1 3 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why)"
+  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds a passed head" 1 2 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why)"
 done
-# Owner decision 2026-11-04, "Hold until re-judged": a stale pass holds even when read.
-STUB_EVIDENCE="$(evidence verify:spec-changed)" expect "in the merge queue, a stale pass holds until pr-verify judges the head again" 1 3 "#7: pr-verify's pass on this head is stale (verify:spec-changed)"
-STUB_EVIDENCE="$(evidence verify:untrusted-spec)" expect "in the merge queue, another pass refusal is left to the pass checks" 0 3 "#7: no pr-verify FAIL hold: the reader refuses this head only on its pass (verify:untrusted-spec)."
+STUB_EVIDENCE="$(evidence verify:spec-changed)" expect "in the merge queue, a stale pass holds until pr-verify judges the head again" 1 2 "#7: pr-verify's pass on this head is stale (verify:spec-changed)"
+STUB_EVIDENCE="$(evidence verify:untrusted-spec)" expect "in the merge queue, another pass refusal holds with no pass to judge" 1 2 "#7: pr-verify's reader refuses this head's pass (verify:untrusted-spec)"
+STUB_EVIDENCE="$(evidence verify:untrusted-spec)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
+  expect "in the merge queue, a trusted approval of the head lifts another pass refusal" 0 2 "no verifier hold: kyle-sexton approved this head"
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
-  expect "in the merge queue, a trusted approval of the head lifts the reader's FAIL hold" 0 3 "no pr-verify FAIL hold: kyle-sexton approved this head"
+  expect "in the merge queue, a trusted approval of the head lifts the reader's FAIL hold" 0 2 "no pr-verify FAIL hold: kyle-sexton approved this head"
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]" \
-  expect "in the merge queue, an approval of an earlier head lifts no FAIL hold" 1 3 "pr-verify's reader refuses this head (verify:fail: why)"
-STUB_EVIDENCE="$(jq -nc --arg head "$OLD" '{refusal: null, head: $head}')" expect "in the merge queue, a report for another head holds" 1 3 "its pr-verify FAILs could not be read"
-STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report holds" 1 3 "its pr-verify FAILs could not be read"
-STUB_READER_RC=1 expect "in the merge queue, a reader that fails fails closed" 1 3 "::error::babysit_verify_evidence.py could not judge #7 at $SHA"
-# A refusal the reader returns before it lists (verify:too-old, an unread
-# config or commit list) reaches merge-holds.mjs with no pass names, so it
-# holds, and a trusted approval of the head lifts it as it lifts a FAIL.
+  expect "in the merge queue, an approval of an earlier head lifts no FAIL hold" 1 2 "pr-verify's reader refuses this head (verify:fail: why)"
+STUB_EVIDENCE="$(jq -nc --arg head "$OLD" '{refusal: null, head: $head}')" expect "in the merge queue, a report for another head holds" 1 2 "its pr-verify FAILs could not be read"
+STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report holds" 1 2 "its pr-verify FAILs could not be read"
+STUB_READER_RC=1 expect "in the merge queue, a reader that fails fails closed" 1 2 "::error::babysit_verify_evidence.py could not judge #7 at $SHA"
 for refusal in verify:unreadable verify:too-old; do
   STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence "$refusal")" \
-    expect "in the merge queue, the reader's $refusal before any listing holds" 1 3 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why)"
+    expect "in the merge queue, the reader's $refusal before any listing holds" 1 2 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why)"
   STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence "$refusal")" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
-    expect "in the merge queue, a trusted approval of the head lifts the reader's $refusal before any listing" 0 3 "no pr-verify FAIL hold: kyle-sexton approved this head"
+    expect "in the merge queue, a trusted approval of the head lifts the reader's $refusal before any listing" 0 2 "no pr-verify FAIL hold: kyle-sexton approved this head"
 done
-STUB_NO_LISTING=1 STUB_EVIDENCE="$(jq -nc --arg head "$SHA" '{refusal: null, head: $head}')" \
-  expect "in the merge queue, a reader that allows a head with no listing fails closed" 1 3 "::error::the verdict reader read no artifact listing for #7"
+NO_PASS_FILE="::error::the verdict reader left no readable pass file for #7 at $SHA; re-run this run."
+for sent in none '"not json"' ".head = \"$OLD\"" '.verdicts = {}' 'del(.record)'; do
+  STUB_PASS_OUT="$sent" expect "in the merge queue, a pass file that does not read fails closed ($sent)" 1 2 "$NO_PASS_FILE"
+done
 : >"$TMP_ROOT/verify-legacy-fails.json"
-STUB_NO_LISTING=1 STUB_EVIDENCE="$(jq -nc --arg head "$SHA" '{refusal: null, head: $head}')" \
-  expect "a legacy FAILs file beside the reader, with none at BABYSIT_VERIFY_LEGACY_FAILS, is not FAIL index mode" 1 3 "::error::the verdict reader read no artifact listing for #7"
+STUB_COLD=1 STUB_RATE='' expect "a legacy FAILs file beside the reader, with none at BABYSIT_VERIFY_LEGACY_FAILS, is not FAIL index mode" 1 2 "GITHUB_TOKEN's remaining requests could not be read"
 rm -f "$TMP_ROOT/verify-legacy-fails.json"
 mkdir -p "$TMP_ROOT/base/.github"
 : >"$TMP_ROOT/base/.github/verify-legacy-fails.json"
-STUB_NO_LISTING=1 expect "in the merge queue in FAIL index mode, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
-if [[ "$(lookups)" -ge 1 && "$(lookups)" -le 4 ]]; then
-  ok "in FAIL index mode the pass names are read by exact name ($(lookups) reads)"
+STUB_NO_LISTING=1 expect "in the merge queue in FAIL index mode, a pass at the head passes" 0 2 "#7: no verifier hold: pr-verify passed this head."
+if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 0 && "$(zips)" -eq 0 && "$(closings)" -eq 0 ]]; then
+  ok "in FAIL index mode the step reads no pass, run, record or closing issues of its own"
 else
-  fail "in FAIL index mode the pass names took $(lookups) reads"
+  fail "in FAIL index mode the step took $(lookups) lookups, $(runs) run reads, $(zips) record downloads and $(closings) closing-issues reads"
 fi
-STUB_NO_LISTING=1 STUB_ARTIFACTS='{}' expect "in the merge queue in FAIL index mode, no pass at the head holds" 1 3 "pr-verify"
-STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence verify:unreadable)" \
-  expect "in the merge queue in FAIL index mode, a refusal's notice names index mode, not a refusal before listing" 1 3 "::notice::the verdict reader refused #7 in FAIL index mode, which saves no listing"
+STUB_COLD=1 STUB_RATE='' STUB_NO_LISTING=1 expect "in FAIL index mode no cold gate runs" 0 2 "#7: no verifier hold: pr-verify passed this head."
+STUB_NO_LISTING=1 STUB_ARTIFACTS='{}' expect "in the merge queue in FAIL index mode, no pass at the head holds" 1 2 "pr-verify has not passed this head"
 rm -f "$TMP_ROOT/base/.github/verify-legacy-fails.json"
-# A cold reader (no carried run cache) runs only when GITHUB_TOKEN's core
-# pool has the cold read's cost for every entry the queue builds at once
-# (the merge_queue rule's max_entries_to_build, STUB_RULES, 1 by default)
-# plus the read floor left. A cold read's cost comes from the live listing
-# (STUB_TOTAL artifacts, STUB_LISTED_FAILS FAILs): 3 reads a FAIL, 3 incremental
-# reads of 13 pages, the count read, and 3 whole listings of 3 attempts of
-# ceil(total / 100) + 1 pages, each with a 7-page top-up, and twice (the
-# incremental reads, then the top-ups) 24 pages near expiry read again
-# and 34 artifacts read by id. By default 7,522
-# artifacts (77 pages) and 264 FAILs: 77 for the step's own listing, plus
-# 792 + 39 + 1 + 3 x (3 x 77 + 7) + 2 x (24 + 34) = 1739, so 1739 x 1 + 0.1 x 5000 = 2239 here. The floor is a share
-# of the header's limit (owner decision D418,
-# https://github.com/melodic-software/claude-code-plugins/actions/runs/44463304120).
 rate() { jq -nc --argjson remaining "$1" '{resources: {core: {limit: 5000, remaining: $remaining, reset: 1793030000}}}'; }
-STUB_COLD=1 STUB_RATE="$(rate 2239)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_COLD=1 STUB_RATE="$(rate 2239)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 2 "#7: no pr-verify FAIL hold: the reader allows this head."
 if [[ "$(readers)" -eq 1 ]]; then ok "a cold reader with headroom is started"; else fail "a cold reader with headroom ran $(readers) times"; fi
-STUB_COLD=1 STUB_RATE="$(rate 2238)" expect "in the merge queue, a cold reader without the headroom holds without reading" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN has 2238 requests left, under the 2239 a cold read needs"
+STUB_COLD=1 STUB_RATE="$(rate 2238)" expect "in the merge queue, a cold reader without the headroom holds without reading" 1 2 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN has 2238 requests left, under the 2239 a cold read needs"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader without headroom is never started"; else fail "a cold reader without headroom ran: '$(grep '^reader ' "$TMP_ROOT/log")'"; fi
-STUB_COLD=1 STUB_RATE='' expect "in the merge queue, a cold reader whose rate limit does not read holds" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
+STUB_COLD=1 STUB_RATE='' expect "in the merge queue, a cold reader whose rate limit does not read holds" 1 2 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread rate limit is never started"; else fail "a cold reader with an unread rate limit ran"; fi
-STUB_COLD=1 STUB_RATE='{"resources":{"core":{"limit":5000}}}' expect "in the merge queue, a rate limit with no remaining count holds a cold reader" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
-# 10,450 artifacts (105 pages, as on 2026-10-30, so 106) and 300 FAILs:
-# 106 + 900 + 39 + 1 + 3 x (3 x 106 + 7) + 2 x (24 + 34) = 2137, plus the floor's 500
-# (https://github.com/melodic-software/claude-code-plugins/actions/runs/44463304120).
-STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2637)" expect "in the merge queue, a cold read's cost grows with the live listing" 0 3 "cold reads for 1 queue entries need 2637"
-STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2636)" expect "in the merge queue, a larger live listing holds a cold reader the old cost would start" 1 3 "GITHUB_TOKEN has 2636 requests left, under the 2637 a cold read needs (2137 for each of the 1 entries"
-# 150 artifacts (2 pages, so 3) and 10 FAILs: 3 + 30 + 39 + 1 + 3 x (3 x 3 + 7) + 2 x (24 + 34) = 237.
-STUB_COLD=1 STUB_TOTAL=150 STUB_LISTED_FAILS=10 STUB_RATE="$(rate 737)" expect "in the merge queue, a small live listing needs only its own cost" 0 3 "cold reads for 1 queue entries need 737"
-STUB_COLD=1 STUB_TOTAL='' STUB_RATE="$(rate 9999)" expect "in the merge queue, a live listing that does not read holds a cold reader" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and the artifact listing could not be read"
+STUB_COLD=1 STUB_RATE='{"resources":{"core":{"limit":5000}}}' expect "in the merge queue, a rate limit with no remaining count holds a cold reader" 1 2 "GITHUB_TOKEN's remaining requests could not be read"
+STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2637)" expect "in the merge queue, a cold read's cost grows with the live listing" 0 2 "cold reads for 1 queue entries need 2637"
+STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2636)" expect "in the merge queue, a larger live listing holds a cold reader the old cost would start" 1 2 "GITHUB_TOKEN has 2636 requests left, under the 2637 a cold read needs (2137 for each of the 1 entries"
+STUB_COLD=1 STUB_TOTAL=150 STUB_LISTED_FAILS=10 STUB_RATE="$(rate 737)" expect "in the merge queue, a small live listing needs only its own cost" 0 2 "cold reads for 1 queue entries need 737"
+STUB_COLD=1 STUB_TOTAL='' STUB_RATE="$(rate 9999)" expect "in the merge queue, a live listing that does not read holds a cold reader" 1 2 "::error::#7 is held: no carried run cache from pr-merge's last run, and the artifact listing could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread listing is never started"; else fail "a cold reader with an unread listing ran"; fi
-# Every entry the queue builds at once goes cold together on a missing cache,
-# so the need scales with max_entries_to_build: 1739 x 5 + 500 = 9195
-# (https://github.com/melodic-software/claude-code-plugins/actions/runs/44463304120).
-STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 9195)" expect "in the merge queue, a cold reader reads with headroom for every entry the queue builds" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
-STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 9194)" expect "in the merge queue, a cold reader holds under the headroom of every entry the queue builds" 1 3 "GITHUB_TOKEN has 9194 requests left, under the 9195 a cold read needs"
-STUB_COLD=1 STUB_RULES=2 STUB_RATE="$(rate 3977)" expect "in the merge queue, the cold headroom scales with max_entries_to_build" 1 3 "under the 3978 a cold read needs"
-STUB_COLD=1 STUB_RULES='' STUB_RATE="$(rate 9195)" expect "in the merge queue, a merge queue rule that does not read holds a cold reader" 1 3 "the merge queue's max_entries_to_build could not be read"
+STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 9195)" expect "in the merge queue, a cold reader reads with headroom for every entry the queue builds" 0 2 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 9194)" expect "in the merge queue, a cold reader holds under the headroom of every entry the queue builds" 1 2 "GITHUB_TOKEN has 9194 requests left, under the 9195 a cold read needs"
+STUB_COLD=1 STUB_RULES=2 STUB_RATE="$(rate 3977)" expect "in the merge queue, the cold headroom scales with max_entries_to_build" 1 2 "under the 3978 a cold read needs"
+STUB_COLD=1 STUB_RULES='' STUB_RATE="$(rate 9195)" expect "in the merge queue, a merge queue rule that does not read holds a cold reader" 1 2 "the merge queue's max_entries_to_build could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread queue rule is never started"; else fail "a cold reader with an unread queue rule ran"; fi
-STUB_CARRIED='{"carried-run-record":{},"carried-fail-head-ref":{},"carried-on-branch":{}}' expect "in the merge queue, a carried cache with every section empty is cold" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
-STUB_CARRIED='not json' expect "in the merge queue, a carried cache that does not parse is cold" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
-STUB_MAP_FAILS=1 expect "in the merge queue, a head-ref map that does not read leaves the reader to read GitHub" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_CARRIED='{"carried-run-record":{},"carried-fail-head-ref":{},"carried-on-branch":{}}' expect "in the merge queue, a carried cache with every section empty is cold" 1 2 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
+STUB_CARRIED='not json' expect "in the merge queue, a carried cache that does not parse is cold" 1 2 "GITHUB_TOKEN's remaining requests could not be read"
+STUB_MAP_FAILS=1 expect "in the merge queue, a head-ref map that does not read leaves the reader to read GitHub" 0 2 "#7: no pr-verify FAIL hold: the reader allows this head."
 export STUB_EVIDENCE='' STUB_READER_RC='' STUB_NO_LISTING='' STUB_MAP_FAILS='' STUB_COLD='' STUB_RATE=''
 unset STUB_RULES STUB_CARRIED STUB_TOTAL STUB_LISTED_FAILS
-# The pass binds the link it judged (merge-holds.mjs linkHold): a body edited
-# after arming to close or name another issue holds the group.
-NO_CLOSING='{"totalCount":0,"nodes":[]}'
+NO_CLOSING='[]'
 export STUB_CLOSING STUB_RECORD STUB_NO_RECORD
-STUB_PULL="$(pull 'Refs: #1')" STUB_CLOSING="$NO_CLOSING" STUB_RECORD='{"linked_issues":[{"number":1}],"spec_kind":"refs"}'
-expect "in the merge queue, a Refs pull request whose pass judged that issue passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
-STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='{"totalCount":1,"nodes":[{"number":2,"repository":{"nameWithOwner":"o/r"}}]}'
-expect "in the merge queue, a Refs: #1 pass does not merge a body edited to Closes #2" 1 3 "its link changed since pr-verify passed it: it closes #2, and the pass judged #1 (refs)"
-STUB_PULL="$(pull 'Closes #1')" STUB_CLOSING='' STUB_RECORD='{"linked_issues":[{"number":1}],"spec_kind":"refs"}'
-expect "in the merge queue, a pass judged as a Refs slice does not cover the issue closed" 1 3 "its link changed since pr-verify passed it"
+STUB_PULL="$(pull 'Refs: #1')" STUB_CLOSING="$NO_CLOSING" STUB_RECORD='.spec_kind = "refs"'
+expect "in the merge queue, a Refs pull request whose pass judged that issue passes" 0 2 "#7: no verifier hold: pr-verify passed this head."
+STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='[2]'
+expect "in the merge queue, a Refs: #1 pass does not merge a body edited to Closes #2" 1 2 "its link changed since pr-verify passed it: it closes #2, and the pass judged #1 (refs)"
+STUB_PULL="$(pull 'Closes #1')" STUB_CLOSING='' STUB_RECORD='.spec_kind = "refs"'
+expect "in the merge queue, a pass judged as a Refs slice does not cover the issue closed" 1 2 "its link changed since pr-verify passed it"
 STUB_PULL="$(pull $'Refs: #1\nRefs: #3')" STUB_CLOSING="$NO_CLOSING"
-# A link of several issues that still names the judged one passes; the fix
-# loop rewrites it. One that drops the judged issue, or is removed, holds.
-expect "in the merge queue, a body naming two Refs issues passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+expect "in the merge queue, a body naming two Refs issues passes" 0 2 "#7: no verifier hold: pr-verify passed this head."
 STUB_PULL="$(pull '## Summary')"
-expect "in the merge queue, a body that drops its link holds" 1 3 "its link changed since pr-verify passed it: it refs no issue, and the pass judged #1 (refs)"
-STUB_PULL="$(pull 'Closes #1')" STUB_RECORD='' STUB_CLOSING='{"totalCount":2,"nodes":[{"number":1,"repository":{"nameWithOwner":"o/r"}},{"number":3,"repository":{"nameWithOwner":"o/r"}}]}'
-expect "in the merge queue, a body closing the judged issue and another passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
-STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='{"totalCount":2,"nodes":[{"number":2,"repository":{"nameWithOwner":"o/r"}},{"number":3,"repository":{"nameWithOwner":"o/r"}}]}'
-expect "in the merge queue, a body closing two issues but not the judged one holds" 1 3 "it closes #2, #3, and the pass judged #1"
-STUB_CLOSING='' STUB_RECORD='{"verdict":"pass"}'
-expect "in the merge queue, a record with no linked issues holds" 1 3 "its verifier pass's record could not be read"
+expect "in the merge queue, a body that drops its link holds" 1 2 "its link changed since pr-verify passed it: it refs no issue, and the pass judged #1 (refs)"
+STUB_PULL="$(pull 'Closes #1')" STUB_RECORD='' STUB_CLOSING='[1,3]'
+expect "in the merge queue, a body closing the judged issue and another passes" 0 2 "#7: no verifier hold: pr-verify passed this head."
+STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='[2,3]'
+expect "in the merge queue, a body closing two issues but not the judged one holds" 1 2 "it closes #2, #3, and the pass judged #1"
+STUB_CLOSING='' STUB_RECORD='del(.linked_issues)'
+expect "in the merge queue, a record with no linked issues holds" 1 2 "its verifier pass's record could not be read"
 STUB_RECORD='' STUB_NO_RECORD=1
-expect "in the merge queue, a record that does not download fails closed" 1 3 "could not read the verdict of artifact 110"
-zips() { grep -c '/zip$' "$TMP_ROOT/log"; }
-if [[ "$(zips)" -eq 1 ]]; then ok "a record download a 404 answers is not read again"; else fail "a 404 record download was sent $(zips) times"; fi
-STUB_NO_RECORD=''
-# GitHub answered three record downloads 503 over 26 s (13:37:11 to 13:37:37)
-# in merge_group run 41063238235: a 5xx is read again after each of 5, 15 and
-# 30 s, so an outage that long passes.
-STUB_ZIP_503=3 expect "in the merge queue, three 503s on the record download are read again" 0 3 "#7: no verifier hold: pr-verify passed this head."
-waits="$(sed -n 's/^sleep //p' "$TMP_ROOT/log" | paste -sd' ')"
-if [[ "$(zips)" -eq 4 && "$waits" == "5 15 30" ]]; then
-  ok "the record download waits 5, 15 and 30 s between 5xx reads"
-else
-  fail "the record download was sent $(zips) times with waits '$waits'"
-fi
-STUB_ZIP_503=4 expect "in the merge queue, a record download that answers 503 four times fails closed" 1 3 "::error::could not read the verdict of artifact 110; re-run this run."
-if [[ "$(zips)" -eq 4 ]]; then ok "the record download is sent at most four times"; else fail "the record download was sent $(zips) times"; fi
-STUB_NO_RECORD='' STUB_RECORD='{"linked_issues":[{"number":9}],"spec_kind":"closes"}' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
-expect "in the merge queue, a trusted approval of the head lifts a changed link" 0 3 "#7: no member veto and no hold path."
+expect "in the merge queue, a record the reader could not read holds" 1 2 "its verifier pass's record could not be read"
+STUB_NO_RECORD='' STUB_RECORD='.linked_issues[].number = 9' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
+expect "in the merge queue, a trusted approval of the head lifts a changed link" 0 2 "#7: no member veto and no hold path."
 STUB_RECORD='' STUB_REVIEWS=''
-STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass-notes-$DIGEST\":[11]}"
-expect "in the merge queue, a digest-named pass-notes at the head passes" 0 3 "no verifier hold: pr-verify passed this head"
+STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass-notes\":[11]}"
+expect "in the merge queue, a pass-notes at the head passes" 0 2 "no verifier hold: pr-verify passed this head"
 STUB_ARTIFACTS='{}'
-expect "in the merge queue, no verdict fails the group" 1 3 "::error title=pr-verify hold::#7: pr-verify has not passed this head; wait for pr-verify to pass it"
+expect "in the merge queue, no verdict fails the group" 1 2 "::error title=pr-verify hold::#7: pr-verify has not passed this head; wait for pr-verify to pass it"
 if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 0 ]]; then
   ok "no verdict makes no lookup by name and no run read"
 else
   fail "no verdict took $(lookups) lookups and $(runs) run reads"
 fi
 STUB_ARTIFACTS="{\"pr-verify-7-$OLD-pass\":[11],\"pr-verify-7-$SHA-fail\":[11]}"
-expect "in the merge queue, a pass at an older head and a FAIL at this one fail the group" 1 3 "pr-verify has not passed this head"
+expect "in the merge queue, a pass at an older head and a FAIL at this one fail the group" 1 2 "pr-verify has not passed this head"
 STUB_ARTIFACTS="{\"pr-verify-8-$SHA-pass\":[11]}"
-expect "in the merge queue, another pull request's pass fails the group" 1 3 "pr-verify has not passed this head"
-for bad in 12:in-progress 13:another-workflow 14:a-pull-request-event 15:another-branch 16:a-failed-run 17:another-run-s-record 99:an-unreadable-run; do
+expect "in the merge queue, another pull request's pass fails the group" 1 2 "pr-verify has not passed this head"
+for bad in 12:in-progress 13:another-workflow 14:a-pull-request-event 15:another-branch 16:a-failed-run 17:another-run-s-record 99:an-unread-run; do
   STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[${bad%%:*}]}"
-  if [[ ${bad%%:*} == 99 ]]; then
-    expect "in the merge queue, a pass from ${bad#*:} fails closed" 1 3 "could not read run 99"
-  else
-    expect "in the merge queue, a pass from ${bad#*:} fails the group" 1 3 "pr-verify has not passed this head"
-  fi
+  expect "in the merge queue, a pass from ${bad#*:} fails the group" 1 2 "pr-verify has not passed this head"
 done
-STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[16],\"pr-verify-7-$SHA-pass-$DIGEST\":[11]}"
-expect "in the merge queue, a failed run's pass does not hide a later name's good one" 0 3 "pr-verify passed this head"
-# Run 17's read answers with run 11's record, which would count but for the
-# id: the lookup must not stop on it, so the later real pass is still read.
-STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[17],\"pr-verify-7-$SHA-pass-$DIGEST\":[11]}"
-expect "in the merge queue, another run's record does not end the lookup before a real pass" 0 3 "pr-verify passed this head"
-if [[ "$(runs)" -eq 2 ]]; then
-  ok "a record whose run id differs from its artifact's does not end the lookup"
-else
-  fail "a mismatched run record ended the lookup after $(runs) run read(s)"
-fi
-STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[13],\"pr-verify-7-$SHA-pass-$DIGEST\":[11]}"
-expect "in the merge queue, another workflow's successful run does not end the lookup before a real pass" 0 3 "pr-verify passed this head"
-if [[ "$(runs)" -eq 2 ]]; then
-  ok "the lookup ends at the first name holding a pr-verify pass"
-else
-  fail "the lookup took $(runs) run reads"
-fi
+for bad in 16 17 13; do
+  STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[$bad],\"pr-verify-7-$SHA-pass-notes\":[11]}"
+  expect "in the merge queue, a pass from run $bad does not hide a pass-notes from a counted run" 0 2 "pr-verify passed this head"
+done
 STUB_ARTIFACTS='{}' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
-expect "in the merge queue, a trusted approval of the head lifts a missing pass" 0 3 "no verifier hold: kyle-sexton approved this head"
+expect "in the merge queue, a trusted approval of the head lifts a missing pass" 0 2 "no verifier hold: kyle-sexton approved this head"
 STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]"
-expect "in the merge queue, an approval of an earlier head lifts nothing" 1 3 "pr-verify has not passed this head"
+expect "in the merge queue, an approval of an earlier head lifts nothing" 1 2 "pr-verify has not passed this head"
 STUB_REVIEWS=''
-# Armed at a passing head, then pushed: the queue judges the new head, whose
-# names no verdict carries yet.
 STUB_ARTIFACTS="{\"pr-verify-7-$OLD-pass\":[11]}"
-expect "in the merge queue, a push after a pass fails the group on the new head" 1 3 "pr-verify has not passed this head"
+expect "in the merge queue, a push after a pass fails the group on the new head" 1 2 "pr-verify has not passed this head"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
-expect "in the merge queue, a person's pull request reads no verdict" 0 0 "not the lanes App's"
+expect "in the merge queue, a person's pull request pr-verify does not judge reads no verdict" 0 1 "$NOT_JUDGED"
 if [[ "$(lookups)" -eq 0 && "$(readers)" -eq 0 && "$(maps)" -eq 0 ]]; then
   ok "a person's pull request makes no verdict lookup, reader run or head-ref map read"
 else
   fail "a person's pull request made $(lookups) lookups, $(readers) reader runs and $(maps) map reads"
 fi
-# AN OWNER'S PULL REQUEST HOLDS IN THE QUEUE ONLY ON A PR-VERIFY FAIL (owner
-# decision 2026-11-04, "Hold on FAIL only (Recommended)"): under lane-or-owner
-# the reader runs for it, only a FAIL class it reports for the head holds,
-# its reviews are read with no text, and no file is read.
 files_read() { grep -c '/files?' "$TMP_ROOT/log"; }
 NOT_HELD="#7: not held: pull requests of an author pr-verify judges, other than the lanes App's, hold only on a FAIL"
 export STUB_CONFIG="$OWNER_CONFIG"
 STUB_PULL="$(pull 'Closes #1' "$KYLE")" STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
-expect "in the merge queue, an owner pull request the reader allows passes" 0 1 "$NOT_HELD, and the reader reports none for $SHA."
-if [[ "$(readers)" -eq 1 && "$(files_read)" -eq 0 && "$(runs)" -eq 0 ]] && grep -q 'pulls/7/reviews?' "$TMP_ROOT/log" && ! grep -qE '(issues|pulls)/7/comments\?' "$TMP_ROOT/log"; then
-  ok "an owner pull request runs the verdict reader and reads only its reviews: no files, comments or pass runs"
+expect "in the merge queue, an owner pull request the reader allows passes" 0 2 "$NOT_HELD, and the reader reports none for $SHA."
+if [[ "$(readers)" -eq 1 && "$(files_read)" -eq 0 && "$(runs)" -eq 0 ]] && grep -q 'pulls/7/reviews?' "$TMP_ROOT/log" && grep -q 'issues/7/comments?' "$TMP_ROOT/log" && ! grep -q 'pulls/7/comments?' "$TMP_ROOT/log"; then
+  ok "an owner pull request runs the verdict reader and reads its reviews and issue comments: no files, inline comments or pass runs"
 else
   fail "an owner pull request read: '$(sort -u "$TMP_ROOT/log")'"
 fi
-STUB_EVIDENCE="$(evidence verify:repeated-fail)" expect "in the merge queue, the repeated-fail cap warns and does not hold an owner pull request" 0 1 \
+STUB_EVIDENCE="$(evidence verify:repeated-fail)" expect "in the merge queue, the repeated-fail cap warns and does not hold an owner pull request" 0 2 \
   "::warning::#7: pr-verify's repeated-fail cap stands at this head; owner-login PRs are not held on the cap (owner decision 2026-11-04)"
 for refusal in verify:fail verify:earlier-fail; do
-  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds an owner pull request" 1 1 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why); push a new head"
+  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds an owner pull request" 1 2 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why); push a new head"
 done
 for refusal in verify:missing verify:spec-changed verify:untrusted-spec verify:unreadable verify:too-old; do
-  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports $refusal for $SHA."
+  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal does not hold an owner pull request" 0 2 "$NOT_HELD, and the reader reports $refusal for $SHA."
 done
-STUB_ARTIFACTS='{}' expect "in the merge queue, an owner pull request with no pass is not held" 0 1 "$NOT_HELD"
-STUB_RECORD='{"linked_issues":[{"number":9}],"spec_kind":"closes"}' expect "in the merge queue, an owner pull request whose link changed is not held" 0 1 "$NOT_HELD"
-STUB_EVIDENCE="$(evidence verify:fail "$OLD")" expect "in the merge queue, a FAIL report for another head does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"
-STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report does not hold an owner pull request" 0 1 "$NOT_HELD, and the reader reports none"
-STUB_READER_RC=1 expect "in the merge queue, a reader that fails does not hold an owner pull request" 0 1 "$NOT_HELD"
+STUB_ARTIFACTS='{}' expect "in the merge queue, an owner pull request with no pass is not held" 0 2 "$NOT_HELD"
+STUB_RECORD='.linked_issues[].number = 9' expect "in the merge queue, an owner pull request whose link changed is not held" 0 2 "$NOT_HELD"
+STUB_EVIDENCE="$(evidence verify:fail "$OLD")" expect "in the merge queue, a FAIL report for another head does not hold an owner pull request" 0 2 "$NOT_HELD, and the reader reports none"
+STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report does not hold an owner pull request" 0 2 "$NOT_HELD, and the reader reports none"
+STUB_READER_RC=1 expect "in the merge queue, a reader that fails does not hold an owner pull request" 0 2 "$NOT_HELD"
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
-  expect "in the merge queue, a trusted approval of the head lifts an owner pull request's FAIL hold" 0 1 "#7: no pr-verify FAIL hold: kyle-sexton approved this head, which lifts 'pr-verify's reader refuses this head (verify:fail: why)'."
+  expect "in the merge queue, a trusted approval of the head lifts an owner pull request's FAIL hold" 0 2 "#7: no pr-verify FAIL hold: kyle-sexton approved this head, which lifts 'pr-verify's reader refuses this head (verify:fail: why)'."
 STUB_EVIDENCE="$(evidence verify:earlier-fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]" \
-  expect "in the merge queue, an approval of an earlier head lifts no owner FAIL hold" 1 1 "pr-verify's reader refuses this head (verify:earlier-fail: why)"
-printf '%s\n' 'export const switchHold = () => null;' >"$TMP_ROOT/no-evidence-hold.mjs"
+  expect "in the merge queue, an approval of an earlier head lifts no owner FAIL hold" 1 2 "pr-verify's reader refuses this head (verify:earlier-fail: why)"
+printf '%s\n' 'export const switchHold = () => null;' "export { authorSkip, fromRest, humansOf, pathLifters, pinHold, withPinEdit } from \"$MODULE\";" >"$TMP_ROOT/no-evidence-hold.mjs"
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_MODULE="$TMP_ROOT/no-evidence-hold.mjs" \
-  expect "in the merge queue, a base module that cannot judge an owner FAIL fails closed" 1 1 "::error::merge-holds.mjs in the hold config could not judge the pr-verify FAIL (verify:fail) of #7"
-KILL=true expect "in the merge queue, the kill switch does not hold an owner pull request" 0 1 "$NOT_HELD"
-STUB_ISSUE="[$KYLE_VETO]" STUB_INLINE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')]" \
-  expect "in the merge queue, a member's veto does not hold an owner pull request" 0 1 "$NOT_HELD"
+  expect "in the merge queue, a base module that cannot judge an owner FAIL fails closed" 1 2 "::error::merge-holds.mjs in the hold config could not judge the pr-verify FAIL (verify:fail) of #7"
+printf '%s\n' 'export const switchHold = () => null;' >"$TMP_ROOT/no-author-rule.mjs"
+STUB_MODULE="$TMP_ROOT/no-author-rule.mjs" \
+  expect "in the merge queue, a base module without authorSkip fails an owner pull request closed" 1 0 "::error::cannot read whether pr-verify judges the author of #7"
+KILL=true expect "in the merge queue, the kill switch does not hold an owner pull request" 0 2 "$NOT_HELD"
+STUB_ISSUE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')]" \
+  expect "in the merge queue, a member's comment saying not to merge does not hold an owner pull request" 0 2 "$NOT_HELD"
 STUB_FILES='[["docs/held/x.md"],[".github/standards/trusted-actors/trusted-actors.json"],["infra/main.tf"]]' \
-  expect "in the merge queue, a hold path does not hold an owner pull request" 0 1 "$NOT_HELD"
+  expect "in the merge queue, a hold path does not hold an owner pull request" 0 2 "$NOT_HELD"
 STUB_PULL="$(pull 'Closes #1' '{"id":337859524,"login":"melodic-release[bot]","type":"Bot"}')"
-STUB_EVIDENCE="$(evidence verify:fail)" expect "in the merge queue, a listed bot's pull request with a FAIL is held" 1 1 "pr-verify's reader refuses this head (verify:fail: why)"
-STUB_ARTIFACTS='{}' expect "in the merge queue, a listed bot's pull request with no pass is not held" 0 1 "$NOT_HELD"
+STUB_EVIDENCE="$(evidence verify:fail)" expect "in the merge queue, a listed bot's pull request with a FAIL is held" 1 2 "pr-verify's reader refuses this head (verify:fail: why)"
+STUB_ARTIFACTS='{}' expect "in the merge queue, a listed bot's pull request with no pass is not held" 0 2 "$NOT_HELD"
+pin() { jq -nc --arg sha "$1" --arg at "${2:-2026-10-23T09:00:00Z}" --arg id "IC_${1:0:6}" \
+  '{user: {login: "melodic-automation-lanes[bot]", type: "Bot"}, author_association: "NONE", created_at: $at, node_id: $id,
+    body: "<!-- babysit-merge-pin sha=\($sha) -->\nThe unattended merge path is about to arm native auto-merge at head `\($sha)`."}'; }
+STUB_PULL="$(pull 'Closes #1' "$KYLE")"
+export STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
+STUB_ISSUE="[$(pin "$SHA")]" expect "in the merge queue, a trusted pull request the lanes App armed at this head passes its pin" 0 2 "#7: no pin hold: the lanes App pinned no other head."
+for kill in "KILL=true" "REPO_KILL=true"; do
+  export "${kill?}"
+  STUB_ISSUE="[$(pin "$SHA")]" expect "in the merge queue, with $kill, a trusted pull request the lanes App pinned is held by the kill switch" 1 1 \
+    "::error::#7: the lanes kill switch is on (CLAUDE_LANES_DISABLED or CLAUDE_LANES_REPO_DISABLED is not 'false'), and the lanes App armed this pull request (its newest pin record is a pin), so it does not merge"
+  if [[ "$(readers)" -eq 0 ]]; then ok "with $kill, the kill switch holds a pinned trusted pull request before the verdict reader runs"; else fail "with $kill, a pinned trusted pull request ran the verdict reader"; fi
+  STUB_ISSUE='' expect "in the merge queue, with $kill, a session-armed trusted pull request with no lanes App pin is not held by the kill switch" 0 2 "$NOT_HELD"
+  unset KILL REPO_KILL
+done
+STUB_ISSUE="[$(pin "$OLD")]" expect "in the merge queue, a trusted pull request armed at X and pushed to Y is refused at Y" 1 2 "::error::#7: its head is not $OLD, the head the lanes App pinned when it armed auto-merge"
+STUB_ISSUE="[$(pin "$OLD")]" STUB_EVIDENCE="$(evidence verify:fail)" expect "in the merge queue, the moved pin refuses before the verdict reader runs" 1 2 "its head is not $OLD"
+if [[ "$(readers)" -eq 0 ]]; then ok "a moved pin refuses with no verdict reader run"; else fail "a moved pin still ran the verdict reader"; fi
+STUB_ISSUE="[$(pin "$OLD" 2026-10-23T08:00:00Z),$(pin "$SHA" 2026-10-23T09:30:00Z)]" expect "in the merge queue, a newer pin at this head stands over an older one" 0 2 "#7: no pin hold: the lanes App pinned no other head."
+STUB_ISSUE="[$(pin "$SHA" 2026-10-23T08:00:00Z),$(pin "$OLD" 2026-10-23T09:30:00Z)]" expect "in the merge queue, the newest pin decides, not one at this head" 1 2 "its head is not $OLD"
+STUB_ISSUE="[$(pin "$SHA")]" STUB_EDITED='{"data":{}}' expect "in the merge queue, a pin whose edit time does not read refuses" 1 2 "newest pin comment was edited, or its edit time did not read"
+STUB_ISSUE="[$(pin "$SHA")]" STUB_EDITED='{"data":{"node":{"lastEditedAt":"2026-10-23T09:10:00Z"}}}' expect "in the merge queue, an edited pin refuses" 1 2 "newest pin comment was edited"
+STUB_ISSUE="[$(pin "$OLD")]" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
+  expect "in the merge queue, a trusted approval of the new head lifts the pin hold" 0 2 "#7: no pin hold: kyle-sexton approved this head, which lifts"
+STUB_ISSUE="[$(pin "$OLD")]" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]" \
+  expect "in the merge queue, an approval of the pinned head lifts no pin hold at the new head" 1 2 "its head is not $OLD"
+STUB_ISSUE="[$(comment kyle-sexton User OWNER 2026-10-23T09:00:00Z "<!-- babysit-merge-pin sha=$OLD -->")]" \
+  expect "in the merge queue, a pin line a person wrote is no lanes App pin" 0 2 "#7: no pin hold: the lanes App pinned no other head."
+STUB_COMMENTS_FAIL=1 expect "in the merge queue, issue comments that do not read fail closed, after gh_read's three tries, before any review read" 1 3 "could not read the issue comments of #7"
+unpin() { jq -nc --arg sha "$1" --arg at "${2:-2026-10-23T09:30:00Z}" --arg login "${3:-melodic-automation-lanes[bot]}" --arg type "${4:-Bot}" \
+  '{user: {login: $login, type: $type}, author_association: "NONE", created_at: $at, node_id: "IC_unpin",
+    body: "<!-- babysit-merge-unpin sha=\($sha) -->\nThe unattended merge path disarmed native auto-merge at head `\($sha)`."}'; }
+STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" expect "in the merge queue, the lanes App's newer unpin retires a moved pin, so a person's arm at the new head is not pin-held" 0 2 "#7: no pin hold: the lanes App pinned no other head."
+STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" KILL=true \
+  expect "in the merge queue, with the kill switch on, a trusted pull request whose newest lanes App record is an unpin is not held by the kill switch" 0 2 "#7: no pin hold: the lanes App pinned no other head."
+STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" STUB_EVIDENCE="$(evidence verify:fail)" \
+  expect "in the merge queue, past the unpin the other holds still apply" 1 2 "pr-verify's reader refuses this head (verify:fail: why)"
+STUB_ISSUE="[$(unpin "$SHA" 2026-10-23T08:00:00Z),$(pin "$OLD")]" expect "in the merge queue, a pin newer than the unpin holds again" 1 2 "its head is not $OLD"
+STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA" 2026-10-23T09:30:00Z kyle-sexton User)]" expect "in the merge queue, an unpin a person wrote is ignored, so the moved pin holds" 1 2 "its head is not $OLD"
+STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" STUB_EDITED='{"data":{"node":{"lastEditedAt":"2026-10-23T09:40:00Z"}}}' \
+  expect "in the merge queue, an edited unpin counts as tampered and holds" 1 2 "newest unpin comment was edited"
+STUB_ISSUE=''
 for user in '{"id":2,"login":"someone","type":"User"}' '{"id":49699333,"login":"dependabot[bot]","type":"Bot"}'; do
   STUB_PULL="$(pull 'Closes #1' "$user")"
-  STUB_ARTIFACTS='{}' expect "in the merge queue, $(jq -r .login <<<"$user")'s pull request, which pr-verify does not judge, exits as before" 0 0 "#7 is not the lanes App's; pr-merge's gate or a person reads its holds."
-  if [[ "$(readers)" -eq 0 ]]; then ok "$(jq -r .login <<<"$user")'s queued pull request runs no verdict reader"; else fail "$(jq -r .login <<<"$user")'s queued pull request ran the reader"; fi
+  STUB_ARTIFACTS='{}' expect "in the merge queue, $(jq -r .login <<<"$user")'s pull request, which pr-verify does not judge, passes its pin check and reads no verdict" 0 1 "$NOT_JUDGED"
+  if [[ "$(readers)" -eq 0 ]] && ! grep -q 'pulls/7/reviews?' "$TMP_ROOT/log"; then
+    ok "$(jq -r .login <<<"$user")'s queued pull request runs no verdict reader and, with no pin hold, reads no reviews"
+  else
+    fail "$(jq -r .login <<<"$user")'s queued pull request ran the reader or read its reviews: '$(sort -u "$TMP_ROOT/log")'"
+  fi
 done
 STUB_PULL="$(pull 'Closes #1' "$KYLE")"
-STUB_CONFIG=$'merge:\n  verify-authors: everyone' expect "in the merge queue, an unknown verify-authors value judges no owner pull request" 0 0 "not the lanes App's"
-STUB_CONFIG=$'merge:\n  verify-authors: [lane]' expect "in the merge queue, a verify-authors value that is not one word judges no owner pull request" 0 0 "not the lanes App's"
+STUB_CONFIG=$'merge:\n  verify-authors: everyone' expect "in the merge queue, an unknown verify-authors value judges no owner pull request" 0 1 "$NOT_JUDGED"
+STUB_CONFIG=$'merge:\n  verify-authors: [lane]' expect "in the merge queue, a verify-authors value that is not one word judges no owner pull request" 0 1 "$NOT_JUDGED"
+for config in $'merge:\n  verify-authors: lane' $'merge:\n  verify-authors: everyone'; do
+  STUB_CONFIG=$config STUB_ISSUE="[$(pin "$OLD")]" \
+    expect "in the merge queue, a moved lanes App pin holds a pull request pr-verify does not judge ($(tr '\n' ' ' <<<"$config"))" 1 2 "::error::#7: its head is not $OLD, the head the lanes App pinned"
+  if [[ "$(readers)" -eq 0 ]]; then ok "the pin hold under $(tr '\n' ' ' <<<"$config") runs no verdict reader"; else fail "the pin hold under $(tr '\n' ' ' <<<"$config") ran the reader"; fi
+done
+STUB_PULL="$(pull 'Closes #1' '{"id":2,"login":"someone","type":"User"}')"
+STUB_CONFIG=$'merge:\n  verify-authors: lane' STUB_ISSUE="[$(pin "$OLD")]" \
+  expect "in the merge queue, a moved lanes App pin holds even an unlisted author's pull request" 1 2 "its head is not $OLD"
+STUB_CONFIG=$'merge:\n  verify-authors: lane' STUB_ISSUE="[$(pin "$OLD")]" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
+  expect "in the merge queue, under a pin hold a pull request pr-verify does not judge reads its reviews, and a trusted approval of the head lifts the hold" 0 2 "#7: no pin hold: kyle-sexton approved this head, which lifts"
+STUB_ISSUE=''
+STUB_PULL="$(pull 'Closes #1' "$KYLE")"
 EVENT=pull_request REF=refs/pull/7/merge PR_NUMBER=7 STUB_ARTIFACTS='{}' \
   expect "on a pull request event, an owner pull request still exits on its payload" 0 0 "not the lanes App's"
 export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 STUB_PULL="$(pull 'Closes #1')"
-# Each stand-in module answers the kill switch (switchHold) and prints its
-# verdict lines only when run as main, as merge-holds.mjs does.
 stub_module() { printf 'export const switchHold = () => null;\nif (process.argv.length > 3) {\n%s\n}\n' "$2" >"$1"; }
-# The stand-ins print the verdict line's earlier wording, which the step still
-# takes, since a queued group can run the module from a main tip behind its own.
-stub_module "$TMP_ROOT/old.mjs" 'console.log("#7: no body hold, no member veto and no hold path.");'
+stub_module "$TMP_ROOT/old.mjs" 'console.log("#7: no hold path.");'
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}" STUB_MODULE="$TMP_ROOT/old.mjs"
-expect "in the merge queue, a base module that ignores the verdicts fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its verifier verdict"
-stub_module "$TMP_ROOT/older.mjs" 'console.log("#7: no body hold, no member veto and no hold path.");
+expect "in the merge queue, a base module that ignores the verdicts fails closed" 1 2 "::error::merge-holds.mjs exited 0 without its verifier verdict"
+stub_module "$TMP_ROOT/older.mjs" 'console.log("#7: no hold path.");
 console.log("#7: no verifier hold: pr-verify passed this head.");'
 STUB_MODULE="$TMP_ROOT/older.mjs"
-expect "in the merge queue, a base module that ignores the reader's report fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its pr-verify FAIL verdict"
+expect "in the merge queue, a base module that ignores the reader's report fails closed" 1 2 "::error::merge-holds.mjs exited 0 without its pr-verify FAIL verdict"
+stub_module "$TMP_ROOT/short-wording.mjs" 'console.log("#7: no hold path.");
+console.log("#7: no verifier hold: pr-verify passed this head.");
+console.log("#7: no pr-verify FAIL hold: none stands at this head.");'
+STUB_MODULE="$TMP_ROOT/short-wording.mjs"
+expect "in the merge queue, a base module that prints the short verdict wording passes" 0 2 "#7: no hold path."
+stub_module "$TMP_ROOT/earliest-wording.mjs" 'console.log("#7: no body hold, no member veto and no hold path.");
+console.log("#7: no verifier hold: pr-verify passed this head.");
+console.log("#7: no pr-verify FAIL hold: none stands at this head.");'
+STUB_MODULE="$TMP_ROOT/earliest-wording.mjs"
+expect "in the merge queue, a base module that prints the body-hold era's verdict fails closed" 1 2 "::error::merge-holds.mjs exited 0 without its verdict."
 unset STUB_MODULE
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
 STUB_PULL="$(pull $'Closes #1\nHold: owner call')"
-expect "in the merge queue, a body hold does not fail the group" 0 3 "no member veto and no hold path"
+expect "in the merge queue, a body hold does not fail the group" 0 2 "no hold path."
 STUB_PULL="$(pull 'Closes #1')" STUB_ISSUE="[$KYLE_VETO]"
-expect "in the merge queue, a member's veto fails the group" 1 3 "kyle asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO,$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'ok, merge it')]"
-expect "in the merge queue, a lifted veto passes" 0 3
+expect "in the merge queue, a member's comment saying not to merge does not fail the group" 0 2 "#7: no member veto and no hold path."
 STUB_ISSUE='' STUB_FILES='[["docs/held/x.md"]]'
-expect "in the merge queue, a hold path fails the group" 1 3 "it changes docs/held/x.md, a hold path"
+expect "in the merge queue, a hold path fails the group" 1 2 "it changes docs/held/x.md, a hold path"
 STUB_FILES='[["docs/guide.md"]]'
+STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" expect "in the merge queue, the lanes App's own pull request ignores a lanes App unpin and judges its older pin, whose edit time this stub cannot read, so it holds" 1 2 \
+  "::error::#7: the lanes App's newest pin comment was edited, or its edit time did not read"
 export REF="refs/heads/main"
 expect "a merge-group ref with no pull request fails closed without a call" 1 0 "::error::cannot read a pull request number"
 export STUB_ISSUE='[]' REF="$QUEUE" GROUP_BASE_SHA=main
@@ -1177,13 +843,13 @@ unset EVENT REF PR_NUMBER GROUP_BASE_SHA
 
 STUB_PULL="$(pull 'Closes #1')"
 export STUB_FAILS=1
-expect "a transient discussion read failure is retried" 0 4
+expect "a transient discussion read failure is retried" 0 3
 export STUB_FAILS=3
 expect "an unreadable discussion fails closed" 1 3 "::error::could not read the issues/7/comments of #7"
 unset STUB_FAILS
 stub_module "$TMP_ROOT/silent.mjs" 'process.exitCode = 0;'
 export STUB_MODULE="$TMP_ROOT/silent.mjs"
-expect "a module that exits 0 without its verdict fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its verdict"
+expect "a module that exits 0 without its verdict fails closed" 1 2 "::error::merge-holds.mjs exited 0 without its verdict"
 unset STUB_MODULE
 export STUB_NO_MODULE=1
 expect "a base with no merge-holds.mjs fails closed" 1 0 "::error::merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base) could not judge the lanes kill switch"
@@ -1200,8 +866,6 @@ expect "a pull request number that is not a number fails closed" 1 0 "is not a n
 unset PR_NUMBER
 export STUB_APP_ID=''
 expect "a missing LANES_APP_ID fails closed without a call" 1 0 "::error::the job's LANES_APP_ID is not a numeric id"
-# A numeric id that is not merge.agent-identity's trusted-actor id would read
-# the lanes App's pull request as another author's and skip every hold.
 export STUB_APP_ID=300666570
 expect "a LANES_APP_ID other than merge.agent-identity's fails the lanes App's pull request closed" 1 0 "is not melodic-automation-lanes[bot]'s trusted-actor id (337595936)"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
@@ -1209,12 +873,11 @@ expect "a LANES_APP_ID other than merge.agent-identity's fails any pull request 
 STUB_PULL="$(pull 'Closes #1')"
 unset STUB_APP_ID
 export STUB_BASE_CONFIG=''
-expect "an unreadable base config fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id"
+expect "an unreadable base config fails closed" 1 0 "$NO_IDENTITY"
 export STUB_BASE_CONFIG="$TMP_ROOT/no-identity"
-mkdir -p "$STUB_BASE_CONFIG/docs/conventions" "$STUB_BASE_CONFIG/.github/standards/trusted-actors"
+mkdir -p "$STUB_BASE_CONFIG/docs/conventions"
 printf 'merge:\n  diff-check: {}\n' >"$STUB_BASE_CONFIG/docs/conventions/pr-pipeline.yaml"
-cp "$ROOT/.github/standards/trusted-actors/trusted-actors.json" "$STUB_BASE_CONFIG/.github/standards/trusted-actors/"
-expect "a base config with no merge.agent-identity fails closed" 1 0 "::error::cannot read merge.agent-identity's trusted-actor id"
+expect "a base config with no merge.agent-identity fails closed" 1 0 "$NO_IDENTITY"
 unset STUB_BASE_CONFIG
 
 test_harness::report

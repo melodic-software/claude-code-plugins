@@ -84,7 +84,9 @@ Run the steps in order before writing CSS: step 3 needs what steps 1 and 2 found
   curves in `animation.easing` (four control points, written as `cubic-bezier()`) and the role
   durations in `animation.duration_ms`. Name each one you used as a default.
 - **`!important`**: only with a stated reason, and only as `css.important` allows: `avoid` (when
-  nothing else works), `utilities-only` (utility classes), `allow`.
+  nothing else works), `utilities-only` (utility classes), `allow`. State the reason in a CSS
+  comment, or in the commit or pull request where the project's comment posture keeps no reason
+  comments (code-tidying's `necessary` or `none`, if enabled).
 - **Techniques**: before writing, read the topic references whose row matches the work; one
   component matches two or three, a page most of them. Skip any technique in
   `css.techniques.disable`.

@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Browser check of text, region and data-log notes and of copy-out, on a test-local mockup with the
-# bundled switcher inlined and a deterministic Seed (record i from index i), served by this
-# plugin's notes-bridge copy and driven through playwright-cli. A text note taken after Seed 10,
-# Clear, Reset and Seed 10 re-locates in a fresh page by its quote, with the data log replayed. A
-# region note is made with the keyboard alone and leaves the variant and state as they were. An
-# element note on record 57 after Seed 100 re-locates to that record's row (the one green row).
-# With the server stopped under the open page, the page says no session, keeps a new note, and Copy
-# all notes makes a block that notes-bridge.sh import takes, skipping the notes already logged.
-# SKIPs without playwright-cli, node, python3 or curl.
 # test-scope: plugins/prototype/notes-bridge/* plugins/prototype/skills/explore-directions/assets/variant-switcher.html plugins/prototype/.claude-plugin/plugin.json
 set -euo pipefail
 
@@ -18,9 +9,6 @@ bridge=$(cd "$skill/../../notes-bridge" && pwd)
 source "$here/../../../lib/browser-test-helpers.sh"
 browser_setup ed-notes-kinds edk playwright-cli node python3 curl
 
-# The mockup: variant A lists the records in a table, one row per record, built from the data as it
-# stands; record 12's row is magenta and record 57's green, their text the same color, so a shot
-# of either is one color. The data bar marks each control with data-data-control.
 cat >"$d/explore-directions.html" <<'HTML'
 <!doctype html>
 <html lang="en">
@@ -129,8 +117,6 @@ relocate() {
     printf 'no result: %s\n' "$(printf '%s' "$raw" | head -c 600)" >&2
   fi
 }
-# Share of the shot's pixels near one color, measured in the browser in a page of its own, so the
-# host page stays open for the offline step. $2 is r,g,b.
 share() {
   python3 -c '
 import base64, json, sys

@@ -5,10 +5,6 @@ import { BUILT } from './index.js'
 
 const HALL = 2
 
-/**
- * Runs /bedroom <args>, then reads the Shader element every 100 ms for 6 s: the reply, and every screen code shown from
- * just before the command on, each once in order.
- */
 async function track(room: Room, args: string): Promise<{ reply: string; codes: number[] }> {
   const codes = [(await room.values())?.screen ?? -1]
   const reply = await room.run(args)

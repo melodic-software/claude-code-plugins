@@ -24,6 +24,22 @@ hooks/hook-utils.sh
 # Cluster line for the duplication audit: the root canonical and the copies.
 lib/hook-utils.sh -> plugins/*/hooks/hook-utils.sh
 
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/hook-enabled.sh.
+hooks/hook-enabled.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
+# Cluster line for the duplication audit: the root canonical and the copies.
+lib/hook-enabled.sh -> plugins/*/hooks/hook-enabled.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/hook-enabled.mjs.
+lib/hook-enabled.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check.
+# Cluster line for the duplication audit: the root canonical and the copies.
+lib/hook-enabled.mjs -> plugins/*/lib/hook-enabled.mjs
+
 # Dedicated check: scripts/sync-shared-copies.sh --check.
 # Cluster line for the duplication audit: the root canonical and the copies.
 lib/rewrite-guard.sh -> plugins/*/hooks/rewrite-guard.sh
@@ -98,6 +114,14 @@ lib/managed-scope.sh
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/managed-scope.sh -> plugins/*/lib/managed-scope.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/org-standards.sh.
+scripts/org-standards.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/org-standards.sh -> plugins/*/scripts/org-standards.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/state-key.sh.
@@ -190,7 +214,7 @@ lib/plugin-options.mjs
 # the duplication audit: the channel-F settings reader and every copy, the
 # harness-ops, plugin-profiles, plugin-diagnostics and external-agents ones at the path above, the
 # source-control and corrections ones at paths of their own.
-lib/plugin-options.mjs -> plugins/source-control/skills/babysit-loop/scripts/operator-options.mjs plugins/corrections/scripts/lib/plugin-options.mjs plugins/harness-ops/lib/plugin-options.mjs plugins/plugin-profiles/lib/plugin-options.mjs plugins/plugin-diagnostics/lib/plugin-options.mjs plugins/external-agents/lib/plugin-options.mjs
+lib/plugin-options.mjs -> plugins/source-control/skills/babysit-loop/scripts/operator-options.mjs plugins/source-control/skills/pull-request/scripts/plugin-options.mjs plugins/corrections/scripts/lib/plugin-options.mjs plugins/harness-ops/lib/plugin-options.mjs plugins/plugin-profiles/lib/plugin-options.mjs plugins/plugin-diagnostics/lib/plugin-options.mjs plugins/external-agents/lib/plugin-options.mjs plugins/debugging/lib/plugin-options.mjs plugins/discovery/lib/plugin-options.mjs plugins/machine-health/lib/plugin-options.mjs plugins/work-items/lib/plugin-options.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/enabled-plugin-roots.mjs, which harness-ops and plugin-diagnostics carry at this path.
@@ -220,6 +244,23 @@ reference/html-chrome.html
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/html-chrome.html -> plugins/*/reference/html-chrome.html
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/html-tokens.css, the rendered-views shared token layer
+# (docs/adr/0133-let-a-consumer-brand-rendered-pages-through-one-shared-token-layer.md).
+reference/html-tokens.css
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/html-tokens.css -> plugins/*/reference/html-tokens.css
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/html-branding.mjs, the rendered-views shared branding helper.
+lib/html-branding.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/html-branding.mjs -> plugins/*/lib/html-branding.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/hook-test-sink.sh, the telemetry-sink test helper
@@ -331,7 +372,7 @@ lib/config-cascade.mjs -> plugins/*/scripts/lib/config-cascade.mjs plugins/*/lib
 lib/config-cascade.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/view-settings.mjs, the medium resolver every view lane calls.
+# lib/view-settings.mjs, the medium resolver every view producer calls.
 lib/view-settings.mjs
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
@@ -656,7 +697,7 @@ reference/docs-lookup-procedure.md
 lib/docs-lookup-procedure.md -> plugins/*/reference/docs-lookup-procedure.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
-# lib/rendered-view.md, the rendered-view procedure every view lane follows,
+# lib/rendered-view.md, the rendered-view procedure every view producer follows,
 # carried by planning, architecture, discovery and debugging.
 reference/rendered-view.md
 
@@ -699,6 +740,15 @@ lib/plugin_cache_versions.py
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/plugin_cache_versions.py -> plugins/*/lib/plugin_cache_versions.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. The Claude projects
+# slug encoder, resolver and orphan detector shared by session-flow,
+# harness-ops and disk-hygiene.
+lib/claude_projects.py
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/claude_projects.py -> plugins/*/lib/claude_projects.py
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/view-builder.mjs. The review, planning, debugging, discovery and architecture plugins carry the generated
@@ -788,7 +838,7 @@ lib/git-hooks/install.mjs -> plugins/*/lib/git-hooks/install.mjs
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies, which sit at a
 # different path in each plugin.
-lib/redact.py -> plugins/session-flow/scripts/redact.py plugins/corrections/tools/findings-buffer/lib/redact.py
+lib/redact.py -> plugins/session-flow/scripts/redact.py plugins/corrections/tools/findings-buffer/lib/redact.py plugins/performance/lib/redact.py plugins/discovery/lib/redact.py plugins/explainer-video/scripts/redact.py plugins/source-control/tools/reviewer-media/lib/redact.py plugins/speech/scripts/redact.py plugins/evals/scripts/redact.py
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/check-convention-facts.mjs, the advisory current-facts check a setup
@@ -815,7 +865,8 @@ lib/git-hooks/resolve-tool.sh -> plugins/*/lib/git-hooks/resolve-tool.sh
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/one-way-doors.md, the one-way and two-way door definition, carried by
-# planning (/planning:design) and review (/review:merge-risk).
+# architecture (/architecture:adr), planning (/planning:design) and review
+# (/review:merge-risk).
 reference/one-way-doors.md
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
@@ -870,6 +921,18 @@ scripts/media_scan.py
 # Dedicated check: scripts/sync-shared-copies.sh --check. The scan floor's
 # redactor. Canonical: lib/redact.py.
 scripts/redact.py
+# Dedicated check: scripts/sync-shared-copies.sh --check. The publish redactor
+# of the transcript-mining scripts. Canonical: lib/redact.py.
+lib/redact.py
+# Dedicated check: scripts/sync-shared-copies.sh --check. The transcript source
+# resolver. Canonical: lib/transcript_sources.py.
+lib/transcript_sources.py
+# Dedicated check: scripts/sync-shared-copies.sh --check. The fail-closed loader
+# of the publish redactor. Canonical: lib/publish.py.
+lib/publish.py
+# Dedicated check: scripts/sync-shared-copies.sh --check. The one transcript
+# parser of the transcript-mining scripts. Canonical: lib/transcript_reader.py.
+lib/transcript_reader.py
 # Dedicated check: scripts/sync-shared-copies.sh --check. The rules the scan
 # floor reads. Canonical:
 # plugins/session-flow/vendor/gitleaks/gitleaks-rules.json.
@@ -928,3 +991,39 @@ lib/opt-value.sh
 # Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
 # duplication audit: the root canonical and the copies.
 lib/opt-value.sh -> plugins/*/lib/opt-value.sh plugins/*/skills/*/scripts/lib/opt-value.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-attended.sh, the attended-session predicate.
+hooks/session-attended.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/session-attended.sh -> plugins/*/hooks/session-attended.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-attended.env, the predicate's variable names and values.
+hooks/session-attended.env
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/session-attended.env -> plugins/*/hooks/session-attended.env
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/session-attended.mjs, the predicate's node reader.
+hooks/session-attended.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/session-attended.mjs -> plugins/*/hooks/session-attended.mjs
+
+# No dedicated check: accepted. Each is the wrapper through which run-plugin-tests.sh finds a node suite.
+# Canonical copy: plugins/user-interface/tests/.
+tests/routing.test.sh
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/mod-hook-enabled.ts, the TSX/TS hooks-module enablement helper.
+hooks/mod-hook-enabled.ts
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/mod-hook-enabled.ts -> plugins/*/hooks/mod-hook-enabled.ts

@@ -2,9 +2,7 @@ import type { EngineInterface } from 'claude-code'
 
 /** What /bedroom stats reports. Kept in memory only: the module writes no file. */
 export const stats = { renders: 0, roomSends: 0, valueOnly: 0, chars: 0, buildMs: 0, maxBuildMs: 0, askMs: 0 }
-/** Lines noted since the last flush, for the debug log. */
 const pending: string[] = []
-/** Value-only redraws in each of the last 60 minutes, by the minute since the epoch. */
 const perMinute = new Map<number, number>()
 
 export function note(line: string): void {

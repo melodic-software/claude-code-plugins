@@ -1,5 +1,5 @@
 ---
-description: "Resolve design decisions (types, contracts, package topology, module boundaries) in discussion rounds before /planning:plan, as design artifacts. Use when: 'design this', 'type modeling', 'figure out the abstractions', 'model this domain', 'what should the types look like', 'how should I structure this', 'where do the module boundaries go', or entering /planning:plan without exploring the design space. Skip when scanning existing code for module friction: /architecture:improve does that, and /planning:design resolves decisions before /planning:plan. Handoff gate: /planning:design-handoff."
+description: "Resolve design decisions (types, contracts, package topology, module boundaries) in rounds before /planning:plan as design artifacts. Use: 'design this', 'type modeling', 'figure out the abstractions', 'model this domain', 'what should the types look like', 'how should I structure this', 'where do the module boundaries go', design space. Not for friction: /architecture:improve; gate: /planning:design-handoff."
 argument-hint: "[library|module|data|integration|system] [status|thread <name>|discuss|terminology|handoff]"
 user-invocable: true
 disable-model-invocation: false
@@ -110,6 +110,7 @@ in the user's words)` and `Chosen direction` lines of `<memory_dir>/<topic-slug>
 `## Handoff` block when it exists; with neither, establish it:
 [`${CLAUDE_PLUGIN_ROOT}/context/problem-framing.md`](../../context/problem-framing.md). Its
 `time_units` user layer is `${user_config.time_units}` (unexpanded means unset).
+Then read the consumer's standards whose `Applies when` matches the design's concerns, resolved through the "Resolution ladder" section of [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](../../reference/standards-contract.md), and list each one applied under conventions followed. A file citing shipped concept ids follows that binding's "Adopted shipped concepts" paragraph, with `/engineering-concepts:lookup` (if enabled); otherwise apply each entry as written.
 
 Scan the whole problem space broadly before diving into any single capability. For each capability
 or concern:
@@ -402,6 +403,11 @@ and behave exactly as with no convention doc at all, reporting its provenance as
 for the fenced form, since the diagram goes into the typed artifact. Without
 it, emit the plainest correct form of the dialect. The typed artifact is produced either way.
 
+**Collaborative canvas mode.** When a thread's question is structural (module boundaries,
+topology, a data shape, a flow) and the person is present, offer once to work it out on a live
+canvas through `/visualization:visualize` (if enabled) in collaborative canvas mode. Offer it on no
+other question. When the canvas closes, ask for the fenced form: the typed artifact stays the record.
+
 ## Key behaviors
 
 - **Frontier rounds.** Every open thread whose prerequisites are settled surfaces in the same
@@ -465,7 +471,7 @@ it, emit the plainest correct form of the dialect. The typed artifact is produce
 
 ## Next
 
-- Design finished, to gate and write into PLAN.md's `## Design`, which /planning:plan reads: /planning:design-handoff.
+- Design finished: /planning:design-handoff, which gates it and writes PLAN.md's `## Design` for the plan.
 - The contract is a UI component's props API (parts, variants, controlled state): /user-interface:design.
 
 ## Related

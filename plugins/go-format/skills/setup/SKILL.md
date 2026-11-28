@@ -1,5 +1,5 @@
 ---
-description: "Verify go-format's prerequisites and what its hooks run here, and register its git pre-commit entry. Use when: 'set up go-format', 'configure go-format', 'is go-format working', 'does go-format lint Go', Go formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
+description: "Verify go-format prerequisites and Go hooks (check [inspect]), or resolve and register its git pre-commit entry (apply [install-git-hooks])."
 argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
@@ -190,9 +190,10 @@ refused untouched. It fails a commit only for a file goimports cannot parse. The
 entry. A decline of the earlier `goimports-format` entry carries to `format`.
 
 A remote entry stays in the committed `lefthook.yml`, so stop it in one clone by skipping its job,
-`go-format-remote-<entry>`, in the clone's untracked `lefthook-local.yml`; a failing remote job prints
-that skip, and the [adoption
-path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md#when-a-remote-job-breaks)
+`go-format-remote-<entry>`, in the clone's gitignored lefthook local config, written as lefthook's
+docs say at the time (pointer: [lefthook-local](https://lefthook.dev/examples/lefthook-local/) and
+[skip](https://lefthook.dev/configuration/skip/)); a failing remote job prints that skip, and the
+[adoption path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md#when-a-remote-job-breaks)
 says when to use it and how to drop it.
 
 When the user does not want the entry in this clone, run
@@ -245,8 +246,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Next
 
-- /toolchain:setup apply go, with the drafted `lint-cmd`, when the repository lints Go;
-  /toolchain:lint then runs it on request.
+- Repository lints Go (drafted `lint-cmd` ready): /toolchain:setup apply go.
 - A hook stage over its time budget in `setup check inspect`: /performance:target.
 
 ## What this skill does not do

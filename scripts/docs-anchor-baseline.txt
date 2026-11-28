@@ -62,7 +62,6 @@ plugins/harness-ops/skills/audit-native-overlap/SKILL.md 1
 plugins/harness-ops/skills/audit-performance/SKILL.md 1
 plugins/harness-ops/skills/audit-performance/reference/known-performance-issues.md 6
 plugins/harness-ops/skills/changelog/context/read-actions.md 1
-plugins/harness-ops/skills/inventory/SKILL.md 4
 plugins/harness-ops/skills/lanes/SKILL.md 2
 plugins/harness-ops/skills/observability/SKILL.md 1
 plugins/harness-ops/skills/observability/context/otel-queries.md 1
@@ -71,13 +70,11 @@ plugins/harness-ops/skills/observability/context/read-routing.md 1
 plugins/harness-ops/skills/observability/reference/native-explain-usage.md 1
 plugins/harness-ops/skills/plugins/context/gotchas.md 2
 plugins/harness-ops/skills/plugins/context/scope-semantics.md 5
-plugins/implementation/skills/implement-dispatch/SKILL.md 1
 plugins/instruction-placement/skills/migrate/reference/sources.md 3
 plugins/knowledge/skills/docpage-digest/SKILL.md 1
 plugins/knowledge/skills/docpage-digest/context/anthropic-docs-profile.md 2
 plugins/knowledge/skills/docpage-digest/context/anthropic-docs-queue.md 26
 plugins/mcp-tools/skills/audit-posture/reference/checklist.md 2
-plugins/mcp-tools/skills/audit/SKILL.md 1
 plugins/mcp-tools/skills/audit/reference/checklist.md 1
 plugins/mutation-testing/skills/principles/reference/metrics.md 1
 plugins/mutation-testing/skills/principles/reference/operators-and-states.md 1

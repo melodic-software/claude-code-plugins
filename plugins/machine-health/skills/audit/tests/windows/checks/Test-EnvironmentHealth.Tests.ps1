@@ -33,7 +33,6 @@ BeforeAll {
             $padTo = [int]$Spec.pad_to
         }
         if ($padTo -gt $value.Length) {
-            # Appending ';' plus (padTo - len - 1) filler lands on exactly padTo.
             $value = $value + ';' + ('x' * ($padTo - $value.Length - 1))
         }
         return $value
@@ -90,8 +89,6 @@ BeforeAll {
 
     function Install-EnvironmentMocks {
         param($Fixture)
-        # GetNewClosure: MockWith runs in the mocked command's scope, where a $script:
-        # variable would resolve against the check script, not this file.
         $userKey = $Fixture.UserKey
         $machineKey = $Fixture.MachineKey
         Mock Get-Item -ParameterFilter { $LiteralPath -eq 'HKCU:\Environment' } -MockWith (

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Context zone check skipped: the context-usage tool is not available.\"}]}}\n",
+      "why": "context then skipped"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"I skipped the zone check because no context tool is loaded.\"}]}}\n",
+      "why": "skipped then zone"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Away mode is on. The report is due at 09:00.\"}]}}\n",
+      "why": "no mention of the zone check"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Context zone is light.\"}]}}\n",
+      "why": "claims a zone reading instead of a skip"
+    },
+    {
+      "answer": "{\"type\":\"assistant\",\"uuid\":\"a1\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Context zone is light.\\nThe warning check was skipped.\"}]}}\n",
+      "why": "skipped is on another line than the zone"
+    }
+  ]
+}

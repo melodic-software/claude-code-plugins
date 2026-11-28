@@ -7,9 +7,9 @@ const ASK = "This link signs you in as someone else on this device. Switch?";
 
 async function main() {
   const pw = loadPlaywright();
-  if (!pw) { console.log("SKIP: ui_personal_link.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; } // silent-skip-ok: a browser suite needs a local Playwright
+  if (!pw) { console.log("SKIP: ui_personal_link.js needs playwright-core (npm ci, or playwright-cli on PATH)"); return 0; }
   let browser;
-  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; } // silent-skip-ok: no browser binary
+  try { browser = await pw.chromium.launch(); } catch (e) { console.log(`SKIP: no Chromium to launch (${String(e.message).split("\n")[0]})`); return 0; }
   const s = suite("ui_personal_link"), { ok } = s, rec = recorder(browser);
   try {
     const A = await s.start("personal-link");
@@ -130,7 +130,7 @@ async function main() {
       const answer = await route.fetch();
       await had401;
       await new Promise(r => setTimeout(r, 500));
-      try { await route.fulfill({ response: answer }); } catch { /* the page reloaded away from it */ }
+      try { await route.fulfill({ response: answer }); } catch {}
     });
     const rescan = await rec.openIn(ctx, `${C.localUrl}#join=${C.guestKey}&pair=${code4}`);
     ok("a device whose old credential was signed out signs in with a new code", await until(rescan, () => window.Core?.snapshot()?.me?.role === "owner", null, 10000),

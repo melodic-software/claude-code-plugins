@@ -64,7 +64,6 @@ export function computeStamp(packageDir, vendorDir = vendorRoot) {
   const hash = createHash("sha256");
   const files = ["package.json"];
   if (fs.existsSync(vendorDir)) {
-    // Traversal order is irrelevant: files.sort() below fixes the hash order.
     const walk = (/** @type {string} */ dir) => {
       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
         const abs = path.join(dir, entry.name);
@@ -160,14 +159,6 @@ export function installPackageDeps({
     return 0;
   }
 
-  // npm is a `.cmd` shim on Windows, which node refuses to spawn without a shell
-  // (CVE-2024-27980); a shell with a separate args array trips DEP0190. Passing a
-  // single command string with shell:true satisfies both. JSON.stringify wraps
-  // `packageDir` in double quotes, which keeps a path with spaces one argument in
-  // cmd.exe and POSIX sh; it is not shell escaping: sh still expands `$` and
-  // backticks inside double quotes, cmd.exe still expands `%VAR%`, and its `\"`
-  // is not a quote escape in cmd.exe. What keeps the command safe is that
-  // `packageDir` is a plugin-owned path (runCli rejects one outside the plugin).
   if (!depsCurrent) {
     const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
     const result = spawn(`${npmCommand} install --omit=dev --install-links ${JSON.stringify(packageDir)}`, {
@@ -217,7 +208,6 @@ export function runPackageSetup({ packageDir, argv, stderr = process.stderr }) {
       throw new Error("setup-deps.mjs takes only `--data-dir <dir>`");
     }
     dataDir = taken.dataDir;
-    // Resolve before installing so a bad --data-dir is a usage error that writes nothing.
     resolvePluginData(dataDir, process.env);
   } catch (error) {
     stderr.write(`${error instanceof Error ? error.message : String(error)}\n${entryUsage}`);
@@ -250,7 +240,6 @@ export function runCli(argv, stderr = process.stderr) {
       flags[flag] = value;
     }
     if (!flags["--package"]) throw new Error("`--package` is required");
-    // Real paths on both sides: Node resolves this module's own path through symlinks.
     packageDir = fs.realpathSync(path.resolve(flags["--package"]));
     const rel = path.relative(pluginRoot, packageDir);
     if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
@@ -265,7 +254,6 @@ export function runCli(argv, stderr = process.stderr) {
   return installPackageDeps({ packageDir, dataDir: flags["--data-dir"], stderr });
 }
 
-/** True when this file is the process entry point, compared as real paths (a symlinked plugin root). */
 function isMain() {
   try {
     return Boolean(process.argv[1]) && fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));

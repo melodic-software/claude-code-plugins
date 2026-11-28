@@ -14,7 +14,6 @@ const env = { ...inherited, GIT_CONFIG_GLOBAL: gitConfig, GIT_CONFIG_NOSYSTEM: "
 
 const runGit = gitRunner(env);
 
-/** Real git with the caller's environment passed through, as the script ran it before isolation. */
 const leakyGit = (extra) => (args) => {
   const r = spawnSync("git", args, { env: { ...env, ...extra }, encoding: "utf8" });
   return { status: r.status, stdout: r.stdout ?? "", error: r.error };
@@ -67,7 +66,6 @@ function repo(dir, remotes) {
   for (const [name, url] of remotes) git(dir, "remote", "add", name, url);
 }
 
-/** Commits pushed to a public origin and to a private remote, and one commit pushed nowhere. */
 const commits = {};
 
 before(() => {
@@ -294,7 +292,6 @@ describe("the user's config and branch pointers", () => {
   const userEnv = { ...inherited, HOME: home, XDG_CONFIG_HOME: path.join(home, ".config") };
   /** Real git reading `home`'s .gitconfig as the user's global config. */
   const runUserGit = userGitRunner(userEnv);
-  /** The same git with no user config at all. */
   const noUserConfig = gitRunner(env);
   const globalPushRewrite = path.join(base, "global-push-rewrite");
   const globalFetchRewrite = path.join(base, "global-fetch-rewrite");

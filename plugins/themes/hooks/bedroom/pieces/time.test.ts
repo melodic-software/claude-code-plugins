@@ -95,7 +95,6 @@ test('auto walks the day from midnight: each phase at its row start, by the worl
   expect(redrawn).toBe(false)
 })
 
-/** The clock's daylight saving time on a date, in minutes, as seasonOf reads it. */
 const dstOn = (year: number, month: number, day: number): number =>
   Math.max(new Date(year, 0, 1).getTimezoneOffset(), new Date(year, 6, 1).getTimezoneOffset()) - new Date(year, month, day, 12).getTimezoneOffset()
 
@@ -162,7 +161,6 @@ test('an HH:MM sunrise or sunset holds all year over the season', () => {
   expect(seasonOf(december).sunset).toBeLessThan(minutesOf('18:00'))
 })
 
-/** 21:00 local on 2026-11-19 wherever the test runs: dusk under the default sunset 20:30, golden under 21:15. */
 const NINE_PM = new Date(2026, 10, 19, 21, 0, 0).getTime()
 const sunOf = (values: Record<string, number> | undefined): number | undefined => (values?.world === undefined ? undefined : values.world % 8)
 

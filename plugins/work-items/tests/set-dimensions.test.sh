@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# Triage's dimension writer: the model names one key per dimension, and the script turns each
-# into the option id the repository's models.issue-dimensions map gives it, then sets them
-# through the tracker seam. The fixture config uses names and ids no skill text holds, so a
-# pass shows they come from the config. The seam runs for real against a gh stub whose org
-# listing holds the fixture's ids.
-#
-#   bash plugins/work-items/tests/set-dimensions.test.sh
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/capabilities.json plugins/work-items/tools/work-item-tracker/adapters/github/common.sh plugins/work-items/tools/work-item-tracker/adapters/github/set-fields.sh plugins/work-items/tools/work-item-tracker/lib/id.sh plugins/work-items/tools/work-item-tracker/lib/lease.sh
 set -uo pipefail
 
@@ -124,7 +117,6 @@ run "$ID" size=tiny complexity=easy uncertainty=clear
 assert_eq "no dimension map → exit 3" "3" "$RC"
 mv "$TMP_ROOT/away.yaml" "$REPO/docs/conventions/pr-pipeline.yaml"
 
-# A flow mapping is outside the parser's subset: the error names the file and the line.
 cp "$REPO/docs/conventions/pr-pipeline.yaml" "$TMP_ROOT/kept.yaml"
 printf 'models:\n  issue-dimensions: { fields: {} }\n' >"$REPO/docs/conventions/pr-pipeline.yaml"
 run "$ID" size=tiny complexity=easy uncertainty=clear
@@ -133,7 +125,6 @@ assert_eq "a flow mapping → the error names the file and line" \
   "set-dimensions: docs/conventions/pr-pipeline.yaml does not parse: line 2: flow mapping ({...}) is outside the subset; use block style" "$ERR"
 mv "$TMP_ROOT/kept.yaml" "$REPO/docs/conventions/pr-pipeline.yaml"
 
-# Two option ids for one key would make the write a guess.
 CFG="$REPO/docs/conventions/pr-pipeline.yaml"
 text="$(<"$CFG")"
 printf '%s\n' "${text/\"102\": huge/\"102\": tiny}" >"$CFG"

@@ -1,9 +1,4 @@
 // test-scope: .github/scripts/plugin-eval/fixtures/traces/*
-// Expected verdicts come from /evals:plugin-eval's reference/ci.md parser: a
-// partial document, a run with skippedPaidGraders or a non-null error, and a
-// two-arm case with no delta are each NOT COMPARABLE, never a score. The
-// single-arm-by-design rule (context.history_file set, no without-arm key) is
-// run-validity.py's row count rule.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -216,7 +211,6 @@ test("--annotation writes one escaped ::error naming each case that is not PASS"
     assert.equal(scored.status, 0, scored.stderr);
     assert.equal(readFileSync(file, "utf8"), "");
     assert.equal(run(fixture("scored.json"), "--annotation").status, 2);
-    // An unreadable result writes no file, so the step reports the suite as not run.
     const missing = join(dir, "unread.txt");
     assert.equal(run(fixture("absent.json"), "--annotation", missing).status, 2);
     assert.equal(existsSync(missing), false);

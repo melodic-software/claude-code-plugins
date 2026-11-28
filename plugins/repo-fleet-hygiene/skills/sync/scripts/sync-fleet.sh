@@ -1,28 +1,4 @@
 #!/usr/bin/env bash
-# Move canonical checkouts onto the remote default branch and fast-forward.
-# Bare invocation prints a dry-run plan; --dry-run asks for that explicitly and cannot be combined
-# with --apply. Mutation requires --apply and one confirmation (--yes, or a single prompt on a
-# terminal).
-# Non-fast-forward, dubious ownership, and a partial stash apply are skipped
-# and reported. Nothing is reset.
-# Parking dirty work needs --worktree-create <path to worktree-create.sh>, the
-# only way this script learns of the helper; without it a dirty repo is skipped.
-# --worktree-root overrides the root the helper resolves from the repository.
-# A plan line is action<TAB>repo<TAB>branch<TAB>note<TAB>rung=<rung>.
-# A skipped line is skipped<TAB>repo<TAB>reason[<TAB>extra]<TAB>git-exit=<n><TAB>remedy=<text><TAB>rung=<rung>.
-# rung names the scope source that produced the repository: repo (--repo), repos-from, root (--root or a
-# bare path), config, named, ghq, cwd or ancestor. It is the last field, so earlier field positions hold.
-# git-exit is the status of the command that failed (the worktree helper's for
-# a worktree skip), or none when a plan rule skipped the repo.
-# Scope and discovery flags: --repo DIR, --root DIR, --named DIR, --config FILE, --project-dir DIR.
-# --repos-from FILE|- reads one checkout path per line (- is stdin), blank lines ignored, and counts
-# as explicit scope, so the config and fallback rungs are not consulted.
-# --skip NAME (repeatable, a bare directory name) replaces the default discovery skip set;
-# --extend-skip NAME adds to whichever set is in effect; --skip-from FILE reads one --skip name
-# per line, blank lines ignored and CRLF stripped. A missing FILE exits 2.
-# Discovery is scripts/fleet-discovery.sh, the walker audit uses: it honors the config's fleet.skip,
-# fleet.skipAppend and fleet.maxDepth, and stops at the first .git marker on each path.
-# Exit status: 0 when no repo was skipped, 1 when any was, 2 usage, 3 refused.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -53,7 +29,6 @@ fail() {
   exit 2
 }
 
-# read_lines_into <array-name> <file|-> <flag>: append each non-blank line, CR stripped.
 read_lines_into() {
   local -n dest="$1"
   local src="$2" line
@@ -70,7 +45,6 @@ read_lines_into() {
   exec 3<&-
 }
 
-# add_scope <rung> <roots-array-name> <repos-array-name>: append both to the scope, tagged <rung>.
 add_scope() {
   local -n add_roots="$2" add_repos="$3"
   local path
@@ -171,16 +145,13 @@ done
 [[ -z "$WT_CREATE" ]] || [[ -f "$WT_CREATE" && "${WT_CREATE##*/}" == worktree-create.sh ]] ||
   fail "--worktree-create must name an existing file called worktree-create.sh: $WT_CREATE"
 
-[[ -z "$CONFIG" || -f "$CONFIG" ]] || fail "--config file not found: $CONFIG"
-
-if [[ -z "$CONFIG" && -n "$PROJECT_DIR" && -f "$PROJECT_DIR/.claude/repo-fleet-hygiene.conf" ]]; then
-  CONFIG="$PROJECT_DIR/.claude/repo-fleet-hygiene.conf"
-elif [[ -z "$CONFIG" && -f "${HOME:-}/.claude/repo-fleet-hygiene.conf" ]]; then
-  CONFIG="${HOME}/.claude/repo-fleet-hygiene.conf"
-fi
+PROJECT_DIR="$(fleet_clean_project_dir "$PROJECT_DIR")"
+fleet_resolve_config "$CONFIG" "$PROJECT_DIR"
+CONFIG="$FLEET_CONFIG_FILE"
+CONFIG_DIR="$FLEET_CONFIG_DIR"
 if [[ -n "$CONFIG" ]]; then
   if scope_empty; then
-    fleet_load_config_scope "$CONFIG" "$(cd "$(dirname "$CONFIG")" && pwd)"
+    fleet_load_config_scope "$CONFIG" "$CONFIG_DIR"
     add_scope config FLEET_CONFIG_ROOTS FLEET_CONFIG_REPOS
   fi
   fleet_load_config_skip "$CONFIG"
@@ -201,7 +172,8 @@ if scope_empty; then
     if [[ -n "$CONFIG" ]]; then
       config_probe="$CONFIG has no fleet.root or fleet.repo entry"
     else
-      config_probe="${PROJECT_DIR:+$PROJECT_DIR/.claude/repo-fleet-hygiene.conf, }${HOME:-}/.claude/repo-fleet-hygiene.conf: neither exists"
+      home_dir="${HOME:-${USERPROFILE:-}}"
+      config_probe="${PROJECT_DIR:+$PROJECT_DIR/.claude/repo-fleet-hygiene.conf, }${home_dir}/.claude/repo-fleet-hygiene.conf: neither exists"
     fi
     cat >&2 <<EOF
 Error: no scope resolved. Probed, in order:
@@ -254,8 +226,6 @@ default_branch() {
   ref="${line#ref: }"
   ref="${ref%%$'\t'*}"
   ref="${ref#refs/heads/}"
-  # The remote chooses this name and it reaches git as a positional argument,
-  # so a leading dash or an invalid ref name is refused.
   [[ -n "$ref" && "$ref" != -* ]] || return 1
   git check-ref-format --branch "$ref" >/dev/null 2>&1 || return 1
   printf '%s\n' "$ref"
@@ -343,12 +313,6 @@ ff_pull() {
   git -C "$repo" pull --ff-only origin "$branch" >/dev/null 2>&1
 }
 
-# The stash stack is shared by every worktree and session of a repository, so
-# parked work is addressed by the SHA of its own entry, never by stack position.
-
-# stash_park <repo> <label>: stash the dirty tree under a marker unique to this
-# run and repo, and set STASH_SHA to that entry. Fails closed, after reporting
-# the skip, unless exactly one entry carries the marker.
 stash_park() {
   local repo="$1" marker line found=""
   marker="fleet-sync $2 $(date -u +%Y%m%dT%H%M%SZ) $$"
@@ -358,7 +322,6 @@ stash_park() {
     return 1
   }
   while IFS= read -r line; do
-    # A stash subject reads "<prefix>: <message>" and a branch name holds no colon.
     [[ "${line#*: }" == "$marker" ]] || continue
     [[ -z "$found" ]] || { found=""; break; }
     found="${line%% *}"
@@ -370,8 +333,6 @@ stash_park() {
   STASH_SHA="$found"
 }
 
-# stash_drop <repo> <sha>: drop the entry that carries <sha>, found by SHA now
-# because its ref moves whenever another session pushes a stash.
 stash_drop() {
   local repo="$1" sha="$2" line ref="" n=0
   while IFS= read -r line; do
@@ -382,9 +343,6 @@ stash_drop() {
   ((n == 1)) && git -C "$repo" stash drop "$ref" >/dev/null 2>&1
 }
 
-# unpark <repo> <branch-holding-work> <sha> [<branch-to-return-to>]: undo a park
-# that failed before the worktree held the work. Prints restored, or stash-kept
-# when the stash could not be applied back, so a lost restore is never silent.
 unpark() {
   local repo="$1" held="$2" sha="$3" back="${4:-}"
   if ! { git -C "$repo" switch "$held" >/dev/null 2>&1 && git -C "$repo" stash apply --index "$sha" >/dev/null 2>&1; }; then
@@ -398,13 +356,9 @@ unpark() {
   printf 'restored'
 }
 
-# park_finish <action> <repo> <branch> <held> <sha> [<branch-to-return-to>]: put
-# the checkout on the default branch, give <held> a linked worktree, and move
-# the work (stash <sha>, taken on <held>) into it.
 park_finish() {
   local action="$1" repo="$2" branch="$3" held="$4" sha="$5" back="${6:-}" rc wt errf said hint=""
   local args=(--name "$held" --existing-branch --repo-dir "$repo")
-  # Without --root the helper resolves the root from the repository itself.
   [[ -z "$WT_ROOT" ]] || args+=(--root "$WT_ROOT")
   switch_default "$repo" "$branch" || {
     rc=$?
@@ -417,7 +371,6 @@ park_finish() {
   said="$(head -n 1 "$errf" | tr '\t\r' '  ')"
   cat "$errf" >&2
   rm -f "$errf"
-  # Helper exit 4 and 5 leave a worktree on disk (worktree-create.sh header): keep it.
   if ! [[ "$rc" =~ ^(0|4|5)$ && -n "$wt" && -d "$wt" ]]; then
     ((rc != 3)) || hint="; set worktreeroot.path in the repository's git config, or pass --worktree-root <dir>"
     report_skip "$repo" worktree "$rc" "worktree-create.sh exited $rc and reported no usable worktree (${said:-no message})$hint; then rerun (on stash-kept the work is still in stash $sha; check git worktree list for a worktree the helper left)" "$(unpark "$repo" "$held" "$sha" "$back")"

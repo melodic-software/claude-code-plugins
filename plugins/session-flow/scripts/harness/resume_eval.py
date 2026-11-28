@@ -32,8 +32,6 @@ if str(HERE) not in sys.path:
 
 MODEL_ID = "claude-opus-5-5"
 
-# The Brief's first tool state change: edit, write, push, merge, ready, agent
-# dispatch, message. A plain-text reply is not one.
 STATE_CHANGE_TOOLS = frozenset(
     {"Edit", "Write", "NotebookEdit", "Agent", "Task", "SendMessage"}
 )
@@ -41,8 +39,6 @@ STATE_CHANGE_COMMAND_RE = re.compile(
     r"\bgit\s+push\b|\bgh\s+pr\s+(?:merge|ready|create|comment|review|close)\b"
     r"|\bgh\s+issue\s+(?:create|comment|close)\b"
 )
-# Tools no eval child may use: the network, and every route to a live session or a
-# scheduler on the operator's machine (probes.md P7 addendum).
 DISALLOWED_TOOLS = (
     "WebFetch",
     "WebSearch",
@@ -54,8 +50,6 @@ DISALLOWED_TOOLS = (
     "PushNotification",
     "ScheduleWakeup",
 )
-# Inherited variables that would let a child message the parent's peer sessions or
-# reach GitHub with the operator's credential.
 SCRUBBED_ENV = (
     "CLAUDE_CODE_MESSAGING_SOCKET",
     "CLAUDE_CODE_MESSAGING_TOKEN",
@@ -134,7 +128,6 @@ def claude_command(
 
 
 def codex_command(prompt: str, *, model: str, workdir: str, reply: str) -> list[str]:
-    """A Codex reader run; the model is read once per eval and passed every time."""
     return [
         "codex",
         "exec",
@@ -154,8 +147,6 @@ def codex_command(prompt: str, *, model: str, workdir: str, reply: str) -> list[
 
 
 GIB = 1024**3
-# Floors checked before every batch (PLAN.md Approach, host resources): /tmp is a small
-# tmpfs that guard hooks and other sessions need, and RAM is shared with them.
 RESOURCE_FLOORS = (
     ("root_free", lambda v: v < 50 * GIB, "root disk under 50 GB free"),
     ("tmp_free", lambda v: v < 500 * 1024**2, "/tmp under 500 MB free"),
@@ -166,7 +157,6 @@ RESOURCE_FLOORS = (
 
 
 def resource_stops(reading: dict) -> list[str]:
-    """Why a batch must not start, one reason per broken floor; empty means go."""
     return [reason for key, broken, reason in RESOURCE_FLOORS if broken(reading[key])]
 
 
@@ -266,7 +256,6 @@ def project_key(cwd: str) -> str:
 
 
 def state_change_label(block: dict) -> str | None:
-    """Name a tool_use block that changes state, or None for a read."""
     name = block.get("name", "")
     if name in STATE_CHANGE_TOOLS:
         return name
@@ -281,8 +270,6 @@ def state_change_label(block: dict) -> str | None:
 
 
 def writer_tokens(events: list[dict]) -> dict:
-    """`reader_tokens` over the whole run: a writer's own writes (the handoff file, its
-    slots) are its work, not the end of what it spent."""
     return reader_tokens(events, whole=True)
 
 
@@ -477,15 +464,9 @@ def render_history(
     return lines
 
 
-# --- grading ------------------------------------------------------------------
-#
-# Check kinds and their fields: plugins/session-flow/evals/resume-eval.md. A
-# must-act probe passes when its check matches; a must-not-do probe when it does not.
-
-
 @dataclass
 class GradeContext:
-    reader: str  # "claude-code" or "codex"
+    reader: str
     events: list[dict]
     gh_calls: list[str]
     repo: Path | None
@@ -599,7 +580,6 @@ def check_matches(check: dict, ctx: GradeContext) -> bool:
         raise ValueError(f"unknown check kind: {kind}")
     lines = pools[kind](ctx)
     if check.get("after"):
-        # Only what came after the first line matching `after` (e.g. a watch after a dispatch).
         gate = re.compile(check["after"])
         first = next((i for i, line in enumerate(lines) if gate.search(line)), None)
         lines = [] if first is None else lines[first + 1 :]
@@ -640,7 +620,6 @@ sys.exit(int(answer.get("exit", 0)))
 def write_stub_gh(
     bin_dir: Path, fixture_path: Path, log_path: Path, fixture: dict, python: str
 ) -> Path:
-    """Write the fixture and a `gh` stub that logs to `log_path`; return the stub's path."""
     bin_dir.mkdir(parents=True, exist_ok=True)
     fixture_path.write_text(json.dumps(fixture), encoding="utf-8")
     stub = bin_dir / "gh"
@@ -652,14 +631,7 @@ def write_stub_gh(
     return stub
 
 
-# --- one run: seed, write, read, grade ------------------------------------------
-#
-# Real-setup mechanics: .work/handoff-efficiency/phase1-design.md. Every CLI call goes
-# through `RunConfig.call`, so the flow is testable without a model call.
-
 ARMS = ("before", "after", "after-promoted", "free-hand", "compact")
-# A state of an arm that shares its writer and reader prompts and plugin copy: the
-# restated-preference case's promoted state is `after` plus an instruction fixture.
 ARM_BASE = {"after-promoted": "after"}
 
 
@@ -684,11 +656,11 @@ EXCLUDE_MARKERS = (
 
 @dataclass
 class RunConfig:
-    root: Path  # the eval root: plugin copies, base repo, run dirs; outside any repository
-    tmpdir: str  # short TMPDIR for children (probes.md P9)
-    copies: dict  # arm -> plugin copy dir, or None for the without-skills arms
+    root: Path
+    tmpdir: str
+    copies: dict
     codex_model: str
-    call: object = None  # (cmd, cwd, env, stdin_text) -> (returncode, stdout, stderr)
+    call: object = None
     python: str = "python3"
 
 
@@ -824,8 +796,6 @@ def exclusion(
     allowed_denials=(),
     label: str | None = None,
 ) -> Exclusion | None:
-    """Why a call's run cannot be graded as delivered, classed by its source, or None.
-    `label` prefixes the text (default: the source)."""
     found = exclusion_reason(
         returncode,
         stdout,
@@ -841,9 +811,6 @@ def exclusion(
 
 
 def mark_excluded(graded: dict, excluded: Exclusion, case: dict, arm: str) -> None:
-    """Record why a run did not deliver. A behavior failure scores 0 on every probe the
-    run would have graded (a `requires` probe is never graded once its gate fails); an
-    infrastructure one stays an `error`, which `run` re-runs and `report` leaves out."""
     graded["exclusion"] = excluded.record()
     if excluded.cause is Cause.INFRASTRUCTURE:
         graded["error"] = excluded.text
@@ -864,8 +831,6 @@ LEGACY_BEHAVIOR_RE = re.compile(
 
 
 def row_cause(row: dict) -> Cause | None:
-    """Why a graded row did not deliver, or None for a graded run. An older row names
-    its failure only in `error`, so the error text decides its cause."""
     if row.get("exclusion"):
         return Cause(row["exclusion"]["cause"])
     if row.get("nondelivery"):
@@ -894,14 +859,9 @@ def exclusion_reason(
     allowed_denials=(),
     hooks: bool = False,
 ) -> tuple[Kind, str] | None:
-    """What kind of failure keeps a run from counting (PLAN.md run rule d), and why.
-    With `hooks`, a reader's turn whose denials were all hook refusals is hook-blocked;
-    any other stage refused by a hook stays a plain denial."""
     if returncode != 0 and not events:
         return Kind.CLI_NO_OUTPUT, f"CLI exited {returncode}: {stderr.strip()[:200]}"
     result = _result_event(events)
-    # Only the CLI's own words count: stderr, an error result, or a tool error. Conversation
-    # text (a seeded lane history, a case prompt) may mention limits without hitting one.
     own = [stderr]
     if result is not None and result.get("is_error"):
         own.append(str(result.get("result") or ""))
@@ -979,15 +939,12 @@ def hook_blocks(events: list[dict]) -> dict[str, str]:
 
 
 def read_hook_blocks(read: dict) -> list[str]:
-    """The hooks that refused any call in a reader's main turn or its follow-up."""
     main = read.get("main")
     events = main["events"] if main else read.get("events") or []
     return list(hook_blocks(events + (read.get("followup_events") or [])).values())
 
 
 def write_fixture(path: Path, content: str) -> None:
-    """Write a seeded file; one that starts with a shebang is made executable, so a
-    recipe that runs it directly works as it would in a real checkout."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     if content.startswith("#!"):
@@ -1039,7 +996,6 @@ def seed_remote_refs(call, repo: Path, bare: Path, env: dict, refs: list[str]) -
 
 
 def write_run_settings(case: dict, run_dir: Path, cfg: "RunConfig") -> None:
-    """Write `run_dir/settings.json`, writable at `run_dir` itself and the harness temp."""
     (run_dir / "settings.json").write_text(
         json.dumps(
             run_settings(case["seed"].get("plugin_configs"), [str(run_dir), cfg.tmpdir])
@@ -1049,8 +1005,6 @@ def write_run_settings(case: dict, run_dir: Path, cfg: "RunConfig") -> None:
 
 
 def seed_save_point(copies: dict, arm: str) -> Path:
-    """The `save_point.py` that seeds `arm`: its own plugin copy's, else the `before`
-    copy's for an arm that runs without one (`compact`, `free-hand`)."""
     copy = copies.get(arm) or copies.get(arm_base(arm)) or copies.get("before")
     if not copy:
         raise ValueError(
@@ -1060,7 +1014,6 @@ def seed_save_point(copies: dict, arm: str) -> Path:
 
 
 def seed_problems(copies: dict, arms: list[str]) -> list[str]:
-    """Why an arm cannot be seeded, one line per arm; empty means every arm can."""
     problems = []
     for arm in arms:
         try:
@@ -1076,11 +1029,7 @@ def seed_problems(copies: dict, arms: list[str]) -> list[str]:
 def seed_run(
     case: dict, run_dir: Path, base_repo: Path, cfg: RunConfig, arm: str
 ) -> dict:
-    """One run's workspace: a clone of the base repo with the case seeded and committed
-    by `arm`'s copy of `save_point.py`, a local bare `origin`, the stub `gh`, settings,
-    an empty MCP config, and the seeded writer session written into this repo's
-    project key."""
-    import resume_cases  # sibling module; imported here so grading works without it
+    import resume_cases
 
     call = cfg.call or default_call
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -1168,8 +1117,6 @@ def _claude(
 def _write_hop(
     case: dict, arm: str, run: dict, cfg: RunConfig, session: str, known: set
 ) -> dict:
-    """Carry the seeded session across the boundary. Returns the reader's delivery text
-    (or the session to continue), writer tokens, the handoff file and any exclusion."""
     extra = _instruction_flags(case, arm)
     interrupt = case["writer"]["interrupt"]["text"]
     code, out, err, events = _claude(
@@ -1259,17 +1206,11 @@ def _write_hop(
 
 
 def _lead_prompt(case: dict, arm: str, delivery: str) -> str:
-    """The reader's first prompt: the arm's delivery lead, when it has one, then `delivery`."""
     lead = case["reader"]["delivery"][arm_base(arm)].get("lead")
     return f"{lead}\n\n{delivery}" if lead else delivery
 
 
 def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
-    """Carry the seeded session across the boundary, once, or once per hop for a case with
-    `writer.hops` (each later hop resumes the previous hop's delivery, sends its owner
-    turns, appends its scripted agent turns and their file effects, then hands off).
-    Returns the last hop's delivery (or session to continue), writer tokens summed over
-    hops, the last handoff file, per-hop handoff bytes, and any exclusion."""
     known: set = set()
     written = _write_hop(case, arm, run, cfg, run["sid"], known)
     hops = case["writer"].get("hops") or []
@@ -1290,8 +1231,6 @@ def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
         extra = _instruction_flags(case, arm)
         session = written.get("continue_session")
         if hop.get("scripted"):
-            # Deterministic hop: the owner and agent turns are synthetic, so no live model
-            # turn can change what the hop does; only its handoff is written live.
             turns, salt = hop["scripted_turns"], f"hop{hop['hop']}/"
             if not session:
                 first = _lead_prompt(case, arm, written["delivery"])
@@ -1344,7 +1283,6 @@ def write_stage(case: dict, arm: str, run: dict, cfg: RunConfig) -> dict:
 
 
 def append_turns(run: dict, session: str, turns: list[dict], salt: str) -> None:
-    """Append synthetic turns to a live session's transcript, chained to its last record."""
     path = run["keydir"] / f"{session}.jsonl"
     last = None
     for line in path.read_text(encoding="utf-8").splitlines():
@@ -1370,7 +1308,6 @@ def _instruction_flags(case: dict, arm: str) -> tuple:
 def read_stage(
     case: dict, arm: str, reader: str, run: dict, written: dict, cfg: RunConfig
 ) -> dict:
-    """Resume the reader once, then ask the follow-up questions in the same session."""
     call = cfg.call or default_call
     delivery = case["reader"]["delivery"][arm_base(arm)]
     questions = [
@@ -1442,7 +1379,6 @@ def read_stage(
 def grade_run(
     case: dict, arm: str, reader: str, run: dict, written: dict, read: dict, judge
 ) -> dict:
-    """Probe results for one run. `judge(question, criteria, answer) -> bool` grades text probes."""
     gh_log = run["repo"].parent / "gh-calls.log"
     handoff = written.get("handoff")
     base = dict(
@@ -1459,7 +1395,7 @@ def grade_run(
         if not applies(probe, arm):
             continue
         if probe.get("requires") and not results.get(probe["requires"]):
-            continue  # graded only when the probe it depends on passed
+            continue
         if probe["grade"] == "text":
             results[probe["id"]] = judge(
                 probe["question"], probe["criteria"], read["followup_text"]
@@ -1493,7 +1429,6 @@ class JudgeError(Exception):
 
 
 def make_judge(cfg: RunConfig, workdir: Path, votes: int = 3):
-    """A text-probe judge: `votes` independent no-tool `claude -p` calls, majority PASS."""
     call = cfg.call or default_call
     env = child_env(
         dict(os.environ),
@@ -1545,8 +1480,6 @@ def make_judge(cfg: RunConfig, workdir: Path, votes: int = 3):
 def _reader_workspace(
     case: dict, run: dict, run_dir: Path, copy_dir: Path, cfg: RunConfig
 ) -> dict:
-    """A private copy of the written workspace for a second reader, re-pointed at its own
-    stub `gh` log and its own bare remote, so the two readers never see each other's acts."""
     shutil.copytree(run_dir, copy_dir, symlinks=True)
     env = child_env(
         dict(os.environ),
@@ -1600,9 +1533,6 @@ def run_once(
     cfg: RunConfig,
     out_dir: Path,
 ) -> list[dict]:
-    """Seed and write once, then resume each reader on its own copy of the written workspace
-    and grade it. Copies traces to `out_dir`; removes run dirs and project keys. Returns one
-    graded run per reader (`error` set when it must be excluded)."""
     run_dir = cfg.root / "runs" / case["name"] / arm / str(index)
     remove_run_dirs(run_dir)
     start = time.monotonic()
@@ -1615,8 +1545,6 @@ def run_once(
         run = seed_run(case, run_dir, base_repo, cfg, arm)
         written = write_stage(case, arm, run, cfg)
         if case["writer"].get("hops"):
-            # File checks grade the final reader, so they compare against the workspace the
-            # last writer hop left, not the seed.
             run["seeded"] = {
                 rel: (run["repo"] / rel).read_bytes()
                 for rel in run["seeded"]
@@ -1736,14 +1664,11 @@ def run_once(
 
 
 def remove_run_dirs(run_dir: Path) -> None:
-    """Remove one run's directory and its per-reader copies (`<index>-<reader>`),
-    never a sibling run whose index starts with the same digits."""
     for path in [run_dir, *run_dir.parent.glob(f"{run_dir.name}-*")]:
         shutil.rmtree(path, ignore_errors=True)
 
 
 def build_base(repo_root: Path, root: Path, cfg: RunConfig) -> Path:
-    """One committed snapshot of the repository at HEAD, cloned by every run."""
     call = cfg.call or default_call
     base = root / "base"
     if (base / ".git").is_dir():
@@ -1996,8 +1921,6 @@ def _mean(values) -> float | None:
 
 
 def row_score(row: dict, probes: frozenset[str] | None = None) -> float | None:
-    """A kept run's score over `probes` (all it graded when None); None when it did not
-    deliver, which the non-delivery check counts instead."""
     if row.get("nondelivery"):
         return None
     graded = [v for k, v in row["probes"].items() if probes is None or k in probes]
@@ -2077,8 +2000,6 @@ class Group:
 
 
 def load_groups(paths: list[str]) -> dict[str, Group]:
-    """Rows grouped by `<arm>.<reader>`, suffixed `@<n>` per file when several are read,
-    so an A/A pair of one arm stays two groups."""
     groups: dict[str, Group] = {}
     for number, path in enumerate(paths, 1):
         for row in _read_rows(Path(path)):
@@ -2110,8 +2031,6 @@ class Lines:
 
 
 def _shared_probes(spec: dict | None, a: Cell, b: Cell) -> frozenset[str]:
-    """Probes that apply to both arms: from the case when it is known, else the probe ids
-    both cells graded."""
     if spec is not None:
         return frozenset(
             p["id"] for p in spec["probes"] if applies(p, a.arm) and applies(p, b.arm)
@@ -2125,8 +2044,6 @@ def _count(n: int, word: str) -> str:
 
 
 def _paired(deltas: list[float], low: float, high: float) -> tuple[str, float | None]:
-    """The paired change as text, and the interval's upper end (None under 2 cases). `h`,
-    the interval's half-width, is what an A/A pair gives for a margin of 1.43h."""
     if len(deltas) < 2:
         text = f"{_mean(deltas) or 0:+.2f} over {_count(len(deltas), 'case')} (an interval needs 2)"
         return text, None
@@ -2136,8 +2053,6 @@ def _paired(deltas: list[float], low: float, high: float) -> tuple[str, float | 
 
 
 def _token_change(pairs: list[tuple[float, float]]) -> tuple[str, float | None]:
-    """The token change as text, and the interval's upper end as a fraction of the
-    baseline mean (None under 2 cases or with no baseline tokens)."""
     if not pairs:
         return "n/a (a side holds no tokens)", None
     deltas = [after - before for before, after in pairs]
@@ -2155,8 +2070,6 @@ def _token_change(pairs: list[tuple[float, float]]) -> tuple[str, float | None]:
 
 
 def _compare(lines: Lines, out: Path, base: dict, other: dict, specs, args):
-    """One compared pair: shared-probe result files, accuracy and token changes, and
-    each case that drops or goes from passing to failing."""
     (b_label, b_cells), (o_label, o_cells) = base, other
     pair = f"{o_label} vs {b_label}"
     for name in sorted(set(b_cells) ^ set(o_cells)):

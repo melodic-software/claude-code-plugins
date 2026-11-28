@@ -1,21 +1,15 @@
 #!/usr/bin/env python3
-"""Detached session-transcript observer for the running-retro substrate.
+"""One-shot post-session analysis of an ended session's transcript.
 
-Launched out-of-band (SessionStart hook or the running-retro `arm` action) and
-detached from every Claude Code session's process tree, so it OUTLIVES the
-session it watches. Three legs:
+Launched detached by arm_observer.py's session-start catch-up for a session
+that has ended. One run, then exit:
 
-  1. TAIL + DISTILL. Poll -> open -> read-new-bytes -> close. No persistent
-     handle is ever held, so the reader can never block Claude Code's append
-     (the Windows share-mode WRITE edge is safe by construction). Each new
-     transcript line is distilled to a compact event and appended to a
+  1. DISTILL. Read the transcript once from the byte offset the last run
+     stored to EOF, distill each line to a compact event and append it to a
      TRANSIENT observations file under the work dir (NOT the durable ledger).
-  2. END DETECTION. mtime-idle only. Session end leaves no distinct terminal
-     record; the file simply stops growing. `Stop` fires every turn (useless as
-     an end marker) and a `SessionEnd` hook is not crash-safe, so staleness is
-     the primary, crash-safe signal. It cannot distinguish a long single turn
-     from end -- keep --idle-seconds above the longest expected single turn.
-  3. POST-END ANALYSIS (optional, --analysis). On idle-detect, fire a headless
+     The new offset goes to the status file, so an analyzed span is never
+     read again.
+  2. ANALYSIS (optional, --analysis). Fire a headless
      `claude -p --model <m> --effort <e>` that reads the observations and follows
      running-retro's checkpoint method, then append its RETURNED findings block
      to this session's running-retro ledger. The -p run is the sole semantic
@@ -46,12 +40,12 @@ _PLUGIN_SCRIPTS = str(_PLUGIN_DIR / "scripts")
 if _PLUGIN_SCRIPTS not in sys.path:
     sys.path.insert(0, _PLUGIN_SCRIPTS)
 
+import plugin_paths  # noqa: E402  (plugin-level scripts/plugin_paths.py)
 from claude_cli import permission_prompts_args  # noqa: E402  (plugin-level scripts/claude_cli.py)
 from transcript_reader import decode_line  # noqa: E402  (plugin-level scripts/transcript_reader.py)
 
 
 def user_config_default(key: str) -> str:
-    """The plugin.json userConfig default for `key`, the single source of defaults."""
     manifest = json.loads(
         (_PLUGIN_DIR / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8")
     )
@@ -92,15 +86,6 @@ def _short_id(value: object) -> object:
 
 
 def _bounded(text: str, limit: int) -> tuple[str, bool]:
-    """Cut `text` to `limit`, reporting whether it was cut.
-
-    The flag is out-of-band on purpose. An in-band trailing marker cannot be
-    told apart from a value that genuinely ends in those characters (a tool
-    result reading `Processing complete...` is not truncated), and the analysis
-    prompt keys its unknown-vs-absent dependency rule off this signal -- so an
-    ambiguous one either suppresses a computable finding or licenses an
-    asserted-and-wrong one, depending on which way it is misread.
-    """
     return (text, False) if len(text) <= limit else (text[:limit], True)
 
 
@@ -164,7 +149,6 @@ def _compact_json(value: object) -> str:
 
 
 def _call_entry(short_id: object, key: str, value: object) -> dict:
-    """One `calls`/`results` entry: correlation id, bounded preview, cut flag."""
     text, cut = _preview(value)
     entry = {"id": short_id, key: text}
     if cut:
@@ -173,12 +157,6 @@ def _call_entry(short_id: object, key: str, value: object) -> dict:
 
 
 def _result_entry(block: dict) -> dict:
-    """One `results` entry: the call entry plus `err` when the call FAILED.
-
-    A failed call's own output is often empty or generic, so the failure is
-    invisible in the preview alone -- and a later call that retries it is
-    control-dependent on having seen the error, not an unbatched sibling.
-    """
     entry = _call_entry(
         _short_id(block.get("tool_use_id")), "out", block.get("content")
     )
@@ -188,7 +166,6 @@ def _result_entry(block: dict) -> dict:
 
 
 def _set_narration(out: dict, key: str, text: str) -> None:
-    """Write a bounded `say`/`human` narration and its `<key>_cut` flag."""
     bounded, cut = _bounded(text, _NARRATION_LIMIT)
     out[key] = bounded
     if cut:
@@ -276,8 +253,6 @@ def summarize_record(rec: dict) -> dict:
                 for c in content
                 if isinstance(c, dict) and c.get("type") == "tool_result"
             ]
-            # A bare string inside the content list is kept as human text here, as
-            # a `text` block is; the shared reader's `user_text` skips it.
             humans = [
                 c if isinstance(c, str) else c.get("text", "")
                 for c in content
@@ -288,13 +263,6 @@ def summarize_record(rec: dict) -> dict:
                 out["results"] = [_result_entry(c) for c in tool_results]
             if any(h.strip() for h in humans):
                 _set_narration(out, "human", " ".join(humans).strip())
-            # Anything in a user record that is not a tool_result is the human
-            # speaking: text, a bare string, an image, a document, or a block
-            # type that does not exist yet. Only some of those yield readable
-            # narration, so the boundary is marked structurally rather than
-            # inferred from whether text happened to be extractable -- an
-            # image-only prompt would otherwise carry neither `human` nor
-            # `turn_boundary` and let the dependency check span a new request.
             if len(tool_results) < len(content):
                 out["turn_boundary"] = True
     elif t == "system":
@@ -304,11 +272,50 @@ def summarize_record(rec: dict) -> dict:
     return out
 
 
-def _to_epoch(iso: str) -> float:
+_LOCK_STALE_MARGIN_SECONDS = 300
+MAX_FAILED_ATTEMPTS = 2
+CREATE_NO_WINDOW = 0x08000000
+
+
+def read_status(work_dir: Path, session_id: str) -> dict:
+    """This session's status file, or {} when absent, unreadable or another session's."""
     try:
-        return datetime.fromisoformat(iso).timestamp()
-    except (ValueError, TypeError):
-        return time.time()
+        prev = json.loads(
+            (work_dir / f"status-{session_id}.json").read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError):
+        return {}
+    if not isinstance(prev, dict) or prev.get("target_session") != session_id:
+        return {}
+    return prev
+
+
+def stored_offset(status: dict) -> int:
+    try:
+        return max(int(status.get("byte_offset", 0)), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def retry_due(status: dict) -> bool:
+    """A failed analysis of the current span may run again, up to MAX_FAILED_ATTEMPTS."""
+    return (
+        status.get("state") == "retained"
+        and status.get("failed_attempts", 0) < MAX_FAILED_ATTEMPTS
+    )
+
+
+def find_session_ledger(ledger_dir: Path, session_id: str) -> Path | None:
+    """The running-retro ledger whose frontmatter names this session, if any."""
+    pattern = re.compile(rf"^session_id:\s*{re.escape(session_id)}\s*$", re.MULTILINE)
+    for path in sorted(ledger_dir.glob("*-running-retro-*.md")):
+        try:
+            head = path.read_text(encoding="utf-8")[:400]
+        except OSError:
+            continue
+        if pattern.search(head):
+            return path
+    return None
 
 
 class Observer:
@@ -317,25 +324,26 @@ class Observer:
         self.session_id = args.session_id or self.transcript.stem
         self.work_dir = Path(args.work_dir)
         self.ledger_dir = Path(args.ledger_dir)
-        self.poll_secs = args.poll_seconds
-        self.idle_secs = args.idle_seconds
-        self.idle_confirm_secs = args.idle_confirm_seconds
-        self.max_secs = args.max_seconds
         self.analysis_timeout_secs = args.analysis_timeout_seconds
         self.analysis = args.analysis
         self.bare = args.bare
         self.model = args.model or user_config_default("observer_analysis_model")
         self.effort = args.effort or user_config_default("observer_analysis_effort")
+        self.min_lines = int(
+            float(args.min_lines or user_config_default("observer_min_lines"))
+        )
         self.plugin_root = args.plugin_root
         self.topic = args.topic or "session"
-        self.prev_running_retro = args.previous_running_retro
-        self.prev_session_id = args.previous_session_id
 
         self.work_dir.mkdir(parents=True, exist_ok=True)
         self.obs_path = self.work_dir / f"observations-{self.session_id}.ndjson"
         self.status_path = self.work_dir / f"status-{self.session_id}.json"
         self.lock_path = self.work_dir / f"observer-{self.session_id}.lock"
         self.log_path = self.work_dir / f"observer-{self.session_id}.log"
+        self.analysis_runs: list[dict] = read_status(
+            self.work_dir, self.session_id
+        ).get("analysis_runs", [])
+        self.below_min_lines = False
 
     def log(self, msg: str) -> None:
         try:
@@ -348,11 +356,11 @@ class Observer:
         """One observer per session id. Returns False if another is live.
 
         Atomic create-or-fail via `O_CREAT | O_EXCL` — no exists-check-then-write
-        window, so two observers racing to arm the same session cannot both win.
-        A stale lock (no live pid, or older than the absolute lifetime cap) is
-        removed and the create retried, so a crash does not permanently block
-        re-arming; only one racer can win the retry because it is the same atomic
-        create.
+        window, so two observers racing for the same session cannot both win.
+        A stale lock (dead pid, or an unreadable one older than the analysis
+        timeout plus a margin) is removed and the create retried, so a crash does
+        not permanently block the session; only one racer can win the retry
+        because it is the same atomic create.
         """
         for _ in range(2):
             try:
@@ -387,35 +395,24 @@ class Observer:
         The winner OWNS the lock the instant its `O_EXCL` create succeeds; it then
         writes the JSON body. A loser that reads the file in that window sees empty
         or partial content -- which must be treated as LIVE (the loser backs off),
-        not stale, or two observers could both proceed. An unreadable lock is only
-        reclaimed once the FILE ITSELF is old (mtime past the lifetime cap), which a
-        just-created mid-write lock never is.
+        not stale, or two observers could both proceed. A lock with a pid is stale
+        when that pid is dead; one without is reclaimed only once the FILE ITSELF
+        is older than any run could last, which a just-created mid-write lock
+        never is.
         """
         try:
             mtime_age = time.time() - self.lock_path.stat().st_mtime
         except OSError:
             return True
-        cap = self.idle_secs + self.max_secs
         try:
             data = json.loads(self.lock_path.read_text(encoding="utf-8"))
             other_pid = int(data.get("pid", -1))
-        except (OSError, ValueError, json.JSONDecodeError):
-            if mtime_age >= cap:
-                self.log(
-                    f"reclaiming unreadable/abandoned lock (mtime age {mtime_age:.0f}s)"
-                )
-                return True
-            return False  # partial/mid-write lock -> treat as LIVE
-        # A LIVE pid is never reclaimed, regardless of age: an idle-ended observer
-        # can legitimately hold its lock for the whole analysis run (its own
-        # timeout), which may exceed the tailing cap. Age is a fallback ONLY when
-        # liveness cannot be determined (pid missing / unknowable); the observer
-        # bounds its own lifetime via --max-seconds and the analysis timeout, so a
-        # live holder always exits on its own.
+        except (OSError, ValueError, json.JSONDecodeError, AttributeError):
+            other_pid = -1
         if other_pid > 0:
             stale = not _pid_alive(other_pid)
         else:
-            stale = mtime_age >= cap
+            stale = mtime_age >= self.analysis_timeout_secs + _LOCK_STALE_MARGIN_SECONDS
         if stale:
             self.log(
                 f"reclaiming stale lock (pid={other_pid}, mtime age {mtime_age:.0f}s)"
@@ -428,193 +425,68 @@ class Observer:
 
     def run(self) -> int:
         if not self.acquire_lock():
-            self.log(f"observer already live for {self.session_id}; exiting")
+            self.log(f"observer already running for {self.session_id}; exiting")
             return 0
         try:
-            lifetime_deadline = time.time() + self.max_secs
-            while True:
-                state, tail_end_offset = self._tail_until_idle(lifetime_deadline)
-                # Delete the unredacted observations ONLY when a successful analysis run
-                # has consumed them and the session has not resumed. Collect-only mode
-                # (analysis disabled) retains them as its durable-for-this-machine artifact
-                # under the plugin work dir; a failed analysis retains them for debugging.
-                # They never leave the machine-local work dir regardless.
-                if state != "ended-idle" or not self.analysis:
-                    return 0
-                if self._run_analysis():
-                    self._cleanup_observations()
-                if self._transcript_byte_size() <= tail_end_offset:
-                    return 0
-                self.log("transcript grew after post-end analysis; resuming watch")
+            new_lines = self._distill()
+            status = read_status(self.work_dir, self.session_id)
+            if not self.analysis or not (new_lines or retry_due(status)):
+                return 0
+            consumed = self._run_analysis()
+            if consumed:
+                self._cleanup_observations()
+            if consumed or self.below_min_lines:
+                update = {"state": "analyzed" if consumed else "skipped"}
+                update["failed_attempts"] = 0
+            else:
+                failed = status.get("failed_attempts", 0) + 1
+                update = {"state": "retained", "failed_attempts": failed}
+            self._write_status(update, merge=True)
+            return 0
         finally:
             self.release_lock()
 
-    def _transcript_byte_size(self) -> int:
-        try:
-            return self.transcript.stat().st_size
-        except OSError:
-            return 0
+    def _distill(self) -> bool:
+        """Distill the transcript from the stored offset to EOF, once.
 
-    def _tail_until_idle(
-        self, lifetime_deadline: float | None = None
-    ) -> tuple[str, int]:
-        if lifetime_deadline is None:
-            lifetime_deadline = time.time() + self.max_secs
-        # Resume from where a prior observer for THIS session left off (e.g. a
-        # `source=resume` re-arm after the first observer idled), so the already-
-        # analyzed span is not re-read and re-analyzed into a duplicate ledger
-        # entry. A shrunk/rotated transcript is caught by the size<offset resync
-        # in the loop. First arm has no prior status -> offset 0.
-        offset = self._resume_offset()
-        partial = b""
-        cycles = total_lines = sharing_violations = read_errors = 0
+        The session has ended, so a last line without its newline is as complete
+        as it will get and is decoded like the rest. Returns whether any new
+        record was read.
+        """
+        offset = stored_offset(read_status(self.work_dir, self.session_id))
+        try:
+            if self.transcript.stat().st_size < offset:
+                offset = 0
+            with self.transcript.open("rb") as f:
+                f.seek(offset)
+                chunk = f.read()
+        except OSError as e:
+            self.log(f"transcript unreadable: {e}")
+            return False
+        if offset:
+            self.log(f"resuming from stored byte offset {offset}")
         line_stats: dict[str, int] = {}
-        max_mtime = 0.0
-        last_growth_iso = now_iso()
-        started_iso = now_iso()
-        state = "watching"
-        pending_idle = False
-        pending_idle_offset = 0
-        pending_idle_mtime = 0.0
-        pending_idle_started = 0.0
-
-        obs_f = self.obs_path.open("a", encoding="utf-8")
-        try:
-            while True:
-                cycles += 1
-                try:
-                    st = self.transcript.stat()
-                except OSError:
-                    read_errors += 1
-                    if time.time() > lifetime_deadline:
-                        state = "stopped-maxtime"
-                        break
-                    time.sleep(self.poll_secs)
+        lines = 0
+        with self.obs_path.open("a", encoding="utf-8") as obs:
+            for raw in chunk.split(b"\n"):
+                rec = decode_line(raw.decode("utf-8", "replace") + "\n", line_stats)
+                if rec is None:
                     continue
-
-                size, mtime = st.st_size, st.st_mtime
-                if size < offset:
-                    # File shrank -> truncated or replaced (rotation). Resync from
-                    # the start rather than seeking past the new end.
-                    offset = 0
-                    partial = b""
-                if size > offset:
-                    try:
-                        with self.transcript.open("rb") as f:
-                            f.seek(offset)
-                            chunk = f.read()
-                        # Advance by bytes ACTUALLY read, not the (already stale)
-                        # stat size: CC may append between stat() and read(), so
-                        # read() can pass `size`. Setting offset=size would re-read
-                        # that tail next poll and duplicate events.
-                        offset += len(chunk)
-                    except PermissionError:
-                        sharing_violations += 1
-                        time.sleep(self.poll_secs)
-                        continue
-                    except OSError as e:
-                        if getattr(e, "winerror", None) == 32:
-                            sharing_violations += 1
-                        else:
-                            read_errors += 1
-                        time.sleep(self.poll_secs)
-                        continue
-
-                    data = partial + chunk
-                    lines = data.split(b"\n")
-                    partial = lines.pop()
-                    for raw in lines:
-                        # `lines` holds complete lines only: restore the newline.
-                        rec = decode_line(raw.decode("utf-8", "replace") + "\n", line_stats)
-                        if rec is None:
-                            continue
-                        total_lines += 1
-                        obs_f.write(json.dumps(summarize_record(rec)) + "\n")
-                    obs_f.flush()
-
-                if mtime > max_mtime:
-                    max_mtime = mtime
-                    last_growth_iso = now_iso()
-
-                idle_for = time.time() - _to_epoch(last_growth_iso)
-                self._write_status(
-                    {
-                        "target_session": self.session_id,
-                        "target_path": str(self.transcript),
-                        "observer_pid": os.getpid(),
-                        "started": started_iso,
-                        "updated": now_iso(),
-                        "cycles": cycles,
-                        "byte_offset": offset,
-                        "lines_observed": total_lines,
-                        "sharing_violations": sharing_violations,
-                        "read_errors": read_errors,
-                        "parse_errors": line_stats.get("bad_lines", 0),
-                        "idle_seconds": round(idle_for, 1),
-                        "last_growth": last_growth_iso,
-                        "state": state,
-                    }
-                )
-
-                if idle_for >= self.idle_secs:
-                    if not pending_idle:
-                        pending_idle = True
-                        pending_idle_offset = offset
-                        pending_idle_mtime = max_mtime
-                        pending_idle_started = time.time()
-                        state = "pending-idle"
-                        self.log(
-                            f"idle >= {self.idle_secs}s after {total_lines} lines; "
-                            "confirming end before analysis"
-                        )
-                    elif size > pending_idle_offset or mtime > pending_idle_mtime:
-                        pending_idle = False
-                        last_growth_iso = now_iso()
-                        state = "watching"
-                        self.log(
-                            "transcript grew during idle confirmation; resuming watch"
-                        )
-                    elif time.time() - pending_idle_started >= self.idle_confirm_secs:
-                        state = "ended-idle"
-                        self.log(
-                            f"idle confirmed after {self.idle_confirm_secs}s grace; "
-                            "treating as session end"
-                        )
-                        break
-                elif pending_idle:
-                    pending_idle = False
-                    state = "watching"
-                    self.log("transcript grew during idle confirmation; resuming watch")
-                if time.time() > lifetime_deadline:
-                    state = "stopped-maxtime"
-                    self.log(
-                        f"max lifetime {self.max_secs}s reached; exiting without "
-                        "analysis (safety valve, not an end signal)"
-                    )
-                    break
-                time.sleep(self.poll_secs)
-        finally:
-            obs_f.close()
+                lines += 1
+                obs.write(json.dumps(summarize_record(rec)) + "\n")
         self._write_status(
-            {"target_session": self.session_id, "state": state, "updated": now_iso()},
+            {
+                "target_session": self.session_id,
+                "target_path": str(self.transcript),
+                "updated": now_iso(),
+                "byte_offset": offset + len(chunk),
+                "lines_observed": lines,
+                "parse_errors": line_stats.get("bad_lines", 0),
+                **({"state": "collected", "failed_attempts": 0} if lines else {}),
+            },
             merge=True,
         )
-        return state, offset
-
-    def _resume_offset(self) -> int:
-        try:
-            prev = json.loads(self.status_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return 0
-        if prev.get("target_session") != self.session_id:
-            return 0
-        try:
-            off = max(int(prev.get("byte_offset", 0)), 0)
-        except (TypeError, ValueError):
-            return 0
-        if off > 0:
-            self.log(f"resuming from prior observer byte offset {off}")
-        return off
+        return lines > 0
 
     def _ensure_memory_root_ignored(self) -> bool:
         """Self-ignore the resolved memory root; return whether it is safe to write.
@@ -629,19 +501,17 @@ class Observer:
         files under the repo.
         """
         memory_root = self.ledger_dir.parent
-        if (memory_root / ".git").exists():
+        if plugin_paths.is_repo_root(memory_root):
             self.log(
                 "memory root is a repo root; refusing the memory-tier write "
                 "(would leave an untracked committable ledger under the repo)"
             )
             return False
-        gi = memory_root / ".gitignore"
+        gi = memory_root / plugin_paths.SELF_IGNORE
         try:
             memory_root.mkdir(parents=True, exist_ok=True)
-            content = gi.read_text(encoding="utf-8") if gi.exists() else ""
-            # Verify a bare `*`/`**` line is present -- not merely that the file
-            # exists (a repo-created .gitignore may hold only comments/exceptions).
-            if not any(ln.strip() in ("*", "**") for ln in content.splitlines()):
+            if not plugin_paths.is_self_ignored(memory_root):
+                content = gi.read_text(encoding="utf-8") if gi.exists() else ""
                 if content and not content.endswith("\n"):
                     content += "\n"
                 gi.write_text(content + "*\n", encoding="utf-8")
@@ -655,12 +525,12 @@ class Observer:
 
     def _write_status(self, status: dict, merge: bool = False) -> None:
         try:
-            if merge and self.status_path.exists():
-                base = json.loads(self.status_path.read_text(encoding="utf-8"))
-                base.update(status)
-                status = base
+            if merge:
+                status = {**read_status(self.work_dir, self.session_id), **status}
+            if self.analysis_runs:
+                status["analysis_runs"] = self.analysis_runs
             self.status_path.write_text(json.dumps(status, indent=2), encoding="utf-8")
-        except (OSError, json.JSONDecodeError):
+        except OSError:
             pass
 
     def _run_analysis(self) -> bool:
@@ -670,17 +540,30 @@ class Observer:
         duplicated). The -p run performs the sole semantic redaction pass; this
         script appends only the block it returns. Returns True only when the
         observations were CONSUMED (a successful run, or nothing to keep), so the
-        caller may delete them; False whenever they should be RETAINED (analysis
-        unavailable or failed).
+        caller may delete them; False whenever they should be RETAINED (session
+        below `min_lines`, analysis unavailable, or failed).
+
+        The size gate applies only to a session with no ledger yet: until a run
+        writes one, nothing deletes the observations, so their line count is
+        every line the session has had. A follow-up to an analyzed session is
+        always analyzed, however short.
         """
         if not self.obs_path.exists() or self.obs_path.stat().st_size == 0:
             self.log("no observations captured; skipping analysis")
             return True
+        if find_session_ledger(self.ledger_dir, self.session_id) is None:
+            with self.obs_path.open("rb") as f:
+                session_lines = sum(1 for _ in f)
+            if session_lines < self.min_lines:
+                reason = (
+                    f"analysis skipped: {session_lines} lines < min {self.min_lines}"
+                )
+                self.log(reason)
+                self._add_analysis_run({"skipped": reason, "lines": session_lines})
+                self.below_min_lines = True
+                return False
         claude = _find_claude()
         if not claude:
-            # Analysis could not run -> RETAIN the observations as the collect-only
-            # fallback (return "not consumed"), so the user is left with the
-            # machine-local artifact rather than nothing.
             self.log(
                 "claude CLI not found on PATH; retaining observations, no analysis"
             )
@@ -693,17 +576,8 @@ class Observer:
             checkpoint=checkpoint,
             session_id=self.session_id,
         )
-        # Grant read access to EXACTLY the two directories the prompt reads: the
-        # work dir (the observations file) and the checkpoint's own context dir.
-        # Not the whole plugin root, and not the session data dir (unused). The
-        # prompt goes via STDIN, never as a trailing positional -- `--add-dir` is
-        # variadic and would otherwise swallow the prompt as another directory.
         add_dirs = ["--add-dir", str(self.work_dir), "--add-dir", checkpoint_dir]
         cmd = [claude, "-p"]
-        # --bare drops auto-discovery (a cost lever) BUT couples to auth: on an
-        # OAuth-login install it makes the run report "Not logged in" and fail.
-        # Off by default so the run works everywhere; opt in only where auth is an
-        # env-var API key that survives --bare. See reference/observer.md.
         if self.bare:
             cmd.append("--bare")
         cmd += [
@@ -713,66 +587,28 @@ class Observer:
             self.effort,
             "--permission-mode",
             "dontAsk",
-            # Unattended print run: dontAsk already denies anything that would
-            # prompt. --permission-prompts none also tells the model not to
-            # retry, but only CLIs that know the flag get it.
             *permission_prompts_args(claude),
             "--output-format",
             "json",
-            # Genuinely Read-only over UNTRUSTED observations. --tools RESTRICTS the
-            # available tool set to Read; --allowedTools only auto-APPROVES and does
-            # not restrict, so on its own a Bash/WebFetch/MCP tool already allowed in
-            # the user's settings could be driven by a prompt-injection record in the
-            # transcript. --strict-mcp-config loads no MCP servers. --allowedTools +
-            # dontAsk keep the single Read from prompting or being denied.
             "--tools",
             "Read",
             "--allowedTools",
             "Read",
             "--strict-mcp-config",
-            # CLAUDE_CODE_EFFORT_LEVEL overrides --effort, and the child re-applies
-            # it from any settings file's `env`, replacing what it inherits. A
-            # --settings `env` outranks user, project and local settings, so pin
-            # the variable to the chosen effort there. See reference/observer.md.
             "--settings",
             json.dumps({"env": {"CLAUDE_CODE_EFFORT_LEVEL": self.effort}}),
             *add_dirs,
         ]
 
-        # The analysis run itself starts sessions; the arming hook guards against
-        # re-arming on `sdk-cli` entrypoint, but mark the environment explicitly
-        # so nested tooling can also tell this is the observer's own analysis.
         env = dict(os.environ, SESSION_FLOW_OBSERVER_ANALYSIS="1")
-        # An exported variable may outrank the --settings pin; drop it too.
         env.pop("CLAUDE_CODE_EFFORT_LEVEL", None)
         self.log(
             f"firing analysis: {self.model} at {self.effort} over {self.obs_path.name}"
         )
         run_kwargs: dict = {}
         if os.name == "nt":
-            # CREATE_NO_WINDOW -- the observer process itself is already spawned
-            # windowless (arm_observer.py's spawn_detached), but that flag set was
-            # never carried to this later, in-process subprocess.run call, so a
-            # console window flashed on the desktop for the run's duration. This
-            # is a waited (not detached) child, so only suppress the window --
-            # no DETACHED_PROCESS/CREATE_NEW_PROCESS_GROUP, which are for escaping
-            # the parent's process tree, not needed here.
-            run_kwargs["creationflags"] = 0x08000000
+            run_kwargs["creationflags"] = CREATE_NO_WINDOW
         try:
-            # Own short timeout, NOT max_secs -- otherwise the observer could live
-            # up to ~2x its documented absolute lifetime cap. The measured run is
-            # ~20-40s; this bounds a stuck run to minutes.
-            #
-            # encoding="utf-8" is explicit because `claude -p --output-format
-            # json` always writes UTF-8, but Python's default text encoding for
-            # subprocess capture is the platform code page -- cp1252 on Windows --
-            # which corrupts non-ASCII output (mojibake) into the ledger.
-            # errors="replace" (rather than the default "strict") keeps a
-            # truncated/invalid byte sequence -- e.g. multi-byte UTF-8 split at
-            # a timeout boundary during decode -- from raising UnicodeDecodeError
-            # out of this try block, which is caught only for
-            # TimeoutExpired/OSError; an uncaught decode error would skip the
-            # designed "return False -> retain observations" fallback entirely.
             proc = subprocess.run(
                 cmd,
                 input=prompt,
@@ -787,8 +623,7 @@ class Observer:
         except (subprocess.TimeoutExpired, OSError) as e:
             self.log(f"analysis run failed: {e}")
             return False
-        # `claude -p` reports auth/API failures inside its JSON body (is_error) with
-        # exit 0 sometimes and exit 1 others; inspect both.
+        self._record_usage(proc.stdout)
         err = _result_error(proc.stdout) or _incomplete_reason(proc.stdout)
         if proc.returncode != 0 or err:
             self.log(
@@ -800,9 +635,29 @@ class Observer:
         if not findings:
             self.log("analysis returned no result text")
             return False
-        # Consumed only if the ledger write actually happened; a refused write
-        # (unsafe memory root) retains the observations.
         return self._append_ledger(findings)
+
+    def _record_usage(self, stdout: str) -> None:
+        """Store the run's own reported token usage, duration and cost, failed
+        runs included, so observer spend is measurable per session."""
+        data = _json_object(stdout)
+        usage = data.get("usage")
+        record: dict = {}
+        if isinstance(usage, dict):
+            record["usage"] = {k: usage[k] for k in _USAGE_KEYS if k in usage}
+        for key in ("duration_ms", "total_cost_usd"):
+            if key in data:
+                record[key] = data[key]
+        if not record:
+            return
+        self._add_analysis_run(record)
+        self.log(f"analysis usage: {json.dumps(record, separators=(',', ':'))}")
+
+    def _add_analysis_run(self, record: dict) -> None:
+        """Append one run or skip to `analysis_runs`, which every later status
+        write carries, so no run's record is lost to a later run's status write."""
+        self.analysis_runs.append({"at": now_iso(), **record})
+        self._write_status({"target_session": self.session_id}, merge=True)
 
     def _append_ledger(self, findings: str) -> bool:
         """Append the returned findings to this session's single ledger file.
@@ -818,26 +673,15 @@ class Observer:
             self.log("memory root unsafe; retaining observations, no ledger written")
             return False
         self.ledger_dir.mkdir(parents=True, exist_ok=True)
-        ledger = self._find_session_ledger()
+        ledger = find_session_ledger(self.ledger_dir, self.session_id)
         section = (
             f"\n## Checkpoint {now_ts()} (autonomous post-end)\n\n"
             f"{_redact(findings).strip()}\n"
         )
         if ledger is None:
             ledger = self.ledger_dir / f"{now_ts()}-running-retro-{self.topic}.md"
-            # Carry the cross-session continuity pointers when the arming context
-            # resolved them (the in-session `arm` entry applies retro's Phase 1.0
-            # continuity gate). A detached/headless observer cannot make that
-            # judgment safely -- blindly linking the newest handoff could splice
-            # an unrelated session -- so the hook path leaves them empty and a
-            # later in-session checkpoint reconciles continuity.
-            fm = [f"session_id: {self.session_id}", "observer: autonomous"]
-            if self.prev_running_retro:
-                fm.append(f"previous_running_retro: {self.prev_running_retro}")
-            if self.prev_session_id:
-                fm.append(f"previous_session_id: {self.prev_session_id}")
             header = (
-                "---\n" + "\n".join(fm) + "\n---\n\n"
+                f"---\nsession_id: {self.session_id}\nobserver: autonomous\n---\n\n"
                 f"# Running retro ledger — {self.topic}\n"
             )
             ledger.write_text(header + section, encoding="utf-8")
@@ -872,18 +716,6 @@ class Observer:
         except (OSError, subprocess.SubprocessError) as exc:
             self.log(f"plugin_usage not stamped: {exc}")
 
-    def _find_session_ledger(self) -> Path | None:
-        for path in sorted(self.ledger_dir.glob("*-running-retro-*.md")):
-            try:
-                head = path.read_text(encoding="utf-8")[:400]
-            except OSError:
-                continue
-            if re.search(
-                rf"^session_id:\s*{re.escape(self.session_id)}\s*$", head, re.MULTILINE
-            ):
-                return path
-        return None
-
     def _cleanup_observations(self) -> None:
         with contextlib.suppress(OSError):
             self.obs_path.unlink()
@@ -893,14 +725,6 @@ def _pid_alive(pid: int) -> bool:
     if pid <= 0:
         return False
     if os.name == "nt":
-        # tasklist's piped output follows the console output code page, which
-        # is not fixed -- it varies by locale/session and can even differ
-        # between shells in the same session (#1512). Neither a hardcoded
-        # "utf-8" (the #1483 fix) nor a hardcoded "oem" decodes correctly
-        # everywhere, so match the PID as raw ASCII bytes instead of decoding
-        # at all. A process *name* containing non-ASCII/mojibake text can
-        # never affect this match either way, since the predicate only looks
-        # for ASCII digits.
         out = subprocess.run(
             ["tasklist", "/FI", f"PID eq {pid}", "/NH"], capture_output=True
         )
@@ -910,7 +734,6 @@ def _pid_alive(pid: int) -> bool:
     except ProcessLookupError:
         return False
     except PermissionError:
-        # Signal refused, but the process exists -- it is alive.
         return True
     except OSError:
         return False
@@ -926,12 +749,19 @@ def _find_claude() -> str | None:
 
 
 def _json_object(stdout: str) -> dict:
-    """The -p run's JSON body as a dict; empty when it is not a JSON object."""
     try:
         data = json.loads(stdout)
     except json.JSONDecodeError:
         return {}
     return data if isinstance(data, dict) else {}
+
+
+_USAGE_KEYS = (
+    "input_tokens",
+    "cache_creation_input_tokens",
+    "cache_read_input_tokens",
+    "output_tokens",
+)
 
 
 def _extract_result(stdout: str) -> str:
@@ -941,14 +771,8 @@ def _extract_result(stdout: str) -> str:
     return str(data.get("result") or data.get("text") or "").strip()
 
 
-# Mechanical secret-shape patterns for the ledger-write redaction hop. Conservative
-# and shape-based (never the value) -- defense in depth over the -p run's semantic
-# pass, matching running-retro's "redact on the ledger write too" mandate.
 _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
     (
-        # The body stops at the next BEGIN and at 16384 characters, so each
-        # header scans a bounded run; unbounded, a repeated header is
-        # quadratic. An 8192-bit RSA key is about 6.5 KB as PEM or OpenSSH.
         re.compile(
             r"-----BEGIN[^-]{1,64}PRIVATE KEY-----"
             r"(?:(?!-----BEGIN).){0,16384}?"
@@ -959,32 +783,18 @@ _REDACTIONS: tuple[tuple[re.Pattern, str], ...] = (
     ),
     (re.compile(r"\b(?:sk|rk|pk)-[A-Za-z0-9_-]{16,}"), "<REDACTED: API key>"),
     (
-        # GitHub prefixes from
-        # https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/about-authentication-to-github#githubs-token-formats
-        # and the ghs_ regex GitHub recommends for current and stateless installation tokens from
-        # https://github.blog/changelog/2026-05-15-github-app-installation-tokens-per-request-override-header/
-        # (as of 2026-10-21; recheck when GitHub changes a token format or its recommended regex).
-        # Alternation takes the first branch that matches, so ghs_ comes first:
-        # otherwise a JWT loses only its header. One greedy run of one class with
-        # nothing after it matches or fails within 36 characters, so it stays linear.
         re.compile(r"\b(?:ghs_[A-Za-z0-9._-]{36,}|gh[pousr]_[A-Za-z0-9]{20,})"),
         "<REDACTED: GitHub token>",
     ),
     (re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}"), "<REDACTED: Slack token>"),
     (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "<REDACTED: AWS key id>"),
     (
-        # The JWT header, URL scheme, and email local part and domain are
-        # bounded so each start position scans a bounded run; unbounded, a
-        # long run with no `.`, `://` or `@` is quadratic to scan. RFC 5321
-        # caps the local part at 64 octets and the domain at 255.
         re.compile(
             r"\beyJ[A-Za-z0-9_-]{10,512}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}"
         ),
         "<REDACTED: JWT>",
     ),
     (
-        # A header past the bound: the whole run, dots included, in one match.
-        # After the JWT rule, since a long payload segment also starts `eyJ`.
         re.compile(r"\beyJ[A-Za-z0-9_-]{513}[A-Za-z0-9_.-]*"),
         "<REDACTED: JWT>",
     ),
@@ -1013,7 +823,6 @@ def _redact(text: str) -> str:
 
 
 def _result_error(stdout: str) -> str:
-    """Return the -p run's own error text when its JSON body signals failure."""
     data = _json_object(stdout)
     if data.get("is_error"):
         return str(data.get("result") or data.get("terminal_reason") or "api_error")
@@ -1154,7 +963,7 @@ of the observations.
 
 
 def build_parser() -> argparse.ArgumentParser:
-    p = argparse.ArgumentParser(description="running-retro detached observer")
+    p = argparse.ArgumentParser(description="running-retro one-shot session analysis")
     p.add_argument(
         "--transcript", required=True, help="absolute path to <session>.jsonl"
     )
@@ -1172,17 +981,6 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--plugin-root", default="", help="${CLAUDE_PLUGIN_ROOT}")
     p.add_argument("--topic", default="", help="ledger topic slug")
     p.add_argument(
-        "--previous-running-retro",
-        default="",
-        help="prior ledger path for cross-session continuity (resolved by "
-        "the in-session arm entry under retro's continuity gate)",
-    )
-    p.add_argument(
-        "--previous-session-id",
-        default="",
-        help="prior session id paired with --previous-running-retro",
-    )
-    p.add_argument(
         "--model",
         default="",
         help="analysis model; empty = the plugin.json userConfig default",
@@ -1195,7 +993,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--analysis",
         action="store_true",
-        help="fire the headless post-end analysis on idle-detect",
+        help="run the headless analysis over the distilled observations",
+    )
+    p.add_argument(
+        "--min-lines",
+        default="",
+        help="skip the analysis when fewer transcript lines are pending; "
+        "empty = the plugin.json userConfig default",
     )
     p.add_argument(
         "--bare",
@@ -1203,32 +1007,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="pass --bare to the analysis run (cost lever; only where "
         "auth survives it -- breaks OAuth-login installs)",
     )
-    p.add_argument("--poll-seconds", type=float, default=5.0)
-    p.add_argument(
-        "--idle-seconds",
-        type=float,
-        default=900.0,
-        help="mtime-idle end threshold; keep above the longest single turn",
-    )
-    p.add_argument(
-        "--idle-confirm-seconds",
-        type=float,
-        default=30.0,
-        help="after the idle threshold trips, wait this long for renewed "
-        "transcript growth before treating the session as ended",
-    )
-    p.add_argument(
-        "--max-seconds",
-        type=float,
-        default=86400.0,
-        help="hard lifetime safety valve; exits WITHOUT analysis",
-    )
     p.add_argument(
         "--analysis-timeout-seconds",
         type=float,
         default=600.0,
-        help="subprocess timeout for the headless analysis run (its own "
-        "bound, independent of --max-seconds)",
+        help="subprocess timeout for the headless analysis run",
     )
     return p
 

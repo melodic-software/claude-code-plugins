@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for retro-audio WAV rendering.
 # test-scope: plugins/retro-audio/examples/*
 # test-scope: plugins/retro-audio/scripts/*.py
 set -uo pipefail

@@ -1,7 +1,3 @@
-// report.mjs, and the hardening of the two post-merge mutation workflows:
-// no pull request starts either, only the model-free report job writes, the
-// model jobs read contents only and run no test, the mutants run in a job that
-// holds no secret, and the trigger's path filter equals the config's mutate globs.
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
@@ -86,8 +82,6 @@ test("model text in the detail stays inside a fence it cannot close", () => {
   assert.match(text, /\n`````text\nx ```` y\n`````/);
 });
 
-// A pull request opened on main's tip and closed unmerged lists the commit
-// too; only the merged one counts, on the REST read and the GraphQL fallback.
 test("mergedPulls keeps the merged pull requests into main and falls back to GraphQL", async () => {
   const rest = [
     { number: 7, state: "closed", merged_at: "2026-10-26T10:00:00Z", base: { ref: "main" } },
@@ -125,8 +119,6 @@ test("mergedPulls keeps the merged pull requests into main and falls back to Gra
   }
 });
 
-// `pulls` answers each commit's pull request read: a list for every commit, or
-// a map from commit SHA to its list. The compare read lists `commits`.
 function run(env, pulls = [], commits = [AFTER]) {
   const dir = tempDir("mutation-report-");
   const summary = join(dir, "summary.md");
@@ -167,8 +159,6 @@ test("main fails a run that left no valid result or an edited checkout", async (
   assert.equal(invalid.code, 1);
 });
 
-// The workflow's check of the tree decides a restore; the model's restore-failed
-// outcome alone does not fail the run.
 test("a restore-failed result fails the run only when the workflow's check did not find the tree restored", async () => {
   const output = JSON.stringify(result([mutant(), mutant({ line: 4, state: "not-run" })], { outcome: "restore-failed" }));
   const restored = await run({ AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: output });
@@ -199,7 +189,6 @@ test("a usage or capacity limit stop passes with a notice, and any other class s
   assert.equal(edited.code, 1, "a limit stop never covers an edited checkout");
 });
 
-// The two workflows, read as text: each job is the block under its two-space id.
 const read = (name) => readFileSync(new URL(`../../workflows/${name}`, import.meta.url), "utf8");
 const jobsOf = (text) => {
   const wf = workflowText(text);
@@ -224,19 +213,16 @@ test("only a push to main starts the gate, and only the gate's run starts the la
 });
 
 const MODEL_JOBS = ["generate", "generate-subscription", "generate-fallback", "triage", "triage-subscription", "triage-fallback"];
-// One step of a job block, by its id or its name.
 const stepOf = (block, key) => {
   const step = stepsOf(block).find((s) => s.name === key || s.text.includes(`\n        id: ${key}\n`));
   assert.ok(step, key);
   return step.text;
 };
-// A literal block (`key: |`) of a step, one entry per line.
 const literal = (step, key) => {
   const lines = step.split(`\n          ${key}: |\n`)[1].split("\n");
   const end = lines.findIndex((line) => !line.startsWith("            "));
   return lines.slice(0, end < 0 ? lines.length : end).map((line) => line.trim());
 };
-// A run step's script, as the runner runs it.
 const script = (step) => step.split("\n        run: |\n")[1].split("\n").map((line) => line.replace(/^ {10}/, "")).join("\n");
 const field = (step, key) => new RegExp(`\\n {8,10}${key}: (.*)\\n`).exec(step)?.[1];
 
@@ -264,8 +250,6 @@ test("only the model-free report job writes, the model jobs read contents only, 
   assert.equal(LANE.match(/actions\/checkout@/g).length, LANE.match(/persist-credentials: false/g).length);
 });
 
-// Each model leg's Bash runs read-only git and the plugin's suppression lint,
-// which Phase 1 step 3 runs in generate and Phase 4 in triage; no leg edits a file.
 test("the model's Bash allows git reads only and its git reads stay in the checkout", () => {
   const jobs = jobsOf(LANE);
   for (const id of MODEL_JOBS) {
@@ -282,7 +266,6 @@ test("the model's Bash allows git reads only and its git reads stay in the check
   }
 });
 
-// A model leg's stop step, run as the runner runs it.
 function stopStep(failureClass) {
   const step = stepOf(jobsOf(LANE).generate, "stop");
   const dir = tempDir("mutation-stop-");
@@ -298,7 +281,6 @@ test("the stop step passes a usage or capacity limit and fails every other class
   for (const failureClass of ["auth", "max-turns", "timeout", "no-execution", "other", ""]) {
     assert.deepEqual(stopStep(failureClass), { code: 1, output: "" }, failureClass);
   }
-  // A handoff is no failure: the step runs only on a failed leg that handed nothing on.
   for (const id of MODEL_JOBS) {
     assert.equal(field(stepOf(jobsOf(LANE)[id], "stop"), "if"), "always() && steps.run.outcome == 'failure' && steps.run.outputs.handoff != 'true'", id);
   }
@@ -310,7 +292,6 @@ test("the run-mutants job applies mutants under the config's mutate globs and ch
   assert.match(execute, /CONFIG=docs\/conventions\/mutation-testing\.yaml/);
   assert.match(execute, /cp -R scripts "\$HARNESS\/"\n\s*chmod -R a-w "\$HARNESS"/, "a mutant of the harness cannot break the harness");
   assert.match(stepOf(jobs["run-mutants"], "restored"), /git diff --quiet HEAD/);
-  // Each handoff between jobs is one artifact pinned by the SHA-256 its job recorded.
   assert.match(field(stepOf(jobs["run-mutants"], "mutants"), "WANT"), /needs\.generate-fallback\.outputs\.sha256/);
   for (const id of ["triage", "triage-subscription", "triage-fallback"]) {
     assert.equal(field(stepOf(jobs[id], "Check the executed mutants"), "WANT"), "${{ needs.run-mutants.outputs.sha256 }}", id);
@@ -337,7 +318,6 @@ test("the comment step runs only on report.mjs's pull output, after a failed rep
   assert.match(comment, /\n {10}PULL: \$\{\{ steps\.report\.outputs\.pull \}\}\n/);
   assert.match(comment, /\n {8}run: node \.base\/\.github\/scripts\/post-merge-test-mutation\/comment\.mjs\n/);
   assert.equal(comment.match(/COMMENT_PATH: (.*)/)[1], write.match(/COMMENT_PATH: (.*)/)[1]);
-  // No model output reaches the comment step, by env or expression.
   assert.doesNotMatch(comment, /needs\.audit|STRUCTURED_OUTPUT/);
 });
 
@@ -357,7 +337,6 @@ test("main comments on the merged pull request when another closed unmerged on t
   assert.notEqual(out.comment, null);
 });
 
-// Each outcome class, on one merged pull request: comment only for a survivor or an uncovered mutant.
 const OUTCOMES = [
   ["a survivor", result([mutant({ state: "survived" })]), true, null],
   ["an uncovered mutant", result([mutant({ state: "no-coverage" })]), true, null],
@@ -404,9 +383,6 @@ test("main writes no comment and no pull output for no, several or an unread mer
   }
 });
 
-// A merge queue pushed two squash merges at once (#13675 then #13669): the
-// survivor is in the first one's file, so the head's pull request alone must
-// not get the comment.
 test("main names every pull request of a batched push and comments on none of them", async () => {
   const first = "c".repeat(40);
   const ok = { AUDIT_RESULT: "success", RESTORED: "true", STRUCTURED_OUTPUT: JSON.stringify(result([mutant({ state: "survived" })])) };
@@ -452,7 +428,6 @@ test("the comment body carries only validated fields: enums, integers, pattern-c
   });
   assert.ok(body.startsWith(`${MARKER}\n`));
   assert.doesNotMatch(body, /example\.invalid|````/);
-  // An @ in a path sits inside inline code, where it notifies no one.
   assert.match(body, /\| `lib\/@scope\/y\.mjs:9` \| SBR \| productive \| no-assertion \|/);
   assert.match(body, /\nThe run's summary has the full report\.\n$/);
 });

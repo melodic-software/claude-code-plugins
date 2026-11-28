@@ -3,6 +3,11 @@
 Notable changes to the ecosystem-resolution contract (SemVer). A guardrail change is a major bump.
 A new record row or detector signal is a minor bump. A wording change is a patch.
 
+## [1.1.2] - 2026-11-24
+
+The standards index row also reads the org layer, the standards index of the repository a
+consumer's `standards_repository` names (standards contract 1.2.0), beneath the repository's own.
+
 ## [1.1.1] - 2026-11-22
 
 The ecosystem command record's home is `docs/conventions/ecosystems/<ecosystem>.yaml`, per the

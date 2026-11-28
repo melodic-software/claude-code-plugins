@@ -19,6 +19,6 @@ activities:
     inputs: [pr, head-sha]
 lanes:
   pr-unblock:
-    stage: unblock
+    stage: fix
     slots:
       - activity: fix-ci

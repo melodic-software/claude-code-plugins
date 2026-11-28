@@ -1,19 +1,6 @@
 #!/usr/bin/env bash
-# Self-test for scripts/check-fixture-git-isolation.sh.
-#
-# Every LOGIC case runs the gate inside a synthetic fixture repository holding a
-# copy of the script, so those assertions cannot drift with whatever the live
-# corpus happens to contain today. The final case is deliberately different: it
-# is a canary that runs the gate against the REAL tree, so the shipped baseline
-# and the shipped corpus are asserted to agree.
 set -uo pipefail
 
-# This suite builds git fixtures itself, so it clears the inherited git
-# environment for the same reason the gate exists: under an exported
-# ABSOLUTE GIT_DIR, `git init` and `git config` follow repository discovery
-# rather than `-C` or the working directory, and the fixture identity lands in
-# the caller's repository. GIT_CONFIG is cleared as a distinct path — it
-# replaces the file `git config` itself reads and writes.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -24,19 +11,11 @@ BASELINE_NAME="fixture-git-isolation-baseline.txt"
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
 
-# The fixture repos below are built by hand rather than through
-# scripts/lib/fixture-tree.sh on purpose: they are this gate's COUNTER-fixtures,
-# and a self-test that built them with the shared builder would be asserting the
-# builder's isolation rather than the gate's ability to detect its absence.
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
 seq_n=0
 REPO=""
-# new_repo — a fresh fixture repo carrying a copy of the gate under scripts/.
-# Sets REPO rather than echoing a path: command substitution would run this in a
-# SUBSHELL, so the sequence counter would never advance in the caller and every
-# case would silently reuse — and accumulate into — the first repo.
 new_repo() {
   seq_n=$((seq_n + 1))
   REPO="$TMP/r$seq_n"
@@ -104,10 +83,6 @@ else
   fail "self-clearing suite: rc=$rc out='$out'"
 fi
 
-# --- clearing only the discovery pair is NOT enough ------------------
-# GIT_CONFIG is a second leak path (git-config ENVIRONMENT: used as --file),
-# so a suite that only unsets GIT_DIR and GIT_WORK_TREE still writes through
-# an inherited GIT_CONFIG.
 new_repo
 r="$REPO"
 cat >"$r/no-config.test.sh" <<'SH'
@@ -278,10 +253,6 @@ else
   fail "--list: rc=$rc out='$out'"
 fi
 
-# --- an identity write via `config --local` is caught --------------------------
-# A pattern requiring `config` immediately followed by `user.` would let this
-# spelling escape. A suite whose ONLY fixture work is a --local identity write
-# is the case that would slip through entirely.
 new_repo
 r="$REPO"
 cat >"$r/local-ident.test.sh" <<'SH'
@@ -298,10 +269,6 @@ else
   fail "config --local write: rc=$rc out='$out'"
 fi
 
-# --- an identity READ does NOT conscript a suite -----------------------------
-# The counterpart to the case above, and the reason the intent excludes the
-# --get spellings rather than matching every `config … user.*`. A read cannot
-# poison anything.
 new_repo
 r="$REPO"
 cat >"$r/read-ident.test.sh" <<'SH'
@@ -319,9 +286,6 @@ else
   fail "identity read: rc=$rc out='$out'"
 fi
 
-# --- a read and a write on the SAME line: the write still wins ---------------
-# Guards the fail-OPEN a line-wide read exclusion would create: one `--get` on
-# the line must not suppress a real identity write sharing it.
 new_repo
 r="$REPO"
 cat >"$r/mixed-ident.test.sh" <<'SH'
@@ -338,8 +302,6 @@ else
   fail "mixed read/write line: rc=$rc out='$out'"
 fi
 
-# --- `--local --get` is still a read -----------------------------------------
-# The read exclusion must survive an option word BEFORE the --get.
 new_repo
 r="$REPO"
 cat >"$r/local-read.test.sh" <<'SH'
@@ -356,9 +318,6 @@ else
   fail "local read: rc=$rc out='$out'"
 fi
 
-# --- `git -c <k>=<v> init` is caught -----------------------------------------
-# Anchoring the option run on `-C` alone missed this, and the form is live in
-# this corpus.
 new_repo
 r="$REPO"
 cat >"$r/dashc-init.test.sh" <<'SH'
@@ -375,10 +334,6 @@ else
   fail "git -c init: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: a fixture-building suite with no isolation is a VIOLATION -------
-# Python suites leak the same way, so Python coverage is a load-bearing half of
-# this gate rather than an extension of it. The argv here is a list-literal
-# `git -C <dir> config user.email`, which no shell-word pattern matches.
 new_repo
 r="$REPO"
 cat >"$r/test_leaky.py" <<'PY'
@@ -396,9 +351,6 @@ else
   fail "python unisolated: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: popping both variables from os.environ PASSES -------------------
-# Asserted through the multi-line tuple idiom the real suites use, because a
-# line-scoped check would miss it — that is why the Python arm is file-scoped.
 new_repo
 r="$REPO"
 cat >"$r/test_clean.py" <<'PY'
@@ -457,9 +409,6 @@ else
   fail "python discovery-only clear: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: naming the variables without popping anything is NOT enough -----
-# Guards the fail-OPEN direction: a file that only mentions GIT_DIR in a comment
-# must not be credited with clearing it.
 new_repo
 r="$REPO"
 cat >"$r/test_prose.py" <<'PY'
@@ -478,12 +427,6 @@ else
   fail "python prose-only: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: a formatter-wrapped argv is still SEEN --------------------------
-# A per-line scan never has `git` and `init` on one physical line here, so the
-# suite does not merely get the wrong verdict, it is invisible to the gate: it never
-# enters the violation/baseline classification at all. That is the failure this
-# gate's own header calls disqualifying — a gate that cannot see the file that
-# fired is not a gate.
 new_repo
 r="$REPO"
 cat >"$r/test_wrapped.py" <<'PY'
@@ -508,10 +451,6 @@ else
   fail "python wrapped argv: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: a wrapped argv WITH a wrapped clear PASSES ----------------------
-# The other half of the same joining rule: the real suites in this repo spell
-# their clear as a tuple the formatter has already wrapped, so recall on the
-# fixture side must not cost recognition on the clear side.
 new_repo
 r="$REPO"
 cat >"$r/test_wrapped_clean.py" <<'PY'
@@ -549,10 +488,6 @@ else
   fail "python wrapped clear: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: a clear that exists only in a COMMENT does not credit -----------
-# Prose describing the idiom is not the idiom. This shape is the one that
-# tripped the gate on its own header text: a comment holding both variable
-# names and pop-like syntax must not satisfy the check.
 new_repo
 r="$REPO"
 cat >"$r/test_commented.py" <<'PY'
@@ -573,10 +508,6 @@ else
   fail "python commented clear: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: an UNRELATED pop plus a separate mention does not credit --------
-# The pop and the names must be tied to each other. A pop of some other
-# variable, plus a comment that happens to name the git ones, is the shape that
-# passed while nothing was ever cleared.
 new_repo
 r="$REPO"
 cat >"$r/test_unrelated_pop.py" <<'PY'
@@ -599,9 +530,6 @@ else
   fail "python unrelated pop: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: a loop over UNRELATED names does not credit the git ones --------
-# The loop-variable tie, exercised from the other side: the pop is real and the
-# loop is real, but the iterable never named a git variable.
 new_repo
 r="$REPO"
 cat >"$r/test_unrelated_loop.py" <<'PY'
@@ -625,10 +553,6 @@ else
   fail "python unrelated loop: rc=$rc out='$out'"
 fi
 
-# --- PYTHON: a REBOUND loop variable does not carry a stale binding ----------
-# The tie is per-binding, not per-file. An earlier loop that names the git
-# variables but never pops them must not lend its binding to a later loop over
-# the same variable name that pops something else entirely.
 new_repo
 r="$REPO"
 cat >"$r/test_stale_binding.py" <<'PY'
@@ -654,10 +578,6 @@ else
   fail "python stale binding: rc=$rc out='$out'"
 fi
 
-# --- SHELL: a commented-out unset does not credit ----------------------------
-# The shell arm strips comments and matches the names inside the `unset`
-# STATEMENT, so neither a commented-out clear nor an unrelated later command on
-# the same line can grant it.
 new_repo
 r="$REPO"
 cat >"$r/commented.test.sh" <<'SH'
@@ -677,11 +597,6 @@ else
   fail "shell commented unset: rc=$rc out='$out'"
 fi
 
-# --- SHELL: a backslash-continued git command is still SEEN ----------
-# A per-physical-line scan never has `git` and `init` on one line here, so the
-# suite would not merely get the wrong verdict — it would be invisible to the
-# gate. The Python arm already joined on open brackets; the shell arm now
-# joins while the previous line ends in an unescaped backslash.
 new_repo
 r="$REPO"
 cat >"$r/continued-init.test.sh" <<'SH'
@@ -723,11 +638,6 @@ else
   fail "shell continued unset: rc=$rc out='$out'"
 fi
 
-# --- SHELL: env -u naming all three is a clear -----------------------
-# Use `$d` rather than `"$(mktemp -d)"` as the -C argument: the latter embeds a
-# space, and the fixture matcher (option-and-argument pairs) would then miss
-# `init` — the suite would not be a fixture at all, so both this case and the
-# half-clear below would "pass" for the wrong reason.
 new_repo
 r="$REPO"
 cat >"$r/env-unset.test.sh" <<'SH'
@@ -761,9 +671,6 @@ else
   fail "shell env -u all wrapped: rc=$rc out='$out'"
 fi
 
-# --- SHELL: env -u on one fixture line does not credit an unwrapped write ----
-# env -u is per-COMMAND. A wrap on `init` must not isolate a later bare
-# `config user.email` — that is the leak the gate exists to stop.
 new_repo
 r="$REPO"
 cat >"$r/env-mixed.test.sh" <<'SH'
@@ -781,9 +688,6 @@ else
   fail "shell env -u mixed: rc=$rc out='$out'"
 fi
 
-# --- SHELL: env -u and an unwrapped write on ONE `;` line is still a gap -----
-# The same leak as env-mixed, reached through one physical line. A
-# file-wide name-presence test on the joined string would credit it.
 new_repo
 r="$REPO"
 cat >"$r/env-semi.test.sh" <<'SH'
@@ -918,10 +822,6 @@ else
   fail "declared scope: rc=$rc out='$out'"
 fi
 
-# --- SCOPE: a mere MENTION of the token does not exempt ----------------------
-# The anchoring rule, mirroring `portability-scope:` in
-# scripts/check-shell-portability.sh. Without it, this gate's own documentation
-# and its own detector string would silently exempt whatever file held them.
 new_repo
 r="$REPO"
 cat >"$r/mention.test.sh" <<'SH'
@@ -940,17 +840,6 @@ else
   fail "scope mention: rc=$rc out='$out'"
 fi
 
-# --- HEREDOC: a body is DATA, so it cannot grant credit --------------
-# Every case below asserts an EXACT rc, not merely a non-zero one: a
-# violation is rc 1 and a usage error is rc 2, so `rc != 0` would pass just as
-# happily if the gate crashed on its own arguments and never judged the file.
-#
-# Direction 1 (cases 1-4): the three credit-granting signals — a clear, a scope
-# declaration, and a source of an isolating harness — must NOT count when they
-# appear only inside a heredoc body. This suite writes exactly such bodies
-# itself, which is what made the gate creditable from its own test data.
-
-# 1. an `unset` written into a heredoc body does not credit the writer.
 new_repo
 r="$REPO"
 cat >"$r/hd_unset.test.sh" <<'SH'
@@ -971,7 +860,6 @@ else
   fail "heredoc unset: rc=$rc out='$out'"
 fi
 
-# 2. a scope declaration written into a heredoc body does not exempt.
 new_repo
 r="$REPO"
 cat >"$r/hd_scope.test.sh" <<'SH'
@@ -992,8 +880,6 @@ else
   fail "heredoc scope: rc=$rc out='$out'"
 fi
 
-# 3. sourcing an isolating harness from inside a body does not credit. SOURCE is
-#    the third credit path and leaks the same way the other two do.
 new_repo
 r="$REPO"
 cat >"$r/iso-harness.sh" <<'SH'
@@ -1018,9 +904,6 @@ else
   fail "heredoc source: rc=$rc out='$out'"
 fi
 
-# 4. `<<-` strips leading TABS from its terminator, so a tab-indented terminator
-#    really does close the body — and the body before it is still data. Written
-#    with printf so the tabs cannot be reflowed by a formatter.
 new_repo
 r="$REPO"
 {
@@ -1041,11 +924,6 @@ else
   fail "heredoc dash-tab: rc=$rc out='$out'"
 fi
 
-# Direction 2 (cases 5-7): the ASYMMETRY. Suppressing credit must not suppress
-# anything else — a genuine executed token still counts, and FIXTURE detection
-# keeps reading heredoc text because conscripting a suite is the safe direction.
-
-# 5. the extent ENDS at the terminator: a real clear after it still credits.
 new_repo
 r="$REPO"
 cat >"$r/hd_after.test.sh" <<'SH'
@@ -1068,9 +946,6 @@ else
   fail "heredoc clear-after: rc=$rc out='$out'"
 fi
 
-# 6. a here-string is not a heredoc, and a `<<` inside a quoted string is text.
-#    Either one read as a redirection opens a body on a delimiter that never
-#    reappears, swallowing every real clear below it to end of file.
 new_repo
 r="$REPO"
 cat >"$r/hd_herestring.test.sh" <<'SH'
@@ -1092,11 +967,6 @@ else
   fail "heredoc herestring: rc=$rc out='$out'"
 fi
 
-# 7. FIXTURE detection still READS bodies. This suite runs no git command of its
-#    own — its only fixture text is inside a heredoc — and is still conscripted,
-#    which is the whole asymmetry: bodies may put a suite IN scope, never excuse
-#    one. Losing this direction would let a suite escape the gate by moving its
-#    fixture setup into a generated file.
 new_repo
 r="$REPO"
 cat >"$r/hd_fixture_only.test.sh" <<'SH'

@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# claim <id> [--ttl-hours <n>] [--session-id <s>] [--holder <h>] [--lease-only] [--phase <kind>] —
-# CONTRACT.md "Lease protocol". Assignment is bare gh (@me = session identity); the
-# lease comment goes through the bot. Race arbitration is by lease-comment identity,
-# not session_id, except that an earlier lease with session_id run-<id> whose workflow
-# run has completed counts as released. --holder names the lease holder instead of
-# `gh api user`, which an installation token cannot call; --lease-only posts the
-# lease with no assignment.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -72,35 +65,16 @@ else
   login="$WIT_GH_OUT"
 fi
 
-# A lease-only claim assigns no one, so steps 1-2 and their rollback do not apply.
 if [[ "$lease_only" == false ]]; then
-  # Guard the partial-claim window, armed before the assign so an assign that lands
-  # but reports failure is covered: any failure before a successful lease-comment
-  # write (step 3) would otherwise strand the issue assigned with no lease record
-  # (list-frontier excludes assigned items; reclaim ignores items with no lease).
-  # wit_run_gh's failure path calls `exit` directly rather than returning, and an
-  # explicit `exit` inside a function does not run the caller's ERR trap (only its
-  # EXIT trap), so this must be an EXIT trap, not ERR. A same-login session may hold
-  # the item, so the rollback keeps @me while another live lease of this login does.
   _wit_claim_rollback() {
     wit_hand_back_assignee "$owner" "$repo" "$number" "$login" "${our_comment_id:-}"
   }
   trap _wit_claim_rollback EXIT
 
-  # 1. Assign the session identity. `read` routes to bare gh, so the assignee is
-  # the session user, not the bot (README "Edit labels / assignees" carve-out);
-  # `@me` is resolved to $login explicitly because REST takes a literal login.
   wit_add_assignee read "$owner" "$repo" "$number" "$login"
 
-  # 2. Sole-assignee check — a different login present means an established claim.
   wit_read_assignees "$owner" "$repo" "$number"
   assignees="$WIT_GH_OUT"
-  # Confirm our own assignment actually landed. REST POST /assignees returns 201
-  # and silently drops a login that cannot be assigned (no push access). Without
-  # this check a silently-dropped assignment would report a held claim while
-  # list-frontier still saw the item unassigned — two workers on one item, the
-  # exact race the lease exists to prevent. A same-login release can also remove the
-  # login between the assign and this read, so one re-assign comes first.
   if ! jq -e --arg me "$login" 'any(.[]; . == $me)' <<<"$assignees" >/dev/null; then
     wit_add_assignee read "$owner" "$repo" "$number" "$login"
     wit_read_assignees "$owner" "$repo" "$number"
@@ -118,7 +92,6 @@ if [[ "$lease_only" == false ]]; then
   fi
 fi
 
-# 3. Post our lease comment.
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 lease="$(jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg holder "$login" --arg now "$now" \
   --arg ttl "$ttl" --arg ttl_minutes "$ttl_minutes" --arg sid "$session_id" --arg phase "$phase" \
@@ -135,41 +108,24 @@ wit_run_gh write api "repos/$owner/$repo/issues/$number/comments" \
   -f body="${WIT_LEASE_MARKER}${lease} -->${footer}" --jq '.id'
 our_comment_id="$WIT_GH_OUT"
 
-# A claim that fails before its emit supersedes its own comment, so a lease whose
-# handle never reached the caller does not block the item for its TTL; a default
-# claim also rolls back its assignment.
 _wit_claim_abort() {
   wit_try_supersede_lease_comment "$owner" "$repo" "$our_comment_id" "$lease"
   [[ "$lease_only" == true ]] || _wit_claim_rollback
 }
 trap _wit_claim_abort EXIT
 
-# 4. Re-read all lease comments; the EARLIEST live lease wins, except a lease held
-# by a completed workflow run (wit_lease_released_by_run). The abort guard STAYS
-# armed through arbitration: a read failure here (exit "$?" below) would otherwise
-# leave @me assigned with a live lease comment whose id was never returned to the
-# caller.
-# $() swallows wit_run_gh's exit-on-error; propagate so a read failure here does
-# not silently arbitrate the claim against an empty lease set.
 leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
 wit_lease_winner "$leases" "$(date -u +%s)" "$our_comment_id" wit_lease_released_by_run
 winner_id="$WIT_WINNER_ID"
 winner_holder=""
 [[ -z "$WIT_WINNER_JSON" ]] || winner_holder="$(jq -r '.holder // empty' <<<"$WIT_WINNER_JSON")"
 
-# Earliest LIVE lease wins. No live lease at all (e.g. ttl 0) → our claim stands;
-# expiry is reclaim's concern.
-# The abort trap backs off: it supersedes our lease, then hands back @me
-# (wit_hand_back_assignee).
 if [[ -n "$winner_id" && "$winner_id" != "$our_comment_id" ]]; then
   printf 'claim: live lease (comment %s, holder %s) wins — backing off\n' \
     "$winner_id" "$(tr -d '[:cntrl:]' <<<"${winner_holder:-unknown}")" >&2
   exit "$EX_CONFLICT"
 fi
 
-# A same-login release that ran between step 2 and our post can have removed @me
-# or a same-login back-off (each saw no other live lease of ours yet); put it back.
-# Each re-lists the leases after its removal, so one of the two sees the other's write.
 if [[ "$lease_only" == false ]]; then
   wit_read_assignees "$owner" "$repo" "$number"
   if ! jq -e --arg me "$login" 'any(.[]; . == $me)' <<<"$WIT_GH_OUT" >/dev/null; then
@@ -177,9 +133,17 @@ if [[ "$lease_only" == false ]]; then
   fi
 fi
 
-trap - EXIT # arbitration confirms our lease is the winner — claim complete
+trap - EXIT
+native_status=""
+if [[ -z "$phase" || "$phase" == "implementation" ]]; then
+  if wit_gh_try_set_native_status "$owner" "$repo" "$number" "In progress"; then
+    native_status="$WIT_GH_NATIVE_STATUS_WRITTEN"
+  fi
+fi
 jq -cn --arg sv "$WIT_SCHEMA_VERSION" --arg id "$id" --arg holder "$login" \
   --arg now "$now" --arg ttl "$ttl" --arg cid "$our_comment_id" --arg sid "$session_id" \
+  --arg ns "$native_status" \
   '{schema_version: $sv, id: $id, holder: $holder, acquired_at: $now, renewed_at: $now,
     ttl_hours: ($ttl | tonumber), lease_comment_id: ($cid | tonumber),
-    session_id: (if $sid != "" then $sid else null end)}'
+    session_id: (if $sid != "" then $sid else null end),
+    native_status: (if $ns != "" then $ns else null end)}'

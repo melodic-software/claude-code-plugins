@@ -1,5 +1,5 @@
 ---
-description: "Anthropic's internal skill-authoring playbook. 9 skill categories, gotchas-section pattern, progressive disclosure (SKILL.md hub + spoke files), description-as-trigger discipline, config.json first-run setup, persistent CLAUDE_PLUGIN_DATA storage, CLAUDE_EFFORT effort-aware behavior, helper scripts, on-demand session-scoped hooks, distribution, and composition. Use when: creating or reviewing a SKILL.md, choosing a skill's category or structure, writing its description or gotchas section, or asking for skill-authoring best practices: 'create a skill', 'how to write SKILL.md', 'skill best practices'."
+description: "Anthropic's skill-authoring playbook: 9 skill categories, gotchas, progressive disclosure (SKILL.md hub + spokes), description triggers, setup, `CLAUDE_PLUGIN_DATA`, `CLAUDE_EFFORT`, scripts, hooks, distribution, and composition. Use when: 'create a skill', 'how to write SKILL.md', 'skill best practices'. Not for static QA: /skill-quality:check."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -246,7 +246,7 @@ The last reply of a run that creates or changes a skill has three parts, in this
 
 ## Skill-tool composition (Melodic Software addition)
 
-Each Skill tool call loads exactly one skill, so a step that uses two skills makes two calls. For a
+A step that uses two skills makes two Skill tool calls, one per skill. For a
 skill with `disable-model-invocation: true`, tell the user to run `/plugin:skill` instead of
 attempting the call. **Pointer**: when deciding whether Claude may invoke a skill itself, fetch
 [Control who invokes a skill](https://code.claude.com/docs/en/skills#control-who-invokes-a-skill)

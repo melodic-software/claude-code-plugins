@@ -48,19 +48,15 @@ export const PREFLIGHT_PRINT_TEMPLATE = [
   "%(title)s",
   "%(channel)s",
   "%(uploader_id)s",
-  // Trailing emptiness probes (see isEmptyPostShell): "D" when a description
-  // exists, then the engagement counts ("NA" when null).
   "%(description&D|)s",
   "%(repost_count)s",
   "%(comment_count)s",
   "%(like_count)s",
-  // After the emptiness probes, so their field positions stay fixed.
   "%(live_status)s",
 ].join(PREFLIGHT_FIELD_SEP);
 
 const LIVE_STATUS_FIELD = 8;
 
-/** `live_status` values whose captions may still be in post-stream processing. */
 const STREAM_PROCESSING_STATUSES = new Set(["is_live", "post_live"]);
 
 /** Display cap for the queue `title` cell (keeps the markdown table scannable). */
@@ -205,8 +201,6 @@ export function buildPreflightArgs(url, { env = process.env, authOverride = {}, 
     "--no-warnings",
     "--no-playlist",
     ...(source.allowedExtractors ? ["--use-extractors", source.allowedExtractors] : []),
-    // Sources declaring 0-media posts as well-formed (mediaOptional) keep them
-    // enqueueable: yt-dlp reports metadata instead of a no-formats error.
     ...(source.ignoreNoFormatsError ? ["--ignore-no-formats-error"] : []),
     "--print",
     PREFLIGHT_PRINT_TEMPLATE,
@@ -312,8 +306,6 @@ export async function preflightVideo(url, deps = {}, { timeRange = null } = {}) 
       ok: false,
       status: "invalid-url",
       action: "reject",
-      // Escaped at construction: both cells can carry URL- or stderr-derived
-      // text, which must never break the markdown queue table it lands in.
       note: escapeTableCell(note),
       reason: escapeTableCell(reason),
     });
@@ -342,10 +334,6 @@ export async function preflightVideo(url, deps = {}, { timeRange = null } = {}) 
   }
   const videoId = decision.key ?? adapter.extractSliceKey(url, null);
 
-  // Probe the claim's canonical URL so the queue entry path gets adapter-level
-  // canonicalization by construction, same as acquisition dispatch. A null
-  // claim fails closed, mirroring registry dispatch — never probe a raw URL
-  // the adapter did not positively claim.
   const claim = adapter.matchUrl(url);
   if (!claim) {
     return rejectInvalid(
@@ -365,7 +353,6 @@ export async function preflightVideo(url, deps = {}, { timeRange = null } = {}) 
   const mediaOptional = adapter.capabilities.mediaOptional === true;
 
   if (result.success && mediaOptional && isEmptyPostShell(result.stdout)) {
-    // Removed or nonexistent post: yt-dlp still exits 0 with a synthetic title.
     return preflightResult({
       url,
       videoId,

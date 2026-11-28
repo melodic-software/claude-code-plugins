@@ -1,5 +1,5 @@
 ---
-description: "Run one repository's pull-request queue as the merge lane of the loop-lane topology: a self-paced standing or drain loop invoking /source-control:babysit-prs each cycle at the resolved autonomy tier, with grace windows, do-not-merge respect, escalation, and lane telemetry. Merge authority is human-only until the target repo's tracked config adopts the lane; the body owns the rung rules and the single paired-argument exception. Use when asked to run or stand up the babysit loop or merge lane for a repository, or to drain its PR queue. Required argument: OWNER/REPO. Launch via /loop. Sibling skills: /source-control:babysit-prs (single-pass mechanic), /source-control:pull-request (single-PR lifecycle)."
+description: "Run one project's PR queue as a standing or drain merge lane via /loop (needs OWNER/REPO), invoking /source-control:babysit-prs each cycle (human approval until adopted). Use for 'babysit loop', 'merge lane', or draining a queue. Not for single sweeps (run once) or one PR: /source-control:pull-request."
 argument-hint: "<owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge]"
 user-invocable: true
 disable-model-invocation: false
@@ -217,7 +217,7 @@ from the operator's managed and user settings itself.
 
 ## do-not-merge
 
-A do-not-merge label, or a PR body that says "do not merge" or has a line starting `Hold:`, is respected by default in every tier and at every rung: the PR is reported, never merged, and the label is never removed.
+A do-not-merge label is respected by default in every tier and at every rung: the PR is reported, never merged, and the label is never removed.
 Stripping it happens only behind the explicit `--strip-do-not-merge` invocation flag: a per-invocation direct order, never a config key, never persisted.
 
 ## Escalation
@@ -440,10 +440,10 @@ re-invocation of the subagent that already commented on the blocker, never quali
 ## Pacing and session budget
 
 Launch via `/loop` with the interval omitted (self-paced). At the end of every cycle that does not
-stop, schedule the next with `ScheduleWakeup`, whose delay clamps to `[60, 3600]` seconds. When the
+stop, schedule the next with `ScheduleWakeup` (the delay range a self-paced loop allows: [let Claude choose the interval](https://code.claude.com/docs/en/scheduled-tasks#let-claude-choose-the-interval)). When the
 babysit-prs engine snapshot supplies `recommended_cadence`, map it per the cadence table in the
 babysit-prs [loop reference](../babysit-prs/reference/loop.md) §5.3, which owns the
-seconds. Idle backs off toward the 3600s ceiling (standing mode's one-hour wakeups), and a genuine
+seconds. Idle backs off toward that range's ceiling (standing mode's one-hour wakeups), and a genuine
 daily-scale cadence belongs to `/schedule`, not a single-session `/loop` (same section). On a
 cycle-budget or `/loop` expiry hit (30 days for a loop created on 2.1.330 or later, 7 days for an
 older one), write a restart-request into the telemetry state block and

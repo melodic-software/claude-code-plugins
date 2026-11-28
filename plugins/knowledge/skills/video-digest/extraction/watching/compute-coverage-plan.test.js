@@ -31,8 +31,6 @@ describe("computeCoveragePlan", () => {
     expect(plan.densificationWindowCount).toBe(1);
   });
 
-  // Tier rule (TUNING.md "Dynamic coverage"): up to 90s -> 5s, up to 300s -> 6s; longer ->
-  // duration / 80 fill frames, rounded up, held between 6s and 60s.
   it.each([
     [60, 5],
     [90, 5],

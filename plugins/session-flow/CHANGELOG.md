@@ -1,5 +1,355 @@
 # Changelog: session-flow plugin
 
+## [10.14.1] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across 5 over-target `session-flow` skills (total 2174 -> 1111 chars, -1063 chars): `/session-flow:audit-sessions` (394 -> 340), `/session-flow:retro` (366 -> 340), `/session-flow:go-with-recommendations` (378 -> 145), `/session-flow:setup` (507 -> 142), and `/session-flow:tidy-work` (529 -> 144) while preserving evidence re-grounding, read-only/confirmation gates, opt-in `.work` hygiene, and sibling exclusions.
+
+### Fixed
+
+- A live check's `rule` or `evidence` longer than `observer_field_max` is now cut to that cap, ending in `…`, instead of failing the parse as `field_too_long:rule` or `field_too_long:evidence`; the check prompt now states the cap for both. A finding over the cap still counts as `parse_failed` with `field_too_long:finding`.
+
+## [10.14.0] - 2026-11-27
+
+### Added
+
+- `session_record.py` (`collect.py`) records per-subagent dispatch rows under `subagents.dispatches` (`agent_type`, `date`, `turns`, `last_stop_reason`, `hit_max_turns`, `resumed_after_turn`, `resumed_after_max_turns`) within `session-record/v2`; existing and carried-over records without `subagents.dispatches` remain readable and `collector_digest` triggers one-time re-ingest for present transcripts.
+- `scripts/dispatches.py` (`audit-sessions.dispatches/v1`) reads per-dispatch turn rows from the audit-sessions store across every collected source, reporting store gaps, stale sources and stored records lacking per-dispatch rows in `data.header` (exit 0 pass, 2 error, 3 no store).
+
+## [10.13.0] - 2026-11-27
+
+### Added
+
+- `observer_skill_check` and `observer_improvement_check` (off by default) add `skill` and `improvement` categories to the live checks: work done by hand where a skill or written rule assigns it to a skill, or a skill run that missed a case, ran inefficiently or skipped its `## Next`; and a step that ran far too long, a failure not raised, or work against a principle the repository's docs state.
+- A repository's `docs/conventions/session-flow.yaml` takes an `observer` map (`skill_check`, `improvement_check`, `defer_kinds`, `codify_threshold`) that wins over the matching user options, and its `session-flow.md` an `## Observer guidance` section added to every check; both are read from the default branch only.
+- `observer_defer_kinds` (empty by default) holds the listed categories found mid-turn until the turn ends, then sends them in one observer turn; with `observer_gate_check` on, a gate finding of such a category lets the command run and records `deferred`.
+- A live finding may end with `fix: session` (a dedicated session with a ready command, never auto-sent) or `fix: issue`; a missing line means here.
+- With `observer_harness_check` on, a rule cited by `observer_codify_threshold` (default 3) shown findings across two or more sessions raises one finding suggesting a dedicated `/corrections:codify` session. `shown` usage rows now carry the redacted `rule`.
+
+## [10.12.1] - 2026-11-27
+
+### Fixed
+
+- `/session-flow:go-with-recommendations` now states that running it is the same accept as typing "go with recommendations", with any exceptions typed after it, so a record or a side reviewer reads the command and the typed phrase alike.
+
+## [10.12.0] - 2026-11-27
+
+### Added
+
+- `observer_request_check` (off by default) adds a `request` category to the live checks: a skipped or unanswered part of the person's latest request, or work drifting from the goal the session stated.
+- With `observer_harness_check` on, a scripted loop check reports a tool (a Bash command by its first two words) that fails `observer_loop_repeat` times in a row with the same error text (digits masked), once per tool and error; `0` turns it off. It calls no model.
+- Observer usage rows record the finding's `category` on a `shown` check row and a `refused` gate row, and `held` on a `stale` row, saying whether the late reply carried a finding.
+
+## [10.11.0] - 2026-11-27
+
+### Added
+
+- A `transcript_sources_file` option names a JSON file of transcript sources: Claude Code configuration directories on this host and on hosts reached over ssh. Unset, only this host's configuration directory is read. `scripts/transcript_sources.py check FILE` validates a file, exiting 2 with the file named when it is malformed.
+
+### Changed
+
+- `/session-flow:audit-sessions` collects every source the `transcript_sources_file` lists, each read by its own host, into one store partitioned by source (`store/v2/<source>/`). Each record carries the source name and the reading host's host, platform, configuration directory and Claude Code version, and a status that marks a session whose transcript is gone. A source that cannot be read becomes a named gap with the command that re-collects it, and each run writes a diagnostics record. Prompts in `history.jsonl` whose session has no transcript are kept, pasted text restored, for the excerpt reader only.
+- `collect.py collect` takes `--sources-file` and `--source <name>` in place of `--projects-root`, and waits for another local collector's lock instead of reading beside it.
+- `/session-flow:audit-friction`'s `--source <dir>` collects into the one store as its own source instead of a separate store.
+- The old store is carried over: sessions whose transcripts remain are rebuilt into the new store, and old records whose transcript is gone are kept, marked carried-over. Once a host's own collect has done both with no gap, the old store moves to a quarantine folder that nothing reads and that is deleted after the store retention. Another host's old store is only read. `collect.py migrate --dry-run` reports what would be carried over and quarantined.
+- `collect.py collect` and `migrate` without `--retention-days` now apply the `audit_sessions_retention_days` default (180 days), raised to the longest `cleanupPeriodDays` of the sources read; before, an unset `--retention-days` was 0 and kept every record. A value you pass, 180 included, is kept and warns when it is below a source's `cleanupPeriodDays`. With no readable default in plugin.json, an unset value is an error. A source that cannot be read is judged by the `cleanupPeriodDays` it last reported.
+- `/session-flow:audit-sessions` markdown reports (`sweep.py --format md` and the written report), `/session-flow:audit-friction` markdown (`friction.py --format md`) and `/session-flow:recall` snippets and file paths now pass through a publish redactor over the `transcript_sources_file` sources: host names, ssh destinations, source names and configuration directories become stable per-run `<host-N>` placeholders, and usernames, IP addresses, emails, home paths and secrets typed ones. A new `redact_identifiers` option adds comma-separated names and paths to replace with `<identifier>`. Each script takes `--sources-file` and `--redact-identifiers`; a sources file that is missing or unusable, or secret rules that do not load, stop the output with exit 2 and nothing published. Stored records are unchanged.
+- The `/session-flow:audit-sessions`, `/session-flow:audit-friction`, `/session-flow:recall` and `/session-flow:find-handoff` reports open with a header naming each collection gap with the command that retries it, and each source that has gone past half its `cleanupPeriodDays` without a collection free of gaps. The JSON keeps each retry command as it runs; the markdown shows hosts by placeholder.
+- `/session-flow:recall` lists the projects directories of every local source in the `transcript_sources_file`, holds the per-host reader lock for its scan (another reader holding it past `lock_timeout_s` is a gap, exit 1, nothing read), and also searches the prompts the store kept from `history.jsonl` whose session has no transcript. Its publish redactor failing closed exits 2, as before.
+- `scripts/transcript_dirs.sh` takes `--sources-file` and lists every local source's projects directory; `/session-flow:retro` finds the session's transcript the same way.
+- `/session-flow:audit-friction` no longer probes for the other platform's projects tree, and `AUDIT_FRICTION_SIBLING_GLOBS` is gone: list that configuration directory in the `transcript_sources_file` instead, and the header names it while it is uncollected.
+- `sweep.py --excerpts` and `--correction-candidates` pass every string through the publish redactor, so `/corrections:codify preferences` quotes only redacted text. `scripts/publish.py` also runs as a command that redacts its input, which `/session-flow:retro` uses before a codified learning lands in a shared file.
+- `/session-flow:audit-sessions` passes `--retention-days` only when `audit_sessions_retention_days` is set, so an unset option keeps the 180-day default raised to the longest source `cleanupPeriodDays`.
+- `collect.py` takes `--lock-name` for the per-host reader lock; the test-only environment variable that renamed it is gone.
+- A `transcript_sources_file` path, and a local source's `config_dir` in it, starting with `~` are read from the home directory; a missing sources file prints its warning once per run.
+
+### Fixed
+
+- Redacting a secret at the end of a line no longer joins the next line onto the redacted one.
+- An unset `audit_sessions_retention_days` option now applies its documented floor: 180 days raised to the longest `cleanupPeriodDays` of the sources read. A declared default had made the option always read as set.
+- `/session-flow:recall` prints a history-only prompt only when its project is one of the scanned directories; a prompt from another project needs `--scope all`, which the skill passes only at the `all` scope.
+- `/session-flow:audit-sessions` churn findings show a file edited outside the session's working directory at its own path, instead of joining its redacted `~/` form onto the working directory.
+- `/session-flow:audit-sessions` published reports keep its metric names and drift canary keys, such as `cache.missed_input_tokens`, instead of replacing them with `<redacted:generic-api-key>`; a secret beside them is still redacted.
+- A secret whose gitleaks rule marks only part of it, such as a base64 JWT, a Teams webhook URL or a Kubernetes Secret's later data values, is redacted whole; only line breaks and a trailing quote, space or semicolon are kept.
+- `/session-flow:recall` matches a history-only prompt from a project under a home directory to its scanned directory again: the session store now keeps each prompt's project slug beside its redacted project. A home-directory prompt stored earlier is matched once the next collect rewrites it.
+
+## [10.10.2] - 2026-11-27
+
+### Changed
+
+- The shared transcript reader drops its record-type label comments.
+
+## [10.10.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [10.10.0] - 2026-11-26
+
+### Added
+
+- **The handoff prints a mobile form on the Claude mobile app.** `save_point.py emit --format mobile` wraps the prompt prose to fit a phone, keeps the path, session and next-step lines whole, and drops the terminal-only `claude --resume` note. Each surface's panel and checklist rules now live in the handoff's own `reference/surface/<surface>.md`, read only on that surface.
+
+## [10.9.0] - 2026-11-26
+
+### Added
+
+- `tidy_work.py` classifies `git-clone` directories (without walking `.git/objects`), `recovery-archive` files and directories (`.bundle`, `.tar`, `.tar.gz`, `.tgz`, `.zip`), all 11 active skill concern directories, and custom `extra_concern_dirs` from `<convention_home>/session-flow.yaml` or repeatable `--extra-concern-dir`.
+- `tidy_work.py` adds `--scope {all,repo,home}` and parses repo-qualified frontmatter, headers, and `owner--repo` slugs in `~/.work/running-retros/`.
+- `plugin_paths.py` owns shared `git_toplevel`, `default_memory_dir`, `is_self_ignored` (accepting `*` or `**` uniformly across `tidy_work.py`, `save_point.py`, and `observer.py`), and `validate_memory_root`; `save_point.py` exposes public `handoff_chain_meta`, removing all private `save_point._*` imports from `tidy_work.py`.
+
+### Changed
+
+- The shared `session-attended.env`, `session-attended.sh` and `session-attended.mjs` copies gain a reader for `CLAUDE_CODE_EXECPATH`, which the fleet peer list uses; the attended predicate and session-flow's behavior do not change.
+
+- `transcript_dirs.sh` delegates project directory resolution to one invocation of the shared Python 3.10-compatible `lib/claude_projects.py` resolver while keeping the pure-Bash exact-match fallback and `gap:` notice when Python 3.10+ is absent.
+
+## [10.8.0] - 2026-11-26
+
+### Added
+
+- Observer `parse_failed` usage rows, check and gate, record why the reply was rejected (`reason`: `no_finding`, `no_rule`, `bad_category` or `field_too_long:<field>`) and, when the reply had a finding, the `lengths` of its finding, rule and evidence; the reply text is never recorded.
+
+### Changed
+
+- Shared `enforcement-ladder.md` copy synced where this plugin carries it: citations of retired ADRs repointed or unlinked; no other change to this plugin.
+
+## [10.7.2] - 2026-11-26
+
+### Changed
+
+- `/session-flow:audit-sessions` and `/session-flow:recall` point at the Bash timeout limits, the `cleanupPeriodDays` setting and the plugin reference's saved-value section for the timeout ceiling, transcript retention and `${user_config.*}` substitution, instead of stating them ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [10.7.1] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+### Fixed
+
+- `reference/observer.md` now documents the harness checks: what each of the five checks reads and when it reports, how a finding names its fix, and the nine `observer_*` options that tune them.
+
+## [10.7.0] - 2026-11-26
+
+### Changed
+
+- The observer catch-up hook arms from the shared attended predicate (`hooks/session-attended.sh`) instead of `CLAUDE_CODE_ENTRYPOINT == cli`: an attended session now arms whatever its entrypoint reads, unless that value is headless, and an unattended session whose entrypoint reads `cli` no longer does.
+
+## [10.6.0] - 2026-11-26
+
+### Added
+
+- With `observer_harness_check` on, the observer runs scripted harness checks that call no model: a hook whose p95 latency this session passes `observer_hook_p95_ms` (read from session-telemetry's per-session hook log), a turn that rewrites the prompt cache with no break, compaction or model switch to explain it, a tool or Bash command that runs past `observer_tool_slow_seconds` `observer_tool_repeat` times, each crossing of `observer_context_percents`, and a rate-limit window at `observer_rate_limit_percent`. Each finding lands in the running-retro ledger and the band under a `harness` category, names its fix (here in this session, or a ready `cd <repo>` and `claude -n <name> "<prompt>"` command for a dedicated session on this platform), and `/observer` counts them beside the live checks. A dedicated-session finding is never auto-sent. Off by default.
+
+## [10.5.0] - 2026-11-26
+
+### Added
+
+- **`/session-flow:workflow` ships its stage map as data, `reference/stages.yaml`.** It holds the ladder in order, each stage's optional or conditional flag and entry skill, and the declared loop-backs and skips. The skill renders its overview from it, and a skill's own `## Next` bullet now wins over the ladder, which is the fallback when no bullet matches.
+
+- The observer can deliver its findings to the agent on its own: with `observer_auto_send` on, a finding raised mid-turn rides the agent's next model request, and one raised while idle starts a single observer turn. Two optional triggers join the live checks: `observer_change_check` checks after an editing step, and `observer_gate_check` holds outward commands such as `git push` until a check returns, refusing one on a finding and never blocking on an observer fault. Every number and text that shapes the observer's checks, notes, band, remembered findings and file retention is now an option, `observer_guidance` adds your own instructions to each check, and the check prompt names skill steps, standards, review criteria, plugin philosophy, code quality, and intent and vision. All new behavior is off by default.
+
+## [10.4.0] - 2026-11-25
+
+### Added
+
+- `implementation_route` setting (`local` or `factory`, default `local`), set per user or per repository in `docs/conventions/session-flow.yaml`. Under `factory`, `/session-flow:workflow` names the items decompose published as handed to the repository's unattended factory lanes and recommends no local implement stage; an item that needs a local dependency stays local and is named as such. `/session-flow:setup apply implementation_route=factory` writes it.
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+## [10.3.0] - 2026-11-25
+
+### Added
+
+- `/observer` shows whether the observer's live checks are on and, for this session and the last 24 hours, its checks by trigger and outcome, tokens, latency, cold-cache checks and your answers. `/observer off` pauses live checks on this machine until `/observer on`.
+- While a finding is shown, the next check clears it when the assistant has fixed it, and the ledger records it as resolved.
+- Noted now marks the ledger entry confirmed, and each answer is recorded in the usage file.
+- After Dismiss, the band offers the built-in side agent's answers once (`5` That was helpful, `6` Not relevant, `7` Couldn't understand, `8` Turn off checks for this session, `9` Close) and clears itself after 20 seconds. Not relevant keeps the next checks from reporting that finding or ones like it; Couldn't understand makes later checks write in plainer words.
+- Session start deletes observer files (usage files and the catch-up's working files) not written for 30 days.
+
+### Changed
+
+- The observer's band row: modeled on the built-in side agent's, a `◆` mark and a blank line above it, the trigger that found the finding beside its category, the finding on one line with Why (`8`) showing the rule, evidence, this session's check cost and how to pause, and buttons ordered Send, Noted, Dispute, Why, Dismiss on hotkeys `5` to `9`, clear of the built-in side agent's `1` to `4` and `0`.
+- A running-retro checkpoint no longer repeats a finding the observer already logged in the ledger.
+
+### Fixed
+
+- The observer appends to the running-retro ledger and its usage file instead of rewriting them, so a checkpoint written at the same moment is no longer lost.
+- The running-retro ledger now lives in the repository's main checkout, so findings from a session started in a linked worktree survive the worktree's removal.
+- Where `$.process.run` is unavailable, ledger and usage writes fall back to a checked read and rewrite instead of being lost.
+
+## [10.2.1] - 2026-11-25
+
+### Changed
+
+- `save_point.py`, `tidy_work.py` and the hop-chain harness now say "handoff file" and "archive file"
+  in their messages, `--help` text and comments; identifiers, frontmatter keys and paths are
+  unchanged.
+- `focus.py` and `away.py` share one file lock from `plugin_paths.py`, polled every 10 ms. Each
+  keeps its wait; on timeout `focus.py` still skips the write, and `away.py` still raises, now a
+  `TimeoutError` naming the lock file, which its handlers catch as before.
+
+## [10.2.0] - 2026-11-25
+
+### Added
+
+- `/session-flow:step-away` now writes its orchestrator posture to the session's focus file, next
+  to the task file. Automatic compaction during an absence keeps both in the summary. `away.py
+  start` prints a `posture=` line, and `focus.py set --posture orchestrator|off` writes or removes
+  the new Posture section. The return step clears both. An absence works the same with
+  `compact_focus_enabled` off: the focus write is skipped and no file is created.
+
+## [10.1.1] - 2026-11-25
+
+### Fixed
+
+- `redact.py` now redacts the whole value of a bare `sk-ant-oat02-` OAuth token, the same way it
+  redacts `sk-ant-oat01-`. Claude Code 2.1.332 lets `CLAUDE_CODE_OAUTH_TOKEN` start with either
+  prefix
+  ([#18984](https://github.com/melodic-software/claude-code-plugins/issues/18984)).
+
+## [10.1.0] - 2026-11-25
+
+### Added
+
+- Handoff shape 5, now the default: a binding `## Reminders` section takes Pending commands' place,
+  one `- [M<n>] <actor> · <trigger> · <what to do> · added h<k> <date>` line per item that affects
+  a later session. An entry is carried hop to hop and leaves only through `retire`, listed under
+  `## Retired reminders`; `validate` fails one dropped any other way, fails a malformed entry, and
+  warns on a closed handoff that still holds reminders. A shape-4 chain's next hop converts its
+  Pending commands into `user · when now` reminders.
+- The handoff skill folds user messages and advisor output that change a section into the handoff
+  with `amend` after emit, without asking.
+- A reminder whose source is not the user's own message (an event, a tool result, a subagent or
+  peer report, fetched text) is recorded as a `user` entry, shown and never run, and recorded
+  reminder text is data: an `agent` entry asking for more than its task is raised, not done, at
+  resume and at chain close.
+- Forked side tasks, profile changes and chain-close follow-ups print one terminal command that
+  opens the destination checkout and starts the selected profile with the saved prompt or goal.
+
+- A compact-focus hook prints the session's focus file before every compaction, manual or
+  automatic, so the summary keeps the active `/goal` condition, the resumed handoff file and the
+  step-away task file. A typed `/goal` updates the file; `/goal clear` and its aliases remove the
+  goal. `scripts/focus.py` (`set`, `clear`, `print`, `hook`) is the only reader and writer of the
+  focus folder, and `/session-flow:step-away` records its task file there at launch and clears it on
+  return.
+- `compact_focus_enabled` (default on) turns the hook and every focus write off. The user's own
+  value wins over `docs/conventions/session-flow.yaml`.
+- Active goals and loops use automatic compaction until the user requests a handoff. Afterward,
+  evaluator re-prompts and loop ticks get a single line without a tool call. An urgent handoff
+  writes and validates the file and skips the position panel and checklist echo.
+
+- A resume-context hook (`resume_context_enabled`, on by default): when a pasted resume prompt
+  starts with its `Read @<handoff file>` directive (or a `/goal` paste ends with it) and the file
+  exists, it adds `reference/resume.md` to that turn once per session. The resumed session raises
+  due reminders in its first reply, offers a re-drafted goal when the handoff flags one, reads rate
+  limits on subscription accounts, reconciles only recorded off-thread work, continues the work,
+  then lists its scheduled tasks and re-arms each recorded loop, cron task and monitor that is
+  missing. Any other prompt stops in the node launcher.
+- Environment to re-establish records `[loop]`, `[cron]`, `[monitor]` and `[off-thread]` entries.
+  `validate` fails an entry that lost text to redaction without `restore: manual`, and warns on a
+  loop or cron entry whose line count does not match its prompt.
+- A loop, cron or monitor entry whose `since` predates the previous handoff was carried across more
+  than one hop: `validate` warns on it, and the resumed session shows its command or prompt and
+  re-arms it only after the user confirms. With `compact_focus_enabled` off, the resume hook
+  records nothing, so each matching resume paste injects `resume.md` again.
+
+### Changed
+
+- Errors about a handoff shape newer than the script name the remedy: update session-flow.
+- The resume-eval seeder and the hop-chain budget harness build shape-5 chains, so the resume
+  cases seed in the default shape.
+
+- The resume directive also asks the session to raise its due reminders and re-establish its
+  Environment last, for a session the hook does not reach. Older directives still validate.
+- New handoff files carry surviving loops under Environment to re-establish instead of the
+  below-rail `Re-arm <i> of <n>` block; recovery still reads that block from older files.
+
+- A role chain's standing-rules file now lives at `handoffs/standing-rules/<chain-root-stem>.md`,
+  outside `archive/`, since every hop rewrites it. Hops that name the old
+  `archive/<chain-root-stem>/standing-rules.md` still validate, read and amend it there, and the
+  chain's next hop writes the new path.
+
+## [10.0.0] - 2026-11-25
+
+### Added
+
+- The session observer is now a hooks module plus a catch-up. With `observer_enabled` on, a live check runs on every 6th model step of a long turn: a no-tools fork of the main conversation that reports at most one process fault tied to a written rule or owner decision. A finding goes to this session's running-retro ledger and to one row above the prompt (`1` Send to Claude, `2` Noted, `3` Dispute, `0` Dismiss); nothing reaches the conversation unless sent. Repeats across sessions and disputed findings are suppressed, ignored findings back off, and each check's token usage is recorded in a per-session file under the plugin data folder.
+- `observer_step_check` (default on) and `observer_turn_end_check` (default off until its cost is measured) choose the live triggers.
+- At each interactive session start, a SessionStart hook analyzes up to two ended sessions that got no live checks, such as headless lanes, with the existing headless analysis.
+- The plugin now declares `engines["claude-code"]` `>=2.1.331`.
+
+### Changed
+
+- If you already turned `observer_enabled` on, this update starts the live step checks in your interactive sessions, which use your session's model usage. Set `observer_step_check` off to keep only the catch-up.
+
+### Removed
+
+- The detached transcript tailer that polled each session for up to 24 hours, with `observer_poll_seconds` and `observer_max_seconds`. `observer_idle_seconds` now sets how long a transcript must be unchanged before the catch-up treats its session as ended.
+- The `/session-flow:running-retro arm` action: the observer needs no arming.
+
+## [9.25.1] - 2026-11-25
+
+### Changed
+
+- Handoff files write history, not the present: each claim about code or state carries the date it was true and, for code, the commit (`owner/repo@<sha>`), and a changed fact is superseded by a new dated claim instead of edited. `validate` warns on a bare "currently" or "now" in Observations with no date or commit.
+
+## [9.25.0] - 2026-11-25
+
+### Added
+
+- `observer_min_lines` (default 300) skips the observer's post-session analysis for a session with fewer transcript lines, such as an automated sweep, until it has a ledger. The skip goes to the observer's status file and log, and no ledger is written. A follow-up to an analyzed session is always analyzed. `0` analyzes every session.
+- The observer records each analysis run's reported token usage, plus `duration_ms` and `total_cost_usd` when present, as a timestamped entry in its status file's `analysis_runs` list and one log line, so observer spend can be measured per session.
+
+## [9.24.2] - 2026-11-25
+
+### Changed
+
+- Skill, reference and eval text call the file a resume reads the **handoff file** and the per-hop
+  file under `handoffs/archive/<chain>/` the **archive file**, the glossary's terms. Script output,
+  file paths and identifiers are unchanged.
+
+## [9.24.1] - 2026-11-25
+
+### Fixed
+
+- `save_point.py fill` and `amend` check American spelling with one `typos` run per call instead of one per slot, so a shape-4 `fill` takes about a quarter of the time.
+- `hop_chain.py --budget` generates its chains through `save_point.main` in-process instead of a new interpreter per call, which brings the `hop_chain.test.sh` suite from about 100 s to under 20 s with the same checks.
+
+## [9.24.0] - 2026-11-24
+
+### Added
+
+- `step-away` can run an absence as an orchestrator: with the new `away_orchestrate` option on, or launch words that ask for it, the main session arms `/session-flow:orchestrate`, delegates work and keeps only briefs, verdicts and state in its own context, so it lasts through compaction. Model, effort and outside vendors come from `/multi-agent:route` when that plugin is on; delegated work follows the away rules. The Stop and UserPromptSubmit notes name the posture so it returns after compaction.
+- `step-away` reads the context zone before arming and, when it is heavy, offers a fresh session in the launch question.
+
+## [9.23.0] - 2026-11-24
+
+### Changed
+
+- A role chain (`new --standing-rules`) now keeps Decisions in force in its standing-rules file beside Current rules and Standing preferences, leaving one pointer line in the hot file; `validate` still fails a decision that leaves without a `retire` listing, and a hot file that holds them inline still validates.
+- A role chain's `- Retired entries:` lines now collect in one append-only, deduplicated `archive/<chain>/retired-index.md`, and Review before you continue holds one line naming it; `validate` fails a missing index and any earlier pointer it no longer holds. Chains without `standing_rules` are unchanged.
+
+## [9.22.13] - 2026-11-24
+
+### Changed
+
+- `/session-flow:handoff` says what it always delivers: a copy-paste resume prompt, plus a
+  durable handoff file when the work needs one, in place of "a handoff file or a resume prompt".
+
+## [9.22.12] - 2026-11-24
+
+### Changed
+
+- `/session-flow:workflow` names its usual next steps in a `## Next` section: an interview for
+  work with no locked contract, a plan for a locked one, a pull request for built work, and a
+  retro at session end.
+
 ## [9.22.11] - 2026-11-24
 
 ### Fixed

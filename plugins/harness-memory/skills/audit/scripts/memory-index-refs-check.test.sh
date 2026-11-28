@@ -23,8 +23,6 @@ mem_dir_for() {
   mkdir -p "$dir"
   printf '%s' "$dir"
 }
-# CLAUDE_CONFIG_DIR is dropped per run so the host's real memory store cannot answer
-# for the fixture. Case 7 drops GIT_DIR as well and calls `env` directly.
 run() { (cd "$REPO" && env -u CLAUDE_CONFIG_DIR HOME="$1" bash "$SCRIPT" "${2:-}"); }
 
 rc=0
@@ -75,8 +73,6 @@ OUT=$(run "$H6") || rc=$?
 assert_exit "fresh exits 0" 0 "$rc"
 assert_contains "fresh reports no MEMORY.md" "$OUT" "No MEMORY.md"
 
-# --- Case 7: outside a git repo, the cwd-derived store is still checked (docs:
-# "Outside a git repo, the project root is used instead") ---
 H7="$TEST_TMPDIR/h7"
 NONREPO="$TEST_TMPDIR/plain7"
 mkdir -p "$NONREPO"

@@ -1,24 +1,4 @@
 #!/usr/bin/env bash
-# Self-test for scripts/check-docs-only-gate.sh
-#
-# The gate exists to replace a prose comment that asserted the docs-only
-# short-circuit was fail-closed. A gate that only ever passes would be the same
-# nominal closure in a new costume, so every case below breaks exactly one
-# property of a known-good fixture and asserts the gate NAMES that property.
-#
-# The known-good fixture deliberately carries the shapes a structural reader is
-# fragile on — a comment inside a job body, a job key with a trailing comment, a
-# block scalar whose body contains lines that look like workflow structure, a
-# quoted flow `needs:`, and a reusable-workflow job — because a gate that only
-# ever sees tidy input is only ever tested against tidy input. The EVASION
-# section then attacks the gate directly: each case is a workflow that is
-# genuinely broken at runtime and must not be reported as satisfied.
-#
-# Fixtures are plain files under mktemp, addressed by ABSOLUTE path: the gate
-# cds to the git toplevel, so an absolute fixture path resolves from anywhere and
-# no scratch git repo is needed. That is deliberate — a fixture repo would need
-# `git -C <dir> config user.*`, and the un-scoped form of that command writes the
-# test identity into the CALLER's repo config (claude-code-plugins#2839).
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -31,8 +11,6 @@ DETECTOR="$ROOT/scripts/check-docs-only.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$ROOT/scripts/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 scratch=""
 fixture_tree::build scratch --label docs-only-gate
 
@@ -52,18 +30,10 @@ expect() {
   ok "$label"
 }
 
-# --- fixture transforms -----------------------------------------------------
-#
-# Exact-substring transforms via awk index(), never regex: the fixture bodies
-# carry `${{ }}`, quotes and dots, and a regex dialect difference between GNU
-# and BSD tools must not decide whether a test case is even built.
-
 xform_delete() { awk -v m="$2" 'index($0, m) == 0' "$1" >"$3"; }
 xform_replace_line() { awk -v m="$2" -v r="$3" '{ if (index($0, m) > 0) print r; else print }' "$1" >"$4"; }
 xform_insert_after() { awk -v m="$2" -v r="$3" '{ print; if (index($0, m) > 0) print r }' "$1" >"$4"; }
 xform_append() { cp "$1" "$3" && printf '%s\n' "$2" >>"$3"; }
-
-# --- the known-good fixture -------------------------------------------------
 
 base="$scratch/base.yml"
 cat >"$base" <<'YAML'
@@ -102,6 +72,7 @@ jobs:
       node_legs: ${{ steps.plan.outputs.node_legs }}
       node_plan: ${{ steps.plan.outputs.node_plan }}
       selection_suites: ${{ steps.suites.outputs.list }}
+      selection_shards: ${{ steps.shards.outputs.list }}
       playwright_cache_key: ${{ steps.playwright_key.outputs.key }}
     # A comment INSIDE the job body, between two mapping keys.
     steps:
@@ -207,17 +178,6 @@ YAML
 
 expect "known-good fixture satisfies the contract" 0 "scope resolved once" --check "$base"
 
-# --- a required consumer fanned out across a matrix -------------------------
-#
-# Sharding a lane keeps its job key, so it stays one entry in the aggregate's
-# needs and one consumer here. Two properties are pinned. First, the
-# `strategy:` block's 6- and 8-space lines must fall THROUGH this structural
-# parser: it exits 2 on any shape it does not model, and an inconclusive gate on
-# the real pr-require-checks.yml blocks every pull request. Second, a leg's own index may not
-# leak into a gate: the only sanctioned step condition is a bare equality
-# against one table output, so a compound `if:` mixing the output with
-# `strategy.job-index` must still be named as unsanctioned.
-
 sharded="$scratch/sharded.yml"
 xform_insert_after "$base" "      - gamma" "      - zeta" "$sharded"
 cat >>"$sharded" <<'YAML'
@@ -249,24 +209,18 @@ xform_replace_line "$sharded" \
   "        if: needs.select-tests.outputs.run_node == 'true' && strategy.job-index == 0" "$f"
 expect "a leg index folded into a step gate is unsanctioned" 1 "unsanctioned condition" --check "$f"
 
-# --- 1. SINGLE RESOLUTION ---------------------------------------------------
-
 f="$scratch/second-resolution.yml"
 xform_replace_line "$base" "run: echo not-applicable" '        run: scripts/check-docs-only.sh "origin/main"' "$f"
 expect "a consumer re-running the detector is a second resolution" 1 "invoked from 2 job(s)" --check "$f"
 
-# The detector reached by a different spelling is the same second answer.
 f="$scratch/second-resolution-relative.yml"
 xform_replace_line "$base" "run: echo not-applicable" '        run: cd scripts && bash check-docs-only.sh origin/main' "$f"
 expect "a relative-path re-resolution is still a second resolution" 1 "invoked from 2 job(s)" --check "$f"
 
-# A run: body is a block scalar, and a re-resolution hidden in one still counts.
 f="$scratch/second-resolution-scalar.yml"
 xform_insert_after "$base" 'echo "      - name: neither is this"' '          bash scripts/check-docs-only.sh origin/main' "$f"
 expect "a re-resolution inside a block scalar is still seen" 1 "invoked from 2 job(s)" --check "$f"
 
-# Two invocations in the SAME job must fail: a loop that deduplicated by job
-# would report one resolution while the last write to docs_only won.
 f="$scratch/second-invocation-same-job.yml"
 # shellcheck disable=SC2016 # `$BASE_REF` is fixture text, not a shell variable.
 xform_insert_after "$base" 'run: scripts/check-docs-only.sh "origin/$BASE_REF"' '        run: scripts/check-docs-only.sh "origin/HEAD"' "$f"
@@ -277,12 +231,6 @@ f="$scratch/step-output.yml"
 xform_replace_line "$base" "run: echo not-applicable" '        run: echo ${{ steps.detect.outputs.docs_only }}' "$f"
 expect "a surviving step-level docs_only read is a second answer" 1 "step-level docs_only output is still read" --check "$f"
 
-# --- 2. FAIL-CLOSED DEFAULT -------------------------------------------------
-#
-# The inverted expression is the exact defect the contract exists to prevent:
-# it renders an UNSET detector output as `false`, so a detector that never ran
-# would short-circuit every consumer instead of running the full suite.
-
 f="$scratch/inverted-expression.yml"
 xform_replace_line "$base" "run_full: " "      run_full: \${{ steps.detect.outputs.docs_only == 'true' }}" "$f"
 expect "an inverted output expression is rejected" 1 "FAIL-CLOSED DEFAULT" --check "$f"
@@ -291,12 +239,9 @@ f="$scratch/no-output.yml"
 xform_delete "$base" "run_full: \${{" "$f"
 expect "a resolving job publishing no output is rejected" 1 "publishes no 'run_full' output" --check "$f"
 
-# A commented-out expression is prose, not a contract.
 f="$scratch/commented-output.yml"
 xform_replace_line "$base" "run_full: \${{" "      # run_full: \${{ steps.detect.outputs.docs_only != 'true' }}" "$f"
 expect "a commented-out output expression does not satisfy the contract" 1 "publishes no 'run_full' output" --check "$f"
-
-# --- 3. FAILURE IS ABSORBED -------------------------------------------------
 
 f="$scratch/detect-fails-job.yml"
 xform_delete "$base" "continue-on-error: true" "$f"
@@ -306,23 +251,18 @@ f="$scratch/no-detect-step.yml"
 xform_delete "$base" "id: detect" "$f"
 expect "a resolving job with no detect step is rejected" 1 "no step declares 'id: detect'" --check "$f"
 
-# A sibling step must not lend its continue-on-error to the detect step.
 f="$scratch/coe-on-sibling.yml"
 xform_delete "$base" "continue-on-error: true" "$scratch/_nocoe.yml"
 xform_insert_after "$scratch/_nocoe.yml" "- name: Check out" "        id: detect-nothing
         continue-on-error: true" "$f"
 expect "continue-on-error on a sibling step does not satisfy the detect step" 1 "missing 'continue-on-error: true'" --check "$f"
 
-# The detect step must be the step that actually runs the detector.
 f="$scratch/detect-runs-nothing.yml"
 # shellcheck disable=SC2016 # `$BASE_REF` is fixture text, not a shell variable.
 xform_replace_line "$base" 'run: scripts/check-docs-only.sh "origin/$BASE_REF"' '        run: echo nothing' "$scratch/_nodetect.yml"
 xform_insert_after "$scratch/_nodetect.yml" "run: bash scripts/check-docs-only.test.sh" '        run: scripts/check-docs-only.sh "origin/main"' "$f"
 expect "a detect step that runs something else is rejected" 1 "does not invoke the docs-only detector" --check "$f"
 
-# A detect step whose real invocation is commented out, emitting a hardcoded
-# flag instead, is the maximal false green: every consumer short-circuits on
-# every event. The comment must not read as the invocation.
 f="$scratch/decoy-invocation.yml"
 # shellcheck disable=SC2016 # fixture text; `$BASE_REF` and `$GITHUB_OUTPUT` stay literal.
 xform_replace_line "$base" 'run: scripts/check-docs-only.sh "origin/$BASE_REF"' '        run: |
@@ -330,12 +270,9 @@ xform_replace_line "$base" 'run: scripts/check-docs-only.sh "origin/$BASE_REF"' 
           echo "docs_only=true" >> "$GITHUB_OUTPUT"' "$f"
 expect "a commented-out detector call does not count as invoking it" 1 "does not invoke the docs-only detector" --check "$f"
 
-# The mirror of that case: prose naming the detector is not a second resolution.
 f="$scratch/prose-mentions-detector.yml"
 xform_insert_after "$base" 'echo "  not-a-job: this line lives inside a block scalar"' '          # the scope is resolved once, by scripts/check-docs-only.sh' "$f"
 expect "prose naming the detector is not a second resolution" 0 "scope resolved once" --check "$f"
-
-# --- 4. SELF-TEST INTACT ----------------------------------------------------
 
 f="$scratch/no-self-test.yml"
 xform_delete "$base" "check-docs-only.test.sh" "$f"
@@ -349,12 +286,6 @@ f="$scratch/soft-self-test.yml"
 xform_insert_after "$base" "- name: Test the docs-only detector" "        continue-on-error: true" "$f"
 expect "a self-test that cannot turn the job red is rejected" 1 "carries continue-on-error" --check "$f"
 
-# --- 5. ONE CONSUMER FORM ---------------------------------------------------
-#
-# The historical shape. `!= 'true'` is behaviorally correct here, and is still
-# rejected: the contract is that there is exactly one spelling to copy, so the
-# next consumer has no polarity decision to make and no comment to keep true.
-
 f="$scratch/negated-form.yml"
 xform_replace_line "$base" "if: needs.select-tests.outputs.run_full == 'false'" "        if: needs.select-tests.outputs.run_full != 'true'" "$f"
 expect "the inverse-polarity consumer form is rejected" 1 "unsanctioned condition" --check "$f"
@@ -363,17 +294,10 @@ f="$scratch/truthy-form.yml"
 xform_replace_line "$base" "if: needs.select-tests.outputs.run_full == 'false'" "        if: needs.select-tests.outputs.run_full" "$f"
 expect "a bare truthiness consumer form is rejected" 1 "unsanctioned condition" --check "$f"
 
-# An outer negation whose inner half IS the sanctioned string. A substring
-# search would strip the sanctioned half and see nothing left to complain about.
 f="$scratch/wrapped-negation.yml"
 xform_replace_line "$base" "if: needs.select-tests.outputs.run_full == 'false'" "        if: \${{ !(needs.select-tests.outputs.run_full == 'false') }}" "$f"
 expect "a negation wrapped around the sanctioned form is rejected" 1 "unsanctioned condition" --check "$f"
 
-# Index syntax is legal Actions and reads identically at runtime; it is still an
-# unmodelled spelling, and an unmodelled spelling must never read as sanctioned.
-# The three variants below bracket a different part of the accessor each time,
-# because a matcher that models only the spelling it expects does not REJECT the
-# others — it cannot see them at all, which is the opposite of rejecting them.
 f="$scratch/index-syntax-output.yml"
 xform_replace_line "$base" "if: needs.select-tests.outputs.run_full == 'false'" "        if: needs.select-tests.outputs['run_full'] != 'true'" "$f"
 expect "an index-syntax output name is rejected rather than ignored" 1 "unsanctioned condition" --check "$f"
@@ -382,52 +306,30 @@ f="$scratch/index-syntax-whole.yml"
 xform_replace_line "$base" "if: needs.select-tests.outputs.run_full == 'false'" "        if: needs['select-tests']['outputs']['run_full'] == 'false'" "$f"
 expect "a fully bracketed accessor is rejected rather than ignored" 1 "unsanctioned condition" --check "$f"
 
-# Actions context accessors are case-insensitive, so this resolves at runtime.
 f="$scratch/case-variant.yml"
 xform_replace_line "$base" "if: needs.select-tests.outputs.run_full == 'false'" "        if: needs.SELECT-TESTS.outputs.run_full == 'false'" "$f"
 expect "a case-variant accessor is rejected rather than ignored" 1 "unsanctioned condition" --check "$f"
 
-# Gating the JOB skips the lane, which leaves a required check Pending.
 f="$scratch/job-level-gate.yml"
 xform_insert_after "$base" "  gamma:" "    if: needs.select-tests.outputs.run_full == 'true'" "$f"
 expect "a job-level condition on the output is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
 
-# A reusable-workflow job cannot gate at step level, so its polarity decision
-# would live in a file this gate never opens.
 f="$scratch/reusable-consumer.yml"
 xform_insert_after "$base" "    uses: some-org/some-repo/.github/workflows/lint.yml@v1" "    if: needs.select-tests.outputs.run_full == 'true'" "$f"
 expect "a reusable-workflow job reading the output is rejected" 1 "delegates to a reusable workflow" --check "$f"
 
-# A block-scalar body is a script, never a gate. A condition-shaped line inside
-# one must not be credited as a step condition — the whole point of skipping
-# scalar structure while still reading scalar content.
 f="$scratch/gate-inside-scalar.yml"
 xform_replace_line "$base" 'echo "        if: always()"' '          echo "        if: needs.select-tests.outputs.run_full == '"'"'true'"'"'"' "$f"
 expect "a condition-shaped line inside a block scalar is not a step condition" 1 "outside a step condition" --check "$f"
 
-# The aggregator feed has its own exact template; a mutated one is not it.
 f="$scratch/mutated-feed.yml"
 xform_replace_line "$base" "alpha-check=" "            alpha-check=\${{ needs.select-tests.outputs.run_full == 'true' && 'success' || steps.work.outcome }}" "$f"
 expect "a mutated aggregator feed entry is rejected" 1 "outside the aggregator feed template" --check "$f"
 
-# --- 5b. THE FEED MIRRORS A REAL GATE ---------------------------------------
-#
-# Forgetting a feed override is fail-closed (the raw `skipped` reds the
-# aggregate). Adding one for a step that is NOT gated is fail-open: on every
-# docs-only diff that step's real outcome is replaced by `success`. Only the
-# second direction needs a gate, and this is it.
 f="$scratch/feed-without-gate.yml"
 xform_replace_line "$base" "alpha-check=" "            alpha-check=\${{ needs.select-tests.outputs.run_full == 'false' && 'success' || steps.ungated.outcome }}" "$f"
 expect "a feed override for an ungated step is rejected" 1 "THE FEED MIRRORS A REAL GATE" --check "$f"
 
-# --- 5c. NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER -------------------------------
-#
-# The two sanctioned forms are exact complements only while the output is set,
-# which is guaranteed by the consumer running solely on a successful resolver.
-# A job-level condition can let the job run anyway, and then BOTH forms are
-# false: every gated step and its not-applicable reporter skip together, and the
-# lane reports success having done nothing. The condition need not mention the
-# output to do this.
 f="$scratch/consumer-always.yml"
 xform_insert_after "$base" "  gamma:" "    if: always()" "$f"
 expect "a consumer carrying an unconditional job-level if is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
@@ -436,37 +338,20 @@ f="$scratch/consumer-not-cancelled.yml"
 xform_insert_after "$base" "  gamma:" "    if: \${{ !cancelled() }}" "$f"
 expect "a consumer carrying !cancelled() is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
 
-# The one exemption: the contract-only gate, matched as a whole shape. It
-# carries no status-check function, so GitHub still requires the resolver to
-# have succeeded before it evaluates at all — the empty-output state the rule
-# above guards against cannot arise. Every case below shows the match is EXACT:
-# the literal passes, and two near-misses that would each mean something
-# different are rejected as any other job-level condition is.
 contract_gate="\${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) }}"
 
 f="$scratch/consumer-contract-gate.yml"
 xform_insert_after "$base" "  gamma:" "    if: $contract_gate" "$f"
 expect "a consumer carrying exactly the contract-only gate is allowed" 0 "scope resolved once" --check "$f"
 
-# One token added. `|| always()` reintroduces precisely the status-check
-# function the exemption rests on not having: the job would run with the
-# resolver skipped or failed, and the output empty.
 f="$scratch/consumer-contract-gate-always.yml"
 xform_insert_after "$base" "  gamma:" "    if: \${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) || always() }}" "$f"
 expect "the contract-only gate widened with always() is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
 
-# The predicate itself drifted: this copy drops the fork clause, so it no longer
-# equals the copy every other gated job carries, nor the predicate the ci-status
-# composite resolves its carry-forward branch on. A fork pull request would skip
-# this lane while the composite aggregated it, turning a `skipped` into a pass
-# with nothing executed.
 f="$scratch/consumer-contract-gate-drifted.yml"
 xform_insert_after "$base" "  gamma:" "    if: \${{ !(contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base)) }}" "$f"
 expect "a drifted copy of the contract-only predicate is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
 
-# The draft form: the same gate followed by the draft term, also matched whole.
-# It adds no status-check function, so the needs edge still governs. A
-# polarity flip of the draft term is a different condition and is rejected.
 draft_gate="\${{ !(github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && github.event.pull_request.draft != true }}"
 skip_as_fail="$scratch/skip-as-fail.yml"
 xform_insert_after "$base" "      - name: Aggregate lane results" "        with:\n          treat-skipped-as: fail" "$skip_as_fail"
@@ -479,11 +364,8 @@ f="$scratch/consumer-draft-gate-flipped.yml"
 xform_insert_after "$skip_as_fail" "  gamma:" "    if: ${draft_gate/draft != true/draft == true}" "$f"
 expect "the draft gate with its polarity flipped is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
 
-# --- 11. A SKIPPED LANE NEVER PASSES ------------------------------------------
 expect "the aggregate failing every skip is allowed" 0 "scope resolved once" --check "$skip_as_fail"
 
-# A draft cannot merge and the merge queue runs every lane, so the exact draft
-# form may pass a draft's skips; any other expression is rejected.
 f="$scratch/skip-as-draft.yml"
 xform_insert_after "$base" "      - name: Aggregate lane results" "        with:\n          treat-skipped-as: \${{ github.event.pull_request.draft && 'pass' || 'fail' }}" "$f"
 expect "the aggregate passing skips only on a draft is allowed" 0 "scope resolved once" --check "$f"
@@ -500,13 +382,8 @@ f="$scratch/draft-gate-no-skip-as.yml"
 xform_insert_after "$base" "  gamma:" "    if: $draft_gate" "$f"
 expect "a draft-gated lane with no treat-skipped-as on the aggregate is rejected" 1 "sets no treat-skipped-as" --check "$f"
 
-# The aggregate's own job-level condition is not a consumer's, and must stand.
 expect "the aggregate's own job-level condition is untouched" 0 "scope resolved once" --check "$base"
 
-# --- 12. A SKIP IS CHECKED ----------------------------------------------------
-#
-# A test lane may skip as a job on its own row, and only when the aggregate
-# reads its results through the step that checks every skip against that row.
 skip_form="${draft_gate% \}\}} && needs.select-tests.outputs.run_python == 'true' }}"
 ordered="$scratch/ordered-skip.yml"
 xform_insert_after "$skip_as_fail" "      - gamma" "      - test-python" "$scratch/o1.yml"
@@ -571,78 +448,36 @@ f="$scratch/ordered-skip-no-check-step.yml"
 xform_delete "$ordered" "        id: lanes" "$f"
 expect "an ordered skip with no checking step is rejected" 1 "has no step 'id: lanes'" --check "$f"
 
-# --- 6. EDGE DECLARED -------------------------------------------------------
-
 f="$scratch/missing-edge.yml"
 xform_delete "$base" "needs: [select-tests]" "$f"
 expect "a consumer reading the output without the needs edge is rejected" 1 "EDGE DECLARED" --check "$f"
-
-# --- 7. CONTRACT IS LIVE ----------------------------------------------------
-#
-# Zero references must never read as "every reference is well formed".
 
 f="$scratch/no-consumers.yml"
 xform_delete "$base" "needs.select-tests.outputs." "$f"
 expect "a resolver nobody reads is rejected" 1 "CONTRACT IS LIVE" --check "$f"
 
-# --- 5d. THE REQUIRED-LANE CLOSURE ------------------------------------------
-#
-# Two rules turn on whether a lane can report to branch protection, and the
-# base fixture already carries both sides: `epsilon` sits outside
-# ci-status.needs and legitimately gates at job level under a coverage opt-out,
-# while `gamma` sits inside and may not. The pair below moves each job across
-# the boundary and asserts the verdict FLIPS, which is the only way to show the
-# closure is computed rather than assumed.
-
-# Put the non-required lane INSIDE the closure: its job-level condition becomes
-# a defect, because a skipped required lane reports success having run nothing.
 f="$scratch/epsilon-required.yml"
 xform_insert_after "$base" "      - delta" "      - epsilon" "$f"
 expect "a job-level condition inside the closure is rejected" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
 expect "and the lane opt-out inside the closure is rejected with it" 1 "LANE OPT-OUT ON A REQUIRED LANE" --check "$f"
 
-# The same lane reached TRANSITIVELY rather than directly. `alpha` is named in
-# ci-status.needs, so anything alpha needs is required too, even though epsilon
-# is still absent from the aggregate's own list. A closure computed one level
-# deep would pass this and let a genuinely required lane keep both defects.
-#
-# The anchor is alpha's flow-sequence needs, which is the only line in the
-# fixture spelled that way: beta and epsilon use the block form and gamma
-# quotes its entry.
 f="$scratch/epsilon-transitive.yml"
 xform_replace_line "$base" "    needs: [select-tests]" "    needs: [select-tests, epsilon]" "$f"
 expect "a lane reached transitively is inside the closure too" 1 "LANE OPT-OUT ON A REQUIRED LANE" --check "$f"
 expect "and its job-level condition is a defect for the same reason" 1 "NO JOB-LEVEL CONDITION ON A REQUIRED CONSUMER" --check "$f"
 
-# Take the required consumer OUT of the closure: its job-level condition stops
-# being a defect, because a lane the aggregate cannot see reports nothing to
-# branch protection and skipping it whole is the cheaper shape.
 f="$scratch/gamma-not-required.yml"
 xform_delete "$base" "      - gamma" "$f"
 xform_insert_after "$f" "  gamma:" "    if: needs.select-tests.outputs.run_python == 'true'" "$scratch/gamma-not-required-2.yml"
 expect "a job-level condition outside the closure is allowed" 0 "scope resolved once" --check "$scratch/gamma-not-required-2.yml"
 
-# A workflow with no aggregate at all is INCONCLUSIVE, not one defect among
-# others: an empty closure makes both rules above pass every workflow, so
-# reporting a single line while two rules quietly stopped asking would be worse
-# than refusing. Exit 2, like a missing resolver.
 f="$scratch/no-aggregate.yml"
 xform_replace_line "$base" "  ci-status:" "  renamed-status:" "$f"
 expect "a missing aggregate is inconclusive, never a pass" 2 "closure cannot be computed" --check "$f"
 
-# --- 5e. THE OUTPUT TABLE ---------------------------------------------------
-
-# An output the table does not name is a polarity decision made where this gate
-# cannot check it, and its consumers are invisible to the consumer-form rule.
 f="$scratch/extra-output.yml"
 xform_insert_after "$base" "      run_workflows:" "      run_something: \${{ steps.detect.outputs.docs_only != 'true' }}" "$f"
 expect "an output outside the table is rejected" 1 "which neither the output table nor the data table names" --check "$f"
-
-# --- 10. DATA IS NOT A GATE -------------------------------------------------
-#
-# A data output passes its step's value through unchanged and is read only as a
-# whole env entry: its value is not a polarity decision, and an empty one must
-# reach the script as "the whole tree".
 
 f="$scratch/data-missing.yml"
 xform_delete "$base" "      lane_base:" "$f"
@@ -680,6 +515,10 @@ f="$scratch/data-matrix-python.yml"
 xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.select-tests.outputs.python_legs || '[0]') }}" "$f"
 expect "the matrix sized from python_legs with its one-leg default is allowed" 0 "scope resolved once" --check "$f"
 
+f="$scratch/data-matrix-shards.yml"
+xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        shard: \${{ fromJSON(needs.select-tests.outputs.selection_shards || '[0]') }}" "$f"
+expect "the matrix sized from selection_shards with its one-shard default is allowed" 0 "scope resolved once" --check "$f"
+
 f="$scratch/data-matrix-no-default.yml"
 xform_replace_line "$sharded" "      matrix: \${{" "      matrix:\n        leg: \${{ fromJSON(needs.select-tests.outputs.bash_legs) }}" "$f"
 expect "the matrix read without its default is rejected" 1 "outside the aggregator feed template" --check "$f"
@@ -692,22 +531,14 @@ f="$scratch/unknown-output-consumer.yml"
 xform_replace_line "$base" "if: needs.select-tests.outputs.run_node == 'true'" "        if: needs.select-tests.outputs.run_invented == 'true'" "$f"
 expect "a step gated on an output outside the table is rejected" 1 "which the resolver's output table does not name" --check "$f"
 
-# A narrowing row must keep its exact derivation. Comparing a filter group
-# against 'true' rather than 'false' skips the lane when detection is unset,
-# which is the direction that hides a regression.
 f="$scratch/inverted-narrowing.yml"
 xform_replace_line "$base" "      run_node:" "      run_node: \${{ steps.detect.outputs.docs_only != 'true' && github.event.pull_request.draft != true && steps.plan.outputs.node == 'true' }}" "$f"
 expect "a narrowing row comparing against 'true' is rejected" 1 "FAIL-CLOSED DEFAULT" --check "$f"
 
-# The whole-corpus check-25 row keeps the draft term run_tests carries, so a
-# draft skips that gate and the flip to ready runs it.
 f="$scratch/skill-checker-no-draft.yml"
 xform_replace_line "$base" "      run_skill_checker:" "      run_skill_checker: \${{ steps.detect.outputs.docs_only != 'true' && fromJSON(steps.match.outputs.results || '{}')['skill_checker'] != 'false' }}" "$f"
 expect "a run_skill_checker row without its draft term is rejected" 1 "FAIL-CLOSED DEFAULT" --check "$f"
 
-# The feed override and the step's gate must name the SAME output. Pairing them
-# on different outputs maps a skip that never happened: the two outputs can
-# disagree, and the step can have really run and really failed.
 f="$scratch/feed-output-mismatch.yml"
 xform_replace_line "$base" "alpha-node=" "            alpha-node=\${{ needs.select-tests.outputs.run_full == 'false' && 'success' || steps.node-work.outcome }}" "$f"
 expect "a feed override paired with a different output is rejected" 1 "THE FEED MIRRORS A REAL GATE" --check "$f"
@@ -720,15 +551,10 @@ f="$scratch/bad-needs-entry.yml"
 xform_replace_line "$base" "      - select-tests # the resolver" "      - [select-tests]" "$f"
 expect "an unmodeled needs entry is inconclusive, never a bogus defect" 2 "unsupported needs entry" --check "$f"
 
-# A sequence item at the key's own indent is valid YAML and must not read as a
-# missing edge — a gate that cries wolf on a legal shape gets switched off.
 f="$scratch/shallow-needs-item.yml"
 xform_replace_line "$base" "      - select-tests # the resolver" "    - select-tests" "$f"
 expect "a same-indent needs item is a declared edge, not a defect" 0 "scope resolved once" --check "$f"
 
-# `continue-on-error` decides whether a failure is absorbed. An expression-valued
-# one cannot be judged without evaluating it, so the gate must refuse rather than
-# guess in either direction.
 f="$scratch/expression-coe.yml"
 xform_replace_line "$base" "        continue-on-error: true" "        continue-on-error: \${{ true }}" "$f"
 expect "an expression-valued continue-on-error is inconclusive, never a pass" 2 "not a literal true/false" --check "$f"
@@ -746,28 +572,10 @@ expect "a bare invocation prints usage" 2 "usage:"
 expect "an unknown mode prints usage" 2 "usage:" --lint
 expect "an excess argument prints usage" 2 "usage:" --check "$base" ci-status
 
-# --- the live contract ------------------------------------------------------
-#
-# The point of the suite: the shipped workflow satisfies what the cases above
-# prove the gate can detect. This is what makes the fixture cases load-bearing
-# rather than a private exercise.
-
 expect "the shipped pr-require-checks.yml satisfies the contract" 0 "scope resolved once" --check ".github/workflows/pr-require-checks.yml"
-
-# --- the half of the fail-closed proof that lives in the detector ------------
-#
-# The gate pins the workflow-side half: the published output is derived by
-# `docs_only != 'true'`, so an UNSET detector output resolves to "run the full
-# suite". That is only a real guarantee if a detector that fails leaves the
-# output genuinely unset. These cases close that half against the real script.
-#
-# check-docs-only.test.sh covers the RESOLVABLE fail-closed paths (an unreadable
-# allowlist, an unresolvable base ref) emitting docs_only=false. What is
-# asserted here is what happens when the script cannot complete at all.
 
 gho="$scratch/github-output"
 
-# A usage abort returns before the emit path is reachable.
 : >"$gho"
 if GITHUB_OUTPUT="$gho" bash "$DETECTOR" >/dev/null 2>&1; then
   fail "detector invoked with no base-ref argument should exit non-zero"
@@ -777,12 +585,6 @@ else
   ok "a detector usage abort leaves docs_only unset, which run_full renders as 'true'"
 fi
 
-# An unwritable $GITHUB_OUTPUT is the case the workflow comment names. The
-# script's own header records it as deliberate: emit() does not check its
-# redirect, so the script still exits 0 and the flag simply never reaches the
-# consumer. That is why the workflow's guarantee is built on the output being
-# UNSET rather than on the script's exit status: the assertion below is the one
-# the contract rests on.
 unwritable="$scratch/no-such-dir/output"
 GITHUB_OUTPUT="$unwritable" bash "$DETECTOR" "origin/main" >/dev/null 2>&1
 if [[ -e "$unwritable" ]]; then
@@ -791,20 +593,6 @@ else
   ok "an unwritable GITHUB_OUTPUT leaves docs_only unset, which run_full renders as 'true'"
 fi
 
-# --- LIVE: no scripts/ or lib/ suite is a step of its own ---------------------
-#
-# The suites of scripts/ and lib/ run in test-bash through the affected-suite
-# selector, and on the whole tree through scripts/run-plugin-tests.sh's
-# discovery. A suite run as a step of its own duplicates that run whenever the
-# selector also reaches it and pays its seconds on every diff that cannot have
-# broken it, so a step that brings one back gives the saving back one suite at a
-# time. Pinned by walking every job but the resolver.
-#
-# Exclusions, by shape: a step with an `id:` is a gate the aggregator feed reads
-# (check-summary-reader-parity.test.sh is a gate, not a self-test), and the
-# resolver's own detector self-test stays in `select-tests` (property 4 above).
-# scripts/hook-census.test.sh calibrates the strace counter the ratchet step
-# reads in the same step, so it stays there.
 live_workflow="$ROOT/.github/workflows/pr-require-checks.yml"
 suite_steps="$(
   awk '

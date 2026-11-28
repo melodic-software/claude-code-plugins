@@ -38,7 +38,6 @@ function cli(cwd, args, extraEnv = {}) {
   return spawnSync(process.execPath, [CLI, ...args], { cwd, env: { ...env, ...extraEnv }, encoding: "utf8" });
 }
 
-/** The base derivation, run as the distill skill text spelled it. */
 function baseHash(projectPath) {
   return execFileSync(
     "bash",
@@ -151,7 +150,6 @@ describe("user_config tokens and the git environment", () => {
 
 describe("progress key", () => {
   it("matches the base derivation's hand-computed value for a fixed path", () => {
-    // printf '%s' /srv/work/api | sha256sum | cut -c1-8 -> 0b860e31
     assert.equal(progressKey("/srv/work/api"), "api-0b860e31");
   });
 

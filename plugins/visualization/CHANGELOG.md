@@ -3,6 +3,60 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.0] - 2026-11-28
+
+### Added
+
+- Shared `reference/html-tokens.css` token layer, `lib/html-branding.mjs` page branding helper, and `branding` `userConfig` option so rendered pages apply consumer palette, type, and logo overrides in `.rv-bar` while keeping the theme toggle, comment box, and accessibility floor unchanged (#19172).
+
+## [2.0.3] - 2026-11-28
+
+### Changed
+
+- Trim `visualization` skill frontmatter descriptions (`present` 498 -> 302, `visualize` 969 -> 385; total 1,467 -> 687 chars). The `visualize` description keeps the full `ClaudeDesign` routing clause: the built-in tool only when the person names, links, or asks for work in an existing claude.ai/design project; otherwise this skill renders its own output.
+
+## [2.0.2] - 2026-11-28
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
+## [2.0.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [2.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+## [1.5.2] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [1.5.1] - 2026-11-26
+
+### Changed
+
+- Shared `html-chrome.html` synced: its palette, type stacks and per-scheme roles are now kept equal to the marketplace's shared token layer, it gains an `--accent` role set to the existing clay value, and its header no longer rules out a team or user theme override. Pages look the same; no other change to this plugin.
+
+## [1.5.0] - 2026-11-25
+
+### Added
+
+- `/visualization:visualize` has a collaborative canvas mode: you and the agent draw and revise one live Excalidraw or tldraw canvas over several turns, and the agent writes the final text diagram as the record. The canvas is a working surface, so the mode also runs for a diagram that a calling skill commits. The canvas is not saved in the repository.
+
 ## [1.4.6] - 2026-11-24
 
 ### Fixed

@@ -299,7 +299,6 @@ def swap(s: str) -> str:
 
 
 def forms(value: str) -> list[tuple[str, str]]:
-    """(tag, text) for every distinct spelling of value, first tag kept."""
     uniq: dict[str, str] = {}
     for tag in ("exact", "swap", "doubled", "msys", "wsl"):
         text = render(tag, value)
@@ -309,7 +308,6 @@ def forms(value: str) -> list[tuple[str, str]]:
 
 
 def render(tag: str, new: str) -> str | None:
-    """new spelled in the form tag names; None when it has no such spelling."""
     tag = tag.removeprefix("case:")
     if tag == "exact":
         return new
@@ -342,7 +340,6 @@ def bounded(line: str, start: int, end: int, tag: str) -> bool:
 def resolve(
     cands: list[tuple[int, int, str]], taken: list[tuple[int, int]]
 ) -> list[tuple[int, int, str]]:
-    """Keep the longest of overlapping candidates, skipping spans already taken."""
     kept = []
     for start, end, tag in sorted(cands, key=lambda c: (c[0] - c[1], c[0])):
         if all(end <= s or start >= e for s, e in taken):
@@ -352,7 +349,6 @@ def resolve(
 
 
 def matches(line: str, spellings: list[tuple[str, str]]) -> list[tuple[int, int, str]]:
-    """(start, end, tag) for every site on one line, sorted by start."""
     exact = []
     folded = []
     for tag, text in spellings:
@@ -368,7 +364,6 @@ def matches(line: str, spellings: list[tuple[str, str]]) -> list[tuple[int, int,
 
 
 def fires(kind: str, pat: str, dirs: list[str], name: str, head: str) -> bool:
-    """True when one rule matches the lowercased path parts or first-5-lines head."""
     pat = pat.lower()
     if kind == "marker":
         return pat in head
@@ -531,7 +526,6 @@ def parse_site(site: str) -> tuple[str, int, int, str]:
 def plan_file(
     root: Path, rel: str, sites: list[tuple[int, int, str]], args: argparse.Namespace
 ) -> tuple[list[str], bytes, bytes, list[str]]:
-    """(refusals, old bytes, new bytes, applied rows) for one file's sites."""
     data = read(root, rel)
     tags = [f"{rel}:{n}:{c}" for n, c, _ in sites]
     why = unreadable(data)
@@ -588,7 +582,6 @@ def plan_file(
 
 
 def write_all(writes: list[tuple[Path, bytes, bytes]]) -> None:
-    """Replace each file through a temp file beside it; on failure undo the run."""
     temps: list[str] = []
     replaced: list[tuple[Path, bytes]] = []
     try:

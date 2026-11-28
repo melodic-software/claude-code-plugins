@@ -1,25 +1,4 @@
 #!/usr/bin/env node
-// Gate: every plugin declares the external tools its files run.
-//
-//   node scripts/check-declared-prerequisites.mjs [--root <repo>]
-//   node scripts/check-declared-prerequisites.mjs [--root <repo>] --write-baseline
-//
-// Three checks, all against scripts/prerequisites-baseline.txt, which lists
-// today's gaps as `<plugin> <gap>` lines so main stays green:
-//   1. Every plugins/*/prerequisites.json passes the schema in
-//      docs/contracts/prerequisites/, read through lib/prerequisites.mjs.
-//      Gap `schema`: a file not yet in the schema's shape.
-//   2. A plugin with a valid file carries the generated checker copies
-//      (lib/prerequisites.mjs, .sh, .ps1) registered in scripts/shared-copies.txt.
-//   3. No plugin file runs a tool from scripts/prerequisites-tools.txt that the
-//      plugin's valid file does not declare. Gap `<tool>`. A line carrying
-//      `prereq-ok: <reason>` is exempt. Test files, fixtures and evals are not
-//      scanned: they run in CI, not on a user's machine. Neither are generated
-//      copies of a shared library, which the canonical source owns.
-// A baseline row that no longer matches a gap fails too, so the list only shrinks.
-// --write-baseline rewrites the baseline from the current tree.
-//
-// Exit 0 clean, 1 findings, 2 usage or an unreadable input.
 import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -52,16 +31,10 @@ const alternation = (tools) =>
     .map(escapeRe)
     .join("|");
 
-// Command position in shell and PowerShell: line start, after an operator,
-// inside a substitution or subshell, after a keyword or wrapper, or as the
-// subject of a presence test. Leading VAR=value assignments are allowed. A name
-// followed directly by `|` or `)` is a regex alternative or a case label, and a
-// name followed by `=` is a key, so neither counts as a run.
 function shellMatcher(tools) {
   const lead = String.raw`(?:^\s*\(?|[;&|{\x60]|\$\(|\b(?:then|do|else|elif|if|while|until|exec|xargs|time|env|nohup|sudo|!)\s|\bcommand(?:\s+-[vV])?\s|\btype(?:\s+-[aPpt])?\s|\bhash\s|\bwhich\s|\bGet-Command(?:\s+-Name)?\s|&\s*)`;
   const assign = String.raw`[A-Za-z_]\w*=(?:'[^']*'|"[^"]*"|[^\s'"(]\S*)?\s+`;
   const names = alternation(tools);
-  // A tool that is the whole body of a substitution, `$(gh)` or `$(which gh)`, ends at `)`.
   const closed = String.raw`(?:\$\(\s*|\b(?:command(?:\s+-[vV])?|type(?:\s+-[aPpt])?|hash|which|Get-Command(?:\s+-Name)?)\s+)(${names})(?=\))`;
   return new RegExp(
     String.raw`${lead}\s*(?:${assign})*(${names})(?=$|[\s;&\x60'"])(?!\s*=[^=])|${closed}`,
@@ -69,15 +42,10 @@ function shellMatcher(tools) {
   );
 }
 
-// Single-quoted text in shell and PowerShell is literal, so a tool name inside
-// it is data (a pattern, a message), not a run.
 const literalsBlanked = (line) => line.replace(/'[^']*'/g, "''");
 
-// A case arm label such as `node | python | dotnet)`.
-const CASE_LABEL = /^\s*[\w.*"'-]+(\s*\|\s*[\w.*"'-]+)*\s*\)/;
+const CASE_LABEL = /^\s*[\w.*?[\]"'-]+(\s*\|\s*[\w.*?[\]"'-]+)*\s*\)/;
 
-// A call that runs the tool: spawn("jq", ...), execSync("jq -r"),
-// subprocess.run(["gh", ...]), shutil.which("uv").
 function callMatcher(tools) {
   return new RegExp(
     String.raw`\b(?:spawn|spawnSync|execFile|execFileSync|exec|execSync|execa|which|run|call|check_call|check_output|Popen|system)\s*\(\s*\[?\s*[rbfu]?["'\x60](${alternation(tools)})(?=["'\x60\s])`,
@@ -88,7 +56,6 @@ function callMatcher(tools) {
 function shellLines(file, text) {
   const lines = text.split(/\r?\n/);
   if (path.basename(file) !== "SKILL.md") return lines.map((line, i) => [i + 1, line]);
-  // SKILL.md: fenced shell blocks and !`...` precompute lines.
   const out = [];
   let fence = null;
   lines.forEach((line, i) => {
@@ -107,8 +74,6 @@ function shellLines(file, text) {
   return out;
 }
 
-// Drop heredoc bodies: help text and embedded programs, not commands. The line
-// that opens the heredoc stays, so `python3 - <<'PY'` still counts.
 function withoutHeredocs(lines) {
   const out = [];
   let end = null;
@@ -130,8 +95,6 @@ function isComment(line, ext) {
   return t.startsWith("#");
 }
 
-// Process calls in JS, TS and Python often span lines, so the matcher runs over the whole
-// text with comment lines blanked, and a hit is reported on the line the tool name is on.
 function callUses(re, ext, text) {
   const lines = text.split(/\r?\n/);
   const masked = lines.map((l) => (isComment(l, ext) ? "" : l)).join("\n");
@@ -149,7 +112,6 @@ function callUses(re, ext, text) {
 
 const matcherCache = new Map();
 
-// usesOf(file, text, tools) -> [{ tool, line }]
 export function usesOf(file, text, tools) {
   const ext = path.extname(file);
   const powershell = ext === ".ps1" || ext === ".psm1";
@@ -161,7 +123,6 @@ export function usesOf(file, text, tools) {
   const found = [];
   let blockComment = false;
   for (const [line, raw] of withoutHeredocs(shellLines(file, text))) {
-    // PowerShell <# ... #> block comments are prose.
     if (powershell && (blockComment || raw.trimStart().startsWith("<#"))) {
       blockComment = !raw.includes("#>");
       continue;
@@ -204,7 +165,6 @@ function declaredTools(manifest) {
   return names;
 }
 
-// collect(root) -> { gaps: Map<"plugin gap", detail[]>, problems: string[] }
 export function collect(root) {
   const tools = readList(path.join(root, TOOLS));
   const registered = new Set(readList(path.join(root, SHARED)).map((l) => l.split(/\s+/).slice(0, 2).join(" ")));

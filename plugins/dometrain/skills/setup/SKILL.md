@@ -1,5 +1,5 @@
 ---
-description: "Verify that the Dometrain MCP tools are available to the Dometrain grounding skills, without reading or exposing any API key. Use when: 'set up Dometrain', 'configure Dometrain', 'Dometrain setup', the Dometrain MCP server is unavailable, or a Dometrain tool reports an authentication error. Actions: check (read-only verification, default and only action). This plugin has no options and ships no server: the tools come from a user-scope dometrain server, so there is nothing an apply could write."
+description: "Verify Dometrain MCP tool availability without reading or exposing API keys (check only, read-only; no plugin options or apply)."
 argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
@@ -124,7 +124,7 @@ collision warning instead.
 - **Pointer**: for that plugin's manifest `name`, read `.claude-plugin/plugin.json` in
   [Dometrain's repository](https://github.com/Dometrain/mcp) live.
 
-## Boundaries
+## What this skill does not do
 
 - Do not read, echo, log, copy, or persist any API key.
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform

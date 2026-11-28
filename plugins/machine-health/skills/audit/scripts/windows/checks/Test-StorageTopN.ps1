@@ -21,8 +21,6 @@ never-descend rule and the budget are stated in that catalog section.
 param(
     [switch]$Human,
     [AllowNull()] [AllowEmptyCollection()] [string[]]$MutedKeys = @(),
-    # Test-only: replaces the default roots, which then carry no reclaim hint.
-    # The orchestrator never passes it (Get-CheckArgument does not offer it).
     [string[]]$RootPath
 )
 
@@ -107,8 +105,6 @@ $CheckBody = {
     }
     $items = @($items)
 
-    # A root nested in another scanned root (%TEMP% under the profile) is
-    # already inside that root's total, so it is left out of scanned_bytes.
     $scanned = @($scan.roots | Where-Object { $_.status -eq 'scanned' })
     $scannedBytes = [long]0
     foreach ($r in $scanned) {
@@ -141,8 +137,6 @@ $CheckBody = {
         items                = $items
     }
 
-    # Every item is INFO, so an unmuted item makes the check INFO. With every
-    # item muted, a scan the budget cut cannot vouch for OK.
     $severity = Get-UnmutedSeverity -Items $items
     if ($severity -eq 'OK' -and -not $scan.scan_complete) { $severity = 'UNKNOWN' }
 

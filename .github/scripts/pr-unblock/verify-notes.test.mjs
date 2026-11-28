@@ -80,8 +80,6 @@ test("model text stays inside its fence", () => {
   assert.match(body, /```text\nSummary: a'''b\?\n```$/);
 });
 
-// GitHub scrolls a long code-block line sideways, so each quoted line breaks
-// at a space within 100 columns, continuations indented two spaces.
 const words = (n) => Array(n).fill("word").join(" ");
 const quoted = (body) => body.slice(body.indexOf("```text\n") + 8, body.lastIndexOf("\n```"));
 
@@ -120,21 +118,19 @@ test("the verdict must be the fail its artifact name names", () => {
     [NAME, verdictText({ pr: 43 })],
     [NAME, verdictText({ head_sha: "b".repeat(40) })],
     [NAME, verdictText({ notes: [1] })],
-    // 79b4cc554b80dca6 is the first 16 hex digits of `printf %s feat/x | sha256sum`.
     [`${NAME}-79b4cc554b80dca6`, verdictText({ head_ref: "feat/other" })],
     [`${NAME}-79b4cc554b80dca6`, verdictText()],
   ]) {
     assert.throws(() => readVerdict(name, text), name);
   }
   assert.equal(readVerdict(`${NAME}-79b4cc554b80dca6`, verdictText({ head_ref: "feat/x" })).pr, 42);
-  // a27da2afd9962004 and 8c8a071ad0e51f5e: `printf %s feat/a+b | sha256sum` and the same for fix/é.
   assert.equal(readVerdict(`${NAME}-a27da2afd9962004`, verdictText({ head_ref: "feat/a+b" })).pr, 42);
   assert.equal(readVerdict(`${NAME}-8c8a071ad0e51f5e`, verdictText({ head_ref: "fix/\u00e9" })).pr, 42);
 });
 
 test("a name that carries issue numbers must carry the ones the verdict records", () => {
   const issues = (...numbers) => numbers.map((number) => ({ number }));
-  const digest = "79b4cc554b80dca6"; // feat/x, as above
+  const digest = "79b4cc554b80dca6";
   assert.equal(readVerdict(`${NAME}-i7`, verdictText({ linked_issues: issues(7) })).pr, 42);
   assert.equal(readVerdict(`${NAME}-i7.12`, verdictText({ linked_issues: issues(12, 7) })).pr, 42);
   assert.equal(readVerdict(`${NAME}-${digest}-i7`, verdictText({ head_ref: "feat/x", linked_issues: issues(7) })).pr, 42);
@@ -334,9 +330,6 @@ test("a lanes App PR's fail opens review threads, adds no label and posts no PR 
   assert.deepEqual(api.writes, []);
 });
 
-// A person's PR: GitHub lets only its author or a writer resolve a thread, and
-// the lanes App is neither, so the fail is one PR comment and a label that
-// ci-status holds in the merge queue, never a review thread.
 const PERSON = 153232337;
 const personBody = (head) =>
   [
@@ -543,6 +536,49 @@ test("a pass on a person's PR at its head removes pr-verify-failed and names no 
   assert.deepEqual(await run({ labels: ["ci"] }), [], "no label to remove");
   assert.deepEqual(await run({ pull: { head: { sha: OLD } } }), [], "the PR moved past the passing head");
   assert.deepEqual(await run({ pull: { state: "closed" } }), [], "a closed PR");
+});
+
+test("a pass on a person's PR marks its fail comment superseded, naming the passing head, once", async () => {
+  const run = async ({ pull = {}, issueComments = [], labels = ["pr-verify-failed"] } = {}) => {
+    const dir = tempDir("verify-notes-");
+    const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out"), ARTIFACT_NAME: PASS, VERDICT_FILE: join(dir, "verdict.json"), APP_SENDER_ID: String(APP) };
+    writeFileSync(env.VERDICT_FILE, passText());
+    writeFileSync(env.GITHUB_OUTPUT, "");
+    const api = fakeApi({ pull: { user: { id: PERSON }, ...pull }, issueComments, labels });
+    await main(env, { api, log: () => {} });
+    assert.equal(readFileSync(env.GITHUB_OUTPUT, "utf8"), "", "no pass-only round");
+    return api.writes;
+  };
+  const failed = { id: 9, user: { id: ACTIONS_BOT }, body: personBody(OLD_HEAD) };
+  const strangers = [
+    { id: 7, user: { id: PERSON }, body: personBody(OLD_HEAD) },
+    { id: 8, user: { id: ACTIONS_BOT }, body: "A plain comment." },
+  ];
+  const writes = await run({ issueComments: [...strangers, failed] });
+  assert.deepEqual(
+    writes.map(({ op, id, name }) => ({ op, id, name })),
+    [
+      { op: "unlabel", id: undefined, name: "pr-verify-failed" },
+      { op: "update", id: 9, name: undefined },
+    ],
+  );
+  const [first, heading, blank, verdictLine, ...bulletLines] = writes[1].body.split("\n");
+  assert.equal(first, VERIFY_NOTE_MARKER, "a later fail still finds the comment to update in place");
+  assert.equal(heading, "### pr-verify / verify note");
+  assert.equal(blank, "");
+  assert.equal(verdictLine, `Superseded: the verifier passed head \`${HEAD}\` (pass), so an earlier fail no longer holds this pull request.`);
+  assert.deepEqual(bulletLines, ["- This comment's edit history keeps the fail."]);
+  assert.doesNotMatch(writes[1].body, new RegExp(OLD_HEAD), "the failed head's text is gone");
+  assert.deepEqual(await run({ issueComments: [{ ...failed, body: writes[1].body }], labels: [] }), [], "a re-run changes nothing");
+  assert.deepEqual(await run({ issueComments: strangers, labels: [] }), [], "no fail comment to supersede");
+  const unread = { ...fakeApi({ pull: { user: { id: PERSON }, comments: 0 } }), listIssueComments: async () => assert.fail("no PR comment, no fail comment") };
+  const dir = tempDir("verify-notes-");
+  const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_OUTPUT: join(dir, "out"), ARTIFACT_NAME: PASS, VERDICT_FILE: join(dir, "verdict.json"), APP_SENDER_ID: String(APP) };
+  writeFileSync(env.VERDICT_FILE, passText());
+  writeFileSync(env.GITHUB_OUTPUT, "");
+  await main(env, { api: unread, log: () => {} });
+  assert.deepEqual(unread.writes, []);
+  assert.deepEqual(await run({ pull: { head: { sha: OLD } }, issueComments: [failed] }), [], "the PR moved past the passing head");
 });
 
 test("a pass reads the labels and review comment count from the pull request read, not with calls of its own", async () => {

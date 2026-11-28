@@ -121,8 +121,6 @@ MIN_PYTHON = (3, 8)
 EVALS_DIR = "evals"
 NOT_SLUG = re.compile(r"[^a-z0-9]+")
 
-# The source keys this converter carries into the case. Any other key is named
-# in a note, so nothing is dropped without a person seeing it.
 KNOWN_KEYS = frozenset(
     [
         "id",
@@ -139,26 +137,11 @@ KNOWN_KEYS = frozenset(
     ]
 )
 
-# Read-only tools, granted without --allow-tools: the validator's
-# READ_ONLY_TOOLS. Skill must be listed, or no skill can load.
 ALLOWED_TOOLS = ("Read", "Glob", "Grep", "Skill")
 
-# A pre-computed context line (!`command`) runs through Bash when the skill
-# loads; without Bash the slash command fails to load and the run ends at 0
-# turns. So does a body that tells Claude to run something through Bash.
-# - Pointer: when what loads a pre-computed line may have changed, fetch
-#   https://code.claude.com/docs/en/skills#inject-dynamic-context live; the
-#   observed basis is run #8635, INVALID at 0 turns.
-# - As of: 2026-11-01
-# - Recheck trigger: that section names a tool other than Bash for the line.
 PRECOMPUTED = re.compile(r"!`[^`\n]+`")
 BASH_IN_BODY = re.compile(r"\b(?:through|via|with|using|the) Bash\b|\bBash tool\b")
-# A clause that tells the skill to stay off Bash grants nothing. Only the
-# clause holding the Bash phrase counts, so "lines do not run, so run X through
-# Bash" still grants it.
 NEGATION = re.compile(r"\b(?:not|never|don['’]t|do not|avoid|without)\b", re.IGNORECASE)
-# A hard-wrapped line joins the next unless that line starts a block (blank
-# line, list item, heading, quote or table row).
 WRAP = re.compile(r"[ \t]*\n(?![ \t]*(?:[\n\-*#>|]|\d+\.))[ \t]*")
 
 
@@ -170,11 +153,8 @@ def body_needs_bash(text):
                 return True
     return False
 
-# One tool in an allowed-tools value; a permission pattern in parentheses after
-# the name is consumed with it, so the words inside are not read as tools.
 TOOL_TOKEN = re.compile(r"([A-Za-z][\w.:-]*)\s*(?:\([^)]*\))?")
 
-# Wording that says the skill must stay quiet. Such a case gets no Skill grader.
 NO_TRIGGER = re.compile(
     r"(?:\b(?:not|never|no|without)\b|n't\b)[^.;\n]{0,60}?"
     r"\b(?:trigger\w*|invok\w*|fir(?:e|es|ed|ing)\b|activat\w*|load\w*"
@@ -182,13 +162,8 @@ NO_TRIGGER = re.compile(
     re.IGNORECASE,
 )
 
-# A slash command at the start of the prompt, which loads a skill with no Skill
-# call. A path such as /srv/app is not one.
 SLASH_COMMAND = re.compile(r"^\s*/[\w.-]+(?::[\w.-]+)?(?=[\s:,.;]|$)")
 
-# Characters a one-line YAML scalar cannot carry here: control characters, the
-# ones Python's splitlines() breaks a line on, which the validator uses, and the
-# non-printable ones a YAML loader rejects.
 UNWRITABLE = re.compile(
     "[%s]"
     % "".join(
@@ -202,15 +177,6 @@ UNWRITABLE = re.compile(
 )
 REGEX_SPECIAL = frozenset(".^$*+?()[]{}|\\/")
 
-# Expectation wording that maps to a deterministic grader. Each pattern must
-# match the whole expectation, so a qualifier ("for the why part", "and reports
-# the result") keeps it an llm judgment. Grader fields are the Grader types
-# table's.
-# - Pointer: when a field or its default may have changed, fetch
-#   https://code.claude.com/docs/en/plugin-evals#grader-types live.
-# - As of: 2026-11-01
-# - Recheck trigger: that table renames a field of regex, tool_used or
-#   file_exists, or changes how tool_used matches input_match.
 SKILL_REF = r"(the `?[\w-]+`? skill|`?/?[\w-]+:[\w-]+`?)"
 SKILL_INVOKED = re.compile(
     r"^(?:Invokes|Loads|Triggers|Calls) %s(?: (?:via|through) the Skill tool)?\.?$"
@@ -244,11 +210,8 @@ FILE_CREATED = re.compile(
     r"^(?:Writes|Creates) (?:(?:the|a|an) [\w -]+? )?(?:at|to|under) "
     r"`?([\w.](?:[\w./-]*[\w/])?)`?\.?$"
 )
-# A token holding a placeholder or a quote is not a literal the run can echo.
 NOT_LITERAL = re.compile(r"[<>…\"\\]|\.\.\.")
-# Must-fail replies for a regex grader; the first that cannot match is used.
 STOCK_REPLIES = ("The reply names nothing in particular.", "Done.", "0", "-")
-# Tools that let a run create a file; Edit only changes one.
 CREATES_FILES = frozenset(["Write", "Bash"])
 
 
@@ -325,7 +288,6 @@ def frontmatter_tools(lines):
 
 
 def skill_tools(plugin_dir, skill):
-    """The case's allowed_tools: the base list plus what the skill needs to run."""
     try:
         with open(
             os.path.join(plugin_dir, "skills", skill, "SKILL.md"), "r", encoding="utf-8"
@@ -373,7 +335,6 @@ def case_dir_name(skill, case, where):
 
 
 def criteria_list(case, where, notes):
-    """The case's expectation strings, in order; blank items are skipped."""
     items = []
     for key in ("expectations", "assertions"):
         listed = case.get(key)
@@ -419,7 +380,6 @@ def skill_match(plugin, skill):
 
 
 def own_skill(ref, plugin, skills):
-    """The skill a SKILL_REF names when it is one of this plugin's, else None."""
     ref = ref.strip("`")
     if ref.lower().startswith("the "):
         name = ref[4:-6].strip("`")
@@ -430,15 +390,6 @@ def own_skill(ref, plugin, skills):
     return name if name in skills else None
 
 
-# The two directions err opposite ways. A must-run grader credits only a
-# command that starts the value or follows a separator, after an optional
-# interpreter and a quoted or absolute directory, so a mention never passes it.
-# A must-not-run guard counts the words anywhere a run could hide them (sudo,
-# env, time, bash -c, a subshell, xargs), unless the segment since the last
-# separator starts with a command that only shows text, such as echo or grep,
-# and is not the guarded command itself. TEXT_ONLY lists commands that print
-# or search and never run their arguments; sed, awk and find can run or write
-# (sed's e command and -i, awk's system(), find -exec), so a guard counts them.
 TEXT_ONLY = (
     "echo", "printf", "cat", "grep", "rg", "git grep", "head", "tail", "less", "more"
 )
@@ -448,7 +399,6 @@ COMMAND_START = (
 )
 COMMAND_SEGMENT = r'"command"\s*:\s*"(?:(?:[^"\\]|\\.)*?(?:&&|\|\||;|\||\\n))?'
 COMMAND_ANYWHERE = r'(?:[^"\\;&|]|\\[^n])*?(?<![\w.-])'
-# Between two words: whitespace, with an optional closing and opening quote.
 COMMAND_GAP = r"(?:\\\"|')?\s+(?:\\\"|')?"
 
 
@@ -501,9 +451,6 @@ def command_samples(command, ran):
 
 
 def deterministic(text, where, plugin, skill, skills, tools, slash_invoked, has_files):
-    """(grader option lines, samples, skill it forbids or None) for an
-    expectation whose whole wording maps to a deterministic check, or None to
-    keep it an llm judgment."""
     found = SKILL_INVOKED.match(text)
     if found and not slash_invoked:
         name = own_skill(found.group(1), plugin, skills)
@@ -553,7 +500,6 @@ def deterministic(text, where, plugin, skill, skills, tools, slash_invoked, has_
             pattern = regex_escape(token)
             present = ["The answer names %s here." % token]
             absent = []
-        # A must-fail reply that cannot hold the literal; none fits, stay llm.
         compiled = re.compile(pattern)
         absent += [r for r in STOCK_REPLIES if not compiled.search(r)][:1]
         if not absent:
@@ -608,7 +554,6 @@ def sample_text(data):
 
 
 def plan_case(plugin, skill, case, where, tools=ALLOWED_TOOLS, skills=()):
-    """Return (directory name, {relative path: text}, notes) for one case."""
     notes = []
     name = case_dir_name(skill, case, where)
     prompt = case.get("prompt")
@@ -704,8 +649,6 @@ def plan_case(plugin, skill, case, where, tools=ALLOWED_TOOLS, skills=()):
             "has expectations but no expected_output, so its llm graders have no "
             "sample answers; add samples/<grader>.json by hand"
         )
-    # A mapped expectation says which skill it is about, so only the wording
-    # left to the judge can leave the direction unknown.
     if slash_invoked or skill in forbidden:
         pass
     elif any(NO_TRIGGER.search(t) for t in [expected] + judged_text):
@@ -734,7 +677,6 @@ def plan_case(plugin, skill, case, where, tools=ALLOWED_TOOLS, skills=()):
 
 
 def plan(plugin_dir):
-    """Every case to write, per source file, or raise Refusal with all reasons."""
     plugin = plugin_name(plugin_dir)
     eval_dir = os.path.join(plugin_dir, EVALS_DIR)
     if os.path.lexists(eval_dir) and not os.path.isdir(eval_dir):
@@ -804,7 +746,7 @@ def write_cases(eval_dir, sources):
         try:
             os.rmdir(os.path.dirname(path))
         except OSError:
-            pass  # fixtures or other files remain beside it
+            pass
     if left:
         raise OSError("the cases were written, but not removed: %s" % ", ".join(left))
 

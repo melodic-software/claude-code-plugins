@@ -1,5 +1,5 @@
 ---
-description: "Configure the source-control plugin. check (read-only, default) reports the effective commit-subject / PR-title convention merged across the team and personal-override layers, plus old-location files and the babysit-prs userConfig surface; apply interviews the repo, writes the convention config to a chosen layer, moves old-location config, and walks the sanctioned babysit reconfigure paths. Use when setting up or inspecting this plugin's configuration, choosing or overriding a commit convention at any layer, configuring or checking babysit, when a run names an old config location, or when /commit, /pull-request, or /babysit-prs report missing configuration. Re-runnable and safe."
+description: "Inspect (check, read-only default) or configure (apply) commit/PR conventions, old config migration, and babysit-prs settings."
 argument-hint: "[check|apply] [layer=team|local] [subject_pattern=<pattern>] [branch_issue_pattern=<ERE>]"
 user-invocable: true
 disable-model-invocation: true
@@ -196,9 +196,9 @@ the step UNKNOWN with remediation, never green.
    override; `babysit_stacked_prs` judges a native stack layer against its trunk instead), so an
    unprotected repo in an autopilot fleet deserves a protection rule, not an override.
 3. **Windows long-path support for the worktree root.** On Windows, worktrees under the (possibly
-   deep) worktree root can exceed 260 characters. Probe `git config --get core.longpaths` and the OS
-   policy (registry value `LongPathsEnabled` under
-   `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem`); report each as enabled/disabled with the
+   deep) worktree root can exceed the Windows path length limit. Probe `git config --get core.longpaths` and the OS
+   policy (registry value `LongPathsEnabled` under `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem`, per
+   [registry setting to enable long paths](https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation#registry-setting-to-enable-long-paths)); report each as enabled/disabled with the
    remediation (`git config --global core.longpaths true`; the OS value needs an elevated change, so
    report it, never attempt it). Skip this probe silently on non-Windows.
 4. **Lane-script reachability under the host permission layer.** The babysit lane declares its own

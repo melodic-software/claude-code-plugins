@@ -1,14 +1,3 @@
-"""Write-time sizing for save_point.py: the byte budget of each size-classed
-slot, the shape-4 fit that moves whole movable sections to this hop's file
-behind a pointer, and the paged-Read directive for a hot file past one Read
-page. Stdlib only; this module imports nothing from `save_point`.
-
-Slot budgets are the 95th percentile of each slot over the 143 shape-3 hot
-files dated in the 7-day handoff audit window (2026-11-11T18:46Z to
-2026-11-18T18:46Z): the Resumption brief (979 bytes) and, over the 31 files
-that wrote one, the below-the-rails note (281 bytes).
-"""
-
 from __future__ import annotations
 
 import json
@@ -56,7 +45,7 @@ def slot_overruns(values: dict[str, str]) -> list[tuple[str, int, int]]:
 def written_slot_bytes(
     brief: list[str] | None, prompt: list[str] | None
 ) -> dict[str, int]:
-    """The bytes the session wrote into each size-classed slot of a filled hot
+    """The bytes the session wrote into each size-classed slot of a filled handoff
     file: the Resumption brief less the Purpose line `new` writes, and the
     Resume prompt's lines below the reopen line."""
     found: dict[str, int] = {}
@@ -132,9 +121,9 @@ def fit(
     hop_number: int,
     term: str,
 ) -> tuple[list[str], list[str], list[str]]:
-    """Move whole movable sections, in MOVE_ORDER, out of the hot file's lines
+    """Move whole movable sections, in MOVE_ORDER, out of the handoff file's lines
     into this hop's file under `## <Section> (h<k>)`, each leaving a pointer,
-    until the hot file is at or under `cap`. Lines keep their terminators;
+    until the handoff file is at or under `cap`. Lines keep their terminators;
     returns the hot lines, the hop lines and the moved section names."""
     hot, hop = list(hot), list(hop)
     moved: list[str] = []

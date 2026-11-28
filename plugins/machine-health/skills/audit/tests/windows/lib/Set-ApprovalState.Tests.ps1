@@ -1,17 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/Set-ApprovalState.ps1 -- the sole writer of
-approvals.json and mutes.json (actions mute, unmute, approve, revoke,
-exclude-service, include-service).
-
-.DESCRIPTION
-Expected values come from the plan's "Resolver and state write" table: the
-mute entry shape, the approve entry shape, unmute under every check id, revoke
-setting approved = false, and the validation column. Check ids used here are
-shipped catalog ids on this branch.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Set-ApprovalState.ps1' -MockHelpers
@@ -27,12 +15,10 @@ BeforeAll {
         Get-Content -LiteralPath (Join-Path $script:stateDir $Name) -Raw | ConvertFrom-Json
     }
 
-    # ConvertFrom-Json turns ISO strings into DateTime; read timestamps as the stored text.
     function Read-StateString {
         param([string] $Name, [string[]] $Pointer)
         $node = [System.Text.Json.Nodes.JsonNode]::Parse([System.IO.File]::ReadAllText((Join-Path $script:stateDir $Name)))
         foreach ($p in $Pointer) {
-            # Assign inside each branch: an if expression would enumerate a JsonObject.
             if ($p -match '^\d+$') { $node = $node[[int]$p] } else { $node = $node[$p] }
         }
         return $node.GetValue[string]()

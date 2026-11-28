@@ -1,13 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/checks/Test-FirewallRules.ps1, with
-Get-FirewallRuleInventory mocked. Expected values follow check-catalog.md
-section 25: INFO in every case, including a failed read; items keyed by rule
-Name, or by version pattern, direction, protocol and port for per-version
-rules.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-FirewallRules' `
@@ -30,7 +22,6 @@ BeforeAll {
         }
     }
 
-    # Mock bodies reach the fake inventory by closure, not through $script:.
     $script:Fake = @{}
     $fake = $script:Fake
     Set-Item -Path function:Get-FakeInventory -Value ({ $fake['inv'] }.GetNewClosure())

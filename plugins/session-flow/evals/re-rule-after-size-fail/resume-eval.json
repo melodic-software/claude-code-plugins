@@ -12,7 +12,7 @@
     "criterion": "Handoff redesign AC11: a dropped rule passing after a size failure.",
     "risk": "After a predecessor that failed only on size, the writer drops a carried rule and the old validator downgrades the carry check to a WARN."
   },
-  "description": "Source: a reproduced validator failure (a size-failed predecessor, then a successor that deleted a carried [R1], validated with a WARN), rewritten one-to-one as a session with every detail changed. Hard because the newest predecessor hot file is over the 24,600-byte cap, so the writer must shed bytes, and the hop-1 rule is the oldest, longest entry in Current rules; the reader's next action (merge a migration PR) breaks the rule if it is gone.",
+  "description": "Source: a reproduced validator failure (a size-failed predecessor, then a successor that deleted a carried [R1], validated with a WARN), rewritten one-to-one as a session with every detail changed. Hard because the newest predecessor handoff file is over the 24,600-byte cap, so the writer must shed bytes, and the hop-1 rule is the oldest, longest entry in Current rules; the reader's next action (merge a migration PR) breaks the rule if it is gone.",
   "seed": {
     "repo_files": {
       "README.md": "# payouts-api\n\nSynthetic service repository for the resume eval.\n",

@@ -64,6 +64,11 @@ Every `KEEP` row must carry a specific reason (who produced the entry and what s
 validator rejects an empty reason, and a bare category phrase unless it names a tool and `evidence`
 shows that tool still references the entry. A rejected row fails the report with exit 5.
 
+A known-large store the policy names is one bounded row, summed under an entry budget and never
+listed, so a home inventory finishes in bounded time. Fail closed: `fully_inventoried` is false
+while any bounded or not-walked row exists, and a budget-cut or partly unreadable store's size is
+a lower bound ([scan-flags.md](scan-flags.md#--deep)).
+
 `--execute`, the low-signal rule (Low is kept unless the human separately reviews exact paths), and
 every confirmation gate apply in full. Removing anything the inventory lists goes through
 `scan`, a fresh `preview`, and the removal approval.
@@ -76,8 +81,9 @@ every confirmation gate apply in full. Removing anything the inventory lists goe
   immediate non-OS child entries (regular files and directories) with explicit `--root-child`
   selection (never a whole-root
   walk); `--root-children` is also valid on a directory that is not a volume root (a user home),
-  where only directories are admitted and hidden and OS-named ones stay selectable, so approved
-  immediate children can be re-inventoried into one snapshot without walking the rest of the tree;
+  where regular files and directories are admitted through the same link, protection and mount
+  checks and hidden and OS-named ones stay selectable, so approved immediate children can be
+  re-inventoried into one snapshot without walking the rest of the tree;
   a non-OS volume root (a Windows Dev Drive: a drive root carrying only the per-volume
   metadata every volume has and no OS-install marker) is a valid target rather than blanket-denied,
   but as a known-large root it is routed through the large-target scan gate below (bound or
@@ -501,7 +507,7 @@ Verification records for the directory channel:
 
 The same guard also covers the PowerShell tool with the inverse tradeoff: PowerShell stays open for
 read-only support work, while engine invocations are hard-denied (Bash is the only engine lane) and
-known deletion spellings and .NET Delete calls resolve against the `disk_hygiene_enabled` kill
+known deletion spellings and .NET Delete calls resolve against the `disk_hygiene_enabled` kill <!-- portability-ok: R2 safety floor - .NET Delete guard -->
 switch. When the guard sees execution enabled they are downgraded to a hook-issued `ask`;
 when it sees a configured `false` (audit-only mode) they are denied outright, so the kill switch would
 block deletions on the PowerShell lane too and not only the Bash engine apply.
@@ -511,13 +517,13 @@ The flagged set is not deletion-shaped only. It also covers destructive
 writers (`Set-Content`, `Out-File`, `Add-Content`, `New-Item -Force`, and both `>` file redirection
 and `>>` append, with PowerShell's stream merges and `$null` discards excluded),
 and the volume operations (`Format-Volume`, `Clear-Disk`, `Initialize-Disk`), alongside `robocopy`
-mirror/purge/move and .NET `Delete`. Each resolves against the kill switch on the same terms as a
+mirror/purge/move and .NET `Delete`. Each resolves against the kill switch on the same terms as a <!-- portability-ok: R2 safety floor - .NET Delete guard -->
 deletion spelling: `ask` when execution is enabled, denied outright in audit-only.
 
 Because the lane still **enumerates** spellings rather than denying unknown commands, its coverage
 remains knowingly partial: a raised bar, not a fail-closed lane. Concrete residuals: the
 module-qualified form (`Module\Cmdlet`) is covered only for `Remove-Item`, `Clear-Content`, and
-`Clear-RecycleBin`, so a module-qualified `Move-Item` passes; the .NET pattern matches `Delete`
+`Clear-RecycleBin`, so a module-qualified `Move-Item` passes; the .NET pattern matches `Delete` <!-- portability-ok: R2 safety floor - .NET Delete guard -->
 alone, so writer and mover calls such as `[System.IO.File]::WriteAllText` or `::Move` pass; and any
 spelling nobody enumerated passes. For anything that passes, the only thing standing between it and
 the filesystem is the consumer's own permission policy, never this guard. The manual handoff's

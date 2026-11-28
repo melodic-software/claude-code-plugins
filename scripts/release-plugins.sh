@@ -1,36 +1,4 @@
 #!/usr/bin/env bash
-# Turn pending changelog fragments into plugin releases (ADR 0048).
-#
-#   scripts/release-plugins.sh [--date YYYY-MM-DD]
-#
-# For each plugin with fragments under .changes/<plugin>/:
-#   1. the new version is plugin.json's version raised once at the highest
-#      `bump` among the fragments; a plugin whose fragments are all `none` gets
-#      no new version and no CHANGELOG entry;
-#   2. one `## [<new>] - <date>` entry goes above the newest version heading of
-#      plugins/<plugin>/CHANGELOG.md, merging the fragments' bodies section by
-#      section (Keep a Changelog order) in the order the fragments were
-#      committed, keeping only the first of identical bullet blocks (the `- `
-#      line with its indented lines) within one section;
-#   3. `version` changes in plugin.json only;
-#   4. every fragment of the plugin, `none` included, is deleted.
-# A listed convention (scripts/lib/changelog-fragments.sh) has no plugin.json:
-# its version is the newest heading of docs/contracts/<name>/CHANGELOG.md or
-# docs/conventions/<name>/CHANGELOG.md at HEAD, and step 3 does not apply.
-# Prints one line per plugin. Every new changelog and manifest is produced in a
-# temporary directory first, and the tree changes only once all of them exist.
-# A changelog that already carries the version about to be written (a run cut
-# short) is refused. <date> defaults to today in UTC.
-#
-# Fragment order comes from `git log`, so the release job needs the history of
-# .changes/ and refuses a shallow clone; an uncommitted fragment sorts after
-# every committed one.
-#
-# A plugin with an invalid fragment is skipped and reported on stderr, its
-# fragments left in place; the other plugins still release.
-#
-# Exit: 0 released (or nothing valid pending), 2 usage, an unreadable fragment
-# list, or a manifest or changelog this script cannot update.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -59,9 +27,6 @@ if ((${#fragments[@]} == 0)); then
   echo "No pending changelog fragments."
   exit 0
 fi
-# A plugin with an invalid fragment is skipped whole: releasing it without that
-# fragment would drop the change from its CHANGELOG. Its fragments stay for a
-# fix, and every other plugin still releases.
 declare -A skipped=()
 for path in "${fragments[@]}"; do
   rest="${path#.changes/}"
@@ -121,7 +86,6 @@ for path in "${fragments[@]}"; do
   plugin_fragments["$name"]+="$(printf '%08d' "${order[$path]:-99999999}") $bump $path"$'\n'
 done
 
-# Pass 1: compute every new version and check every file it will touch.
 declare -A old_version=() new_version=() manifest_of=() changelog_of=()
 for name in "${plugins[@]}"; do
   [[ "${plugin_bump[$name]}" != none ]] || continue
@@ -132,8 +96,6 @@ for name in "${plugins[@]}"; do
     manifest="$root/.claude-plugin/plugin.json"
     version="$(jq -r '.version // empty' "$manifest" 2>/dev/null)"
   else
-    # Read at HEAD, as a plugin's version stays unraised until the run ends:
-    # a run cut short then trips the existing-entry check below.
     version="$(git show "HEAD:$changelog" 2>/dev/null | changelog_fragments::newest_version -)"
   fi
   if [[ ! "$version" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
@@ -164,8 +126,6 @@ for name in "${plugins[@]}"; do
   changelog_of["$name"]="$changelog"
 done
 
-# Pass 2: produce every new file under $stage. Nothing in the tree changes until
-# all of them exist, so a failure here leaves the tree as it was.
 stage="$(mktemp -d)" || exit 2
 trap 'rm -rf "$stage"' EXIT
 targets=()
@@ -223,8 +183,6 @@ for name in "${plugins[@]}"; do
       }
     ' >"$stage/$name.entry" || exit 2
 
-  # The entry is read from a file, not passed with -v, which would expand the
-  # backslash escapes a release note can carry.
   if ! awk -v ef="$stage/$name.entry" '
     BEGIN { while ((getline line < ef) > 0) entry = entry line "\n" }
     !done && /^##[ \t]+\[?[0-9]+\.[0-9]+/ { printf "%s\n", entry; done = 1 }
@@ -257,8 +215,6 @@ for name in "${plugins[@]}"; do
   staged+=("$stage/$name.manifest")
 done
 
-# Pass 3: apply. Changelogs and manifests first and fragments last, so a run
-# cut short here is caught by the existing-entry check above on the next run.
 for i in "${!targets[@]}"; do
   if ! cat "${staged[i]}" >"${targets[i]}"; then
     echo "$self: could not write ${targets[i]}; restore the tree (git checkout -- .) before running again." >&2

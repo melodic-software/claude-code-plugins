@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import time
 
-import collect
 import friction_scan
 import pytest
 import redact
+import session_record
 import transcript_reader
 
 
@@ -198,7 +198,7 @@ def test_block_redacts_tool_agent_source_and_reason_type_and_keeps_plain_values(
             "Permission denied by rule.", kind=None, use_id=use_id,
             decision={"decision": "reject", "source": source, "reasonType": reason_type},
         ))
-    block = scan.block(collect.Scrubber(redact.load_redactor(), 200), 200)
+    block = scan.block(session_record.Scrubber(redact.load_redactor(), 200), 200)
     redacted, plain = block["events"]
     assert {k: redacted[k] for k in ("kind", "side", "tool", "agent", "source", "reason_type")} == {
         "kind": "denied", "side": "sub", "tool": "<email>", "agent": "<email>", "source": "<email>", "reason_type": "<email>",
@@ -238,14 +238,13 @@ def test_hook_denial_followed_by_the_same_shell_form_records_a_failed_retry():
         call("t2", "Bash", command="echo hi > a.txt"),
         denial_record(HOOK_TEXT, kind="permission-rule", decision=HOOK_DECISION, use_id="t2"),
     )
-    # The retry is itself a hook denial, so it is a second event with no next call yet.
     assert [(e["next_tool"], e["next_ok"]) for e in scan.events] == [("Bash", False), (None, None)]
 
 
 def test_hook_denial_with_no_next_call_keeps_the_fields_empty():
     scan = hook_denial_scan()
     assert [(e["next_tool"], e["next_ok"]) for e in scan.events] == [(None, None)]
-    block = scan.block(collect.Scrubber(redact.load_redactor(), 200), 200)
+    block = scan.block(session_record.Scrubber(redact.load_redactor(), 200), 200)
     assert block["events"][0]["next_tool"] is None
 
 
@@ -279,7 +278,7 @@ def test_a_repeated_tool_result_record_is_one_event_and_counts_as_a_duplicate(de
         ("prompt-approved" if decision["decision"] == "accept" else "denied", "t1"),
     ]
     assert sum(scan.counts.values()) == 1
-    block = scan.block(collect.Scrubber(redact.load_redactor(), 200), 200)
+    block = scan.block(session_record.Scrubber(redact.load_redactor(), 200), 200)
     assert (block["duplicates_dropped"], block["events"][0]["tool_use_id"]) == (1, "t1")
 
 

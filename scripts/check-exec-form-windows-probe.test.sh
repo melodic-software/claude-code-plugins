@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-exec-form-windows-probe.sh. Each scenario is a throwaway
-# plugins/ tree; the script cds to its own repo root and scans that tree.
 # shellcheck disable=SC2016
 set -uo pipefail
 
@@ -41,7 +39,7 @@ run_check() (
 NODE_ROW='{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"node","args":["${CLAUDE_PLUGIN_ROOT}/hooks/x.mjs"]}]}]}}'
 SHELL_ROW='{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash \"${CLAUDE_PLUGIN_ROOT}/hooks/x.sh\"","shell":"bash"}]}]}}'
 
-assert_fail() { # <name> <output> <needle>
+assert_fail() {
   local name="$1" out="$2" needle="$3"
   if grep -q "$needle" <<<"$out"; then
     ok "$name"
@@ -147,9 +145,6 @@ for name in node.exe powershell.exe pwsh.exe; do
   rm -rf "$f"
 done
 
-# --- the gate and the probe read one allowlist ------------------------------
-# Same fixture, same bare name, both scripts: they must agree, and each must
-# have judged the row (exit 0 or 1), not stopped on the environment (exit 2).
 for name in node node.exe bash sh python3 pwsh powershell.exe; do
   new_fixture f
   plugin_file "$f" alpha hooks/hooks.json "{\"hooks\":[{\"hooks\":[{\"type\":\"command\",\"command\":\"$name\",\"args\":[]}]}]}"
@@ -246,8 +241,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a newline after node is not node -----------------------------------------
-# The probe used to trim trailing whitespace, so `"node\n"` passed as node.
 new_fixture f
 plugin_file "$f" alpha hooks/hooks.json '{"hooks":[{"hooks":[{"type":"command","command":"node\n","args":[]}]}]}'
 if out="$(run_check "$f" 2>&1)"; then
@@ -268,7 +261,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an unparsable manifest is left to the manifest gate ----------------------
 new_fixture f
 plugin_file "$f" alpha .claude-plugin/plugin.json '{not json'
 plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
@@ -320,7 +312,6 @@ if command -v node >/dev/null 2>&1; then
   fi
   rm -rf "$f"
 
-  # A launcher that drops stdin and swallows the script's exit code.
   new_fixture f
   plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
   cat >"$f/lib/exec-bash.mjs" <<'EOF'
@@ -350,8 +341,6 @@ EOF
   fi
   rm -rf "$f"
 
-  # A Windows backslash execPath still counts as node.exe. The fake answers the
-  # spawn half; the launcher half needs a real node, so it gets the real one.
   new_fixture f
   plugin_file "$f" alpha hooks/hooks.json "$NODE_ROW"
   winnode="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
@@ -417,7 +406,6 @@ mapfile -t hook_args < <(jq -r '.hooks.PreToolUse[0].hooks[0].args[]' "$settings
 printf '%s' '{"session_id":"probe"}' | node "${hook_args[@]}"
 EOF
 chmod +x "$bin/claude"
-# The fake claude needs node and jq. Prepend only the fake bin.
 if out="$(cd "$f" && PATH="$bin:$PATH" EXEC_FORM_WINDOWS_PROBE_LIVE=1 EXEC_FORM_WINDOWS_PROBE_FORCE=1 bash scripts/check-exec-form-windows-probe.sh 2>&1)"; then
   if grep -q 'live probe delivered args and stdin' <<<"$out"; then
     ok "a live probe that keeps args reports delivery and converts nothing"

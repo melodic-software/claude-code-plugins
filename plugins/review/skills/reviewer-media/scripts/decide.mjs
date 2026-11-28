@@ -1,15 +1,4 @@
 #!/usr/bin/env node
-// Decide whether a pull request gets reviewer media now: skip, build, or stale (mark posted media
-// out of date and build nothing). Reads the pull request's facts as `/source-control:pull-request
-// view` prints them, on stdin; `--shown` is the commit its reviewer-media section shows, as
-// `/source-control:pull-request media shows` prints it. Resolves the reviewer-media convention
-// (docs/conventions/reviewer-media.md): the team file from the pull request's base commit, never
-// the working tree, then an untracked personal override, which can never set a team-only key. The
-// thresholds are the review-digest triggers (lib/review-digest.mjs).
-//
-//   decide.mjs [--requested] [--producer-unavailable] [--shown <sha>] [--policy <policy>] [--blast-radius <level>] < facts.json
-// Prints one JSON object. Exit 0 decided, 2 usage or unreadable facts.
-
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";

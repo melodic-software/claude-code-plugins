@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for the content-mutation disclosure guard. Tests source the
-# canonical lib/rewrite-guard.sh directly and drive its contract in isolation;
-# each plugin's own <plugin>.test.sh keeps the black-box hook contract tests.
-# Because CI enforces that every plugin copy is byte-identical to the source,
-# passing here covers the copies too.
 
 set -uo pipefail
 
@@ -20,8 +15,6 @@ ok() {
   PASS=$((PASS + 1))
 }
 
-# Every case runs against an isolated TMPDIR so "the scratch area is empty"
-# is a real assertion about THIS guard's snapshots, not ambient temp noise.
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/rewrite-guard-test-XXXXXX")
 trap 'rm -rf "$WORK"' EXIT
 export TMPDIR="$WORK/tmp"
@@ -39,7 +32,6 @@ source "$LIB_DIR/rewrite-guard.sh"
 
 target="$WORK/target.txt"
 
-# --- begin snapshots into TMPDIR (non-vacuity probe for every count below) ---
 printf 'one\n' >"$target"
 hook::rewrite_guard_begin "$target"
 if [[ "$(scratch_count)" == "1" ]]; then
@@ -89,7 +81,6 @@ else
   fail "take left $(scratch_count) file(s) behind (changed path)"
 fi
 
-# --- destructive read: a second take resets the message ----------------------
 hook::rewrite_take_disclosure "$target" "msg-again"
 if [[ -z "$HOOK_REWRITE_MESSAGE" ]]; then
   ok "second take resets the message (destructive read)"
@@ -102,7 +93,6 @@ else
   fail "second take reset HOOK_REWRITE_CHANGED to '$HOOK_REWRITE_CHANGED'"
 fi
 
-# --- take with no begin at all: nothing was attempted, so not changed --------
 HOOK_REWRITE_CHANGED=""
 hook::rewrite_take_disclosure "$target" "msg-never-armed"
 if [[ -z "$HOOK_REWRITE_MESSAGE" && "$HOOK_REWRITE_CHANGED" == "false" ]]; then
@@ -111,9 +101,6 @@ else
   fail "take without begin yielded message='$HOOK_REWRITE_MESSAGE' changed='$HOOK_REWRITE_CHANGED'"
 fi
 
-# --- exit without take: the EXIT trap releases the snapshot ------------------
-# The #3401/#3405 leak class: an arm that exits without releasing. Run in a
-# child bash so the exit is real.
 printf 'three\n' >"$target"
 bash -c '
   source "$1/hook-utils.sh"
@@ -127,7 +114,6 @@ else
   fail "exit without take left $(scratch_count) file(s) behind"
 fi
 
-# ...including an arm that exits non-zero mid-flight.
 bash -c '
   source "$1/hook-utils.sh"
   source "$1/rewrite-guard.sh"
@@ -140,11 +126,6 @@ else
   fail "non-zero exit left $(scratch_count) file(s) behind"
 fi
 
-# --- caller's EXIT trap is chained, not replaced -----------------------------
-# The Codex P2 on #3452: begin's trap must not clobber a caller-armed EXIT
-# handler. The child arms its own cleanup marker BEFORE begin; both the
-# marker (caller's handler ran) and an empty scratch (guard's release ran)
-# must hold after exit.
 printf 'chain\n' >"$target"
 marker="$WORK/prev-trap-ran"
 bash -c '
@@ -166,7 +147,6 @@ else
 fi
 rm -f "$marker"
 
-# ...and a second begin does not chain the guard's handler to itself.
 bash -c '
   source "$1/hook-utils.sh"
   source "$1/rewrite-guard.sh"
@@ -183,9 +163,6 @@ else
 fi
 rm -f "$marker"
 
-# --- snapshot failure: no orphan, guard inert --------------------------------
-# The hand-rolled copies emptied their variable when cp failed but left the
-# mktemp file behind; the guard removes it.
 hook::rewrite_guard_begin "$WORK/does-not-exist"
 if [[ "$(scratch_count)" == "0" ]]; then
   ok "failed snapshot leaves no orphan mktemp file"
@@ -232,10 +209,6 @@ else
   fail "disclose emitted on an unchanged file: $out"
 fi
 
-# --- an empty <file> takes against the file begin was given ------------------
-# The spelling hook::finish uses. The two halves of one guard cannot disagree
-# about which file was snapshotted, which is what a hook that formats a
-# normalized path spelling and takes on the original did.
 hook::rewrite_guard_begin "$target"
 printf 'remembered\n' >"$target"
 hook::rewrite_take_disclosure "" "msg-remembered"
@@ -257,9 +230,6 @@ else
   fail "empty file argument, unchanged: message='$HOOK_REWRITE_MESSAGE' changed='$HOOK_REWRITE_CHANGED'"
 fi
 
-# --- take composes with emit_channels as ONE document ------------------------
-# The #3406 class: rewrite disclosure plus findings context must be one JSON
-# document carrying both channels.
 hook::rewrite_guard_begin "$target"
 printf 'six\n' >"$target"
 hook::rewrite_take_disclosure "$target" "compose-msg"

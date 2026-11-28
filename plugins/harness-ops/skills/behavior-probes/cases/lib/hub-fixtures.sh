@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# hub-fixtures.sh <dir>: after hub-layout.sh <dir>, commits 200 small files under
-# <dir>/repos/github.com/acme/target/probe-fixtures, the directory the destructive
-# hub-start cases delete. Everything stays inside <dir>.
 set -euo pipefail
 d="${1:?usage: hub-fixtures.sh <dir>}"
 repo="$d/repos/github.com/acme/target"

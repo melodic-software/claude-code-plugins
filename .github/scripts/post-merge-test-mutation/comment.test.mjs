@@ -1,5 +1,3 @@
-// comment.mjs: one comment per merged pull request, edited in place on a
-// re-run, and no write without a pull request or a marked body.
 import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -12,7 +10,6 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 const BOT = { login: "github-actions[bot]" };
 const BODY = `${MARKER}\n## Post-merge mutation testing\n`;
 
-// A fake client over a list of comments, recording every call.
 function fakeGitHub(comments = []) {
   const calls = [];
   const github = async (method, path, body) => {

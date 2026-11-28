@@ -1,17 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/ConvertFrom-Jsonc.ps1 -- a JSONC (JSON with
-Comments) parser.
-
-.DESCRIPTION
-The catalog and other author-facing files use JSONC. The previous regex-based
-stripper in the orchestrator mangled URLs (https://), path separators, and
-escaped quotes. These tests pin the state-machine behavior: comments strip,
-string contents are preserved verbatim, block comments are supported, and
-line numbers are preserved for downstream parse-error reporting.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'ConvertFrom-Jsonc.ps1'

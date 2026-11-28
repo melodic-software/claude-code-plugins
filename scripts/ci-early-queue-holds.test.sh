@@ -1,17 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Fail a queued pull request a hold stops, before the lanes` step
-# body of .github/workflows/pr-require-checks.yml's select-tests under the
-# shell Actions gives a step with no `shell:` (bash -e), against a stub `gh`,
-# with the repository's own merge-holds.mjs and api-budget.bash as the base
-# commit's.
-#
-# In the merge queue a pull request carrying a hold label (do-not-merge, the
-# tracker's human-gated label, pr-verify-failed), a head a pr-unblock lane
-# stopped, or a lanes App pull request while the kill switch is on fails
-# select-tests, which every lane needs, so no lane runs (#10747). ci-status
-# still judges each hold. A read that fails, an unparsable ref or a base module
-# without queueHolds leaves the hold to ci-status and passes. The step ends
-# with the api-calls notice: two requests, the pull and one statuses page.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -75,12 +62,10 @@ HEAD=fedcba9876543210fedcba9876543210fedcba98
 GROUP_BASE=89abcdef0123456789abcdef0123456789abcdef
 REF="refs/heads/gh-readonly-queue/main/pr-7-$GROUP_BASE"
 LANE='{"login":"github-actions[bot]"}'
-# pull [labels-json] [user-json]
 PERSON='{"id":5,"type":"User"}'
 pull() { jq -cn --arg h "$HEAD" --argjson l "${1:-[]}" --argjson u "${2:-$PERSON}" '{number: 7, head: {sha: $h}, labels: $l, user: $u}'; }
 status() { jq -cn --arg c "$1" --arg s "$2" --argjson u "$LANE" '{context: $c, state: $s, creator: $u, description: "The lane stopped"}'; }
 
-# expect <label> <want-rc> <STUB_PULL> <STUB_STATUSES> [want-out] [refuse-out]
 expect() {
   local label="$1" want_rc="$2" out rc
   : >"$TMP_ROOT/log"
@@ -143,7 +128,6 @@ LANES_APP_SENDER_ID=99 LANES_DISABLED=true LANES_REPO_DISABLED=false bash -e "$T
 if [[ "$n" -eq 2 ]]; then ok "two holds give two errors"; else fail "two holds gave $n errors"; fi
 unset DISABLED
 
-# What it cannot read it leaves to ci-status, and passes.
 STUB_FAIL=pulls expect "an unreadable pull request passes to ci-status" 0 "$(pull '[{"name":"do-not-merge"}]')" "[]" \
   "::warning::could not read #7; ci-status judges the holds."
 expect "a pull request with no head passes to ci-status" 0 '{"number":7,"head":{},"labels":[{"name":"do-not-merge"}]}' "[]" \

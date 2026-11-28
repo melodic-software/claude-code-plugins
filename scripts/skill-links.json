@@ -461,7 +461,7 @@
         "It checks the batch against the repo's own build, test and lint gates."
       ],
       "related": [
-        "Route-lane candidate needs boundary design: /architecture:improve",
+        "Route-step candidate needs boundary design: /architecture:improve",
         "Pure markdown prose dedup: /docs-hygiene:extract-ssot",
         "Identifier rename rather than value change: /docs-hygiene:rename-references",
         "Duplicate-writer ownership rule to codify: /corrections:codify",
@@ -1892,10 +1892,10 @@
         "The interview renamed a term and the code still uses the old name: /docs-hygiene:rename-references <old> to <new>, before the spec.",
         "The user confirmed the shared understanding and the work needs a spec: /planning:prd when product intent (users, success measures) is still unsettled; for an engineering task, /planning:design, which records a one-line early exit when no design question is open and hands on to planning.",
         "Quickly accepted answers want a fresh-context check: /planning:audit-answers.",
-        "The interview outgrew one session and the effort is still foggy: /planning:wayfind chart.",
-        "Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow."
+        "The interview outgrew one session and the effort is still foggy: /planning:wayfind chart."
       ],
       "related": [
+        "Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow",
         "Problem still too rough to frame approaches: /planning:brainstorm",
         "Unfamiliar area needs blindspot pass first: /discovery:blindspot"
       ]

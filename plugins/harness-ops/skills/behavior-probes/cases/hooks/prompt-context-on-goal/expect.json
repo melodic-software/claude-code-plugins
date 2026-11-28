@@ -1,0 +1,20 @@
+{
+  "claim": "The text a UserPromptSubmit hook prints for a typed `/goal <condition>` reaches the turn the goal starts, so the model can answer with it.",
+  "tags": ["/goal", "UserPromptSubmit", "additionalContext", "hook"],
+  "permission_mode": "default",
+  "model": "claude-haiku-5-5",
+  "max_turns": 4,
+  "max_budget_usd": 0.5,
+  "target": {
+    "patterns": [
+      "^(?!\\{\"type\":\"api-request)(?=.*\"role\":\\s*\"assistant\")(?=.*TANGERINE-5150)",
+      "^(?=.*\"hook_event_name\":\\s*\"UserPromptSubmit\")(?=.*\"prompt\":\\s*\"/goal you have replied with only the codeword)"
+    ],
+    "example": [
+      "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"TANGERINE-5150\"}]}}",
+      "{\"session_id\":\"s\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"/goal you have replied with only the codeword given in this turn's context\"}"
+    ]
+  },
+  "outcome": "transcript-grep",
+  "control": "hooks/prompt-hook-context-reaches-plain-turn"
+}

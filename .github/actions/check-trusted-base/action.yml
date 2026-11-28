@@ -34,6 +34,13 @@ inputs:
       conflict); it must run before any head checkout.
     required: false
     default: pr-base
+  no-pr:
+    description: >
+      `true` for an issue lane's run with no PR, an issues event or, in the
+      read runner's verdict mode, a workflow_dispatch: no PR is read and the
+      default branch tip is trusted, in mode default-tip only.
+    required: false
+    default: ""
 
 outputs:
   commit:
@@ -58,6 +65,7 @@ runs:
         BASE_PATH: ${{ inputs.base-path }}
         GH_TOKEN: ${{ inputs.github-token }}
         MODE: ${{ inputs.mode }}
+        NO_PR: ${{ inputs.no-pr }}
       run: |
         fail() {
           echo "::error::$1"
@@ -71,9 +79,9 @@ runs:
         event=""
         # An issues lane has no PR, so no PR base to check: it trusts the
         # default branch tip.
-        if [ "$EVENT_NAME" = issues ]; then
+        if [ "$EVENT_NAME" = issues ] || [ "$NO_PR" = true ]; then
           [ "$MODE" = default-tip ] || fail "an issues event has no PR base; it needs mode default-tip"
-          event=" event=issues"
+          event=" event=$EVENT_NAME"
         else
           if [ "$EVENT_NAME" = pull_request ]; then
             base_ref=$EVENT_BASE_REF

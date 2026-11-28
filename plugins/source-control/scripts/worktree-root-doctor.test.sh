@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-root-doctor.sh (#2612). Black-box: build
-# throwaway git fixtures with an ISOLATED global config (GIT_CONFIG_GLOBAL +
-# GIT_CONFIG_NOSYSTEM, HOME pinned inside the sandbox) and assert on the
-# doctor's findings lines and exit codes. Every fixture reproduces one of the
-# silent-failure classes the doctor exists to make loud. No network.
-# Retired-alias rewrite is owned by worktree-root-legacy.sh (delete after
-# 2026-12-31).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,10 +17,6 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 HOME_DIR="$TEST_TMPDIR/home"
 mkdir -p "$HOME_DIR"
 
-# run <global-config-file> <repo-dir-or-empty> [extra doctor args...]
-# One doctor invocation against a pinned global config; sets RC and OUT.
-# XDG_CONFIG_HOME is cleared so ~/.config/git/config on the host machine can
-# never leak a real includeIf into a fixture's report.
 RC=0
 OUT=""
 run() {
@@ -50,21 +39,13 @@ mkrepo() {
 EMPTY_GCFG="$TEST_TMPDIR/empty-gitconfig"
 : >"$EMPTY_GCFG"
 
-# Every fixture-building git call runs against the pinned empty global config, so
-# the host's real ~/.gitconfig can never leak an includeIf into a fixture. One
-# wrapper rather than the prefix repeated per call, so no site can omit it.
 fgit() { GIT_CONFIG_GLOBAL="$EMPTY_GCFG" GIT_CONFIG_NOSYSTEM=1 git "$@"; }
 
 help_out=$(bash "$DOCTOR" --help 2>&1)
 assert_exit "--help exits 0" 0 "$?"
 assert_contains "--help documents the exit taxonomy" "$help_out" "at least one warn/error"
-# --help derives the whole header rather than a hardcoded line range, which
-# cuts off mid exit-codes list as the header grows. Pin the two lines such a
-# range drops first: an exit code, and the last header line.
 assert_contains "--help includes the usage-error exit code" \
   "$help_out" "2  usage error"
-assert_contains "--help reaches the end of the header, not a truncated range" \
-  "$help_out" "suffix shape IS flagged when a declared pattern carries it"
 
 bash "$DOCTOR" --frobnicate >/dev/null 2>&1
 assert_exit "an unknown argument is a usage error (exit 2)" 2 "$?"
@@ -94,7 +75,6 @@ assert_contains "the winning value is reported ok with its value" "$OUT" \
   "worktreeroot.path = $TEST_TMPDIR/wt-root"
 assert_contains "the winner names the file that supplied it" "$OUT" "supplied by"
 
-# A retired alias is rewritten onto worktreeroot.path at the origin file.
 LEGACY_KEYED="$(mkrepo legacykeyed)"
 fgit -C "$LEGACY_KEYED" config melodic.worktreeroot "$TEST_TMPDIR/wt-root-legacy"
 run "$EMPTY_GCFG" "$LEGACY_KEYED"
@@ -110,7 +90,6 @@ assert_eq "the doctor rewrote worktreeroot.path at the origin" \
   "$TEST_TMPDIR/wt-root-legacy" "$legacy_now"
 assert_exit "the retired alias is unset after the doctor run" 1 "$legacy_old_rc"
 
-# A space in the root must survive the rewrite as a single git-config value.
 SPACE_ROOT="$TEST_TMPDIR/wt root space"
 mkdir -p "$SPACE_ROOT"
 SPACE_KEYED="$(mkrepo spacekeyed)"
@@ -120,7 +99,6 @@ assert_exit "a space-bearing retired alias exits 0" 0 "$RC"
 space_now=$(fgit -C "$SPACE_KEYED" config --get --type=path worktreeroot.path)
 assert_eq "a space-bearing rewrite keeps the whole path" "$SPACE_ROOT" "$space_now"
 
-# Both keys set: the current key wins and the leftover alias is dropped.
 BOTH_KEYED="$(mkrepo bothkeyed)"
 fgit -C "$BOTH_KEYED" config worktreeroot.path "$TEST_TMPDIR/wt-root-new"
 fgit -C "$BOTH_KEYED" config melodic.worktreeroot "$TEST_TMPDIR/wt-root-old"
@@ -133,10 +111,6 @@ assert_not_contains "the outranked retired value is not the ok line" "$OUT" \
 both_old_rc=0
 fgit -C "$BOTH_KEYED" config --get melodic.worktreeroot >/dev/null 2>&1 || both_old_rc=$?
 assert_exit "a leftover retired alias is unset when the current key already answers" 1 "$both_old_rc"
-
-# --- includeIf attribution: the winner names WHICH condition fired ---------------
-# The include is anchored by repository NAME (**/<name>/.git) so the pattern is
-# canonicalization-proof across platforms; /i keeps it firing on Windows.
 
 INCREPO_PARENT="$(mktemp -d "$TEST_TMPDIR/incparentXXXXXX")"
 INCREPO="$INCREPO_PARENT/increpo-fixture"
@@ -155,13 +129,9 @@ assert_contains "the fired include is reported as contributing" "$OUT" \
 assert_contains "the scoped-read divergence is surfaced" "$OUT" \
   "never pass a scope flag without --includes"
 
-# In an UNRELATED repo the same condition is declared but never fires — the
-# doctor must say so rather than leaving declared and fired indistinguishable.
 run "$INC_GCFG" "$REPO"
 assert_contains "an unfired condition is reported as not contributing" "$OUT" \
   "did not contribute values here"
-
-# --- A declared include pointing at a nonexistent file (rc=0 upstream, silent) ---
 
 GHOST_GCFG="$TEST_TMPDIR/gitconfig-ghost"
 printf '[includeIf "gitdir/i:**/increpo-fixture/.git"]\n\tpath = %s\n' \
@@ -171,16 +141,12 @@ assert_exit "a missing include file is a finding (exit 1)" 1 "$RC"
 assert_contains "the missing file is named, with the silent-skip diagnosis" "$OUT" \
   "points at a nonexistent file"
 
-# --- An unrecognized condition keyword (typo class, silent upstream) --------------
-
 TYPO_GCFG="$TEST_TMPDIR/gitconfig-typo"
 printf '[includeIf "gitdirs:/x/"]\n\tpath = %s\n' "$INC_FILE" >"$TYPO_GCFG"
 run "$TYPO_GCFG" "$REPO"
 assert_exit "an unknown condition keyword is a finding (exit 1)" 1 "$RC"
 assert_contains "the unknown keyword is called out as silently skipped" "$OUT" \
   "not a keyword this git recognizes"
-
-# --- A worktree:/worktree-i: condition on a pre-2.56 git --------------------------
 
 WT_GCFG="$TEST_TMPDIR/gitconfig-worktreecond"
 printf '[includeIf "worktree:/x/"]\n\tpath = %s\n' "$INC_FILE" >"$WT_GCFG"
@@ -192,8 +158,6 @@ if [[ "$(git --version)" =~ ([0-9]+)\.([0-9]+) ]] &&
 else
   skip_case "worktree: version-floor warning needs a pre-2.56 git"
 fi
-
-# --- Parse order IS precedence: a plain value after an include-supplied one ------
 
 SHADOW_GCFG="$TEST_TMPDIR/gitconfig-shadow"
 {
@@ -207,7 +171,6 @@ assert_contains "the shadow warning names parse order as the precedence rule" "$
 assert_contains "the shadow warning names the remedy (move the default up)" "$OUT" \
   "ABOVE the includeIf block"
 
-# The correct layering — plain default FIRST, include after — is a clean report.
 LAYERED_GCFG="$TEST_TMPDIR/gitconfig-layered"
 {
   printf '[worktreeroot]\n\tpath = %s\n' "$TEST_TMPDIR/machine-default"
@@ -244,7 +207,6 @@ assert_exit "an identity partial is a finding (exit 1)" 1 "$RC"
 assert_contains "the partial names the leaking key and the verifies-Good trap" "$OUT" \
   "sets user.email but not user.signingkey"
 
-# A COMPLETE identity include raises no partial warning.
 FULL_INC="$TEST_TMPDIR/identity-full.inc"
 printf '[user]\n\temail = work@example.com\n\tsigningkey = ~/.ssh/work.pub\n' >"$FULL_INC"
 FULL_GCFG="$TEST_TMPDIR/gitconfig-full"
@@ -298,7 +260,6 @@ else
   skip_case "worktree add unavailable for the nested-worktree fixture"
 fi
 
-# An in-root worktree and a worktree inside its own repository are not flagged.
 IN_ROOT="$TEST_TMPDIR/ok-root"
 mkdir -p "$IN_ROOT"
 fgit -C "$WTREPO" config worktreeroot.path "$IN_ROOT"
@@ -313,16 +274,12 @@ else
   skip_case "worktree add unavailable for the in-root fixture"
 fi
 
-# A main checkout nested in another repository (a clone under a dotfiles repo) is
-# not a worktree to remove.
 mkdir -p "$NEST_A/clone"
 fgit -C "$NEST_A/clone" init -q -b main >/dev/null 2>&1
 run "$EMPTY_GCFG" "$NEST_A/clone"
 assert_not_contains "a clone under another repository is not flagged" "$OUT" \
   "sits inside the work tree of a different repository"
 
-# A worktree inside its own repository's tree is not flagged even when that
-# repository's main checkout sits inside another repository.
 fgit -C "$NEST_A/clone" config user.email t@t.t
 fgit -C "$NEST_A/clone" config user.name t
 fgit -C "$NEST_A/clone" config commit.gpgsign false

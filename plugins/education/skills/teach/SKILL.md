@@ -1,5 +1,5 @@
 ---
-description: "Multi-session learning coach for general topics or repo-grounded concepts, with persistent per-topic learning state and a single-session domain primer."
+description: "Multi-session learning coach for general topics or repo-grounded concepts, with persistent per-topic state and a single-session primer."
 argument-hint: "<topic|codebase|mission|glossary|resources|explain|primer|exercise|assess|resume|status> [args]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/build-lesson.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-lesson.mjs\":*)"]
 user-invocable: true
@@ -369,6 +369,11 @@ substituted or expanded on the way to the Bash tool.
 
 - **Pointer**: when deciding whether a `${…}` token in a Read-delivered file resolves, fetch
   <https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves> live.
+
+## Next
+
+- A codebase lesson covered a change the user just made: /education:quiz-me.
+- The concept is understood and a change to it comes next: /planning:interview.
 
 ## What This Skill Does Not Do
 

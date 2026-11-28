@@ -20,10 +20,6 @@ OUT=$(bash "$SCRIPT" --help) || rc=$?
 assert_eq "--help exits 0" 0 "$rc"
 assert_contains "--help prints usage" "$OUT" "Usage:"
 
-# --- Case 2: a repo with one of each finding ---
-# The auto-memory dir is resolved from the fixture repo's own identity, which has no
-# memory directory on this machine, so the M lines report 0 and M2 reports nothing.
-
 REPO="$TEST_TMPDIR/repo"
 make_repo "$REPO"
 mkdir -p "$REPO/.claude/rules" "$REPO/sub"

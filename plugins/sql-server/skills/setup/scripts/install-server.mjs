@@ -1,12 +1,3 @@
-// The setup skill's apply. Copies the server (src, schemas, package.json,
-// package-lock.json and the plugin manifest) into <data-dir>/server, a path
-// that stays the same across plugin updates, and installs its pinned
-// dependencies with npm ci in <data-dir>/server.next, which replaces the live
-// copy only once complete. Changes nothing when that copy already holds this
-// plugin's version and its dependencies. Prints the version it reads back.
-//
-// usage: node install-server.mjs --data-dir <dir>
-// exit: 0 when the copy holds this version and its dependencies, 1 when not, 2 on a usage error
 import { spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -39,8 +30,6 @@ function main(argv) {
     return 0;
   }
 
-  // Build the new copy beside the live one and swap it in only once it is
-  // complete, so a failed install leaves the copy registrations use untouched.
   const stagingDir = `${serverDir}.next`;
   const previousDir = `${serverDir}.previous`;
   rmSync(stagingDir, { recursive: true, force: true });

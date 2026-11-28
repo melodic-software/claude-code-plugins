@@ -20,11 +20,15 @@ const CLOSER_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
  * issue's last ClosedEvent `closer` is a merged pull request or a commit in
  * this repository, whoever merged it (GraphQL, since the REST close event
  * carries no pull request link); or (c) the lanes App closed it, when the
- * caller names the App with `isApp`, and appDoneClose allows it. Any other
- * close, such as a workflow's GITHUB_TOKEN or an outside author closing their
- * own issue, counts for nothing.
+ * caller names the App with `isApp`, and its own outcome close comment
+ * (appCloseKind) names an already-done or verified-done close whose evidence
+ * still re-checks true (owner Q9), or, with `blocker`, any other stop when that
+ * comment postdates the issue's last reopen (owner Q300: blocker resolution
+ * only, never a sub-issue or parent rule). Any other close, such as a
+ * workflow's GITHUB_TOKEN, an App close with no such comment, or an outside
+ * author closing their own issue, counts for nothing.
  */
-export async function isTrustedClose(github, repo, closedIssue, humans, isApp = () => false) {
+export async function isTrustedClose(github, repo, closedIssue, humans, isApp = () => false, { blocker = false } = {}) {
   const closer = closedIssue?.closed_by;
   if (humans.has(closer?.id)) {
     return true;
@@ -42,18 +46,21 @@ export async function isTrustedClose(github, repo, closedIssue, humans, isApp = 
   if (here && (by.__typename === "Commit" || (by.__typename === "PullRequest" && by.merged === true))) {
     return true;
   }
-  return isApp(closer) && appDoneClose(github, repo, Number(closedIssue.number), humans, isApp);
+  return isApp(closer) && appMarkedClose(github, repo, Number(closedIssue.number), humans, isApp, blocker);
 }
 
-async function appDoneClose(github, repo, number, humans, isApp) {
+async function appMarkedClose(github, repo, number, humans, isApp, blocker) {
   try {
     const close = await appCloseKind(github, repo, number, isApp);
-    const { doneEvidence, parentDone } = await import(new URL("../../scripts/lib/done-evidence.mjs", import.meta.url).href);
+    const { doneEvidence, lastReopened, parentDone } = await import(new URL("../../scripts/lib/done-evidence.mjs", import.meta.url).href);
     if (close?.stop === "verified-done") {
       const trusted = async (child) => isTrustedClose(github, repo, await github("GET", `/repos/${repo}/issues/${child}`), humans, isApp);
       return (await parentDone(github, `/repos/${repo}`, number, trusted)) === true;
     }
-    return close?.stop === "already-done" && (await doneEvidence(github, `/repos/${repo}`, close.reason, number)) === true;
+    if (close?.stop === "already-done") {
+      return (await doneEvidence(github, `/repos/${repo}`, close.reason, number)) === true;
+    }
+    return blocker && Boolean(close) && Date.parse(close.at) > (await lastReopened(github, `/repos/${repo}`, number));
   } catch {
     return false;
   }

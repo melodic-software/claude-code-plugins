@@ -105,7 +105,7 @@ class JscpdAdapterTests(unittest.TestCase):
             row = rows[0]
             self.assertIsNone(row["file"])
             self.assertIsNone(row["function"])
-            self.assertEqual(row["lane"], "bash")
+            self.assertEqual(row["language"], "bash")
             self.assertEqual(row["collector"], "jscpd")
             self.assertEqual([i["file"] for i in row["instances"]], [ALPHA, BETA])
             self.assertEqual(
@@ -182,9 +182,6 @@ class JscpdAdapterTests(unittest.TestCase):
             self.assertIn("--ignore **/vendor/**,**/dist/**", argv)
 
     def test_a_long_file_list_never_reaches_the_command_line(self) -> None:
-        # Regression for the Windows failure: past the command-line limit jscpd
-        # wrote no report and printed nothing. The stub fails the same way past
-        # a small argument count, so a list carried on argv fails this test.
         with tempfile.TemporaryDirectory() as tmp:
             log = Path(tmp) / "argv.log"
             listing = Path(tmp) / "paths.txt"
@@ -256,8 +253,6 @@ class JscpdAdapterTests(unittest.TestCase):
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
                 argv = log.read_text(encoding="utf-8")
-                # One byte above the adapter's own bound, so the pre-filter is
-                # the only gate on either major.
                 self.assertIn("--max-size 1048577", argv, version)
                 self.assertIn("--max-lines 2147483647", argv, version)
 

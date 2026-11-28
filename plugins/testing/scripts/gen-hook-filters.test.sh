@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Test for gen-hook-filters.sh: the shipped hooks.json is in sync with the
-# adapters, every row is gated by an `if`, no row matches a non-test path, no
-# glob repeats, no per-edit scan or judge row ships, and --check catches drift.
 # test-scope: plugins/testing/skills/audit/adapters/*.yaml
 # test-scope: plugins/testing/hooks/hooks.json
 # shellcheck disable=SC2016  # check() evals its single-quoted condition
@@ -28,8 +25,6 @@ check "shipped hooks.json is in sync (--check exits 0)" 'bash "$GEN" --check'
 check "PreToolUse runs only test-weaken" \
   '[[ "$(jq -r "[.hooks.PreToolUse[].hooks[].args[-1]] | unique | join(\" \")" "$HOOKS")" == */test-weaken.sh ]]'
 
-# Report-only test findings come from /testing:audit on demand: no per-edit
-# scan, no task-end judge, no Bash row.
 check "no PostToolUse, Stop or SubagentStop entry" \
   '[[ "$(jq "[.hooks.PostToolUse, .hooks.Stop, .hooks.SubagentStop] | map(length) | add" "$HOOKS")" == 0 ]]'
 check "no row runs test-scan or a test-judge script" \

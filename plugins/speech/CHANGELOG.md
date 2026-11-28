@@ -3,6 +3,61 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.2] - 2026-11-28
+
+### Changed
+
+- Trim `speech` skill frontmatter descriptions (`narrate` 629 -> 336, `setup` 488 -> 149; total 1117 -> 485 chars).
+
+## [1.3.1] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [1.3.0] - 2026-11-27
+
+### Added
+
+- `install_python_deps_enabled` option (boolean, default `false`) in `plugin.json` and `schemas/speech.schema.json` controls the SessionStart `install-python-deps` hook across the plugin default, user layer (`CLAUDE_PLUGIN_OPTION_INSTALL_PYTHON_DEPS_ENABLED`), and repository layer (`docs/conventions/speech.yaml`) through `lib/hook-enabled.sh`.
+
+### Changed
+
+- The SessionStart `install-python-deps` hook now defaults to off per the hook-enablement convention because it installs packages over the network without an explicit request; running `/speech:narrate` without the packages prints the one-line install command.
+
+## [1.2.18] - 2026-11-27
+
+### Changed
+
+- The shared redactor copy (`redact.py`) gains a published-output redactor for fleet identifiers; this plugin's own redaction is unchanged.
+- The shared redactor copy (`redact.py`) can leave report field names its caller lists unredacted; this plugin lists none, so its redaction is unchanged.
+
+### Fixed
+
+- Redacting a secret at the end of a line no longer joins the next line onto the redacted one.
+- A secret whose gitleaks rule marks only part of it, such as a base64 JWT, a Teams webhook URL or a Kubernetes Secret's later data values, is redacted whole; only line breaks and a trailing quote, space or semicolon are kept.
+
+## [1.2.17] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [1.2.16] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [1.2.15] - 2026-11-25
+
+### Fixed
+
+- `scripts/redact.py` now redacts the whole value of a bare `sk-ant-oat02-` OAuth token, the same
+  way it redacts `sk-ant-oat01-`. Claude Code 2.1.332 lets `CLAUDE_CODE_OAUTH_TOKEN` start with
+  either prefix
+  ([#18984](https://github.com/melodic-software/claude-code-plugins/issues/18984)).
+
 ## [1.2.14] - 2026-11-23
 
 ### Changed

@@ -1,11 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/Write-ElevatedResult.ps1 and the orchestrator's
--ResultPath branch that calls it. The document shape and the refusal rules come
-from reference/windows/elevation-matrix.md, "How to run elevated".
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript @(

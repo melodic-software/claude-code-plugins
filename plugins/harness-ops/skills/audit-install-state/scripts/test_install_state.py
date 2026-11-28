@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
 # test-scope: plugins/harness-ops/.claude-plugin/plugin.json
-"""Contract tests for the install-state engine.
-
-Every test builds its own synthetic tree. Nothing here reads the author's real
-`~/.claude`, so the suite is portable and its results do not depend on which
-machine it runs on.
-"""
 
 from __future__ import annotations
 
@@ -42,12 +36,10 @@ def _managed_paths(paths: list[Path]):
 
 
 def build_tree(root: Path) -> None:
-    """A miniature `~/.claude` carrying one instance of each trap."""
     (root / "sessions").mkdir(parents=True)
     (root / "sessions" / "5052.json").write_text("{}", encoding="utf-8")
 
     (root / "ide").mkdir()
-    # Body deliberately carries an authToken so a test can prove it is not read.
     (root / "ide" / "22580.lock").write_text(
         '{"pid": 32324, "authToken": "SHOULD-NEVER-BE-READ"}', encoding="utf-8"
     )
@@ -299,7 +291,6 @@ class TestRetention(unittest.TestCase):
             ids = [f["id"] for f in retention["findings"]]
             self.assertNotIn("settings-unparsable-pauses-sweep", ids)
             self.assertEqual(retention["effective_days"], 7)
-            # The parse failure itself is still on the record.
             self.assertTrue(retention["user_settings_parse"].startswith("failed:"))
 
     def test_invalid_managed_value_keeps_the_sweep_paused_finding(self) -> None:
@@ -645,12 +636,6 @@ class TestCsvFormulaInjection(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             build_tree(root)
-            # A DDE-shaped payload with the two characters Windows forbids in a
-            # filename removed: `|` and the `/` of `/C`. Neither assertion below
-            # inspects them -- both read the `=cmd` leader and the quote the
-            # writer prepends -- so dropping them keeps the property under test
-            # intact and lets the case run on every host instead of erroring at
-            # `mkdir` with WinError 123.
             hostile = root / "=cmd 'C calc'!A0"
             hostile.mkdir(parents=True, exist_ok=True)
             (hostile / "plugin.json").write_text("{}", encoding="utf-8")
@@ -785,7 +770,7 @@ class TestEnvironmentState(unittest.TestCase):
     def test_a_local_tree_with_session_env_and_managed_caches_reads_local(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            build_tree(root)  # carries session-env/
+            build_tree(root)
             (root / "remote-settings.json").write_text("{}", encoding="utf-8")
             (root / "policy-limits.json").write_text("{}", encoding="utf-8")
             state = engine.environment_state(root, own_config_dir=True, env={})
@@ -974,7 +959,7 @@ class TestInUseScheme(unittest.TestCase):
             marker = next(r for r in rows if r["pid"] == 4242)
             self.assertEqual(marker["count"], 3)
             self.assertTrue(marker["self_held"])
-            self.assertEqual(len(rows), 2)  # 4242 markers + sessions/5052.json
+            self.assertEqual(len(rows), 2)
             session = next(r for r in rows if r["pid"] == 5052)
             self.assertFalse(session["self_held"])
 
@@ -1072,8 +1057,6 @@ class TestAuditorAncestry(unittest.TestCase):
         "no process lister on this host",
     )
     def test_one_ps_listing_yields_the_same_ancestors_as_proc(self) -> None:
-        # Git Bash's ps is Cygwin's and rejects -axo; the engine lists Windows
-        # processes through CIM, so that is the listing to exercise there.
         if os.name == "nt":
             table, method = engine._process_table()
             table = table or {}
@@ -1398,6 +1381,208 @@ class TestCsvWriteFailure(unittest.TestCase):
                 )
         self.assertEqual(rc, 2)
         self.assertIn("cannot write --csv", err.getvalue())
+
+
+class TestSharedInstallTreeDeepening(unittest.TestCase):
+    """H1/H2 regression tests: remote/ surface, strict UTF-8, temp_git_* separation, stat-only projects."""
+
+    def test_remote_surface_is_classified_as_kept(self) -> None:
+        surface, _note = engine.classify_entry("remote/session-1.json")
+        self.assertEqual(surface, engine.KEPT)
+
+    def test_invalid_utf8_in_settings_fails_closed_as_unparsable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "settings.json").write_bytes(b'{"cleanupPeriodDays": 7}\xff')
+            retention = engine.read_retention(root)
+            self.assertTrue(
+                str(retention["user_settings_parse"]).startswith("failed:")
+            )
+            ids = [f["id"] for f in retention["findings"]]
+            self.assertIn("settings-unparsable-pauses-sweep", ids)
+
+    def test_invalid_utf8_in_installed_plugins_fails_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            vdir = root / "plugins" / "cache" / "mkt" / "plug" / "1.0.0"
+            vdir.mkdir(parents=True)
+            (vdir / "payload").write_bytes(b"x" * 10)
+            (root / "plugins" / "installed_plugins.json").write_bytes(
+                b'{"version":2,"plugins":{"plug@mkt":[{"installPath":"/x/\xff"}]}}'
+            )
+            rows, _ = engine.walk_tree(root, [])
+            found, note = engine.unreferenced_versions(root, rows, now=1_800_000_000.0)
+            self.assertEqual(found, [])
+            self.assertIsNotNone(note)
+
+    def test_temp_git_nested_dirs_are_excluded_from_unreferenced_versions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            cur = root / "plugins" / "cache" / "mkt" / "plug" / "1.0.0"
+            cur.mkdir(parents=True)
+            (cur / "payload").write_bytes(b"x" * 10)
+            tg = (
+                root
+                / "plugins"
+                / "cache"
+                / "temp_git_98765_abc"
+                / ".git"
+                / "objects"
+                / "pack"
+            )
+            tg.mkdir(parents=True)
+            (tg / "pack-1.idx").write_bytes(b"y" * 500)
+            (root / "plugins" / "installed_plugins.json").write_text(
+                json.dumps(
+                    {
+                        "version": 2,
+                        "plugins": {
+                            "plug@mkt": [{"scope": "user", "installPath": str(cur)}]
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            rows, _ = engine.walk_tree(root, [])
+            found, note = engine.unreferenced_versions(root, rows, now=1_800_000_000.0)
+            self.assertIsNone(note)
+            self.assertEqual(found, [])
+
+    def test_projects_orphan_summary_is_stat_only_and_never_opens_transcripts(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            build_tree(root)
+            orphan = root / "projects" / "-definitely-gone-project-xyz-999"
+            orphan.mkdir(parents=True)
+            transcript = orphan / "11111111-2222-3333-4444-555555555555.jsonl"
+            transcript.write_text('{"cwd":"/should/not/be/read"}\n', encoding="utf-8")
+            report = _scan(root)
+            self.assertIn("projects_audit", report)
+            orphans = report["projects_audit"]["orphan_slugs"]
+            self.assertIn("-definitely-gone-project-xyz-999", orphans)
+            for entry in report["entries"]:
+                for p in entry["content_read_paths"]:
+                    self.assertFalse(p.startswith("projects/"), p)
+
+
+class TestManagedSettingsDropins(unittest.TestCase):
+    """H3: managed-settings.d/*.json drop-in merge, parse-failure reporting, and OS path parity."""
+
+    def test_dropin_overrides_base_cleanup_period_days_alphabetically(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "claude"
+            root.mkdir()
+            (root / "settings.json").write_text(
+                json.dumps({"cleanupPeriodDays": 30}), encoding="utf-8"
+            )
+            managed_dir = Path(tmp) / "managed"
+            managed_dir.mkdir()
+            base = managed_dir / "managed-settings.json"
+            base.write_text(json.dumps({"cleanupPeriodDays": 14}), encoding="utf-8")
+            dropins = managed_dir / "managed-settings.d"
+            dropins.mkdir()
+            (dropins / "05-early.json").write_text(
+                json.dumps({"cleanupPeriodDays": 21}), encoding="utf-8"
+            )
+            (dropins / "20-late.json").write_text(
+                json.dumps({"cleanupPeriodDays": 7}), encoding="utf-8"
+            )
+            (dropins / "25-unrelated.json").write_text(
+                json.dumps({"env": {"FOO": "bar"}}), encoding="utf-8"
+            )
+            (dropins / ".99-hidden.json").write_text(
+                json.dumps({"cleanupPeriodDays": 99}), encoding="utf-8"
+            )
+            (dropins / "99-notes.txt").write_text("{ not json", encoding="utf-8")
+            with _managed_paths([base]):
+                retention = engine.read_retention(root)
+            self.assertEqual(retention["managed_setting_days"], 7)
+            self.assertEqual(retention["effective_days"], 7)
+            self.assertEqual(retention["effective_evidence"], engine.MEASURED)
+            ids = [f["id"] for f in retention["findings"]]
+            self.assertNotIn("managed-settings-unparsable-refuses-start", ids)
+
+    def test_valid_dropin_without_base_withdraws_sweep_paused_finding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "claude"
+            root.mkdir()
+            (root / "settings.json").write_text("{ not json", encoding="utf-8")
+            managed_dir = Path(tmp) / "managed"
+            dropins = managed_dir / "managed-settings.d"
+            dropins.mkdir(parents=True)
+            base = managed_dir / "managed-settings.json"
+            (dropins / "10-retention.json").write_text(
+                json.dumps({"cleanupPeriodDays": 7}), encoding="utf-8"
+            )
+            with _managed_paths([base]):
+                retention = engine.read_retention(root)
+            ids = [f["id"] for f in retention["findings"]]
+            self.assertNotIn("settings-unparsable-pauses-sweep", ids)
+            self.assertEqual(retention["managed_setting_days"], 7)
+            self.assertEqual(retention["effective_days"], 7)
+
+    def test_unparsable_dropin_emits_refuses_start_finding(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "claude"
+            root.mkdir()
+            (root / "settings.json").write_text("{}", encoding="utf-8")
+            managed_dir = Path(tmp) / "managed"
+            dropins = managed_dir / "managed-settings.d"
+            dropins.mkdir(parents=True)
+            base = managed_dir / "managed-settings.json"
+            base.write_text(json.dumps({"cleanupPeriodDays": 14}), encoding="utf-8")
+            (dropins / "10-broken.json").write_text("{ not json", encoding="utf-8")
+            (dropins / "20-valid.json").write_text(
+                json.dumps({"cleanupPeriodDays": 7}), encoding="utf-8"
+            )
+            with _managed_paths([base]):
+                retention = engine.read_retention(root)
+            ids = [f["id"] for f in retention["findings"]]
+            self.assertIn("managed-settings-unparsable-refuses-start", ids)
+            self.assertEqual(retention["managed_setting_days"], "unparsable")
+
+    def test_managed_settings_platform_paths_match_managed_scope_sh(self) -> None:
+        import subprocess
+
+        import managed_settings
+
+        scope_sh = Path(__file__).resolve().parents[3] / "lib" / "managed-scope.sh"
+        self.assertTrue(scope_sh.is_file(), f"missing {scope_sh}")
+        cases = [
+            ("Linux", "linux-gnu", {}),
+            ("Darwin", "darwin23", {}),
+            ("Windows", "msys", {}),
+            ("Windows", "msys", {"PROGRAMFILES": r"D:\Apps", "ProgramFiles": r"D:\Apps"}),
+        ]
+        for py_sys, ostype, extra_env in cases:
+            with self.subTest(system=py_sys, env=extra_env):
+                env = {k: v for k, v in os.environ.items() if k.upper() != "PROGRAMFILES"}
+                env.update(extra_env)
+                proc = subprocess.run(
+                    [
+                        "bash",
+                        "-c",
+                        (
+                            f'OSTYPE="{ostype}"; source "{scope_sh.as_posix()}"; '
+                            'mscope::base_file; mscope::dropin_dir'
+                        ),
+                    ],
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+                sh_base, sh_dropin = proc.stdout.splitlines()
+                py_base = str(managed_settings.base_file(system=py_sys, env=extra_env))
+                py_dropin = str(managed_settings.dropin_dir(system=py_sys, env=extra_env))
+                self.assertEqual(
+                    py_base.replace("\\", "/"), sh_base.replace("\\", "/")
+                )
+                self.assertEqual(
+                    py_dropin.replace("\\", "/"), sh_dropin.replace("\\", "/")
+                )
 
 
 if __name__ == "__main__":

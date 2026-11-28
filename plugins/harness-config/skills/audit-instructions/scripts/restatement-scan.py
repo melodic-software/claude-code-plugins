@@ -31,10 +31,6 @@ from pathlib import Path
 CHECK_DESC = "I29-a"
 CHECK_SIBLING = "I29-b"
 
-# Footer / index headings are sources for sibling comparison but are never
-# themselves a restatement finding: audit-noise protects them, and a
-# Cross-references section that happens to be shorter than a NOT-do section
-# is the source, not the defect.
 NEVER_FLAG_HEADINGS = frozenset(
     {
         "sources",
@@ -71,7 +67,7 @@ SENTENCE_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z*\"'`])")
 @dataclass
 class Section:
     heading_norm: str
-    line: int  # 1-based heading line
+    line: int
     body: str
     units: list[tuple[int, str]] = field(default_factory=list)
 
@@ -97,7 +93,6 @@ def content_tokens(text: str) -> set[str]:
 
 
 def extract_frontmatter(lines: list[str]) -> tuple[int, list[str]]:
-    """Return (body_start_index, frontmatter_lines). body_start is 0-based."""
     if not lines or not re.match(r"^---\s*$", lines[0]):
         return 0, []
     fm: list[str] = []
@@ -105,7 +100,7 @@ def extract_frontmatter(lines: list[str]) -> tuple[int, list[str]]:
         if re.match(r"^---\s*$", lines[i]):
             return i + 1, fm
         fm.append(lines[i])
-    return len(lines), fm  # unclosed: fail-safe, no body
+    return len(lines), fm
 
 
 def frontmatter_field(fm: list[str], key: str) -> str:
@@ -136,7 +131,6 @@ def frontmatter_field(fm: list[str], key: str) -> str:
 
 
 def split_units(body_lines: list[tuple[int, str]]) -> list[tuple[int, str]]:
-    """(line, unit-text) for bullets and sentences, skipping fences."""
     units: list[tuple[int, str]] = []
     fence: str | None = None
     buf: list[tuple[int, str]] = []
@@ -207,7 +201,6 @@ def parse_sections(lines: list[str], body_start: int) -> list[Section]:
 
 
 def recoverable(unit: str, source: str) -> bool:
-    """True iff `unit` adds no content token the source does not already carry."""
     nunit = normalize(unit)
     nsrc = normalize(source)
     if len(nunit) < 24:
@@ -221,17 +214,12 @@ def recoverable(unit: str, source: str) -> bool:
     unique = utoks - stoks
     if not unique:
         return True
-    # Near-verbatim: one leftover token is still a restatement when almost
-    # every content token is already in the source (the leftover is usually
-    # a synonym or a heading-word like "purpose").
     overlap = utoks & stoks
     return len(utoks) >= 8 and len(unique) == 1 and len(overlap) / len(utoks) >= 0.85
 
 
 def section_wholly_recoverable(section: Section, source: str) -> bool:
     if not section.units:
-        # A heading-only or one-sentence section with no split units: judge
-        # the body as a single unit.
         body = section.body.strip()
         return bool(body) and recoverable(body, source)
     return all(recoverable(text, source) for _, text in section.units)
@@ -245,10 +233,6 @@ def scan_file(path: Path) -> list[str]:
     lines = text.splitlines()
     body_start, fm = extract_frontmatter(lines)
     description = frontmatter_field(fm, "description")
-    # Drop the Use-when / Not-for tail so a section that restates the
-    # capability sentence is not rescued by trigger-phrase tokens, and so a
-    # section that only restates the trigger list is not a finding (those
-    # phrases are the listing, not body ceremony).
     desc_capability = re.split(
         r"(?i)\buse when\b|\bnot for\b", description, maxsplit=1
     )[0]
@@ -259,9 +243,6 @@ def scan_file(path: Path) -> list[str]:
             continue
         if not section.body.strip():
             continue
-        # Locate the first body unit (or the heading if the body did not
-        # split). The fixer should see the restating prose, not only the
-        # heading, and emit-findings' quoted-trigger fence reads this line.
         loc = section.units[0][0] if section.units else section.line
         if desc_capability and section_wholly_recoverable(section, desc_capability):
             rows.append(f"{path}:{loc}:{CHECK_DESC}")

@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Self-test for scripts/validate-plugins.sh's argument contract. The validation
-# passes themselves need node and the claude CLI and run in CI's manifest step;
-# what is pinned here is that a plugin list the script cannot honor is refused
-# before anything runs, rather than narrowing the per-plugin pass to nothing.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,8 +23,6 @@ expect_usage "--only with a stray second argument is a usage error" "usage: vali
 expect_usage "a name that is not a plugin is refused" "'no-such-plugin' is not a plugin" --only "guardrails no-such-plugin"
 expect_usage "a path in place of a name is refused" "is not a plugin" --only "../scripts"
 
-# A contract warning fails the run (#6215), before any later pass runs. A
-# stand-in `node` plays the contract validator: exit 0, one warning line.
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 printf '#!/usr/bin/env bash\necho "warning: plugins/x/.claude-plugin/plugin.json: probe" >&2\nexit 0\n' >"$TMP_ROOT/node"

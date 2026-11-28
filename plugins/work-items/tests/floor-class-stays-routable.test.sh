@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Regression guard: the attended lane's "Flip to agent-ready" transition must
-# stay human-floor aware, so resolving a C5 escalation never strands the item.
-#
-# An unconditional flip on a floor-class row leaves the item outside the autonomous
-# frontier AND off the attended view (which reads role labels): reachable by no lane.
-# Only untrusted provenance floors an item, so the transition must not gate on
-# `work-class: structural` either.
 # shellcheck disable=SC2016  # fixture bodies are literal prose in single quotes; expansion is never wanted
 set -uo pipefail
 
@@ -24,8 +17,6 @@ fail() {
   FAIL=$((FAIL + 1))
 }
 
-# The flip bullet through the next blank line (its list is contiguous). The floor
-# rule must be stated where the flip is instructed, not merely somewhere in the file.
 transition_region() {
   awk '
     /^- \*\*Flip to agent-ready\./ { inside = 1 }
@@ -84,8 +75,6 @@ assert_accepts() {
   fi
 }
 
-# The wording the transition carried before this guard existed: an unconditional
-# flip that says nothing about the work class.
 assert_flags 'the unconditional pre-fix flip' \
   '- **Flip to agent-ready.** When an answer or ratification removes the human blocker, apply the
   autonomous-eligible role label and remove the human-gated role label **in the same edit** (both
@@ -98,8 +87,6 @@ Next section.'
 assert_flags 'a file with no flip transition at all' \
   '- **`[held]` rows**. Restate the brief and leave the next step to the operator.'
 
-# Near miss: the floor class is named in the file, but outside the transition.
-# Reachability depends on the rule being stated where the flip is instructed.
 assert_flags 'floor classes named outside the transition' \
   '- **Flip to agent-ready.** Apply the autonomous-eligible role label and remove the human-gated
   role label in the same edit.

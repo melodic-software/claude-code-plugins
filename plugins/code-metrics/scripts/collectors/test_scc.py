@@ -31,8 +31,6 @@ CAPTURE = TOOL_OUTPUT / "scc.json"
 def make_stub(
     directory: Path, capture: Path = CAPTURE, calls_log: Path | None = None
 ) -> None:
-    """A `scc` stub replaying `capture`; with `calls_log` it also appends the
-    number of arguments it received, one line per call."""
     log = f'printf \'%s\\n\' "$#" >>"{calls_log}"\n' if calls_log is not None else ""
     write_stub(
         directory / "scc",
@@ -111,10 +109,6 @@ class SccAdapterTests(unittest.TestCase):
             self.assertIn("unparsable", result.stderr)
 
     def test_a_file_scc_omits_gets_a_comment_agnostic_row(self) -> None:
-        # scc lists only the languages it knows; a file it says nothing about
-        # (a lockfile the capture never mentions) is counted by the adapter
-        # itself and labeled, rather than dropped from a lane that then
-        # reads as measured.
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp))
             lockfile = Path(tmp) / "deps.lock"
@@ -147,10 +141,6 @@ class SccAdapterTests(unittest.TestCase):
             self.assertEqual(rows[f"{SOURCES}/cm_sample.py"]["labels"], [])
 
     def test_a_long_list_reaches_scc_in_chunks_and_through_the_listing(self) -> None:
-        # A lane of thousands of paths cannot ride one argument vector on
-        # every platform: the dispatcher hands the list over as a file, and
-        # the adapter feeds scc in chunks under an argument budget. With the
-        # budget forced to one character, every path is its own chunk.
         with tempfile.TemporaryDirectory() as tmp:
             calls = Path(tmp) / "calls"
             make_stub(Path(tmp), calls_log=calls)
@@ -168,7 +158,6 @@ class SccAdapterTests(unittest.TestCase):
                 env_extra={"CODE_METRICS_ARGV_BUDGET": "1"},
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            # Two invocations, each carrying the four fixed arguments plus one path.
             self.assertEqual(calls.read_text(encoding="utf-8").split(), ["4", "4"])
             rows = [json.loads(line)["file"] for line in result.stdout.splitlines()]
             self.assertEqual(

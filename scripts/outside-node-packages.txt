@@ -27,6 +27,7 @@
 .github/scripts/maintenance-measure-skill-edit
 .github/scripts/maintenance-monitor-signals
 .github/scripts/maintenance-reconcile-lost-runs
+.github/scripts/maintenance-scan-architecture
 .github/scripts/maintenance-tidy-code-upkeep
 .github/scripts/post-merge-demotion-alert
 .github/scripts/plugin-eval
@@ -34,7 +35,6 @@
 .github/scripts/pr-merge
 .github/scripts/pr-merge-risk
 .github/scripts/pr-refine
-.github/scripts/pr-review
 .github/scripts/pr-review-main
 .github/scripts/pr-run-activity-read
 .github/scripts/pr-unblock

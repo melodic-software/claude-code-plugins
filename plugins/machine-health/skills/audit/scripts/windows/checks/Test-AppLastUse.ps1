@@ -29,8 +29,6 @@ $commands = @(
     'Get-ChildItem $env:SystemRoot\Prefetch; Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\bam\State\UserSettings\<SID>'
 )
 
-# A folder this shallow ("X:\Program Files") holds many apps, so a launch under
-# it says nothing about one of them.
 $minimumInstallDirDepth = 2
 
 function Get-AppLaunch {
@@ -68,7 +66,6 @@ function Get-AppLaunch {
                 $launches.Add([pscustomobject]@{ At = $entry.LastRun; Source = 'userassist' })
             }
         }
-        # BAM paths carry no drive letter; compare from the volume root.
         $bamExe = $exe -replace '^[A-Za-z]:', ''
         $bamDir = $dir -replace '^[A-Za-z]:', ''
         foreach ($entry in $Bam) {
@@ -104,8 +101,6 @@ $CheckBody = {
     $bam = $elevated | Where-Object Source -EQ 'bam'
 
     $uaEntries = $userAssist.ReadState -eq 'ok' ? @($userAssist.Entries) : @()
-    # Prefetch names only the executable file, so a hit counts only for a file
-    # name that exactly one installed app's DisplayIcon executable carries.
     $soleExeNames = @($installed.Apps | Where-Object ExePath |
             Group-Object { [System.IO.Path]::GetFileName($_.ExePath) } |
             Where-Object { @($_.Group.Key | Sort-Object -Unique).Count -eq 1 } |
@@ -115,8 +110,6 @@ $CheckBody = {
     $noLaunchText = $since ? "no launch recorded since $since" : 'no launch recorded'
 
     $items = [System.Collections.Generic.List[pscustomobject]]::new()
-    # One item per key: installs sharing an Uninstall subkey name (per-user and
-    # machine-wide) are one app, and a launch from any of their paths counts.
     foreach ($group in @($installed.Apps | Sort-Object Name | Group-Object Key)) {
         $app = $group.Group[0]
         $launches = @(foreach ($install in $group.Group) {
@@ -129,8 +122,6 @@ $CheckBody = {
             Source    = $latest ? $latest.Source : $null
         }
 
-        # Without a readable UserAssist, or with nothing that could name the app
-        # in it, a missing launch is no evidence either way.
         $verdict = if ($launch.LastRun) {
             'launched'
         } elseif ($userAssist.ReadState -eq 'ok' -and $launch.HasRecord) {
@@ -160,13 +151,11 @@ $CheckBody = {
     $readStates = @($window.ReadState, $installed.ReadState, $userAssist.ReadState, $prefetch.ReadState, $bam.ReadState)
 
     $severity = Get-UnmutedSeverity -Items $items.ToArray() -ReadState $readStates
-    # Every verdict rests on UserAssist; an unreadable one leaves the list unjudged.
     if (-not (Test-ReadStateUsable $userAssist.ReadState)) { $severity = 'UNKNOWN' }
     $summary = ("$noLaunchCount of $($items.Count) installed app(s): $noLaunchText. " +
         "$launchedCount launched; $noEvidenceCount without launch evidence.")
     if ($userAssist.ReadState -ne 'ok') { $summary += " UserAssist launch records: $($userAssist.ReadState)." }
 
-    # Elevation-only fields, per the app-last-use row of Get-ElevationMatrix.ps1.
     $adminFields = @(
         if ($prefetch.ReadState -eq 'denied') { 'prefetch_state' }
         if ($bam.ReadState -eq 'denied') { 'bam_state' }

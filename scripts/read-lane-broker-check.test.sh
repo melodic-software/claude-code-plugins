@@ -1,17 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/capabilities.json plugins/work-items/tools/work-item-tracker/adapters/github/release.sh
 # test-scope: .github/workflows/pr-run-activity-read.yml .github/actions/request-lane-token/action.yml scripts/ci-deps/package.json plugins/work-items/tools/work-item-tracker/adapters/github/claim.sh plugins/work-items/tools/work-item-tracker/work-item-tracker.sh docs/conventions/work-items.yaml .github/workflows/work-resolve-issue.yml .github/workflows/pr-run-activity-write.yml
-# Runs the shell of two read-lane check-broker steps, lifted from their YAML,
-# against the cases the contract states
-# (docs/conventions/pr-pipeline/pr-run-activity.md, "The check-broker job"):
-#   - the run job's "Assert the broker allowed this attempt" step passes only
-#     when check-broker allowed this same run attempt;
-#   - request-lane-token's check mode accepts only an https URL whose last path
-#     segment is /token;
-#   - check-broker's issue lease step backs off as already-leased on a live
-#     lease older than its own, and the run job's go step then runs no model;
-#   - exactly one of the read runner's report job and the caller's write runner
-#     report job releases each lease, the write side after the PR opens.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -24,8 +13,6 @@ DEPS_DIR="$ROOT/scripts/ci-deps"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-# lift <yaml-file> <js-path-expression> <out>: writes the run block found at
-# the expression (evaluated on the parsed document `d`) as a bash script.
 lift() {
   node -e '
     const { createRequire } = require("node:module");
@@ -47,7 +34,6 @@ lift "$ROOT/.github/workflows/pr-run-activity-read.yml" \
 lift "$ROOT/.github/actions/request-lane-token/action.yml" 'd.runs.steps[0].run' "$ACTION" ||
   fail "request-lane-token has no run block"
 
-# gate_case <label> <expected-rc> <allowed> <allowed-attempt> <run-attempt>
 gate_case() {
   local out rc
   out="$(ALLOWED="$3" ALLOWED_ATTEMPT="$4" RUN_ATTEMPT="$5" bash "$GATE" 2>&1)"
@@ -66,8 +52,6 @@ gate_case "an allow reused from an earlier attempt fails" 1 true 1 2
 gate_case "no allow (the broker was skipped) fails" 1 false 2 2
 gate_case "no check-broker outputs at all fails" 1 "" "" 1
 
-# url_case <label> <url> <must-name> [dispatcher-run-id] [release]: runs check mode with no OIDC
-# grant, so a URL that passes validation stops at the OIDC check instead.
 url_case() {
   local out
   out="$(MODE=check BROKER_URL="$2" AUDIENCE=aud LANE=pr-review ACTIVITY=claude \
@@ -88,11 +72,10 @@ url_case "check mode refuses a host with no path" "https://h.example" "$REFUSED"
 url_case "check mode refuses a last segment that only ends in token" "https://h.example/api/xtoken" "$REFUSED"
 url_case "check mode accepts https://<host>/api/token" "https://h.example/api/token" "$ACCEPTED"
 url_case "check mode accepts https://<host>/token" "https://h.example/token" "$ACCEPTED"
-CHECK_ONLY="check mode takes no effect, grant, PR or issue number, release, or dispatcher run id"
+CHECK_ONLY="check mode takes no effect, grant, PR number, release, or dispatcher run id"
 url_case "check mode refuses a dispatcher run id" "https://h.example/api/token" "$CHECK_ONLY" 123
 url_case "check mode refuses a release" "https://h.example/api/token" "$CHECK_ONLY" "" 2.1.312
 
-# --- Issue lease (#9791): check-broker's claim step against a stub gh. ---
 LEASE_STEP="$WORK/lease.sh"
 GO_STEP="$WORK/go.sh"
 lift "$ROOT/.github/workflows/pr-run-activity-read.yml" \
@@ -104,8 +87,6 @@ lift "$ROOT/.github/workflows/pr-run-activity-read.yml" \
 
 STUB_BIN="$WORK/bin"
 mkdir -p "$STUB_BIN"
-# The lease list this stub returns is $LEASES; a POST returns comment id 2, and
-# `gh api user` is recorded so the test can show the step never needs it.
 cat >"$STUB_BIN/gh" <<'STUB'
 #!/usr/bin/env bash
 case "$*" in
@@ -124,7 +105,6 @@ lease_body() {
   printf '<!-- work-item-lease v1 {"schema_version":"1.0","holder":"%s","acquired_at":"%s","renewed_at":"%s","ttl_hours":2} -->' "$1" "$now" "$now"
 }
 
-# lease_case <label> <leases-json> <expected-lease> <expected-go-run>
 lease_case() {
   local out rc
   : >"$WORK/output" && : >"$WORK/stub.log"
@@ -168,9 +148,6 @@ fi
 lease_case "a claimed run posts no back-off comment" "$OURS" held true
 if grep -q 'already-leased' "$WORK/stub.log"; then fail "a claimed run posted a back-off comment"; else ok "a claimed run posts no back-off comment (log)"; fi
 
-# --- Caller-side release (#9791): the lease outlives the read run until the
-# caller has opened the PR and reported. ---
-# holds <label> <yaml-file> <js-boolean-expression on d>
 holds() {
   if node -e '
     const { createRequire } = require("node:module");
@@ -197,15 +174,8 @@ holds "work-resolve-issue.yml has no job of its own that releases" "$CALLER_YML"
 holds "the read runner has no separate release job" "$READ_YML" '!("lease-release" in d.jobs)'
 # shellcheck disable=SC2016 # the ${{ }} text is a literal the workflow must hold
 holds "report-outcome and apply-issue-patch pass the selected read call's lease handle" "$CALLER_YML" \
-  'const want = "${{ needs.resolve-issue-fallback.result != '"'skipped'"' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result != '"'skipped'"' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result == '"'skipped'"' && needs.resolve-issue.outputs.lease-comment-id || '"''"' }}"; const selected = want.replace(/^\$\{\{ /, "").replace(/ \|\| '"''"' \}\}$/, ""); d.jobs["report-outcome"].with["lease-comment-id"] === "${{ needs.resolve-issue-stale.outputs.stale != '"'true'"' && (" + selected + ") || '"''"' }}" && d.jobs["apply-issue-patch"].with["lease-comment-id"] === want'
+  'const want = "${{ needs.resolve-issue-fallback.result != '"'skipped'"' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result != '"'skipped'"' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result == '"'skipped'"' && needs.resolve-issue.outputs.lease-comment-id || '"''"' }}"; const selected = want.replace(/^\$\{\{ /, "").replace(/ \|\| '"''"' \}\}$/, ""); const skipped = selected.replaceAll("lease-comment-id", "scan-skip-reason"); d.jobs["report-outcome"].with["lease-comment-id"] === "${{ needs.resolve-issue-stale.outputs.stale != '"'true'"' && (" + skipped + " || '"''"') != '"'closed-by-open-pr'"' && (" + selected + ") || '"''"' }}" && d.jobs["apply-issue-patch"].with["lease-comment-id"] === want'
 
-# Who releases (#9791), and whether the caller's report-outcome runs. Every
-# gate is the real YAML: the run job's issue-prior `if`, its go step's shell
-# and issue-run-started output, both report jobs' `if`, and the caller's
-# apply-issue-patch and report-outcome `if` and lease-comment-id inputs, with
-# resolve-issue as the selected call (its later calls skipped).
-# who <label> <expected: read|write|both|none> <expected report-outcome: yes|no>
-#     <lease> <caller-releases-lease> <handed-off> <prior: none|stop|branch> <patch-state> <apply-skip>
 who() {
   local got
   # shellcheck disable=SC2016  # node source with JS template expressions, never shell-expanded
@@ -229,7 +199,7 @@ who() {
     const step = (pred) => read.jobs.run.steps.find(pred);
     const leaseId = lease === "held" ? "41" : "";
     const runCtx = {
-      "inputs.issue-number": "7", "steps.config.outputs.applies": "true", "steps.config.outputs.kind": "skill",
+      "inputs.issue-number": "7", "inputs.issue-verdict": false, "steps.config.outputs.applies": "true", "steps.config.outputs.kind": "skill",
       "steps.workflow-current.outputs.stale": "", "needs.check-broker.outputs.lease": lease,
       "needs.check-broker.outputs.blocked": blocked,
     };
@@ -254,12 +224,13 @@ who() {
       "needs.resolve-issue-fallback.result": "skipped", "needs.resolve-issue-subscription.result": "skipped",
       "needs.resolve-issue.result": "success", "needs.resolve-issue.outputs.scan-issue-run-started": started,
       "needs.resolve-issue.outputs.scan-reuse-branch": reuse, "needs.resolve-issue.outputs.scan-patch-state": patchState,
-      "needs.resolve-issue.outputs.lease-comment-id": leaseId, "needs.resolve-issue-stale.outputs.stale": "",
+      "needs.resolve-issue.outputs.lease-comment-id": leaseId, "needs.resolve-issue.outputs.scan-skip-reason": "",
+      "needs.resolve-issue-stale.outputs.stale": "",
       "needs.check-human-pull.result": "success", "needs.check-human-pull.outputs.pull": "",
     };
     // The skipped later calls output nothing.
     for (const call of ["resolve-issue-subscription", "resolve-issue-fallback"]) {
-      for (const name of ["scan-issue-run-started", "scan-reuse-branch", "scan-patch-state", "lease-comment-id"]) {
+      for (const name of ["scan-issue-run-started", "scan-reuse-branch", "scan-patch-state", "scan-skip-reason", "lease-comment-id"]) {
         callerCtx[`needs.${call}.outputs.${name}`] = "";
       }
     }
@@ -289,7 +260,6 @@ who "a check-broker that posted no lease releases nothing" none yes "" true fals
 who "a run the in-slot blocker re-check stopped releases its own lease and reports nothing" read no held true false branch none "" true
 who "a handed-off call that started: both sides release, the second a no-op" both yes held true true none written ""
 
-# The second release of one lease finds it superseded: exit 0, nothing written.
 SUPERSEDED="$(jq -cn --arg b '<!-- work-item-lease v1 {"schema_version":"1.0","holder":"987654","acquired_at":"2026-01-01T00:00:00Z","renewed_at":"2026-01-01T00:00:00Z","ttl_hours":2,"superseded_at":"2026-01-01T00:10:00Z"} -->' '{body:$b, issue:"7"}')"
 cat >"$STUB_BIN/gh" <<'STUB'
 #!/usr/bin/env bash

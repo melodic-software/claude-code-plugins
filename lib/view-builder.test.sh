@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for lib/view-builder.mjs and lib/view-runtime.js: both
-# profiles, the hostile-input corpus, the content security policy hashes, the
-# runtime sink lint, the validator and runtime element-list parity, and the
-# generated per-plugin copies. When a Chrome or
-# Chromium binary is found (CHROME, google-chrome, chromium, or Playwright's
-# headless shell) the built pages are also opened from file:// to prove the
-# runtime runs under the page's policy and hostile data stays text, and served
-# over http to prove the download button stays only on file:// and 127.0.0.1.
-#
-#   bash lib/view-builder.test.sh
-#
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
 
@@ -81,12 +70,12 @@ const runtime = loadRuntime();
   const kinds = {
     triage: { id: "triage", parse: (record) => JSON.parse(record), template: "view-builder-sample/template.html", tier: "client-interactive" },
   };
-  const lanes = { "fixture:lane": { laneId: "fixture:lane", kinds: ["triage"] }, "fixture:other": { laneId: "fixture:other", kinds: [] } };
-  const opts = { kinds, lanes, root: `${root}/lib` };
-  const rendered = render("fixture:lane", "triage", JSON.stringify(sample), opts);
+  const producers = { "fixture:producer": { producerId: "fixture:producer", kinds: ["triage"] }, "fixture:other": { producerId: "fixture:other", kinds: [] } };
+  const opts = { kinds, producers, root: `${root}/lib` };
+  const rendered = render("fixture:producer", "triage", JSON.stringify(sample), opts);
   check("render builds a registered kind through its entry and the page passes", validateView(rendered).ok, validateView(rendered).failures);
-  check("render refuses a kind its lane does not register", failuresOf(() => render("fixture:other", "triage", "{}", opts))?.[0]?.includes("does not register"));
-  check("render refuses an unknown lane", failuresOf(() => render("fixture:none", "triage", "{}", opts))?.[0]?.includes("unknown lane"));
+  check("render refuses a kind its producer does not register", failuresOf(() => render("fixture:other", "triage", "{}", opts))?.[0]?.includes("does not register"));
+  check("render refuses an unknown producer", failuresOf(() => render("fixture:none", "triage", "{}", opts))?.[0]?.includes("unknown producer"));
   const copies = readFileSync(`${root}/scripts/shared-copies.txt`, "utf8").match(/^lib\/view-builder\.mjs \S+$/gm).map((line) => line.split(" ")[1]); // portability-ok: embedded node JavaScript regex, not a shell tool pattern
   const failedImports = [];
   for (const copy of copies) {
@@ -176,6 +165,12 @@ check(
   cspContent,
 );
 check(
+  "the policy allows data: images and fonts and no other source",
+  cspContent.replace(/'sha256-[^']*'/g, "HASH") ===
+    "default-src 'none'; script-src HASH; style-src HASH; img-src data:; font-src data:; base-uri 'none'; form-action 'none'",
+  cspContent,
+);
+check(
   "the policy is the first element in head after the charset",
   /<head><!--[^>]*-->\s*<meta charset="utf-8"><meta http-equiv="Content-Security-Policy"/.test(page), // portability-ok: embedded node JavaScript regex, not a shell tool pattern
 );
@@ -225,6 +220,17 @@ const rejects = {
   "style attribute": swap(bodyOpen, `${bodyOpen}<div style="color:red">x</div>`),
   "style @import": swap("* { box-sizing", "@import x; * { box-sizing"),
   "style url()": swap("* { box-sizing", "body { background: url(x) } * { box-sizing"),
+  "style image-set() string URL": swap("* { box-sizing", 'body { background-image: image-set("https://evil.example/pixel.png" 1x) } * { box-sizing'),
+  "an image data URL outside the logo slot": swap("* { box-sizing", "body { background-image: url(data:image/png;base64,AA==) } * { box-sizing"),
+  "a font data URL outside @font-face": swap("* { box-sizing", "body { background: url(data:font/woff2;base64,AA==) } * { box-sizing"),
+  "an SVG data URL in the logo slot": swap("* { box-sizing", ".rv-logo { background-image: url(data:image/svg+xml;base64,AA==) } * { box-sizing"),
+  "a remote URL in @font-face": swap("* { box-sizing", "@font-face { src: url(https://evil.example/f.woff2) } * { box-sizing"),
+  "a font data URL behind a comment that fakes @font-face": swap("* { box-sizing", ".x { /*}@font-face{*/ background: url(data:font/woff2;base64,AA==) } * { box-sizing"),
+  "img with a data URL": swap(bodyOpen, `${bodyOpen}<img src="data:image/png;base64,AA==" alt="x">`),
+  "a data URL link": swap(bodyOpen, `${bodyOpen}<a href="data:image/png;base64,AA==">x</a>`),
+  "a data URL in an svg fill": swap(bodyOpen, `${bodyOpen}<svg><rect fill="url(data:image/png;base64,AA==)"></rect></svg>`),
+  "a data URL in an svg href": swap(bodyOpen, `${bodyOpen}<svg><path xlink:href="data:image/png;base64,AA=="></path></svg>`),
+  "a data URL in a style attribute": swap(bodyOpen, `${bodyOpen}<div style="background:url(data:image/png;base64,AA==)">x</div>`),
   "second style element": swap("</head>", "<style>p{}</style></head>"),
   "slot in an interactive template": swap(bodyOpen, `${bodyOpen}<p>{{title}}</p>`),
   "data pre-fills a textarea": swap('data-rv-note="note"', 'data-rv-note="note" data-rv-text="title"'),
@@ -251,6 +257,25 @@ const rejects = {
 for (const [name, bad] of Object.entries(rejects)) {
   check(`rejects a template with: ${name}`, failuresOf(() => buildView({ profile: "interactive", template: bad, data: sample })) !== null);
 }
+const branded = swap(
+  "* { box-sizing",
+  ":root { --mono: ui-monospace, 'SF Mono', Menlo, monospace; } :root[data-theme=\"dark\"] { color-scheme: dark; } main > header { margin: 0; } .rv-logo { background-image: url(data:image/png;base64,iVBORw0KGgo=) } @font-face { font-family: 'Brand Serif'; src: url(data:font/woff2;base64,d09GMgABAAA=) } * { box-sizing",
+);
+check(
+  "accepts a data URL in the logo slot, quoted fonts, attribute selectors and child combinators in style",
+  failuresOf(() => buildView({ profile: "interactive", template: branded, data: sample })) === null,
+  failuresOf(() => buildView({ profile: "interactive", template: branded, data: sample })),
+);
+check(
+  "rejects raw < inside a style body",
+  (failuresOf(() => buildView({ profile: "interactive", template: swap("* { box-sizing", "/* <img src=x> */ * { box-sizing"), data: sample })) ?? []).includes("style"),
+);
+const smuggledStyleTemplate =
+  '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title><!-- <style> -->unescaped "payload" & \'quotes\'</style> --></head><body><p data-rv-text="title">x</p></body></html>';
+check(
+  "rejects a comment-smuggled <style> hiding unescaped text",
+  (failuresOf(() => buildView({ profile: "interactive", template: smuggledStyleTemplate, data: sample })) ?? []).includes("unescaped"),
+);
 check(
   "accepts an in-page link as a fragment reference",
   failuresOf(() => buildView({ profile: "interactive", template: swap(bodyOpen, `${bodyOpen}<a href="#note">Jump to the reply</a>`), data: sample })) === null,

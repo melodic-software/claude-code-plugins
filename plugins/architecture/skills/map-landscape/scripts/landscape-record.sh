@@ -1,76 +1,4 @@
 #!/usr/bin/env bash
-# Assemble the committed landscape record, and report drift against an earlier one.
-#
-# WHY. Facts and edges are collected fresh on every run, so without a committed
-# record a landscape is a snapshot with no memory: nothing tells the operator
-# that a system appeared, an edge vanished, or a runtime changed since the last
-# time anyone looked. This script is that memory. It composes the two collectors
-# into one file the repository commits, and it compares a fresh collection with
-# the committed one so a re-run reports what moved instead of silently
-# overwriting the answer.
-#
-# Usage:
-#   landscape-record.sh [options] <repo-path>...
-#   landscape-record.sh --help
-#
-# Options:
-#   --edges-from <path>  Repository whose tracked files supply the edges.
-#                        Defaults to the first <repo-path>.
-#   --owner <owner>      Passed to the edge extractor; decides internal vs
-#                        external. Defaults to the edges-from origin owner.
-#   --source <text>      Discovery source recorded verbatim in the record.
-#   --remote <text>      Remote-facts status recorded verbatim in the record.
-#   --remote-facts <f>   Merge fetched facts for repositories with no local
-#                        checkout. One JSON object per line, each opening with
-#                        "name", in the shape portfolio-facts.sh emits. A local
-#                        checkout wins: an entry whose name a collector already
-#                        produced is discarded, not merged field by field.
-#   --drift-against <f>  Compare the fresh collection with committed record <f>.
-#                        Prints a drift report instead of the record.
-#
-# Output without --drift-against: the record on stdout.
-#
-#   {
-#     "schema_version": 1,
-#     "generated_on": "YYYY-MM-DD",
-#     "discovery_source": "…",
-#     "remote": "…",
-#     "subject_owner": "…",
-#     "repositories": [ <one portfolio-facts object per line> ],
-#     "edges": [ <one reference-edges object per line> ]
-#   }
-#
-# `subject_owner` is the organization the graph was drawn from, resolved by the
-# edge extractor so the nodes and the edges cannot disagree about it. It is what
-# makes a checkout internal: having a repository on disk says where someone
-# works, not who owns the system.
-#
-# One object per line is deliberate: it keeps the record diffable in review and
-# parseable here without a JSON library. The collector's `path` field is dropped
-# on the way in: it records where a checkout happens to sit on one machine, which
-# is not a fact about the architecture and would make the committed record differ
-# on every machine that regenerates it.
-#
-# Output with --drift-against: a plain-text report naming repositories added or
-# removed, edges added or removed, facts whose value changed, and cited evidence
-# files that no longer exist. `path` is excluded from fact comparison too, so a
-# record written before it was dropped still compares clean. A `last_touched`
-# that moved is reported but never gated on: the subject repository advances its
-# own HEAD on every commit, and a check lane that went red for that gets muted.
-# A `remote` that changed transport (https vs ssh) is reported the same way:
-# whichever checkout runs the collector reports its own clone's origin URL, so
-# gating on it fails a CI drift check the moment it disagrees with an
-# operator's local clone protocol, for a value that names no architecture fact.
-#
-# Nothing here fetches and nothing is written: the record goes to stdout, and the
-# caller decides where it lands.
-#
-# Portability: bash plus POSIX awk/grep/sed. No jq, no `grep -P`, no python.
-#
-# Exit: 0 = record emitted, or compared with no drift; 1 = a path is not a
-# readable git repository, or the compared record is unreadable, not
-# schema_version 1, or not in the one-object-per-line layout this script writes;
-# 2 = usage; 3 = drift found.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -80,7 +8,20 @@ EDGES="$SCRIPT_DIR/reference-edges.sh"
 source "$SCRIPT_DIR/../../../lib/record-layout.sh"
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Assemble the landscape record, or report drift against a committed one.
+Usage: landscape-record.sh [options] <repo-path>...
+  --edges-from <path>  repository whose tracked files supply the edges (default: first <repo-path>)
+  --owner <owner>      owner deciding internal vs external (default: the edges-from origin owner)
+  --source <text>      discovery source recorded verbatim
+  --remote <text>      remote-facts status recorded verbatim
+  --remote-facts <f>   fetched facts for repositories with no local checkout, one object per line
+  --drift-against <f>  compare with committed record <f> and print a drift report
+The record (stdout) is schema_version 1, one object per line.
+Exit: 0 record emitted, or compared with no drift; 1 a path is not a readable git repository, or
+the compared record is unreadable, not schema_version 1, or not one object per line; 2 usage;
+3 drift found.
+EOF
 }
 
 die() {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# test-scope: plugins/harness-ops/scripts/docs-cache.sh plugins/harness-ops/scripts/fetch-docs.sh
+# test-scope: plugins/harness-ops/scripts/docs-cache.sh plugins/harness-ops/scripts/fetch-docs.sh plugins/harness-ops/scripts/fetch-docs-generic.sh
 """Deterministic tests for the inventory extractor.
 
 Every case runs against a synthetic minified fragment rather than a real
@@ -13,9 +13,12 @@ Run: python3 test_inventory.py
 from __future__ import annotations
 
 import argparse
+import contextlib
+import io
 import json
 import os
 import pathlib
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -23,7 +26,6 @@ from unittest import mock
 
 import inventory as inv
 
-# A git fixture must not write into the caller's repository under an inherited GIT_DIR.
 for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_leaked_git_var, None)
 os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
@@ -40,8 +42,6 @@ class TestBraceMap(unittest.TestCase):
         self.assertEqual(len(bm.pairs), 1)
 
     def test_ignores_braces_inside_regex(self) -> None:
-        # A regex literal containing an unbalanced brace would desync a naive
-        # counter and misattribute every object after it.
         bm = inv.build_brace_map("x={a:/[{]/g}")
         self.assertEqual(len(bm.pairs), 1)
 
@@ -50,10 +50,6 @@ class TestBraceMap(unittest.TestCase):
         self.assertEqual(len(bm.pairs), 1)
 
     def test_regex_inside_a_template_substitution_does_not_desync(self) -> None:
-        # 2.1.284: `\`prints ${to(fn.replace(/^(["'])(.*)\1$/,"$2"))}\`` - a
-        # substitution holding a regex with quote characters. Skipping the
-        # substitution as quoted text swallowed 21 MB into one brace pair and
-        # left /clear, /help, and most commands unresolved.
         src = (
             'if(a){x=`p ${f(/^(["\'])(.*)\\1$/,"$2")}`}'
             'var c={type:"local",name:"clear"};'
@@ -68,7 +64,6 @@ class TestBraceMap(unittest.TestCase):
         self.assertEqual(len(bm.pairs), 2)
 
     def test_division_is_not_a_regex(self) -> None:
-        # `a/b` followed by `{` must not swallow the object as a regex body.
         bm = inv.build_brace_map("y=a/b;x={c:1}")
         self.assertEqual(len(bm.pairs), 1)
 
@@ -78,12 +73,9 @@ class TestBraceMap(unittest.TestCase):
         self.assertEqual(bm.pairs.get(src.index("{")), src.index(marker))
 
     def test_a_regex_after_a_spread_is_a_regex(self) -> None:
-        # Claude Code 2.1.312: `[y,b,.../^[\\/]{2}/.test(Rb())?...]` read as
-        # division left one brace pair spanning most of the bundle.
         self._first_closes_before("var z,x={y:[.../[{]/.test(z)]};var w={a:1}", "};")
 
     def test_of_as_a_name_is_not_a_keyword(self) -> None:
-        # Claude Code 2.1.312: `${of/1000} s` read `of` as the for-of keyword.
         self._first_closes_before(
             "var of=1;function f(){return`${of/1000} s`}var g={h:1}", "}var"
         )
@@ -110,9 +102,6 @@ class TestBraceMap(unittest.TestCase):
 
 
 class TestCommandExtraction(unittest.TestCase):
-    # Two command literals packed flush together, as the real bundle packs
-    # them. A fixed-width text window around the first would capture the
-    # second's description; brace depth is what keeps them apart.
     ADJACENT = (
         'var a={type:"local-jsx",name:"artifacts",aliases:[],'
         'description:"Browse your published and shared artifacts",isEnabled:()=>Z9()},'
@@ -147,8 +136,6 @@ class TestCommandExtraction(unittest.TestCase):
         self.assertEqual(self._extract(src)["usage"]["aliases"], ["cost", "stats"])
 
     def test_shell_builtin_is_not_a_command(self) -> None:
-        # `alias` and `todos` carry a name but no `type:` - both were wrongly
-        # reported as slash commands by an earlier regex-only pass.
         src = (
             'x={name:"alias",description:"Create or list command aliases",'
             'args:{name:"definition"}}'
@@ -172,15 +159,10 @@ class TestCommandExtraction(unittest.TestCase):
         )
 
     def test_factory_parameter_name_is_not_resolved(self) -> None:
-        # `name:e` in a factory is whatever the caller passes, never the
-        # nearest `e="..."` in scope.
         src = 'var e="wrong";function t1t(e,n){return{type:"local-jsx",name:e,description:n}}'
         self.assertEqual(self._extract(src), {})
 
     def test_a_name_bound_to_a_conditional_is_not_resolved(self) -> None:
-        # The 2.1.286 skill loader: `Vt` is bound to a conditional in the
-        # loader's own scope, so an unrelated `Vt="string"` far ahead is not
-        # what the literal reads.
         src = (
             'var Vt="string";'
             + "z" * 5000
@@ -240,8 +222,6 @@ class TestBundledSkills(unittest.TestCase):
         self.assertIsNone(inv.discover_registrar("var x=1;", "registerBundledSkill"))
 
     def test_constant_names_resolve(self) -> None:
-        # The failure this guards: a literal-only scan silently drops roughly a
-        # third of the bundled skills, including code-review and dataviz.
         skills, notes = inv.extract_bundled_skills(
             self.BUNDLE, inv.build_brace_map(self.BUNDLE)
         )
@@ -252,8 +232,6 @@ class TestBundledSkills(unittest.TestCase):
         self.assertEqual(skills["code-review"]["aliases"], ["review"])
 
     def test_a_rebound_constant_resolves_to_its_nearest_binding(self) -> None:
-        # An identifier bound to two different strings resolves by locality:
-        # the binding nearest before the registration is the one in scope.
         src = self.BUNDLE + 'var zz="a-one";var zz="a-two";xu({name:zz});'
         skills, notes = inv.extract_bundled_skills(src, inv.build_brace_map(src))
         self.assertIn("a-two", skills)
@@ -263,9 +241,6 @@ class TestBundledSkills(unittest.TestCase):
 
 class TestIntegrity(unittest.TestCase):
     def _src(self, extra: str = "") -> str:
-        # The version literal has to repeat: detect_cli_version deliberately
-        # ignores a version mentioned only once, since that is a dependency's
-        # version rather than the build's.
         return (
             "pt(Q,{registerBundledSkill:()=>xu});"
             + f'"{inv.VALIDATED_AGAINST}";' * 30
@@ -290,8 +265,6 @@ class TestIntegrity(unittest.TestCase):
         self.assertEqual(got["status"], "ok")
 
     def test_the_continue_in_projects_export_is_a_known_registrar(self) -> None:
-        # 2.1.318: `function Ke(){Sl({name:SQn,...})}export{Ke as
-        # registerContinueInProjectsSkill}` calls the bundled-skill registrar.
         def advisories(export: str) -> list[str]:
             src = self._src(f"function Ke(){{}}export{{Ke as {export}}};")
             got = inv.check_integrity(
@@ -312,9 +285,6 @@ class TestIntegrity(unittest.TestCase):
         )
 
     def test_canary_missing_breaks_the_builtin_lane_only(self) -> None:
-        # One rule for one state: a broken lane beside a healthy one is a
-        # degraded run whose advisory names the lane, never a broken run that
-        # voids the healthy lane's counts.
         src = (
             'x={type:"local",name:"help",description:"d"};'
             + f'"{inv.VALIDATED_AGAINST}";' * 30
@@ -388,8 +358,6 @@ class TestIntegrity(unittest.TestCase):
         self.assertFalse(any("computed name" in a for a in got["advisories"]))
 
     def test_registrations_below_the_floor_degrade_the_bundled_lane(self) -> None:
-        # A literal in a run under the floor was never read, so the roster is
-        # a floor even when every read registration resolved.
         src = self._src()
         got = inv.check_integrity(
             src,
@@ -420,7 +388,6 @@ class TestIntegrity(unittest.TestCase):
         self.assertEqual(got["lanes"]["bundled_skills"]["status"], "degraded")
 
     def test_degraded_on_unknown_registrar(self) -> None:
-        # The silent-drift signal: a registration path the script does not know.
         src = self._src("pt(Q,{registerSomethingNewSkill:()=>zz});")
         got = inv.check_integrity(
             src,
@@ -445,8 +412,6 @@ class TestIntegrity(unittest.TestCase):
         self.assertTrue(any("floor" in a for a in got["advisories"]))
 
     def test_low_yield_breaks_the_builtin_lane(self) -> None:
-        # Many registration tokens present but few commands resolved means the
-        # brace reader stopped working - the exact shape of a quiet shortfall.
         src = self._src() + 'x={type:"local"};' * 200
         got = inv.check_integrity(
             src,
@@ -468,8 +433,8 @@ class TestReadBundleRegionRule(unittest.TestCase):
     """
 
     MARKER = b"// @bun @bytecode @bun-cjs\n"
-    BIG = b'x={type:"local",name:"help",description:"d"};' * 30_000  # > 1 MB
-    GAP = bytes(range(0x80, 0x100)) * 8  # non-printable bytes
+    BIG = b'x={type:"local",name:"help",description:"d"};' * 30_000
+    GAP = bytes(range(0x80, 0x100)) * 8
     DOCTOR = b'eo({name:"doctor",aliases:["checkup"],menuDescription:"Health-check"});'
     CONST = b'var kYe="simplify";' + b"a" * 300
 
@@ -528,8 +493,6 @@ class TestReadBundleRegionRule(unittest.TestCase):
         self.assertIn("no bundle marker", meta["region_rule"])
 
     def test_read_bundle_counts_a_registration_below_the_floor(self) -> None:
-        # A run shorter than the floor carrying a registration is counted,
-        # never silently lost.
         tiny = b'eo({name:"tiny"});'
         layout = (
             self.MARKER
@@ -546,8 +509,6 @@ class TestReadBundleRegionRule(unittest.TestCase):
         self.assertEqual(meta["runs_below_floor"], 1)
 
     def test_read_bundle_does_not_count_prose_in_the_string_table(self) -> None:
-        # The bytecode string table holds message text such as
-        # `or Workflow({name: "` - a space after the colon, so not code.
         layout = (
             self.MARKER
             + self.BIG
@@ -561,8 +522,6 @@ class TestReadBundleRegionRule(unittest.TestCase):
         self.assertEqual(meta["runs_below_floor"], 0)
 
     def test_read_bundle_keeps_a_module_below_the_floor(self) -> None:
-        # 2.1.318 ships one-constant modules of about 220 bytes that tools
-        # import; a short run that is not a module stays below the floor.
         module = (
             b"// @bun @bytecode\n// Version: 2.1.318\n"
             b'var Vf="WebSearch",GDi="allow_web_search";\nexport{Vf,GDi};\n'
@@ -641,8 +600,6 @@ class TestNameLocality(unittest.TestCase):
         return inv.extract_bundled_skills(src, inv.build_brace_map(src))
 
     def test_nearest_preceding_binding_wins_over_a_farther_one(self) -> None:
-        # The phantom this guards: `oO="ehrpd"` in an unrelated module far
-        # ahead must not shadow `oO="artifact-design"` bound closer in.
         src = (
             self.HEAD
             + 'var oO="ehrpd";'
@@ -667,8 +624,6 @@ class TestNameLocality(unittest.TestCase):
         self.assertEqual(notes["unresolved_dynamic_names"], ["e"])
 
     def test_a_short_identifier_bound_nearby_resolves(self) -> None:
-        # The design canvas registration: `var r="design"` a few KB ahead of
-        # `eo({name:r,...})` inside the same module.
         src = (
             self.HEAD
             + 'var r="design";'
@@ -715,8 +670,6 @@ class TestNameLocality(unittest.TestCase):
         self.assertEqual(notes["dynamic_roster_patterns"], ["`artifact-${e}`"])
 
     def test_a_same_identifier_call_without_a_name_is_not_a_registration(self) -> None:
-        # Another module's `eo(...)` taking an options object: no `name:`,
-        # so it is neither a registration nor an unresolved one.
         src = (
             self.HEAD
             + 'eo({check:"overwrite",tx:e});eo({name:"run",menuDescription:"Launch"});'
@@ -727,8 +680,6 @@ class TestNameLocality(unittest.TestCase):
         self.assertEqual(notes["same_identifier_calls_skipped"], 1)
 
     def test_a_descriptor_member_name_resolves(self) -> None:
-        # registerSlidesSkill in 2.1.284: the registration reads its fields
-        # from a descriptor object whose name is a hoisted constant.
         src = (
             self.HEAD + 'var o="slides";var c={name:o,intent:"slides",'
             'description:"Make a new Slides deck artifact from a brief"};'
@@ -753,8 +704,6 @@ class TestNameLocality(unittest.TestCase):
     )
 
     def test_a_descriptor_passed_to_a_helper_resolves(self) -> None:
-        # Claude Code 2.1.312: the slides registration moved into
-        # `function h(t,r){ol({name:t.name,...})}`, called once as `h(f)`.
         skills, notes = self._skills(self.HEAD + self._HELPER)
         self.assertEqual(
             skills["slides"]["description"],
@@ -795,8 +744,6 @@ class TestNameLocality(unittest.TestCase):
         self.assertEqual(notes["registrations_seen"], notes["resolved"])
 
     def test_a_function_whose_name_ends_in_the_registrar_is_not_a_call(self) -> None:
-        # `productionRemoteToolsAnnounceDeps({...name:be.name...})` ends in
-        # the 2.1.284 registrar `ps`; it is not a registration.
         src = self.HEAD + 'xeo({bridge:()=>({name:be.name})});eo({name:"run"});'
         skills, notes = self._skills(src)
         self.assertEqual(list(skills), ["run"])
@@ -847,8 +794,6 @@ class TestInvocationFieldsAndCollisions(unittest.TestCase):
         self.assertEqual(skills["verify"]["flag_driven"], ["disable_model_invocation"])
 
     def test_two_registrations_sharing_a_name_are_both_kept(self) -> None:
-        # 2.1.263 registers `design` twice: the canvas skill (model-invocable)
-        # and the claude.ai/design hub (model-disabled). Neither may win.
         hub = 'eo({name:"design",menuDescription:"Work with Claude Design",disableModelInvocation:!0,userInvocable:!0});'
         canvas = 'var r="design";eo({name:r,menuDescription:"Draft a design on a canvas",isEnabled:o,userInvocable:!0});'
         skills, notes = self._skills(self.HEAD + hub + canvas)
@@ -865,8 +810,6 @@ class TestInvocationFieldsAndCollisions(unittest.TestCase):
         self.assertEqual(len(inv.registrations_of(design)), 2)
 
     def test_a_flag_driven_twin_of_a_constant_field_is_a_collision(self) -> None:
-        # Same boolean reading, different basis: one fixed, one decided at
-        # runtime. That difference is evidence, so both registrations stay.
         fixed = 'eo({name:"verify",description:As,userInvocable:!0,disableModelInvocation:!0});'
         skills, notes = self._skills(self.HEAD + fixed + self.VERIFY)
         self.assertIsInstance(skills["verify"], list)
@@ -887,7 +830,6 @@ class TestContainerAndVersion(unittest.TestCase):
         self.assertEqual(inv.detect_container(b"nope"), "unknown")
 
     def test_version_needs_repetition(self) -> None:
-        # One mention is a dependency's version, not the build's.
         self.assertIsNone(inv.detect_cli_version('"9.9.9"'))
         self.assertEqual(inv.detect_cli_version('"2.1.228"' * 30), "2.1.228")
 
@@ -904,7 +846,6 @@ class TestPluginBacked(unittest.TestCase):
         )
 
     def test_a_name_imported_as_a_constant_resolves(self) -> None:
-        # 2.1.318: `din=lin({name:$gr,...})`, `$gr` bound in another module.
         call = (
             'var din=lin({name:$gr,description:"Complete a security review",'
             'pluginName:"security-review",pluginCommand:"security-review"});'
@@ -1116,7 +1057,6 @@ class TestStaticValues(unittest.TestCase):
         )
 
     def test_a_menu_description_read_through_a_mode_table_resolves(self) -> None:
-        # A built-in command record carries no menu field; a bundled skill does.
         src = (
             "function eo(){}export{eo as registerBundledSkill};"
             + self.TABLE
@@ -1280,10 +1220,6 @@ class TestBundledWorkflows(unittest.TestCase):
         self.assertEqual(got["status"], "ok")
 
 
-# Shapes from 2.1.285: literal and constant agent types, a disallowed list
-# with a spread, a getter tool list, a chunk agent pushed through a renamed
-# export, an internal agent outside the roster, a user-settings agent, and a
-# runtime context object that copies `agentType` and `source`.
 AGENT_SRC = (
     'var xt="Edit",yt="Agent";var B6=[xt];var zz="Explore";'
     'var GP={agentType:"general-purpose",whenToUse:"General agent",tools:["*"],'
@@ -1354,7 +1290,6 @@ class TestBuiltinAgents(unittest.TestCase):
         self.assertIs(agents["general-purpose"]["gated"], False)
         for name in ("statusline-setup", "Explore", "Plan", "claude-code-guide"):
             self.assertEqual(agents[name]["roster"], "conditional", name)
-        # Pushed through `{CLAUDE_AGENT:s}`, the name a later export gives it.
         self.assertEqual(agents["claude"]["roster"], "conditional")
         self.assertEqual(agents["workflow-subagent"]["roster"], "absent")
         self.assertIsNone(agents["workflow-subagent"]["model_invocable"])
@@ -1362,9 +1297,6 @@ class TestBuiltinAgents(unittest.TestCase):
         self.assertIs(agents["Explore"]["user_invocable"], True)
 
     def test_a_description_bound_to_a_module_constant_resolves(self) -> None:
-        # The 2.1.318 comment-thread-analyst shape: `whenToUse` names a string
-        # constant declared in the same module, and later code binds a
-        # different value under the same short name in its own scope.
         src = AGENT_SRC + (
             'var t="Reads one thread",o={agentType:"thread-probe",whenToUse:t,'
             'source:"built-in",maxTurns:6,getSystemPrompt:()=>e()};'
@@ -1510,17 +1442,12 @@ class TestBuiltinTools(unittest.TestCase):
         self.assertNotIn("unresolved_names", notes)
 
     def test_pascal_case_binding_wins_over_a_nearer_snake_case_one(self) -> None:
-        # `k1` is rebound to a snake_case string nearer the definition, as
-        # unrelated code rebinds minified names; a snake_case value is taken
-        # only when no PascalCase binding precedes (`m1`).
         tools = self._extract()[0]
         self.assertIn("SendUserFile", tools)
         self.assertIn("memory_read", tools)
         self.assertNotIn("system_assigned_identity", tools)
 
     def test_a_snake_case_rebinding_the_definition_reads_is_not_skipped(self) -> None:
-        # The definition reads the nearer rebinding, so the PascalCase
-        # binding behind it is not its name: unresolved, never guessed.
         src = TOOL_SRC.replace(
             "$t({name:k1,", 'k1="system_assigned_identity";$t({name:k1,'
         )
@@ -2260,12 +2187,6 @@ class TestModuleScopedResolution(unittest.TestCase):
         self.assertEqual(_tool(body, "Projects")["description_source"], "unresolved")
 
 
-# In 2.1.318 string-table text joined after a module header opened a brace
-# that later text closed, 53 MB on. A regex after `)` is read as division,
-# which misreads these valid modules the same way: a `/{/` leaves a `{` open
-# for a later `/}/` to close, and a `/"/` opens a string the next module's
-# first quote closes. A reader tokenizing across module boundaries reads
-# every module in between as one block or with its quotes inverted.
 TABLE_WRAPS = {
     "none": ((), ()),
     "brace": (("if(a)/{/.test(b);",), ("if(a)/}/.test(b);",)),
@@ -2910,7 +2831,6 @@ def _plugin_modules(**swap: str) -> list[str]:
         'var ge=()=>Z_({name:ZYe,description:"Security default",'
         "enabledFromTrustedSettingsOnly:!0,enabledFromPolicyOnly:!0,"
         "hooksModule:VU(1,m,()=>m())});export{ge as registerPlugin};",
-        # The name constant sits more than 4 KiB ahead of the registration.
         "agents": 'import{Z_}from"/$bunfs/root/chunk-r.js";var W=!0;'
         'var B=()=>lo("tengu_agents_md_mod",W);var K="cc-plugin-agents-md";'
         'var H="AGENTS.md as project instructions";var pad="'
@@ -2946,7 +2866,6 @@ def _plugin_modules(**swap: str) -> list[str]:
         'function _r(){Z_({name:b,description:"Claude Test",version:g,isAvailable:xe,'
         "skills:Fe,get mcpServers(){return 1},hooksModule:VU(1,I,()=>rt())})}"
         "export{_r as registerPlugin};",
-        # Another module's own `Z_` is not the registrar.
         "foreign": 'function Z_(e){return e}var q=Z_({seccompConfig:1,name:"bwrap"});',
     }
     modules.update(swap)
@@ -2989,7 +2908,6 @@ class TestBuiltinPlugins(unittest.TestCase):
         entry = 'a.CLAUDE_CODE_ENTRYPOINT!=="local-agent"'
         self.assertEqual(plugins["cc-plugin-mermaid"]["load_guards"], [entry])
         self.assertEqual(plugins["cc-plugin-tips"]["load_guards"], [entry, "!c7r()"])
-        # `if(i)` reads the declaration `let i=...`.
         self.assertEqual(
             plugins["cc-plugin-claude-test"]["load_guards"], [entry + "&&!c7r()"]
         )
@@ -3091,8 +3009,6 @@ class TestBuiltinPlugins(unittest.TestCase):
         self.assertIn("skills", rec["partial"])
 
     def test_every_field_an_unresolved_spread_hides_is_partial(self) -> None:
-        # No isAvailable, hooksModule or manifest of its own: each could sit
-        # in the unresolved spread, so each is unknown and named in `partial`.
         agents = _plugin_modules()[3].replace(
             "Z_({name:K,description:H,isAvailable:B,userConfig:ne})",
             "Z_({...zz,name:K,description:H})",
@@ -3136,7 +3052,6 @@ class TestBuiltinPlugins(unittest.TestCase):
     def test_unresolved_manifest_calls_leave_commands_partial(self) -> None:
         rec = self._test_module('calls:["mcp.connect"]', "calls:QQ")
         self.assertIn("commands", rec["partial"])
-        # A manifest that declares no calls at all registers none: absent.
         rec = self._test_module('calls:["mcp.connect"]', 'other:["x"]')
         self.assertNotIn("commands", rec["partial"])
 
@@ -3212,9 +3127,6 @@ class TestBuiltinPlugins(unittest.TestCase):
     _GATE = 'var xe=()=>!Il("hipaa")&&lo("tengu_mellow_hollerith",!1);'
 
     def test_a_gate_declared_as_a_function_is_read(self) -> None:
-        # Claude Code 2.1.312 (cc-plugin-easel): `isAvailable:t` names
-        # `function t(){if(k(e(),r)!==!0)return!1;...}`, with the flag read
-        # through `function e(){return"tengu_joyful_otter"}`.
         rec = self._test_module(
             self._GATE,
             'function e(){return"tengu_joyful_otter"}var r=!1;'
@@ -3233,7 +3145,6 @@ class TestBuiltinPlugins(unittest.TestCase):
     _FACTORY = "{return{...r,name:w[e],async"
 
     def test_a_conditional_spread_in_a_skill_factory_keeps_earlier_keys(self) -> None:
-        # Claude Code 2.1.296: `...e==="run"&&{onUserTypedArgs:Lt}`.
         rec = self._test_module(
             self._FACTORY,
             '{return{...r,name:w[e],...e==="run"&&{onUserTypedArgs:L},async',
@@ -3253,7 +3164,6 @@ class TestBuiltinPlugins(unittest.TestCase):
         skills = {s["name"]: s for s in rec["skills"]}
         self.assertEqual(skills["claude-test"]["description_source"], "unresolved")
         self.assertIn("skills", rec["partial"])
-        # `a||b&&{...}` spreads `a` when it is truthy: not a conditional literal.
         rec = self._test_module(
             self._FACTORY, "{return{...r,name:w[e],...q||e&&{a:1},async"
         )
@@ -3302,7 +3212,6 @@ class TestBuiltinPlugins(unittest.TestCase):
         lane = self._integrity(plugins, notes)["lanes"][inv.PLUGIN_LANE]
         self.assertEqual(lane["status"], "degraded")
 
-    # Final-round verifier repros. Each is the simplest fail-closed reading.
 
     def _loader(self, before: str) -> dict:
         """The plugins with `before` inserted ahead of the loader's first call."""
@@ -3338,10 +3247,8 @@ class TestBuiltinPlugins(unittest.TestCase):
             'Z_({...h,defaultEnabled:!1,...unk,name:"cc-plugin-mermaid",',
         )
         rec = _plugins(mermaid=mermaid)[0]["cc-plugin-mermaid"]
-        # defaultEnabled sits before `...unk`, which may override it.
         self.assertIsNone(rec["default_enabled"])
         self.assertIn("default_enabled", rec["partial"])
-        # hooksModule after the last unresolved spread stays read.
         self.assertIs(rec["hooks_module"], True)
 
     def test_a_name_before_an_unresolved_spread_leaves_the_registration_unresolved(
@@ -3413,7 +3320,6 @@ class TestBuiltinPlugins(unittest.TestCase):
             self.assertIn("hook_events", rec["partial"], decl)
 
     def test_the_default_rule_is_read_only_where_the_registry_is_walked(self) -> None:
-        # The real rule removed from the walk; a decoy elsewhere in the bundle.
         registrar = _plugin_modules()[0].replace("n.defaultEnabled??!0", "n.x")
         decoy = "function other(o){return o.defaultEnabled??!0}"
         plugins, notes = _plugins(registrar=registrar, decoy=decoy)
@@ -3421,7 +3327,6 @@ class TestBuiltinPlugins(unittest.TestCase):
         rec = plugins["cc-plugin-agents-md"]
         self.assertIsNone(rec["default_enabled"])
         self.assertIn("default_enabled", rec["partial"])
-        # Two disagreeing defaults in the walk are ambiguous, not true.
         registrar = _plugin_modules()[0].replace(
             "a=n.defaultEnabled??!0", "a=n.defaultEnabled??!0,b=n.defaultEnabled??!1"
         )
@@ -3447,12 +3352,10 @@ class TestBuiltinPlugins(unittest.TestCase):
             loader = _plugin_modules()[1].replace(old, new)
             return _plugins(loader=loader)[0]["cc-plugin-claude-test"]
 
-        # A guarded call followed by an unguarded one: it always loads.
         rec = loaded(f"if(i){call};{call}}}")
         self.assertEqual(rec["load"], "unconditional")
         self.assertEqual(rec["load_guards"], [])
         self.assertNotIn("load", rec["partial"])
-        # Two sites guarded differently: one guard list cannot hold either-or.
         rec = loaded(f"if(i){call};if(q()){call}}}")
         self.assertIsNone(rec["load"])
         self.assertIsNone(rec["load_guards"])
@@ -3536,7 +3439,6 @@ class TestBuiltinPlugins(unittest.TestCase):
             "",
         )
         plugins, notes = _plugins(loader=loader)
-        # The test-seat registration (`name:r`) is a factory, never listed here.
         self.assertEqual(notes["registered_not_loaded"], ["cc-plugin-claude-test"])
         self.assertEqual(notes["factory_registrations"], 1)
         self.assertIs(plugins["cc-plugin-claude-test"]["in_loader"], False)
@@ -3615,7 +3517,6 @@ class TestBuiltinPluginState(unittest.TestCase):
                 }
             ],
         )
-        # An absent key means the in-binary default applies, not "false".
         mermaid = got["plugins"]["cc-plugin-mermaid"]["gate_flags"][0]
         self.assertEqual((mermaid["cached"], mermaid["cached_present"]), (None, False))
         self.assertEqual(
@@ -3640,8 +3541,6 @@ class TestBuiltinPluginState(unittest.TestCase):
         self.assertTrue(got["plugins"]["cc-plugin-mermaid"]["gate_flags"][0]["cached"])
 
     def test_a_custom_config_dir_never_reads_its_parent(self) -> None:
-        # `${CLAUDE_CONFIG_DIR:-$HOME}/.claude.json`: a custom dir with no
-        # global config of its own has none, whatever sits beside it.
         custom = self.home / "profiles" / "work"
         custom.mkdir(parents=True)
         self.write(
@@ -3769,8 +3668,6 @@ class TestInstructionFiles(unittest.TestCase):
             inv.git_toplevel(cwd), home / ".claude", home, self.base / managed
         )
 
-    # (path, scope, kind, loads, bytes, sha256). Sizes and digests are of the
-    # fixture literals above, computed once with `printf ... | sha256sum`.
     EXPECTED = [
         ("~/.claude/CLAUDE.md", "user", "claude-md", "launch", 22,
          "b68bf5a3bf6cd7ba582425bfa8d49cf8f22274c6ab92ce82a060860084744e06"),
@@ -3780,7 +3677,6 @@ class TestInstructionFiles(unittest.TestCase):
          "4f532acd73cb3980b86f34ae91a293877f0521776c06603e9cbdb4f7a0107e8d"),
         (".claude/rules/general.md", "project", "rule", "launch", 19,
          "72d433284afca5119020b3d9fcb4a5cbba7a427b645ea239f6fbee61fd51aad3"),
-        # A CLAUDE.md at the root means AGENTS.md is not read by default.
         ("AGENTS.md", "project", "agents-md", "not-by-default", 33,
          "1f28c803a7e8f7bb3e5a8c6f7308d4d8d417ab690e22963cabee6831b8a22616"),
         ("CLAUDE.md", "project", "claude-md", "launch", 11,
@@ -3797,8 +3693,6 @@ class TestInstructionFiles(unittest.TestCase):
         self.assertEqual(got, [dict(zip(self.FIELDS, row)) for row in self.EXPECTED])
 
     def test_an_ignored_tree_is_not_listed(self) -> None:
-        # A fresh clone has no node_modules/, so listing its files would make
-        # a cloud-versus-local comparison report a false difference.
         self.write(
             self.repo,
             {
@@ -3826,8 +3720,6 @@ class TestInstructionFiles(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "posix", "needs a filesystem that takes raw bytes")
     def test_a_non_utf8_path_drops_only_itself(self) -> None:
-        # One file whose name is not UTF-8 must not cost the nested files git
-        # found beside it.
         # spellchecker:ignore-next-line
         odd = os.path.join(os.fsencode(self.repo), b"caf\xe9")
         try:
@@ -3924,10 +3816,91 @@ def inv_args(**over: object) -> argparse.Namespace:
         changelog_file=None,
         tools_docs_file=None,
         reader="regex",
+        sources_file="",
+        diagnostics_dir=None,
+        argv=[],
     )
     for key, value in over.items():
         setattr(ns, key, value)
     return ns
+
+
+class CollectionHeaderTest(unittest.TestCase):
+    """The resolver-backed root and the report header's lookup gap, with invented hosts."""
+
+    def setUp(self) -> None:
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="header-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        (self.tmp / "wsl" / "projects").mkdir(parents=True)
+        (self.tmp / "windows").mkdir()
+        (self.tmp / "windows" / "projects").write_text("not a directory", encoding="utf-8")
+        self.sources = self.tmp / "sources.json"
+        self.sources.write_text(json.dumps({"schema": "transcript-sources/v1", "sources": [
+            {"name": "host-b-wsl", "host": "host-b", "platform": "wsl", "config_dir": "/srv/user-b/.claude", "via": ["ssh", "host-b"]},
+            {"name": "host-a-wsl", "host": "host-a", "platform": "wsl", "config_dir": str(self.tmp / "wsl")},
+            {"name": "host-a-windows", "host": "host-a", "platform": "windows", "config_dir": str(self.tmp / "windows")},
+        ]}), encoding="utf-8")
+        self.argv = ["--sources-file", str(self.sources), "--diagnostics-dir", str(self.tmp / "diag")]
+
+    def expected_header(self) -> list[str]:
+        (record,) = (self.tmp / "diag").glob("*.json")
+        script = pathlib.Path(inv.__file__).resolve()
+        return [
+            "Gap: host-a-windows unreadable: its projects directory could not be listed (NotADirectoryError). "
+            f"Retry: python3 {script} {' '.join(self.argv)}",
+            f"Diagnostics: {record}",
+        ]
+
+    def test_header_lookup_gap(self) -> None:
+        with mock.patch.object(inv, "managed_policy_dir", return_value=None):
+            report = inv.build_report(inv_args(project_dir=str(self.tmp), sources_file=str(self.sources),
+                                               diagnostics_dir=str(self.tmp / "diag"), argv=self.argv))
+        self.assertEqual(report["disk"]["config_dir"], str(self.tmp / "wsl"))
+        self.assertEqual(report["header"], self.expected_header())
+
+    def test_a_missing_sources_file_warns_on_stderr(self) -> None:
+        err = io.StringIO()
+        with mock.patch.object(inv, "managed_policy_dir", return_value=None), contextlib.redirect_stderr(err):
+            report = inv.build_report(inv_args(config_dir=str(self.tmp / "wsl"), project_dir=str(self.tmp),
+                                               sources_file=str(self.tmp / "absent.json")))
+        self.assertEqual((err.getvalue().count("not found"), report["header"]), (1, []))
+
+
+class CustomConfigDirTest(unittest.TestCase):
+    """Which `.claude.json` builtin_plugin_state reads: inside a custom config dir, else in home."""
+
+    def setUp(self) -> None:
+        self.tmp = pathlib.Path(tempfile.mkdtemp(prefix="custom-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.home = self.tmp / "home"
+        (self.home / ".claude").mkdir(parents=True)
+        self.env = mock.patch.dict(os.environ, {"HOME": str(self.home)}, clear=False)
+        self.env.start()
+        self.addCleanup(self.env.stop)
+        os.environ.pop("CLAUDE_CONFIG_DIR", None)
+
+    def sources_for(self, config_dir: pathlib.Path) -> inv.transcript_sources.Sources:
+        path = self.tmp / "sources.json"
+        path.write_text(json.dumps({"schema": "transcript-sources/v1", "sources": [
+            {"name": "host-a-wsl", "host": "host-a", "platform": "wsl", "config_dir": str(config_dir)},
+        ]}), encoding="utf-8")
+        return inv.transcript_sources.load(str(path))
+
+    def test_a_sources_file_root_outside_home_is_custom(self) -> None:
+        root = self.tmp / "alt-config"
+        self.assertTrue(inv.custom_config_dir(None, self.sources_for(root), root))
+
+    def test_a_sources_file_root_at_the_default_dir_is_not_custom(self) -> None:
+        root = self.home / ".claude"
+        self.assertFalse(inv.custom_config_dir(None, self.sources_for(root), root))
+
+    def test_no_sources_file_and_no_override_is_not_custom(self) -> None:
+        sources = inv.transcript_sources.load("")
+        self.assertFalse(inv.custom_config_dir(None, sources, inv.transcript_sources.first_local_config_dir(sources)))
+
+    def test_a_config_dir_flag_is_custom(self) -> None:
+        root = self.home / ".claude"
+        self.assertTrue(inv.custom_config_dir(str(root), inv.transcript_sources.load(""), root))
 
 
 if __name__ == "__main__":

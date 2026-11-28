@@ -1,38 +1,10 @@
 #!/usr/bin/env bash
-# resolve-version-bump-conflict.sh — resolve the collision two concurrent PRs
-# create on one plugin's version bump: <plugin>/.claude-plugin/plugin.json and
-# <plugin>/CHANGELOG.md, during a merge of main into the PR branch or a
-# rebase/cherry-pick of the PR onto main that stopped on conflicts.
-#
-# Rule: the new version is main's current version bumped once at the level the
-# PR used (major, minor or patch against the merge base), so no version number
-# is skipped.
-# Main's changelog entries are kept; the PR's one new entry is re-headed under
-# the new version and placed above main's newest version heading, so
-# check-changelog-parity.sh stays green. Every other edit either side made to
-# the two files is three-way merged; when that merge conflicts, or the pair does
-# not have that shape, the plugin is left untouched for manual resolution.
-#
-# A plugin that the default branch's scripts/fragment-plugins.txt lists is in
-# changelog-fragment mode, where only the release pull request bumps it: the
-# resolution is main's plugin.json and CHANGELOG.md, with the PR's entry moved
-# into a changelog fragment. This script leaves such a plugin untouched and
-# names it; abort the merge, run convert-bump-to-fragment.sh (this plugin) on
-# the branch, commit, and merge again.
-#
-# Both files are recomputed from the three commits, never from the worktree,
-# then written and staged. Other conflicted paths are left alone.
-#
-# Exit: 0 every plugin pair resolved, or none present; 1 at least one pair left
-# for manual resolution (named on stderr); 2 git failure.
 set -uo pipefail
 
 conflicted_plugins() {
   git diff --name-only --diff-filter=U |
     sed -n -e 's#/\.claude-plugin/plugin\.json$##p' -e 's#/CHANGELOG\.md$##p' | sort -u
 }
-# Any other operation (a revert, a merge onto the default branch): name the
-# conflicted pairs as left for manual resolution, never report them resolved.
 unsupported() {
   local dirs
   dirs=$(conflicted_plugins)
@@ -41,10 +13,8 @@ unsupported() {
   exit 1
 }
 
-# ponytail: default branch is origin/HEAD, else "main"; add an argument if a repo needs another.
 default=$(git symbolic-ref -q --short refs/remotes/origin/HEAD) default=${default#*/}
 if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
-  # The sides are known only for a merge of the default branch INTO the PR.
   [[ $(git branch --show-current) == "${default:-main}" ]] && unsupported
   pr=HEAD main=MERGE_HEAD
   base=$(git merge-base HEAD MERGE_HEAD) || exit 2
@@ -61,11 +31,8 @@ status=0
 semver() { [[ $1 =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; }
 version_at() { git show "$1:$2" 2>/dev/null | jq -r '.version // empty'; }
 version_headings() { grep -o '^## \[[0-9][^]]*\]' | sort; }
-# Replace the first "version" member's value; the three copies then differ only
-# where the sides' other edits do.
 set_version() { awk -v v="$1" '!done && sub(/"version"[ \t]*:[ \t]*"[^"]*"/, "\"version\": \"" v "\"") { done = 1 } 1'; }
 
-# cp below would write through a link, out of the checkout.
 linked() { [[ -L $1/CHANGELOG.md || -L $1/.claude-plugin/plugin.json ]]; }
 
 resolve() {
@@ -91,7 +58,6 @@ resolve() {
   added=$(comm -13 <(version_headings <"$tmp/cl.base") <(version_headings <"$tmp/cl.pr"))
   [[ -n $added && $added != *$'\n'* ]] || return 1
 
-  # Split the PR's changelog into its new section and everything else.
   awk -v h="$added" -v sec="$tmp/section" -v rest="$tmp/cl.pr.rest" '
     /^## / { insec = (index($0, h) == 1) }
     insec { print > sec; next }
@@ -116,7 +82,6 @@ resolve() {
   echo "resolved $dir: $b -> PR $p, main $m -> $new"
 }
 
-# Plugin names the default branch lists as in fragment mode, `#` comments dropped.
 fragment_mode=" $(git show "$main:scripts/fragment-plugins.txt" 2>/dev/null | sed 's/#.*//' | tr -s ' \t\r\n' ' ') "
 
 while IFS= read -r dir; do

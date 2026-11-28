@@ -1,8 +1,3 @@
-// The Work status reader over the live models.issue-status: a field a trusted
-// account set replaces the issue's queue labels with its state's and keeps
-// hold labels; a field unset, set by an untrusted account, or unreadable
-// leaves the labels as they are. statusEvents merges the field's history into
-// the REST events as label events.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
@@ -89,9 +84,6 @@ test("a hold github-actions[bot] set is added to the labels; its agent-ready, an
   assert.deepEqual(await reader({ 7: { state: "needs-human", setter: 209825114 } }).labels(7, ["priority: high"]), ["priority: high"]);
 });
 
-// The value (REST) and its setter (GraphQL events) are two reads: when the
-// newest event left another option than the value names, the setter belongs to
-// another write, and the read fails rather than miss a hold.
 test("a value the newest field event does not name throws StatusReadError", async () => {
   await assert.rejects(
     () => reader({ 7: { state: "needs-human", named: "needs-triage" } }).labels(7, ["priority: high"]),
@@ -127,7 +119,7 @@ test("an unset models.issue-status reads nothing", async () => {
 });
 
 test("an unreadable trusted-actor list warns once and makes every read throw, naming the load cause", async () => {
-  const { labels, lines, calls } = reader({ 7: { state: "needs-human" } }, { trustedActors: undefined, env: { TRUSTED_ACTORS_PATH: "/nonexistent/trusted.json" } });
+  const { labels, lines, calls } = reader({ 7: { state: "needs-human" } }, { trustedActors: undefined, env: { STANDARDS_DIR: "/nonexistent/standards" } });
   const loadFailed = (number) => (error) => error instanceof StatusReadError && error.number === number && /ENOENT/.test(error.message);
   await assert.rejects(() => labels(7, ["agent-ready"]), loadFailed(7));
   await assert.rejects(() => labels(8, ["agent-ready"]), loadFailed(8));
@@ -184,7 +176,6 @@ test("reader state throws StatusReadError as labels does", async () => {
   await assert.rejects(() => reader({ 7: { state: "ready" } }, { limit: 0 }).labels.state(7), (error) => unreadable(error) && /limit of 0 field reads/.test(error.message));
 });
 
-// statusEvents: field events (fieldEvents' shape) as REST label events.
 const FIELD = String(STATUS_CONFIG["field-id"]);
 const PERSON = { actorId: HUMAN_ID, actorLogin: "person", actorType: "User" };
 const APP = { actorId: 337595936, actorLogin: "melodic-automation-lanes", actorType: "Bot" };
@@ -193,7 +184,6 @@ const label = (event, name, actor, created_at, id = null) => ({ id, event, label
 const personActor = { id: HUMAN_ID, login: "person", type: "User" };
 const appActor = { id: 337595936, login: "melodic-automation-lanes[bot]", type: "Bot" };
 
-// `github` answering the REST event list of number 7 with `rest`.
 function restEvents(rest, calls = []) {
   return async (method, path) => {
     calls.push(`${method} ${path}`);

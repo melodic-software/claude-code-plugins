@@ -1,5 +1,5 @@
 ---
-description: "Read-only classifier that flags residue in code comments: history narration, plan or session references, conversational asides, ticket or PR back-references, origin notes, and workarounds with no link or removal condition. Use when asked to 'audit code comments' or report which comments only make sense with the chat, plan, or ticket behind them, before a commit or on review. Edits nothing; deleting or rewriting comments is /code-tidying:remove-comments."
+description: "Read-only classifier: flags residue in code comments (history narration, plan or session references, conversational asides, ticket/PR back-references, origin notes, workarounds with no link or removal condition). No edits. Use when: 'audit code comments' or report chat/ticket comments on commit/review. Not for edits: /code-tidying:remove-comments."
 argument-hint: "[audit] [--added-since <base>] [target] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -27,8 +27,8 @@ covers this checkout, as it always has.
 
 - The findings are agreed and ready to apply: `/code-tidying:remove-comments` on the same target.
 - The surviving comments restate the code rather than narrate its past: `/code-tidying:tidy`.
-- An `unjustified-workaround` finding marks code whose cause is still unfixed: `/debugging:debug` or
-  `/implementation:implement`.
+- An `unjustified-workaround` finding marks a bug whose cause is unknown: `/debugging:debug`.
+- An `unjustified-workaround` finding marks a known cause ready to fix: `/implementation:implement`.
 
 ## Gotchas
 

@@ -1,19 +1,11 @@
 import { expect, mock, test } from 'claude-code/testing'
 
-// The session event log module. Process runs, the debug log and the answer each event resolves
-// with are what these tests read; the scripts the runs start are tested by session-event-log.test.sh.
-
 const ROOT = '/srv/project'
-// Events a session fires on every turn or subagent, whose node starts with the log off were the
-// cost the module removes. Which events the module hooks is checked by the generator's --check
-// against hook-events.registry.json, not here.
 const PER_TURN = ['UserPromptSubmit', 'PostToolBatch', 'Stop', 'SubagentStart', 'SubagentStop'] as const
 const ON = { options: { session_event_log_enabled: true } }
 
 type Run = { argv: readonly string[]; cwd?: string; env?: Record<string, string>; stdin?: string }
 
-// The world beneath the plugin: each observed event answers `answer` (nothing to change by default),
-// process runs exit with `exit.code` or fail to start, and the environment holds only `env`.
 const world = (
   stub: any,
   exit: { code: number; throws?: boolean } = { code: 0 },
@@ -38,7 +30,6 @@ const world = (
 }
 
 const raise = ($: any, event: string, fields: Record<string, unknown> = {}) => $.classic[event]({ session_id: 'sess-1', ...fields })
-// Raises the event, then runs the write its hook left on the clock.
 const fire = async ($: any, w: { clock: { settle: () => Promise<void> } }, event: string, fields: Record<string, unknown> = {}) => {
   const answer = await raise($, event, fields)
   await w.clock.settle()

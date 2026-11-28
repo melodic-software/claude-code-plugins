@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
-# Unit tests for check-changelog-fragments.sh. Each case builds a throwaway git
-# repo holding the gate, scripts/lib/ and a scripts/fragment-plugins.txt, and
-# runs the gate against it.
 set -uo pipefail
 
-# The gate reads its mode and inputs from the environment, and a CI run exports
-# them (GITHUB_EVENT_NAME=merge_group in the queue). Start every case from none
-# set; a case that needs one sets it itself.
 unset GITHUB_EVENT_NAME MERGE_GROUP_BASE_SHA CHANGELOG_PR_HEAD CHANGELOG_HEAD_REF \
   CHANGELOG_PR_AUTHOR GITHUB_REPOSITORY
 
@@ -21,8 +15,6 @@ SCRIPT="$SELF_DIR/check-changelog-fragments.sh"
 
 f=""
 
-# base_fixture <out-var> [listed...] — plugins alpha and beta at 1.0.0, the
-# named ones in fragment mode, committed on main.
 base_fixture() {
   local dir name
   fixture_tree::build "$1" --sut "$SCRIPT" --git --plugins --label fragments || return 1
@@ -40,7 +32,6 @@ base_fixture() {
   git_test_config "$dir" branch -q -M main
 }
 
-# fragment <fixture> <plugin> <name> <bump> [body]
 fragment() {
   local dir="$1" plugin="$2" name="$3" bump="$4" body="${5-### Fixed
 
@@ -51,13 +42,11 @@ fragment() {
 
 commit() { git_test_config "$1" add -A && git_test_config "$1" commit -qm "$2"; }
 
-# HEAD_REF, when set, is the CHANGELOG_HEAD_REF the gate sees, as CI passes it.
 HEAD_REF=""
 run_gate() (
   cd "$1" && shift && CHANGELOG_HEAD_REF="$HEAD_REF" bash scripts/check-changelog-fragments.sh "$@"
 )
 
-# expect <label> <rc> <needle> <fixture> <args...>
 expect() {
   local label="$1" want="$2" needle="$3" fixture="$4" out rc
   shift 4
@@ -70,7 +59,6 @@ expect() {
   fi
 }
 
-# --- --check ------------------------------------------------------------------
 base_fixture f alpha
 expect "--check passes with no .changes/ directory" 0 "All 0 changelog fragment(s)" "$f" --check
 fragment "$f" alpha feat-x-0123abcd minor
@@ -167,7 +155,6 @@ fragment "$f" alpha feat-x-0123abcd none ""
 expect "--check rejects a none fragment without a reason" 1 "no line saying why" "$f" --check
 rm -rf "$f"
 
-# --- em dash in a fragment for a plugin whose CHANGELOG.md is em-dash purged ---
 ed=$'\xe2\x80\x94'
 base_fixture f alpha beta
 printf '%s\n' '# purged' 'plugins/alpha/CHANGELOG.md' 'docs/*.md' >"$f/scripts/em-dash-purged-paths.txt"
@@ -199,7 +186,6 @@ printf '%s\n' 'plugins/beta/CHANGELOG.md' >"$f/scripts/em-dash-purged-paths.txt"
 expect "--check accepts an em dash in a bump: none reason, which no release copies" 0 "All 1 changelog fragment(s)" "$f" --check
 rm -rf "$f"
 
-# --- --check-required -----------------------------------------------------------
 base_fixture f alpha
 git_test_config "$f" checkout -qb feat/x
 printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
@@ -277,9 +263,6 @@ git_test_config "$f" checkout -q feat/x
 expect "--check-required rejects an added fragment whose path exists on the base" 1 "FRAGMENT PATH TAKEN: .changes/alpha/feat-x-0123abcd.md" "$f" --check-required main
 rm -rf "$f"
 
-# --- --check-release ------------------------------------------------------------
-# release_branch <fixture>: main holds alpha's fragment; release/plugins consumes
-# it and bumps alpha.
 release_branch() {
   fragment "$1" alpha feat-x-0123abcd minor
   commit "$1" pending
@@ -358,15 +341,10 @@ else
 fi
 rm -rf "$f"
 
-# The merge queue checks out the group's squash commit, whose one parent holds
-# main and the entries ahead of it, so the release is read from the queued pull
-# request's head (CHANGELOG_PR_HEAD) and judged against the group's base.
-# queue_on <fixture>: a queue branch whose commit stands in for the squash.
 queue_on() {
   git_test_config "$1" checkout -qb "queue-$2" main
   git_test_config "$1" commit -q --allow-empty -m "queued squash"
 }
-# expect_queue <label> <rc> <needle> <release-head> <base>
 expect_queue() {
   local out rc
   out="$(cd "$f" && GITHUB_EVENT_NAME=merge_group CHANGELOG_HEAD_REF=release/plugins CHANGELOG_PR_HEAD="$4" \
@@ -433,9 +411,6 @@ queue_on "$f" version
 expect_queue "--check-release in the queue fails when the group's base changed a released plugin.json version" 1 "CHANGED ON BASE: plugins/alpha/.claude-plugin/plugin.json" "$release_head" "$(git -C "$f" rev-parse HEAD^1)"
 rm -rf "$f"
 
-# --- a listed convention under docs/conventions/<name>/ or docs/contracts/<name>/ ---
-# convention_fixture <out-var>: alpha and the convention demo (2.0.0) listed,
-# under docs/$home/demo.
 convention_fixture() {
   base_fixture "$1" alpha demo || return 1
   mkdir -p "${!1}/docs/$home/demo"
@@ -487,21 +462,17 @@ for home in conventions contracts; do
   rm -rf "$f"
 done
 
-# --- usage ------------------------------------------------------------------------
 base_fixture f alpha
 expect "no arguments exits 2" 2 "usage" "$f"
 rm -rf "$f"
 
-# --- --check-required: a Dependabot-only pull request needs no fragment ---------
-# A gh stub answers the verified-signature lookup: it prints $GH_ANSWER and exits
-# $GH_RC. dependabot_commit makes a commit with Dependabot's author and GitHub's
-# committer, which a pusher can forge; only the signature lookup tells them apart.
-dependabot_commit() (
-  export GIT_AUTHOR_NAME='dependabot[bot]' GIT_AUTHOR_EMAIL='49699333+dependabot[bot]@users.noreply.github.com'
+bot_commit() (
+  export GIT_AUTHOR_NAME="$3" GIT_AUTHOR_EMAIL="$4"
   export GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com
   commit "$1" "$2"
 )
-run_dependabot() { # <label> <want-rc> <needle> <author> <answer> <gh-rc>
+dependabot_commit() { bot_commit "$1" "$2" 'dependabot[bot]' '49699333+dependabot[bot]@users.noreply.github.com'; }
+run_dependabot() {
   local out rc
   out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER="$5" GH_RC="$6" CHANGELOG_PR_AUTHOR="$4" \
     GITHUB_REPOSITORY=melodic-software/claude-code-plugins bash scripts/check-changelog-fragments.sh --check-required main 2>&1)"
@@ -520,14 +491,12 @@ run_dependabot "--check-required exempts a pull request of verified Dependabot c
 run_dependabot "--check-required does not exempt a pull request another author opened" 1 "MISSING FRAGMENT" kyle-sexton true 0
 run_dependabot "--check-required does not exempt a commit whose signature GitHub did not verify" 1 "no signature GitHub verified" 'dependabot[bot]' false 0
 run_dependabot "--check-required does not exempt when the signature lookup fails, and advises a re-run" 1 "could not be checked: the git or GitHub API lookup failed" 'dependabot[bot]' true 1
-# The merge queue checks out its own squash commit; CHANGELOG_PR_HEAD names the
-# queued pull request's head, whose commits are the ones the exemption reads.
 dependabot_head="$(git -C "$f" rev-parse HEAD)"
 git_test_config "$f" checkout -q main
 git_test_config "$f" checkout -qb queue-dependabot
 git_test_config "$f" merge -q --squash dependabot/npm
 commit "$f" "build(deps): bump zod (#1)"
-run_queue() { # <label> <want-rc> <needle> <pr-head>
+run_queue() {
   local out rc
   out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER=true CHANGELOG_PR_AUTHOR='dependabot[bot]' CHANGELOG_PR_HEAD="$4" \
     GITHUB_REPOSITORY=melodic-software/claude-code-plugins bash scripts/check-changelog-fragments.sh --check-required 'HEAD^1' 2>&1)"
@@ -556,8 +525,23 @@ commit "$f" "a commit pushed onto the Dependabot branch"
 run_dependabot "--check-required does not exempt a Dependabot pull request carrying another author's commit" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
 rm -rf "$f"
 
-# A verified github-actions[bot] commit, even one touching only a plugin outside
-# fragment mode, makes the change set more than Dependabot's.
+base_fixture f alpha
+mkdir -p "$f/.git/stub"
+# shellcheck disable=SC2016  # the stub expands these when it runs
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$GH_ANSWER"\nexit "${GH_RC:-0}"\n' >"$f/.git/stub/gh"
+chmod +x "$f/.git/stub/gh"
+git_test_config "$f" checkout -qb chore/standards-sync
+printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
+bot_commit "$f" "chore: sync standards components" 'melodic-standards-sync[bot]' '300666570+melodic-standards-sync[bot]@users.noreply.github.com'
+run_dependabot "--check-required exempts a pull request of verified standards-sync commits" 0 "Standards-sync-only change to plugins/alpha/" 'melodic-standards-sync[bot]' true 0
+run_dependabot "--check-required does not exempt standards-sync commits in a pull request another author opened" 1 "MISSING FRAGMENT" kyle-sexton true 0
+run_dependabot "--check-required does not exempt a standards-sync commit whose signature GitHub did not verify" 1 "MISSING FRAGMENT" 'melodic-standards-sync[bot]' false 0
+run_dependabot "--check-required does not exempt Dependabot's login on standards-sync commits" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
+printf 'v3\n' >"$f/plugins/alpha/skills/a.md"
+commit "$f" "a commit pushed onto the standards-sync branch"
+run_dependabot "--check-required does not exempt a standards-sync pull request carrying another author's commit" 1 "MISSING FRAGMENT" 'melodic-standards-sync[bot]' true 0
+rm -rf "$f"
+
 base_fixture f alpha
 mkdir -p "$f/.git/stub"
 # shellcheck disable=SC2016  # the stub expands these when it runs
@@ -572,9 +556,6 @@ GIT_AUTHOR_NAME='github-actions[bot]' GIT_AUTHOR_EMAIL='41898282+github-actions[
 run_dependabot "--check-required does not exempt a Dependabot pull request carrying a github-actions[bot] commit" 1 "MISSING FRAGMENT" 'dependabot[bot]' true 0
 rm -rf "$f"
 
-# A base merge a person's update-branch made stays unexempt, and the gate names
-# it and points at @dependabot recreate instead of a hand-added fragment
-# (https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests).
 base_fixture f alpha
 mkdir -p "$f/.git/stub"
 # shellcheck disable=SC2016  # the stub expands these when it runs
@@ -602,10 +583,6 @@ else
 fi
 rm -rf "$f"
 
-# On a runner the signature lookup goes through the api-budget gh wrapper: it
-# adds -i, reads the header block into the token's file and passes only the
-# body on. The stub answers -i with a header block and logs a request when the
-# wrapper's GH_DEBUG asks.
 base_fixture f alpha
 mkdir -p "$f/.git/stub" "$f/.github/actions/log-api-budget" "$f/.git/runner"
 cp "$SELF_DIR/../.github/actions/log-api-budget/api-budget.bash" "$f/.github/actions/log-api-budget/"
@@ -623,7 +600,7 @@ chmod +x "$f/.git/stub/gh"
 git_test_config "$f" checkout -qb dependabot/npm
 printf 'v2\n' >"$f/plugins/alpha/skills/a.md"
 dependabot_commit "$f" "build(deps): bump zod"
-run_wrapped() { # <label> <want-rc> <needle> <status> <gh-rc> <want-reading>
+run_wrapped() {
   local out rc reading
   rm -rf "$f/.git/runner/api-budget"
   out="$(cd "$f" && PATH="$f/.git/stub:$PATH" GH_ANSWER=true GH_STATUS="$4" GH_RC="$5" RUNNER_TEMP="$f/.git/runner" \

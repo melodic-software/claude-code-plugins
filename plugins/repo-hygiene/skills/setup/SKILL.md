@@ -1,5 +1,5 @@
 ---
-description: "Verify repo-hygiene's external prerequisites on this machine and report the effective destructive-guard toggle and the scope it actually applies at. The prerequisites are `git`, which the scan, git, stash, and tree tiers and the tracked-file guarantee all rest on, `node`, which launches the destructive guard, and the optional `ghq` the fleet batch actions enumerate repositories from. Use when: 'set up repo-hygiene', 'configure repo-hygiene', 'is repo-hygiene working', 'is the destructive guard on', 'why did tree-batch find no repos', or before a first clean on a new machine. Check-only: verifies, reports, and points at each remediation; installs nothing and there is nothing setup may write here. Re-runnable and safe."
+description: "Verify repo-hygiene prerequisites (git, node, optional ghq) and effective destructive-guard toggle/scope. Check-only; installs and writes nothing."
 argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true
@@ -87,8 +87,8 @@ Install nothing, and run no mutating tier.
    lives, because the answer is the reason it is session-scoped:
    - It registers from the frontmatter `hooks:` block in `${CLAUDE_PLUGIN_ROOT}/skills/clean/SKILL.md`,
      not from a plugin-level `hooks/hooks.json`, which this plugin does not ship. Claude Code
-     arms it once `/repo-hygiene:clean` is invoked and keeps it armed for the rest of that session,
-     so a session that never invoked the skill has no guard and nothing is wrong with that. Read that SKILL.md for the block (it runs `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh`); never look for a `hooks.json` or list `hooks/`.
+     arms it once `/repo-hygiene:clean` is invoked and keeps it armed for the rest of that session (source: [hooks in skills and agents](https://code.claude.com/docs/en/hooks#hooks-in-skills-and-agents)),
+     so a session that never invoked the skill has no guard: report that as INFO, expected, with nothing to fix. Read that SKILL.md for the block (it runs `${CLAUDE_PLUGIN_ROOT}/skills/clean/scripts/destructive-guard.sh`); never look for a `hooks.json` or list `hooks/`.
    - Report the effective `${user_config.clean_destructive_guard_enabled}` (an unexpanded token or
      an empty value means the manifest default `true`). Read it from this text as rendered; never
      echo it through Bash, where an unexpanded token is invalid shell syntax and the call is

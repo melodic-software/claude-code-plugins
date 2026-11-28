@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Tests for untracked-cache-probe.sh.
-#
-# The probe's promise is that it measures in a scratch repository it creates
-# and removes, and never in the caller's: the cases assert the caller's index
-# and status are unchanged, that no scratch dir survives any exit path, and that
-# a scratch root on another volume is refused before anything is created. The
-# supported or unsupported answer is the file system's to give, so the cases
-# assert that the exit code and the result line agree, not which one it is.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,8 +20,6 @@ git -C "$REPO" init -q
 printf 'tracked\n' >"$REPO/a.txt"
 git -C "$REPO" -c core.autocrlf=false add a.txt
 
-# from <dir> <command...>: run a command from a directory. capture runs it in a
-# subshell, so the cd never leaks into the suite.
 from() {
   cd "$1" || return 2
   shift
@@ -46,7 +36,6 @@ left_in() { find "$1" -maxdepth 1 -name 'untracked-cache-probe.*' | wc -l | tr -
 
 line() { sed -n "s/^$1=//p" <<<"$RUN_OUT"; }
 
-# A df that reports a fixed volume per path, so volume decisions are testable on one disk.
 SHIM="$WORK/shim"
 mkdir -p "$SHIM"
 cat >"$SHIM/df" <<'DF'

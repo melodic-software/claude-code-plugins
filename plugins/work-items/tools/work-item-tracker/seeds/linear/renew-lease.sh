@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# renew-lease — Linear adapter. Bump renewed_at on a LIVE lease, in place.
-#
-# Renew edits the existing marker rather than posting a new comment, so a long-running
-# claim leaves one lease comment rather than a renewal per heartbeat.
-#
-# An EXPIRED but still-active lease is refused (exit 7), never revived: a delayed holder
-# must not undo a TTL-based handoff that another session may already have acted on.
-# Recovery from an expired lease is a fresh claim or reclaim, not a renew.
-#
-# Contract: tools/work-item-tracker/CONTRACT.md "Lease protocol", "Exit codes".
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -44,9 +34,6 @@ ISSUE_UUID="$(jq -r '.id' <<<"$WIT_LINEAR_ISSUE")"
 ENTRIES="$(wit_linear_lease_comments "$ISSUE_UUID")" || exit "$?"
 MATCH="$(jq -c --argjson h "$LEASE_COMMENT_ID" '[.[] | select(.handle == $h)][0] // empty' <<<"$ENTRIES")"
 if [[ -z "$MATCH" ]]; then
-  # The handle addresses a lease on THIS item. A handle from another item is not a
-  # missing lease, it is the wrong item — exit 7 rather than 5, so a caller that mixed
-  # up two claims sees a conflict rather than concluding the item vanished.
   printf 'linear: no lease with handle %s on %s\n' "$LEASE_COMMENT_ID" "$ID" >&2
   exit "$EX_CONFLICT"
 fi
@@ -65,7 +52,6 @@ if ! wit_linear_lease_live "$LEASE"; then
   exit "$EX_CONFLICT"
 fi
 
-# Live is not enough: an earlier live lease holds the item, in claim's step-4 order.
 while IFS=$'\t' read -r ehandle earlier_lease; do
   if [[ -z "$ehandle" ]] || ! wit_linear_lease_live "$earlier_lease"; then continue; fi
   printf 'linear: lease %s on %s is outranked by the earlier live lease %s; not renewing\n' \

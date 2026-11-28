@@ -3,6 +3,60 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.6] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [2.4.5] - 2026-11-28
+
+### Changed
+
+- Trimmed `/markdown-format:setup` user-invoked frontmatter description (514 -> 137 chars) to a one-line summary without trigger phrasing.
+
+## [2.4.4] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [2.4.3] - 2026-11-27
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_files` leaves out an exact rename (the same blob and mode under a new path), so a pure move is no longer formatted or linted as a changed file. `checks_files --include-exact-renames` keeps the full list for checks whose verdict depends on a file's name or location: the guardrails content scan and reference verify, and the spelling lint. A rename with an edit or a mode change is still listed and judged on its added lines only; a copy, an add and a modify are listed as before.
+
+## [2.4.2] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [2.4.1] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [2.4.0] - 2026-11-25
+
+### Added
+
+- In a repository whose `docs/conventions/source-control.yaml` names a `standards_repository`, the git-hook lint entry uses that repository's lint config from a local checkout (`STANDARDS_DIR`, else `<ghq root>/github.com/<owner>/<repo>`): typos and markdownlint-cli2 take it as the base the repository's own config merges over; ShellCheck and actionlint use it when the repository has no config of its own.
+
+## [2.3.3] - 2026-11-25
+
+### Changed
+
+- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
+
+## [2.3.2] - 2026-11-24
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_changed_lines` and `checks_added_ranges` take an opt-in `--skip-reindent`, which leaves out an added line equal, leading and trailing whitespace aside, to a line the same file's diff removes (a reindent, or a move within the file). Without it, every added line still counts, so this plugin's checks judge the same lines as before.
+
 ## [2.3.1] - 2026-11-24
 
 ### Changed

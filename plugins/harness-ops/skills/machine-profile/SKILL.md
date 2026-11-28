@@ -1,5 +1,5 @@
 ---
-description: "Re-runnable profile of this machine's facts and identity domains, with drift between the stored profile and the host now; read-only unless the operator confirms a write, never installs, never reapplies a stored value on its own. Use when: 'profile this machine', 'what does this host have configured', 'has this machine changed', 'which identity domains exist here', 'hand my machine facts to setup'."
+description: "Re-runnable profile of this machine's facts, identity domains, and drift vs the stored profile; read-only unless operator confirms a write (never installs, never reapplies stored values). Use when 'profile this machine', 'has this machine changed', 'which identity domains exist here', what this host has configured, or hand machine facts to setup."
 argument-hint: "[profile|diff|explain <key>|apply --option <key>]"
 user-invocable: true
 disable-model-invocation: false
@@ -11,7 +11,7 @@ metadata:
 
 ## Purpose
 
-Record, once per machine, what the host has and which identity domains it holds, with the observation behind every value, so a plugin `setup` run starts from observed answers and a kept default says whether anyone looked. The profile drives setups; it never replaces their prerequisite logic. Design and rulings: [machine-profile-design](https://github.com/melodic-software/claude-code-plugins/blob/038c2ae22c23f60500b339fd2f66e4569ecbe2fd/docs/specs/machine-profile-design.md), placement in ADR 0041.
+Record, once per machine, what the host has and which identity domains it holds, with the observation behind every value, so a plugin `setup` run starts from observed answers and a kept default says whether anyone looked. The profile drives setups; it never replaces their prerequisite logic. Design and rulings: [machine-profile-design](https://github.com/melodic-software/claude-code-plugins/blob/038c2ae22c23f60500b339fd2f66e4569ecbe2fd/docs/specs/machine-profile-design.md).
 
 Everything here is read-only except two steps the operator confirms in that turn: `record --confirm` (writes the profile document) and `apply --confirm` (prints what to hand to each setup; it writes nothing itself).
 

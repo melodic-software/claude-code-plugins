@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { after } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 export const tests = dirname(dirname(fileURLToPath(import.meta.url)));
 export const fixtures = join(tests, "fixtures");
@@ -25,6 +25,10 @@ export const said = { type: "item.completed", item: { id: "item_0", type: "agent
 export const completed = { type: "turn.completed", usage: { input_tokens: 1, output_tokens: 1 } };
 export const clean = events(...opened, said, completed);
 
+export const noOperatorSettings = { install: { pluginId: null, name: null, userSettings: null }, managed: () => [] };
+export const isolation = join(tests, "support", "no-operator-settings.mjs");
+export const cli = (args, options) => spawnSync(process.execPath, ["--import", pathToFileURL(isolation).href, join(tests, "..", "bin", "external-agents"), ...args], { encoding: "utf8", ...options });
+
 let count = 0;
 export function world(scenario = {}, { local, team } = {}) {
   const root = join(scratch, `w${(count += 1)}`);
@@ -39,7 +43,7 @@ export function world(scenario = {}, { local, team } = {}) {
   const set = (next) => writeFileSync(join(root, "scenario.json"), JSON.stringify({ record: calls, ...next }));
   set(scenario);
   return {
-    opts: { product: "codex", cwd, dataDir, binary: fakeCodex, warn: () => {}, userConfig: {}, env: { ...process.env, FAKE_SCENARIO: join(root, "scenario.json") } },
+    opts: { product: "codex", cwd, dataDir, binary: fakeCodex, warn: () => {}, operatorSettings: noOperatorSettings, env: { ...process.env, FAKE_SCENARIO: join(root, "scenario.json") } },
     cwd,
     dataDir,
     set,

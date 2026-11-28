@@ -1,15 +1,9 @@
 #!/usr/bin/env bash
-# The checkup decision page builder: the interactive validator profile, hostile machine
-# text, the hidden run choice, and row-id parity between the builder's id map and the
-# ids the shared runtime assigns when the page loads in a headless browser.
-# Machine-derived text is K2, so every string must reach the page only as escaped JSON data.
-#
-#   bash plugins/machine-health/tests/checkup-view.test.sh
-#
-# Set CHROME to pick the browser. Set CHECKUP_SCREENSHOTS to a folder to also save the
-# built page in light and dark themes as PNG files there.
+# test-scope: plugins/machine-health/.claude-plugin/plugin.json
 # Exit 0 clean, 1 findings, 2 environment (node or a Chrome or Chromium binary missing).
 set -euo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 
@@ -146,7 +140,8 @@ mkdirSync(views);
 const notesFile = `discovery-${stamp}.md`;
 writeFileSync(latestPath, `﻿${JSON.stringify({ ...latest, discovery_path: `D:\\Reports\\reports\\${notesFile}` })}`);
 const args = ["--latest", latestPath, "--views-dir", views, "--run-stamp", stamp, "--remediations", "restart-stopped-service,clear-temp-files", "--report", "decision-report.md"];
-const run = spawnSync("node", [builder, ...args], { encoding: "utf8", timeout: 60000 });
+const runBuilder = (argv) => spawnSync("node", [builder, ...argv], { encoding: "utf8", timeout: 60000 });
+const run = runBuilder(args);
 check("a page builds", run.status === 0, run.stderr);
 check("the builder writes exactly the run's three files",
   readdirSync(views).sort().join(",") === [`checkup-${stamp}.html`, `checkup-${stamp}.ids.json`, `checkup-${stamp}.json`].join(","), readdirSync(views));
@@ -185,12 +180,69 @@ check("the builder refuses a run value that is not an opaque token", refused ins
 threw = false;
 try { withRunChoice(template.replace('value="run-stamp"', ""), stamp); } catch { threw = true; }
 check("a template without the run placeholder is refused", threw);
-const badStamp = spawnSync("node", [builder, ...args.slice(0, 5), "../x", ...args.slice(6)], { encoding: "utf8", timeout: 60000 });
+const badStamp = runBuilder([...args.slice(0, 5), "../x", ...args.slice(6)]);
 check("a malformed run stamp exits 2", badStamp.status === 2, badStamp.status);
-check("an unknown flag exits 2", spawnSync("node", [builder, ...args, "--out", "x"], { encoding: "utf8", timeout: 60000 }).status === 2);
+check("an unknown flag exits 2", runBuilder([...args, "--out", "x"]).status === 2);
 writeFileSync(`${work}/bad.json`, "not json");
-check("latest.json that is not JSON exits 1",
-  spawnSync("node", [builder, "--latest", `${work}/bad.json`, ...args.slice(2)], { encoding: "utf8", timeout: 60000 }).status === 1);
+check("latest.json that is not JSON exits 1", runBuilder(["--latest", `${work}/bad.json`, ...args.slice(2)]).status === 1);
+
+const rawStyle = /<style>([^]*?)<\/style>/i.exec(template)?.[1] ?? "";
+check("the template defines no literal palette color", !/#[0-9a-fA-F]{3,8}(?![0-9a-fA-F])|rgb\(|hsl\(/i.test(rawStyle));
+check("default page embeds shipped token layer, toggle, comment box and focus floor",
+  page.includes("--ivory: #FAF9F5;") &&
+  !page.includes('class="rv-brand"') &&
+  page.includes('data-rv-theme="system" aria-pressed="true"') &&
+  page.includes('data-rv-theme="light"') &&
+  page.includes('data-rv-theme="dark"') &&
+  page.includes('data-rv-note="notes"') &&
+  page.includes("outline: 3px solid var(--focus)"));
+
+const brandRepo = `${work}/brand-repo`;
+const brandViews = `${work}/brand-views`;
+const emptyHome = `${work}/empty-home`;
+mkdirSync(`${brandRepo}/docs/conventions`, { recursive: true });
+mkdirSync(brandViews, { recursive: true });
+mkdirSync(emptyHome, { recursive: true });
+spawnSync("git", ["init", "-q", brandRepo], { encoding: "utf8" });
+writeFileSync(`${brandRepo}/docs/conventions/rendered-views.yaml`, [
+  "branding:",
+  "  palette:",
+  "    light:",
+  '      bg: "#F8F4EC"',
+  '      muted: "#595954"',
+  '      link: "#1A4D8F"',
+  '      fg: "#CCCCCC"',
+  "  type:",
+  '    sans: "IBM Plex Sans, sans-serif"',
+  "  logo:",
+  '    svg: \'<svg viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><circle cx="8" cy="8" r="6" fill="#1A4D8F"/></svg>\'',
+  '    label: "Acme Health"',
+].join("\n") + "\n");
+const brandEnv = { ...process.env, CLAUDE_PROJECT_DIR: brandRepo, HOME: emptyHome, USERPROFILE: emptyHome };
+delete brandEnv.CLAUDE_PLUGIN_OPTION_BRANDING;
+const brandedRun = spawnSync("node", [builder, "--latest", latestPath, "--views-dir", brandViews, "--run-stamp", stamp, "--remediations", "restart-stopped-service", "--report", "decision-report.md"], { encoding: "utf8", timeout: 60000, env: brandEnv });
+const brandedPage = brandedRun.status === 0 ? readFileSync(`${brandViews}/checkup-${stamp}.html`, "utf8") : "";
+check("branded checkup page builds and passes interactive profile", brandedRun.status === 0 && validateView(brandedPage).ok, brandedRun.stderr || validateView(brandedPage).failures);
+check("branded checkup emits contrast-floor notice on stderr", brandedRun.stderr.includes("notice:") && brandedRun.stderr.includes("fg"));
+const brandedStyle = /<style>([^]*?)<\/style>/i.exec(brandedPage)?.[1] ?? "";
+check("branded checkup strips all leading token header comments", !brandedStyle.includes("GENERATED") && !brandedStyle.includes("Provenance:"));
+check("branded checkup applies palette, type, logo slot and enforces contrast floor",
+  brandedPage.includes("--bg: #F8F4EC;") &&
+  brandedPage.includes("--link: #1A4D8F;") &&
+  !brandedPage.includes("--fg: #CCCCCC;") &&
+  brandedPage.includes("--sans: IBM Plex Sans, sans-serif;") &&
+  brandedPage.includes('<div class="rv-bar"><div class="rv-brand"><svg viewBox="0 0 16 16"') &&
+  brandedPage.includes('<span class="rv-brand-label">Acme Health</span>') &&
+  brandedPage.includes('data-rv-theme="dark"') &&
+  brandedPage.includes('data-rv-note="notes"') &&
+  brandedPage.includes("outline: 3px solid var(--focus)"));
+const optViews = `${work}/opt-views`;
+mkdirSync(optViews, { recursive: true });
+const optEnv = { ...process.env, CLAUDE_PROJECT_DIR: emptyHome, HOME: emptyHome, USERPROFILE: emptyHome };
+delete optEnv.CLAUDE_PLUGIN_OPTION_BRANDING;
+const optRun = spawnSync("node", [builder, "--latest", latestPath, "--views-dir", optViews, "--run-stamp", stamp, "--remediations", "restart-stopped-service", "--report", "decision-report.md", "--branding-option", '{"logo":{"label":"CLI Health"}}'], { encoding: "utf8", timeout: 60000, env: optEnv });
+const optPage = optRun.status === 0 ? readFileSync(`${optViews}/checkup-${stamp}.html`, "utf8") : "";
+check("--branding-option passes userConfig branding into checkup page", optRun.status === 0 && optPage.includes('<span class="rv-brand-label">CLI Health</span>'), optRun.stderr);
 
 // Headless browser over the DevTools protocol.
 const profile = `${work}/profile`;
@@ -256,6 +308,10 @@ await sleep(300);
 const payload = await evaluate("document.querySelector('[data-rv-out]').textContent");
 check("browser: the copied payload carries the picks, the lowercased run stamp and the note",
   payload === `checkup-picks\npicked: areas-2-items-1-mute-1 remediations-2\nrun: ${lower}\nnotes: expected on this host`, JSON.stringify(payload));
+await evaluate("document.querySelector('button[data-rv-theme=\"dark\"]').click()");
+check("browser: the theme toggle sets data-theme and updates aria-pressed",
+  (await evaluate("document.documentElement.getAttribute('data-theme')")) === "dark" &&
+  (await evaluate("document.querySelector('button[data-rv-theme=\"dark\"]').getAttribute('aria-pressed')")) === "true");
 
 if (shots) {
   mkdirSync(shots, { recursive: true });

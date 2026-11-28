@@ -8,18 +8,8 @@ See reference/windows/check-catalog.md#17-claude-code-temp-root for rubric.
 [CmdletBinding()]
 param(
     [switch]$Human,
-    # The overrides below exist for tests and manual scratch-tree runs; the
-    # orchestrator dispatches argument-less (Get-CheckArgument default) and the
-    # defaults are the rubric's figures.
     [long]$TaskOutputWarnBytes = 1GB,
-    # Walk budget. The orchestrator kills a check at 90s and check-result.schema.json
-    # caps duration_ms at 90000, so an unbounded walk of a multi-gigabyte tree does not
-    # merely time out -- it emits a schema-invalid result. Stop at 60s, keep the partial
-    # figures, and report UNKNOWN per the rubric's timeout row.
     [int]$BudgetSeconds = 60,
-    # The task-output listing runs first on the same clock and stops at its own cap,
-    # so a tree too large to walk still gets its largest files named and the walk
-    # keeps the rest of the budget.
     [int]$TaskOutputBudgetSeconds = 20
 )
 
@@ -68,9 +58,6 @@ function Resolve-ClaudeTempRoot {
     foreach ($c in $candidates) {
         $item = Get-Item -LiteralPath $c.Path -Force -ErrorAction SilentlyContinue
         if ($item -is [System.IO.DirectoryInfo]) {
-            # FullName over the raw candidate: %TEMP% commonly carries an 8.3 short
-            # name (KYLESE~1), which a human cannot match against what Explorer shows
-            # and which compares unequal to the long form.
             return [pscustomobject]@{ Path = $item.FullName; Source = $c.Source; Exists = $true }
         }
     }
@@ -116,9 +103,6 @@ function Measure-SessionTree {
         [Parameter(Mandatory = $true)] [int] $BudgetSeconds
     )
 
-    # Only reparse points are skipped: the default also skips Hidden and System
-    # entries, which -Force counted. IgnoreInaccessible is off so an unreadable
-    # directory throws and is counted, as Get-ChildItem's error record was.
     $options = [System.IO.EnumerationOptions]::new()
     $options.AttributesToSkip = [System.IO.FileAttributes]::ReparsePoint
     $options.IgnoreInaccessible = $false
@@ -274,9 +258,6 @@ function Find-LargestTaskOutput {
     )
 
     $reparse = [System.IO.FileAttributes]::ReparsePoint
-    # Only reparse points are skipped: the default also skips Hidden and System
-    # entries, which -Force listed. IgnoreInaccessible keeps its default of true,
-    # because the walk counts unreadable paths itself.
     $options = [System.IO.EnumerationOptions]::new()
     $options.AttributesToSkip = $reparse
 
@@ -313,7 +294,6 @@ function Find-LargestTaskOutput {
                         if ($largest.Count -gt $Top) { $largest.RemoveAt($Top) }
                     }
                 } catch [System.IO.IOException] {
-                    # A session removed mid-listing takes its outputs with it.
                     continue
                 }
             }
@@ -385,9 +365,6 @@ $CheckBody = {
     $root = Resolve-ClaudeTempRoot
 
     if (-not $root.Exists) {
-        # Not applicable exits quietly and successfully (docs/plugin-philosophy.md
-        # "Prerequisites and failure behavior"). Same shape as the battery check on a
-        # desktop: OK with a negative detail flag, never UNKNOWN.
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity 'OK' -Summary 'Claude Code temp root not present.' -Commands $commands `
             -Detail @{
@@ -450,24 +427,6 @@ $CheckBody = {
         }
 
         if ($truncated -or $unreadable -gt 0 -or $taskOutputs.Truncated) {
-            # Partial figures are an undercount by an unbounded amount, so they cannot
-            # clear a threshold in either direction -- an inaccessible multi-gigabyte
-            # session would otherwise read as OK. Both ways a walk comes back
-            # incomplete take the rubric's timeout row: UNKNOWN, with the partial
-            # detail still shipped so the human sees the floor.
-            #
-            # A cut-off task-output listing is the same kind of floor for the per-file
-            # arm: a completed walk proves the totals, not that no output reached the
-            # threshold, so it takes the same row.
-            #
-            # ran_successfully = false is also what keeps the run out of history's
-            # checks_ran, and so keeps an undercounted total_gb from becoming a trend
-            # baseline. Left in, the recovered difference on the next complete walk
-            # reads as growth and upgrades that WARN to CRIT on nothing.
-            #
-            # The schema pins a failed run to UNKNOWN, so an oversized task output
-            # cannot lift this verdict to WARN; it is named in the summary instead,
-            # which is what the human reads when the walk could not finish.
             $reason = if ($truncated) {
                 "Walk budget of ${budgetSeconds}s exceeded after $sessionCount " +
                 'session directories; figures are a partial undercount.'
@@ -488,19 +447,6 @@ $CheckBody = {
                 ' Task-output listing complete.'
             } else { '' }
         } else {
-            # Severity ladder (most severe first). This check never emits CRIT: the
-            # tree is reclaimable cache with no data-loss or security consequence, and
-            # severity-rubric.md reserves CRIT for imminent-failure and security
-            # conditions while directing ambiguity to the lower level. Sustained growth
-            # still reaches CRIT through the orchestrator's trend upgrade.
-            #   WARN -- >=5 GB accumulated, nothing reclaimed for >=14 days, or one
-            #           background-task output file >=1 GB
-            #   INFO -- >=1 GB, still within a plausible working set
-            #   OK   -- <1 GB
-            # The age arm is independent of size on purpose: a small tree that never
-            # loses its oldest entry is the unpruned-growth signal this check exists for.
-            # The per-file arm is independent too: one runaway task output is the
-            # file to remove, and a total-size verdict alone never names it.
             $outcome = @{ RanSuccessfully = $true }
             $severity = if ($totalGb -ge 5 -or $oldestAgeDays -ge 14 -or $taskOutputOver) {
                 'WARN'

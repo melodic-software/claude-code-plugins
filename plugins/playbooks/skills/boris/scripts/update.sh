@@ -1,26 +1,9 @@
 #!/usr/bin/env bash
-# /playbooks:update (boris pack) — drift detection + vendor sync.
-#
-# Maintainer-facing: run against a working-tree checkout of this plugin (the
-# marketplace clone, or a directory loaded via --plugin-dir), never against an
-# installed marketplace copy. Consumers receive updates through
-# `/plugin marketplace update`.
-#
-# Modes:
-#   --check  (default) read-only: report upstream version + vendor SHA delta
-#   --apply  fetch latest upstream, replace vendor/upstream-skill.md verbatim, bump
-#            frontmatter metadata (upstream-version + synced). Does NOT
-#            rewrite the SKILL.md body or reference/*.md content — distilled
-#            integration is a manual, reviewed step (advisory contract).
-#
 # Exit codes:
 #   0  no drift OR --apply completed successfully
 #   1  drift detected in --check mode (no mutations)
 #   2  prerequisite missing (curl/jq) or network failure
-#
-# Idempotency: re-running --check on a no-drift state produces identical output.
 
-# No set -e — exit codes captured explicitly for a clean report.
 set -uo pipefail
 
 VERSION_URL="https://howborisusesclaudecode.com/api/version"
@@ -32,7 +15,6 @@ VENDOR_FILE="${SKILL_DIR}/vendor/upstream-skill.md"
 TMPDIR_RUN=$(mktemp -d -t boris-update-XXXXXX)
 trap 'rm -rf "$TMPDIR_RUN"' EXIT
 
-# log, err, section, replace_metadata_field and main.
 # shellcheck source=vendor-update.sh
 source "${SCRIPT_DIR}/vendor-update.sh" || exit 2
 
@@ -48,7 +30,6 @@ check_prereqs() {
   local missing=0
   require_tool curl || missing=1
   require_tool jq || missing=1
-  # Cross-platform sha256: `sha256sum` on Linux/Git Bash, `shasum -a 256` on macOS.
   if ! command -v sha256sum >/dev/null 2>&1 &&
     ! command -v shasum >/dev/null 2>&1; then
     err "neither sha256sum nor shasum on PATH — cannot hash upstream"
@@ -79,8 +60,6 @@ fetch_upstream_version() {
   printf '%s' "$body" | jq -r '.version // empty'
 }
 
-# Fetch upstream SKILL.md to TMPDIR_RUN; emit the path on success.
-# --fail prevents 404/5xx error pages from poisoning the diff.
 fetch_upstream_install() {
   local out="${TMPDIR_RUN}/upstream-skill.md"
   curl -sSL --fail --max-time 30 "$INSTALL_URL" -o "$out" 2>/dev/null || return 1

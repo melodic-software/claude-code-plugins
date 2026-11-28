@@ -1,0 +1,19 @@
+{
+  "claim": "A UserPromptSubmit hook sees a typed plain prompt, and the text it prints reaches the turn that prompt starts, so the model can answer with it.",
+  "tags": ["UserPromptSubmit", "additionalContext", "hook"],
+  "permission_mode": "default",
+  "model": "claude-haiku-5-5",
+  "max_turns": 2,
+  "max_budget_usd": 0.5,
+  "target": {
+    "patterns": [
+      "^(?!\\{\"type\":\"api-request)(?=.*\"role\":\\s*\"assistant\")(?=.*TANGERINE-5150)",
+      "^(?=.*\"hook_event_name\":\\s*\"UserPromptSubmit\")(?=.*\"prompt\":\\s*\"Reply with only the codeword)"
+    ],
+    "example": [
+      "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"TANGERINE-5150\"}]}}",
+      "{\"session_id\":\"s\",\"hook_event_name\":\"UserPromptSubmit\",\"prompt\":\"Reply with only the codeword for this turn, nothing else.\"}"
+    ]
+  },
+  "outcome": "transcript-grep"
+}

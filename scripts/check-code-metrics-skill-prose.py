@@ -104,8 +104,6 @@ def check(root: Path, defaults: dict) -> list[str]:
         if not path.is_file():
             problems.append(f"missing {relative}")
             continue
-        # Whitespace runs collapse on both sides, so reflowing a paragraph
-        # cannot fail the gate while the value is unchanged.
         text = _collapse(path.read_text(encoding="utf-8"))
         if _collapse(phrase) not in text:
             problems.append(f"{relative} does not contain {phrase!r}")

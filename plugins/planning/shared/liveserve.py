@@ -38,19 +38,18 @@ if str(HERE) not in sys.path:
 import detached  # noqa: E402  (beside this file; sys.path is set just above)
 import session_bridge  # noqa: E402
 
-MAX_BYTES = 50 * 1024 * 1024  # judgment: a static build with sample data fits well within this
-MAX_FILES = 2000  # judgment
+MAX_BYTES = 50 * 1024 * 1024
+MAX_FILES = 2000
 READY = re.compile(r"liveserve: serving http://127\.0\.0\.1:([0-9]{1,5})/")
-START_SECONDS = 10.0  # how long a new server may take to print READY
-MARKER = "python" if detached.WINDOWS else "liveserve.py"  # what detached.alive finds in its command line or program
+START_SECONDS = 10.0
+MARKER = "python" if detached.WINDOWS else "liveserve.py"
 CSP = "default-src 'self'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
 HEADERS = {"Content-Security-Policy": CSP, "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff", "Cache-Control": "no-store",
            "Cross-Origin-Opener-Policy": "same-origin"}
-SENDING = 16  # judgment: files sent at once; a request past them waits up to WAIT seconds, then answers 503
+SENDING = 16
 WAIT = 10.0
 CHUNK = 64 * 1024
 TEXT = "text/plain; charset=utf-8"
-# A fixed map, not mimetypes: on Windows mimetypes reads the registry, which can name .js text/plain and break a module.
 TYPES = {
     ".html": "text/html; charset=utf-8", ".htm": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8",
     ".mjs": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json",
@@ -59,7 +58,7 @@ TYPES = {
     ".ico": "image/x-icon", ".woff": "font/woff", ".woff2": "font/woff2", ".ttf": "font/ttf", ".otf": "font/otf",
     ".wasm": "application/wasm", ".mp4": "video/mp4", ".webm": "video/webm",
 }
-_REPARSE = 0x400  # FILE_ATTRIBUTE_REPARSE_POINT: a junction or symlink on Windows, which is_symlink() can miss
+_REPARSE = 0x400
 
 
 class BuildRefused(ValueError):
@@ -178,10 +177,9 @@ class Handler(BaseHTTPRequestHandler):
     server_version = "liveserve"
     sys_version = ""
     protocol_version = "HTTP/1.1"
-    timeout = 30  # judgment: an idle or slow connection is closed after this many seconds
+    timeout = 30
 
     def __getattr__(self, name):
-        # BaseHTTPRequestHandler answers 501 to a method it has no do_X for; every method but GET and HEAD is 405 here.
         if name.startswith("do_"):
             return self.refuse
         raise AttributeError(name)
@@ -205,12 +203,12 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def refuse(self):
-        self.close_connection = True  # the request body, if any, is never read
+        self.close_connection = True
         self.answer(405, b"Method not allowed\n", TEXT, {"Allow": "GET, HEAD", "Connection": "close"})
 
     def do_GET(self):
         if self.headers.get("Transfer-Encoding") or self.headers.get("Content-Length", "0").strip() != "0":
-            self.close_connection = True  # a body is never read, so it must never be taken as the next request
+            self.close_connection = True
         f = resolve(self.server.root, self.path)
         if f is None:
             return self.answer(404, b"Not found\n", TEXT)
@@ -235,7 +233,7 @@ class Handler(BaseHTTPRequestHandler):
 
 class Server(ThreadingHTTPServer):
     daemon_threads = True
-    allow_reuse_address = False  # never share a port another program holds
+    allow_reuse_address = False
 
     def __init__(self, root, port=0):
         self.root = Path(root).resolve(strict=True)
@@ -243,7 +241,7 @@ class Server(ThreadingHTTPServer):
         super().__init__(("127.0.0.1", port), Handler)
 
     def server_bind(self):
-        session_bridge.bind_without_lookup(self)  # HTTPServer's own bind looks the host name up, which stalls on macOS
+        session_bridge.bind_without_lookup(self)
 
 
 def spawn(root, log, env=None):

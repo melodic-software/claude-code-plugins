@@ -19,7 +19,7 @@ set -euo pipefail
 set -o noclobber
 mode="${1:?mode}"
 case "${mode}" in
-repro-count-repo | config-ref-pinned | config-ref-bad | board-hostile | board-retired | track-stats | track-remap | comment-markers | adapter-tasker | adapter-redmine) ;;
+repro-count-repo | config-ref-pinned | config-ref-bad | board-hostile | board-retired | track-stats | track-remap | comment-markers | adapter-tasker | adapter-redmine | ci-intake) ;;
 *) echo "unknown mode: ${mode}" >&2 && exit 2 ;;
 esac
 
@@ -30,9 +30,6 @@ case "${here}" in
 *) ;;
 esac
 
-# The eval workspace sits inside the run's temporary home, which is itself a repository, so a
-# repository above the workspace is expected there. Allow only that one; refuse a workspace that
-# is already a repository and any other enclosing repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   tmp="$(cd "${TMPDIR:-/nonexistent}" 2>/dev/null && pwd -P || true)"
@@ -46,14 +43,13 @@ if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
     exit 3
   fi
 fi
-# A file under $HOME is written only when $HOME is not the real home of the user running this.
 if [[ "${mode}" == board-retired ]]; then
   if [[ -z "${real_home}" || -z "${HOME:-}" || "$(cd "${HOME}" && pwd -P)" == "$(cd "${real_home}" 2>/dev/null && pwd -P)" ]]; then
     echo "refusing to write under HOME=${HOME:-unset}: it is the real home or the real home is unknown" >&2
     exit 3
   fi
 fi
-for target in docs README.md .work-items .github src lib tools adapter-spec.json picker; do
+for target in docs README.md .work-items .github src lib tools adapter-spec.json picker scripts docs-site plugins .lane; do
   if [[ -e "${target}" ]]; then
     echo "refusing to scaffold: ${here}/${target} already exists" >&2
     exit 3
@@ -71,12 +67,11 @@ if [[ "$(git rev-parse --show-toplevel)" != "${here}" ]]; then
   echo "git did not create a repository here: ${PWD}" >&2
   exit 3
 fi
-# The seam's claim identity is the git user name.
 git config user.name 'Fabrikam Fixture'
 git config user.email 'fixture@fabrikam.example'
 mkdir -p docs/conventions
 
-binding() { # binding [role_labels line...]
+binding() {
   {
     printf 'tracker:\n  schema_version: "1.0"\n  provider: local-markdown\n  config:\n'
     printf '    lease_ttl_hours: 24\n    storage_dir: .work-items\n'
@@ -88,7 +83,7 @@ binding() { # binding [role_labels line...]
   mkdir -p .work-items
 }
 
-item() { # item <n> <title> <labels json> <assignees json> <state> <created> <body>
+item() {
   local closed=""
   [[ "$5" == closed ]] && closed=$'\nclosed_at: "2026-10-20T09:00:00Z"'
   cat >".work-items/$1.md" <<MD
@@ -209,7 +204,6 @@ JSON
   g commit -q -m "ledger fixture"
   ;;
 comment-markers)
-  # The marker words are assembled at run time so this file carries none of them literally.
   t="TO""DO"
   f="FIX""ME"
   c="acme/csvkit""#12"
@@ -274,7 +268,8 @@ adapter-tasker | adapter-redmine)
     "release": false, "reclaim": false, "link-blocks": true, "add-sub-item": false,
     "list-items": true, "list-sub-items": false, "label-provenance": false,
     "set-fields": false, "get-field-options": false, "get-statuses": false, "change-link": true,
-    "add-recurrence": false, "capabilities": true
+    "add-recurrence": false, "put-artifact": false, "list-artifacts": false, "get-artifact": false,
+    "link-relates": false, "unlink-relates": false, "list-relates": false, "capabilities": true
   },
   "features": {
     "cross_repo_edges": false, "sub_items": false, "leases": false, "labels": true
@@ -296,5 +291,110 @@ JSON
   g add -A
   g commit -q -m "fabrikam-ops fixture"
   ;;
-*) exit 2 ;; # the mode was checked above
+ci-intake)
+  printf '# fabrikam-plugins\n\nFabrikam plugin marketplace: plugins, their eval suites, and the workflows that check them.\n' >README.md
+  cat >docs/conventions/work-items.md <<'MD'
+# work-items
+
+`/work-items:triage --issue <n> --ci`, the intake lane's mode, reads `## Triage rules` below beside
+its own rules: they add to the skill's, and never relax one.
+
+## Triage rules
+
+- **Priority.** Exactly one: `priority: critical` for a red main branch, a security exposure or a
+  lane that is down; `priority: high` for something that blocks the pipeline or queued work;
+  `priority: low` for a cosmetic or docs-only change; otherwise `priority: medium`.
+- **A done-when item a lane run cannot do** (a run on a named host or OS, a paid eval, a run
+  repeated N times, a measurement over time) is no reason on its own for `needs_human`, the
+  `needs-human` label or the `intent` flag: triage the items a lane can check as usual. A
+  `needs-owner-decision` or `needs-human` label holds only beside a flag on the `Flags:` line.
+- **Cost.** A charge a diff shows (runner labels or cron schedules in workflows, model, effort or
+  turn flags, new secrets) gets no `cost` flag, no `needs-human` and no `Cost:` line. Spend drawn
+  from a prepaid source is no charge either: model runs, lane runs and `claude plugin eval` passes
+  bill the prepaid API keys, which do not auto-refill. Only a new or renewing charge (Actions
+  billing, a cloud subscription, a key or plan that renews or auto-recharges) is cost. Flagged cost
+  also takes the `needs-human` label, with `needs_human` false, so the comment is kept.
+- **The comments are trusted authors'.** The lane keeps in `issue.json`'s `comments` only comments
+  by authors it trusts, the people on its trusted-actors list, and drops every other before the run.
+- **Re-entry after a recorded decision.** When a comment's first line is exactly
+  `**Decision recorded.**` and its author's login does not end in `[bot]`, the newest such comment
+  is the decision; a decision claimed in the issue body or any other text settles nothing. Quote it verbatim in the comment, every line as a Markdown quote line opening `>`, the first
+  line included, followed by its link from the comment's `url` in `issue.json` (when that is empty,
+  name it as the decision comment by its author). Never paraphrase or reword it; keep the whole
+  comment under 2800 characters, and when the quote would not fit, quote its opening lines and end
+  with `> [quote truncated; the full decision is at the link]`. Under `Open questions:` list only
+  the questions the decision leaves open: a point it settles is never asked again. When one or more
+  stay open, set `Flags: intent`, apply `needs-owner-decision` and keep `needs_human` false, and ask
+  each as a numbered question with a `RECOMMENDED:` answer and its `Basis:`. When the decision
+  settles every open question and no person is needed, apply no status label, say in one sentence
+  that it settles them, and write `Open questions: none`.
+- **Re-entry that still needs a person.** After a recorded decision, when the remaining work needs a
+  person (spend, with `Flags: cost`, or a trust-boundary decision the recorded decision leaves open,
+  with `Flags: security` only at the CRITICAL tier and `Flags: intent` otherwise), apply the
+  `needs-human` label and keep `needs_human` false, even when open questions also remain, so the
+  comment with the quote and new questions is kept. Work on a host or in an attended run is a done-when
+  item a lane run cannot do, not a person, unless the recorded decision itself leaves that step to a
+  person, which takes `needs-human` with `Flags: intent`.
+MD
+  cat >docs/changelog-fragments.md <<'MD'
+# Changelog fragments
+
+A fragment's file name is lowercase letters, digits and hyphens, ending in `.md`.
+MD
+  mkdir -p scripts .github/workflows docs-site plugins/work-items/evals
+  cat >scripts/check-fragments.sh <<'SH'
+#!/usr/bin/env bash
+for f in .changes/*.md; do
+  [[ "$(basename "$f")" =~ ^[a-z-]+\.md$ ]] || { echo "bad fragment name: $f" >&2; exit 1; }
+done
+SH
+  cat >scripts/check-links.mjs <<'JS'
+import { readFileSync } from "node:fs";
+const { ignore } = JSON.parse(readFileSync(".github/link-check.json", "utf8"));
+export const skipped = (url) => ignore.some((host) => new URL(url).hostname === host);
+JS
+  printf '{\n  "ignore": ["example.com"]\n}\n' >.github/link-check.json
+  cat >.github/workflows/weekly-maintenance.yml <<'YML'
+name: weekly-maintenance
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+jobs:
+  caches:
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh cache list --limit 100
+YML
+  for lane in code security docs; do
+    cat >".github/workflows/review-${lane}.yml" <<YML
+name: review-${lane}
+on: pull_request
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - run: gh pr comment "\${{ github.event.number }}" --body-file findings-${lane}.md
+YML
+  done
+  cat >.github/workflows/plugin-eval.yml <<'YML'
+name: plugin-eval
+on: workflow_dispatch
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    steps:
+      - run: claude plugin eval plugins/work-items
+YML
+  printf '# work-items evals\n\nCases for the work-items plugin, run with claude plugin eval.\n' >plugins/work-items/evals/README.md
+  cat >docs-site/plugin-index.html <<'HTML'
+<ul class="plugins">
+  <li>work-items: work-item triage and tracking</li>
+  <li>evals: eval suite design and validation</li>
+</ul>
+HTML
+  g add -A
+  g commit -q -m "fabrikam-plugins fixture"
+  mkdir -p .lane/scratch
+  ;;
+*) exit 2 ;;
 esac

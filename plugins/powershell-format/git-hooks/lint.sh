@@ -57,8 +57,12 @@ done
 
 lint_run() {
   local rc
-  psf_run "$@" >"$out" 2>&1
-  rc=$?
+  if [[ "$CHECKS_MODE" == pre-commit && "$1" == "$RT_DIR" ]] && psf_lint_take "$out" "$@"; then
+    rc=$PSF_LINT_RC
+  else
+    psf_run "$@" >"$out" 2>&1
+    rc=$?
+  fi
   case $rc in
   0 | 1) rt_normalize "$out" "$rc" >>"$contract" || failed=1 ;;
   3)

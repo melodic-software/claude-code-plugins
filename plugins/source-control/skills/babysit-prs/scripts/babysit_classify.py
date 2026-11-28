@@ -51,12 +51,6 @@ NEGATED_SEVERITY_LIST_RE = re.compile(
     + r"(?:issues?|findings?|defects?|problems?|regressions?|vulnerabilities?)\b",
     re.I,
 )
-# Negated CRITICAL/IMPORTANT conclusions ("No CRITICAL or IMPORTANT findings",
-# "No CRITICAL issues found") are the structured-severity analogue of
-# NEGATED_SEVERITY_LIST_RE: a clean approval stating the absence of high-severity
-# findings, not a live one. The severity tokens stay case-sensitive (uppercase
-# only) for the same reason BLOCKING_SEVERITY_RE is -- lowercase "critical"/
-# "important" are ordinary prose -- while the negator and trailing noun are not.
 NEGATED_SEVERITY_MARKER_RE = re.compile(
     r"(?i:\b(?:no|zero|without)\s+(?:actionable\s+)?)"
     + r"(?:CRITICAL|IMPORTANT)"
@@ -90,14 +84,6 @@ REQUIRED_FIX_RE = re.compile(
     + r"request(?:s|ing)? changes|regression|vulnerability|high[- ]severity)\b",
     re.I,
 )
-# Blocking-severity markers, case-sensitive and whole-word, matching the
-# vocabulary babysit-readiness-gate.sh counts as findings (CRITICAL/IMPORTANT).
-# Deliberately NOT case-insensitive: lowercase "critical"/"important" occur
-# constantly in ordinary review prose ("it is important to note", "critical
-# path"), whereas the uppercase tokens are the reviewer's structured severity
-# labels. SUGGESTION is intentionally excluded here -- like a 🟡 nit it is a
-# non-blocking marker -- so an approval carrying only suggestions/nits stays
-# non-blocking.
 BLOCKING_SEVERITY_RE = re.compile(r"\b(?:CRITICAL|IMPORTANT)\b")
 REVIEW_SKIP_RE = re.compile(
     r"\bbugbot\b[^\n.]{0,80}?\b(?:skipped|did(?:n't| not) run|"
@@ -107,8 +93,6 @@ REVIEW_SKIP_RE = re.compile(
 )
 NOT_APPROVING_RE = re.compile(r"\bnot approving\b", re.I)
 
-# Dependency-manager product bots (a tool taxonomy, not a tenant identity):
-# their PRs feed the cross-tier hold-merge rule.
 DEPENDENCY_MANAGER_LOGINS = frozenset(
     {
         "dependabot",
@@ -272,15 +256,6 @@ def body_text(item: dict[str, Any]) -> str:
 
 
 def _redact_negated_severity(text: str) -> str:
-    """Redact negated findings ahead of a STRUCTURED-severity scan.
-
-    The three substitutions are order-dependent -- one pattern's removal can
-    create or destroy another's match -- so the sequence is defined once here
-    rather than restated at each scan site. `has_blocking_text` deliberately
-    does NOT route through this: it omits the CRITICAL/IMPORTANT marker
-    redaction, and that omission is what keeps the prose vocabulary distinct
-    from the structured one.
-    """
     redacted = NEGATED_SEVERITY_LIST_RE.sub("", text)
     redacted = NEGATED_SEVERITY_MARKER_RE.sub("", redacted)
     return NEGATED_BLOCKING_TERM_RE.sub("", redacted)
@@ -343,54 +318,9 @@ def skip_downgrade(text: str) -> bool:
     return not has_blocking_text(remainder) and not has_blocking_severity(remainder)
 
 
-# --- Finding decomposition counting (readiness gate) -------------------------
-#
-# The readiness gate (babysit-readiness-gate.sh) delegates its finding and
-# classification counts here so the severity vocabulary is defined once, not
-# re-implemented in bash grep. The bash script retains an equivalent grep
-# fallback ONLY for the Python-free safe-tier degrade (loop.md is that path);
-# the convergence test pins the two counts together on thread-state-free
-# fixtures. See babysit_findings.py for the CLI entrypoint.
-
-# Whole-word severity words (claude's vocabulary). Case-sensitive so lowercase
-# priority labels (priority:p0-critical) and prose ("it is important") do not
-# false-count -- the same rationale as BLOCKING_SEVERITY_RE, plus SUGGESTION.
 SEVERITY_WORDS_RE = re.compile(r"\b(?:CRITICAL|IMPORTANT|SUGGESTION)\b")
-# codex's shields.io P-severity badge: the `/badge/P{N}-` URL segment appears
-# exactly once per finding (the badge's alt text carries the same P-number token
-# a second time, so a bare `P[0-3]` would double-count). `/badge/P0-` never
-# matches a lowercase priority:p0-critical label.
 SEVERITY_BADGE_RE = re.compile(r"/badge/P[0-3]-")
-# Plain bracketed P-severity markers ([P0]..[P3]) -- neither a severity word nor
-# a shields badge. Bounded to the documented P0-P3 range so incidental [P4]+
-# text cannot inflate the count into a false READINESS_BLOCKED.
 SEVERITY_PLAIN_RE = re.compile(r"\[P[0-3]\]")
-# A markdown table cell that OPENS with a disposition token -- not one that
-# merely contains a disposition word somewhere in its prose. The cell is
-# `|`, non-word decoration, the token, then either the end of the cell or a
-# PUNCTUATED annotation.
-#
-# Case-insensitive (unlike SEVERITY_WORDS_RE above): a worker's classification
-# reply that writes a natural-language disposition like "Valid (defer)" instead
-# of the mandated all-caps VALID must still count as a classification, or the
-# readiness gate reports a false BLOCKED even though the finding genuinely was
-# classified (#619).
-#
-# The annotation must be introduced by PUNCTUATION -- a dash, colon, or opening
-# bracket -- never by a bare space. That is the discriminator between the
-# dispositions `reference/review-discipline.md` documents and prose that happens
-# to start with a disposition word:
-#   documented   `VALID: fixing`  `VALID (defer)`  `VALID (fix now)`
-#   prose        `Valid cache entries are rejected`
-# Matching anywhere in the row instead would also credit `| CI check | result is
-# valid |`, and either miss lets an unclassified finding past the
-# under-decomposition gate.
-#
-# The decoration before the token excludes word characters, not just letters, so
-# `2valid` cannot open a cell; the character required after the token is
-# likewise non-word, so `valid2` and `VALID_TOKEN` do not satisfy it. Every
-# class excludes `|`, so no run crosses a cell boundary. Together those keep
-# "invalid"/"INVALID" from false-matching "valid"/"VALID".
 _CELL_DECORATION = r"[^A-Za-z0-9_|]*"
 _CELL_ANNOTATION = r"(?:[ \t]*[^A-Za-z0-9_ \t|][^|]*)?[ \t]*"
 _CLASSIFY_CELL = (
@@ -401,12 +331,6 @@ _CLASSIFY_CELL = (
     + r"(?:\||$)"
 )
 CLASSIFY_TOKEN_RE = re.compile(_CLASSIFY_CELL, re.IGNORECASE)
-# A classification table row: a `|`-prefixed line carrying a disposition cell.
-# Built by concatenating the row anchor onto the SAME cell pattern
-# `CLASSIFY_TOKEN_RE` uses, so the rows excluded from the finding corpus
-# (`count_findings`) and the rows credited as classified (`count_classified`)
-# cannot drift apart -- a row counted as a classification but not stripped would
-# re-count its own embedded severity word as a phantom finding.
 CLASSIFY_ROW_RE = re.compile(r"^[ \t]*(?=\|).*" + _CLASSIFY_CELL, re.IGNORECASE)
 PIPE_ROW_RE = re.compile(r"^[ \t]*\|")
 
@@ -424,12 +348,6 @@ def thread_is_open(comment: dict[str, Any]) -> bool:
     return not (bool(comment.get("isResolved")) or bool(comment.get("isOutdated")))
 
 
-# The surface a comment lives on -- not just its resolution state -- is
-# load-bearing for classification credit (#642): a review thread can be resolved
-# (its findings and their in-thread classifications drop together), while a
-# PR-level comment never can, so a stale classification posted there would
-# otherwise count forever. Credit is bucketed by these surfaces and capped within
-# each, so a row on one surface cannot offset a finding on another.
 THREAD_SURFACE = "thread"
 PR_LEVEL_SURFACE = "pr_level"
 UNKNOWN_SURFACE = "unknown"

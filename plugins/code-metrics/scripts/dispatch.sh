@@ -1,58 +1,32 @@
 #!/usr/bin/env bash
-# The code-metrics dispatcher: resolve the scope, detect lanes, walk the
-# collector ladder, and print one `code-metrics/v2` document (design T1, T3,
-# T5). Every audit entry script (skills/<skill>/scripts/<id>.sh) calls this; entry-specific options are the
-# entry script's own and never reach here.
-#
-#   dispatch.sh <skill> --measures <m1,m2,...> [--all] [--base <ref>]
-#               [--config <resolved.json>] [--ladder <file.tsv>]
-#               [--lane-globs <lane>=<glob>[,<glob>...]]... [--disable-lane <lane>]...
-#               [--scope-file <file>] [--print-scope] [--no-collapse] [--no-anchor]
-#               [--] [<path>...]
-#
-# Scope: `<path>...` measures those files and directories (an explicitly named
-# path that does not exist is a usage error, exit 2); `--all` measures every
-# tracked or untracked-but-not-ignored file under the paths (or the whole
-# repository); with neither, the default is the change: files that differ from
-# the merge-base with the default branch plus uncommitted and untracked files.
-# `--base <ref>` names that branch instead; the merge-base with it is still
-# what the change is measured from, so commits the ref made after HEAD
-# diverged are not reported as this change's.
-# `--scope-file` reads the file list from a file (one path per line) instead.
-# Every path in the document is relative to its `root` (the repository's top
-# level, else the working directory) with forward slashes, whatever directory
-# the run started in; `scan_root` records where it started. `--no-anchor`
-# leaves the paths cwd-relative for a caller that still joins them against
-# files of its own and anchors afterwards. `--print-scope` prints the resolved
-# scope as cwd-relative `lane<TAB>path` rows and stops, producing no document.
-#
-# Configuration: without `--config`, the cascade is resolved here through
-# scripts/resolve-config.py, whose layers the plugin's reference/config.md
-# lists. `--user-file <f>` (or CODE_METRICS_USER_FILE) takes the config_file
-# userConfig option's value; CODE_METRICS_HOME overrides the home directory
-# the old user-global file is read from during the dual-read window.
-# The consumer's docs/conventions/ecosystems/<lane>.yaml files resolve there too.
-# `--config` takes a
-# pre-resolved JSON document (the resolver's output) instead. Either way the
-# resolved document supplies the references, `scope.exclude`, the per-lane
-# collector overrides, and the ecosystem globs and opt-outs. Layers:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/config-cascade/README.md#the-layers
-#
-# Exit: 0 the document was produced (including an `empty` run); 2 usage or
-# environment error; 3 a resolved collector ran and produced no parseable
-# output (the document is still produced, with the failure in `run[]`).
-#
-# An adapter's `collect` exits 4 when the tool resolved but cannot run in
-# this repository at all (ESLint with no configuration it can find for the
-# files): the row reads `unavailable` with the tool's own reason, and the run
-# is not a failure, because nothing was measured and no number is wrong.
 set -uo pipefail
+
+USAGE="$(
+  cat <<'EOF'
+The code-metrics dispatcher: resolve the scope, detect languages, walk the collector ladder,
+and print one code-metrics/v3 document.
+  dispatch.sh <skill> --measures <m1,m2,...> [options] [--] [<path>...]
+  --measures <list>          measures to collect. Required.
+  --all                      every tracked or untracked-but-not-ignored file under the paths
+  --base <ref>               measure the change from the merge-base with <ref>
+  --config <resolved.json>   a resolved configuration (default: resolve-config.py)
+  --ladder <file.tsv>        collector ladder to walk
+  --language-globs <language>=<glob> replace the language's extension mapping with these globs
+  --disable-language <language>      turn a language off
+  --scope-file <file>        read the file list from a file, one path per line
+  --print-scope              print the scope as language<TAB>path rows and stop
+  --no-collapse              keep sanctioned replicas as separate rows
+  --no-anchor                leave paths cwd-relative
+Exit: 0 the document was produced (including an empty run); 2 usage or environment error;
+3 a collector ran and produced nothing parseable.
+EOF
+)"
 
 SCRIPT_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
 PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 COLLECTORS="$PLUGIN_ROOT/scripts/collectors"
 REPORT="$PLUGIN_ROOT/scripts/report.py"
-DETECT="$PLUGIN_ROOT/scripts/detect-lanes.sh"
+DETECT="$PLUGIN_ROOT/scripts/detect-languages.sh"
 LADDER="$PLUGIN_ROOT/scripts/collector-ladder.tsv"
 RESOLVER="$PLUGIN_ROOT/scripts/resolve-config.py"
 PATHGLOB="$PLUGIN_ROOT/scripts/pathglob.py"
@@ -60,7 +34,7 @@ SCOPE_FILTER="$PLUGIN_ROOT/scripts/scope-filter.py"
 CONFIG=""
 
 usage() {
-  cm_usage_banner "${BASH_SOURCE[0]}" 30
+  cm_usage_banner --usage "$USAGE"
 }
 
 die_usage() {
@@ -104,25 +78,14 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   --print-scope)
-    # Print the resolved, excluded, binary-sniffed file list with its lane
-    # assignment (`lane<TAB>path`) and stop; the coverage skill keys its join
-    # on exactly the set the audits measure, and learns each file's lane
-    # without waiting on a complexity collector that may not be installed.
     PRINT_SCOPE=1
     shift
     ;;
   --no-collapse)
-    # Leave every copy's rows in the document. The coverage skill joins its
-    # artifacts against the complexity rows and collapses the joined document
-    # itself, so collapsing here would drop the copies before their coverage
-    # was ever looked up. The registries are still validated.
     NO_COLLAPSE=1
     shift
     ;;
   --no-anchor)
-    # Leave measured paths cwd-relative. The coverage and duplication skills
-    # join or merge those paths against cwd-relative inputs of their own, so
-    # they anchor the finished document once, after that.
     NO_ANCHOR=1
     shift
     ;;
@@ -140,13 +103,13 @@ while [[ $# -gt 0 ]]; do
     LADDER="$2"
     shift 2
     ;;
-  --lane-globs)
-    [[ $# -ge 2 ]] || die_usage "--lane-globs needs a value"
+  --language-globs)
+    [[ $# -ge 2 ]] || die_usage "--language-globs needs a value"
     DETECT_ARGS+=(--globs "$2")
     shift 2
     ;;
-  --disable-lane)
-    [[ $# -ge 2 ]] || die_usage "--disable-lane needs a value"
+  --disable-language)
+    [[ $# -ge 2 ]] || die_usage "--disable-language needs a value"
     DETECT_ARGS+=(--disable "$2")
     shift 2
     ;;
@@ -199,45 +162,25 @@ json_str() {
 }
 
 count_lines() {
-  # Lines in a file, without the padding BSD wc prints around the count.
   wc -l <"$1" | tr -d ' '
 }
 
 capped_line() {
-  # capped_line <file> <characters>
-  #
-  # What a tool wrote on stderr, as the single capped line a run row's reason
-  # is: the table has one row per lane and measure, and a collector that
-  # printed a stack trace must not take the report over with it.
   tr '\n' ' ' <"$1" | cut -c1-"$2"
 }
 
-# Progress goes to stderr, and only for a run long enough to wonder about: a
-# whole tree of a few thousand files runs for a minute or more, while the
-# change scope finishes in a second or two and would only gain noise.
-# CODE_METRICS_PROGRESS=1 forces it on and =0 off.
 PROGRESS=0
 progress() {
   [[ "$PROGRESS" -eq 1 ]] && printf 'code-metrics: %s\n' "$*" >&2
   return 0
 }
 
-# ---- configuration -----------------------------------------------------------
 if [[ -z "$CONFIG" ]]; then
   CONFIG="$WORK/config.json"
   cm_resolve_config "$CONFIG" "$LADDER" ||
     die_usage "the configuration could not be resolved (see the message above)"
 fi
-# Ecosystem globs and lane opt-outs from the resolved document come first, so
-# an explicit command-line --lane-globs/--disable-lane wins over them.
-# Each derived format is written to a file and its exit status checked before
-# it is read. Reading straight from a process substitution reports only the
-# read's own success, so a resolver that refused a value (exit 2) would leave
-# the list empty and the audit would run on with the configured scope, lanes,
-# and exclusions silently dropped, which is the failure the refusal exists to
-# prevent.
 resolver_format() {
-  # resolver_format <format> <output file>
   if ! "${PY[@]}" "$RESOLVER" --from-json "$CONFIG" --format "$1" >"$2"; then
     die_usage "the configuration could not be read as $1 (see the message above)"
   fi
@@ -248,12 +191,8 @@ CONFIG_DETECT_ARGS=()
 for line in "${config_detect_args[@]}"; do
   [[ -n "$line" ]] || continue
   case "${line%% *}" in
-  --lane-globs) CONFIG_DETECT_ARGS+=(--globs "${line#* }") ;;
-  --disable-lane) CONFIG_DETECT_ARGS+=(--disable "${line#* }") ;;
-  # `scope.default` and `scope.base` apply only when the command line gave
-  # no --all, path, or --base of its own. An explicit --base counts against
-  # the default too: a base ref is meaningful only in change mode, so naming
-  # one asks for a diff, and widening to the tree would discard it silently.
+  --language-globs) CONFIG_DETECT_ARGS+=(--globs "${line#* }") ;;
+  --disable-language) CONFIG_DETECT_ARGS+=(--disable "${line#* }") ;;
   --scope-default)
     if [[ "$MODE_SET" -eq 0 && "$BASE_SET" -eq 0 && "${line#* }" == "all" ]]; then MODE="all"; fi
     ;;
@@ -268,23 +207,13 @@ LADDER_OVERRIDES="$WORK/ladder-overrides.tsv"
 resolver_format ladder-overrides "$LADDER_OVERRIDES"
 resolver_format excludes "$WORK/excludes"
 mapfile -t EXCLUDE_GLOBS <"$WORK/excludes"
-# Sanctioned-replication registries apply to every audit's file and function
-# rows (clone groups are audit-duplication's own pass). They are validated
-# here, before any collector runs, so a registry that exists nowhere is a
-# usage error rather than a document that silently counted every copy.
 # shellcheck source=replica-collapse.sh
 source "$PLUGIN_ROOT/scripts/replica-collapse.sh"
 cm_registry_paths "$CONFIG" >/dev/null || exit 2
 
-# ---- scope -------------------------------------------------------------------
 in_git="$(git rev-parse --is-inside-work-tree 2>/dev/null || true)"
 
 inside_repo() {
-  # Whether a directory lies within this repository's work tree. Asked by
-  # location rather than by whether git lists anything under it: a directory
-  # holding only ignored files (`node_modules`) lists nothing, and reading
-  # that as "not a repository path" would send the walk below through the
-  # very tree the ignore rules exclude.
   local top abs
   [[ "$in_git" == "true" ]] || return 1
   top="$(git rev-parse --show-toplevel 2>/dev/null)" || return 1
@@ -294,28 +223,19 @@ inside_repo() {
 }
 
 git_listing() {
-  # git_listing <output file> <git subcommand and arguments>
-  #
-  # One scope listing, written to a file whose status is checked. An empty
-  # listing and a failed listing look identical on stdout, so an unread status
-  # turns a broken repository into a document that reports measuring nothing
-  # and exits 0. `core.quotePath=false` keeps a path with non-ASCII bytes
-  # readable: quoted, `café.py` comes back as an escaped literal that matches
-  # no file on disk and is dropped from the scope without a word.
   local out="$1"
   shift
+  # core.quotePath=false stops git quoting bytes above 0x80 in output paths.
+  # https://git-scm.com/docs/git-config
   if ! git -c core.quotePath=false "$@" >"$out"; then
     die_usage "the repository file listing failed: git $1 (see the message above)"
   fi
 }
 
 list_tracked_under() {
-  # Tracked plus untracked-but-not-ignored files under a path, or a plain
-  # walk outside git. Directories only; files are appended by the caller.
   if inside_repo "$1"; then
     git -c core.quotePath=false ls-files --cached --others --exclude-standard -- "$1"
   else
-    # Outside git, or a path outside this repository (git refuses it).
     find "$1" -type f
   fi
 }
@@ -331,10 +251,6 @@ expand_path() {
   fi
 }
 
-# Root-relative names rebased onto the cwd. `git diff` always prints
-# root-relative paths and `ls-files --full-name -- :/` is asked for them, so a
-# run from a subdirectory sees the whole repository, and every path still comes
-# out cwd-relative like an explicitly named one.
 rebase_onto_cwd() {
   local root_prefix climb slashes i p
   root_prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
@@ -354,18 +270,6 @@ rebase_onto_cwd() {
   done
 }
 
-# The inverse of rebase_onto_cwd. `scope.exclude` patterns are written against
-# the repository root, because a team configuration file says `plugins/x/**`
-# and cannot know which directory an audit will be run from. Matching them
-# against the cwd-relative scope would make the same exclusion apply at the
-# root and silently apply to nothing one directory down.
-#
-# Prefixing alone is not enough. An explicitly scoped sibling (`../vendor` from
-# a subdirectory) still carries `..` after the prefix, and the matcher compares
-# text rather than resolving paths, so `src/keep/../vendor/a.py` would not match
-# a `src/vendor/**` exclusion. The segments are collapsed lexically instead of
-# with `realpath`, because a scoped path need not exist on disk and a symlink
-# must not silently move a file out of the directory the pattern names.
 to_root_relative() {
   local root_prefix
   root_prefix="$(git rev-parse --show-prefix 2>/dev/null || true)"
@@ -393,13 +297,6 @@ all)
   if [[ ${#PATHS[@]} -gt 0 ]]; then
     for p in "${PATHS[@]}"; do expand_path "$p"; done >>"$FILES_LIST"
   elif [[ "$in_git" == "true" ]]; then
-    # `--all` with no path means the whole repository, so the listing is
-    # root-anchored: without `:/` it would silently stop at the cwd and a run
-    # from a subdirectory would measure that subtree while reporting `all`.
-    # The listing goes to a file and its status is checked, because a listing
-    # that failed and a repository with no files are the same empty output,
-    # and reporting the first as the second is a document that says it
-    # measured everything having measured nothing.
     git_listing "$WORK/all-listing" ls-files --cached --others --exclude-standard --full-name -- ':/'
     rebase_onto_cwd <"$WORK/all-listing" >>"$FILES_LIST"
   else
@@ -433,9 +330,6 @@ change)
   else
     BASE_SHA="$(git rev-parse --verify --quiet "$BASE" 2>/dev/null || true)"
     [[ -n "$BASE_SHA" ]] || die_usage "base ref not found: $BASE"
-    # The change is measured from the merge-base, for a named ref exactly as
-    # for the default branch. Diffing a branch tip that has moved on since
-    # HEAD diverged would report that branch's own commits as this change's.
     base_merge="$(git merge-base HEAD "$BASE_SHA" 2>/dev/null || true)"
     [[ -n "$base_merge" ]] || die_usage "no merge-base between HEAD and $BASE"
     BASE_SHA="$base_merge"
@@ -449,28 +343,18 @@ change)
   ;;
 esac
 
-# Normalize: forward slashes, drop `./`, dedupe, keep existing regular files
-# that are not binary. One process over the list rather than a shell loop
-# with two subprocesses per file, which was most of a whole-tree run's time.
 SCOPED="$WORK/scoped"
 if ! "${PY[@]}" "$SCOPE_FILTER" --paths-from "$FILES_LIST" >"$SCOPED"; then
   die_usage "the scope listing could not be filtered (see the message above)"
 fi
-# scope.exclude: drop every file a configured glob matches, counting them, and
-# counting per pattern so the report can say which exclusion did what.
 EXCLUDED=0
 EXCLUSION_ROWS=()
 if [[ ${#EXCLUDE_GLOBS[@]} -gt 0 && -s "$SCOPED" ]]; then
   : >"$WORK/excluded-rootrel"
-  # Matched against root-relative paths, then mapped back, so an exclusion a
-  # team wrote once covers the same files whatever directory the audit runs in.
   to_root_relative <"$SCOPED" >"$WORK/scoped-rootrel"
   paste "$WORK/scoped-rootrel" "$SCOPED" >"$WORK/scope-map"
   for pattern in "${EXCLUDE_GLOBS[@]}"; do
     [[ -n "$pattern" ]] || continue
-    # An exclusion the matcher cannot use is a configuration error, not an
-    # exclusion that matched nothing: continuing would measure the very files
-    # the consumer asked to leave out and still exit 0.
     if ! "${PY[@]}" "$PATHGLOB" "$pattern" --paths-from "$WORK/scoped-rootrel" >"$WORK/excluded-hits"; then
       die_usage "scope.exclude: the glob $pattern could not be used (see the message above)"
     fi
@@ -486,7 +370,6 @@ if [[ ${#EXCLUDE_GLOBS[@]} -gt 0 && -s "$SCOPED" ]]; then
     sort -u "$WORK/excluded" >"$WORK/excluded.sorted"
     EXCLUDED="$(count_lines "$WORK/excluded.sorted")"
     sort "$SCOPED" | comm -23 - "$WORK/excluded.sorted" >"$WORK/kept"
-    # comm sorted the list; restore the scope order.
     awk 'NR == FNR { keep[$0] = 1; next } keep[$0]' "$WORK/kept" "$SCOPED" >"$WORK/scoped.kept"
     mv "$WORK/scoped.kept" "$SCOPED"
   fi
@@ -497,44 +380,31 @@ if [[ "${CODE_METRICS_PROGRESS:-}" == "1" || ("${CODE_METRICS_PROGRESS:-}" != "0
 fi
 progress "$SKILL: $FILE_COUNT file(s) in scope ($MODE), $EXCLUDED excluded"
 
-# ---- lanes -------------------------------------------------------------------
-LANES_TSV="$WORK/lanes"
+LANGUAGES_TSV="$WORK/languages"
 if [[ "$FILE_COUNT" -gt 0 ]]; then
-  # The scope travels as a file, not as an argument vector: a whole repository
-  # is tens of thousands of paths and would exceed the platform command line
-  # limit, which on Git Bash under Windows is far below what `--all` produces.
-  bash "$DETECT" "${DETECT_ARGS[@]}" --paths-from "$SCOPED" >"$LANES_TSV" || exit 2
+  bash "$DETECT" "${DETECT_ARGS[@]}" --paths-from "$SCOPED" >"$LANGUAGES_TSV" || exit 2
 else
-  : >"$LANES_TSV"
+  : >"$LANGUAGES_TSV"
 fi
 
 if [[ "$PRINT_SCOPE" -eq 1 ]]; then
-  cat "$LANES_TSV"
+  cat "$LANGUAGES_TSV"
   exit 0
 fi
 
-# ---- ladder ------------------------------------------------------------------
 ladder_tools() {
-  # Print the ordered tool list for a lane/measure; `*` rows apply when the
-  # measure has no explicit row. Each line: tool<TAB>note.
-  # A `lanes.<lane>.collectors.<measure>` override from the resolved config
-  # replaces the bundled rows for that lane and measure (contracts.md §1).
-  local lane="$1" measure="$2" explicit
-  explicit="$(awk -F'\t' -v l="$lane" -v m="$measure" 'NF >= 3 && $1 == l && $2 == m { print $3 "\t" }' "$LADDER_OVERRIDES")"
+  local language="$1" measure="$2" explicit
+  explicit="$(awk -F'\t' -v l="$language" -v m="$measure" 'NF >= 3 && $1 == l && $2 == m { print $3 "\t" }' "$LADDER_OVERRIDES")"
   [[ -n "$explicit" ]] ||
-    explicit="$(awk -F'\t' -v l="$lane" -v m="$measure" '!/^#/ && NF >= 3 && $1 == l && $2 == m { print $3 "\t" $4 }' "$LADDER")"
+    explicit="$(awk -F'\t' -v l="$language" -v m="$measure" '!/^#/ && NF >= 3 && $1 == l && $2 == m { print $3 "\t" $4 }' "$LADDER")"
   if [[ -n "$explicit" ]]; then
     printf '%s\n' "$explicit"
   else
-    awk -F'\t' -v l="$lane" '!/^#/ && NF >= 3 && $1 == l && $2 == "*" { print $3 "\t" $4 }' "$LADDER"
+    awk -F'\t' -v l="$language" '!/^#/ && NF >= 3 && $1 == l && $2 == "*" { print $3 "\t" $4 }' "$LADDER"
   fi
 }
 
-lane_shipped() {
-  # Whether the bundled ladder names the lane at all. A lane the consumer
-  # listed beside the bundled ones has no rows: each of its measures is
-  # reported as having no shipped collector, and its files keep their line
-  # count through the `other` lane's file_lines rungs.
+language_shipped() {
   awk -F'\t' -v l="$1" '!/^#/ && $1 == l { found = 1; exit } END { exit !found }' "$LADDER"
 }
 
@@ -545,34 +415,22 @@ ROWS="$WORK/measures.jsonl"
 COLLECT_FAILED=0
 
 run_row() {
-  # run_row <slot> <lane> <measure> <collector-or-empty> <status> <reason-or-empty> [<hint-or-empty>]
-  #
-  # One file per slot, concatenated in slot order once every collector has
-  # finished, so the run table reads lane by lane and measure by measure
-  # whatever order the parallel collectors happened to complete in.
-  #
-  # One interpreter call per row rather than one per field; an empty
-  # collector, reason, or hint is null. `hint` is the first install hint a
-  # failed probe produced for the row, kept apart from the prose reason so a
-  # renderer can print it once without parsing it back out.
   "${PY[@]}" -I -c '
 import json, sys
-lane, measure, collector, status, reason, hint = sys.argv[1:7]
-print(json.dumps({"lane": lane, "measure": measure, "collector": collector or None,
+language, measure, collector, status, reason, hint = sys.argv[1:7]
+print(json.dumps({"language": language, "measure": measure, "collector": collector or None,
                   "status": status, "reason": reason or None, "hint": hint or None}))
 ' "$2" "$3" "$4" "$5" "$6" "${7:-}" >"$WORK/run.$1"
 }
 
 IFS=',' read -r -a MEASURE_LIST <<<"$MEASURES"
-mapfile -t LANES < <(cut -f1 "$LANES_TSV" | awk 'NF && !seen[$0]++' | sort)
+mapfile -t LANGUAGES < <(cut -f1 "$LANGUAGES_TSV" | awk 'NF && !seen[$0]++' | sort)
 
 SLOT=0
-if [[ "$FILE_COUNT" -eq 0 || ${#LANES[@]} -eq 0 ]]; then
-  # An empty change scope is the one a reader most often wonders about, so
-  # the reason says why it is empty and what widens it.
+if [[ "$FILE_COUNT" -eq 0 || ${#LANGUAGES[@]} -eq 0 ]]; then
   reason='no measurable files in scope'
   if [[ "$FILE_COUNT" -gt 0 ]]; then
-    reason="no measurable files in scope: the $FILE_COUNT file(s) in scope belong to no lane"
+    reason="no measurable files in scope: the $FILE_COUNT file(s) in scope belong to no language"
   elif [[ "$MODE" == "change" ]]; then
     reason="no measurable files in scope: the branch is at its merge-base with ${default_ref:-$BASE} (${BASE_SHA:0:12}) and the working tree holds no changed or untracked file; pass explicit paths or --all to measure the tree"
   fi
@@ -580,26 +438,20 @@ if [[ "$FILE_COUNT" -eq 0 || ${#LANES[@]} -eq 0 ]]; then
   SLOT=$((SLOT + 1))
 fi
 
-# Collectors run in parallel, one process per lane and measure, because they
-# are independent processes reading disjoint file lists and a whole-tree run
-# is otherwise the sum of their run times. The ladder walk and the probes stay
-# sequential: they are cheap and decide which process to launch. JOBS caps the
-# concurrency (CODE_METRICS_JOBS, else the CPU count).
 JOBS="${CODE_METRICS_JOBS:-$(nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo 4)}"
 [[ "$JOBS" =~ ^[0-9]+$ && "$JOBS" -ge 1 ]] || JOBS=4
 RUNNING=0
 PIDS=()
 COLLECT_SLOTS=()
-S_LANE=()
+S_LANGUAGE=()
 S_MEASURE=()
 S_TOOL=()
 S_VERSION=()
 
 reap_one() {
-  # Block until one collector finishes. `wait -n` needs bash 4.3; on an older
-  # bash the plugin still supports, wait for the oldest job instead, which
-  # holds the concurrency cap at the cost of finishing in launch order.
   if ((BASH_VERSINFO[0] > 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] >= 3))); then
+    # wait -n needs bash 4.3.
+    # https://cgit.git.savannah.gnu.org/cgit/bash.git/plain/NEWS
     wait -n
   else
     wait "${PIDS[0]}"
@@ -609,24 +461,13 @@ reap_one() {
 }
 
 launch_collect() {
-  # launch_collect <slot> <adapter> <lane> <measure> <files...>
-  #
-  # The file list reaches the adapter through a file (`--paths-from`), not
-  # the argument vector: a whole repository's lane is thousands of paths, and
-  # Git Bash under Windows caps a native process's command line far below
-  # what that needs. Every adapter reads the option through
-  # collectors/adapter_paths.py.
-  local slot="$1" adapter="$2" lane="$3" measure="$4"
+  local slot="$1" adapter="$2" language="$3" measure="$4"
   shift 4
   printf '%s\n' "$@" >"$WORK/files.$slot"
   (
     started="$(date +%s)"
-    # A collector that leaves some of its inputs out (a cap it applies
-    # itself) writes one line to the partial-reason file; a successful
-    # collect with a non-empty file is a `partial` row carrying that line,
-    # never a silent `ok`.
     CODE_METRICS_PARTIAL_REASON_FILE="$WORK/partial.$slot" \
-      "${PY[@]}" "$adapter" collect "$lane" "$measure" --paths-from "$WORK/files.$slot" >"$WORK/out.$slot" 2>"$WORK/err.$slot"
+      "${PY[@]}" "$adapter" collect "$language" "$measure" --paths-from "$WORK/files.$slot" >"$WORK/out.$slot" 2>"$WORK/err.$slot"
     rc=$?
     printf '%s %s\n' "$rc" "$(($(date +%s) - started))" >"$WORK/rc.$slot"
   ) &
@@ -637,17 +478,17 @@ launch_collect() {
   fi
 }
 
-for lane in "${LANES[@]}"; do
-  mapfile -t lane_files < <(awk -F'\t' -v l="$lane" '$1 == l { print $2 }' "$LANES_TSV")
+for language in "${LANGUAGES[@]}"; do
+  mapfile -t language_files < <(awk -F'\t' -v l="$language" '$1 == l { print $2 }' "$LANGUAGES_TSV")
   shipped=1
-  lane_shipped "$lane" || shipped=0
+  language_shipped "$language" || shipped=0
   for measure in "${MEASURE_LIST[@]}"; do
     slot=$SLOT
     SLOT=$((SLOT + 1))
-    tools="$(ladder_tools "$lane" "$measure")"
+    tools="$(ladder_tools "$language" "$measure")"
     if [[ -z "$tools" && "$shipped" -eq 0 ]]; then
       if [[ "$measure" != "file_lines" ]]; then
-        run_row "$slot" "$lane" "$measure" '' unavailable "no shipped collector for the $lane lane"
+        run_row "$slot" "$language" "$measure" '' unavailable "no shipped collector for the $language language"
         continue
       fi
       tools="$(ladder_tools other file_lines)"
@@ -665,7 +506,7 @@ for lane in "${LANES[@]}"; do
       *) ;;
       esac
       if [[ -n "$status" ]]; then
-        run_row "$slot" "$lane" "$measure" '' "$status" "${note:-$fallback}"
+        run_row "$slot" "$language" "$measure" '' "$status" "${note:-$fallback}"
         resolved=1
         break
       fi
@@ -674,9 +515,7 @@ for lane in "${LANES[@]}"; do
         reasons+="${reasons:+; }$tool: adapter not shipped"
         continue
       fi
-      # A failed probe's stderr is the specific reason (a binary present but a
-      # dependency it needs absent); "not found" is the fallback wording.
-      probe_err="$WORK/probe.$lane.$measure.$tool"
+      probe_err="$WORK/probe.$language.$measure.$tool"
       if ! version="$("${PY[@]}" "$adapter" probe 2>"$probe_err")"; then
         hint="$("${PY[@]}" "$adapter" install_hint 2>/dev/null || true)"
         why="$(capped_line "$probe_err" 200)"
@@ -685,18 +524,18 @@ for lane in "${LANES[@]}"; do
         [[ -n "$first_hint" || -z "$hint" ]] || first_hint="$hint"
         continue
       fi
-      S_LANE[slot]="$lane"
+      S_LANGUAGE[slot]="$language"
       S_MEASURE[slot]="$measure"
       S_TOOL[slot]="$tool"
       S_VERSION[slot]="$version"
       COLLECT_SLOTS+=("$slot")
-      progress "$lane/$measure: running $tool $version over ${#lane_files[@]} file(s)"
-      launch_collect "$slot" "$adapter" "$lane" "$measure" "${lane_files[@]}"
+      progress "$language/$measure: running $tool $version over ${#language_files[@]} file(s)"
+      launch_collect "$slot" "$adapter" "$language" "$measure" "${language_files[@]}"
       resolved=1
       break
     done <<<"$tools"
     if [[ $resolved -eq 0 ]]; then
-      run_row "$slot" "$lane" "$measure" '' unavailable "${reasons:-no ladder entry for $lane/$measure}" "$first_hint"
+      run_row "$slot" "$language" "$measure" '' unavailable "${reasons:-no ladder entry for $language/$measure}" "$first_hint"
     fi
   done
 done
@@ -706,43 +545,36 @@ for slot in "${COLLECT_SLOTS[@]}"; do
   rc=1
   elapsed=""
   read -r rc elapsed <"$WORK/rc.$slot" || rc=1
-  lane="${S_LANE[slot]}"
+  language="${S_LANGUAGE[slot]}"
   measure="${S_MEASURE[slot]}"
   tool="${S_TOOL[slot]}"
   version="${S_VERSION[slot]}"
   if [[ "${rc:-1}" -eq 0 ]]; then
     cat "$WORK/out.$slot" >>"$ROWS"
     if [[ -s "$WORK/partial.$slot" ]]; then
-      run_row "$slot" "$lane" "$measure" "$tool $version" partial "$(head -n 1 "$WORK/partial.$slot")"
+      run_row "$slot" "$language" "$measure" "$tool $version" partial "$(head -n 1 "$WORK/partial.$slot")"
     else
-      # What an adapter said on stderr while succeeding (mypy's error count,
-      # a module the scope did not cover) is the ok row's reason; an adapter
-      # that said nothing leaves it null.
       note="$(capped_line "$WORK/err.$slot" 500)"
-      run_row "$slot" "$lane" "$measure" "$tool $version" ok "${note% }"
+      run_row "$slot" "$language" "$measure" "$tool $version" ok "${note% }"
     fi
-    progress "$lane/$measure: $tool finished in ${elapsed:-?}s, $(count_lines "$WORK/out.$slot") row(s)"
+    progress "$language/$measure: $tool finished in ${elapsed:-?}s, $(count_lines "$WORK/out.$slot") row(s)"
   elif [[ "${rc:-1}" -eq 4 ]]; then
-    run_row "$slot" "$lane" "$measure" "$tool $version" unavailable "$(capped_line "$WORK/err.$slot" 500)"
-    progress "$lane/$measure: $tool cannot run here (see the run table)"
+    run_row "$slot" "$language" "$measure" "$tool $version" unavailable "$(capped_line "$WORK/err.$slot" 500)"
+    progress "$language/$measure: $tool cannot run here (see the run table)"
   else
     COLLECT_FAILED=1
-    run_row "$slot" "$lane" "$measure" "$tool $version" unavailable "collect failed (exit $rc): $(capped_line "$WORK/err.$slot" 500)"
-    progress "$lane/$measure: $tool failed (exit $rc) after ${elapsed:-?}s"
+    run_row "$slot" "$language" "$measure" "$tool $version" unavailable "collect failed (exit $rc): $(capped_line "$WORK/err.$slot" 500)"
+    progress "$language/$measure: $tool failed (exit $rc) after ${elapsed:-?}s"
   fi
 done
 for ((i = 0; i < SLOT; i++)); do
   [[ -f "$WORK/run.$i" ]] && cat "$WORK/run.$i" >>"$RUN"
 done
 
-# ---- assemble ----------------------------------------------------------------
 SCOPE_JSON="$WORK/scope.json"
 base_json=null
 [[ -n "$BASE_SHA" ]] && base_json="$(json_str "${BASE_SHA:0:12}")"
-# `files` counts every file in scope; `unclassified` is how many of them
-# belong to no lane (a markdown file in a source tree), so `files` minus
-# `unclassified` reconciles with the measured file count.
-CLASSIFIED="$(cut -f2 "$LANES_TSV" | awk 'NF && !seen[$0]++' | wc -l | tr -d ' ')"
+CLASSIFIED="$(cut -f2 "$LANGUAGES_TSV" | awk 'NF && !seen[$0]++' | wc -l | tr -d ' ')"
 exclusions_json="[]"
 if [[ ${#EXCLUSION_ROWS[@]} -gt 0 ]]; then
   exclusions_json="[$(
@@ -754,8 +586,6 @@ printf '{"mode": %s, "base": %s, "files": %s, "unclassified": %s, "excluded": %s
   "$(json_str "$MODE")" "$base_json" "$FILE_COUNT" "$((FILE_COUNT - CLASSIFIED))" "$EXCLUDED" "$exclusions_json" >"$SCOPE_JSON"
 
 THRESHOLDS="$WORK/thresholds.json"
-# The ladder's `halstead` measure reports several values; the reference is on
-# difficulty, which is the threshold entry's name.
 threshold_measures=""
 for measure in "${MEASURE_LIST[@]}"; do
   case "$measure" in
@@ -771,14 +601,9 @@ done
 
 FINAL="$WORK/assembled.json"
 if [[ "$NO_COLLAPSE" -eq 0 ]]; then
-  # Rows for a file the registry names collapse to one row per function with
-  # a replica count, and the summary is recomputed from what survived so the
-  # over-reference count stops counting one function once per copy.
   cm_collapse_replicas "$CONFIG" "$WORK/assembled.json" "$WORK/collapsed.json" || exit 2
   FINAL="$WORK/collapsed.json"
 fi
-# Anchoring follows the collapse: the registries name root-relative files and
-# the collapse rebases the cwd-relative scope onto them itself.
 [[ "$NO_ANCHOR" -eq 1 ]] || cm_anchor_document "$FINAL" || exit 2
 cat "$FINAL"
 

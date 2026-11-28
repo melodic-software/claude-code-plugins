@@ -50,9 +50,6 @@ def _run(
     created: str = "2026-10-22T10:30:00Z",
     repo: str | None = REPO,
 ) -> dict[str, Any]:
-    """A review lane's pull_request run on `sha` with its head in `repo`,
-    started at `created`, whose status job (or `job`) finished at `at` and
-    recorded a hold notice naming `notice` (default `sha`)."""
     message = (
         f"claude-lane-hold lane=claude-review sha={notice or sha} "
         f"criteria={criteria} label=needs-human"
@@ -72,16 +69,11 @@ def _net(*files: dict[str, Any]) -> dict[str, Any]:
     return {"files": list(files)}
 
 
-# A base commit a merge of the base names as its second parent.
 MAIN = "5" * 40
-# The base branch's tip commit, which its full ref resolves to.
 TIP = "3" * 40
 
 
 def _history(sha: str, answer: Any) -> Any:
-    """`answer` (a compare of base...sha) with the commits a history of base
-    merges lists unless it names its own: OLD alone for OLD, OLD and a merge
-    HEAD of the base for HEAD, the head alone for any other."""
     if not isinstance(answer, dict) or "commits" in answer or "files" not in answer:
         return answer
     commits = [{"sha": OLD if sha == HEAD else sha, "parents": [{"sha": MAIN}]}]
@@ -106,8 +98,6 @@ def _newest_first(moves: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _pushes(runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Each run's head pushed five minutes before its first status job
-    finished."""
     first: dict[str, str] = {}
     for r in runs:
         first[r["sha"]] = min(first.get(r["sha"], r["at"]), r["at"])
@@ -168,10 +158,17 @@ class Lanes:
         if endpoint.endswith(f"...{TIP}"):
             parent = endpoint.split("/compare/", 1)[1].split("...")[0]
             return 200, {"status": "ahead" if parent == MAIN else "diverged"}
-        sha = endpoint.rsplit("...", 1)[1]
-        if sha in self.compares and self.unreadable != f"compare {sha}":
-            return 200, _history(sha, self.compares[sha])
-        return 404, None
+        sha, _, query = endpoint.rsplit("...", 1)[1].partition("?")
+        page = int(query.rsplit("page=", 1)[1]) if query else 0
+        read = f"compare {sha}" + (f" page {page}" if page else "")
+        if sha not in self.compares or self.unreadable == read:
+            return 404, None
+        answer = _history(sha, self.compares[sha])
+        commits = answer.get("commits") if isinstance(answer, dict) else None
+        if not isinstance(commits, list):
+            return 200, answer
+        cut = commits[(page - 1) * 100 : page * 100] if page else commits[:250]
+        return 200, answer | {"commits": cut}
 
     def paginated(
         self, endpoint: str, label: str, items_key: str | None = None, env: Any = None
@@ -208,10 +205,7 @@ class Lanes:
         return self.runs[n - 1]["notes"]
 
 
-# What a cost decision carries besides its first line: a row link into the
-# owner-decisions record and the owner's verbatim words.
-ROW = "https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10"
-PROOF = f'\n\nRow: {ROW}\nOwner, verbatim: "Approve it."'
+PROOF = '\n\nOwner, verbatim: "Approve it."'
 
 
 def _comment(**changes: Any) -> dict[str, Any]:
@@ -297,7 +291,6 @@ class CostDecision(unittest.TestCase):
                 "&direction=desc&per_page=100",
             ],
         )
-        # The lane-change vet names the base's tip commit, never the branch.
         self.assertFalse(any("/compare/main" in r or r.endswith("...main") for r in self.reads))
 
     def test_a_decision_on_the_pull_request_itself_clears(self) -> None:
@@ -334,7 +327,6 @@ class CostDecision(unittest.TestCase):
                 self.assertIsNone(self.decide(comment=comment))
 
     def test_a_refs_issue_decision_naming_the_pull_request_clears(self) -> None:
-        # The caller passes `_linked_issue`'s number: here the Refs issue.
         self.assertEqual(self.decide(body=f"Refs: #40\n\n{LINK}\n"), LINK)
 
     def test_a_decision_on_the_pull_request_needs_no_time_check(self) -> None:
@@ -345,7 +337,6 @@ class CostDecision(unittest.TestCase):
         )
         runs = [_run(HEAD, "2026-10-21T08:00:00Z", created="2026-10-21T07:50:00Z")]
         self.assertEqual(self.decide(body=link, comment=comment, runs=runs), link)
-        # With no time it decides no head, so it carries to none.
         timeless = comment | {"created_at": None}
         self.assertIsNone(self.decide(body=link, comment=timeless))
 
@@ -402,15 +393,7 @@ class CostDecision(unittest.TestCase):
             "a link inside an HTML comment": dict(
                 body=f"Closes #40\n<!-- {LINK} -->\n"
             ),
-            "no record row": dict(
-                comment=_comment(
-                    body='**Decision recorded.** Cost: ok #99.\nOwner, verbatim: "yes"'
-                )
-            ),
             "no owner quote": dict(
-                comment=_comment(body=f"**Decision recorded.** Cost: ok #99.\n{ROW}")
-            ),
-            "neither row nor quote": dict(
                 comment=_comment(body="**Decision recorded.** Cost: ok #99.")
             ),
             "a link after an unclosed HTML comment": dict(
@@ -431,13 +414,11 @@ class CostDecision(unittest.TestCase):
             with self.subTest(name):
                 self.assertIsNone(self.decide(**change))
 
-    # The carry rule (#9436 Q18 d): the decided head is OLD, the head HEAD.
     def later(self, compares: dict[str, Any], **change: Any) -> str | None:
         return self.decide(runs=[_run(OLD)], compares=compares, **change)
 
     def test_a_base_merge_after_the_decision_carries(self) -> None:
         self.assertEqual(self.later({OLD: _net(TF), HEAD: _net(TF)}), LINK)
-        # The same decision at a head whose net change moved does not.
         self.assertIsNone(self.later({OLD: _net(), HEAD: _net(TF)}))
 
     def test_a_pull_request_commit_after_the_decision_re_holds(self) -> None:
@@ -457,7 +438,6 @@ class CostDecision(unittest.TestCase):
     ) -> None:
         doc = {"filename": "docs/a.md", "status": "added", "patch": "+a"}
         self.assertEqual(self.later({OLD: _net(TF, doc), HEAD: _net(doc, TF)}), LINK)
-        # A merge that drops one of its files is a change of its own.
         self.assertIsNone(self.later({OLD: _net(TF, doc), HEAD: _net(TF)}))
 
     def test_a_rebase_or_a_commit_of_its_own_with_the_same_net_change_re_holds(
@@ -504,6 +484,33 @@ class CostDecision(unittest.TestCase):
         self.assertIsNone(self.later({OLD: many(300), HEAD: many(300)}))
         binary = {"filename": "a.png", "status": "modified"}
         self.assertIsNone(self.later({OLD: _net(binary), HEAD: _net(binary)}))
+
+    def test_a_base_merge_over_a_range_past_250_commits_carries_read_in_pages(
+        self,
+    ) -> None:
+        branch = [
+            {"sha": f"{n:040x}", "parents": [{"sha": f"{n - 1:040x}" if n > 1 else MAIN}]}
+            for n in range(1, 259)
+        ]
+        branch.append({"sha": OLD, "parents": [{"sha": branch[-1]["sha"]}]})
+        then = _net(TF) | {"commits": branch, "total_commits": 259}
+        merge = {"sha": HEAD, "parents": [{"sha": OLD}, {"sha": MAIN}]}
+        now = _net(TF) | {"commits": [*branch, merge], "total_commits": 260}
+        self.assertEqual(self.later({OLD: then, HEAD: now}), LINK)
+        self.assertEqual(
+            [r for r in self.reads if r.startswith(f"repos/owner/repo/compare/{TIP}...{HEAD}")],
+            [f"repos/owner/repo/compare/{TIP}...{HEAD}"]
+            + [
+                f"repos/owner/repo/compare/{TIP}...{HEAD}?per_page=100&page={page}"
+                for page in (1, 2, 3)
+            ],
+        )
+        cut = now | {"total_commits": 261}
+        self.assertIsNone(self.later({OLD: then, HEAD: cut}), "a page cut short")
+        self.assertIsNone(
+            self.later({OLD: then, HEAD: now}, unreadable=f"compare {HEAD} page 2"),
+            "a page that does not read",
+        )
 
     def test_a_failed_read_does_not_carry(self) -> None:
         same = {OLD: _net(TF), HEAD: _net(TF)}
@@ -584,7 +591,6 @@ class CostDecision(unittest.TestCase):
                 self.assertIsNone(
                     self.decide(runs=[_run(OLD), extra], compares=changed)
                 )
-        # A run that started after the decision is not read at all.
         self.decide(
             runs=[
                 _run(HEAD),
@@ -611,10 +617,6 @@ class CostDecision(unittest.TestCase):
                 runs = [_run(OLD, "2026-10-22T10:40:00Z"), _run(HEAD)]
                 self.assertIsNone(self.decide(runs=runs, compares={OLD: answer}))
 
-    # #10437: a deleted lane run of a head pushed after the decided head,
-    # before the decision, would make an older notice the decided head. The
-    # branch's push history, which deleting a run leaves, shows that head, and
-    # it must have a run of every review lane started before the decision.
     def test_a_head_pushed_since_the_decided_head_with_no_run_of_every_lane_keeps_the_hold(
         self,
     ) -> None:
@@ -645,9 +647,7 @@ class CostDecision(unittest.TestCase):
             plain(new, "pr-review-security-hosted.yml"),
         ]
         pushed = history(_push(new, "2026-10-22T11:10:00Z"))
-        # No deletion: both lanes ran on the newer head, which noticed no cost.
         self.assertEqual(carried(both, pushed), LINK)
-        # A head pushed after the decision needs no run here.
         self.assertEqual(carried([], history(_push(new, "2026-10-22T12:10:00Z"))), LINK)
         for name, runs in {
             "both lanes' runs deleted": [],
@@ -665,22 +665,15 @@ class CostDecision(unittest.TestCase):
             with self.subTest(name):
                 self.assertIsNone(carried(runs, pushed))
                 self.assertTrue(any("/activity?" in r for r in self.reads))
-        # Pushing the decided head again after the decision makes it the head:
-        # the gap before the decision still keeps the hold.
         back = history(
             _push(new, "2026-10-22T11:10:00Z"), _push(OLD, "2026-10-22T12:30:00Z")
         )
         self.assertIsNone(carried([], back, head=OLD))
-        # No push of the decided head before the decision, or a read that
-        # fails, keeps the hold.
         self.assertIsNone(carried(both, [_push(new, "2026-10-22T11:10:00Z")]))
         self.assertIsNone(carried(both, [_push(OLD, "2026-10-22T12:30:00Z")]))
         self.assertIsNone(carried(both, pushed, unreadable="activity"))
         self.assertIsNone(carried(both, {"message": "Not Found"}))
 
-    # A branch name recreated for each sync (chore/standards-sync, #10990)
-    # keeps its whole history in the activity API, so the decided head's push
-    # can sit past the first page of 100.
     def test_the_push_history_is_read_past_its_first_page(self) -> None:
         new = "1" * 40
         same = {OLD: _net(TF), HEAD: _net(TF)}
@@ -690,7 +683,6 @@ class CostDecision(unittest.TestCase):
                 runs=[_run(OLD)], compares=same, activity=activity, **change
             )
 
-        # 149 pushes after the decision, then the decided head: 150 entries.
         after = [
             _push(new, f"2026-10-22T12:{10 + i // 60:02d}:{i % 60:02d}Z")
             for i in range(149)
@@ -698,8 +690,6 @@ class CostDecision(unittest.TestCase):
         long = _newest_first([*after, _push(OLD, "2026-10-22T10:25:00Z")])
         self.assertEqual(len(long), 150)
         self.assertEqual(carried(long), LINK)
-        # A push with no lane run between the decided head and the decision,
-        # as entry 119, on the second page, keeps the hold.
         gap = _newest_first(
             [
                 *after[:118],
@@ -709,7 +699,6 @@ class CostDecision(unittest.TestCase):
         )
         self.assertEqual(gap[118]["timestamp"], "2026-10-22T11:10:00Z")
         self.assertIsNone(carried(gap))
-        # A read that fails on a later page fails the whole paginated read.
         self.assertIsNone(carried(long, unreadable="activity"))
 
     def test_branch_activity_joins_the_pages_and_fails_closed(self) -> None:
@@ -719,18 +708,15 @@ class CostDecision(unittest.TestCase):
         self.assertEqual(
             policy.branch_activity([full(), [{"id": 100}]]), [*full(), {"id": 100}]
         )
-        # gh stops at an answer with no next link; a full one may not be the end.
         for pages in ([full()], [full(), full(100)]):
             with self.assertRaisesRegex(
                 policy.PolicyReadError, "full page with no next link"
             ):
                 policy.branch_activity(pages)
-        # No page, or a page that is no list, is unreadable, as unran_head names it.
         self.assertIsNone(policy.branch_activity([full(), {"message": "Not Found"}]))
         self.assertIsNone(policy.branch_activity([full(), None]))
         self.assertIsNone(policy.branch_activity([]))
         self.assertIsNone(policy.branch_activity(None))
-        # Twenty pages are read; a twenty-first is refused.
         twenty = [full(i * 100) for i in range(19)] + [[{"id": 1900}]]
         self.assertEqual(len(policy.branch_activity(twenty)), 1901)
         with self.assertRaisesRegex(policy.PolicyReadError, "runs past 20 pages"):
@@ -781,7 +767,6 @@ class CostDecision(unittest.TestCase):
         result, reads = self.pages(bodies, ["Y3Vy+MQ==", "c2", None])
         self.assertEqual(result[0], 200)
         self.assertEqual([len(page) for page in result[1]], [100, 100, 3])
-        # The cursor as the link spells it, a `+` included, after the endpoint.
         self.assertEqual(
             reads,
             [
@@ -856,7 +841,6 @@ class CostDecision(unittest.TestCase):
             "unreadable", policy.unran_head(odd, [[new], [new]], OLD, at) or ""
         )
         self.assertIn("unreadable", policy.unran_head("nope", [[], []], OLD, at) or "")
-        # Only the moves after the decided head's last push before it count.
         again = [_push(OLD, "2026-10-22T11:30:00Z"), *moves]
         self.assertIsNone(policy.unran_head(again, [[OLD], [OLD]], OLD, at))
 
@@ -886,7 +870,6 @@ class CostDecision(unittest.TestCase):
             [r for r in self.reads if "/compare/" in r],
             [f"repos/owner/repo/compare/{TIP}...{HEAD}"],
         )
-        # With no usable base no run can be vetted, so nothing carries.
         self.assertIsNone(self.decide(pull=PULL | {"base": {"ref": "-unusable"}}))
 
     def test_a_duplicate_filename_a_pure_rename_or_an_unusable_base_does_not_carry(
@@ -905,7 +888,6 @@ class CostDecision(unittest.TestCase):
         self.assertEqual(self.later(same, pull=pull), LINK)
         self.assertIn("repos/owner/repo/git/ref/heads/release/2.x", self.reads)
         self.assertIn(f"repos/owner/repo/compare/{TIP}...{OLD}", self.reads)
-        # The carry names the base by its tip commit.
         self.assertIn(f"repos/owner/repo/compare/{TIP}...{HEAD}", self.reads)
         self.assertIsNone(self.later(same, unreadable="ref"))
 
@@ -963,8 +945,6 @@ class CostDecision(unittest.TestCase):
         ]
         self.assertIsNone(pick(every, older_head))
         self.assertEqual(pick(f"Closes #40\n{LINK}", [_run(HEAD)]), LINK)
-        # A newer decision on the pull request that lacks the row and quote is
-        # still the one judged: the complete one on the issue does not stand in.
         rows["9"] = rows["9"] | {"body": "**Decision recorded.** Cost: approve it."}
         self.assertIsNone(
             pick(

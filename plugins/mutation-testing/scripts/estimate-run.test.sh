@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for estimate-run.sh.
-#
-# Self-contained and cwd-independent; writes nothing. Every expected line below
-# is worked out by hand from the arithmetic in the script's header, not from
-# running the script.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,8 +33,6 @@ expect "the flags in either order" "Estimated wall-clock: 1h 30m (120 mutants x 
 est --mutants 0 --seconds 45
 expect "zero mutants" "Estimated wall-clock: 0h 0m (0 mutants x 45s per build-and-test)"
 
-# A fractional time: 7 x 2.5 is 17.5s, which rounds up to a minute; 24 x 2.5
-# is exactly 60s and stays one minute; 25 x 2.5 is 62.5s and goes to two.
 est --mutants 7 --seconds 2.5
 expect "a fractional time rounds up" "Estimated wall-clock: 0h 1m (7 mutants x 2.5s per build-and-test)"
 est --mutants 24 --seconds 2.5
@@ -53,7 +46,6 @@ expect "3601.5s is 1h 1m" "Estimated wall-clock: 1h 1m (3 mutants x 1200.5s per 
 est --mutants 1500 --seconds 180
 expect "hours past a day stay hours" "Estimated wall-clock: 75h 0m (1500 mutants x 180s per build-and-test)"
 
-# A leading zero is decimal, not octal: 010 mutants at 60s is 10 minutes.
 est --mutants 010 --seconds 60
 expect "a leading zero is decimal" "Estimated wall-clock: 0h 10m (010 mutants x 60s per build-and-test)"
 est --mutants 9 --seconds 08.5

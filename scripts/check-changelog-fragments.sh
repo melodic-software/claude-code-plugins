@@ -1,47 +1,8 @@
 #!/usr/bin/env bash
-# Gates for changelog fragments (ADR 0048).
-#
-#   scripts/check-changelog-fragments.sh --check
-#       every file under .changes/ is a valid fragment: .changes/<plugin>/
-#       <branch-slug>-<8 hex>.md for a plugin in fragment mode, front matter
-#       with one valid `bump`, and a body of known `###` sections (or, for
-#       `bump: none`, a non-empty reason)
-#   scripts/check-changelog-fragments.sh --check-required <base-ref>
-#       a change set that changes a fragment-mode plugin's shipped files adds or
-#       modifies a fragment for it; a fragment it adds must not already exist at
-#       <base-ref>. A Dependabot pull request whose every commit is a verified
-#       Dependabot commit needs no fragment: scripts/dependabot-fragments.sh
-#       writes it after the merge (changelog_fragments::dependabot_only in
-#       scripts/lib/changelog-fragments.sh)
-#   scripts/check-changelog-fragments.sh --check-release <base-ref>
-#       for the release pull request: no file the release changes (a consumed
-#       fragment, a CHANGELOG.md, a plugin.json) has changed on <base-ref> since
-#       the release was cut, its build base being the merge base with
-#       <base-ref>. A fragment <base-ref> added since then rides the next
-#       release. In the merge queue (GITHUB_EVENT_NAME=merge_group) <base-ref>
-#       is the group's base commit and the release is CHANGELOG_PR_HEAD, the
-#       queued pull request's head; without a readable one it refuses
-#
-# Shipped files are everything under plugins/<name>/, or docs/contracts/<name>/
-# or docs/conventions/<name>/ for a listed convention. On the release pull request
-# (changelog_fragments::is_release_pr) the root CHANGELOG.md and a plugin.json
-# edit to `version` alone are left out: those are what a release writes, so it
-# needs no fragment of its own. A convention's release is a new newest
-# CHANGELOG heading, so that is what --check-release counts as its bump. Any other pull request that edits
-# them needs a fragment like any other change, and check-changelog-parity.sh
-# --check-bump fails one that bumps the version or adds a CHANGELOG heading.
-#
-# The diff modes read the change set as check-changelog-parity.sh does: fork
-# point to branch tip, with a pull_request merge commit resolved to its branch
-# tip.
-#
-# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
-# the check-script family contract stated in README.md.
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
-# CHECK_DATA_ROOT: the tree to check, when it is not the one holding this
-# script (scripts/check-affected.sh sets it; code still loads from SCRIPT_DIR).
 cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 # shellcheck source=lib/gate-entry.sh
 . "$SCRIPT_DIR/lib/gate-entry.sh" || exit 2
@@ -88,9 +49,6 @@ fi
 
 head_commit=HEAD
 if [[ "$mode" == --check-release && "${GITHUB_EVENT_NAME:-}" == merge_group ]]; then
-  # The queue checks out the group's squash commit, which has one parent and
-  # carries nothing of the release branch, so the release is read from the
-  # queued pull request's own head commit.
   # shellcheck disable=SC2310  # the non-zero return IS the handled case
   if [[ -z "${CHANGELOG_PR_HEAD:-}" ]] || ! changed_files::verify_base "$CHANGELOG_PR_HEAD"; then
     echo "$self: in the merge queue --check-release reads the release from CHANGELOG_PR_HEAD, the queued pull request's head commit, which is unset or unreadable; refusing to pass without it." >&2
@@ -137,7 +95,6 @@ while IFS= read -r -d '' status && IFS= read -r -d '' path; do
   plugins/*/.claude-plugin/plugin.json)
     rest="${path#plugins/}"
     name="${rest%%/*}"
-    # * matches /, so a nested manifest (an eval fixture) is an ordinary plugin file
     [[ "$rest" == "$name/.claude-plugin/plugin.json" ]] || {
       shipped["$name"]=1
       continue
@@ -156,8 +113,6 @@ while IFS= read -r -d '' status && IFS= read -r -d '' path; do
     [[ -n "$release_pr" && "$rest" == "$name/CHANGELOG.md" ]] || shipped["$name"]=1
     ;;
   docs/contracts/*/* | docs/conventions/*/*)
-    # Only a convention no plugin of the same name owns; in_mode below drops
-    # an unlisted one.
     name="$(changelog_fragments::convention_of "$path")" || continue
     rest="${path#docs/*/}"
     if [[ "$rest" == "$name/CHANGELOG.md" ]]; then
@@ -175,9 +130,12 @@ done <"$status_file"
 if [[ "$mode" == --check-required ]]; then
   findings=0
   dependabot=""
+  standards_sync=""
   # shellcheck disable=SC2310  # the non-zero return IS the answer
   if changelog_fragments::dependabot_only "$base"; then
     dependabot=1
+  elif changelog_fragments::standards_sync_only "$base"; then
+    standards_sync=1
   fi
   for path in ${added_fragments[@]+"${added_fragments[@]}"}; do
     if git cat-file -e "$base:$path" 2>/dev/null; then
@@ -200,11 +158,15 @@ if [[ "$mode" == --check-required ]]; then
       echo "Dependabot-only change to $root/: scripts/dependabot-fragments.sh writes its fragment after the merge."
       continue
     fi
+    if [[ -n "$standards_sync" ]]; then
+      echo "Standards-sync-only change to $root/: managed copies of melodic-software/standards ride the plugin's next release."
+      continue
+    fi
     echo "MISSING FRAGMENT: this change set changes files under $root/ but adds or edits no fragment under .changes/$name/." >&2
     findings=$((findings + 1))
     if [[ "${CHANGELOG_PR_AUTHOR:-}" == 'dependabot[bot]' ]]; then
-      if [[ -n "${CF_DEPENDABOT_BLOCKER:-}" ]]; then
-        echo "  Dependabot opened this pull request, but it is not Dependabot's alone ($CF_DEPENDABOT_BLOCKER)." >&2
+      if [[ -n "${CF_BOT_BLOCKER:-}" ]]; then
+        echo "  Dependabot opened this pull request, but it is not Dependabot's alone ($CF_BOT_BLOCKER)." >&2
         echo "  Do not add a fragment: the dependency lane refuses a Dependabot head carrying a commit that is not Dependabot's. Comment '@dependabot recreate' to drop a base merge or a hand-added commit, then scripts/dependabot-fragments.sh writes the fragment after the merge." >&2
       else
         echo "  Dependabot opened this pull request, but its commits could not be checked: the git or GitHub API lookup failed." >&2
@@ -221,11 +183,6 @@ if [[ "$mode" == --check-required ]]; then
   gate_entry::finish 0
 fi
 
-# --check-release
-# The release may merge past fragments the base added after it was cut: they
-# ride the next release. It may not merge over a file it changes (a consumed
-# fragment, a CHANGELOG.md, a plugin.json) that the base changed since the cut,
-# since the release never read that change.
 findings=0
 while IFS= read -r -d '' status && IFS= read -r -d '' path; do
   if ! base_blob="$(git ls-tree "$base" -- "$path")" || ! cut_blob="$(git ls-tree "$merge_base" -- "$path")"; then

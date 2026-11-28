@@ -1,5 +1,5 @@
 ---
-description: "Verify the disk-hygiene plugin's runtime prerequisites and platform posture for this machine. Use when: 'set up disk-hygiene', 'configure disk-hygiene', 'is disk-hygiene working', a clean run reported a missing prerequisite, or before a first audit on a new machine. Actions: check (read-only verification, default) | apply (resolve what check found). Re-runnable and safe."
+description: "Verify disk-hygiene prerequisites, platform posture, kill switch, and old policy files; check (read-only) or apply (remediation/migration)."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -75,8 +75,8 @@ fails closed like every other guard-relevant unknown in this plugin.
 
    **`node` and bash**, probed with the Bash tool, not through the launcher. FAIL if
    `command -v node` finds nothing: every guard and detector row runs `node`, so none launches and no guard
-   is enforced. FAIL if no bash resolves in the launcher's own order, which the header comment of
-   `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` lists per platform (read it; do not recite it). On
+   is enforced. FAIL if no bash resolves in the launcher's own order, which `resolveBash` in
+   `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` sets per platform (read it; do not recite it). On
    Windows the remediation is either `CLAUDE_CODE_GIT_BASH_PATH`, a Git for Windows install, or a
    `bash.exe` on `PATH` outside `System32`, `Sysnative` and `WindowsApps`; elsewhere, a `bash` on
    `PATH`. Both FAILs stay FAIL with the toggle disabled, like the interpreter ladder. State the

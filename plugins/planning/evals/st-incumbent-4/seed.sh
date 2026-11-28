@@ -221,7 +221,6 @@ confirm that customers read correctly throughout.
 - End to end: a support lookup by email, in mixed case, after the conversion.
 MD
 
-# Each phase heading takes its status tag here, outside the heredoc.
 plan=.work/review-target/PLAN.md
 text="$(cat "$plan")"
 printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"

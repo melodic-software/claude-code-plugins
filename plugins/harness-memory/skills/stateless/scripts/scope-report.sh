@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Snapshot the auto-memory posture for the CURRENT project (a git repo, or the current
-# directory outside one) across every settings scope.
-#
-# Reads no JSON key values, avoiding a jq dependency and precedence guessing; the
-# workflow reads the listed files and folds in any autoMemoryDirectory relocation.
-
 set -uo pipefail
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -36,13 +30,9 @@ presence_row() {
   row "$1" "$state" "$3"
 }
 
-# Presence-only: non-file policy surfaces are named, never read, so an absent JSON
-# file is never mistaken for "no managed policy deployed".
 plugin_root="${CLAUDE_PLUGIN_ROOT:-$(cd "$script_dir/../../.." && pwd)}"
 # shellcheck source=../../../lib/managed-scope.sh
 source "$plugin_root/lib/managed-scope.sh"
-# The topic-file counting rule is shared with the sibling enumerate-all-projects.sh,
-# whose printed count is a contract of its own.
 # shellcheck source=../../../lib/topic-count.sh
 source "$plugin_root/lib/topic-count.sh"
 managed="$(mscope::base_file)"

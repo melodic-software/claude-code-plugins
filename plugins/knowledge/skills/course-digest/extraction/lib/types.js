@@ -1,9 +1,4 @@
 /**
- * Shapes shared across the extraction scripts: a platform's `platformConfig`
- * entry and the parsed course.json.
- */
-
-/**
  * @typedef {Object} PlatformConfig
  * @property {string} [videoPlayerSelector]
  * @property {string} [loginUrl]

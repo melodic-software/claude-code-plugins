@@ -28,7 +28,8 @@ ops, and supersede and resolve read their text from a file.
   export-ledger   write the interview ledger (decision tree and open-question register);
                   --ledger F merges into F's register, --diff F prints what that would change;
                   --recap writes the confirmation recap instead (with --ledger F it needs no data
-                  dir and saves its rows beside F; --changed lists only the rows changed since)
+                  dir, saves its rows beside F as first seen and lists rows changed since;
+                  with a data dir --changed lists only the rows changed since the last recap)
   export-brief    write the PLAN.md Brief sections; --ledger F numbers as F does and carries its ledger-only deferred rows;
                   --into PLAN replaces PLAN's `## Brief` section in place instead of writing --out
   export-report   write one self-contained HTML report
@@ -52,9 +53,13 @@ ops, and supersede and resolve read their text from a file.
                   `## Reopened answers`, and add `recheck:: Q<N>` to every row whose `depends::`
                   reaches it at any depth, printing each; --rechecked Q<N>... clears recheck::
                   from those rows. Needs no data dir; backs up and prints the verdict as supersede
-  show            print a saved round file at --level full (byte for byte), standard or minimal
-  scope-check     print the counts half of a round header's Scope check: line from --ledger F
-                  (next-id --round n --limit m prints that line after the ids, the new rows counted)
+  show            print a saved round file at --level full (every line), standard or minimal, its
+                  citation labels per --links plain|vscode|file, its held-back block as the
+                  Next round and Later: lines
+  scope-check     print a round header's Scope check: line from --ledger F, a Wayfind: line on the
+                  two-round signal from the round files' held-back blocks (--rounds-dir), and
+                  record the round counts under F's ## Round counts
+                  (next-id --round n prints the same after the ids, the new rows counted)
   measures        print rounds, median lines per shown round, reopened rows and those after a
                   lookup, from --ledger F and --rounds-dir D (show, scope-check and measures need no
                   data dir)
@@ -134,6 +139,7 @@ import sys
 import time
 import webbrowser
 from pathlib import Path
+from urllib.parse import quote
 
 HERE = Path(__file__).resolve().parent
 sys.dont_write_bytecode = True
@@ -167,20 +173,13 @@ DECISIONS = ("accept", "alt", "own", "defer", "hedged")
 LOCK_NAME = "questions.json.lock"
 LOCK_SECONDS = 10
 START_SECONDS = 3
-# The exit codes the module docstring lists. A bare sys.exit("message") is EXIT_REFUSED.
 EXIT_REFUSED = 1
 EXIT_MISSING_PREREQUISITE = 2
 EXIT_SERVER_DID_NOT_START = 5
 EXIT_LEDGER_DIFFERS = 6
-# The server pushes a state frame within 0.3 s of a write; stop waits this long so open tabs get the finish.
 FINISH_SECONDS = 1
 REC_BUDGET = 200
 ACTIVITY_CAP = 200
-# Free-text caps: one-line fields (a title, a recommendation, an alternative and its tradeoff, a
-# commitment, a hold, a status, an activity entry, a reason) and markdown fields (facts, a
-# basis, a revision reason, a group summary, a thread reply, a note, a terminal answer, a
-# restatement section). A new or changed short label and a context take the shared question
-# shape's caps.
 TEXT_CAP = 20000
 CONTEXT_CAP = 4000
 SHORT_SHAPE = {
@@ -217,7 +216,6 @@ LOGGED_OPS = {
 }
 BASIS_SENTENCES = 3
 RESTATE_SENTENCES = 3
-# One write superseding this many questions one for one is a re-issue `revise` should do (G6).
 MASS_SUPERSEDE = 3
 ID_TOKEN = re.compile(r"\b[QC][0-9]+\b")
 SENTENCE_BREAK = re.compile(r"[.!?](\s|$)")
@@ -225,13 +223,10 @@ ASKS_USER = re.compile(
     r"\?(?:\s|$)|\b(?:tell|let) me\b|\bplease (?:confirm|say|choose|pick|tell|let|state|specify)\b",
     re.IGNORECASE,
 )
-# A criterion that opens on a request to the user ("Say add both, add one, or neither.").
 ASKS_USER_LEAD = re.compile(r"^(?:say|choose)\b", re.IGNORECASE)
-# A restated line's bullet or number, checkbox, AC<N> id and EARS tag, ahead of its text.
 CRITERION_LEAD = re.compile(
     r"^(?:[-*+]\s+|[0-9]+[.)]\s+)?(?:\[[ xX]\]\s*)?(?:AC[0-9]+\s*:\s*)?(?:\[[\w-]+\]\s*)?"
 )
-# The TLDR labels the --brief gate reads; a restated TLDR line above them must not wear one.
 GATE_LABEL = re.compile(r"^(?:Restatement|Page title):")
 TLDR_BULLETS = 5
 VISUAL_REF = re.compile(
@@ -243,7 +238,7 @@ FACTS_TABLE = re.compile(r"^\s*\|.*\|\s*$", re.MULTILINE)
 BARE_ISSUE_REF = re.compile(r"(?<![\w/&#-])#\d+\b")
 CODE_SPAN = re.compile(r"`[^`\n]+`")
 REPO_SLUG = re.compile(r"[\w.-]+/[\w.-]+", re.ASCII)
-COMMIT_SHA = re.compile(r"[0-9a-f]{40}")  # a full commit SHA, which page links pin; also in shared/session.py
+COMMIT_SHA = re.compile(r"[0-9a-f]{40}")
 BRANCH_SOURCE_LINK = re.compile(
     r"https?://github\.com/[\w.-]+/[\w.-]+/blob/(?![0-9a-f]{7,40}/)[^/\s)]+/", re.ASCII
 )
@@ -296,7 +291,6 @@ def load(d):
 
 
 def plugin_version():
-    """The planning plugin's version from its manifest, or None when the manifest is not beside this file."""
     try:
         manifest = HERE.parent / ".claude-plugin" / "plugin.json"
         return json.loads(manifest.read_text(encoding="utf-8")).get("version")
@@ -305,13 +299,11 @@ def plugin_version():
 
 
 def save(d, doc, touched=()):
-    """Bump rev, stamp the schema version and, on a file's first write, the plugin version that wrote it, validate, then write; a schema failure writes nothing."""
     prepare(doc, touched)
     save_json(d / "questions.json", doc)
 
 
 def prepare(doc, touched=()):
-    """Everything `save` does but the write: stamp, bump rev, and refuse a schema failure."""
     doc["schemaVersion"] = SCHEMA_VERSION
     version = None if doc.get("rev") else plugin_version()
     if version:
@@ -325,14 +317,12 @@ def prepare(doc, touched=()):
 
 
 def capped(field, text, cap):
-    """`text` unchanged, or a refusal when it runs over `cap` characters."""
     if isinstance(text, str) and len(text) > cap:
         sys.exit(f"refused: {field} is {len(text)} characters; the cap is {cap}")
     return text
 
 
 def checked_short(qid, short):
-    """Refuse a `short` the shared question shape does not allow; stored ones are not rechecked."""
     err = schema.first_error(short, SHORT_SHAPE, f"{qid} short")
     if err:
         sys.exit(f"refused: {err}")
@@ -358,7 +348,6 @@ def split_alt(s):
 
 
 def check_rec_alts(qid, rec, alts, fix):
-    """Refuse an alternative that restates the recommendation (question_shape.restates)."""
     for i, alt in enumerate(alts or [], 1):
         key = alt.get("key") if isinstance(alt, dict) else None
         if restates(alt.get("text") if isinstance(alt, dict) else alt, rec):
@@ -369,7 +358,6 @@ def check_rec_alts(qid, rec, alts, fix):
 
 
 def parse_affects(v):
-    """None when absent; `none` is an empty list; a list or comma-joined ids otherwise."""
     if v is None:
         return None
     if isinstance(v, list):
@@ -380,7 +368,6 @@ def parse_affects(v):
 
 
 def mark_handled(doc, seqs):
-    """Per-event handled set. handledSeq advances only over a gap-free run, so it never hides an unhandled event."""
     done = set(doc.get("handled") or []) | {s for s in seqs if s}
     hs = doc.get("handledSeq") or 0
     while hs + 1 in done:
@@ -390,8 +377,6 @@ def mark_handled(doc, seqs):
 
 
 def guard_revision(d, doc, qid, seq, force):
-    """Refuse a revision when the user acted on the question after the event being answered, and return the responses it read.
-    Without `seq`, only an unhandled user event on the question blocks it."""
     snapshot = load_json(d / "responses.json", EMPTY_RESPONSES)
     if force:
         return snapshot
@@ -428,8 +413,6 @@ def require_affects(qid, affects):
 
 
 def require_alt_review(qid, alts, keep):
-    """A recommendation change states its alternatives: new ones, or that the current ones were
-    checked against it (R-I)."""
     if alts is not None and keep:
         sys.exit(
             f"refused: {qid} takes `alternatives` or `keepAlternatives`, not both"
@@ -443,13 +426,10 @@ def require_alt_review(qid, alts, keep):
 
 
 def min_alts(q):
-    """2, or 1 for a yes/no question flagged `binary: true` (R-I)."""
     return 1 if q.get("binary") is True else 2
 
 
 def check_alt_count(qid, n, q):
-    """The R-I refusal for a question left with `n` alternatives: fewer than it needs, or more
-    than one on a binary question."""
     if min_alts(q) == 2 and n < 2:
         sys.exit(
             f"refused: {qid} has {n} alternatives; every question needs at least 2 genuine "
@@ -464,7 +444,6 @@ def check_alt_count(qid, n, q):
 
 
 def checked_alts(q, alts):
-    """`alts` parsed and capped, or a refusal when their count does not fit question `q` (R-I)."""
     alts = [split_alt(s) for s in alts]
     for alt in alts:
         capped(f"{q['id']} alternative {alt['key']}", alt["text"], LINE_CAP)
@@ -474,10 +453,6 @@ def checked_alts(q, alts):
 
 
 def set_aside_answer(r, doc, q, rec):
-    """A recommendation revision to `rec` sets aside the counted decision it outdates (the same
-    stamps as a user hold, without the hold): an `own` answer, which the revision answers, and an
-    accept or hedged accept of a different recommendation, which records the text it accepted in
-    asideRecommendation. Alt and defer stay."""
     latest = exporters.latest_decision(q, r.get("responses", {}))
     said = (latest or {}).get("decision")
     old = q.get("recommendation") or ""
@@ -493,18 +468,14 @@ def set_aside_answer(r, doc, q, rec):
 
 
 def revise_recommendation(r, doc, q, rec, why):
-    """Replace q's recommendation with `rec`, setting aside the answer it outdates and keeping
-    the old recommendation, with `why`, for the page."""
     set_aside_answer(r, doc, q, rec)
     if q.get("recommendation") or not q.get("proposed"):
-        # An accepted proposal's first recommendation revises nothing.
         q["previousRecommendation"] = q.get("recommendation", "")
-        q["revised"] = why or True  # the page says "Recommendation revised." itself
+        q["revised"] = why or True
     q["recommendation"] = rec
 
 
 def checked_list(doc, ids):
-    """`ids` as a stored `checkedAgainst` list; refuses one the constraint ledger does not hold."""
     known = {c["id"] for c in doc.get("constraints") or []}
     if not isinstance(ids, list) or not set(map(str, ids)) <= known:
         sys.exit(f"refused: checkedAgainst {ids!r} names no recorded constraint")
@@ -512,12 +483,6 @@ def checked_list(doc, ids):
 
 
 def add_question(doc, q, repoint=False, latest=None, earlier=None):
-    """Validate and append one question; returns (the questions whose rev must bump, notes about
-    the dependents of a question it supersedes). `latest` is the newest round before the write
-    began (default: now), so questions added in one write date against the same round; `earlier`
-    is the question ids that existed before it (default: now), which `reconciles` may name.
-    Exits before any write."""
-    # Written now, so it answers to every constraint already recorded; only a later one marks it.
     q["checkedAgainst"] = (
         [c["id"] for c in doc.get("constraints") or []]
         if q.get("checkedAgainst") is None
@@ -583,7 +548,6 @@ def add_question(doc, q, repoint=False, latest=None, earlier=None):
     q.pop("addedInRound", None)
     latest = newest_round(doc) if latest is None else latest
     if latest > q["round"]:
-        # Asked after a later round was posted: the round label alone would misdate it.
         q["addedInRound"] = latest
     if defaulted and doc["questions"]:
         warn(
@@ -606,8 +570,6 @@ def add_question(doc, q, repoint=False, latest=None, earlier=None):
 
 
 def check_reconciles(q, known):
-    """Refuse a `reconciles` that is not a list of question ids already in the register: the
-    earlier answers the page shows beside a question that reconciles them."""
     ids = q.get("reconciles")
     if ids is None:
         return
@@ -625,8 +587,6 @@ def check_reconciles(q, known):
 
 
 def require_depends(d):
-    """The resolved requireDepends: planning's team and personal files, the user file the server
-    recorded, then the data dir's settings.json."""
     try:
         s = json.loads((d / bridge.session_files(NAME)[0]).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -637,12 +597,9 @@ def require_depends(d):
 
 
 def check_depends(d, doc, qs):
-    """Warn, or refuse under requireDepends, when a new question omits dependsOn (`[]` declares
-    it independent) or names a question still open in its own round. Run after the adds, so a
-    prerequisite added in the same write counts as open."""
     strict = require_depends(d)
     r = load_json(d / "responses.json", EMPTY_RESPONSES)
-    view = json.loads(json.dumps(doc))  # release_user_holds edits the copy it is given
+    view = json.loads(json.dumps(doc))
     release_user_holds(view, r)
     rounds = {x.get("id"): x.get("round") for x in view["questions"]}
     for q in qs:
@@ -668,9 +625,6 @@ def check_depends(d, doc, qs):
 
 
 def repoint_dependents(doc, new, old, repoint):
-    """(notes, moved questions): the live questions whose dependsOn names `old`, which `new`
-    supersedes. With `repoint` each moves to `new`; one that `new` itself depends on, directly or
-    not, only loses `old` (moving it would make a cycle). Without it they are only named."""
     users = [
         x
         for x in doc["questions"]
@@ -687,7 +641,6 @@ def repoint_dependents(doc, new, old, repoint):
             "--repoint moves them"
         ], []
     by_id = {x["id"]: x for x in doc["questions"]}
-    # What `new` already waits on: pointing one of those at `new` would be a cycle.
     below, todo = set(), list(new.get("dependsOn") or [])
     while todo:
         p = todo.pop()
@@ -728,7 +681,6 @@ def repoint_dependents(doc, new, old, repoint):
 
 
 def strings(v):
-    """Every string inside a JSON value."""
     if isinstance(v, str):
         yield v
     elif isinstance(v, dict):
@@ -740,7 +692,6 @@ def strings(v):
 
 
 def warn_bare_issue_refs(doc, label, value):
-    """Warn once when any text in value carries a bare #N (outside code spans) and meta.repo is not an owner/repo slug, so the page cannot link it."""
     if not REPO_SLUG.fullmatch(str(doc["meta"].get("repo") or "")) and any(
         BARE_ISSUE_REF.search(CODE_SPAN.sub("", s)) for s in strings(value)
     ):
@@ -751,7 +702,6 @@ def warn_bare_issue_refs(doc, label, value):
 
 
 def warn_branch_source_links(label, facts, field="facts"):
-    """Warn once when facts or context links a repo file by branch (blob/<branch>), which stops landing on the quoted lines once the branch moves."""
     if facts and BRANCH_SOURCE_LINK.search(facts):
         warn(
             f"{label} {field} links a repo file by branch (blob/<branch>); "
@@ -760,7 +710,6 @@ def warn_branch_source_links(label, facts, field="facts"):
 
 
 def rec_asks_user(rec):
-    """True when a recommendation asks the user something: a question mark, or a request to tell, confirm or choose."""
     return bool(ASKS_USER.search(CODE_SPAN.sub("", str(rec or ""))))
 
 
@@ -773,9 +722,6 @@ def warn_rec_asks(qid, rec):
 
 
 def warn_rec_visual(doc, q, rec, commits):
-    """Warn when a recommendation points at a table or visual and has no commitments while the
-    file holds a visual or the question's facts a table: the Brief carries the recommendation and
-    its commitments, never a visual or the facts."""
     shown = any(not v.get("archived") for v in doc.get("visuals") or []) or (
         FACTS_TABLE.search(q.get("facts") or "")
     )
@@ -799,32 +745,25 @@ LOCAL_FILE_REF = re.compile(
 )
 FIELD_LINK = re.compile(r"https?://|\]\(")
 FIELD_INLINE_CONTENT = re.compile(r"^\s*(?:>|[-*+]\s|\d+[.)]\s)", re.MULTILINE)
-# What lets a reader check the claims in facts: a link, a `file:line` (a file name with an
-# extension, then a line number), or the `judgment` label for a claim with no source, which
-# opens a line or follows a sentence break, `(` or ` - `, never a word ("a judgment call").
 FACTS_REFERENCE = re.compile(
     r"https?://|\]\("
     r"|(?<![\w.-])(?:[\w.-]+/)*[\w-]+(?:\.[\w-]+)*\.[A-Za-z]\w*:[0-9]+\b"
     r"|(?:^|[.!?;:(\[]|\s-)\s*\**judgment\b",
     re.IGNORECASE | re.MULTILINE,
 )
-# The `Checked against:` line facts opens with cites constraint ids, not the source of a claim.
 CHECKED_AGAINST = re.compile(r"^\s*\**checked against:.*$", re.IGNORECASE | re.MULTILINE)
 
 
 def sentence_count(text):
-    """The sentences in `text`, split after each `.`, `!` or `?` that whitespace follows."""
     return len([s for s in re.split(r"(?<=[.!?])\s+", text) if s])
 
 
 def basis_label(basis):
-    """The outcome label (verified or judgment) leading or trailing a basis, lowercased, or None."""
     m = BASIS_LABEL.search(basis or "")
     return (m.group(1) or m.group(2)).lower() if m else None
 
 
 def warn_bare_file_ref(qid, field, text):
-    """Warn when a field names a local file or says "see X" with no quote, list or link in the same field."""
     text = text or ""
     if (
         LOCAL_FILE_REF.search(text)
@@ -838,8 +777,6 @@ def warn_bare_file_ref(qid, field, text):
 
 
 def warn_unreferenced_facts(qid, facts, field="facts"):
-    """Warn when a facts or context field holding more than its `Checked against:` line carries
-    no link, file:line or judgment label, so no claim in it can be checked."""
     rest = CHECKED_AGAINST.sub("", facts or "")
     if rest.strip() and not FACTS_REFERENCE.search(rest):
         warn(
@@ -849,7 +786,6 @@ def warn_unreferenced_facts(qid, facts, field="facts"):
 
 
 def lint_questions(doc, qs):
-    """Warnings, never refusals: R12 length budget, a recommendation that asks the user something or points at a table or visual it does not carry, facts with no reference, bare Q<N> and C<N> ids that name no question here, bare #N with no meta.repo, and a one-for-one mass supersede. Other tokens (project keys, severity codes, standard names) are never flagged."""
     ids = {x.get("id") for x in doc["questions"]}
     for q in qs:
         warn_bare_issue_refs(doc, q["id"], q)
@@ -895,9 +831,6 @@ def lint_questions(doc, qs):
 
 
 def warn_mass_supersede(qs):
-    """Warn when one write supersedes MASS_SUPERSEDE or more questions one for one: a re-issued
-    round starts each question over under a new id, where `revise` keeps the id, thread and
-    answer (G6)."""
     pairs = [f"{q['supersedes']} by {q['id']}" for q in qs if q.get("supersedes")]
     if len(pairs) >= MASS_SUPERSEDE:
         shown = ", ".join(pairs[:5]) + (f" and {len(pairs) - 5} more" if len(pairs) > 5 else "")
@@ -909,12 +842,10 @@ def warn_mass_supersede(qs):
 
 
 def group_members(doc, gid):
-    """Ids of every question in the group, archived and superseded included: the page lists them all."""
     return sorted(q["id"] for q in doc["questions"] if q.get("group") == gid)
 
 
 def find_group(doc, gid):
-    """The group with id `gid`, or None."""
     return next((x for x in doc["groups"] if x["id"] == gid), None)
 
 
@@ -923,7 +854,6 @@ def record_summary_of(doc, gid):
 
 
 def warn_stale_summaries(doc, qs):
-    """One warning per group whose summary was written for a different set of questions."""
     for gid in dict.fromkeys(q.get("group") for q in qs):
         g = find_group(doc, gid)
         if g is None or "summaryOf" not in g:
@@ -954,17 +884,13 @@ def put_group(doc, g):
             sys.exit(f"unknown group in {g['id']} dependsOn: {ref}")
 
 
-# Ops: each takes (d, doc, a), changes doc in memory, and returns (touched questions, message).
-# The CLI commands and `apply` share them; only the caller loads, locks and saves.
 
 
 META_KEYS = ("title", "eyebrow", "stages", "next", "repo", "commit")
-# add-round's meta may also carry `kind`, stored on the round: a sweep round reconciles earlier answers.
 ROUND_KINDS = ("sweep",)
 
 
 def set_meta(doc, m):
-    """Merge title, eyebrow, stages, next, repo and commit into questions.json meta; any other key, or a commit that is neither empty nor a full SHA, is refused."""
     if not isinstance(m, dict):
         sys.exit("refused: meta is an object")
     extra = sorted(set(m) - set(META_KEYS))
@@ -981,12 +907,10 @@ def newest_round(doc):
 
 
 def newest_stage(doc):
-    """The newest question's stage, or "interview" when there is none."""
     return (doc["questions"][-1] if doc["questions"] else {}).get("stage", "interview")
 
 
 def stage_round(doc, stage):
-    """The highest round among the questions in `stage`, or 1."""
     return max([x.get("round", 1) for x in doc["questions"] if x.get("stage") == stage] or [1])
 
 
@@ -995,7 +919,6 @@ def stamp_meta(doc):
 
 
 def warn_stale_meta(doc, before):
-    """Warn when a write opened a round above every earlier one while meta was last set in an older one."""
     now_round = newest_round(doc)
     stamp = doc["meta"].get("setInRound", 0)
     if before and now_round > before and stamp < now_round:
@@ -1064,7 +987,6 @@ def op_propose(d, doc, a):
 
 
 def require_accepted(d, q, what):
-    """Refuse `what` on a proposed question until the user accepts or edits the proposal."""
     answer = proposal_answer(
         q, load_json(d / "responses.json", EMPTY_RESPONSES).get("events")
     )
@@ -1087,8 +1009,6 @@ def require_on_path(doc, q):
 
 
 def checked_round_restate(restate):
-    """The round's restate, or a refusal: markdown of at most RESTATE_SENTENCES sentences plus the
-    `decided` and `open` question id lists (G7, as R1 does for `commits`)."""
     if not isinstance(restate, dict):
         sys.exit(
             "refused: a round with questions needs a restate: "
@@ -1117,8 +1037,6 @@ def checked_round_restate(restate):
 
 
 def round_kind(meta, questions):
-    """(the meta to merge, the round's kind): `meta.kind` describes this round, not the
-    interview, so it is taken out of the meta merge and stored on the round's entry."""
     if not isinstance(meta, dict) or "kind" not in meta:
         return meta, None
     kind = meta["kind"]
@@ -1133,8 +1051,6 @@ def round_kind(meta, questions):
 
 
 def store_round_restate(doc, qs, restate, kind=None):
-    """Record the restate, and the kind when given, for the round the new questions open,
-    replacing an earlier one for it; with no kind given, the earlier entry's kind stays."""
     known = {q["id"] for q in doc["questions"]}
     for key in ("decided", "open"):
         unknown = [i for i in restate[key] if i not in known]
@@ -1149,7 +1065,6 @@ def store_round_restate(doc, qs, restate, kind=None):
     }
     slot = (entry["round"], entry["stage"])
     old = [r for r in doc.get("rounds") or [] if (r.get("round"), r.get("stage")) == slot]
-    # A later write to the same round that names no kind keeps the round's earlier one.
     kind = kind or next((r["kind"] for r in old if r.get("kind")), None)
     if kind:
         entry["kind"] = kind
@@ -1221,7 +1136,6 @@ def op_add_round(d, doc, a):
 
 
 def warn_stage(doc, qs):
-    """One warning per stage a new question introduces with no meta.stages label."""
     labels = doc["meta"].get("stages") or {}
     for st in dict.fromkeys(q.get("stage") for q in qs):
         if st and st not in labels and st != "interview":
@@ -1232,7 +1146,6 @@ def warn_stage(doc, qs):
 
 
 def check_primaries(doc):
-    """Refuse a second live `primary` visual in one group of one scope; a question's inline visuals are in its own scope."""
     seen = {}
     inline = [
         (f"question:{q['id']}", v)
@@ -1312,8 +1225,6 @@ def op_group_order(d, doc, a):
 
 
 def set_resolution(d, q, text):
-    """Record `text` as the accepted reading of the question's counted `own` answer; exits unless
-    one counts."""
     text = " ".join(text.split())
     if not text:
         sys.exit("refused: a reply `resolution` needs text")
@@ -1406,8 +1317,6 @@ def op_reply(d, doc, a):
 
 
 def checked_depends(doc, qid, deps):
-    """`deps` without repeats, or a refusal: every id must be a known question, none the question
-    itself, and none may already depend on it (a cycle). ["none"] alone is the empty list."""
     deps = list(dict.fromkeys([] if deps == ["none"] else deps))
     by_id = {x["id"]: x for x in doc["questions"]}
     unknown = [p for p in deps if p not in by_id]
@@ -1429,7 +1338,6 @@ def checked_depends(doc, qid, deps):
     return deps
 
 
-# A revise history line's words for a changed field whose name is not a word.
 REVISED_WORDS = {"checkedAgainst": "constraints checked"}
 
 
@@ -1562,7 +1470,7 @@ def op_revise(d, doc, a):
             {"at": now(), "by": "claude", "kind": "group", "text": f"Group: {regroup}."}
         )
         changed.append(f"group ({regroup})")
-    for line in lines:  # a revision clears the question's upstream-changed mark (server.derive_states)
+    for line in lines:
         line.update(reviewSeq=snapshot.get("seq", 0), rev=doc["rev"] + 1)
     if a.seq is not None:
         lines[0]["replyTo"] = a.seq
@@ -1614,9 +1522,7 @@ def op_record_terminal(d, doc, a):
         "rev": doc["rev"] + 1,
     }
     if q.get("setAsideRev") == doc["rev"] + 1:
-        # A user hold earlier in this same write: this answer came after it, so it counts.
         q["setAsideRev"] = doc["rev"]
-    # A terminal record carries no seq, so a stale accepted text could match it by time alone.
     q.pop("asideRecommendation", None)
     q["contentRev"] = (q.get("contentRev") or 0) + 1
     label = {
@@ -1909,8 +1815,6 @@ RESTATE_SECTIONS = (
 
 
 def restated_lines(s, key):
-    """A restate section's non-blank lines, each without its bullet, checkbox, AC<N> id or tag,
-    its whitespace runs one space as the export writes them."""
     text = s.get(key) if isinstance(s.get(key), str) else ""
     return [
         CRITERION_LEAD.sub("", " ".join(x.split()), count=1)
@@ -1920,9 +1824,6 @@ def restated_lines(s, key):
 
 
 def check_restated_lines(s):
-    """Refuse an acceptance line that asks the user something (the Brief would carry a question
-    as a criterion) and a tldr line wearing a label the --brief gate reads; warn on a tldr over
-    the Brief template's bullet budget."""
     for line in restated_lines(s, "acceptance"):
         if rec_asks_user(line) or ASKS_USER_LEAD.match(line):
             sys.exit(
@@ -1997,8 +1898,6 @@ def op_activity(d, doc, a):
 
 
 def log_activity(doc, text, ids, **marks):
-    """Append one feed entry, keeping the newest ACTIVITY_CAP; a falsy mark is left out. `seq`
-    is one above the highest kept, so it names the entry even when time and text repeat."""
     kept = doc.get("activity") or []
     seq = max((e.get("seq", 0) for e in kept), default=0) + 1
     entry = {"at": now(), "seq": seq, "text": text}
@@ -2009,8 +1908,6 @@ def log_activity(doc, text, ids, **marks):
 
 
 def summarize(doc, logged, asks=False):
-    """One feed entry for the (op name, message, touched) of one write's logged ops; none when
-    there are none. `notes`, `added`, `revised`, `waits`, `asks` (a Notes reply that needs an answer), `finished` and `restate` (the new rev) mark what the page links to."""
     if not logged:
         return
     names = {name for name, _, _ in logged}
@@ -2025,7 +1922,7 @@ def summarize(doc, logged, asks=False):
         notes="note-reply" in names,
         added=bool(names & {"add", "add-round"}),
         revised="revise" in names,
-        waits=bool(names & {"reply", "wait"}),  # a write that also replies or holds leaves the question waiting on the user
+        waits=bool(names & {"reply", "wait"}),
         asks=asks,
         restate=doc["restatement"]["rev"] if "restate" in names else None,
         finished="finish" in names,
@@ -2033,8 +1930,6 @@ def summarize(doc, logged, asks=False):
 
 
 def write_op(fn, name):
-    """A CLI command: lock, load, run op `name`, save once, then report."""
-
     def cmd(d, a):
         with sidecar_lock(d):
             doc = load(d)
@@ -2060,7 +1955,6 @@ def op_add_round_linted(d, doc, a):
 
 
 def read_input(path, kind, as_json=False, newline=None):
-    """Read an input file named on the command line; refuse cleanly when it is missing or malformed."""
     try:
         with open(path, encoding="utf-8", newline=newline) as f:
             text = f.read()
@@ -2070,7 +1964,6 @@ def read_input(path, kind, as_json=False, newline=None):
 
 
 def cmd_add(d, a):
-    # The question's text comes only from the file; the flags override ids and placement.
     q = read_input(a.file, "question file", as_json=True)
     if not isinstance(q, dict):
         sys.exit(f"refused: the question file {a.file} holds one question object")
@@ -2097,6 +1990,15 @@ def cmd_add_round(d, a):
         spec.get("visuals"),
         spec.get("restate"),
     )
+    if a.cap is not None:
+        if a.cap < 1:
+            sys.exit(f"refused: --cap must be 1 or more, not {a.cap}")
+        n = len(a.questions) if isinstance(a.questions, list) else 0
+        if n > a.cap:
+            sys.exit(
+                f"refused: the round has {n} questions; the cap is {a.cap} "
+                "(questions_per_round); move the rest to the next round"
+            )
     if a.check:
         doc = load(d)
         touched, msg = op_add_round_linted(d, doc, a)
@@ -2104,15 +2006,12 @@ def cmd_add_round(d, a):
         print(f"check passed, nothing written: {msg}")
         return
     if a.sync_ledger:
-        # Every refusal sync-ledger makes on the ledger text itself, before the round is posted.
         exporters.check_ledger(
             read_input(a.sync_ledger, "ledger", newline=""), a.sync_ledger
         )
     write_op(op_add_round_linted, "add-round")(d, a)
     if not a.sync_ledger:
         return
-    # The round stays posted: the register is derived state that sync-ledger rebuilds from the
-    # page. The ledger is re-read, not the pre-check's text, so an edit made since is not lost.
     try:
         notes = write_synced_ledger(d, a.sync_ledger)
     except (SystemExit, OSError) as e:
@@ -2126,8 +2025,6 @@ def cmd_add_round(d, a):
     report_notes(notes, ("conflict",))
 
 
-# Ops that once had their own command taking page text on the command line; `apply` is their one
-# write path, and the command names stay only to refuse with a pointer to it.
 APPLY_ONLY = (
     "group",
     "reply",
@@ -2138,7 +2035,6 @@ APPLY_ONLY = (
     "reconfirm",
 )
 
-# Per-op argument defaults for `apply`: the op file's keys map onto the namespace each op reads.
 OP_ARGS = {
     "reply": (
         op_reply,
@@ -2286,7 +2182,6 @@ def cmd_apply(d, a):
 
 
 def apply_ops_file(d, name, claimed):
-    """Validate and apply the claimed ops file; the caller holds the sidecar lock."""
     try:
         spec = json.loads(claimed.read_text(encoding="utf-8"))
     except (OSError, ValueError) as e:
@@ -2378,7 +2273,6 @@ def cmd_status(d, a):
             if q.get("archived") or prop == "decline"
             else "proposed"
             if prop == "pending"
-            # before the decision, as export-ledger reads it: a superseded answer counts nowhere
             else "superseded"
             if q.get("supersededBy")
             else "waiting"
@@ -2509,13 +2403,11 @@ def seconds(stamp):
 
 
 def percentile(values, p):
-    """Nearest-rank percentile of a non-empty list."""
     v = sorted(values)
     return v[max(0, math.ceil(p / 100 * len(v)) - 1)]
 
 
 def print_latency(d, as_json=False):
-    """p50 and p95 seconds: save to Delivered (deliveredAt - at), save to the first Claude reply."""
     doc = load(d)
     events = load_json(d / "responses.json", EMPTY_RESPONSES).get("events", [])
     replies = {}
@@ -2674,7 +2566,6 @@ def write_text(path, text):
 
 
 def replace_text(path, text, tag):
-    """Write `text` to a hidden `.<name>.<tag>` file beside `path`, then rename it over `path`."""
     tmp = path.with_name(f".{path.name}.{tag}")
     write_text(tmp, text)
     os.replace(tmp, path)
@@ -2685,10 +2576,8 @@ def cmd_export(d, a):
         ledger = read_input(a.ledger, "ledger") if a.ledger else None
         text = exporters.export_brief(d, ledger)
         if a.into and Path(a.into).exists():
-            # newline="" both ways, so a CRLF file keeps its endings outside the Brief.
             plan = read_input(a.into, "plan", newline="")
             merged = exporters.merge_brief(plan, text, a.into)
-            # A temp file renamed over PLAN.md, so a failed write never leaves it cut short.
             tmp = Path(f"{a.into}.tmp")
             tmp.write_text(merged, encoding="utf-8", newline="")
             os.replace(tmp, a.into)
@@ -2711,14 +2600,10 @@ def report_notes(notes, kinds):
 
 
 def last_recap_path(ledger):
-    """The file beside the ledger that holds the last recap's rows, one per ledger, overwritten by
-    each recap: `<ledger stem>.last-recap.json`."""
     return Path(ledger).with_suffix(".last-recap.json")
 
 
 def read_last_recap(path):
-    """The rows the last recap saved at path, or None when there is none yet (the first
-    confirmation) or the file cannot be read, so the recap lists every row."""
     if not path.exists():
         return None
     try:
@@ -2748,10 +2633,10 @@ def cmd_export_ledger(d, a):
     text = read_input(a.ledger, "ledger") if a.ledger else None
     if a.recap:
         if d is None:
-            # Read alone, a ledger with no register (or two) would give an empty recap.
             exporters.check_ledger(text, a.ledger)
         state = last_recap_path(a.ledger) if a.ledger else None
-        since = read_last_recap(state) if a.changed else None
+        saved = read_last_recap(state) if state and (a.changed or d is None) else None
+        since = saved
         recap, fits = exporters.confirmation_recap(d, TEXT_CAP, text, since)
         write_text(a.out, recap)
         print(f"wrote {a.out}")
@@ -2761,7 +2646,12 @@ def cmd_export_ledger(d, a):
                 f"{TEXT_CAP}"
             )
         if state:
-            rows = exporters.recap_state(exporters.recap_rows(d, text))
+            rows = exporters.recap_rows(d, text)
+            rows = (
+                exporters.first_recap_state(saved, rows)
+                if d is None
+                else exporters.recap_state(rows)
+            )
             write_text(state, json.dumps({"rows": rows}, indent=2, ensure_ascii=False) + "\n")
         if d is not None and text is not None:
             report_notes(exporters.merged_register(d, text)[2], ("conflict",))
@@ -2773,13 +2663,8 @@ def cmd_export_ledger(d, a):
 
 
 def record_ledger_sync(d, doc, ledger, force=False):
-    """Compare the page with `ledger` as `export-ledger --diff` does and record the result in
-    doc's meta.ledgerSync for the page header, for the caller to save; `force` records it even when
-    it is unchanged. A change in which rows disagree adds an Activity Log line. Return (drift
-    lines, disagreeing rows, whether doc changed)."""
     notes = exporters.merged_register(d, read_input(ledger, "ledger"))[2]
     drift = [line for kind, line in notes if kind in ("change", "conflict")]
-    # A row's note leads with its Q<N>; the one register-wide note (rows out of id order) is "order".
     leads = (re.match(r"Q\d+\b", line) for line in drift)
     rows = list(dict.fromkeys(m.group() if m else "order" for m in leads))
     was = doc["meta"].get("ledgerSync") or {}
@@ -2828,14 +2713,11 @@ def cmd_ledger_check(d, a):
 
 
 def capped_text(text, cap):
-    """`text` cut to `cap` characters, with an ellipsis when it was cut."""
     return text if len(text) <= cap else text[: cap - 1] + "…"
 
 
 def write_synced_ledger(d, ledger):
-    """Rewrite only the register rows of ledger from page state; return the merge notes."""
     path = Path(ledger)
-    # Read untranslated so a CRLF ledger keeps its line endings.
     text, notes = exporters.sync_ledger(
         d, read_input(path, "ledger", newline=""), ledger
     )
@@ -2845,8 +2727,6 @@ def write_synced_ledger(d, ledger):
 
 
 def record_synced_ledger(d, ledger):
-    """Name `ledger` in meta.syncedLedger, the one ledger-check reads, and record its check in
-    meta.ledgerSync, so the page header shows the ledger line on a page not seeded from one."""
     with sidecar_lock(d):
         doc = load(d)
         path = str(Path(ledger).resolve())
@@ -2863,8 +2743,6 @@ def cmd_sync_ledger(d, a):
 
 
 def edit_ledger(a, edit):
-    """Rewrite the register row `edit` changes, behind a timestamped backup, then print the
-    check-open-questions verdict (a verdict that still counts open rows does not fail this command)."""
     path = Path(a.ledger)
     text = read_input(path, "ledger", newline="")
     new = edit(text, str(path))
@@ -2936,21 +2814,26 @@ def cmd_reopen(d, a):
 def cmd_next_id(d, a):
     if a.count < 1:
         sys.exit(f"refused: --count must be 1 or more, not {a.count}")
-    if (a.round is None) != (a.limit is None):
-        sys.exit("refused: --round and --limit go together")
     text = read_input(a.ledger, "ledger")
     exporters.check_ledger(text, a.ledger)
-    scope = [] if a.round is None else [f"Scope check: {scope_counts(text, a, a.count)}"]
+    scope = [] if a.round is None else scope_lines(text, a, a.count)
     top = exporters.highest_id(text, d)
     print("\n".join([*(f"Q{top + k}" for k in range(1, a.count + 1)), *scope]))
 
 
 LEVELS = ("full", "standard", "minimal")
+BULLET_LABELS = ("Why", "Gains", "Costs", "Evidence", "Flips if")
 ROUND_LABELS = (
     "My recommendation",
     "Strong answer",
     "Withheld",
     "Discovery",
+    "No recommendation",
+    "Your answer settles",
+    "Why",
+    "Gains",
+    "Costs",
+    "Evidence",
     "Second view",
     "Departs from",
     "Flips if",
@@ -2965,11 +2848,22 @@ ROUND_LABELS = (
 ROUND_LABEL = re.compile(
     rf"^[^ -~]*[ \t]*(?:\*\*|__)?({'|'.join(ROUND_LABELS)})(?:\*\*|__)?:"
 )
+BULLET_LABEL = re.compile(
+    rf"^[ \t]*[-*+][ \t]+(?:\*\*|__)?({'|'.join(BULLET_LABELS)})(?:\*\*|__)?:"
+)
 LIST_ITEM = re.compile(r"^(?:[ \t]*>)*[ \t]*(?:[-*+]|[0-9]+[.)])[ \t]")
-QUESTION_LINE = re.compile(r"^[^A-Za-z0-9]*(Q[0-9]+)(?:[:)]|\.(?![A-Za-z0-9]))")
+QUESTION_LINE = re.compile(
+    r"^[^A-Za-z0-9]*(Q[0-9]+)(?: \([^()]*\):|[:)]|\.(?![A-Za-z0-9]))"
+)
 PROTECTED = re.compile(
-    r"^[^A-Za-z0-9]*(?:flips if|commits you to|withheld|discovery|second view|departs from)\b",
+    r"^[^A-Za-z0-9]*(?:flips if|commits you to|withheld|discovery|no recommendation"
+    r"|your answer settles|second view|departs from)\b",
     re.IGNORECASE,
+)
+LINK_FORMS = ("plain", "vscode", "file")
+CITATION = re.compile(
+    r"\((?P<path>[^()\s`]*[A-Za-z][^()\s`]*):"
+    r"(?P<lines>(?P<first>[0-9]+)(?:-[0-9]+)?(?:, [0-9]+(?:-[0-9]+)?)*)\)$"
 )
 ROUND_FENCE = re.compile(
     r"^(?:[ \t]*>)*[ \t]*(?:(?:[-*+]|[0-9]+[.)])[ \t]+)?(`{3,}|~{3,})(.*)$"
@@ -3001,7 +2895,6 @@ def fence_step(fence, bare):
 
 
 def question_id(bare):
-    """The Q<N> a question line opens, or None; a list item never opens a question."""
     if LIST_ITEM.match(bare):
         return None
     q = QUESTION_LINE.match(bare)
@@ -3009,11 +2902,6 @@ def question_id(bare):
 
 
 def round_segments(lines):
-    """[(label, qid, lines)] of a round file's lines: the header (label "header"), then per
-    question its title, each labeled field with the lines that continue it up to the next blank
-    line or label, and each blank or other line on its own. A line that starts with a protected
-    label word in any form starts a segment of its own, kept at every level. Fenced lines stay in
-    their segment."""
     segs, qid, fence = [["header", None, []]], None, None
     for line in lines:
         bare = line.rstrip("\r\n")
@@ -3022,7 +2910,7 @@ def round_segments(lines):
             segs[-1][2].append(line)
             continue
         q = question_id(bare)
-        label = ROUND_LABEL.match(bare)
+        label = ROUND_LABEL.match(bare) or BULLET_LABEL.match(bare)
         if q:
             qid = q
             segs.append(["title", qid, [line]])
@@ -3043,13 +2931,72 @@ def eol_of(line):
     return line[len(line.rstrip("\r\n")) :]
 
 
-def render_round(text, level):
-    """The round file `text` at `level`: full is the text itself; standard drops Origin:,
-    Basis:, Checked against: and the Source: quote's body (keeping its links) and puts each
-    alternative on one line; minimal also drops Context: and Source: and replaces listed
-    alternatives with their count and `say "more Q<N>"` (inline ones stay as written). The
-    header, every other line and the blank lines are kept, each run of blank lines collapsed
-    to one."""
+HELD_WAITS = ("next", "later")
+
+
+def read_held_back(text, where):
+    """(entries, first line, last line, question ids) of a round file: entries is the header's
+    held-back list (each {"title", "waits"}), or None when the file has none; the lines are the
+    block's fence lines (None without one); the ids are the questions the file asks."""
+    lines = text.splitlines(keepends=True)
+    fence, start, end, body, asked = None, None, None, [], []
+    for i, line in enumerate(lines):
+        bare = line.rstrip("\r\n")
+        opened = fence is None
+        fence, fenced = fence_step(fence, bare)
+        if fenced:
+            if opened and not asked and start is None and ROUND_FENCE.match(bare).group(2).strip() == "held-back":
+                start = i
+            elif start is not None and end is None:
+                if fence is None:
+                    end = i
+                else:
+                    body.append(bare)
+            continue
+        if q := question_id(bare):
+            asked.append(q)
+    if start is None:
+        return None, None, None, asked
+    if end is None:
+        sys.exit(f"refused: {where}: the held-back block is never closed")
+    try:
+        entries = json.loads("\n".join(body))
+    except ValueError as e:
+        sys.exit(f"refused: {where}: the held-back block is not JSON: {e}")
+    ok = isinstance(entries, list) and all(
+        isinstance(x, dict)
+        and set(x) == {"title", "waits"}
+        and isinstance(x["title"], str)
+        and x["title"].strip()
+        and x["waits"] in HELD_WAITS
+        for x in entries
+    )
+    if not ok:
+        sys.exit(
+            f"refused: {where}: the held-back block is a JSON list of "
+            '{"title": "<question>", "waits": "next" | "later"} entries'
+        )
+    return entries, start, end, asked
+
+
+def expand_held_back(text, where):
+    """`text` with its held-back block printed as the header's `Next round (over the cap of
+    <n>):` and `Later:` lines, <n> being the questions the round asks."""
+    entries, start, end, asked = read_held_back(text, where)
+    if entries is None:
+        return text
+    lines = text.splitlines(keepends=True)
+    eol = eol_of(lines[start]) or "\n"
+    shown = []
+    for waits, label in (("next", f"Next round (over the cap of {len(asked)})"), ("later", "Later")):
+        titles = [x["title"].strip() for x in entries if x["waits"] == waits]
+        if titles:
+            shown.append(f"{label}: {', '.join(titles)}{eol}")
+    return "".join(lines[:start] + shown + lines[end + 1 :])
+
+
+def render_round(text, level, where="round file"):
+    text = expand_held_back(text, where)
     if level == "full":
         return text
     out = []
@@ -3093,12 +3040,74 @@ def write_raw(text):
     sys.stdout.buffer.flush()
 
 
+def repo_top(folder):
+    """The repository top `git rev-parse --show-toplevel` names for `folder`, else None."""
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(folder), "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    top = r.stdout.strip()
+    return Path(top) if r.returncode == 0 and top else None
+
+
+def link_path(path, lines, target):
+    return f"[{Path(path).name}:{lines}]({target})"
+
+
+def plain_link(path, lines, first, abs_path):
+    return f"{Path(path).name}:{lines}"
+
+
+def vscode_link(path, lines, first, abs_path):
+    distro = os.environ.get("WSL_DISTRO_NAME")
+    where = f"vscode-remote/wsl+{quote(distro)}" if distro else "file"
+    return link_path(path, lines, f"vscode://{where}/{abs_path}:{first}")
+
+
+def file_link(path, lines, first, abs_path):
+    return link_path(path, lines, f"file:///{abs_path}")
+
+
+LINK_FORMATTERS = {"plain": plain_link, "vscode": vscode_link, "file": file_link}
+
+
+def link_citations(text, form, round_file):
+    """`text` with each citation label `(path:line)` that ends a line, outside fences, printed
+    in `form`: a relative path resolves against the round file's repository top, else its
+    folder."""
+    fmt = LINK_FORMATTERS[form]
+    base = None
+    out, fence = [], None
+    for line in text.splitlines(keepends=True):
+        bare = line.rstrip("\r\n")
+        fence, fenced = fence_step(fence, bare)
+        m = None if fenced else CITATION.search(bare)
+        path = m and m.group("path")
+        if not path or "://" in path or not ("." in path or "/" in path):
+            out.append(line)
+            continue
+        abs_path = ""
+        if form != "plain":
+            if base is None:
+                folder = Path(round_file).resolve().parent
+                base = repo_top(folder) or folder
+            abs_path = quote((base / path).resolve().as_posix().lstrip("/"), safe="/:")
+        label = fmt(path, m.group("lines"), m.group("first"), abs_path)
+        out.append(f"{bare[: m.start()]}({label}){eol_of(line)}")
+    return "".join(out)
+
+
 def cmd_show(d, a):
-    write_raw(render_round(read_round(a.round_file), a.level))
+    text = render_round(read_round(a.round_file), a.level, a.round_file)
+    write_raw(link_citations(text, a.links, a.round_file))
 
 
 def shown_rounds(rounds_dir):
-    """{round number: path} of the round-<N>.md files in `rounds_dir`."""
     try:
         names = os.listdir(rounds_dir)
     except OSError as e:
@@ -3110,37 +3119,123 @@ def shown_rounds(rounds_dir):
     }
 
 
-def scope_counts(text, a, new=0):
-    """The counts half of round a.round's Scope check: line, counting `new` rows the round is
-    about to register beside the register's own."""
+ROUND_COUNTS_HEADING = "## Round counts"
+ROUND_COUNT = re.compile(
+    r"^(?:[-*+][ \t]+)?round ([0-9]+) \| opened ([0-9]+|unknown) \| closed ([0-9]+)[ \t]*$"
+)
+WAYFIND = (
+    "Wayfind: the last two rounds each opened more questions than they settled; "
+    "/planning:wayfind chart can map what is left."
+)
+
+
+def title_key(title):
+    return re.sub(r"\s+", " ", title.replace("*", "")).strip().rstrip("?.!:").strip().casefold()
+
+
+def saved_rounds(rounds_dir):
+    """Round number -> (held-back entries or None, question ids asked) for each round file in
+    rounds_dir; {} without one."""
+    out = {}
+    for n, path in (shown_rounds(rounds_dir) if rounds_dir else {}).items():
+        entries, _, _, asked = read_held_back(read_round(path), path)
+        out[n] = (entries, asked)
+    return out
+
+
+def round_counts(rows, saved, n, new=0):
+    """(opened, closed) of round n. opened counts the questions round n first names: its new
+    register rows (plus `new` not yet registered) and its held-back entries, less those an
+    earlier round's held-back list already named; None when round n has no saved list. closed
+    counts the rows settled while round n was the last round to show them (a row no round file
+    shows, while its register round)."""
+    last = {}
+    for k in sorted(saved):
+        for qid in saved[k][1]:
+            last[qid] = k
+    closed = sum(
+        status in exporters.SETTLED and last.get(f"Q{qn}", rnd) == n
+        for qn, status, rnd, _, _, _ in rows
+    )
+    held = saved.get(n, (None,))[0]
+    if held is None:
+        return None, closed
+    waiting = {title_key(x["title"]) for k, (h, _) in saved.items() if k < n and h for x in h}
+    fresh = [t for _, _, rnd, t, _, _ in rows if rnd == n and title_key(t) not in waiting]
+    named = {title_key(x["title"]) for x in held} - waiting
+    return len(fresh) + new + len(named), closed
+
+
+def upsert_round_counts(text, counts):
+    """`text` with one `round N | opened A | closed S` line per entry of `counts` (round ->
+    (opened, closed)) under `## Round counts`, merged with the lines already there and kept in
+    round order; the heading is appended at the end when the ledger has none."""
+    lines = text.splitlines(keepends=True)
+    eol = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
+    at = next(
+        (i for i, line in enumerate(lines) if line.rstrip("\r\n").strip() == ROUND_COUNTS_HEADING),
+        None,
+    )
+    if at is None:
+        if lines and not lines[-1].endswith("\n"):
+            lines[-1] += eol
+        lines += [eol, ROUND_COUNTS_HEADING + eol, eol]
+        at, end = len(lines) - 2, len(lines)
+    else:
+        end = next(
+            (i for i in range(at + 1, len(lines)) if re.match(r"^#{1,6}\s", lines[i])),
+            len(lines),
+        )
+    merged, keep, slot = {}, [], None
+    for i in range(at + 1, end):
+        m = ROUND_COUNT.match(lines[i].rstrip("\r\n"))
+        if m:
+            opened = None if m.group(2) == "unknown" else int(m.group(2))
+            merged[int(m.group(1))] = (opened, int(m.group(3)))
+            slot = len(keep) if slot is None else slot
+        else:
+            keep.append(lines[i])
+    merged.update(counts)
+    if slot is None:
+        slot = 1 if keep and not keep[0].strip() else 0
+    body = [
+        f"round {n} | opened {'unknown' if o is None else o} | closed {c}{eol}"
+        for n, (o, c) in sorted(merged.items())
+    ]
+    return "".join(lines[: at + 1] + keep[:slot] + body + keep[slot:] + lines[end:])
+
+
+def scope_lines(text, a, new=0):
+    """The round header's `Scope check:` line for round a.round, then a `Wayfind:` line when
+    each of the two rounds before it opened more questions than it settled. Writes those rounds'
+    counts and this round's to the ledger's `## Round counts`."""
     if a.round < 1:
         sys.exit(f"refused: --round must be 1 or more, not {a.round}")
-    if a.limit < 0:
-        sys.exit(f"refused: --limit must be 0 or more, not {a.limit}")
     rows = exporters.parse_register(text)
+    saved = saved_rounds(a.rounds_dir)
     if a.rounds_dir:
-        earlier = sorted((n for n in shown_rounds(a.rounds_dir) if n < a.round), reverse=True)
+        earlier = sorted((n for n in saved if n < a.round), reverse=True)
     else:
         earlier = range(a.round - 1, 0, -1)
-    parts = [f"{len(rows) + new} of {a.limit} questions registered"]
-    for n in list(earlier)[:2]:
-        mine = [status for _, status, rnd, _, _, _ in rows if rnd == n]
-        settled = sum(status in exporters.SETTLED for status in mine)
-        parts.append(f"round {n} added {len(mine)}, settled {settled}")
-    return "; ".join(parts)
+    counts = {n: round_counts(rows, saved, n) for n in list(earlier)[:2]}
+    fog = len(counts) == 2 and all(o is not None and o > c for o, c in counts.values())
+    counts[a.round] = round_counts(rows, saved, a.round, new)
+    path = Path(a.ledger)
+    replace_text(path, upsert_round_counts(read_input(path, "ledger", newline=""), counts), "counts")
+    return [f"Scope check: {len(rows) + new} questions asked so far", *([WAYFIND] if fog else [])]
 
 
 def cmd_scope_check(d, a):
     text = read_input(a.ledger, "ledger")
     exporters.check_ledger(text, a.ledger)
-    print(scope_counts(text, a))
+    print("\n".join(scope_lines(text, a)))
 
 
 def cmd_measures(d, a):
     text = read_input(a.ledger, "ledger")
     exporters.check_ledger(text, a.ledger)
     counts = sorted(
-        len(render_round(read_round(path), a.level).splitlines())
+        len(render_round(read_round(path), a.level, path).splitlines())
         for path in shown_rounds(a.rounds_dir).values()
     )
     mid = len(counts) // 2
@@ -3223,7 +3318,6 @@ def sidecar_lock(d, seconds=None):
 
 
 def start_server(d, port, nonce):
-    """interview_server.py for the data dir, started apart from this process."""
     cmd = [bridge.interpreter(), str(HERE / "interview_server.py"), "--dir", str(d)]
     return bridge.spawn([*cmd, "--port", str(port), "--nonce", nonce])
 
@@ -3240,7 +3334,6 @@ def read_user_settings(path):
 
 
 def open_browser(url, cmd):
-    """Open the page: browserCommand (a program or an argv list) gets the URL, else the default browser."""
     if cmd:
         argv = [cmd] if isinstance(cmd, str) else cmd
         if not isinstance(argv, list) or not all(
@@ -3263,14 +3356,10 @@ def open_browser(url, cmd):
 
 
 def emoji_flag(value):
-    """false, 0, no and off (any case) mean false; anything else, an empty value or an unexpanded
-    token included, means true, the option's default."""
     return value.strip().lower() not in ("false", "0", "no", "off")
 
 
 def record_emoji_markers(d, want):
-    """meta.emojiMarkers through the normal write path; writes only on a change or a new file.
-    want None keeps the recorded value, and a new file records true."""
     doc = load(d)
     if not (d / "questions.json").exists():
         want = want is not False
@@ -3281,13 +3370,10 @@ def record_emoji_markers(d, want):
 
 
 def pacing_value(value):
-    """single (any case) means single; anything else, an unexpanded token included, means round."""
     return "single" if value.strip().lower() == "single" else "round"
 
 
 def record_question_pacing(d, want):
-    """meta.questionPacing through the normal write path; writes only on a change.
-    want None keeps the recorded value, and a file without one reads as round."""
     if want is None:
         return
     doc = load(d)
@@ -3311,8 +3397,6 @@ def cmd_ensure_running(d, a):
         record_question_pacing(d, None if a.pacing is None else pacing_value(a.pacing))
         s = bridge.read_session(d, NAME)
         live = bool(s and bridge.running(d, s))
-        # The settings layers use --user-settings, else the user file the live server applies. The
-        # session file is data-dir content, so it never supplies the browser opener or the URL.
         user = str(Path(a.user_settings).resolve()) if a.user_settings else None
         recorded = s.get("userSettings") if live else None
         layers = user or (recorded if isinstance(recorded, str) else None)
@@ -3321,9 +3405,6 @@ def cmd_ensure_running(d, a):
         resolver.retired_notices(d)
         stale = live and bridge.stale_build(s)
         if stale:
-            # A server started before a plugin update runs the old code: start this build in its
-            # place, on the same port, with the same user file. No finish is posted and none is
-            # cleared, so the interview goes on and open tabs read a restart.
             end_server(d, s, (bridge.watcher_lease(d, NAME) or {}).get("pid"))
             print(
                 f"restarted the page server: {stale}; reload the page and re-arm the watcher",
@@ -3331,8 +3412,6 @@ def cmd_ensure_running(d, a):
             )
             live = False
         if not live:
-            # --port first, then the recorded port (the page's origin), then the resolved setting;
-            # an explicit --port 0 skips the setting. A busy candidate falls through to a free port.
             ports = [a.port, bridge.kept_port(d, NAME)]
             if a.port is None:
                 ports.append(settings["port"]["value"])
@@ -3362,7 +3441,6 @@ def cmd_ensure_running(d, a):
 
 
 def clear_finished(d):
-    """A new server means a resumed interview: drop the finish, context badge and handoff an earlier run left."""
     if not (d / "questions.json").exists():
         return
     try:
@@ -3371,11 +3449,10 @@ def clear_finished(d):
         if any(dropped):
             save(d, doc)
     except (SystemExit, OSError, ValueError):
-        pass  # an unreadable file is the server's and the gate's to report, not this start's
+        pass
 
 
 def finish_on_stop(d):
-    """Post a finish when the skill posted none, then wait so open tabs receive it before the server goes."""
     if (d / "questions.json").exists():
         try:
             doc = load(d)
@@ -3387,7 +3464,7 @@ def finish_on_stop(d):
                 }
                 save(d, doc)
         except (SystemExit, OSError, ValueError):
-            pass  # a file the schema refuses must not keep the server running
+            pass
     time.sleep(FINISH_SECONDS)
 
 
@@ -3409,7 +3486,6 @@ def cmd_stop(d, a):
 
 
 def end_server(d, s, watcher):
-    """End the lease's watcher and the running server `s` records, then clear the session files."""
     end_watcher(d, watcher)
     os.kill(s["pid"], signal.SIGTERM)
     deadline = time.monotonic() + START_SECONDS
@@ -3433,10 +3509,9 @@ def cmd_lease(d, a):
     if a.takeover:
         cmd = ["bash", str(HERE / "watch.sh"), str(d)]
         if os.name == "posix":
-            # Replace this process so a stop signal reaches watch.sh itself, not an orphaning parent.
             os.execvp(cmd[0], cmd)
         rc = subprocess.call(cmd)
-        sys.exit(128 - rc if rc < 0 else rc)  # a signal death reads as 128 + signal, not a wrapped status
+        sys.exit(128 - rc if rc < 0 else rc)
     lease = bridge.watcher_lease(d, NAME)
     if a.json:
         print(json.dumps({"lease": lease or None}, indent=2))
@@ -3530,6 +3605,11 @@ def main(argv=None):
     )
     s.add_argument("--round", type=int, help="round for questions that do not set one")
     s.add_argument(
+        "--cap",
+        type=int,
+        help="refuse a round with more questions than this (the resolved questions_per_round)",
+    )
+    s.add_argument(
         "--replace-title",
         dest="replaceTitle",
         action="store_true",
@@ -3564,7 +3644,6 @@ def main(argv=None):
     s.add_argument("--seq", type=int, nargs="+", required=True)
     s.set_defaults(fn=write_op(op_handle, "handle"))
 
-    # Former commands that took page text on the command line; each is an apply op now.
     for name in APPLY_ONLY:
         s = sub.add_parser(name, help=f"removed: write a {name} op to an ops file and run apply")
         s.set_defaults(fn=None)
@@ -3634,16 +3713,19 @@ def main(argv=None):
     s.add_argument(
         "--recap",
         action="store_true",
-        help="write the confirmation gate's compact recap instead of the ledger: one line per "
-        "live question, withdrawn rows collapsed into one line, long answers cut to fit the "
-        "restate cap. With --ledger it reads the ledger alone when --dir is absent or does not "
-        "exist, and saves its rows beside the ledger (<ledger stem>.last-recap.json)",
+        help="write the confirmation gate's recap instead of the ledger. With a data dir (page "
+        "lane): one line per live question, withdrawn rows collapsed into one line, long answers "
+        "cut to fit the restate cap. Without one (terminal lane, --ledger alone): Needs your eye, "
+        "the rest grouped by topic, Changed after you first saw it, and Terms and ADRs, never "
+        "cut. Exit 1 when the recap exceeds the restate cap. With --ledger it saves its rows "
+        "beside the ledger (<ledger stem>.last-recap.json); a refused recap saves nothing",
     )
     s.add_argument(
         "--changed",
         action="store_true",
-        help="with --recap and --ledger: list only the rows changed since the last recap saved "
-        "beside the ledger, plus one count per status for the rest; every row when none is saved",
+        help="with --recap, --ledger and a data dir: list only the rows changed since the last "
+        "recap saved beside the ledger, plus one count per status for the rest; every row when "
+        "none is saved (the terminal lane always compares against its first saved recap)",
     )
     s.set_defaults(fn=cmd_export_ledger)
 
@@ -3671,42 +3753,44 @@ def main(argv=None):
     s.add_argument(
         "--round",
         type=int,
-        help="with --limit, also print the round's Scope check: line after the ids, as "
-        "scope-check prints it for this round with the --count new rows counted in",
+        help="also print the round's Scope check: line (and any Wayfind: line) after the ids, "
+        "and record the round counts, as scope-check does with the --count new rows counted in",
     )
-    s.add_argument("--limit", type=int, help="the resolved wayfind_suggest_questions value")
     s.add_argument("--rounds-dir", dest="rounds_dir", help="as scope-check --rounds-dir")
     s.set_defaults(fn=cmd_next_id)
 
     s = sub.add_parser(
         "show",
-        help="print a saved round file at a detail level; full prints it byte for byte (no data "
-        "dir needed)",
+        help="print a saved round file at a detail level, its held-back block as the Next "
+        "round and Later: lines; full keeps every other line (no data dir needed)",
     )
     s.add_argument("--level", required=True, choices=LEVELS, help="detail level")
+    s.add_argument(
+        "--links",
+        choices=LINK_FORMS,
+        default="plain",
+        help="how a (path:line) label that ends a line prints: plain file.md:48 (default), a "
+        "vscode:// link, or a file:// link (the resolved citation_links value)",
+    )
     s.add_argument("round_file", metavar="ROUND", help="the saved round-<N>.md")
     s.set_defaults(fn=cmd_show)
 
     s = sub.add_parser(
         "scope-check",
-        help="print the counts half of the round header's Scope check: line: every register row "
-        "against --limit, then for each of the two rounds before --round the rows whose round "
-        "cell is that round and how many of them are answered, deferred, withdrawn or blocked "
-        "(no data dir needed)",
+        help="print the round header's Scope check: line (every register row, as questions "
+        "asked so far), then a Wayfind: line when each of the two rounds before --round opened "
+        "more questions (new rows and held-back entries no earlier round named) than it settled "
+        "(answered, deferred, withdrawn or blocked); record those rounds' counts and this one's "
+        "under the ledger's ## Round counts (no data dir needed)",
     )
     s.add_argument("--ledger", required=True, help="ledger markdown file")
     s.add_argument("--round", type=int, required=True, help="the round being shown")
     s.add_argument(
-        "--limit",
-        type=int,
-        required=True,
-        help="the resolved wayfind_suggest_questions value",
-    )
-    s.add_argument(
         "--rounds-dir",
         dest="rounds_dir",
         help="count the two highest rounds below --round that have a round-<N>.md here, "
-        "instead of the two numbers below it",
+        "instead of the two numbers below it, reading each file's held-back block (without "
+        "one, a round's opened count is unknown)",
     )
     s.set_defaults(fn=cmd_scope_check)
 
@@ -3740,8 +3824,6 @@ def main(argv=None):
     s.add_argument("--ledger", required=True, help="ledger markdown file")
     s.set_defaults(fn=cmd_sync_ledger)
 
-    # No abbreviations here: the old `--proposes TEXT` and `--note TEXT` must not read TEXT as a
-    # file name.
     s = sub.add_parser(
         "supersede",
         help="set an answered register row of a ledger to superseded-by-plan (no data dir needed)",
@@ -3893,7 +3975,6 @@ def main(argv=None):
         and not a.diff
         and not (a.dir and Path(a.dir).is_dir())
     ):
-        # The terminal lane has no page data: its recap reads the ledger alone.
         a.fn(None, a)
         return
     if not a.dir:
@@ -3905,7 +3986,6 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    # A console code page such as cp1252 cannot print every op summary once the write lands.
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(encoding="utf-8", errors="replace")

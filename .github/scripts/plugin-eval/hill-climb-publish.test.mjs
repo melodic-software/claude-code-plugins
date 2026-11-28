@@ -1,7 +1,3 @@
-// hill-climb-publish.mjs holds the owner's grant (AL-Q11, #12035) the broker cannot see: the one
-// branch is chore/hill-climb-<plugin>-<skill>-<run id>, the pull request opens as a draft, the
-// pushed diff is the skill's markdown and one fixed fragment, and the body quotes run text only
-// inside a fence.
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -11,7 +7,7 @@ import process from "node:process";
 import { test } from "node:test";
 
 import { netRawDiff } from "../upstream-apply-changelog/upstream-apply-changelog.mjs";
-import { BRANCH_PREFIX, bodyOf, branchOf, diffRefusal, existingHead, fragmentOf, frontmatterOf, frontmatterRefusal, openDraft, SPEC_ISSUE, titleOf } from "./hill-climb-publish.mjs";
+import { BRANCH_PREFIX, bodyOf, branchOf, diffRefusal, existingHead, failureMessage, fragmentOf, frontmatterOf, frontmatterRefusal, openDraft, SPEC_ISSUE, titleOf } from "./hill-climb-publish.mjs";
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 
@@ -49,7 +45,6 @@ test("the fragment is named as new-changelog-fragment.sh names one, and the same
   const branch = branchOf("testing", "write", "7");
   const one = fragmentOf("testing", "write", branch, Buffer.from("diff one\n"));
   assert.match(one.path, /^\.changes\/testing\/chore-hill-climb-testing-write-7-[0-9a-f]{8}\.md$/);
-  // check-changelog-fragments.sh's name rule (scripts/lib/changelog-fragments.sh).
   assert.match(one.path.split("/").pop(), /^[a-z0-9][a-z0-9._-]*-[0-9a-f]{8}\.md$/);
   assert.deepEqual(fragmentOf("testing", "write", branch, Buffer.from("diff one\n")), one);
   assert.notEqual(fragmentOf("testing", "write", branch, Buffer.from("diff two\n")).path, one.path);
@@ -176,7 +171,6 @@ test("a single token past the cap is cut hard, never inside a surrogate pair", (
   assert.ok(kept === "a".repeat(23999), `the emoji straddling the cap is dropped whole; it ends ${JSON.stringify(kept.slice(-4))}`);
 });
 
-// A recording stand-in for upstream-apply-changelog.mjs's api().
 function fake(routes) {
   const calls = [];
   const read = async (path, options = {}) => {
@@ -243,4 +237,9 @@ test("a re-run reuses a branch at the built tree and stops on one holding anothe
     [/\/git\/commits\//, { value: { tree: { sha: SHA_B } } }],
   ]);
   await assert.rejects(existingHead(other.read, "o/r", BRANCH, TREE), /already exists with another tree/);
+});
+
+test("a failed command's message names no stderr, which can hold file or model text", () => {
+  assert.equal(failureMessage(new Error("Command failed: git push\nSECRET-FILE-TEXT\n::error::forged")), "a command failed");
+  assert.equal(failureMessage(new Error("the proposal\nis malformed")), "the proposal is malformed");
 });

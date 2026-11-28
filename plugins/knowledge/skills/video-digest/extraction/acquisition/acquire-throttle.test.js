@@ -131,7 +131,7 @@ describe("withAcquireThrottle", () => {
 
   it("throws a descriptive timeout when a fresh slot stays held", async () => {
     const held = path.join(baseDir, "slot-0");
-    await fs.mkdir(held); // fresh mtime — never stale during the test
+    await fs.mkdir(held);
 
     await expect(
       withAcquireThrottle(async () => "never", {

@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-# Tests for pre-ready-steps.sh, the one definition of ready's configurable steps.
-# The expected list is the six steps reference/ready-for-review.md names, in run
-# order; no other script may declare its own copy.
-
+# test-scope: plugins/source-control/skills/pull-request/scripts/*.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

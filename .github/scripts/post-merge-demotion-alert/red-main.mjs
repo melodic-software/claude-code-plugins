@@ -1,11 +1,5 @@
-// The red-main rule as pure functions: when a red full run on main counts as
-// confirmed, which merge in the failing range is the culprit, whether the bot
-// may revert it, and the report. docs/conventions/pr-pipeline/README.md,
-// "Red main", states the rule; report.mjs reads GitHub and calls these.
 import { AGGREGATE_JOBS, GATE_ALIAS, GATE_CHECK } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 
-// The `red-main` leaf of pr-pipeline.yaml (pr-pipeline.schema.json); the one
-// copy of its defaults.
 export const RED_MAIN_DEFAULTS = Object.freeze({
   "dry-run": true,
   "daily-cap": 3,
@@ -22,23 +16,19 @@ const VALID = {
   remedy: (value) => value === "rollback" || value === "fail-forward",
 };
 
-// Every leaf, each valid set value over its default.
 export const resolveRedMain = (leaf) =>
   Object.fromEntries(
     Object.entries(RED_MAIN_DEFAULTS).map(([key, value]) => [key, VALID[key](leaf?.[key]) ? leaf[key] : value]),
   );
 
 const AGGREGATOR_STEP = "Aggregate hygiene results";
-// The all-branches secret scan fails on any branch, so it counts against no merge.
 const BRANCH_WIDE_GATES = new Set(["gitleaks failed"]);
 
-// pr-require-checks.yml's job ids, as a run on a commit tested before the
-// rename names its jobs, each to its display name, so checks compare across
-// that rename. A matrix job keeps its ` (N)` suffix.
 export const RENAMED_JOBS = Object.freeze({
   "mark-lanes": "Mark Lanes",
   "select-tests": "Select Tests",
   "lint-repo": "Lint Repo",
+  "lint-repo-tree": "Lint Repo Tree",
   "lint-shell": "Lint Shell",
   "check-plugins": "Check Plugins",
   "check-catalog": "Check Catalog",
@@ -55,25 +45,10 @@ export const checkName = (name) => {
   return match !== null && Object.hasOwn(RENAMED_JOBS, match[1]) ? `${RENAMED_JOBS[match[1]]}${match[2] ?? ""}` : name;
 };
 
-// babysit_postmerge.py's FAILED_CONCLUSIONS: the job conclusions the
-// demotion alert counts, as the judge it hands its checks to does.
 export const ALERT_FAILED = Object.freeze(["failure", "timed_out", "cancelled", "startup_failure", "action_required"]);
 
-// The checks a run attempt failed: a job (by checkName), or `job: gate` for each gate the
-// hygiene aggregator titles in a failure annotation. `annotations` maps a job
-// id to its annotations. The red-main report counts only a job that concluded
-// `failure` (a cancelled or timed-out job is no evidence of a break); the
-// demotion alert passes `failed: ALERT_FAILED` and `noFailedJobs`, which names
-// a red run with no failed job as a check of its own.
-//
-// The jobs API can list a completed job's steps empty or cut short, so a
-// failed job listing no failed step has unknown steps and counts whole. With
-// `baseline`, such a job is left out instead, as babysit_postmerge.py's
-// `_baseline` leaves it: a baseline check excuses the same check later, and
-// unknown steps prove no failure to excuse.
 export function failingChecks(jobs, annotations = {}, { failed: conclusions = ["failure"], baseline = false, noFailedJobs = false } = {}) {
   const listed = jobs.filter((job) => conclusions.includes(job.conclusion));
-  // The ci-status alias repeats CI Status's conclusion: the two are one check, CI Status.
   const failed = listed.some((job) => job.name === GATE_CHECK) ? listed.filter((job) => job.name !== GATE_ALIAS) : listed;
   const checks = noFailedJobs && failed.length === 0 ? ["pr-require-checks.yml: no failed jobs"] : [];
   for (const job of failed) {
@@ -98,9 +73,6 @@ export function failingChecks(jobs, annotations = {}, { failed: conclusions = ["
 
 const intersect = (a, b) => a.filter((item) => b.includes(item));
 
-// A red full run is confirmed when attempt 1 failed, a later attempt (the one
-// re-run of the failed jobs) finished and failed too, and at least one check
-// failed in both. `first` and `latest` are { attempt, conclusion, checks }.
 export function confirm(first, latest) {
   if (!latest || latest.attempt < 2) {
     return { confirmed: false, reason: "no re-run of the failed jobs finished", checks: [] };
@@ -122,8 +94,6 @@ export function confirm(first, latest) {
   return { confirmed: true, reason: `attempts 1 and ${latest.attempt} both failed`, checks };
 }
 
-// The first-parent chain from `base` (exclusive) to `head`, oldest first, from
-// compare's commits ({ sha, parent }); null when the chain does not reach base.
 export function firstParentRange(base, head, commits, limit = 50) {
   const parentOf = new Map(commits.map((c) => [c.sha, c.parent]));
   const range = [];
@@ -134,10 +104,6 @@ export function firstParentRange(base, head, commits, limit = 50) {
   return range;
 }
 
-// One commit's evidence from its own full run: `green` (passed, on any
-// attempt), `red` (confirmed red in a check the head's confirmed red also
-// failed), `red-unconfirmed` (failed with no matching confirmed re-run), or
-// `untested` (no full run finished at that commit).
 export function commitStatus(run, headChecks) {
   if (!run) return "untested";
   if (run.conclusion === "success") return "green";
@@ -146,8 +112,6 @@ export function commitStatus(run, headChecks) {
   return verdict.confirmed && intersect(verdict.checks, headChecks).length > 0 ? "red" : "red-unconfirmed";
 }
 
-// The culprit: the one commit in the range that is red while its parent
-// (base for the oldest) is green. Anything else pins no culprit.
 export function attribute(base, range, statuses) {
   const status = (sha) => (sha === base ? "green" : (statuses[sha] ?? "untested"));
   const transitions = range.filter((sha, i) => status(sha) === "red" && status(i === 0 ? base : range[i - 1]) === "green");
@@ -167,11 +131,6 @@ export function attribute(base, range, statuses) {
 export const isRevert = (message, labels = []) =>
   /^revert\b/i.test(message) || /This reverts commit [0-9a-f]{7,40}/.test(message) || labels.includes("auto-revert");
 
-// Whether the bot may revert the culprit itself, and every guard that stops
-// it. A failed guard plans no revert: the fix issues fix main forward through
-// the issue lane. Owner and other human merges never auto-revert: only a
-// merge the lanes App put in the merge queue may. Under the fail-forward
-// remedy nothing is reverted.
 export function decide({ culprit, agentIdentity, config, now, revertsToday, culpritDecided, platformFault, revertApplies }) {
   if (config.remedy === "fail-forward") {
     return { decision: "fix-forward", reasons: ["the remedy is fail-forward: the fix issues repair main"] };
@@ -200,12 +159,9 @@ export function decide({ culprit, agentIdentity, config, now, revertsToday, culp
 export const LOG_MARKER = "<!-- red-main-revert-log -->";
 export const reportMarker = ({ runId, attempt, culprit, decision }) =>
   `<!-- red-main-report run=${runId} attempt=${attempt} culprit=${culprit ?? "none"} decision=${decision} -->`;
-// `human` is the decision older reports on the log name for `fix-forward`.
 export const MARKER_PATTERN =
   /^<!-- red-main-report run=(\d+) attempt=(\d+) culprit=([0-9a-f]{40}|none) decision=(auto-revert|fix-forward|human|none) -->$/;
 
-// A note on the log for a run that posts no report. MARKER_PATTERN does not
-// match its marker, so a note counts as neither a report nor a cap decision.
 export const noteMarker = ({ runId, attempt }) => `<!-- red-main-unreported-note run=${runId} attempt=${attempt} -->`;
 const unreportedList = (unreported) => unreported.map((r) => `${r.url} at \`${r.sha.slice(0, 12)}\``).join(", ");
 export const renderUnreportedNote = ({ run, unreported }) =>
@@ -215,15 +171,10 @@ export const renderUnreportedNote = ({ run, unreported }) =>
     `${run.url}/attempts/${run.attempt} posts no report, so this note names the red full runs since the last green one with no report on this log (dropped, unconfirmed or skipped): ${unreportedList(unreported)}. The next confirmed report names them again and decides over their merges.`,
   ].join("\n");
 
-// Text from commits and pull requests reaches the report only as inert lines
-// inside a text fence.
 const inert = (text) => String(text ?? "").replaceAll("`", "'").split("\n")[0];
 
 const SUBJECT_PR = /\s*\(#(\d+)\)$/;
 
-// The revert the bot would open for the culprit, as the report names it, or
-// null when a guard failed: then nothing is reverted and the fix issues fix
-// main forward.
 export function plannedRevert(culprit, decision, runUrl) {
   if (decision !== "auto-revert") return null;
   const subject = inert(culprit.message).replace(SUBJECT_PR, "");
@@ -240,8 +191,6 @@ export function plannedRevert(culprit, decision, runUrl) {
   };
 }
 
-// The report: a marker line, then Markdown. `range` rows are
-// { sha, number, enqueuer, status, evidence }.
 export function renderReport({ run, verdict, base, range, attribution, culprit, decision, revert, config, record, unreported = [] }) {
   const lines = [
     reportMarker({

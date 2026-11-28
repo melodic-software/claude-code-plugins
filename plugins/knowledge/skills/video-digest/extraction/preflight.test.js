@@ -21,7 +21,6 @@ function runPreflight(args, env = {}) {
   return spawnSync(process.execPath, [preflight, ...args], {
     encoding: "utf8",
     timeout: 60000,
-    // An empty PATH hides every media tool, so the report must still print and exit 0.
     env: { ...process.env, CLAUDE_PLUGIN_DATA: "", PATH: "", ...env },
   });
 }
@@ -60,7 +59,6 @@ describe("preflight.mjs", () => {
     expect(result.stdout).toContain("unsubstituted placeholder");
   });
 
-  // A stub interpreter: an executable script that exits 0, so `-c "import faster_whisper"` passes.
   function stubPython(name) {
     const stub = path.join(sandbox(), name);
     fs.writeFileSync(stub, "#!/bin/sh\nexit 0\n", { mode: 0o755 });

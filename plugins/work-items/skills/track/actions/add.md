@@ -93,7 +93,7 @@ Run each call as its own plain Bash command: no `$(...)`, no `git`, and no `&&` 
 - **As of**: 2026-10-11
 - **Recheck trigger**: a Claude Code release in which the pre-#6929 snippet (tracker path fallback through `$(git rev-parse --show-toplevel)`, body through `"$(cat "$BODY_FILE")"`) runs from a worktree-isolated session.
 
-For non-recurring items, omit the recurring marker. Pass `--parent '<id>'`, `--blocked-by '<id>[,<id>]'` and `--repo '<owner>/<name>'` through to `create-item` when given; a `--parent` the provider cannot honor exits `6`, which is reported, never dropped. The emitted item object carries the new `id` (fully-qualified) and `number`.
+For non-recurring items, omit the recurring marker. Pass `--parent '<id>'`, `--blocked-by '<id>[,<id>]'` and `--repo '<owner>/<name>'` through to `create-item` when given; a `--parent` the provider cannot honor exits `6`, which is reported, never dropped. On repositories with native issue statuses enabled, `create-item` dual-writes `Todo` for items carrying the resolved autonomous-eligible or session-owned role label or `status: ready` (or an explicit `--native-status <name>`), leaving intake items in the default `Backlog` and degrading silently when unavailable. The emitted item object carries the new `id` (fully-qualified), `number`, and `native_status`.
 
 1. **If `--priority` resolved to the field**, set it on the new item, as its own plain Bash call with every value spelled out. A failed write can't undo the filing: report it with the item's id and the value, and never file the item again.
 

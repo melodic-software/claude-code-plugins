@@ -1,5 +1,5 @@
 ---
-description: "Standing posture for multi-step work: only the current phase (exact steps, expected output, common failure, who acts, advancing reply), later ones as a 'Phase 1 of 8' count. Use when: 'hold my hand', 'walk me through this', 'one step at a time', 'one phase at a time', 'don't show me the next step yet', 'guide me through all of this', 'exact steps', 'hand-hold'. Not adhd:shape (shows every step), adhd:clarify (one message), wizard:generate (human-run script), session-flow:workflow (next stage)."
+description: "Standing hand-hold posture to guide multi-step work one phase at a time: show only current phase (exact step, output, failure, actor, reply), later as 'Phase 1 of N'. Use when 'hold my hand', 'walk me through this', 'one step at a time'. Not for lists: /adhd:shape; message: /adhd:clarify; scripts: /wizard:generate; stage: /session-flow:workflow."
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -134,7 +134,7 @@ or hand back the phase in progress rather than abandoning it mid-step, and
 return to ordinary responses for the rest of the session. Never keep phasing
 after a cancellation because the remaining work still looks long.
 
-## Boundaries
+## What this skill does not do
 
 - **Not action-first formatting.** `/adhd:shape` (if enabled) shapes every response
   action-first and shows the user the whole list; this posture deliberately

@@ -1,20 +1,3 @@
-# Pulumi YAML reader for collect-deployment.sh. Prepend redact-connection.awk
-# and deployment-diff.awk, then yaml-rows.awk. Arguments are repo-relative
-# Pulumi.yaml files of runtime yaml and Pulumi.<stack>.yaml files prefixed with
-# "./". Set tool to pulumi-yaml.
-#
-# Maps aws:ecs:Cluster, aws:ecs:TaskDefinition and aws:ecs:Service, with the
-# aws:ecs/<type>:<Type> form accepted. The environments of a project are its
-# Pulumi.<stack>.yaml files beside it, else its directory name (default at the
-# repository root). ${pulumi.stack} and ${pulumi.project} resolve. A config
-# key resolves from the stack file (<project>:<key>, or <key>), then the
-# project's config default; ${resource.attr} links a service to its cluster and
-# task definition. Everything else, fn::join, variables, invokes, is recorded
-# as unresolved:<text>, never evaluated. A secret: true config key, a secure:
-# stack value, fn::secret and a config key whose name names a credential are
-# redacted. A stack file with no project beside
-# it is not read.
-
 BEGIN { CAP = 0; CLUSTER_NAME_PROP = "name"; SERVICE_NAME_PROP = "name" }
 
 function cfg_secret(f, name) { return fld(f, "config." name ".secret") && tolower(FV) == "true" }
@@ -76,7 +59,6 @@ function resolve_at(sc, p, depth,    f, v, out, rest, i, q, inner, r, sec, ok) {
   return unres(f, p)
 }
 
-# The resource id a ${id} or ${id.attr} value names, when it is declared.
 function lref(sc, p,    f, v) {
   f = S_file[sc]
   if (!fld(f, p) || FV !~ /^\$\{[^.}]+(\.[^}]*)?\}$/) return ""

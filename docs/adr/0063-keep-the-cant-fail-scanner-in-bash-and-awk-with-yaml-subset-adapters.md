@@ -14,9 +14,9 @@ The choice was made on 2026-09-28, when the user asked for the scanner to take n
 frameworks without engine changes. It was recorded in the tautological-tests spec
 ([`docs/specs/tautological-tests.md` at `32553cf80`](https://github.com/melodic-software/claude-code-plugins/blob/32553cf80ed5210f6822f96f3fa0c01fa833e7b1/docs/specs/tautological-tests.md),
 "Design contracts" and "Alternatives considered"). That spec has since been deleted from main, and
-nothing else on main says why the alternatives lost: the loader's header
-(`plugins/testing/skills/audit/scripts/adapter-load.awk:1-14`) states the file format and no
-reason for it. This record was filed on 2026-10-04, after the spec's deletion, and carries the
+nothing else on main says why the alternatives lost: the format reference
+(`plugins/testing/skills/audit/reference/adapter-format.md`) states the file format and no reason
+for it. This record was filed on 2026-10-04, after the spec's deletion, and carries the
 decision's date.
 
 Measured at decision time, the awk scanner took 4 to 5 ms per file and required nothing beyond
@@ -33,7 +33,8 @@ bash and a POSIX awk.
 3. Adapter files use a restricted YAML subset, read by an awk loader (`adapter-load.awk`). The
    loader accepts only that subset and only regexes every supported awk (BSD awk, mawk, gawk)
    handles the same way; on anything else it stops with exit code 2 and reports the file and line
-   number. The comment block at the top of `adapter-load.awk` defines the format.
+   number. [`plugins/testing/skills/audit/reference/adapter-format.md`](../../plugins/testing/skills/audit/reference/adapter-format.md)
+   defines the format.
 
 ## Alternatives considered
 

@@ -28,10 +28,6 @@ from harness.stub_harness import (
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "type-coverage.py"
 CAPTURE = TOOL_OUTPUT / "type-coverage.json"
-# A real `--detail --json-output --show-relative-path` capture (2.30.1,
-# typescript 5.9) over a scratch project: src/a.ts and src/sub/b.ts carry
-# any-typed identifiers, src/clean.ts none, and other/outside.ts sits outside
-# the tsconfig's `include`, so the tool never names it.
 DETAIL = TOOL_OUTPUT / "type-coverage-detail.json"
 DETAIL_SCOPE = ("src/a.ts", "src/sub/b.ts", "src/clean.ts", "other/outside.ts")
 NO_TYPESCRIPT = "type-coverage needs a resolvable typescript (the probe found none)"
@@ -43,8 +39,6 @@ def make_stub(
     exit_code: int = 0,
     argv_log: Path | None = None,
 ) -> None:
-    """A `type-coverage` stub replaying `capture`; with `argv_log` it also
-    records every argument it received, one per line."""
     log = f'printf \'%s\\n\' "$@" >"{argv_log}"\n' if argv_log is not None else ""
     write_stub(
         path,
@@ -58,8 +52,6 @@ def make_stub(
 def make_node_stub(
     path: Path, program: list[str] | None, exit_code: int = 0, stderr: str = ""
 ) -> None:
-    """A `node` stub standing in for the tsconfig-program listing: prints
-    `program` as JSON (`null` for no tsconfig), or fails with `stderr`."""
     listing = json.dumps(program) if program is not None else "null"
     write_stub(
         path,
@@ -72,7 +64,6 @@ def make_node_stub(
 def make_project(
     root: Path, with_typescript: bool = True, local_stub: bool = False
 ) -> None:
-    """A scratch cwd: optional node_modules/typescript and a local binary."""
     root.mkdir(parents=True, exist_ok=True)
     if with_typescript:
         package = root / "node_modules" / "typescript" / "package.json"
@@ -139,7 +130,7 @@ class TypeCoverageCollectTests(unittest.TestCase):
             path_prefix=stubs,
         )
 
-    def test_collect_translates_the_capture_into_a_file_row_and_the_lane_row(
+    def test_collect_translates_the_capture_into_a_file_row_and_the_language_row(
         self,
     ) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -147,14 +138,12 @@ class TypeCoverageCollectTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = [json.loads(line) for line in result.stdout.splitlines()]
             self.assertEqual(len(rows), 2)
-            lane_row, file_row = rows
+            language_row, file_row = rows
             self.assertEqual(result.stderr, "")
             self.assertEqual(
                 (file_row["file"], file_row["function"], file_row["labels"]),
                 (f"{SOURCES}/cm-sample.ts", None, []),
             )
-            # The CLI gives no per-file denominator: a file row carries the
-            # occurrences listed for it and nothing else.
             self.assertEqual(
                 file_row["values"],
                 {
@@ -164,12 +153,12 @@ class TypeCoverageCollectTests(unittest.TestCase):
                     "any_count": 4,
                 },
             )
-            self.assertEqual((lane_row["file"], lane_row["function"]), (None, None))
-            self.assertEqual(lane_row["lane"], "typescript")
-            self.assertEqual(lane_row["collector"], "type-coverage")
-            self.assertEqual(lane_row["labels"], ["lane-total"])
+            self.assertEqual((language_row["file"], language_row["function"]), (None, None))
+            self.assertEqual(language_row["language"], "typescript")
+            self.assertEqual(language_row["collector"], "type-coverage")
+            self.assertEqual(language_row["labels"], ["language-total"])
             self.assertEqual(
-                lane_row["values"],
+                language_row["values"],
                 {
                     "type_coverage_pct": 55.55,
                     "typed_identifiers": 5,
@@ -183,8 +172,6 @@ class TypeCoverageCollectTests(unittest.TestCase):
             stubs = Path(tmp) / "bin"
             argv_log = Path(tmp) / "argv"
             make_stub(stubs / "type-coverage", capture=DETAIL, argv_log=argv_log)
-            # The program holds the three files under src/, as the real
-            # listing over the scratch project's tsconfig did.
             make_node_stub(stubs / "node", ["src/a.ts", "src/clean.ts", "src/sub/b.ts"])
             result = run(
                 "collect",
@@ -201,13 +188,11 @@ class TypeCoverageCollectTests(unittest.TestCase):
                     (None, 9),
                     ("src/a.ts", 5),
                     ("src/sub/b.ts", 4),
-                    # in the program with no listed occurrence: a measured 0
                     ("src/clean.ts", 0),
-                    # other/outside.ts is outside the program: no row
                 ],
             )
             self.assertEqual(rows[0]["values"]["type_coverage_pct"], 57.14)
-            self.assertEqual(rows[0]["labels"], ["lane-total"])
+            self.assertEqual(rows[0]["labels"], ["language-total"])
             self.assertEqual(
                 result.stderr.strip(),
                 "1 scope file(s) are outside the tsconfig program and were not "
@@ -220,9 +205,6 @@ class TypeCoverageCollectTests(unittest.TestCase):
             )
 
     def test_the_program_drops_node_modules_by_segment_not_by_substring(self) -> None:
-        # The dependency tree is left out of the program the way the tool
-        # leaves it out; a source file whose name contains the string is not a
-        # dependency and keeps its row.
         with tempfile.TemporaryDirectory() as tmp:
             stubs = Path(tmp) / "bin"
             helper = Path(tmp) / "src" / "node_modules_helper.ts"
@@ -302,7 +284,6 @@ class TypeCoverageCollectTests(unittest.TestCase):
             )
 
     def test_a_reporting_exit_code_still_yields_a_row(self) -> None:
-        # --at-least makes the tool exit non-zero while still printing its JSON.
         with tempfile.TemporaryDirectory() as tmp:
             result = self._collect(tmp, exit_code=1)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -322,7 +303,6 @@ class TypeCoverageCollectTests(unittest.TestCase):
             self.assertEqual(row["values"]["typed_identifiers"], 5)
 
     def test_a_null_percent_stays_null_rather_than_becoming_zero(self) -> None:
-        # No tsconfig means nothing was counted: the tool prints percent null.
         with tempfile.TemporaryDirectory() as tmp:
             empty = Path(tmp) / "empty.json"
             empty.write_text(

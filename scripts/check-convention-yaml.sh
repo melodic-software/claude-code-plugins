@@ -1,44 +1,4 @@
 #!/usr/bin/env bash
-# Validate every tracked <home>/<concern>.yaml against its JSON Schema
-# (ADR 0064 Decisions 6 and 7). <home> is the convention home the repository
-# binds in the pointer region of AGENTS.md or CLAUDE.md, read with
-# lib/resolve-convention-home.sh (ADR 0075 fix 3) both at the merge base with
-# the base branch and in the working tree; docs/conventions when the
-# repository binds none or declined a home. The marketplace repository itself
-# (a root holding .claude-plugin/marketplace.json) must bind one in its working
-# tree: there an unbound or declined home is a finding.
-#
-#   scripts/check-convention-yaml.sh          validate; list every finding
-#   scripts/check-convention-yaml.sh --check  same, explicit form matching the
-#                                             sibling gates
-#
-# The schema for <concern>.yaml is found by ADR 0064 Decision 6, first match
-# wins:
-#
-#   1. plugins/<concern>/schemas/<concern>.schema.json  a plugin concern
-#   2. <home>/<concern>/<concern>.schema.json           a cross-plugin convention
-#   3. plugins/*/schemas/<concern>.schema.json          a plugin's further concern
-#
-# A YAML file with neither is a finding: config nobody can validate is config
-# nobody can trust. Only files directly under <home>/ are read; YAML
-# in a convention folder (examples, fixtures) is not a team layer.
-#
-# Before the schema check each file goes through lib/yaml-subset.awk, the
-# shared YAML-subset parser most plugins read these files with at runtime.
-# check-jsonschema accepts full YAML (anchors, tags, block scalars); that parser
-# rejects them and the plugin falls back to defaults, so a parse failure is a
-# finding. A plugin with its own reader (code-metrics reads its file with
-# yaml_subset.py, which is stricter) is not covered by this check.
-#
-# The validator is check-jsonschema, the tool the repository's other schema
-# steps run. CHECK_JSONSCHEMA_BIN overrides the command (a path or a name on
-# PATH).
-#
-# Output follows the check-script contract (scripts/README.md, "The check-script
-# contract"): one finding per file on stderr, with the validator's own report
-# under it, and the clean-run statement on stdout. Exit: 0 clean, 1 any finding,
-# 2 environment or usage (git, awk, the parser or the validator missing, bad
-# argument).
 set -euo pipefail
 
 SCRIPT_SRC="${BASH_SOURCE[0]}"
@@ -69,23 +29,11 @@ if ! command -v "$validator" >/dev/null 2>&1; then
   exit 2
 fi
 
-# The convention home is the one the repository binds in its pointer region
-# (lib/resolve-convention-home.sh, ADR 0075 fix 3). With no region, a declined
-# home, or a root that binds none, it is docs/conventions, except in the
-# marketplace repository's working tree (on_unbound below).
 resolver=lib/resolve-convention-home.sh
 if [[ ! -f "$resolver" ]]; then
   printf 'check-convention-yaml: %s is required to find the convention home\n' "$resolver" >&2
   exit 2
 fi
-# Two pointers are read, and the YAML under both homes is checked: the one
-# committed at the merge base with the base branch, so a pull request that
-# edits the region cannot move the gate off the home it is checked against, and
-# the working tree's, so the home the change itself binds is checked too. The
-# base branch is origin/$GITHUB_BASE_REF on a pull request, else origin's
-# default branch (origin/HEAD, then origin/main). Where none resolves (a clone
-# with no origin, a fixture repository) only the working tree's pointer is
-# read; in CI (GITHUB_ACTIONS=true or a GITHUB_BASE_REF) that is exit 2.
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
 base_branch="origin/${GITHUB_BASE_REF:-}"
@@ -102,15 +50,9 @@ if [[ -z "$merge_base" && ("${GITHUB_ACTIONS:-}" == true || -n "${GITHUB_BASE_RE
   exit 2
 fi
 
-# The marketplace repository runs this gate on itself, so its working tree must
-# bind a home; a root with no marketplace manifest (a fixture) may bind none.
 on_unbound=default
 [[ -f .claude-plugin/marketplace.json ]] && on_unbound=fail
 
-# resolve_home <label> <default|fail> [resolver args...]: print the home. When
-# the root binds none or declined one (resolver exit 1, 4 or 5), print
-# docs/conventions under default, and under fail report it and return 3; return
-# the resolver's exit 3 or other failure code with its message on stderr.
 resolve_home() {
   local label="$1" unbound="$2" out rc=0
   shift 2
@@ -125,7 +67,6 @@ resolve_home() {
     printf 'docs/conventions\n'
     ;;
   3)
-    # The resolver's own message says which region is broken.
     bash "$resolver" --root . "$@" 2>&1 >/dev/null | sed "s/^/check-convention-yaml: $label: /" >&2 || true
     return 3
     ;;
@@ -146,8 +87,6 @@ if [[ -n "$merge_base" ]]; then
   rc=0
   # shellcheck disable=SC2310  # resolve_home returns its codes itself; set -e has nothing to catch
   base_home="$(resolve_home "merge base $merge_base" default --ref "$merge_base")" || rc=$?
-  # A broken pointer at the base is a warning: failing on it would fail every
-  # later change, the one that repairs it included.
   ((rc == 0 || rc == 3)) || exit 2
   [[ $rc -eq 0 && "$base_home" != "$head_home" ]] && homes+=("$base_home")
 fi
@@ -158,8 +97,6 @@ for home in "${homes[@]}"; do
     files+=("$path")
   done < <(git ls-files -z -- ":(glob)$home/*.yaml")
 done
-# The unattended merge policy reads docs/conventions/pr-pipeline.yaml at that
-# fixed path whatever home is bound, so the file is checked under any home.
 fixed=docs/conventions/pr-pipeline.yaml
 if [[ " ${homes[*]} " != *" docs/conventions "* ]]; then
   while IFS= read -r -d '' path; do
@@ -171,11 +108,6 @@ findings=0
 checked=0
 for path in ${files+"${files[@]}"}; do
   checked=$((checked + 1))
-  # The unattended merge policy (babysit_merge_policy.py `_SEPARATOR`) refuses
-  # a pr-pipeline.yaml value holding a C0 or C1 control or U+2028/U+2029, and
-  # with it every plain --merge. It reads no other file here, so only that one
-  # is held to it. Read byte-wise as the policy's reader runs (LC_ALL=C); only
-  # LF and a line-ending CR, which the reader strips, are allowed.
   if [[ "${path##*/}" == pr-pipeline.yaml ]] &&
     separator="$(LC_ALL=C awk '/[\001-\011\013\014\016-\037\177]|\015./ || /\302[\200-\237]|\342\200[\250\251]/ { print NR; exit }' "$path")" &&
     [[ -n "$separator" ]]; then
@@ -197,9 +129,6 @@ for path in ${files+"${files[@]}"}; do
   elif [[ -f "$convention_schema" ]]; then
     schema="$convention_schema"
   else
-    # A plugin's second concern (review-digest.yaml, owned by the review
-    # plugin): the schema ships in the plugin that reads it. Names compare
-    # literally, so a stem holding a glob character matches nothing.
     schema=""
     for candidate in plugins/*/schemas/*.schema.json; do
       if [[ "${candidate##*/}" == "$stem.schema.json" && -f "$candidate" ]]; then

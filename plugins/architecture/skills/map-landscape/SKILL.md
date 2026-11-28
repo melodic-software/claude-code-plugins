@@ -1,5 +1,5 @@
 ---
-description: "C4 System Landscape plus application-portfolio table of a repository and the systems it references, with drift reported against a committed landscape record. Use when 'what systems do we have', 'what does this repo depend on', 'who owns which repo', 'what runtimes are we on', 'inventory our systems'. Skip for module structure inside one codebase (improve)."
+description: "C4 System Landscape and application-portfolio table of a repo and referenced systems, reporting drift against a committed record. Use for 'what systems do we have', 'who owns which repo', 'inventory our systems', repo dependencies, or runtimes. Not for single-codebase modules: /architecture:improve."
 argument-hint: "[--repos <path>[,<path>...]] [--root <dir>] [--out <dir>] [--check] [--remote[=all]]"
 user-invocable: true
 disable-model-invocation: false

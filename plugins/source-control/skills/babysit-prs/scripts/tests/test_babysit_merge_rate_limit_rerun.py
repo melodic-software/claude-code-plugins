@@ -27,9 +27,6 @@ RUN_ID = 111
 JOB_ID = 222
 FAILED_AT = "2026-10-09T10:00:00Z"
 STARTED_AT = "2026-10-09T09:50:00Z"
-# Shapes follow live payloads (2026-10-09): `gh pr view --json
-# statusCheckRollup` gives a CheckRun no id, and an Actions job's `id`, its
-# `check_run_url` tail and its check run's id are one number.
 CHECK = {
     "name": "pr-review / claude-review-status",
     "id": "",
@@ -37,8 +34,6 @@ CHECK = {
     "effective_state": "FAILURE",
     "details_url": f"https://github.com/{REPO}/actions/runs/{RUN_ID}/job/{JOB_ID}",
 }
-# report-lane-outcome's rate-limit error, whose lane-outcome record names the
-# class (ci-workflows docs/lane-outcome.md).
 RATE_LIMITED = (
     "AI review skipped: usage limit reached; re-run after it resets "
     "(Claude review exited with: failure). lane-outcome "
@@ -51,10 +46,8 @@ SECURITY_CHECK = {
     "name": "pr-review-security / security-review",
     "workflow_name": "pr-review-security-hosted",
 }
-# pr-review-cli.yml's status jobs, which share the name `review-status`.
 CLI_CHECK = {**CHECK, "name": "PR Review / review-status"}
 CLI_SECURITY_CHECK = {**SECURITY_CHECK, "name": "PR Review Security / review-status"}
-# The same under the lower-case caller: a head tested before the rename.
 RENAMED_CLI_CHECK = {**CHECK, "name": "pr-review / review-status"}
 
 
@@ -98,7 +91,6 @@ class RerunRateLimitedReview(unittest.TestCase):
             if args[1] == f"repos/{REPO}/actions/jobs/{JOB_ID}":
                 return job if job is not None else _job()
             if args[1].startswith(f"repos/{REPO}/check-runs/{JOB_ID}/annotations"):
-                # The check-runs annotations payload carries each level.
                 return [
                     a
                     if isinstance(a, dict)

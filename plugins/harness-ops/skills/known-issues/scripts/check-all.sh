@@ -52,8 +52,6 @@ COMPONENT_DIR="$DATA_DIR/check-all-output"
 if [[ -n "${CHECK_ALL_OUTPUT_DIR:-}" ]]; then
   OUT_DIR="$CHECK_ALL_OUTPUT_DIR"
 else
-  # Resolved from this file, never from an inherited CLAUDE_PLUGIN_ROOT: a
-  # subprocess can carry another plugin's value for that variable.
   PLUGIN_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
   STATE_KEY="$(bash "$PLUGIN_ROOT/lib/state-key.sh")"
   if [[ -z "$STATE_KEY" ]]; then
@@ -109,8 +107,6 @@ while IFS=$'\t' read -r number repo tracked || [[ -n "$number" ]]; do
     printf '%s\t%s\t%s\t\t\t\tFETCH_FAILED\n' "$number" "$repo" "$tracked" >>"$OUT"
     continue
   fi
-  # Unit separator, not tab: read collapses adjacent tabs, which shifts an empty
-  # stateReason's column onto closedAt.
   IFS=$'\x1f' read -r state reason closed < <(
     jq -r '[.state, .stateReason, .closedAt] | map(. // "") | join("\u001f")' <<<"$result" | tr -d '\r'
   )

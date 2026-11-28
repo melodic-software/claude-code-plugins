@@ -1,36 +1,4 @@
 #!/usr/bin/env bash
-# convert-bump-to-fragment.sh: turn a branch's hand-written plugin version bump
-# into a changelog fragment, for each plugin the repository releases from
-# fragments (the plugins listed in scripts/fragment-plugins.txt, released by a
-# bot-maintained release pull request).
-#
-#   convert-bump-to-fragment.sh [<base-ref>]
-#
-# A repository without scripts/fragment-plugins.txt has no fragment-mode plugin,
-# so there is nothing to convert.
-#
-# The base is what the branch's version files are compared against: MERGE_HEAD
-# while a merge of the default branch into this branch is in progress (the tip
-# the merge brings in), else the merge base of HEAD and <base-ref> (default:
-# origin's default branch). For each listed plugin whose working-tree
-# plugin.json version differs from the base's:
-#   - the bump level is the version delta (major, minor or patch);
-#   - every `## [<version>]` section of CHANGELOG.md the base lacks is removed,
-#     and its body becomes the fragment body (text before any `###` section
-#     goes under `### Changed`);
-#   - plugin.json's version returns to the base's; every other edit either
-#     file carries stays;
-#   - scripts/new-changelog-fragment.sh <plugin> <level> creates the fragment,
-#     the body is appended to it, and all three files are staged.
-# A plugin whose files are still conflicted, whose version went down, or that
-# gained a version but no CHANGELOG heading is left untouched. A plugin whose
-# CHANGELOG gained a heading while its version stayed, or whose new fragment
-# fails changelog_fragments::validate (scripts/lib/changelog-fragments.sh), is
-# named for manual work too.
-#
-# Exit: 0 every bump converted, or none present; 1 at least one plugin left for
-# manual conversion (named on stderr); 2 usage, git failure, or a rebase or
-# cherry-pick in progress.
 set -uo pipefail
 
 if (($# > 1)); then
@@ -123,9 +91,6 @@ convert() {
     left "$name" "version moved $b -> $w but CHANGELOG.md gained no heading"
     return
   fi
-  # Split the changelog into the added sections' bodies and everything else;
-  # an added section's text ahead of its first ### section goes under Changed.
-  # A ## line inside a code fence is text, not a section boundary.
   awk -v heads="$tmp/added.h" -v body="$tmp/body.raw" -v rest="$tmp/cl.rest" '
     BEGIN { while ((getline h < heads) > 0) added[h] = 1; printf "" > body }
     /^[ \t]*(```|~~~)/ { fence = !fence }
@@ -141,7 +106,6 @@ convert() {
       next
     }
     { print > rest }' "$changelog"
-  # Trim blank edges.
   awk '{ line[NR] = $0; if ($0 ~ /[^ \t]/) { if (!first) first = NR; last = NR } }
     END { for (i = first; first && i <= last; i++) print line[i] }' "$tmp/body.raw" >"$tmp/body"
   if [[ ! -s $tmp/body ]]; then
@@ -154,8 +118,6 @@ convert() {
   }
   cat "$tmp/body" >>"$path" || return 2
   set_version "$b" <"$manifest" >"$tmp/pj" || return 2
-  # All three files change together or not at all: on any failure, put the
-  # manifest and changelog back and drop the fragment, so a re-run sees the bump.
   cp "$manifest" "$tmp/pj.orig" && cp "$changelog" "$tmp/cl.orig" || return 2
   if ! { cp "$tmp/pj" "$manifest" && cp "$tmp/cl.rest" "$changelog" &&
     git add -- "$manifest" "$changelog" "$path"; }; then

@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-discriminating-test-skips.sh and the runtime
-# fail_discriminating_skip contract. Builds a tiny synthetic plugins/ tree per
-# scenario in a temp dir and invokes the gate against it directly — the script's
-# own `cd "$(dirname "$0")/.."` makes this work unmodified: copy it to
-# <fixture>/scripts/ and it scans <fixture>/plugins/**/*.test.sh.
 # shellcheck disable=SC2016  # fixture bodies are literal test code in single quotes
 set -uo pipefail
 
@@ -20,16 +15,13 @@ HELPERS="$REPO_ROOT/plugins/source-control/scripts/test-helpers.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-new_fixture() { # <out-var>
+new_fixture() {
   fixture_tree::build "$1" --sut "$SCRIPT" --plugins || return 1
   mkdir -p "${!1}/plugins/alpha/skills/demo/scripts"
 }
 
-# test_file <fixture> <relative-path-under-plugins> <content>
 test_file() {
   local fixture="$1" rel="$2" content="$3"
   mkdir -p "$fixture/plugins/$(dirname "$rel")"
@@ -40,9 +32,6 @@ run_check() (
   cd "$1" && bash scripts/check-discriminating-test-skips.sh
 )
 
-# write_runtime_suite <path> <call>: a suite that loads the shared helpers and
-# runs exactly one case, for the runtime half of the contract. The counters are
-# the ones the helpers expect to find initialized.
 write_runtime_suite() {
   cat >"$1" <<EOF
 #!/usr/bin/env bash

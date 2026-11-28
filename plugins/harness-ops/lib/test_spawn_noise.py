@@ -1,21 +1,4 @@
 #!/usr/bin/env python3
-"""Contract tests for the spawn-noise lib, beside its canonical copy.
-
-These deliberately do NOT restate the six `TestSpawnCostSummary` cases in
-`skills/audit-performance/scripts/test_audit_performance.py`. Those exercise the
-summary through the engine's re-export and prove the move was behavior-neutral;
-duplicating them here would be a second way to say the same thing.
-
-What this suite adds is what the engine's suite structurally cannot:
-
-1. the module imports and works with no engine on the path at all, which is the
-   whole point of promoting it, and
-2. the `bimodal-spawn-latency` predicate is genuinely TWO-part -- asserted by
-   showing the two arms produce DIFFERENT verdicts, not merely that each arm
-   produced its own expected string. A predicate test where both arms happen to
-   agree would pass while proving nothing, which is the exact failure mode this
-   lib exists to help callers avoid.
-"""
 
 from __future__ import annotations
 
@@ -37,12 +20,6 @@ class TestModuleStandsAlone(unittest.TestCase):
     def test_the_lib_imports_without_the_engine_on_the_path(self):
         engine_dir = LIB_DIR.parent / "skills" / "audit-performance" / "scripts"
         self.assertTrue(engine_dir.is_dir(), "precondition: engine dir must exist to be excluded")
-        # A fresh isolated interpreter, not this process: sys.path here is shared with every
-        # other suite a pytest run collected alongside this one (CI's Python lane collects the
-        # engine's suite in the same process, and pytest prepends each suite's directory), so
-        # an in-process check can only prove what happens to be absent right now. `-I` starts
-        # with neither the cwd nor PYTHONPATH on the path; the child then proves the exclusion
-        # itself before importing.
         probe = (
             "import pathlib, sys\n"
             f"engine = pathlib.Path({str(engine_dir)!r})\n"
@@ -67,7 +44,6 @@ class TestModuleStandsAlone(unittest.TestCase):
 class TestBimodalPredicateIsTwoPart(unittest.TestCase):
     """A wide ratio alone is not the contention signature; the slow mode must be slow too."""
 
-    #: Same spread ratio (~7.7x), opposite absolute scale. Only the slow one is contended.
     FAST_WIDE_SPREAD = [18.0, 120.0, 140.0]
     SLOW_WIDE_SPREAD = [180.0, 1200.0, 1400.0]
 
@@ -75,8 +51,6 @@ class TestBimodalPredicateIsTwoPart(unittest.TestCase):
         return spawn_noise.summarize_spawn_samples(durations, 0, 300)["findings"]
 
     def test_the_two_arms_share_a_spread_ratio_so_only_the_absolute_scale_can_differ(self):
-        # Precondition. If the arms did not share a ratio, this suite would be
-        # comparing two unrelated inputs and its verdict would mean nothing.
         fast = spawn_noise.summarize_spawn_samples(self.FAST_WIDE_SPREAD, 0, 300)
         slow = spawn_noise.summarize_spawn_samples(self.SLOW_WIDE_SPREAD, 0, 300)
         self.assertGreaterEqual(fast["spread_ratio"], spawn_noise.BIMODAL_SPREAD_RATIO)
@@ -124,18 +98,11 @@ class TestMeasurabilityVerdict(unittest.TestCase):
         _, why = spawn_noise.is_measurable(
             spawn_noise.summarize_spawn_samples(self.CONTENDED, 0, 900)
         )
-        # An unexplained refusal gets overridden reflexively, so the reason has to
-        # carry the evidence rather than just naming the finding.
         self.assertIn("180.0", why)
         self.assertIn("1400.0", why)
 
     def test_a_timeout_outranks_the_bimodal_reason(self):
-        # A timed-out sample is recorded at the timeout ceiling, so max_ms is
-        # censored. If bimodality were reported first, the reader would get a
-        # spread computed from that ceiling described as an observed slow mode,
-        # which reads as a finite measurement of an unbounded tail.
         # discriminating-skip-required: this is the only case where both findings
-        # co-occur, so without it the precedence can silently invert.
         summary = spawn_noise.summarize_spawn_samples([180.0, 1400.0, 20000.0], 1, 900)
         self.assertIn("spawn-probe-timed-out", summary["findings"])
         self.assertIn("bimodal-spawn-latency", summary["findings"])

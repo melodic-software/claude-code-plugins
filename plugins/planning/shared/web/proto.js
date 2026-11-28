@@ -1,21 +1,8 @@
-// The prototype page (Q98), /proto/<qid>: one prototype question's variants, a switcher between them, an Annotate
-// toggle, and notes pinned to elements of a variant. Notes go to the server (/api/annotate), which shows them in the
-// question's Claude thread and hands them to Claude with the round. A variant that revises one on an earlier prototype
-// question (its `previous`) lists every version, and shows any of them side by side with it.
-// Identity, polling and actions come from core.js.
-// A variant is untrusted: an html one runs framed from /assets/ in a sandbox with no same origin, and only the pin
-// helper inside it (proto-pin.js) talks to this page, by postMessage; every message is checked here before use.
-// A variant shows its views (Core.viewsOf): an html snapshot, and one to four screenshots shown one under another, each
-// with its own pins; a note on screenshot k (k > 1) is pinned at "img:nth-of-type(k)", on the first at "img".
-// A live view is another origin's running server: never framed here, only linked to open in a new tab with no opener
-// and no referrer, and only once the owner approved it and it runs (the server sends a guest its url only then). Notes
-// on a live-only variant are on the whole variant.
 (() => {
   const Core = window.Core;
   const qid = (location.pathname.match(/^\/proto\/(Q[1-9][0-9]{0,5})$/) || [])[1] || "";
   const E = (tag, cls, text) => Core.el(tag, cls, text);
   const btn = (cls, text) => { const b = E("button", cls, text); b.type = "button"; return b; };
-  // The server's checks (session.py SELECTOR and _rect), repeated so a bad message from the frame never reaches it.
   const STEP = "[a-z][a-z0-9]{0,15}(?:-[a-z0-9]{1,15}){0,3}(?::nth-of-type\\([1-9][0-9]{0,3}\\))?";
   const SELECTOR = new RegExp(`^${STEP}(?: > ${STEP}){0,31}$`);
   const okRect = r => !!r && typeof r === "object" && ["x", "y", "w", "h"].every(k => typeof r[k] === "number" && Number.isFinite(r[k]) && r[k] >= 0)
@@ -40,21 +27,17 @@
   const annotateBtn = btn("vf-btn vf-btn-ghost vp-annotate", "Annotate");
   annotateBtn.setAttribute("aria-pressed", "false");
   const chooseBtn = btn("vf-btn vf-btn-primary vp-choose");
-  // Where to look, above the tabs: the question's lookAt, then the shown variant's own line when it has one.
   const look = E("p", "vp-look"), lookQ = E("span", "vp-look-q"), lookV = E("span", "vp-look-v");
   look.append(lookQ, lookV);
-  // A variant with both an html snapshot and screenshots shows one of the two at a time.
   const viewSeg = E("div", "vp-viewseg"); viewSeg.setAttribute("role", "group"); viewSeg.setAttribute("aria-label", "Views of this variant");
   const snapBtn = btn("vf-seg-btn vp-viewbtn", "HTML snapshot"), shotsBtn = btn("vf-seg-btn vp-viewbtn", "Screenshots");
   snapBtn.dataset.view = "snapshot"; shotsBtn.dataset.view = "shots";
   viewSeg.append(snapBtn, shotsBtn);
-  // The shown variant's live view: Open live prototype while it runs, else what it waits for; the owner's Approve and Stop.
   const liveBox = E("div", "vp-livebox"); liveBox.setAttribute("role", "group"); liveBox.setAttribute("aria-label", "Live prototype"); liveBox.hidden = true;
   bar.append(look, liveBox, tabs, viewSeg, E("span", "vf-spacer"), annotateBtn, chooseBtn);
   const hint = E("p", "vp-hint"); hint.id = "vp-hint";
   const body = E("div", "vp-body");
   const stage = E("section", "vp-stage"); stage.id = "vp-stage"; stage.setAttribute("role", "tabpanel");
-  // Side by side: an earlier or later version of the shown variant (cmpPane) beside it (mainPane, where notes pin).
   const capText = () => E("span", "vp-pane-cap-t");
   const cmpPane = E("figure", "vp-pane vp-pane-cmp"), cmpCap = E("figcaption", "vp-pane-cap"), cmpView = E("div", "vp-view");
   const cmpClose = btn("vf-btn vf-btn-ghost vf-btn-sm vp-cmp-close", "Close side by side");
@@ -64,7 +47,7 @@
   stage.append(cmpPane, mainPane);
   const side = E("aside", "vp-side"); side.setAttribute("aria-label", "Notes");
   const qText = E("p", "vp-qtext");
-  const offNote = E("p", "vp-offnote"); offNote.hidden = true; // the owner's: which views guests do not get (prototypeTiers)
+  const offNote = E("p", "vp-offnote"); offNote.hidden = true;
   const versNav = E("nav", "vp-versions"), versH = E("h2", "vf-h2 vp-versions-h"), versList = E("ol", "vp-vers");
   versNav.append(versH, versList); versNav.hidden = true;
   const composer = E("form", "vp-composer"); composer.hidden = true; composer.setAttribute("aria-label", "New note");
@@ -86,13 +69,11 @@
   const missing = E("p", "vf-empty vp-missing"); missing.hidden = true;
   root.append(top, bar, hint, body, missing);
 
-  // The stage: an iframe for an html view, each picture with its own pin layer, a notice for a variant whose views the
-  // session switched off (its state then holds none).
   let frame = null, layers = [], shownVariant = "", readySeen = false;
   const OFF_TEXT = "This view is off in this session. You can still choose this variant.";
   const OFF_NAME = { screenshot: "screenshots are off", snapshot: "HTML snapshots are off", live: "live prototypes are off" };
   const LIVE_ONLY_TEXT = "This variant is a live prototype. It opens in its own tab, from Open live prototype above.";
-  const send = m => frame?.contentWindow?.postMessage(m, "*"); // the sandboxed frame has no origin to name
+  const send = m => frame?.contentWindow?.postMessage(m, "*");
   /** A frame for an html view: allow-scripts plus the asset's own CSP sandbox, never allow-same-origin. */
   const sandboxFrame = (cls, title) => {
     const f = E("iframe", cls);
@@ -106,11 +87,6 @@
   const question = () => (S().questions || []).find(q => q.id === qid && q.formatKind === "prototype") || null;
   const variants = q => q?.variants || [];
   const shownView = v => (views(v).snapshot && !(ui.view === "shots" && views(v).shots.length) ? "snapshot" : "shots");
-  /** The screenshot (0-based) a note is pinned on, -1 for the snapshot, or null when this viewer holds no such view, so
-   *  a note on a view switched off is drawn nowhere: "img" is the first screenshot, "img:nth-of-type(k)" the k-th; any
-   *  other path is on the snapshot, except on a one-picture variant written as `asset`, where an earlier build's
-   *  free-form note sits on the picture. A variant written with `shots` is this build's, whose picture notes are
-   *  always img paths. */
   const shotOf = (v, selector) => {
     const { shots, snapshot } = views(v), k = selector === "img" ? 1 : +((selector.match(/^img:nth-of-type\(([1-9][0-9]*)\)$/) || [])[1] || 0);
     if (k) return k <= shots.length ? k - 1 : null;
@@ -131,7 +107,6 @@
     return "";
   }
 
-  /** The viewer's theme toggle choice from the main page (System, Light or Dark); no session default. */
   function applyTheme() {
     const p = Core.snapshot()?.me?.prefs || {};
     const mode = p.theme === "light" || p.theme === "dark" ? p.theme : "system";
@@ -140,8 +115,8 @@
 
   function selectVariant(vid, { focus = false } = {}) {
     if (vid === ui.variant) return;
-    closeComposer(); // its spot was on the variant being left
-    ui.variant = vid; ui.view = ""; ui.active = ""; ui.with = ""; // another variant has its own views and versions
+    closeComposer();
+    ui.variant = vid; ui.view = ""; ui.active = ""; ui.with = "";
     const h = hashParams(); h.set("v", vid); h.delete("n"); h.delete("with");
     history.replaceState(null, "", location.pathname + "#" + h);
     render();
@@ -177,7 +152,7 @@
   for (const b of [snapBtn, shotsBtn]) b.onclick = () => { if (shownView(current(question())) !== b.dataset.view) { ui.view = b.dataset.view; closeComposer(); render(); } };
   function mountStage(v) {
     const { shots, snapshot } = views(v), kind = shownView(v);
-    const key = `${v.id}|${kind}|${snapshot}|${shots.join(",")}|${liveOnly(v)}`; // a view switched off or back on mounts afresh
+    const key = `${v.id}|${kind}|${snapshot}|${shots.join(",")}|${liveOnly(v)}`;
     if (shownVariant === key) return;
     shownVariant = key; ui.ready = false; ui.pinsKey = ""; readySeen = false;
     frame = null; layers = [];
@@ -188,8 +163,6 @@
       mainView.replaceChildren(E("p", "vp-left vp-live-only", LIVE_ONLY_TEXT));
     } else if (kind === "snapshot") {
       const f = frame = sandboxFrame("vp-frame", `Prototype variant ${v.label}`);
-      // The frame's window stays the same object when the variant navigates itself away, so a second load means the
-      // frame now shows some other page: drop it, and stop talking to it, before it can pass for the variant.
       let loads = 0;
       f.addEventListener("load", () => { if (++loads > 1 && frame === f) leftPage(v); });
       f.src = `/assets/${snapshot}?pin=1`;
@@ -203,7 +176,7 @@
         wrap.append(img, layer);
         layers.push(layer);
         wrap.addEventListener("click", e => {
-          if (!ui.annotate || ui.draft) return; // a new spot waits until the open note is saved or cancelled
+          if (!ui.annotate || ui.draft) return;
           const b = img.getBoundingClientRect();
           if (!b.width || !b.height) return;
           const px = ((e.clientX - b.left) / b.width) * 100, py = ((e.clientY - b.top) / b.height) * 100;
@@ -229,15 +202,11 @@
 
   const vname = x => `v${x.n} · ${x.qid} · ${x.label}`;
   const vcaption = x => vname(x) + (x.current ? " · Current" : "");
-  /** A link to another question's prototype page opens a new tab, as the question's own links do; one to this page
-   *  only changes the fragment. */
   const versionLink = (a, to, params) => {
     a.href = Core.pageLink(`/proto/${to}`, params);
     if (to !== qid) { a.target = "_blank"; a.rel = "noopener noreferrer"; }
     return a;
   };
-  /** The shown variant's versions, when it has more than one: each links to its own page, the shown one and the
-   *  current one marked, and Side by side shows the newer of the two in the main pane with the older beside it. */
   function renderVersions(v, line, me) {
     versNav.hidden = !me;
     if (!me) return;
@@ -260,8 +229,6 @@
       return li;
     }));
   }
-  /** The version named by `with` beside the shown one: framed with no pin helper, so it takes no notes and nothing
-   *  it posts is read; an html one runs in the same sandbox as the variant, and one that leaves its page is dropped. */
   let cmpShown = "";
   function mountCompare(other) {
     const { shots = [], snapshot = "" } = other?.views || {};
@@ -272,7 +239,7 @@
     stage.dataset.split = String(!!other);
     cmpPane.hidden = mainCap.hidden = !other;
     if (!other) { cmpView.replaceChildren(); return; }
-    if (!snapshot && !shots.length) {  // a live version is never framed here either
+    if (!snapshot && !shots.length) {
       cmpView.replaceChildren(E("p", "vp-left vp-off", other.views?.live ? "This version is a live prototype, which opens in its own tab." : "This view is off in this session."));
     } else if (snapshot) {
       const f = sandboxFrame("vp-cmp-frame", `Version ${other.n}: ${other.label}`);
@@ -297,15 +264,12 @@
     render();
     say("Side by side is closed.");
   };
-  // A version link to this same page only changes the address's fragment.
   addEventListener("hashchange", () => {
     const h = hashParams(), nv = h.get("v") || ui.variant;
-    if (nv !== ui.variant) closeComposer(); // a note being written stays while only the side-by-side version changes
+    if (nv !== ui.variant) closeComposer();
     ui.variant = nv; ui.with = h.get("with") || ""; ui.active = h.get("n") || "";
     render();
   });
-  /** The notes' pins on the shown variant (numbered across it, 1 the oldest), plus the draft's while a note is being
-   *  written, each with the screenshot it sits on (`shot`, -1 for the snapshot). */
   function pinsFor(v) {
     const list = notesOn(v.id).map((a, i) => ({ n: i + 1, selector: a.selector, rect: a.rect || WHOLE, active: a.id === ui.active }));
     if (ui.draft) list.push({ n: list.length + 1, selector: ui.draft.selector, rect: ui.draft.rect, active: true });
@@ -328,12 +292,12 @@
     }
   }
   window.addEventListener("message", e => {
-    if (!frame || e.source !== frame.contentWindow) return; // only the shown variant's frame, never anything else
+    if (!frame || e.source !== frame.contentWindow) return;
     const m = e.data;
     if (!m || typeof m !== "object") return;
     if (m.type === "ready") { if (readySeen) return; readySeen = ui.ready = true; ui.pinsKey = ""; render(); }
     else if (m.type === "escape") setAnnotate(false);
-    else if (m.type === "pinned" && ui.annotate && !ui.draft) { // a new pick waits until the open note is saved or cancelled
+    else if (m.type === "pinned" && ui.annotate && !ui.draft) {
       if (typeof m.selector !== "string" || m.selector.length > 1000 || !SELECTOR.test(m.selector) || !okRect(m.rect)) return;
       const label = typeof m.label === "string" ? m.label.replace(/\s+/g, " ").trim().slice(0, 60) : "";
       const r = m.rect;
@@ -383,18 +347,12 @@
     if (!composer.hidden) { closeComposer(); render(); annotateBtn.focus(); } else if (ui.annotate) setAnnotate(false);
   });
 
-  // ---------- the live view ----------
-  /** A failed Approve or Stop: show its error and build the box afresh, so its button comes back even when the error
-   *  reads the same as the last one (the box's key would not change). */
   const liveFailed = x => { ui.liveErr = Core.errorText(x); liveBox._key = ""; render(); };
   const newTabLink = (cls, text, href) => {
     const a = E("a", cls, text);
     a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer"; a.referrerPolicy = "no-referrer";
     return a;
   };
-  /** The shown variant's live view: Open live prototype (a new tab, no opener, no referrer) only while its entry runs;
-   *  else what it waits for, or that it ended. The owner also gets Approve (with the attestation a server on a port
-   *  needs), Stop, and for a port a link to look at it on this machine first. */
   function renderLive(v) {
     const w = views(v), e = Core.liveOf(v), owner = Core.me.isOwner, link = Core.liveLink(v), kind = e?.status.kind || "";
     liveBox.hidden = !w.live;
@@ -485,7 +443,7 @@
     const v = current(q);
     if (!v) return;
     ui.variant = v.id;
-    if (!hasView(v) && ui.annotate) { ui.annotate = false; closeComposer(); } // nothing to pin a note to
+    if (!hasView(v) && ui.annotate) { ui.annotate = false; closeComposer(); }
     document.title = title.textContent = `${q.id}: ${q.short || q.text}`;
     qText.textContent = q.text;
     look.hidden = !q.lookAt && !v.lookAt;
@@ -520,7 +478,6 @@
     chooseBtn.setAttribute("aria-pressed", String(chosen));
     chooseBtn.disabled = !!ro;
     chooseBtn.title = ro;
-    // A pick replaces the person's card, so it carries their comment along, as the main page's pick does.
     chooseBtn.onclick = () => Core.pick(qid, chosen ? "" : v.id, rec?.text || "").then(() => say(chosen ? "Your choice is cleared." : `You chose ${v.label}.`))
       .catch(x => say(Core.errorText(x)));
     renderNotes(v);

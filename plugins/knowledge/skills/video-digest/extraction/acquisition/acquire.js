@@ -1,9 +1,3 @@
-/**
- * yt-dlp acquisition machinery the source adapters compose. Source dispatch
- * lives in `adapters/registry.js` (`acquireMedia`); this module never imports
- * the registry, keeping the adapter module graph acyclic.
- */
-
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -209,8 +203,6 @@ async function runAcquirePass(
     env,
     source,
   });
-  // Listed on failure too: yt-dlp stops at the first failed caption track,
-  // so tracks written before it are still usable.
   const files = await listFiles(workDir);
   return { spawnResult, detail: spawnResult.success ? "" : spawnFailureDetail(spawnResult), files };
 }
@@ -393,7 +385,6 @@ export async function acquireYouTubeMedia(
     captionResult = selectCaptionFile(artifacts.captionPaths, source.captionClass);
     captionError = captionRetry.detail;
     if (!captionResult.success && !captionRetry.spawnResult.success) {
-      // No caption file was fetched, so the ladder's "no captions" message would hide the cause.
       return failVideo(
         isRetryableAcquireError(captionRetry.detail)
           ? `Caption download rate-limited or temporarily unavailable after retries; the captions may exist, so wait several minutes and retry. yt-dlp: ${captionRetry.detail}`
@@ -404,9 +395,6 @@ export async function acquireYouTubeMedia(
 
   const captionOptional = mode === "full" && Boolean(artifacts.videoPath);
 
-  // A live-derived video's captions can still be in post-stream processing: hold it while
-  // the wait is open, in either mode, rather than stop or digest caption-less. A caller
-  // that can transcribe the downloaded media itself skips the hold.
   /** @type {import('./caption-wait.js').CaptionWaitDecision} */
   let captionWait = { state: "none" };
   let captionWaitNote = "";
@@ -454,8 +442,6 @@ export async function acquireYouTubeMedia(
     return failVideo(`Invalid info JSON: ${message}`);
   }
 
-  // info.json `subtitles` lists the manual tracks; the filename cannot tell
-  // a manual `.en.vtt` from an auto one.
   const manualLanguages =
     info?.subtitles && typeof info.subtitles === "object"
       ? Object.keys(info.subtitles)

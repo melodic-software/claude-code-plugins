@@ -3,6 +3,49 @@
 All notable changes to the `verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.30.10] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [0.30.9] - 2026-11-27
+
+### Changed
+
+- Trimmed `/verification:measure` (861 -> 349 chars), `/verification:confirm` (578 -> 324 chars), and user-only `/verification:setup` (654 -> 127 chars) frontmatter descriptions while preserving Stage 1 gating, the no-baseline rule, metrics triggers, and sibling boundaries.
+
+## [0.30.8] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.30.7] - 2026-11-26
+
+### Changed
+
+- `/verification:measure metrics` re-takes a baseline written under an earlier `code-metrics`
+  schema, now that reports use `code-metrics/v3`.
+
+## [0.30.6] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [0.30.5] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+## [0.30.4] - 2026-11-25
+
+### Changed
+
+- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
+
 ## [0.30.3] - 2026-11-24
 
 ### Changed

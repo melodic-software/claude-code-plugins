@@ -45,7 +45,9 @@ routes rather than halting unconditionally.
   **loud and actionable, never a silent default and never a raw mid-flow `exit 3`**, but it does not halt the
   invocation unconditionally:
   - **Seam coordination verbs** (`create-item`, `get-item`, `claim`, `renew-lease`, `release`, `reclaim`,
-    `link-blocks`, `add-sub-item`, `list-sub-items`, `list-items`, `list-frontier`, `capabilities`) cannot run
+    `link-blocks`, `add-sub-item`, `list-sub-items`, `list-items`, `list-frontier`, `set-native-status`,
+    `put-artifact`, `list-artifacts`, `get-artifact`, `link-relates`, `unlink-relates`, `list-relates`,
+    `capabilities`) cannot run
     without a binding: the seam hard-errors `exit 3`
     (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "Exit codes"). Before the first
     coordination verb, if no binding resolves, surface a message that distinguishes the two ways to
@@ -96,12 +98,12 @@ ways:
 
 | Kind | Where |
 |------|-------|
-| **Coordination**: create, claim (assignee + lease), renew/release/reclaim lease, dependency links, sub-items, child enumeration (`list-sub-items`), listing by state and one exact label (`list-items`), frontier selection (incl. `--parent`-scoped and `--label`-scoped), single-item fetch (identity/state/`parent_id`/`created_at`, with `--history` its close and reopen events, **not** body) | Seam verbs: the resolved `"$TRACKER" <verb>` dispatcher, contract in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` |
+| **Coordination**: create, claim (assignee + lease), renew/release/reclaim lease, dependency links (`link-blocks`), symmetric non-blocking links (`link-relates` / `unlink-relates` / `list-relates`), native lifecycle status writes (`set-native-status`), sub-items, child enumeration (`list-sub-items`), listing by state and one exact label (`list-items`), frontier selection (incl. `--parent`-scoped and `--label`-scoped), item artifacts (`put-artifact` / `list-artifacts` / `get-artifact`), single-item fetch (identity/state/`parent_id`/`created_at`/`native_status`, with `--history` its close and reopen events, **not** body) | Seam verbs: the resolved `"$TRACKER" <verb>` dispatcher, contract in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` |
 | **Provider mechanics**: list with filters, search, aggregate/count, close, label/assignee edits, comments, **reading an item's body** | The bound adapter's operations reference (GitHub: `${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/adapters/github/README.md`) |
 
 **Single-item fetch does not return a body.** `get-item` yields the normalized item object,
 `schema_version, id, title, state, assignees, labels, type, blocked_by_count,
-blocked_by_wont_do_count, parent_id, url, created_at, milestone`
+blocked_by_wont_do_count, parent_id, url, created_at, milestone, native_status`
 (`${CLAUDE_PLUGIN_ROOT}/tools/work-item-tracker/CONTRACT.md` "JSON output contract"), and there is
 **no `body` field** in it; `--body` exists only as a *write* parameter on `create-item`. `get-item`
 is nonetheless authoritative for `parent_id`, which is how an item reaches its container. Reading
@@ -219,6 +221,10 @@ never restate it. Verb forms are in `${CLAUDE_PLUGIN_ROOT}/tools/work-item-track
    skill names, then `"$TRACKER" set-fields <id> --field <field_id>=<option_id>`, before the label
    edit. A `null` `field_id`, a missing option, or a failed write leaves the item as it was, labels
    included, and is reported.
+7. **Native lifecycle status stays separate.** Normalized items also carry `native_status` (string
+   or `null`) for the provider's native lifecycle axis (`Backlog`, `Todo`, `In progress`,
+   `In review`, `Done`, `Not planned`, `Duplicate` on GitHub). It is display and board state only:
+   never substitute `native_status` for `Work status` or trusted-actor hold checks.
 
 ## Setting an item's priority
 
@@ -287,7 +293,7 @@ on Linear). The adapter owns that grammar and the change-to-item link text (`cha
 through `/work-items:track link` and writes the adapter's closing line into the PR body. The PR body
 shape and its pre-create linkage gate are owned by `/source-control:pull-request`.
 
-`/work-items:track done --pr <N>` is the belt-and-suspenders path for manual PR flows where
+`/work-items:track done --pr <N>` is the backup path for manual PR flows where
 `/source-control:pull-request create` was not used: it verifies keyword presence on the unmerged PR body or falls
 back to closing the item when the PR has already merged (mechanics: the GitHub adapter README "PR
 closing-keyword mechanics").

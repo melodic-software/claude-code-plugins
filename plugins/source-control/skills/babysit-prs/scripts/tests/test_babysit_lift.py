@@ -23,9 +23,6 @@ import unittest
 from typing import Any
 from unittest import mock
 
-# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
-# fixtures' identity writes into the caller's repository
-# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -82,8 +79,6 @@ class Fixture:
 
 class LiftBlock(unittest.TestCase):
     def test_a_line_hash_is_the_sha256_prefix_of_its_bytes(self) -> None:
-        # SHA-256 of the empty input is e3b0c442 98fc1c14 ... (FIPS 180-4
-        # test vectors).
         self.assertEqual(policy.line_hash(b""), "e3b0c44298fc")
 
     def test_a_block_round_trips_its_counts(self) -> None:
@@ -177,8 +172,6 @@ class DeletedLines(unittest.TestCase):
             self.assertEqual(lift.canary_lines(repo.dir, [clean]), [])
 
     def test_the_canary_scans_from_a_relative_repo_dir(self) -> None:
-        # The alert passes `--repo-dir .base`, relative to its working
-        # directory.
         repo = Fixture(self)
         repo.commit("base", {"keep.txt": "k\n"})
         repo.commit("feat: add (#5)", {"f.txt": "one\ntwo\nthree\nfour\n"})
@@ -342,8 +335,6 @@ class CloseLifted(unittest.TestCase):
         self.assertIn(f"pull request #7 merged at {FIX_MERGE}", gh.writes[0][-1])
 
     def test_a_stack_layer_merged_into_main_lifts_the_record(self) -> None:
-        # An upper layer of a native stack lands with the layers below it and
-        # keeps the lower layer's branch as its base; its stack's base is main.
         layer = merged_pull() | {"baseRefName": "feat/lower", "stack": {"baseRefName": "main"}}
         gh = Gh({9: REVERT}, [layer])
         self.assertEqual(self.run_close(gh), 1)
@@ -359,8 +350,6 @@ class CloseLifted(unittest.TestCase):
             self.assertEqual((self.run_close(gh), gh.writes), (0, []), other)
 
     def test_a_field_repository_close_removes_a_legacy_label(self) -> None:
-        # A record filed before the repository set models.issue-status still
-        # carries the label; post-merge-file-demotion-issues.yml removes it on close.
         gh = Gh({9: REVERT}, [merged_pull()])
         self.assertEqual(self.run_close(gh, status=object()), 1)
         self.assertEqual(
@@ -383,8 +372,6 @@ class CloseLifted(unittest.TestCase):
         self.assertIn("the deleted content is on main at", comment)
 
     def test_a_copy_the_deletion_left_behind_closes_nothing(self) -> None:
-        # The close runs the merge gate's own rule: a deleted line the file
-        # still held at the record's SHA is no restore.
         body = REVERT + "\n" + policy.lift_block([("f.py", b"gone")])
         files = {
             f"repos/{REPO}/contents/f.py?ref={FIX_MERGE}": "gone\n",
@@ -394,8 +381,6 @@ class CloseLifted(unittest.TestCase):
         self.assertEqual((self.run_close(gh), gh.writes), (0, []))
 
     def test_a_failed_evidence_comment_leaves_the_record_open(self) -> None:
-        # The comment carries the lift evidence; without it the record must
-        # stay open and labeled for the next run to retry.
         gh = Gh({9: REVERT}, [merged_pull()])
 
         def comment_fails(args: list[str], **kw: Any) -> subprocess.CompletedProcess[str]:

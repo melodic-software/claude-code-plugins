@@ -3,6 +3,58 @@
 All notable changes to the `overengineering` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.1] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions for `/overengineering:audit` (393 -> 350 chars), `/overengineering:justify` (468 -> 349 chars), and `/overengineering:realign` (379 -> 325 chars; total 1240 -> 1024 chars, -216 chars) while preserving read-only vs mutating posture, protected-class caps, rollback ladder, and sibling exclusions.
+
+## [2.0.0] - 2026-11-28
+
+### Removed
+
+- **Dropped legacy `.claude/` and `~/.claude/` dual-reads.** `/overengineering:audit`, `/overengineering:delta`, and `/overengineering:realign` now read only `<home>/overengineering.yaml` and `<home>/overengineering.local.yaml` and no longer read `~/.claude/overengineering.md`, `.claude/overengineering.md`, or `.claude/overengineering.local.md`.
+
+## [1.0.3] - 2026-11-28
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
+## [1.0.2] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [1.0.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [1.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+## [0.13.6] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [0.13.5] - 2026-11-25
+
+### Changed
+
+- `/overengineering:justify` planned mode resolves the standards index through the org layer too, when the repository names a `standards_repository`.
+
 ## [0.13.4] - 2026-11-24
 
 ### Changed

@@ -1,60 +1,20 @@
 #!/usr/bin/env bash
-# Generate a work-item-tracker adapter from an adapter spec.
-#
-# This is the DETERMINISTIC half of /work-items:onboard-adapter
-# (/discipline:script-the-deterministic-work). Everything here is mechanical: given a
-# validated spec, the security skeleton, the capabilities manifest, the verb
-# scaffolds, the conformance binding, and the README follow by construction. The
-# judgment — which verbs the provider can honestly support, what its fields mean,
-# what a live instance actually returns — happens in the skill, before this runs, and
-# lands in the spec.
-#
-# Two things this script deliberately does that a template expander would not:
-#   1. It REFUSES an incoherent spec (verbs claiming features the manifest denies),
-#      because the manifest is a promise the core routes on. See check_coherence.
-#   2. It stamps the generated manifest with the SEAM's own contract version, read
-#      from lib/json.sh — never a value the spec supplies. A generated adapter that
-#      declared its own version could be born already skewed from the engine that
-#      will dispatch it (CONTRACT.md "Contract-version handshake").
-#
-# Usage:
-#   generate-adapter.sh --spec <file> [--out-root <dir>] [--force] [--dry-run]
-#
-#   --spec      the adapter spec JSON (see reference/adapter-spec.md)
-#   --out-root  repo root to generate into; default $CLAUDE_PROJECT_DIR, else the
-#               git toplevel. Files land under <out-root>/tools/work-item-tracker/.
-#   --force     overwrite existing generated files (refuses without it)
-#   --dry-run   report what would be written, write nothing
-#
 # shellcheck disable=SC2034  # the @@KEY@@ substitution values are read by name via ${!k} in render(); ShellCheck cannot see indirect expansion
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
-# The seam this adapter is generated against. Relative by default (the skill ships
-# inside the same plugin as the seam); WIT_SEAM_DIR overrides for tests.
 SEAM_DIR="${WIT_SEAM_DIR:-$SCRIPT_DIR/../../../tools/work-item-tracker}"
 
 readonly EX_USAGE=2
 readonly EX_SPEC=3
 
-# The shebang the GENERATED scripts carry. It is substituted rather than written
-# literally in the templates for a reason that is not cosmetic: a template is not a
-# script, and a file that opens with a shebang is treated as one by tooling that
-# discovers scripts rather than being told about them. Left literal, the templates sat
-# in a contradiction between two repo gates — the exec-bit check flags a shebang file
-# recorded non-executable, and making them executable then fed them to the repo's
-# ShellCheck lane, which cannot parse a file full of @@PLACEHOLDER@@ tokens. Templates
-# carry no shebang, so neither gate claims them; the generated output gets one here,
-# and `emit` marks it executable.
 SHEBANG='#!/usr/bin/env bash'
 
-# The adapter verb surface (CONTRACT.md "Adapter contract"): the core public set
-# minus list-frontier, status-storage and wayfind-labels (core-derived), plus list-items.
 readonly ADAPTER_VERBS=(
   create-item get-item claim renew-lease release reclaim link-blocks
-  add-sub-item list-items list-sub-items label-provenance set-fields get-field-options get-statuses
-  change-link add-recurrence capabilities
+  add-sub-item list-items list-sub-items label-provenance set-fields set-native-status get-field-options get-statuses
+  change-link add-recurrence put-artifact list-artifacts get-artifact link-relates unlink-relates list-relates capabilities
 )
 readonly FEATURE_KEYS=(cross_repo_edges sub_items leases labels)
 readonly LIMIT_KEYS=(sub_items_per_parent sub_item_depth dependencies_per_type list_items_max)
@@ -70,24 +30,29 @@ die_spec() {
   exit "$EX_SPEC"
 }
 
-# --- arguments ---
-
 SPEC=""
 OUT_ROOT=""
 FORCE=0
 DRY_RUN=0
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
-  sed -n '/^# Usage:/,/^#   --dry-run/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'TXT'
+Generate a consumer-owned work-item tracker adapter from an adapter spec.
+
+Usage: generate-adapter.sh --spec <file> [--out-root <dir>] [--force] [--dry-run]
+  --spec      the adapter spec JSON (see reference/adapter-spec.md)
+  --out-root  repo root to generate into; default $CLAUDE_PROJECT_DIR, else the git toplevel
+  --force     overwrite existing generated files (refuses without it)
+  --dry-run   report what would be written, write nothing
+  --help      print this help
+
+Exit 0 generated; 2 usage error; 3 invalid spec.
+TXT
   exit 0
 fi
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  # An EMPTY value is rejected, not just a missing one. `--out-root ""` would
-  # otherwise be indistinguishable from "no --out-root given" and fall through to
-  # the repo-root default — so a caller whose variable failed to expand would
-  # generate into the current repository instead of where it meant to.
   --spec)
     [[ $# -ge 2 && -n "$2" ]] || die_usage "--spec needs a non-empty value"
     SPEC="$2"
@@ -124,9 +89,6 @@ fi
 
 SPEC_JSON="$(jq -c . "$SPEC" 2>/dev/null)" || die_spec "not valid JSON"
 
-# --- spec validation ---
-
-# sget <jq-path> — a raw string field, empty when absent.
 sget() { jq -r "$1 // empty" <<<"$SPEC_JSON"; }
 
 SPEC_VERSION="$(sget '.spec_version')"
@@ -134,33 +96,15 @@ SPEC_VERSION="$(sget '.spec_version')"
   die_spec "spec_version must be \"1.0\" (found: ${SPEC_VERSION:-none})"
 
 PROVIDER="$(sget '.provider')"
-# The provider name becomes a directory name, a file path segment, a shell function
-# name fragment, a jq object key, and part of every generated identifier. Constrain it
-# ONCE, here, so nothing downstream has to escape it.
 [[ "$PROVIDER" =~ ^[a-z][a-z0-9-]{0,31}$ ]] ||
   die_spec "provider must match ^[a-z][a-z0-9-]{0,31}\$ (found: ${PROVIDER:-none})"
 
-# Derived spellings of the provider name, needed from here on. Hyphens are not legal
-# in shell identifiers or in the jq object-key shorthand, so the function/variable/key
-# spellings underscore them.
 PROVIDER_FUNC="${PROVIDER//-/_}"
-# `tr` rather than `${PROVIDER_FUNC^^}`: the case-folding expansions are bash 4.0+,
-# and this script carries no version gate to keep them behind — on a stock macOS,
-# where `/usr/bin/env bash` finds the system bash 3.2, `^^` is a fatal expansion
-# error, so every valid spec would abort here before an adapter was written. The
-# fork is the price of running where check-drive-root-litter.sh says we run.
 PROVIDER_UPPER="$(tr '[:lower:]' '[:upper:]' <<<"$PROVIDER_FUNC")"
 CONFIG_KEY="$PROVIDER_FUNC"
 
 DISPLAY_NAME="$(sget '.display_name')"
 [[ -n "$DISPLAY_NAME" ]] || die_spec "display_name is required"
-# Constrained here, with its neighbors, for the reason render() states: values are
-# substituted LITERALLY and nothing downstream escapes them. display_name is the one
-# free-prose key that reaches all three dangerous context classes in the templates —
-# a single-quoted printf format (`common.sh.tmpl`), a DOUBLE-quoted `${VAR:?…}` where
-# `$(…)` still expands with no quote to break (`conformance-binding.sh.tmpl`), and
-# several `#` comment lines a newline would end. One anchored charset closes all three;
-# a per-context escape would have to be right in every template forever.
 [[ "$DISPLAY_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9\ ._/+-]*$ ]] ||
   die_spec "display_name must be letters, digits, spaces, and . _ / + - only, starting alphanumeric (found: $DISPLAY_NAME) — it is substituted literally into generated shell, including a double-quoted expansion where \$(…) would execute"
 
@@ -179,32 +123,13 @@ bearer | token | basic | raw) ;;
 esac
 
 SCOPE_PATTERN="$(jq -r '.api.scope_pattern // "^[A-Za-z0-9][A-Za-z0-9._/-]*$"' <<<"$SPEC_JSON")"
-# The pattern is baked into the generated guard, so an unanchored one would silently
-# accept a conforming PREFIX of a hostile value — exactly the hole the guard exists to
-# close. Refuse it rather than repair it.
 [[ "$SCOPE_PATTERN" == ^* && "$SCOPE_PATTERN" == *\$ ]] ||
   die_spec "api.scope_pattern must be anchored at both ends (^…\$) — an unanchored pattern accepts a conforming prefix of a hostile value"
 
 SAMPLE_SCOPE="$(sget '.api.sample_scope')"
 [[ -n "$SAMPLE_SCOPE" ]] || die_spec "api.sample_scope is required (it seeds the generated fixtures)"
-# TWO checks, for two different jobs, and neither substitutes for the other.
-#
-# The charset first. sample_scope is substituted LITERALLY into generated shell, and
-# `common.test.sh.tmpl` puts it in a DOUBLE-quoted argument — where `$(…)` still
-# executes and a `"` closes the string outright. quote_safe() below only refuses a
-# single quote, so nothing else stands between the spec and live code in a file whose
-# execution is step 1 of this script's own printed "Next:" instructions.
-#
-# The charset is deliberately wider than any shipped provider needs and still excludes
-# every shell metacharacter: `owner/repo` (gitea `^[A-Za-z0-9][A-Za-z0-9._-]*/…$`,
-# github), `<workspace>/<TEAMKEY>` (linear `^[a-z0-9][a-z0-9-]*/[A-Z][A-Z0-9]*$`), and
-# bare jira project keys (`^[A-Za-z][A-Za-z0-9_]*$`) all fit inside it, as does this
-# script's own default scope_pattern.
 [[ "$SAMPLE_SCOPE" =~ ^[A-Za-z0-9][A-Za-z0-9._~/-]*$ ]] ||
   die_spec "api.sample_scope must be letters, digits, and . _ ~ / - only, starting alphanumeric (found: $SAMPLE_SCOPE) — it is substituted literally into generated shell, including a double-quoted argument where \$(…) would execute and a \" would break out"
-# The pattern match second, and it is NOT redundant: the charset says the sample is
-# inert, this says the sample is representative. A fixture that fails the provider's
-# own scope guard would make the generated adapter fail its own tests on birth.
 [[ "$SAMPLE_SCOPE" =~ $SCOPE_PATTERN ]] ||
   die_spec "api.sample_scope '$SAMPLE_SCOPE' does not match api.scope_pattern '$SCOPE_PATTERN'"
 
@@ -221,9 +146,6 @@ if [[ -n "$HOST_SUFFIX" && "$SAMPLE_HOST" != *"$HOST_SUFFIX" ]]; then
   die_spec "api.sample_host '$SAMPLE_HOST' is not under api.host_suffix '$HOST_SUFFIX' — the generated fixture would fail its own guard"
 fi
 
-# Verbs: exactly the adapter surface, every value a boolean. A missing key is not
-# defaulted to false — an unlisted verb means the spec was written against a different
-# contract revision, and guessing would produce a manifest that lies.
 for v in "${ADAPTER_VERBS[@]}"; do
   got="$(jq -r --arg v "$v" '.verbs[$v] | type' <<<"$SPEC_JSON" 2>/dev/null)"
   [[ "$got" == "boolean" ]] ||
@@ -240,10 +162,6 @@ for k in "${FEATURE_KEYS[@]}"; do
   got="$(jq -r --arg k "$k" '.features[$k] | type' <<<"$SPEC_JSON" 2>/dev/null)"
   [[ "$got" == "boolean" ]] || die_spec "features[\"$k\"] must be present and boolean (found: ${got:-absent})"
 done
-# A limit is a non-negative integer or null (CONTRACT.md "Capabilities manifest").
-# The three values are distinct: n>0 is an enforced ceiling, 0 says the capability is
-# unsupported, null says it is supported and unbounded. Presence is checked separately
-# from the value, because jq's `//` would collapse an intentional null into "absent".
 for k in "${LIMIT_KEYS[@]}"; do
   [[ "$(jq -r --arg k "$k" '.limits | has($k)' <<<"$SPEC_JSON" 2>/dev/null)" == "true" ]] ||
     die_spec "limits[\"$k\"] must be present (a non-negative integer, or null for no provider-enforced ceiling)"
@@ -255,27 +173,16 @@ done
 [[ "$(jq -r '(.deferrals // []) | if type == "array" and (all(type == "string")) then "ok" else "bad" end' <<<"$SPEC_JSON")" == "ok" ]] ||
   die_spec "deferrals must be an array of strings"
 
-# No spec-supplied value may carry the placeholder delimiter, or rendering would
-# substitute into a value and produce something the spec never said.
 if grep -q '@@' <<<"$SPEC_JSON"; then
   die_spec "spec contains the placeholder delimiter '@@' — remove it; it is reserved by the templates"
 fi
 
-# check_coherence — the manifest is a PROMISE the core routes on: it gates whether a
-# verb is attempted at all, and callers branch on features/limits without re-probing.
-# A spec that claims a verb while denying the feature it needs (or the reverse) yields
-# a manifest that lies in a direction no runtime error will correct. Refuse it here,
-# where the fix is one edit, rather than let it fail as a shape error mid-flow.
 check_coherence() {
   local bad="" v
   vb() { jq -r --arg v "$1" '.verbs[$v]' <<<"$SPEC_JSON"; }
   ft() { jq -r --arg k "$1" '.features[$k]' <<<"$SPEC_JSON"; }
   lm() { jq -r --arg k "$1" '.limits[$k]' <<<"$SPEC_JSON"; }
 
-  # Leases are the claim protocol; the three verbs stand or fall together, because a
-  # claim that cannot be renewed or reclaimed strands the item at TTL expiry. `release`
-  # is optional (CONTRACT.md "Release": capability-gated, exit 6 when false): declaring
-  # it requires leases, but leases do not require it.
   for v in claim renew-lease release reclaim; do
     if [[ "$(vb "$v")" == "true" && "$(ft leases)" != "true" ]]; then
       bad+=$'\n'"  verbs[\"$v\"]=true but features.leases=false"
@@ -288,15 +195,11 @@ check_coherence() {
     done
   fi
 
-  # Sub-item verbs and the sub_items feature likewise describe one capability.
   for v in add-sub-item list-sub-items; do
     if [[ "$(vb "$v")" == "true" && "$(ft sub_items)" != "true" ]]; then
       bad+=$'\n'"  verbs[\"$v\"]=true but features.sub_items=false"
     fi
   done
-  # Limits are checked against 0 only. `null` means "supported, no provider-enforced
-  # ceiling" and is compatible with the capability being ON — it is what a provider
-  # that caps nothing declares instead of inventing a plausible number.
   if [[ "$(ft sub_items)" != "true" && "$(lm sub_items_per_parent)" != "0" ]]; then
     bad+=$'\n'"  features.sub_items=false but limits.sub_items_per_parent=$(lm sub_items_per_parent) (a ceiling on something declared unsupported; use 0)"
   fi
@@ -304,8 +207,6 @@ check_coherence() {
     bad+=$'\n'"  features.sub_items=true but limits.sub_items_per_parent=0 (no container could hold a child; use null for no ceiling)"
   fi
 
-  # verb_limit <verb> <limit> <hint>: a declared verb needs a nonzero limit, and an
-  # undeclared one needs the limit at 0; <hint> follows the first complaint.
   verb_limit() {
     local limit
     limit="$(lm "$2")"
@@ -315,11 +216,7 @@ check_coherence() {
       [[ "$limit" == "0" ]] || bad+=$'\n'"  verbs[\"$1\"]=false but limits.$2=$limit (use 0)"
     fi
   }
-  # list-items is what the core derives list-frontier from; without it the seam can
-  # enumerate nothing, and its declared ceiling must be a real one.
   verb_limit list-items list_items_max "pagination must have a real ceiling; use null only if the provider truly returns everything"
-  # link-blocks is how blocked_by edges are written; without cross_repo_edges the
-  # ceiling on dependencies is still meaningful, so only the verb/limit pair is checked.
   verb_limit link-blocks dependencies_per_type "use null when the provider enforces no ceiling"
 
   if [[ -n "$bad" ]]; then
@@ -334,9 +231,6 @@ if [[ "$(jq -r '.verbs["list-items"]' <<<"$SPEC_JSON")" != "true" ]]; then
   printf 'generate-adapter.sh: note: verbs["list-items"]=false, so list-frontier can never succeed for this provider (exit 6 at the capability gate). Intentional for a consume-only adapter.\n' >&2
 fi
 
-# --- derived values ---
-
-# The contract version is the SEAM's, never the spec's — see the header.
 SEAM_JSON_LIB="$SEAM_DIR/lib/json.sh"
 [[ -f "$SEAM_JSON_LIB" ]] ||
   die_usage "seam lib not found: $SEAM_JSON_LIB (set WIT_SEAM_DIR)"
@@ -344,21 +238,12 @@ SEAM_JSON_LIB="$SEAM_DIR/lib/json.sh"
 source "$SEAM_JSON_LIB"
 SCHEMA_VERSION="$WIT_SCHEMA_VERSION"
 
-# The ID grammar is likewise the seam's, sourced rather than restated — a second
-# copy here would drift and the generated fixtures would validate against a grammar
-# the engine no longer uses.
 SEAM_ID_LIB="$SEAM_DIR/lib/id.sh"
 [[ -f "$SEAM_ID_LIB" ]] ||
   die_usage "seam lib not found: $SEAM_ID_LIB (set WIT_SEAM_DIR)"
 # shellcheck source=../../../tools/work-item-tracker/lib/id.sh
 source "$SEAM_ID_LIB"
 
-# A sample fully-qualified id seeds the generated fixtures. The grammar is
-# <provider>:<owner>/<repo>#<n> — exactly two path segments — so it cannot simply be
-# composed from host and scope: a scope like `acme/webapp` already carries the whole
-# owner/repo pair, while one like `SW2` is a bare project key that needs the host in
-# front of it. Default accordingly, and let the spec state it outright when neither
-# shape fits.
 if [[ "$SAMPLE_SCOPE" == */* && "$SAMPLE_SCOPE" != */*/* ]]; then
   default_sample_id="$PROVIDER:$SAMPLE_SCOPE#12"
 else
@@ -369,14 +254,8 @@ SAMPLE_ID="$(jq -r --arg d "$default_sample_id" '.api.sample_id // $d' <<<"$SPEC
   die_spec "api.sample_id '$SAMPLE_ID' is not a well-formed id (<provider>:<owner>/<repo>#<n>) — set api.sample_id explicitly when neither host nor scope yields one"
 [[ "${BASH_REMATCH[1]}" == "$PROVIDER" ]] ||
   die_spec "api.sample_id '$SAMPLE_ID' names provider '${BASH_REMATCH[1]}', not '$PROVIDER'"
-# The generated test asserts the parsed number, so it has to come from the sample id
-# rather than a constant.
 SAMPLE_ID_NUMBER="${SAMPLE_ID##*#}"
 
-# These are substitution VALUES, so they interpolate $DISPLAY_NAME directly rather than
-# carrying an @@…@@ placeholder: render() walks its key list once, and a placeholder
-# inserted by a later key is never revisited — it would reach the generated file
-# verbatim.
 if [[ -n "$HOST_SUFFIX" ]]; then
   HOST_SUFFIX_DOC="\`$HOST_SUFFIX\` (the provider's own domain)"
   HOST_PIN_POSTURE="pinned in code to \`$HOST_SUFFIX\`. A binding naming a host outside it is refused unless \`allow_custom_domain\` is set."
@@ -385,26 +264,18 @@ else
   HOST_PIN_POSTURE="**no code-level pin.** $DISPLAY_NAME is self-hosted, so no vendor domain exists to pin against; the host is bare-hostname-validated and HTTPS-only, and the remaining defense is that \`host\` lives in a tracked, review-gated file. Set \`config.$CONFIG_KEY.host_suffix\` in your binding to pin it to your own instance — recommended."
 fi
 
-# --- auth scheme rendering ---
-# Each scheme differs in exactly four places; keeping them together here beats a
-# template per scheme.
-
 AUTH_CONFIG_READ=""
 AUTH_CONFIG_REQUIRE=""
 AUTH_EXPORT_EXTRA=""
 SAMPLE_AUTH_EXTRA=""
 SAMPLE_AUTH_EXTRA_DOC=""
 AUTH_DOC_ROW=""
-# Extra conformance-binding wiring for schemes that need a config value beyond host,
-# scope, and the credential env var. Empty for every scheme that does not.
 AUTH_CONFORMANCE_REQUIRE=""
 AUTH_CONFORMANCE_JQARG=""
 CONFORMANCE_AUTH_EXTRA=""
 
 case "$AUTH_SCHEME" in
 raw)
-  # The bare Authorization value with no scheme word. Its own scheme rather than an empty
-  # prefix, so the generated header cannot come out with a stray leading space.
   AUTH_DESCRIPTION="a $DISPLAY_NAME API key sent as the bare \`Authorization\` value, with no scheme word"
   AUTH_HEADER_EXPECT="\"Authorization: \$SECRET\""
   AUTH_HELPERS="
@@ -435,26 +306,17 @@ wit_${PROVIDER_FUNC}_auth_header() {
   ;;
 basic)
   AUTH_DESCRIPTION="HTTP Basic — the account identity from \`config.$CONFIG_KEY.auth_user\` plus an API token"
-  # Basic ENCODES the credential, so the generated test asserts on the encoded header
-  # rather than the raw token — otherwise a leak of the encoded form into argv would
-  # slip past a case looking only for the plaintext secret.
   AUTH_HEADER_EXPECT="\"Authorization: Basic \$(printf '%s' \"ci@example.invalid:\$SECRET\" | base64 | tr -d '\\n')\""
   AUTH_CONFIG_READ="  WIT_${PROVIDER_UPPER}_AUTH_USER=\"\$(jq -r '.config.$CONFIG_KEY.auth_user // empty' <<<\"\$ejson\")\""
   AUTH_CONFIG_REQUIRE="  [[ -n \"\$WIT_${PROVIDER_UPPER}_AUTH_USER\" ]] || missing+=\" config.$CONFIG_KEY.auth_user\""
   AUTH_EXPORT_EXTRA=" WIT_${PROVIDER_UPPER}_AUTH_USER"
-  # Two consumers, two values: the offline fixture takes a literal, while the conformance
-  # binding must read the identity from the environment or it 401s against a real instance.
   SAMPLE_AUTH_EXTRA=',"auth_user":"ci@example.invalid"'
-  # shellcheck disable=SC2016  # $au is a jq variable bound by --arg in the generated
-  # binding, not a shell expansion — it must survive into the emitted file unexpanded.
+  # shellcheck disable=SC2016  # $au is a jq variable
   CONFORMANCE_AUTH_EXTRA=',"auth_user":$au'
-  # No apostrophe in this message: bash parses quotes inside ${VAR:?word}, so a lone
-  # one opens a quoted region and the generated file stops parsing.
   AUTH_CONFORMANCE_REQUIRE="  local auth_user
   auth_user=\"\${WIT_CONFORMANCE_${PROVIDER_UPPER}_AUTH_USER:?set WIT_CONFORMANCE_${PROVIDER_UPPER}_AUTH_USER to the throwaway account identity for HTTP Basic; the token half stays in the credential env var}\"
 "
-  # shellcheck disable=SC2016  # emitted verbatim as the generated binding's own jq
-  # invocation; $auth_user is that file's local, expanded when IT runs, not here.
+  # shellcheck disable=SC2016  # emitted verbatim
   AUTH_CONFORMANCE_JQARG=' --arg au "$auth_user"'
   SAMPLE_AUTH_EXTRA_DOC=",
       \"auth_user\": \"you@example.com\""
@@ -482,10 +344,6 @@ wit_${PROVIDER_FUNC}_auth_header() {
   ;;
 esac
 
-# --- per-verb argument parsing ---
-# Contract-fixed and therefore generated in full (CONTRACT.md "Verbs"). Only the
-# provider mapping is left to the human.
-
 usage_args_for() {
   case "$1" in
   create-item) printf -- '--title <t> [--body <b>] [--labels a,b] [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <o>/<r>]' ;;
@@ -499,6 +357,11 @@ usage_args_for() {
   list-sub-items) printf -- '<parent-id> [--state open|closed|all]' ;;
   change-link) printf -- '(<id> | --branch-ref <ref>) [--repo <o>/<r>]' ;;
   add-recurrence) printf -- '<id> --source-link <url> --note <text>' ;;
+  put-artifact) printf -- '<id> (--body-file <path> | --body <text> | --url <url>) [--name <name>] [--type generic|plan|embedded_html] [--artifact <number>]' ;;
+  list-artifacts) printf -- '<id> [--type generic|plan|link|embedded_html] [--limit <n>]' ;;
+  get-artifact) printf -- '<id> (--artifact <number> | --name <name>) [--version <n>] [--versions]' ;;
+  link-relates | unlink-relates) printf -- '<id> --related-to <id>' ;;
+  list-relates) printf -- '<id>' ;;
   *) printf -- '' ;;
   esac
 }
@@ -521,12 +384,7 @@ mapping_note_for() {
   esac
 }
 
-# opt_loop <flag>=<VAR>… emits the generated option-parsing loop for one verb. Every
-# adapter flag takes a value, so its arm differs from every other only in the flag name
-# and the variable it fills; emitting all of them from here keeps them
-# identical, including the unknown-argument arm that closes each loop.
-# shellcheck disable=SC2016  # $#/$1/$2 belong to the GENERATED script's own argument
-# loop; single quotes are what keeps them unexpanded on their way into the output.
+# shellcheck disable=SC2016  # $#/$1/$2 belong to the GENERATED script
 opt_loop() {
   printf 'while [[ $# -gt 0 ]]; do\n  case "$1" in\n'
   local opt flag
@@ -538,7 +396,6 @@ opt_loop() {
   printf '  *) wit_usage_error "unexpected argument: $1" ;;\n  esac\ndone\n'
 }
 
-# id_head <VAR>: the generated lines that take the verb's leading positional id into VAR.
 id_head() {
   cat <<EOF
 $1="\${1:-}"
@@ -547,19 +404,16 @@ shift
 EOF
 }
 
-# require_id <VAR>: the generated guard that VAR holds this provider's item id.
 require_id() {
   cat <<EOF
 wit_require_${PROVIDER_FUNC}_id "\$$1" || wit_usage_error "not a @@PROVIDER@@ item id: \$$1"
 EOF
 }
 
-# no_more_args: the generated guard that refuses any argument left over.
 no_more_args() {
   printf '%s\n' "[[ \$# -eq 0 ]] || wit_usage_error \"unexpected argument: \$1\""
 }
 
-# state_check: the generated guard on a --state value.
 state_check() {
   cat <<EOF
 case "\$STATE" in
@@ -569,7 +423,6 @@ esac
 EOF
 }
 
-# parse_block_for <verb> — the generated argument-parsing code for that verb.
 parse_block_for() {
   local verb="$1"
   case "$verb" in
@@ -609,8 +462,6 @@ EOF
 EOF
     ;;
   link-blocks | add-sub-item)
-    # Both edge verbs are `<id> --<flag> <id>`, differing only in the flag and the
-    # variable it fills; emitting them from one arm keeps the two identical.
     local flag var
     if [[ "$verb" == "link-blocks" ]]; then
       flag="blocked-by" var="BLOCKED_BY"
@@ -666,49 +517,19 @@ EOF
   esac
 }
 
-# --- rendering ---
-
-# render <template-file> [extra-key extra-value]… — substitute every @@KEY@@ with its
-# value. Pure bash parameter expansion, so a value is inserted LITERALLY: there is no
-# regex, no delimiter to collide with, and nothing a value can do to change which key
-# is being replaced. Longest keys first so no key is a prefix of another's match.
-# Keys whose value lands inside a SINGLE-QUOTED context in at least one template
-# (`readonly …='@@SCOPE_PATTERN@@'`, `jq '.config.@@CONFIG_KEY@@…'`, and so on).
-# Derived by grepping the template set for `'…@@KEY@@…'`; re-derive it when a
-# template adds a quoted substitution.
 QUOTED_CONTEXT_KEYS=" CONFIG_KEY DISPLAY_NAME HOST_SUFFIX PROVIDER PROVIDER_FUNC \
 PROVIDER_UPPER SAMPLE_AUTH_EXTRA SAMPLE_HOST SAMPLE_SCOPE SCOPE_PATTERN USAGE_ARGS VERB "
 
-# A single quote is the ONE character that can end such a context; everything after it
-# is live shell in the generated file. Every one of these keys is now constrained to a
-# safe character class upstream — `scope_pattern` is the last deliberately permissive
-# one (it carries a regex, so it cannot be charset-bounded), and a future template may
-# quote a key nobody re-audited. So the refusal stays here, at the single choke point
-# every value passes through, as the backstop behind the per-key validators rather than
-# as the only guard. It is NOT sufficient on its own: it sees only single quotes, so a
-# key that reaches a DOUBLE-quoted context needs its own anchored charset upstream —
-# which is what `display_name` and `sample_scope` have.
-#
-# Refuse rather than escape — the doctrine `common.sh.tmpl` states at its own scope
-# guard: "an escaping bug is silent, a rejection is loud." No legitimate provider scope,
-# host, or identifier contains a single quote.
 quote_safe() {
   case "$QUOTED_CONTEXT_KEYS" in
   *" $1 "*)
     [[ "$2" != *\'* ]] ||
       die_spec "$1 must not contain a single quote — it is rendered inside a single-quoted shell string, and a quote there ends the string and makes the rest executable (value: $2)"
     ;;
-  # A key that reaches no single-quoted context needs no check here. Spelled out
-  # rather than left implicit: the repo's add-default-case rule is on precisely so a
-  # silent fallthrough is never mistaken for a considered one.
   *) ;;
   esac
 }
 
-# The global substitution set, hoisted out of render() so the sweep below can walk it
-# at TOP LEVEL. Longest keys first so no key is a prefix of another's match, and
-# PROVIDER last so the `@@PROVIDER@@` tokens inside a caller-supplied PARSE_BLOCK are
-# still reached.
 readonly RENDER_KEYS=(
   SHEBANG
   PROVIDER_UPPER PROVIDER_FUNC DISPLAY_NAME CONFIG_KEY
@@ -720,12 +541,6 @@ readonly RENDER_KEYS=(
   AUTH_HEADER_EXPECT AUTH_HELPERS AUTH_DOC_ROW PROVIDER
 )
 
-# Sweep every global value through quote_safe HERE, at top level, before the first
-# emit — because a refusal raised from inside render() cannot stop this script. Every
-# render() call is made as `$(render …)`, and `exit` inside a command substitution
-# kills only that subshell, so a refusal there would still write EMPTY executable
-# scripts and exit 0. render() keeps its own per-value call as the backstop for the caller-supplied pairs,
-# which are generator constants; this sweep is the one that can actually abort.
 for k in "${RENDER_KEYS[@]}"; do
   quote_safe "$k" "${!k-}"
 done
@@ -734,13 +549,8 @@ render() {
   local file="$1"
   shift
   local text
-  # `cat` rather than `$(<"$file")`: the redirection form reports a missing
-  # template as a bash error carrying THIS script's line number, where `cat`
-  # names only the template path.
   text="$(cat "$file")"
   local k v
-  # Caller-supplied pairs first: they are per-file (verb name, tables) and never
-  # collide with the global set above.
   while [[ $# -ge 2 ]]; do
     k="$1"
     v="$2"
@@ -762,10 +572,6 @@ BINDINGS_DIR="$OUT_ROOT/tools/work-item-tracker/conformance/bindings"
 WRITTEN=()
 SKIPPED=()
 
-# emit <path> <content> [executable] — write one generated file, refusing to clobber
-# without --force. Refusal is per-file and non-fatal: a regeneration that would only
-# overwrite files the consumer has since edited should report exactly which, not
-# abort halfway through with some files already replaced.
 emit() {
   local path="$1" content="$2" exec_bit="${3:-}"
   if [[ -e "$path" && $FORCE -eq 0 ]]; then
@@ -777,15 +583,11 @@ emit() {
     return 0
   fi
   mkdir -p "$(dirname "$path")"
-  # Exactly one trailing newline: render()'s output goes through a command
-  # substitution, which strips them, and a file with none fails both the repo's
-  # editorconfig check and shfmt.
   printf '%s\n' "${content%$'\n'}" >"$path"
   [[ -n "$exec_bit" ]] && chmod +x "$path"
   WRITTEN+=("$path")
 }
 
-# capabilities.json — stamped with the SEAM's contract version, not the spec's.
 MANIFEST="$(jq -S --arg sv "$SCHEMA_VERSION" --arg p "$PROVIDER" \
   '{schema_version: $sv, provider: $p, verbs: .verbs, features: .features, limits: .limits} + (if .change_link then {change_link: .change_link} else {} end)' \
   <<<"$SPEC_JSON")"
@@ -808,8 +610,6 @@ done
 
 emit "$BINDINGS_DIR/$PROVIDER.sh" "$(render "$TEMPLATE_DIR/conformance-binding.sh.tmpl")"
 
-# README: the verb table and the deferrals are derived from the spec, so the document
-# cannot drift from the manifest it describes.
 VERB_TABLE="| Verb | Declared | Status |"$'\n'"|---|---|---|"
 for v in "${ADAPTER_VERBS[@]}"; do
   declared="$(jq -r --arg v "$v" '.verbs[$v]' <<<"$SPEC_JSON")"
@@ -835,8 +635,6 @@ fi
 emit "$ADAPTER_DIR/README.md" "$(render "$TEMPLATE_DIR/README.md.tmpl" \
   VERB_TABLE "$VERB_TABLE" \
   DEFERRALS_SECTION "$DEFERRALS_SECTION")"
-
-# --- report ---
 
 if [[ ${#WRITTEN[@]} -gt 0 ]]; then
   if [[ $DRY_RUN -eq 1 ]]; then

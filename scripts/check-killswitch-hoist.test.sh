@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-killswitch-hoist.sh. Builds a tiny synthetic plugins/ tree
-# per scenario in a temp dir and invokes the script against it directly -- the
-# script's own `cd "$(dirname "$0")/.."` makes this work unmodified: copy it to
-# <fixture>/scripts/ and it scans <fixture>/plugins/.
-#
-# The load-bearing case is "reversed order fails". A gate that only ever sees
-# correct input proves nothing, so every rule below is exercised from BOTH sides.
 # shellcheck disable=SC2016  # fixture bodies and hooks.json commands are literal shell text carrying ${CLAUDE_PLUGIN_OPTION_*}/${CLAUDE_PLUGIN_ROOT}; expansion is never wanted
 set -uo pipefail
 
@@ -18,27 +11,20 @@ HOOK_UTILS="$SELF_DIR/../lib/hook-utils.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-# The gate pins its inlined predicate against the real hook::is_enabled, so every
-# fixture carries the real library rather than a stub: a stub would let the pin
-# pass on text this repo does not actually ship.
-new_fixture() { # <out-var>
+new_fixture() {
   fixture_tree::build "$1" --sut "$SCRIPT" --plugins || return 1
   mkdir -p "${!1}/lib"
   cp "$HOOK_UTILS" "${!1}/lib/hook-utils.sh"
 }
 
-# guard <fixture> <plugin> <name> <body>
 guard() {
   local fixture="$1" plugin="$2" name="$3" body="$4"
   mkdir -p "$fixture/plugins/$plugin/hooks"
   printf '%s\n' "$body" >"$fixture/plugins/$plugin/hooks/$name"
 }
 
-# hooks_json <fixture> <plugin> <command> [<event>]   (event defaults to PreToolUse)
 hooks_json() {
   local fixture="$1" plugin="$2" command="$3" event="${4:-PreToolUse}"
   mkdir -p "$fixture/plugins/$plugin/hooks"
@@ -61,7 +47,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/hook-utils.sh"
 
 exit 0'
 
-# The pre-#3719 shape, verbatim: library first, switch second.
 REVERSED='#!/usr/bin/env bash
 set -uo pipefail
 
@@ -145,8 +130,6 @@ else
   fail "an opt-in guard (unset default false) passes (rc=$rc): $out"
 fi
 
-# The strict-and-loud shape: only the DISABLED arm is hoisted, because the
-# "neither true nor false" arm speaks through a library function.
 STRICT_LOUD='#!/usr/bin/env bash
 set -uo pipefail
 
@@ -167,8 +150,6 @@ else
   fail "a strict-and-loud guard hoisting only its disabled arm passes (rc=$rc): $out"
 fi
 
-# A guard that sources nothing has no ordering to get wrong, but still needs the
-# switch: the rule is "before any source", not "only when there is one".
 NO_SOURCE='#!/usr/bin/env bash
 set -uo pipefail
 
@@ -186,7 +167,6 @@ else
   fail "a guard that sources nothing passes on its switch alone (rc=$rc): $out"
 fi
 
-# Launcher arguments are guards; the launcher itself is not.
 new_fixture f
 guard "$f" demo "run-guards.sh" '#!/usr/bin/env bash
 exit 0'
@@ -201,7 +181,6 @@ else
   fail "run-guards.sh arguments are scanned and the launcher itself is not (rc=$rc): $out"
 fi
 
-# A `--lib` value is a bundled classifier, not a guard.
 new_fixture f
 guard "$f" demo "run-guards.sh" '#!/usr/bin/env bash
 exit 0'
@@ -215,7 +194,6 @@ else
   fail "a --lib value is not treated as a guard (rc=$rc): $out"
 fi
 
-# A `--bps-seed` value is the parse library the launcher reads, not a guard.
 new_fixture f
 guard "$f" demo "run-guards.sh" '#!/usr/bin/env bash
 exit 0'
@@ -229,7 +207,6 @@ else
   fail "a --bps-seed value is not treated as a guard (rc=$rc): $out"
 fi
 
-# A non-shell PreToolUse handler is REPORTED, not silently passed.
 new_fixture f
 guard "$f" demo "alpha.sh" "$HOISTED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/alpha.sh'
@@ -244,9 +221,6 @@ else
   fail "a non-shell PreToolUse handler is reported as NOT SCANNED (rc=$rc): $out"
 fi
 
-# A PostToolUse hook is IN scope: the same rule, from both sides. A reversed
-# PostToolUse script fails even when the plugin's PreToolUse guard is hoisted,
-# and a hoisted PostToolUse script passes on its own.
 new_fixture f
 guard "$f" demo "alpha.sh" "$HOISTED"
 guard "$f" demo "post.sh" "$REVERSED"
@@ -274,9 +248,6 @@ else
   fail "a hoisted PostToolUse hook passes and is counted (rc=$rc): $out"
 fi
 
-# The launcher rule holds on PostToolUse too: guardrails registers its three
-# verifiers behind run-guards.sh, and each named script is scanned, not the
-# launcher.
 new_fixture f
 guard "$f" demo "run-guards.sh" "$NO_SWITCH"
 guard "$f" demo "verify-a.sh" "$HOISTED"
@@ -290,10 +261,6 @@ else
   fail "a PostToolUse launcher's arguments are scanned, the launcher is not (rc=$rc): $out"
 fi
 
-# --- manifest-declared configs are discovered --------------------------------
-# A manifest may point at a hooks file outside hooks/, or declare the event map
-# inline; Claude Code loads both with hooks/hooks.json. Script tokens still
-# resolve under the plugin's hooks/ directory.
 new_fixture f
 guard "$f" demo "demo-guard.sh" "$REVERSED"
 mkdir -p "$f/plugins/demo/.claude-plugin" "$f/plugins/demo/config"
@@ -322,7 +289,6 @@ else
   fail "a guard registered in an inline manifest map should be checked (rc=$rc): $out"
 fi
 
-# stop_hook <fixture> <event> <body> [<async>]
 stop_hook() {
   guard "$1" demo "stop.sh" "$3"
   jq -n --arg e "$2" --argjson a "${4:-false}" \
@@ -364,8 +330,6 @@ else
   fail "a Stop hook that exits before sourcing passes and is counted (rc=$rc): $out"
 fi
 
-# A clean PreToolUse guard beside it, so the corpus is not empty once the async
-# row is skipped.
 new_fixture f
 stop_hook "$f" Stop "$SOURCE_THEN_EXIT" true
 guard "$f" other "alpha.sh" "$HOISTED"
@@ -378,7 +342,6 @@ else
   fail "an async Stop hook is exempt (rc=$rc): $out"
 fi
 
-# The hooks reference: async is ignored on UserPromptSubmit, which runs sync.
 new_fixture f
 stop_hook "$f" UserPromptSubmit "$SOURCE_THEN_EXIT" true
 out="$(run_check "$f")"
@@ -413,8 +376,6 @@ else
   fail "a Notification hook calling hook::check_enabled after its source FAILS (rc=$rc): $out"
 fi
 
-# A hook entry jq cannot index stops jq part-way; the rows after it must not be
-# silently dropped.
 new_fixture f
 guard "$f" demo "alpha.sh" "$HOISTED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/alpha.sh'
@@ -430,7 +391,6 @@ else
   fail "a hooks.json jq cannot fully read fails closed (rc=$rc): $out"
 fi
 
-# A modules-only hooks.json (a mod with no settings hooks) has no hook to scan.
 new_fixture f
 guard "$f" demo "alpha.sh" "$HOISTED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/alpha.sh'
@@ -444,8 +404,6 @@ else
   fail "a modules-only hooks.json passes (rc=$rc): $out"
 fi
 
-# `hoist-ok:` above the first early exit excuses the order; on a
-# hook::check_enabled call it does not.
 new_fixture f
 stop_hook "$f" Stop '#!/usr/bin/env bash
 # shellcheck source=hook-utils.sh
@@ -475,8 +433,6 @@ else
   fail "hoist-ok does not excuse a kill switch left below the source (rc=$rc): $out"
 fi
 
-# A `*` token in a command is text, never a glob against the repository root:
-# a root file `a-root.sh` must not become a scanned (and missing) hook script.
 new_fixture f
 stop_hook "$f" Stop "$EXIT_THEN_SOURCE"
 jq -n '{hooks:{Stop:[{hooks:[{type:"command",command:"bash stop.sh a*"}]}]}}' \
@@ -502,7 +458,6 @@ else
   fail "a glob token in a PreToolUse command is not expanded (rule 1 walk) (rc=$rc): $out"
 fi
 
-# Only a trailing `exit 0`: nothing exits early, so nothing can be hoisted.
 new_fixture f
 stop_hook "$f" Stop "$NO_SWITCH"
 out="$(run_check "$f")"
@@ -513,8 +468,6 @@ else
   fail "a Stop hook whose only exit is its last line passes (rc=$rc): $out"
 fi
 
-# No PreToolUse shell guard anywhere is an environment problem, not a clean run:
-# a discovery bug must not read as "nothing to check".
 new_fixture f
 mkdir -p "$f/plugins/empty/hooks"
 jq -n '{hooks:{}}' >"$f/plugins/empty/hooks/hooks.json"
@@ -526,8 +479,6 @@ else
   fail "finding no PreToolUse shell guard fails closed (rc=$rc): $out"
 fi
 
-# A guard registered on PreToolUse but absent from the tree is a violation, not
-# a skip.
 new_fixture f
 guard "$f" demo "alpha.sh" "$HOISTED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/ghost.sh'
@@ -539,14 +490,9 @@ else
   fail "a registered but missing guard is a violation (rc=$rc): $out"
 fi
 
-# The semantic pin: if hook::is_enabled stops reading the env var the inlined
-# copies reproduce, the gate stops rather than clearing fifteen stale copies.
 new_fixture f
 guard "$f" demo "demo-guard.sh" "$HOISTED"
 hooks_json "$f" demo '"${CLAUDE_PLUGIN_ROOT}"/hooks/demo-guard.sh'
-# Rewritten through a sibling file rather than `sed -i`: the in-place flag is the
-# GNU/BSD divergence the shell-portability gate exists to catch, and this fixture
-# copy is the suite's own to replace.
 sed 's/CLAUDE_PLUGIN_OPTION_${1}_ENABLED/CLAUDE_PLUGIN_OPTION_${1}_ACTIVE/' "$f/lib/hook-utils.sh" >"$f/lib/hook-utils.sh.mutated" &&
   mv "$f/lib/hook-utils.sh.mutated" "$f/lib/hook-utils.sh"
 out="$(run_check "$f")"

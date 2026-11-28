@@ -1,50 +1,3 @@
-// The hourly triage sweep: finds open issues no intake verdict holds and
-// dispatches intake-triage.yml for them, with the job's own token only. An
-// issue qualifies when it is no pull request, is over an hour old, its author
-// is a listed human or the lanes App (as the intake lane admits on open), it
-// carries no routing label (intake skips one: check-born-triaged.mjs), and
-// either:
-//
-// - its labels, as its Work status field decides them (read-status.mjs
-//   statusLabels, from one issuesByStatus listing), hold no `status:` label
-//   and no agent-ready, admission-deferred or hold, whatever comments intake
-//   left: a triage that posted no comment or two, a
-//   verdict apply-verdict could not write (an issue the lanes App opened,
-//   whose --check refuses the App as actor while a github-actions[bot]
-//   dispatch passes), or an issue work-unblock handed back after its lane PR
-//   ended or unparked to needs-triage once a blocker closed; or
-// - /work-items:decompose published it born triaged in `status: ready`, with
-//   no agent-ready, admission-deferred or hold, no open blocker and no open
-//   sub-issue: intake's dispatch runs it (a dispatch skips the born-triaged
-//   gate), including once a wait admission left on it has cleared.
-//
-// The needs-triage floor label is no triage label: it lands on open whether
-// or not intake runs. github-actions[bot] issues are left out, upstream-drift
-// ones included: the token broker refuses this job's dispatch for an issue no
-// listed human or lanes App wrote (untrusted-actor), so a person triages a
-// drift issue
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues). Per issue, one comment holds the runs
-// dispatched and, once read, how each ended; after 2 that reached intake and left it untriaged (a run the
-// kill switch or a gate skipped before intake does not count, up to 6
-// dispatches, and nor do the first 24 whose verdict stopped on a GitHub 5xx,
-// a network error, a deferred triage or a kill switch) the sweep sets its Work status to
-// needs-triage (write-status.mjs) and rewrites that comment to hand it to a
-// maintainer, listing the runs. That write first reads the field fresh and
-// leaves any state but unset or needs-triage (or ready, on an issue listed
-// at status: ready), so an issue admitted
-// since the listing is never demoted. It files no issue. No model. The count is per triage cycle: a work-unblock
-// hand-back comment the lanes App posted after the state comment's last edit
-// starts a new cycle with no runs, in the same comment. An issue still at
-// needs-triage whose own state comment hands it off is skipped
-// without a REST read, found by one GraphQL search that returns the hits'
-// comments, so hand-offs cannot use up the call budget.
-//
-// A run whose verdict a lanes kill switch voided (apply-verdict's VOIDED_STEP)
-// wrote nothing, so it counts as a transient stop, not an attempt.
-//
-// Accepted exposure: intake reads an issue's comments, and anyone can comment
-// in the hour before the sweep dispatches. Intake treats them as untrusted
-// data and applies only allowlisted labels, never agent-ready.
 import { appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";
@@ -73,17 +26,7 @@ const HOUR_MS = 3_600_000;
 const BOT = "github-actions[bot]";
 export const FILING = "?";
 export const HANDED = "handed";
-// Each run id in `runs=` may carry `+` (it reached intake and counts), `~` (it
-// reached intake and stopped on a transient answer) or `-` (it did not reach
-// intake), so a finished run is read once; an unmarked id is unread.
 const STATE = /^<!-- claude-lane triage-sweep runs=([0-9,+~-]*) filed=([0-9]*|\?|handed) -->/;
-// work-unblock's comment when it hands an issue back to triage after its lane
-// PR merged with Refs: or closed unmerged (label-unblocked.mjs handedMarker),
-// the issue lane's when a stop's intake route sends it back
-// (report-outcome.mjs, outcome=intake), admission's when a blocker's
-// report-delivered close sends it back (admit.mjs retriageNote), and
-// work-unblock's when it unparks the issue to needs-triage, as its first line.
-// Admission edits its comment in place, so a hand-back counts from its last edit.
 const HAND_BACK = /^(?:<!-- work-unblock handed triage #[1-9][0-9]* -->|<!-- work-unblock unparked triage -->(?:\n|$)|<!-- work-resolve-issue outcome=intake[ >]|<!-- intake-triage admission -->\n<!-- intake-triage retriage -->)/;
 const HANDED_TEXT = "so the sweep no longer dispatches it";
 const FLOOR = "needs-triage";
@@ -165,7 +108,7 @@ export const renderState = ({ runs, filed, runUrl, repoUrl, details = [], reache
     : `The triage sweep dispatched [intake triage](${runUrl}) for this issue (dispatch ${runs.length}; ${ATTEMPTS} runs that reach intake, or ${RUN_LIMIT} dispatches, hand it to a maintainer).`);
 
 const INTAKE_JOB = /^(?:Intake Triage|intake-triage)(?: \/ |$)/;
-const INTAKE_APPLY_JOB = /^(?:Intake Triage|intake-triage) \/ (?:.*-apply|Apply)$/;
+const INTAKE_APPLY_JOB = /^(?:(?:Intake Triage|intake-triage) \/ (?:.*-apply|Apply)|Post Triage|post-triage)$/;
 const APPLY_JOB = "Apply Verdict";
 const APPLY_JOB_BEFORE_RENAME = "apply-verdict";
 export const reachedIntake = (jobs) =>
@@ -175,21 +118,6 @@ const applyJob = (jobs) => {
   return done.find((j) => j.name === APPLY_JOB) ?? done.find((j) => j.name === APPLY_JOB_BEFORE_RENAME);
 };
 
-// A run's mark, from its jobs and one annotations read (`annotations(path)`
-// returns a check run's annotation list): `-` when it never reached intake,
-// `~` when it stopped on a transient answer, `+` otherwise, so whatever cannot
-// be told apart counts. Transient is either:
-// - apply-verdict failed or succeeded, and every failure annotation, every
-//   "not written" warning and every `held: ` notice it left names a GitHub 5xx, a timeout or a network
-//   failure (runs 41814429466 and 41814435576: "failed with status 500",
-//   "GitHub answered 500"); or
-// - apply-verdict was skipped because the reusable's apply job deferred an
-//   otherwise clean triage on a permission denial (run 41807993284), which
-//   writes nothing so that a later run retries it; or
-// - apply-verdict ran VOIDED_STEP (voidedVerdict), read from the jobs alone.
-// No open-incident signal is read: the run's own upstream check skips intake
-// while githubstatus.com lists Actions in an outage, which marks it `-`, and
-// nothing records an API incident at the time a run ran.
 const TRANSIENT = /failed with status 5\d\d\b|GitHub answered 5\d\d\b|\bfetch failed\b|aborted due to timeout/;
 const STATUS = /(?:failed with status|GitHub answered) (\d{3})\b/g;
 const transientNote = (message) => {
@@ -265,13 +193,6 @@ async function search(call, query, pick) {
   return numbers;
 }
 
-// The issues this sweep handed off in a comment, from one GraphQL search per
-// 50 issues that also returns each hit's first 100 comments, so a hit costs no
-// REST read. The search only finds issues where github-actions commented and
-// some comment, by anyone, holds the hand-off text, so a hit counts only when
-// the bot's own state comment reads filed=handed and no hand-back
-// by the lanes App (`appId`, as readState takes it) is newer than it; anything
-// else is read and judged as usual. A failed search excludes nothing.
 const HANDED_QUERY = `query($q: String!, $after: String) {
   search(query: $q, type: ISSUE, first: 50, after: $after) {
     pageInfo { hasNextPage endCursor }
@@ -446,13 +367,10 @@ export async function runSweep({ call, remaining = () => Infinity, repo, serverU
         result.truncated = `stopped at #${number}: too little call budget left`;
         return STOP_PASS;
       }
-      // intake-triage.yml admits this token's dispatch whoever wrote the
-      // issue, so the author check in selectCandidates is the only one.
       if (action === "dispatch") {
         const sent = await call("POST", `/repos/${repo}/actions/workflows/intake-triage.yml/dispatches`, {
           ref: "main",
           inputs: { "issue-number": String(number) },
-          // Without it, API version 2022-11-28 answers 204 with no run id.
           return_run_details: true,
         });
         const id = Number(sent?.workflow_run_id);
@@ -505,9 +423,6 @@ async function main() {
   const authorIds = new Set(humanIds(list).split(",").filter(Boolean));
   const appId = /^[1-9][0-9]*$/.test(env.LANES_APP_ID ?? "") ? env.LANES_APP_ID : null;
   if (appId) authorIds.add(appId);
-  // The field read and write send their own API version, which `call` cannot,
-  // so they go through their own client, outside the call budget. A listing
-  // that fails stops the pass: without it a field-only hold would not hold.
   const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
   const { set } = await statusWriter({ env, github, repository: env.REPOSITORY });
   const { issueStatusFromBase, issuesByStatus } = await import("../../actions/resolve-config/resolve-config.mjs");

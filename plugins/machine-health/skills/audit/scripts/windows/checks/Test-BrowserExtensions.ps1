@@ -41,7 +41,6 @@ $commands = @(
 $highAttentionApi = @('debugger', 'nativeMessaging', 'proxy', 'management')
 $allSitePatterns = @('<all_urls>', '*://*/*', 'http://*/*', 'https://*/*')
 $developerKinds = @('unpacked', 'command-line')
-# Locations whose install path the browser keeps relative to the profile.
 $relativePathKinds = @('store', 'external', 'policy')
 
 function Get-HighAttention {
@@ -70,7 +69,6 @@ function Get-ExtensionReason {
     )
 
     $chromium = $Record.Browser -ne 'firefox'
-    # A Chromium component claim counts only when its path is inside the browser's own install.
     $component = $Record.LocationKind -eq 'component' -and (-not $chromium -or $Record.UnderBrowserInstall -eq $true)
     $reasons = @(
         if ($Record.LocationKind -in $developerKinds) { "loaded as $($Record.LocationKind)" }
@@ -157,8 +155,6 @@ $CheckBody = {
 
     $readStates = @($browserReads | ForEach-Object { $_.ReadState }) + @($policy.ReadState)
     $severity = Get-UnmutedSeverity -Items $items -ReadState $readStates
-    # A source that could not be read can hide anything, so no item verdict stands;
-    # the check still ran, and every source it could read is listed.
     if ($unreadableSources.Count -gt 0) { $severity = 'UNKNOWN' }
 
     $flagged = @($items | Where-Object { -not $_.muted -and $_.severity -eq 'WARN' }).Count

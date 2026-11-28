@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for release-plugins.sh. Each case builds a throwaway git repo with
-# plugins in fragment mode, commits fragments in a known order, runs the release
-# and compares the written CHANGELOG and manifest against literal expectations.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,7 +12,6 @@ SCRIPT="$SELF_DIR/release-plugins.sh"
 
 f=""
 
-# base_fixture <out-var> — alpha 1.2.3 and beta 0.4.0, both in fragment mode.
 base_fixture() {
   local dir name
   fixture_tree::build "$1" --sut "$SCRIPT" --git --plugins --label release || return 1
@@ -31,7 +27,6 @@ base_fixture() {
   git_test_config "$dir" commit -qm base
 }
 
-# add_fragment <fixture> <plugin> <name> <bump> <body> — written and committed.
 add_fragment() {
   mkdir -p "$1/.changes/$2"
   printf -- '---\nbump: %s\n---\n\n%s\n' "$4" "$5" >"$1/.changes/$2/$3.md"
@@ -43,7 +38,6 @@ run_release() (
   cd "$1" && bash scripts/release-plugins.sh --date 2026-10-04
 )
 
-# expect_file <label> <path> <expected content>
 expect_file() {
   local got
   got="$(cat "$2")"
@@ -58,7 +52,6 @@ $3"
 }
 
 base_fixture f
-# Committed z-first so commit order differs from file-name order.
 add_fragment "$f" alpha zeta-11111111 patch "### Fixed
 
 - Zeta fix."
@@ -450,10 +443,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a failure producing a later plugin's files leaves the whole tree unchanged ---
-# beta's manifest has one line that starts with "version", but the first match on
-# it is the nested key, so the rewrite misses the top-level version. alpha sorts
-# first and has already been produced when beta fails.
 base_fixture f
 printf '{"name": "beta", "meta": {\n  "version": "0.4.0" }, "version": "0.4.0"}\n' >"$f/plugins/beta/.claude-plugin/plugin.json"
 add_fragment "$f" alpha a-11111111 minor "### Added
@@ -533,8 +522,6 @@ for home in conventions contracts; do
 
 Prose.'
 
-  # A run cut short after the CHANGELOG write, before the fragments go: the retry
-  # must refuse, not release them again under 2.16.0.
   git_test_config "$f" checkout -q HEAD -- .changes
   out="$(run_release "$f" 2>&1)"
   rc=$?

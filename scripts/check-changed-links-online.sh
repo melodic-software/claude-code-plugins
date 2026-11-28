@@ -1,19 +1,9 @@
 #!/usr/bin/env bash
-# Check, online, the external links a pull request adds or changes in markdown.
-#
-#   check-changed-links-online.sh [--list] <base-ref>
-#
-# lychee extracts the links of each markdown file the diff `<base-ref>...HEAD`
-# adds or modifies, with the same parser and lychee.toml the offline lane and the
-# weekly online run use, so code spans, fenced blocks and excluded URLs are left
-# out as they are there. A link is kept when it appears on an added line. lychee
-# then checks just those with the network on; lychee.toml's accept list keeps a
-# 429, a 5xx or a timeout from failing. --list prints the kept links and checks
-# nothing. LYCHEE names the binary (default lychee), LYCHEE_CONFIG the ruleset
-# (default lychee.toml). Exit status follows scripts/README.md, "The
-# check-script contract".
 set -euo pipefail
+# shellcheck source=/dev/null
+[[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 me=check-changed-links-online
+parser=${BASH_SOURCE[0]%/*}/../lib/parse-concern-value.sh
 
 list=0
 if [[ ${1:-} == --list ]]; then
@@ -26,17 +16,36 @@ if [[ $# -ne 1 || -z $1 ]]; then
 fi
 base=$1
 lychee=${LYCHEE:-lychee}
-config=${LYCHEE_CONFIG:-lychee.toml}
-if [[ -z ${LYCHEE_CONFIG:-} && ! -f $config && -n ${STANDARDS_DIR:-} ]]; then
-  config=$STANDARDS_DIR/lychee.toml
-fi
 if ! command -v "$lychee" >/dev/null 2>&1; then
   echo "$me: lychee not found ($lychee)" >&2
   exit 2
 fi
+temporary=()
+trap 'rm -f "${temporary[@]}"' EXIT
 
-# The excludes are test data whose links are meant not to resolve, as the
-# offline lane excludes them. A diff git cannot read is exit 2, never "no links".
+configs=()
+resolve_configs() {
+  if [[ -n ${LYCHEE_CONFIG:-} ]]; then
+    configs=(--config "$LYCHEE_CONFIG")
+    return
+  fi
+  local standards repository
+  if [[ -n ${STANDARDS_DIR:-} ]]; then
+    standards=$STANDARDS_DIR/lychee.toml
+    [[ -f $standards ]] || { echo "$me: the standards checkout $STANDARDS_DIR has no lychee.toml" >&2; exit 2; }
+  else
+    repository=$(bash "$parser" docs/conventions/source-control.yaml standards_repository)
+    [[ $repository =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]] ||
+      { echo "$me: no standards checkout (STANDARDS_DIR) and no standards_repository in docs/conventions/source-control.yaml" >&2; exit 2; }
+    standards=$(mktemp --suffix=.toml)
+    temporary+=("$standards")
+    gh api -H 'Accept: application/vnd.github.raw' "repos/$repository/contents/lychee.toml" >"$standards" ||
+      { echo "$me: $repository lychee.toml could not be read" >&2; exit 2; }
+  fi
+  configs=(--config "$standards")
+  if [[ -f lychee.toml ]]; then configs+=(--config lychee.toml); fi
+}
+
 paths=(-- '*.md'
   ':(exclude)plugins/attribution/skills/audit/evals/fixtures/golden/**'
   ':(exclude)scripts/fixtures/hooks-lifecycle-table.md')
@@ -50,19 +59,16 @@ mapfile -t files < <(printf '%s' "$files_out")
 
 urls=()
 if ((${#files[@]})); then
-  if ! dump=$("$lychee" --dump --no-progress --config "$config" "${files[@]}" 2>/dev/null); then
+  resolve_configs
+  if ! dump=$("$lychee" --dump --no-progress "${configs[@]}" "${files[@]}" 2>/dev/null); then
     echo "$me: lychee could not extract the links of the changed files" >&2
     exit 2
   fi
-  # lychee may add a trailing slash to a bare host; match without it.
   while IFS= read -r url; do
     if [[ $url =~ ^https?:// && $added == *"${url%/}"* ]]; then urls+=("$url"); fi
   done < <(LC_ALL=C sort -u <<<"$dump")
 fi
 
-# A link to this repository's base branch whose path exists at HEAD resolves
-# once the change merges, so it is not checked online: a pull request that adds
-# a file and links it would otherwise always fail.
 self=${SELF_REPO:-${GITHUB_REPOSITORY:-}}
 if [[ -n $self ]] && ((${#urls[@]})); then
   kept=()
@@ -88,10 +94,10 @@ if ((${#urls[@]} == 0)); then
 fi
 
 input=$(mktemp --suffix=.md)
-trap 'rm -f "$input"' EXIT
+temporary+=("$input")
 printf '<%s>\n' "${urls[@]}" >"$input"
 rc=0
-report=$("$lychee" --no-progress --config "$config" "$input" 2>&1) || rc=$?
+report=$("$lychee" --no-progress "${configs[@]}" "$input" 2>&1) || rc=$?
 case $rc in
   0) echo "$me: ${#urls[@]} added or changed external link(s) resolve" ;;
   2)

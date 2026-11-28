@@ -45,7 +45,10 @@
       "keyed": true,
       "category": "intake",
       "lanes": [
-        { "id": "intake-triage", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_API_KEY", "INTAKE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "intake-triage", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_API_KEY"] },
+        { "id": "intake-triage-handoff", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "intake-triage-subscription", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "intake-triage-fallback", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "refine-issue", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_API_KEY"] },
         { "id": "refine-issue-subscription", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["INTAKE_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "refine-issue-fallback", "workflow": "intake-triage.yml", "launcher": "run-claude-cli", "triggers": ["issues", "workflow_dispatch"], "gate": "author", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] }
@@ -116,6 +119,10 @@
         { "id": "sweep-areas", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
         { "id": "sweep-areas-subscription", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "sweep-areas-fallback", "workflow": "maintenance-tidy-code-upkeep.yml", "launcher": "run-claude-cli", "triggers": ["push", "schedule", "workflow_dispatch"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "find", "workflow": "maintenance-scan-architecture.yml", "launcher": "run-claude-cli", "triggers": ["schedule", "workflow_dispatch"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY", "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "find-candidates", "workflow": "maintenance-scan-architecture-find.yml", "launcher": "run-claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
+        { "id": "find-candidates-subscription", "workflow": "maintenance-scan-architecture-find.yml", "launcher": "run-claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "find-candidates-fallback", "workflow": "maintenance-scan-architecture-find.yml", "launcher": "run-claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "generate", "workflow": "post-merge-test-mutation.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["AUTOMATIONS_CLAUDE_API_KEY"] },
         { "id": "generate-subscription", "workflow": "post-merge-test-mutation.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN", "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
         { "id": "generate-fallback", "workflow": "post-merge-test-mutation.yml", "launcher": "run-claude-cli", "triggers": ["workflow_run"], "gate": "same-repo", "currentSecrets": ["FALLBACK_CLAUDE_CODE_OAUTH_TOKEN"] },
@@ -131,17 +138,26 @@
       "keySecret": "MAINTENANCE_CLAUDE_API_KEY",
       "keyed": true,
       "category": "maintenance",
+      "lanes": []
+    },
+    {
+      "id": "evals",
+      "secretPrefix": "EVALS",
+      "tokenSecret": "EVALS_CLAUDE_CODE_OAUTH_TOKEN",
+      "keySecret": "EVALS_CLAUDE_API_KEY",
+      "keyed": true,
+      "category": "evals",
       "lanes": [
-        { "id": "run-eval", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "run-eval-subscription", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "compare-before", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "compare-after", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY", "MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] },
-        { "id": "measure-baseline", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "measure-baseline-again", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "generate-edit", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "measure-edit", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "run-eval", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["MAINTENANCE_CLAUDE_API_KEY"] },
-        { "id": "run-eval-subscription", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["MAINTENANCE_CLAUDE_CODE_OAUTH_TOKEN"] }
+        { "id": "run-eval", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["EVALS_CLAUDE_API_KEY"] },
+        { "id": "run-eval-subscription", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["EVALS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "compare-before", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["EVALS_CLAUDE_API_KEY", "EVALS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "compare-after", "workflow": "pr-run-plugin-evals.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch", "workflow_run"], "gate": "same-repo", "currentSecrets": ["EVALS_CLAUDE_API_KEY", "EVALS_CLAUDE_CODE_OAUTH_TOKEN"] },
+        { "id": "measure-baseline", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["EVALS_CLAUDE_API_KEY"] },
+        { "id": "measure-baseline-again", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["EVALS_CLAUDE_API_KEY"] },
+        { "id": "generate-edit", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "run-claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["EVALS_CLAUDE_API_KEY"] },
+        { "id": "measure-edit", "workflow": "maintenance-measure-skill-edit.yml", "launcher": "claude-cli", "triggers": ["workflow_dispatch"], "currentSecrets": ["EVALS_CLAUDE_API_KEY"] },
+        { "id": "run-eval", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["EVALS_CLAUDE_API_KEY"] },
+        { "id": "run-eval-subscription", "workflow": "maintenance-measure-skill-edit-pass.yml", "launcher": "claude-cli", "triggers": ["workflow_call"], "currentSecrets": ["EVALS_CLAUDE_CODE_OAUTH_TOKEN"] }
       ]
     }
   ]

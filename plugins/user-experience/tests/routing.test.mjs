@@ -14,13 +14,9 @@ const SLASH_ID = /^\/[a-z0-9-]+(:[a-z0-9-]+)?$/;
 const PLUGIN_SKILL_ID = /^\/([a-z0-9-]+):([a-z0-9-]+)$/;
 const JOBS = schema.properties.rows.items.properties.job.enum;
 const repoSkillExists = (plugin, skill) => existsSync(join(REPO, "plugins", plugin, "skills", skill, "SKILL.md"));
-/** A row for one of this marketplace's own plugin skills: a bare detect and a `/<plugin>:<skill>` id. */
 const isOwn = (r) => r.kind === "skill" && !r.detect.includes("@") && PLUGIN_SKILL_ID.test(r.id);
-/** True when a detect or id names a release (`name@1.2.0`, `name@v2`, `pkg-1.2`) rather than an alias. */
 const pinsVersion = (s) => /\d+\.\d+|@v?\d/.test(s);
 
-/** Errors for `value` against the schema keywords routing.schema.json uses. Object, array and string
- * keywords apply to any value of that shape, whether or not the sub-schema states `type`. */
 function validate(s, value, at = "$") {
   const errors = [];
   const fail = (msg) => errors.push(`${at}: ${msg}`);
@@ -56,7 +52,6 @@ function validate(s, value, at = "$") {
   return errors;
 }
 
-/** Schema errors for routing.json holding one row: fixed shared fields plus `fields`. */
 function rowErrors(fields) {
   const shared = { job: "synthesis", rank: 1, account: "none", status: "unconfirmed", as_of: "2026-10-09" };
   return validate(schema, { ...routing, rows: [{ ...shared, ...fields }] });

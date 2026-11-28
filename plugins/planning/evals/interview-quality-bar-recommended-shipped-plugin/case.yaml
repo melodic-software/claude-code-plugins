@@ -1,0 +1,4 @@
+schema_version: "1.1"
+name: interview-quality-bar-recommended-shipped-plugin
+context:
+  scaffold_script: scaffold.sh

@@ -3,6 +3,152 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.6] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [5.5.5] - 2026-11-28
+
+### Changed
+
+- Trimmed `/guardrails:setup` user-invoked frontmatter description (986 -> 136 chars) to a one-line summary without trigger phrasing.
+
+## [5.5.4] - 2026-11-27
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_files` leaves out an exact rename (the same blob and mode under a new path), so a pure move is no longer formatted or linted as a changed file. `checks_files --include-exact-renames` keeps the full list for checks whose verdict depends on a file's name or location: the guardrails content scan and reference verify, and the spelling lint. A rename with an edit or a mode change is still listed and judged on its added lines only; a copy, an add and a modify are listed as before.
+- The content scan (`content-scan.sh`, end-of-turn mode) and `reference-verify` pass `--include-exact-renames`, so both still judge an exactly renamed file as before.
+
+## [5.5.3] - 2026-11-27
+
+### Changed
+
+- The merge guard reads the reviews, check runs, commit statuses, review threads and pr-verify settings in parallel once the pull request itself is read, so a merge on a ready PR waits about 4.5 s instead of 6.5 s. What it checks and how it reports a failed read are unchanged.
+
+## [5.5.2] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [5.5.1] - 2026-11-26
+
+### Fixed
+
+- **The foreground-wait guard no longer sends an `until` loop to the Monitor tool.** Its refusal said to "watch it with the Monitor tool", but a Monitor command also reaches Bash-matcher hooks as a Bash call, so the guard refused the very call it suggested. The message now points to Bash with `run_in_background` and says Monitor is for a stream of events, not a wait for one condition. Two captured payloads of one Monitor call, the Monitor event and its Bash twin, are test fixtures.
+
+## [5.5.0] - 2026-11-26
+
+### Changed
+
+- The shared `session-attended.env`, `session-attended.sh` and `session-attended.mjs` copies gain a reader for `CLAUDE_CODE_EXECPATH`, which the fleet peer list uses; the attended predicate and guardrails' ask-or-deny behavior do not change.
+
+### Removed
+
+- **`block-body-format-violation` no longer judges a `## Loosened checks` section.** It reads no
+  linked issue and refuses no body for a loosened check, so a pull request with
+  `No related issue: <reason>` and a reasoned section opens. Review and pr-verify judge the
+  section by the review plugin's loosened-check rule. The hook's section, opener and issue-format
+  checks are unchanged ([#19312](https://github.com/melodic-software/claude-code-plugins/issues/19312)).
+
+## [5.4.1] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [5.4.0] - 2026-11-26
+
+### Changed
+
+- The ask-or-deny choice in block-dangerous-git, block-root-delete-target and settings-write-ask reads attendance from one predicate shared with session-flow (`hooks/session-attended.sh`, `hooks/session-attended.mjs`, the variables named in `hooks/session-attended.env`). A session is attended when `CLAUDE_CODE_SESSION_ATTENDED` is `1` and `CLAUDE_CODE_ENTRYPOINT` is not an Agent SDK value, so a session started through the Agent SDK now gets a deny where it got an ask. A missing or unreadable predicate copy denies. `GUARDRAILS_SESSION_UNWATCHED=1` still turns an ask into a deny after the predicate.
+
+## [5.3.0] - 2026-11-26
+
+### Added
+
+- The Bash and PowerShell guards now also check each command a skill injects as it loads
+  (`` !`...` `` and ` ```! ` blocks), through a `PreSkillShellCommand` hook entry that runs the
+  same guards, arguments, timeout and `onFailure: "block"` as the `PreToolUse` `Bash|PowerShell`
+  entry. A command a guard refuses on a tool call is not run while the skill loads, and the skill
+  loads without its output. The entry requires Claude Code 2.1.332 or later; an earlier version
+  runs injected commands without calling it.
+
+### Changed
+
+- The guard dispatcher no longer reads `hook_event_name` from the payload. Its telemetry and
+  abort-notice event label is always `PreToolUse`, the reply shape the hooks reference asks of a
+  script shared with `PreSkillShellCommand`, and no guard's verdict depends on which event fired.
+
+## [5.2.3] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+- `git-hooks/reference-verify.sh` starts `hooks/run-guards.sh` once per range instead of once per changed file ([#18577](https://github.com/melodic-software/claude-code-plugins/issues/18577)). It uses the new `run-guards.sh --batch <dir>` mode, which loads `hook-utils.sh` once, then sources `run-guards.sh` again in a forked subshell for each file's payload and runs the three verifiers there. Findings still name `<path>:<line>`, and a verifier failure on one file still reports that file unchecked and fails the check. The edit-time hook rows do not pass `--batch` and run as before.
+
+## [5.2.2] - 2026-11-25
+
+### Fixed
+
+- The merge guard's README entry says to post a reply or comment that quotes a merge command in backticks with `--body-file <file>` or `-F body=@<file>`, since the guard refuses that text on the command line and does not read a body file.
+
+## [5.2.1] - 2026-11-25
+
+### Fixed
+
+- The merge guard reads every page of a pull request's reviews, check runs and commit statuses (and of the changed files, branch rules, annotations and pr-verify artifacts it reads), not only the first 100 ([#18954](https://github.com/melodic-software/claude-code-plugins/issues/18954)). A change request in a later review, or a failed or pending check past the first 100, now blocks the merge. A list longer than 20 pages lets the merge run with the "will run unchecked" notice, as the review-thread read already did past 2,000 threads.
+
+## [5.2.0] - 2026-11-25
+
+### Added
+
+- `block-pr-poller` denies a Monitor command, or a background Bash command, that loops, sleeps and polls a pull request (`gh pr view`, `gh pr checks`, `gh pr status`, or `gh api` on its pulls, check runs, statuses, artifacts or comments). The reason names `/source-control:pull-request monitor` and `gh event listen` on the pull request. The monitor skill's `monitor-poll.sh` passes. Kill switch: `block_pr_poller_enabled`.
+
+## [5.1.1] - 2026-11-25
+
+### Changed
+
+- The merge guard's pr-verify run check now lives in `hooks/pr-verify-run.jq`, shared with the source-control PR monitor; it counts the same runs as before.
+
+## [5.1.0] - 2026-11-24
+
+### Added
+
+- `block-body-format-violation` refuses a pull request body (`gh pr create`, `gh pr edit` with a body, or a GitHub MCP pull request create or update) whose Loosened checks section is not empty unless an issue it links (by a closing keyword, or with none, by its one first-column `Refs:` issue) has a body holding the owner-decision record line link and the owner's words after the verbatim marker in double quotes. The heading, the record pattern and the marker come from the repository's three Loosened checks keys; a repository that sets none is not judged. It reads at most three linked issues with `gh api`, and an unreadable issue, or a linked issue past the third, passes with a warning.
+
+## [5.0.0] - 2026-11-24
+
+### Added
+
+- `block-body-format-violation` now refuses a `gh issue create`, or a GitHub MCP `create_issue` or `issue_write` create, whose body completes no issue kind the target repository declares in `issue_body_required_sections`: a required `##` or `###` heading missing, empty, or answered `_No response_`. It names the closest kind and each heading to add. A repository that declares no issue format is not judged; `issue_body_format_gate: false` turns the check off.
+
+### Changed
+
+- The merge guard is now `hooks/merge-guard.sh`, switched by `merge_guard_enabled` beside `merge_guard_ignored_checks`.
+- What makes a pull request ready to merge is decided in one script, `hooks/merge-readiness.sh`, a copy of the same script the source-control pull-request skill runs before it merges. A refusal now points at `/source-control:pull-request merge`.
+- Every page of review threads is read: an unresolved thread past the first 100 blocks, where the guard used to let the merge run unchecked.
+- A pull request pr-verify judges and has not judged is no longer held for good: 30 minutes after the head's last check finished, with no check still running, the merge runs with a notice that no verdict was read.
+
+### Removed
+
+- The `block_unresolved_pr_merge_enabled` setting is gone ([#18822](https://github.com/melodic-software/claude-code-plugins/issues/18822)). A saved value there is no longer read, so a saved `false` turns the guard back on; set `merge_guard_enabled` instead.
+
+## [4.4.0] - 2026-11-24
+
+### Added
+
+- New guard `block-body-format-violation`: refuses a `gh pr create`, a `gh pr edit` with a body, or a GitHub MCP pull request create or update whose body breaks the format the target repository declares in `docs/conventions/source-control.yaml` (`pr_body_required_sections`, and the opener line where `linkage_gate_uses_pattern` matches a workflow), naming each missing or empty section and the line to add. A repository that declares neither key is not judged. Switches: `block_body_format_violation_enabled` (userConfig) and `pr_body_format_gate: false` in the repository's team file or git-ignored personal override.
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_changed_lines` and `checks_added_ranges` take an opt-in `--skip-reindent`, which leaves out an added line equal, leading and trailing whitespace aside, to a line the same file's diff removes (a reindent, or a move within the file). Without it, every added line still counts.
+- The pre-commit and pre-push content scans judge machine-specific paths with `--skip-reindent`, so a reindented line holding a pre-existing path passes, and still block one the change adds. Secret patterns, and every other guardrails check, still judge every added line, so a reindented line holding a secret blocks.
+
 ## [4.3.0] - 2026-11-24
 
 ### Added

@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
 # test-scope: plugins/knowledge/lib/gates/*.py plugins/knowledge/skills/docpage-digest/scripts/*.py
-"""Suite for skills/docpage-digest/scripts/verify-batch-page.py over real temporary slices.
-
-The standing gates and pin-manifest.py run for real. Each fixture's digest quotes its source.md,
-and each verdict states the hashes hashlib computes from the fixture's bytes.
-
-Run: python test_verify_batch_page.py
-"""
 
 from __future__ import annotations
 

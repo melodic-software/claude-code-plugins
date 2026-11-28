@@ -506,7 +506,6 @@ class TestLoop(unittest.TestCase):
         self.assertEqual(json.loads(out)["events"][0]["seq"], 1)
 
         def ended():
-            # clear_session removes the env file, then writes the port-only session file.
             kept = sb.kept_port(self.dir, "view")
             return kept and not (self.dir / ".view-session.env").exists()
 

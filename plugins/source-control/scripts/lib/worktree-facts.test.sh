@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Fact-record tests. Assertion helpers are local.
 # test-scope: plugins/source-control/scripts/*.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_COMMON_DIR
@@ -36,9 +35,6 @@ git -C "$TEST_TMPDIR/repo" worktree lock --reason "$helper_reason" "$TEST_TMPDIR
 por="$TEST_TMPDIR/list.z"
 git -C "$TEST_TMPDIR/repo" worktree list --porcelain -z >"$por"
 worktree_facts_parse_z "$por"
-# Porcelain paths are git's own spelling of the fixture dir: C:/... on Windows
-# Git Bash, symlinks resolved elsewhere. Build that spelling without the parser
-# under test, not the /tmp/... spelling mktemp returned.
 GIT_TMPDIR="$(cd "$TEST_TMPDIR" && pwd -P)"
 if command -v cygpath >/dev/null 2>&1; then GIT_TMPDIR="$(cygpath -m "$GIT_TMPDIR")"; fi
 assert_eq "main checkout path is git's spelling of the fixture" "${WT_FACT_PATH[0]}" "$GIT_TMPDIR/repo"
@@ -67,7 +63,6 @@ else
   pass "foreign session is not the owner"
 fi
 
-# `-z` emits the lock reason raw: quotes and backslash sequences are text, not escapes.
 quoted_reason='"quoted reason"'
 backslash_reason='a\nb\\c'
 git -C "$TEST_TMPDIR/repo" worktree add -q "$TEST_TMPDIR/quoted" -b quoted
@@ -94,20 +89,17 @@ git -C "$TEST_TMPDIR/hub.git" worktree list --porcelain -z >"$por"
 worktree_facts_parse_z "$por"
 assert_eq "bare hub: the record is bare and has no HEAD" "${WT_FACT_BARE[0]}|${WT_FACT_HEAD[0]}" "yes|"
 
-# Path absent and notgit are row states: empty columns stay in place.
 row="$(worktree_fact_row "/gone" "" "" "?" "?" "none" "" "?" "?" "?" "?" "?" "" "notgit" "path-absent")"
 # shellcheck disable=SC2034
 IFS=$'\t' read -r path branch head unpushed landed method base inprogress staged unstaged conflicted untracked peers risk reason <<<"$row"
 assert_eq "path-absent: risk and reason keep their columns" "$risk|$reason" "notgit|path-absent"
 assert_eq "path-absent: an empty HEAD is a dash, not a missing column" "$head" "-"
 
-# A new column cannot shift risk. The extra field is inserted before risk.
 row2="$(worktree_fact_row "/gone" "" "" "?" "?" "none" "" "?" "?" "?" "?" "?" "" "EXTRA" "notgit" "path-absent")"
 # shellcheck disable=SC2034
 IFS=$'\t' read -r _p _b _h _u _l _m _base _ip _st _us _cf _ut _peers extra risk2 reason2 <<<"$row2"
 assert_eq "a new column stays a dash-or-value and does not move risk" "$extra|$risk2|$reason2" "EXTRA|notgit|path-absent"
 
-# notgit row, same schema, reason in its own column.
 row3="$(worktree_fact_row "/notgit" "" "" "?" "?" "none" "" "?" "?" "?" "?" "?" "" "notgit" "not-a-worktree-root")"
 # shellcheck disable=SC2034
 IFS=$'\t' read -r _p _b _h _u _l _m _base _ip _st _us _cf _ut _peers risk3 reason3 <<<"$row3"
@@ -118,13 +110,11 @@ assert_eq "lock-reason text has one home" "$encoder" "$(realpath "$SCRIPT_DIR/wo
 parse_home="$(grep -Rnl 'line#worktree ' "$SCRIPT_DIR/.." --include='*.sh' | grep -v '\.test\.sh$' | xargs -n1 realpath)"
 assert_eq "porcelain parse has one home" "$parse_home" "$(realpath "$SCRIPT_DIR/worktree-facts.sh")"
 
-# A reasonless lock is still a lock, and `list` prints it.
 git -C "$TEST_TMPDIR/repo" worktree add -q "$TEST_TMPDIR/bare-lock" -b bare-lock
 git -C "$TEST_TMPDIR/repo" worktree lock "$TEST_TMPDIR/bare-lock"
 listed="$(bash "$SCRIPT_DIR/worktree-facts.sh" list "$TEST_TMPDIR/repo" | awk -F'\t' -v p="$GIT_TMPDIR/bare-lock" '$1 == p {print $6 "|" $7}')"
 assert_eq "list: a reasonless lock reads locked=yes, lock_reason=-" "$listed" "yes|-"
 
-# The session parser reads what the encoder writes, and only that.
 assert_eq "reason_lane: host and session id come back" "$(worktree_reason_lane "$helper_reason")" "testhost sess-owner"
 no_session_reason="$(HOSTNAME=testhost worktree_lock_reason worktree-create.sh)"
 if worktree_reason_lane "$no_session_reason" >/dev/null; then

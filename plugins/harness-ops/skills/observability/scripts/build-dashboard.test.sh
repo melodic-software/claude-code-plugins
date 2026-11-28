@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for the observability dashboard builder: hostile telemetry
-# strings (skill, hook, tool and session names) render as inert text, and the
-# page passes the shared validator.
-#
-#   bash plugins/harness-ops/skills/observability/scripts/build-dashboard.test.sh
-#
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 # test-scope: plugins/harness-ops/skills/observability/SKILL.md
 set -euo pipefail

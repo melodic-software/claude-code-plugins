@@ -1,18 +1,3 @@
-// Code-tidying upkeep, no model. Two commands:
-//
-//   detect --before <sha> --after <sha> [--root <dir>]
-//     Per merge: names the areas a pushed range changed, on stdout and in the
-//     job summary. Opens nothing.
-//   gate [--root <dir>]
-//     Prints the batch as JSON: whether it may run and which areas to sweep,
-//     with `/code-tidying:tidy <glob>` opening one PR per area on the
-//     chore/tidy-adhoc-<slug>-YYYY-MM-DD branch that skill names, and the
-//     spec issue each pull request links. Exit 1 when a read fails, or when
-//     upkeep_spec_issue is not set: nothing is planned on a count it could
-//     not read, nor for a pull request with no spec.
-//
-// The gate derives churn from git log, so a push run GitHub lost drops no area
-// (release-generate-dependabot-changelog-fragments.yml records that those happen).
 import { execFileSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -32,10 +17,6 @@ const ADHOC_BRANCH = /^chore\/tidy-adhoc-(.+)-\d{4}-\d{2}-\d{2}$/;
 
 const dayOf = (ms) => Math.floor(ms / DAY_MS);
 
-// A path's area: plugins/<name>, docs/<dir>, else the first segment. A path under
-// a dot directory is left out: tidy's HARD list covers agent and CI config. A
-// file directly under plugins/ or docs/, or at the root, has no subtree of its
-// own, so its glob stops at that level.
 export function areaOf(path) {
   const parts = path.split("/");
   if (parts[0].startsWith(".")) return null;
@@ -46,7 +27,6 @@ export function areaOf(path) {
   return SAFE_AREA.test(area) ? { area, glob } : null;
 }
 
-// The <slug> tidy's ad hoc branch carries: the glob's literal directory prefix in kebab case.
 export const slugOf = (area) => area.toLowerCase().replace(/[^a-z0-9]+/g, "-");
 
 export function detectAreas(paths) {
@@ -54,8 +34,6 @@ export function detectAreas(paths) {
   return [...new Set(names)].sort();
 }
 
-// pulls: { headRefName, createdAt, state, mergeCommit }. Slug to the newest sweep's time,
-// the slugs with one open, and each sweep's own merge commit, which is not churn.
 function sweepsOf(pulls) {
   const last = new Map();
   const open = new Set();
@@ -70,18 +48,11 @@ function sweepsOf(pulls) {
   return { last, open, merges };
 }
 
-// How far back the gate reads commits: to the oldest known sweep, so an area's
-// churn since its sweep is seen however long the cap held it, and at least
-// NEVER_SWEPT_DAYS for an area with no sweep on record.
 export function lookbackStart(pulls, now) {
   const sweeps = pulls.filter((pull) => ADHOC_BRANCH.test(pull.headRefName)).map((pull) => Date.parse(pull.createdAt));
   return Math.min(now - NEVER_SWEPT_DAYS * DAY_MS, ...sweeps);
 }
 
-// paths: every tracked file. commits: { sha, at (ms), paths } back to lookbackStart.
-// pulls: every sweep. Only an area with a commit after its
-// last sweep is eligible. It is overdue once that oldest unswept commit is past
-// the backstop window; overdue areas go first, then the oldest unswept.
 export function plan({ paths, commits, pulls, cleanSweeps = [], cadence, backstop, limit, open, throttled, now }) {
   const stop = (reason) => ({ proceed: false, reason, areas: [] });
   const windowDays = WINDOW_DAYS[backstop];
@@ -115,12 +86,6 @@ export function plan({ paths, commits, pulls, cleanSweeps = [], cadence, backsto
   return { proceed: areas.length > 0, reason: areas.length > 0 ? "due" : "nothing-due", areas };
 }
 
-// The clean-sweep records: artifacts the scan job left, one per run. read(artifact)
-// gives its sweeps.json text, whose `at` is the swept commit's committer time in unix
-// seconds: a commit after it was not swept, however early the artifact's creation
-// followed. Only a run on this repository's main counts: any pull request's workflow
-// can upload an artifact of this name. A record that does not parse, has no valid `at`
-// or has a slug outside the shape is dropped, which costs a repeat sweep.
 export function readCleanSweeps(artifacts, read) {
   const sweeps = [];
   for (const artifact of artifacts) {
@@ -148,7 +113,6 @@ export function parseCount(text) {
   return { open: Number(open[1]), limit: Number(limit[1]), throttled: active[1] === "yes" };
 }
 
-// `\0<sha> <unix seconds>` before each commit's paths.
 export function parseLog(text) {
   return text
     .split("\0")
@@ -170,9 +134,6 @@ function run(root, file, args, env = {}) {
   });
 }
 
-// Every gh call, so the job's api-budget notice counts it: under api-budget.bash's
-// gh wrapper for the token API_BUDGET_TOKEN names, else gh itself (no token, as
-// in a local run, or no wrapper file). stdout and a failure's throw are gh's.
 export function gh(root, args, env = {}) {
   const token = env.API_BUDGET_TOKEN ?? process.env.API_BUDGET_TOKEN;
   if (!token || !existsSync(API_BUDGET)) return run(root, "gh", args, env);
@@ -195,15 +156,11 @@ function downloadRecord(root, artifact) {
 }
 
 function gate(root, now) {
-  // Every pull request links this issue as its spec; without one, pr-verify fails them all.
   const specIssue = setting(root, "upkeep_spec_issue");
   if (!specIssue.value) throw new Error(`upkeep_spec_issue is not set (${specIssue.source}); every upkeep pull request links it as its spec, so the batch opens none`);
   const cadence = setting(root, "upkeep_cadence");
   const backstop = setting(root, "upkeep_backstop");
   const count = parseCount(run(root, "bash", [join(TIDY_SCRIPTS, "open-pr-count.sh")]));
-  // The sweeps, by branch prefix: listing all pull requests reaches about 3 days per 1000 here.
-  // A full list holds the newest; lookbackStart reads commits back to its oldest, and every one of
-  // those is after the last sweep of an area the list has lost, so that area is judged correctly.
   const sweeps = JSON.parse(gh(root, ["pr", "list", "--state", "all", "--limit", String(PULL_LIST_LIMIT), "--search", "head:chore/tidy-adhoc-", "--json", "headRefName,createdAt,state,mergeCommit"]));
   const openPulls = JSON.parse(gh(root, ["pr", "list", "--state", "open", "--limit", String(PULL_LIST_LIMIT), "--json", "headRefName,createdAt,state"]));
   const records = JSON.parse(gh(root, ["api", `repos/{owner}/{repo}/actions/artifacts?name=${SWEEP_ARTIFACT}&per_page=100`])).artifacts ?? [];

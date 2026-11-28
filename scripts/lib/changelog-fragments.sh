@@ -1,59 +1,4 @@
 # shellcheck shell=bash
-# Changelog fragments (ADR 0048). Sourced, never executed; every caller runs
-# from the repository root.
-#
-# A fragment is .changes/<plugin>/<branch-slug>-<8 hex>.md: YAML front matter
-# carrying one key, `bump: major|minor|patch|none`, then a Keep a Changelog body
-# of `### <Section>` blocks. A `bump: none` fragment needs only a non-empty
-# reason line. scripts/release-plugins.sh turns pending fragments into a version
-# bump and one CHANGELOG entry per plugin.
-#
-# Only plugins named in scripts/fragment-plugins.txt are in fragment mode. A
-# missing list is an empty one: every plugin then keeps the per-PR bump, which is
-# the stricter of the two paths. A listed name with no plugin and a
-# docs/contracts/<name>/CHANGELOG.md or docs/conventions/<name>/CHANGELOG.md is
-# a convention, versioned by that CHANGELOG's newest heading alone; everything
-# here that says plugin covers it.
-#
-#   changelog_fragments::in_mode <plugin>         0 when <plugin> is listed
-#   changelog_fragments::root_of <plugin>         print plugins/<plugin>, or
-#                                                 docs/contracts/<plugin> or
-#                                                 docs/conventions/<plugin> for a
-#                                                 convention; 1 when none
-#   changelog_fragments::convention_of <path>     print <name> when <path> is
-#                                                 under docs/contracts/<name>/ or
-#                                                 docs/conventions/<name>/ and
-#                                                 that directory is <name>'s root;
-#                                                 1 otherwise
-#   changelog_fragments::newest_version <file>    print the newest version
-#                                                 heading of a CHANGELOG (`-`
-#                                                 reads stdin); empty when none
-#   changelog_fragments::is_release_pr            0 when CHANGELOG_HEAD_REF is
-#                                                 $CF_RELEASE_BRANCH. CI sets it to
-#                                                 the head branch of a pull request
-#                                                 from this repository, never a fork,
-#                                                 so only the release pull request,
-#                                                 which release-publish-plugins.yml writes,
-#                                                 answers 0
-#   changelog_fragments::bump_of <file>           print the fragment's bump; 1 and
-#                                                 a reason on stdout when the front
-#                                                 matter is malformed
-#   changelog_fragments::validate <path>          print each finding on stderr; 1
-#                                                 when there is one. A fragment for
-#                                                 a plugin whose CHANGELOG.md is in
-#                                                 $CF_EM_DASH_LIST may carry no em
-#                                                 dash, code included: the release
-#                                                 copies its body into that file
-#   changelog_fragments::bump_delivered <base> <plugin> <base-version> <head-version>
-#                                                 the shared bump predicate: 0 when
-#                                                 the version moved, or the plugin is
-#                                                 listed and the diff against <base>
-#                                                 adds a fragment for it whose bump
-#                                                 is not none; 1 otherwise; 2 when
-#                                                 git fails
-#   changelog_fragments::dependabot_only <base>   0 when the change set against
-#                                                 <base> is Dependabot's alone and
-#                                                 needs no fragment (see below)
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then
   printf 'scripts/lib/changelog-fragments.sh is sourced-only\n' >&2
@@ -65,7 +10,6 @@ if ! declare -F read_list::into >/dev/null 2>&1; then
   . "${BASH_SOURCE[0]%/*}/read-list.sh"
 fi
 
-# A caller running another checkout's code may point CF_LIST at its own copy.
 CF_LIST="${CF_LIST:-scripts/fragment-plugins.txt}"
 CF_RELEASE_BRANCH="release/plugins"
 CF_SECTIONS="Added Changed Deprecated Removed Fixed Security"
@@ -105,8 +49,8 @@ changelog_fragments::root_of() {
 changelog_fragments::convention_of() {
   local rest name
   case "$1" in
-  docs/contracts/*/* | docs/conventions/*/*) ;;
-  *) return 1 ;;
+    docs/contracts/*/* | docs/conventions/*/*) ;;
+    *) return 1 ;;
   esac
   rest="${1#docs/*/}"
   name="${rest%%/*}"
@@ -118,9 +62,6 @@ changelog_fragments::newest_version() {
   awk '{ sub(/\r$/, "") } match($0, /^##[ \t]+\[?[0-9]+(\.[0-9]+)+/) { v = substr($0, 1, RLENGTH); sub(/^##[ \t]+\[?/, "", v); print v; exit }' "$1"
 }
 
-# 0 when <root>/CHANGELOG.md matches an entry of $CF_EM_DASH_LIST, read
-# as scripts/check-purged-em-dashes.sh reads it (`*` stays inside one path
-# component); 1 when not; 2 when the list cannot be read.
 changelog_fragments::em_dash_purged() {
   local changelog="$1/CHANGELOG.md" glob
   if [[ -z "$_CF_PURGED_LOADED" ]]; then
@@ -138,9 +79,6 @@ changelog_fragments::em_dash_purged() {
   return 1
 }
 
-# The body lines holding an em dash (U+2014), code included: matching the
-# detector's prose extraction (fences, code spans, ignore markers) here would be
-# a second parser that can drift from it, and a miss fails the release PR.
 changelog_fragments::em_dash_lines() {
   changelog_fragments::body "$1" | LC_ALL=C grep -F $'\xe2\x80\x94' || true
 }
@@ -171,7 +109,6 @@ changelog_fragments::bump_of() {
   ' "$1"
 }
 
-# The lines after the closing front matter delimiter.
 changelog_fragments::body() {
   awk '{ sub(/\r$/, "") } fm == 2 { print; next } $0 == "---" { fm++ }' "$1"
 }
@@ -194,12 +131,12 @@ changelog_fragments::validate() {
   fi
   changelog_fragments::in_mode "$plugin"
   case $? in
-  0) ;;
-  1)
-    echo "NOT IN FRAGMENT MODE: $path is for '$plugin', which $CF_LIST does not list; bump its plugin.json and CHANGELOG.md in the pull request instead." >&2
-    return 1
-    ;;
-  *) return 2 ;;
+    0) ;;
+    1)
+      echo "NOT IN FRAGMENT MODE: $path is for '$plugin', which $CF_LIST does not list; bump its plugin.json and CHANGELOG.md in the pull request instead." >&2
+      return 1
+      ;;
+    *) return 2 ;;
   esac
   if ! bump="$(changelog_fragments::bump_of "$path")"; then
     echo "FRAGMENT FRONT MATTER: $path: $bump." >&2
@@ -243,9 +180,9 @@ changelog_fragments::validate() {
   fi
   changelog_fragments::em_dash_purged "$root"
   case $? in
-  0) ;;
-  1) return 0 ;;
-  *) return 2 ;;
+    0) ;;
+    1) return 0 ;;
+    *) return 2 ;;
   esac
   problems="$(changelog_fragments::em_dash_lines "$path")" || return 2
   if [[ -n "$problems" ]]; then
@@ -275,22 +212,19 @@ changelog_fragments::bump_delivered() {
   return 1
 }
 
-# 0 when the change set is Dependabot's alone: CHANGELOG_PR_AUTHOR (CI sets it
-# from the pull request) is dependabot[bot], and every commit in it is authored
-# by Dependabot, committed by GitHub, and carries a signature GitHub verified. A
-# commit anyone else pushes to the branch fails the last two: git lets a pusher
-# write any author and committer, but not GitHub's signature. The signature is
-# read from the API, so without GITHUB_REPOSITORY or a working gh the answer is 1.
-#
-# The commits are the pull request's own: fork point to branch tip, with a
-# pull_request merge commit resolved to its branch tip. In the merge queue the
-# checked-out commit is the queue's squash, so CI sets CHANGELOG_PR_HEAD to the
-# queued pull request's head commit and the commits are read from there.
-# shellcheck disable=SC2034 # CF_DEPENDABOT_BLOCKER is read by the sourcing script
 changelog_fragments::dependabot_only() {
-  local base="$1" tip=HEAD from commits sha an ae ce verified
-  CF_DEPENDABOT_BLOCKER=""
-  [[ "${CHANGELOG_PR_AUTHOR:-}" == 'dependabot[bot]' && -n "${GITHUB_REPOSITORY:-}" ]] || return 1
+  changelog_fragments::bot_only "$1" 'dependabot[bot]' '49699333+dependabot[bot]@users.noreply.github.com'
+}
+
+changelog_fragments::standards_sync_only() {
+  changelog_fragments::bot_only "$1" 'melodic-standards-sync[bot]' '300666570+melodic-standards-sync[bot]@users.noreply.github.com'
+}
+
+# shellcheck disable=SC2034 # CF_BOT_BLOCKER is read by the sourcing script
+changelog_fragments::bot_only() {
+  local base="$1" login="$2" email="$3" tip=HEAD from commits sha an ae ce verified
+  [[ "${CHANGELOG_PR_AUTHOR:-}" == "$login" && -n "${GITHUB_REPOSITORY:-}" ]] || return 1
+  CF_BOT_BLOCKER=""
   if [[ -n "${CHANGELOG_PR_HEAD:-}" ]]; then
     tip="$CHANGELOG_PR_HEAD"
   elif git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1 && git merge-base --is-ancestor 'HEAD^1' "$base" 2>/dev/null; then
@@ -302,12 +236,12 @@ changelog_fragments::dependabot_only() {
   # shellcheck source=/dev/null
   [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
   while IFS=$'\t' read -r sha an ae ce; do
-    CF_DEPENDABOT_BLOCKER="commit ${sha:0:12} by $an <$ae>"
-    [[ "$ce" == 'noreply@github.com' && "$an" == 'dependabot[bot]' && "$ae" == '49699333+dependabot[bot]@users.noreply.github.com' ]] || return 1
-    CF_DEPENDABOT_BLOCKER=""
+    CF_BOT_BLOCKER="commit ${sha:0:12} by $an <$ae>"
+    [[ "$ce" == 'noreply@github.com' && "$an" == "$login" && "$ae" == "$email" ]] || return 1
+    CF_BOT_BLOCKER=""
     verified="$(gh api "repos/$GITHUB_REPOSITORY/commits/$sha" --jq '.commit.verification.verified' 2>/dev/null)" || return 1
-    CF_DEPENDABOT_BLOCKER="commit ${sha:0:12} carries Dependabot's name but no signature GitHub verified"
+    CF_BOT_BLOCKER="commit ${sha:0:12} carries $login's name but no signature GitHub verified"
     [[ "$verified" == true ]] || return 1
   done <<<"$commits"
-  CF_DEPENDABOT_BLOCKER=""
+  CF_BOT_BLOCKER=""
 }

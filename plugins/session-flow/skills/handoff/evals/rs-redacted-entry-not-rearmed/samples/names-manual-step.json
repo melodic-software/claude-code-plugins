@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "The staging deploy log monitor held a secret: re-create it manually with the token from the team vault."
+    },
+    {
+      "answer": "Monitor not restarted; recreate it by hand."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "STATUS.md updated."
+    }
+  ]
+}

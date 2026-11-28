@@ -1,5 +1,6 @@
 import type { EngineInterface, Register, RenderElement, RenderPropsOf } from 'claude-code'
 import { blankProps, compilePatterns, distinct, maskProps, splitBlocks } from './mask.ts'
+import { createModEnablement, refreshModEnablement } from './mod-hook-enabled'
 
 const MASK = '[hidden]'
 const VIDEO = {
@@ -20,10 +21,7 @@ const palette = async ($: EngineInterface, isBlock: boolean): Promise<Palette | 
     return THEME
   }
 }
-// A drawn Text or Markdown refuses these, and a refused tree draws the original text.
 const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/
-// The engine refuses a tree over 20,000 nodes and draws the original text, so a larger drawing goes
-// to the text rewrite instead. Each block costs at most two nodes, each match row five.
 const MAX_NODES = 10_000
 const DISABLED = { plugin: 'display-redaction', key: 'disabled' } as const
 const COMMAND = {
@@ -56,8 +54,6 @@ const isQuestion = (q: unknown): q is Question =>
   (q.options === undefined ||
     (Array.isArray(q.options) && q.options.every((o) => isRecord(o) && typeof o.label === 'string')))
 
-// The AskUserQuestion schema refuses equal question texts and equal option labels within one
-// question, and a refused rewrite draws the original; so masked values are kept distinct.
 const distinctQuestions = (questions: unknown): unknown => {
   if (!Array.isArray(questions) || !questions.every(isQuestion)) return questions
   const texts = distinct(questions.map((q) => q.question), MASK)
@@ -104,6 +100,12 @@ function drawMasked(
 const isDisabled = async ($: EngineInterface): Promise<boolean> => (await $.state.get(DISABLED)).value === true
 
 export const register: Register = (on, options) => {
+  const gate = createModEnablement(options, {
+    plugin: 'display-redaction',
+    key: 'display_redaction_enabled',
+    defaultValue: true,
+    security: true,
+  })
   const { patterns, invalid } = compilePatterns(extraPatterns(options.extra_patterns))
   type Rewrite = (props: Record<string, unknown>, keys: readonly string[]) => Record<string, unknown>
   const mask: Rewrite = (props, keys) => maskProps(props, keys, patterns, MASK)
@@ -133,29 +135,30 @@ export const register: Register = (on, options) => {
     colors && drawMasked(elements, text, patterns, colors)
 
   on('ui.render', { component: 'AssistantMessage' }, async ($, e, next) => {
-    if (await isDisabled($)) return next(e)
+    if (!gate.isEnabled() || (await isDisabled($))) return next(e)
     return draw($.ui.resolve(e), e.props.text, await palette($, isBlock)) ?? next(hide(e, KEYS.AssistantMessage))
-  }).catch(($, e, next) => next(hide(e, KEYS.AssistantMessage, blank)))
+  }).catch(($, e, next) => next(gate.isEnabled() ? hide(e, KEYS.AssistantMessage, blank) : e))
   on('ui.render', { component: 'UserMessage' }, async ($, e, next) => {
-    if (await isDisabled($)) return next(e)
+    if (!gate.isEnabled() || (await isDisabled($))) return next(e)
     const isOwn = e.props.task === undefined && e.props.from === undefined
     return (isOwn ? draw($.ui.resolve(e), e.props.text, await palette($, isBlock)) : undefined) ??
       next(hide(e, KEYS.UserMessage))
-  }).catch(($, e, next) => next(hide(e, KEYS.UserMessage, blank)))
+  }).catch(($, e, next) => next(gate.isEnabled() ? hide(e, KEYS.UserMessage, blank) : e))
   on('ui.render', { component: 'CommandOutput' }, async ($, e, next) => {
-    if (await isDisabled($)) return next(e)
+    if (!gate.isEnabled() || (await isDisabled($))) return next(e)
     return draw($.ui.resolve(e), e.props.text, await palette($, isBlock)) ?? next(hide(e, KEYS.CommandOutput))
-  }).catch(($, e, next) => next(hide(e, KEYS.CommandOutput, blank)))
-  on('ui.render', { component: 'ToolUse' }, async ($, e, next) => next((await isDisabled($)) ? e : hideToolUse(e)))
-    .catch(($, e, next) => next(hideToolUse(e, blank)))
-  on('ui.render', { component: 'ToolResult' }, async ($, e, next) => next((await isDisabled($)) ? e : hideToolResult(e)))
-    .catch(($, e, next) => next(hideToolResult(e, blank)))
-  on('ui.render', { component: 'AskUserQuestion' }, async ($, e, next) => next((await isDisabled($)) ? e : hideQuestions(e)))
-    .catch(($, e, next) => next(hideQuestions(e, blank)))
-  on('ui.render', { component: 'InfoNotice' }, async ($, e, next) => next((await isDisabled($)) ? e : hide(e, KEYS.InfoNotice)))
-    .catch(($, e, next) => next(hide(e, KEYS.InfoNotice, blank)))
+  }).catch(($, e, next) => next(gate.isEnabled() ? hide(e, KEYS.CommandOutput, blank) : e))
+  on('ui.render', { component: 'ToolUse' }, async ($, e, next) => next(!gate.isEnabled() || (await isDisabled($)) ? e : hideToolUse(e)))
+    .catch(($, e, next) => next(gate.isEnabled() ? hideToolUse(e, blank) : e))
+  on('ui.render', { component: 'ToolResult' }, async ($, e, next) => next(!gate.isEnabled() || (await isDisabled($)) ? e : hideToolResult(e)))
+    .catch(($, e, next) => next(gate.isEnabled() ? hideToolResult(e, blank) : e))
+  on('ui.render', { component: 'AskUserQuestion' }, async ($, e, next) => next(!gate.isEnabled() || (await isDisabled($)) ? e : hideQuestions(e)))
+    .catch(($, e, next) => next(gate.isEnabled() ? hideQuestions(e, blank) : e))
+  on('ui.render', { component: 'InfoNotice' }, async ($, e, next) => next(!gate.isEnabled() || (await isDisabled($)) ? e : hide(e, KEYS.InfoNotice)))
+    .catch(($, e, next) => next(gate.isEnabled() ? hide(e, KEYS.InfoNotice, blank) : e))
 
   on('session.start', async ($, e, next) => {
+    if (!(await refreshModEnablement($, gate, e.cwd))) return next(e)
     await $.command.register(COMMAND)
     if (invalid.length > 0) {
       const noun = invalid.length === 1 ? 'entry' : 'entries'
@@ -166,11 +169,12 @@ export const register: Register = (on, options) => {
 
   on('session.end', async ($, e, next) => {
     const result = await next(e)
-    if (e.reason === 'clear') await $.command.register(COMMAND)
+    if (gate.isEnabled() && e.reason === 'clear') await $.command.register(COMMAND)
     return result
   }).catch(($, e, next) => next(e))
 
-  on('command.run', { command: 'display-redaction' }, async ($, e) => {
+  on('command.run', { command: 'display-redaction' }, async ($, e, next) => {
+    if (!gate.isEnabled()) return next(e)
     const arg = e.args.trim().toLowerCase()
     if (arg === 'off' || arg === 'on') {
       await $.state.set(DISABLED, arg === 'off')

@@ -83,8 +83,6 @@ const ops = [
     q: `query($key: String!) { teams(filter: { key: { eq: $key } }, first: 1) { nodes { id } } }`,
     vars: { key: 'ENG' } },
 
-  // Labels come from the ROOT issueLabels connection, filtered to this team OR workspace-level
-  // (team: { null: true }), paginated, so workspace labels and pages past the first are both visible.
   { name: 'create-item label resolve (root issueLabels, team-or-workspace)', loc: 'create-item.sh:137-146',
     q: `query($team: ID!, $first: Int!, $after: String) {
     issueLabels(
@@ -105,7 +103,7 @@ const ops = [
   { name: 'issueRelationCreate (create-item)', loc: 'create-item.sh:232-233',
     q: RELATION_CREATE, vars: { input: { issueId: 'b', relatedIssueId: 't', type: 'blocks' } } },
 
-  { name: 'issueUpdate parentId (add-sub-item)', loc: 'add-sub-item.sh:60-61',
+  { name: 'issueUpdate parentId (add-sub-item)', loc: 'add-sub-item.sh:57-58',
     q: ISSUE_UPDATE, vars: { id: 'c', input: { parentId: 'p' } } },
 
   { name: 'list-sub-items children', loc: 'list-sub-items.sh:53-60',
@@ -143,7 +141,4 @@ for (const op of ops) {
   else console.log(`OK          ${op.name}  [${op.loc}]`);
 }
 console.log(`\n${ops.length - fail}/${ops.length} operations validate clean against the real schema.`);
-// Exit status, not just prose. A check that prints FAIL and exits 0 cannot be a regression
-// check: every caller — a shell, CI, a future close-out — reads the status, and a green status
-// over red output is exactly the vacuous pass this harness exists to rule out.
 if (fail > 0) process.exit(1);

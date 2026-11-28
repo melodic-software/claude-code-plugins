@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Output-based tests for resolve-config.py at its command line."""
+# test-scope: plugins/code-metrics/scripts/pathglob.py plugins/code-metrics/scripts/yaml_subset.py
 
 from __future__ import annotations
 
@@ -57,10 +57,10 @@ class PositionalLayerTests(unittest.TestCase):
         )
         self.assertEqual(d["_layers"]["complexity.cyclomatic.reference"], "team")
         self.assertEqual(
-            d["lanes"]["typescript"]["collectors"]["cyclomatic"], ["lizard"]
+            d["languages"]["typescript"]["collectors"]["cyclomatic"], ["lizard"]
         )
-        self.assertIs(d["lanes"]["dotnet"]["enabled"], False)
-        self.assertIs(d["lanes"]["python"]["enabled"], True)
+        self.assertIs(d["languages"]["dotnet"]["enabled"], False)
+        self.assertIs(d["languages"]["python"]["enabled"], True)
         self.assertEqual(
             d["_files"], [USER.replace("\\", "/"), TEAM.replace("\\", "/")]
         )
@@ -76,13 +76,13 @@ class PositionalLayerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             team = Path(tmp) / "team.yaml"
             team.write_text(
-                "lanes:\n  python:\n    collectors:\n      cyclomatic: [radon, nonsense]\n",
+                "languages:\n  python:\n    collectors:\n      cyclomatic: [radon, nonsense]\n",
                 encoding="utf-8",
             )
             result = run(str(team), "--ladder", str(LADDER))
             d = json.loads(result.stdout)
             self.assertEqual(
-                d["lanes"]["python"]["collectors"]["cyclomatic"], ["radon"]
+                d["languages"]["python"]["collectors"]["cyclomatic"], ["radon"]
             )
             self.assertIn("'nonsense' is not in the ladder", result.stderr)
 
@@ -93,7 +93,7 @@ class PositionalLayerTests(unittest.TestCase):
             team = Path(tmp) / "team.yaml"
             team.write_text(
                 "scope:\n  default: all\n  base: mark\n"
-                "lanes:\n  python:\n    collectors:\n      cyclomatic: []\n",
+                "languages:\n  python:\n    collectors:\n      cyclomatic: []\n",
                 encoding="utf-8",
             )
             args = run(
@@ -112,15 +112,10 @@ class PositionalLayerTests(unittest.TestCase):
     def test_a_value_carrying_a_line_break_cannot_inject_a_second_directive(
         self,
     ) -> None:
-        # The output formats are line oriented and the dispatcher reads them
-        # with `mapfile`, so a scalar holding a newline would arrive as two
-        # directives: one naming a base, one quietly disabling a lane. The
-        # YAML subset's double-quoted scalars carry a real \n, so the layer
-        # below is writable by hand.
         with tempfile.TemporaryDirectory() as tmp:
             team = Path(tmp) / "team.yaml"
             team.write_text(
-                'scope:\n  base: "auto\\n--disable-lane python"\n', encoding="utf-8"
+                'scope:\n  base: "auto\\n--disable-language python"\n', encoding="utf-8"
             )
             result = run(str(team), "--format", "dispatch-args")
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -131,19 +126,19 @@ class PositionalLayerTests(unittest.TestCase):
             self.assertNotIn("Traceback", result.stderr)
             resolved = Path(tmp) / "resolved.json"
             resolved.write_text(
-                json.dumps({"scope": {"base": "auto\n--disable-lane python"}}),
+                json.dumps({"scope": {"base": "auto\n--disable-language python"}}),
                 encoding="utf-8",
             )
             through = run("--from-json", str(resolved), "--format", "dispatch-args")
             self.assertEqual(through.returncode, 2, through.stdout)
-            self.assertNotIn("--disable-lane", through.stdout)
+            self.assertNotIn("--disable-language", through.stdout)
 
     def test_a_tab_in_a_ladder_field_cannot_shift_a_column(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             resolved = Path(tmp) / "resolved.json"
             resolved.write_text(
                 json.dumps(
-                    {"lanes": {"python": {"collectors": {"cyclomatic\tx": ["radon"]}}}}
+                    {"languages": {"python": {"collectors": {"cyclomatic\tx": ["radon"]}}}}
                 ),
                 encoding="utf-8",
             )
@@ -154,11 +149,6 @@ class PositionalLayerTests(unittest.TestCase):
     def test_a_quoted_reference_is_dropped_by_name_and_never_falls_to_a_lower_layer(
         self,
     ) -> None:
-        # `reference: "20"` is a string scalar the assembler cannot compare.
-        # The run goes on: the team value is named and dropped, and the key
-        # takes the bundled default 20 (reference/config.md), not the user
-        # layer's 10, because a lower layer's value never stands in for an
-        # invalid higher one.
         with tempfile.TemporaryDirectory() as tmp:
             team = Path(tmp) / "team.yaml"
             team.write_text(
@@ -191,9 +181,6 @@ class PositionalLayerTests(unittest.TestCase):
     def test_a_scalar_exclude_is_dropped_not_read_as_a_glob_per_character(
         self,
     ) -> None:
-        # `scope.exclude` is a closed list. Iterating a scalar would emit `v`,
-        # `e`, `n`, ... as globs; instead the team value is dropped and the
-        # bundled four (reference/config.md) apply, not the user layer's list.
         with tempfile.TemporaryDirectory() as tmp:
             user = Path(tmp) / "user.yaml"
             user.write_text('scope:\n  exclude: ["docs/**"]\n', encoding="utf-8")
@@ -287,12 +274,10 @@ class PositionalLayerTests(unittest.TestCase):
             self.assertIn("scope.exclude", result.stderr)
 
     def test_a_layer_outside_the_subset_is_named_and_ignored(self) -> None:
-        # A file the parser rejects reads as absent, the shared reader's rule
-        # (lib/parse-concern-value.sh): the run continues on the other layers.
         result = run(USER, FLOW)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("flow mapping", result.stderr)
-        self.assertIn("line 4", result.stderr)
+        self.assertIn("line 2", result.stderr)
         self.assertIn(FLOW, result.stderr)
         d = json.loads(result.stdout)
         self.assertEqual(d["_provenance"]["size.file_lines"]["value"], 800)
@@ -305,7 +290,7 @@ class PositionalLayerTests(unittest.TestCase):
         out = run(USER, TEAM, "--format", "ladder-overrides").stdout.splitlines()
         self.assertEqual(out, ["typescript\tcyclomatic\tlizard"])
         out = run(USER, TEAM, "--format", "dispatch-args").stdout.splitlines()
-        self.assertEqual(out, ["--disable-lane dotnet"])
+        self.assertEqual(out, ["--disable-language dotnet"])
         out = run(USER, TEAM, LOCAL, "--format", "excludes").stdout.splitlines()
         self.assertEqual(out, ["vendor/**"])
 
@@ -329,7 +314,7 @@ class PositionalLayerTests(unittest.TestCase):
                 run(
                     "--from-json", str(resolved), "--format", "dispatch-args"
                 ).stdout.splitlines(),
-                ["--disable-lane dotnet"],
+                ["--disable-language dotnet"],
             )
             self.assertEqual(
                 json.loads(run("--from-json", str(resolved)).stdout)["_layers"][
@@ -344,8 +329,6 @@ class PositionalLayerTests(unittest.TestCase):
 
 class SchemaTests(unittest.TestCase):
     def test_the_schema_declares_every_bundled_key_and_no_other(self) -> None:
-        # The schema validates a consumer's team file in CI; a key the
-        # resolver reads but the schema lacks would fail a valid file there.
         schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
         defs = schema["$defs"]
 
@@ -368,12 +351,12 @@ class SchemaTests(unittest.TestCase):
 
         defaults = json.loads(DEFAULTS.read_text(encoding="utf-8"))
         defaults.pop("thresholds")
-        lanes = defaults.pop("lanes")
+        languages = defaults.pop("languages")
         declared: set[str] = set()
         schema_keys(
             {
                 "properties": {
-                    k: v for k, v in schema["properties"].items() if k != "lanes"
+                    k: v for k, v in schema["properties"].items() if k != "languages"
                 }
             },
             "",
@@ -382,15 +365,15 @@ class SchemaTests(unittest.TestCase):
         bundled: set[str] = set()
         default_keys(defaults, "", bundled)
         self.assertEqual(declared, bundled)
-        lanes_schema = schema["properties"]["lanes"]
-        self.assertEqual(sorted(lanes_schema["properties"]), sorted(lanes))
-        pattern = re.compile(lanes_schema["propertyNames"]["pattern"])
-        for lane in [*lanes, "rust", "cross-cutting"]:
-            self.assertRegex(lane, pattern)
+        languages_schema = schema["properties"]["languages"]
+        self.assertEqual(sorted(languages_schema["properties"]), sorted(languages))
+        pattern = re.compile(languages_schema["propertyNames"]["pattern"])
+        for language in [*languages, "rust", "cross-cutting"]:
+            self.assertRegex(language, pattern)
         for bad in ["Rust", "../x", "a/b", "-x"]:
             self.assertNotRegex(bad, pattern)
         self.assertEqual(
-            lanes_schema["additionalProperties"], {"$ref": "#/$defs/lane"}
+            languages_schema["additionalProperties"], {"$ref": "#/$defs/language"}
         )
 
 
@@ -400,22 +383,17 @@ class DiscoveredLayerTests(unittest.TestCase):
             home = Path(tmp) / "home"
             root = Path(tmp) / "repo"
             (home / ".claude" / "ecosystems").mkdir(parents=True)
+            (home / "cfg").mkdir(parents=True)
             (root / ".claude" / "ecosystems").mkdir(parents=True)
             (root / "docs" / "conventions").mkdir(parents=True)
-            (home / ".claude" / "code-metrics.yaml").write_text(
-                "size:\n  file_lines: 700\n", encoding="utf-8"
-            )
+            user_cfg = home / "cfg" / "code-metrics.yaml"
+            user_cfg.write_text("size:\n  file_lines: 700\n", encoding="utf-8")
             (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
                 "complexity:\n  cyclomatic:\n    reference: 12\n", encoding="utf-8"
             )
-            (root / ".claude" / "code-metrics.local.yaml").write_text(
+            (root / "docs" / "conventions" / "code-metrics.local.yaml").write_text(
                 "size:\n  file_lines: 650\n", encoding="utf-8"
             )
-            # An ecosystem file's stem IS the lane name, and every lane name
-            # this repository knows is also the basename of a committed
-            # convention example. A literal `<lane>.yaml` here would make
-            # scripts/affected-tests.sh map that unrelated example to this
-            # suite, so the fixture names are composed from the lane instead.
             ecosystems = root / ".claude" / "ecosystems"
             shell, golang = "bash", "go"
             (ecosystems / (shell + ".yaml")).write_text(
@@ -427,7 +405,14 @@ class DiscoveredLayerTests(unittest.TestCase):
             (ecosystems / (golang + ".local.yaml")).write_text(
                 "enabled: false\n", encoding="utf-8"
             )
-            result = run("--home", str(home), "--repo-root", str(root))
+            result = run(
+                "--home",
+                str(home),
+                "--repo-root",
+                str(root),
+                "--user-file",
+                str(user_cfg),
+            )
             self.assertEqual(result.returncode, 0, result.stderr)
             d = json.loads(result.stdout)
             self.assertEqual(d["size"]["file_lines"], 650)
@@ -448,7 +433,7 @@ class DiscoveredLayerTests(unittest.TestCase):
                 "dispatch-args",
             ).stdout.splitlines()
             self.assertEqual(
-                args, ["--lane-globs bash=*.sh,*.bats", "--disable-lane go"]
+                args, ["--language-globs bash=*.sh,*.bats", "--disable-language go"]
             )
 
     def test_reads_ecosystem_records_from_the_convention_home_first(self) -> None:
@@ -491,14 +476,14 @@ class DiscoveredLayerTests(unittest.TestCase):
                 d["_warnings"],
             )
 
-    def test_only_a_listed_lane_id_reads_its_ecosystem_record(self) -> None:
+    def test_only_a_listed_language_id_reads_its_ecosystem_record(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
             ecosystems = root / ".claude" / "ecosystems"
             ecosystems.mkdir(parents=True)
             (root / "docs" / "conventions").mkdir(parents=True)
             (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
-                "lanes:\n  rust:\n    enabled: true\n  python:\n    enabled: true\n",
+                "languages:\n  rust:\n    enabled: true\n  python:\n    enabled: true\n",
                 encoding="utf-8",
             )
             extra, shipped, unlisted = "rust", "python", "cross-cutting"
@@ -521,16 +506,16 @@ class DiscoveredLayerTests(unittest.TestCase):
                 "--home", tmp, "--repo-root", str(root), "--format", "dispatch-args"
             ).stdout.splitlines()
             self.assertEqual(
-                args, ["--lane-globs python=**/*.py", "--lane-globs rust=**/*.rs"]
+                args, ["--language-globs python=**/*.py", "--language-globs rust=**/*.rs"]
             )
 
-    def test_a_lane_id_outside_kebab_case_is_dropped_by_name(self) -> None:
+    def test_a_language_id_outside_kebab_case_is_dropped_by_name(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
             (root / ".claude" / "ecosystems").mkdir(parents=True)
             (root / "docs" / "conventions").mkdir(parents=True)
             (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
-                "lanes:\n  Rust:\n    enabled: true\n", encoding="utf-8"
+                "languages:\n  Rust:\n    enabled: true\n", encoding="utf-8"
             )
             (root / ".claude" / "ecosystems" / "Rust.yaml").write_text(
                 'globs: ["**/*.rs"]\n', encoding="utf-8"
@@ -539,24 +524,24 @@ class DiscoveredLayerTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             d = json.loads(result.stdout)
             self.assertTrue(
-                any("lanes.Rust.enabled" in w and "kebab-case" in w for w in d["_warnings"]),
+                any("languages.Rust.enabled" in w and "kebab-case" in w for w in d["_warnings"]),
                 d["_warnings"],
             )
             self.assertEqual(d["_ecosystems"], {})
 
-    def test_a_scalar_listed_lane_is_dropped_not_read_as_a_mapping(self) -> None:
+    def test_a_scalar_listed_language_is_dropped_not_read_as_a_mapping(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / "repo"
             (root / "docs" / "conventions").mkdir(parents=True)
             (root / "docs" / "conventions" / "code-metrics.yaml").write_text(
-                "lanes:\n  rust: true\n  zig:\n    collectors: true\n", encoding="utf-8"
+                "languages:\n  rust: true\n  zig:\n    collectors: true\n", encoding="utf-8"
             )
             result = run(
                 "--home", tmp, "--repo-root", str(root), "--ladder", str(LADDER)
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             d = json.loads(result.stdout)
-            for key in ("lanes.rust", "lanes.zig.collectors"):
+            for key in ("languages.rust", "languages.zig.collectors"):
                 self.assertTrue(
                     any(f"{key} = True: must be a mapping" in w for w in d["_warnings"]),
                     d["_warnings"],
@@ -666,65 +651,27 @@ class DiscoveredLayerTests(unittest.TestCase):
             self.assertEqual(d["_files"], [paths["new"].as_posix()])
             self.assertEqual(err, "")
 
-    def test_an_old_personal_file_alone_applies_with_a_warning(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            d, err, paths = self._personal(tmp, None, "size:\n  file_lines: 620\n", None)
-            self.assertEqual(
-                d["_provenance"]["size.file_lines"], {"value": 620, "layer": "local"}
-            )
-            warnings = [w for w in d["_warnings"] if str(paths["old"]) in w]
-            self.assertEqual(len(warnings), 1, d["_warnings"])
-            self.assertIn(str(paths["new"]), warnings[0])
-            self.assertEqual(err.count(str(paths["old"])), 1)
-
-    def test_with_both_personal_files_the_new_one_wins_and_both_are_named(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            d, _, paths = self._personal(
-                tmp, "size:\n  file_lines: 610\n", "size:\n  file_lines: 620\n", None
-            )
-            self.assertEqual(d["size"]["file_lines"], 610)
-            self.assertNotIn(paths["old"].as_posix(), d["_files"])
-            self.assertTrue(
-                any(
-                    str(paths["old"]) in w and str(paths["new"]) in w
-                    for w in d["_warnings"]
-                ),
-                d["_warnings"],
-            )
-
-    def test_an_unparsable_new_personal_file_leaves_the_old_one_applied(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            d, _, paths = self._personal(
-                tmp, "size: { file_lines: 610 }\n", "size:\n  file_lines: 620\n", None
-            )
-            self.assertEqual(d["size"]["file_lines"], 620)
-            self.assertTrue(
-                any(
-                    str(paths["old"]) in w and "outside the YAML subset" in w
-                    for w in d["_warnings"]
-                ),
-                d["_warnings"],
-            )
-
-    def test_an_old_user_global_file_alone_applies_as_userconfig_with_a_warning(
-        self,
-    ) -> None:
+    def test_old_personal_and_user_global_files_are_not_read(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             d, err, paths = self._personal(
-                tmp, None, None, "size:\n  file_lines: 700\n  mode: iso-8.2.115\n"
+                tmp,
+                None,
+                "size:\n  file_lines: 620\n",
+                "size:\n  file_lines: 700\n  mode: iso-8.2.115\n",
             )
             self.assertEqual(
                 d["_provenance"]["size.file_lines"],
-                {"value": 700, "layer": "userConfig"},
+                {"value": 1000, "layer": "bundled default"},
             )
-            warnings = [w for w in d["_warnings"] if str(paths["user"]) in w]
-            self.assertEqual(len(warnings), 1, d["_warnings"])
-            self.assertIn("still read as the userConfig layer", warnings[0])
-            self.assertIn(
-                "the file the config_file userConfig option names", warnings[0]
+            self.assertEqual(
+                d["_provenance"]["size.mode"],
+                {"value": "file-lines", "layer": "bundled default"},
             )
-            self.assertNotIn(str(paths["new"]), warnings[0])
-            self.assertEqual(err.count(str(paths["user"])), 1)
+            self.assertEqual(d["_files"], [])
+            self.assertEqual(d["_warnings"], [])
+            self.assertEqual(err, "")
+            self.assertNotIn(paths["old"].as_posix(), d["_files"])
+            self.assertNotIn(paths["user"].as_posix(), d["_files"])
 
     def test_the_userconfig_layer_reads_the_file_the_option_names(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -760,50 +707,6 @@ class DiscoveredLayerTests(unittest.TestCase):
                 d["_provenance"]["size.mode"],
                 {"value": "iso-8.2.115", "layer": "userConfig"},
             )
-
-    def test_the_option_names_a_missing_file_so_the_old_file_applies(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            d, _, paths = self._personal(
-                tmp,
-                None,
-                None,
-                "size:\n  file_lines: 700\n",
-                None,
-                "~/cfg/code-metrics.yaml",
-            )
-            self.assertEqual(
-                d["_provenance"]["size.file_lines"],
-                {"value": 700, "layer": "userConfig"},
-            )
-            warnings = [w for w in d["_warnings"] if str(paths["user"]) in w]
-            self.assertEqual(len(warnings), 1, d["_warnings"])
-            self.assertIn(f"move it to {paths['config_file']}", warnings[0])
-
-    def test_with_both_user_files_the_option_file_wins_and_both_are_named(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            d, err, paths = self._personal(
-                tmp,
-                None,
-                None,
-                "size:\n  file_lines: 700\n  mode: iso-8.2.115\n",
-                "size:\n  file_lines: 710\n",
-                str(Path(tmp) / "home" / "cfg" / "code-metrics.yaml"),
-            )
-            self.assertEqual(
-                d["_provenance"]["size.file_lines"],
-                {"value": 710, "layer": "userConfig"},
-            )
-            self.assertEqual(
-                d["_provenance"]["size.mode"],
-                {"value": "file-lines", "layer": "bundled default"},
-            )
-            self.assertNotIn(paths["user"].as_posix(), d["_files"])
-            warnings = [w for w in d["_warnings"] if str(paths["user"]) in w]
-            self.assertEqual(len(warnings), 1, d["_warnings"])
-            self.assertIn(
-                f"is not read because {paths['config_file']} exists", warnings[0]
-            )
-            self.assertEqual(err.count(str(paths["user"])), 1)
 
     def test_an_unset_or_relative_option_supplies_no_userconfig_file(self) -> None:
         for option, warned in (

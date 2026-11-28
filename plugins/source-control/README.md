@@ -416,7 +416,7 @@ repo's owner.
 | `unattended_merge_owners` | string (multiple) | none: nothing merges after AI review without the user. This and the six keys below are trust and cost settings, read only from user or managed settings (`babysit_merge_settings.py`), never from a repository |
 | `review_lane_workflows` | string (multiple) | none: no CI run counts as a review lane, so `review_venue: auto` reviews locally |
 | `review_lane_checks` | string (multiple) | none: no check counts as AI review, so the merge gate holds |
-| `owner_decisions_record` | string | none: no decision clears a cost hold |
+| `owner_decisions_record` | string | none: no row link required (verbatim quote only) |
 | `free_runner_labels` | string (multiple) | GitHub's standard hosted labels only |
 | `model_leg_actions` | string (multiple) | the built-in `run-claude-cli` and `claude-code*` names only |
 | `issue_status_app_login` | string | none: only a person's Work status values count |
@@ -619,7 +619,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `unattended_merge_owners` | string (multiple) | *(none)* | GitHub owners whose repositories /source-control:pull-request may merge after AI review without asking (merge phase 4.2.1). User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: nothing merges without the user. |
 | `review_lane_workflows` | string (multiple) | *(none)* | Reusable workflows whose runs count as a CI review lane, each as code-review=, security-review= or either= then <owner>/<repo>/.github/workflows/<file>. User or managed settings only, never a repository. Absent: no run counts, so every lane reads local. |
 | `review_lane_checks` | string (multiple) | *(none)* | AI review lane callers and check names the merge gate accepts, each as claude-review: or claude-security-review: then caller=<workflow path>, status=<check> or merge=<check>. User or managed settings only, never a repository. Absent: no check is AI review, so the gate holds. |
-| `owner_decisions_record` | string | *(none)* | The record whose line links clear a cost hold, as <owner>/<repo>/<path>. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: no decision clears a cost hold. |
+| `owner_decisions_record` | string | *(none)* | Optional record whose line links must accompany a cost decision, as <owner>/<repo>/<path>. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: no row link is required; only the verbatim owner quote is checked. |
 | `free_runner_labels` | string (multiple) | *(none)* | Runner label globs the merge gate treats as free besides GitHub's standard labels; * stands for letters, digits and -. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: only GitHub's standard labels are free. |
 | `model_leg_actions` | string (multiple) | *(none)* | Action names besides run-claude-cli and claude-code* that start a model leg, for the merge gate's cost check; adds only. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: the built-in names only. |
 | `issue_status_app_login` | string | *(none)* | The one GitHub App login (<slug>\[bot\]) whose Work status field values the merge gate counts like a person's, when the trusted-actors list also lists it. User or managed settings only, never a repository. Absent: only a person's values count. |

@@ -1,72 +1,4 @@
 #!/usr/bin/env bash
-# worktree-root-doctor.sh — conformance check for the worktreeroot.path
-# convention (#2612). The
-# includeIf machinery the convention leans on for
-# per-identity/per-repository roots fails UNIFORMLY QUIETLY: an unknown
-# condition keyword, a missing include file, a plain value parsed after an
-# includeIf, a scope flag skipping every include, and a 2.56-only condition on
-# an older git all produce rc=0 and zero bytes of stderr, so a typo'd condition
-# is indistinguishable from an unset key. This doctor makes those failure
-# classes loud, and names WHICH rule supplied the repository's root.
-#
-# Worktree enumeration and lock reasons live in scripts/lib/worktree-facts.sh.
-# This doctor reports path resolution and does not parse porcelain.
-#
-# Convention owner doc: reference/worktree-root-convention.md. The resolution
-# this doctor reports on is the one scripts/worktree-create.sh performs.
-#
-# Usage:
-#   worktree-root-doctor.sh [--repo-dir <dir>]
-#
-# Output: one finding per line — `ok:` / `info:` / `warn:` / `error:`.
-# Exit codes:
-#   0  no warnings or errors
-#   1  at least one warn/error finding
-#   2  usage error
-#
-# Checked here (each mapped to a silent-failure class from #2612):
-#   * dubious-ownership / non-repository fallback — `rev-parse --git-dir` gate;
-#     without it a config read returns the GLOBAL default as though it were the
-#     repository's answer (rc=0, no stderr).
-#   * which rule supplied the root — `--show-origin` per value; `--show-scope`
-#     is useless here (it collapses a conditionally-included file to `global`).
-#   * a plain value parsed after an include-supplied one — precedence is parse
-#     order, not specificity, so a `[worktreeroot] path` below the includeIf
-#     block silently overrides
-#     every identity include.
-#   * declared-but-unfired includeIf conditions — `git config --list` emits
-#     `includeif.<condition>.path` for every DECLARED condition, matched or
-#     not, so declared can be diffed against what actually contributed values.
-#   * an include path pointing at a nonexistent file (rc=0, silent upstream).
-#   * unrecognized condition keywords, and version-floor conditions
-#     (`worktree:`/`worktree/i:` need git >= 2.56; older gits skip them with no
-#     diagnostic).
-#   * `gitdir:` without `/i` on a Windows shell — gitdir matching is
-#     case-sensitive even on case-insensitive NTFS, and only the pattern
-#     author's spelling matters.
-#   * `hasconfig:` in use — libgit2 clients (gitui, TortoiseGit, bindings)
-#     implement gitdir/gitdir-i/onbranch but NOT hasconfig, and unrecognized
-#     conditions fail silently there; fine for this convention's CLI-only
-#     readers, fatal for an identity split.
-#   * identity partials — an include that sets user.email but not
-#     user.signingkey while signing is configured globally leaks the global
-#     key into that identity's commits (and an SSH-signed mismatch verifies
-#     Good locally, so nothing downstream catches it).
-#   * a registered linked worktree whose path lies inside a DIFFERENT repository's work
-#     tree (a different git common dir) — error naming the owning repository,
-#     the containing repository and the remove command. A worktree inside its
-#     own repository's tree or under the resolved root is not flagged; a missing
-#     or unreadable ancestor stops the walk without aborting the audit.
-#   * scoped-read divergence — reported as info: consumers must never pass a
-#     scope flag without --includes, and this names what such a read would
-#     return here.
-#
-# NOT machine-checked here, reported as a standing note instead: NTFS
-# junction-anchored patterns (match nothing in either direction, contradicting
-# the manpage's symlink claim — anchor patterns at canonical targets) and bare
-# repositories (no `/.git` suffix, so `**/<name>/.git` patterns miss them; the
-# suffix shape IS flagged when a declared pattern carries it).
-
 set -uo pipefail
 
 PROG=${0##*/}
@@ -91,11 +23,21 @@ while [[ $# -gt 0 ]]; do
     shift 2
     ;;
   -h | --help)
-    # The whole header (everything after the shebang up to the first
-    # non-comment line), markers stripped. Derived rather than a hardcoded
-    # line range: such a range silently truncates as the header grows.
-    awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' \
-      "${BASH_SOURCE[0]}"
+    cat <<'EOF'
+worktree-root-doctor.sh: check the worktreeroot.path convention and name which rule supplied the root.
+
+Usage:
+  worktree-root-doctor.sh [--repo-dir <dir>]
+
+  --repo-dir  the repository to check (default: the current directory)
+
+Output: one finding per line, `ok:` / `info:` / `warn:` / `error:`.
+
+Exit codes:
+  0  no warnings or errors
+  1  at least one warn/error finding
+  2  usage error
+EOF
     exit 0
     ;;
   *)
@@ -118,38 +60,9 @@ err() {
   FINDINGS=$((FINDINGS + 1))
 }
 
-# expand_tilde <path> — a leading ~/ against $HOME, best-effort.
-expand_tilde() {
-  local p="$1"
-  # SC2088: matching the literal unexpanded tilde is the point — config values
-  # arrive verbatim, never shell-expanded.
-  # shellcheck disable=SC2088
-  if [[ "$p" == "~/"* && -n "${HOME:-}" ]]; then
-    printf '%s/%s' "${HOME%/}" "${p#\~/}"
-  else
-    printf '%s' "$p"
-  fi
-}
+expand_tilde() { worktree_root_expand_tilde "$1"; }
+canon() { worktree_root_canon "$1"; }
 
-# canon <path> — physical path when a resolver exists, the input otherwise.
-# Only used for comparisons, never displayed. Same realpath||readlink -f idiom
-# as hooks/hook-utils.sh (auto-guarded by shell-portability-lint).
-canon() {
-  local r
-  if r=$(realpath -- "$1" 2>/dev/null) || r=$(readlink -f -- "$1" 2>/dev/null); then
-    [[ -n "$r" ]] && {
-      printf '%s' "$r"
-      return 0
-    }
-  fi
-  printf '%s' "$1"
-}
-
-# --- Gate: the repository must actually resolve -------------------------------
-# Under dubious ownership (safe.directory) or outside a repository entirely,
-# `git -C <dir> config --get <key>` still exits 0 and returns the GLOBAL value
-# as though it were the repository's answer. Every read below is meaningless
-# until this gate passes, so a failure here is the whole report.
 if ! git -C "$repo_dir" rev-parse --git-dir >/dev/null 2>&1; then
   err "repository unreadable at $repo_dir — not a git repository, or dubious ownership (safe.directory). Until this resolves, any 'git -C <here> config --get worktreeroot.path' silently returns the GLOBAL value as if it were this repository's answer (rc=0, no stderr). Fix: run from a repository, or 'git config --global --add safe.directory <path>'."
   exit 1
@@ -164,43 +77,20 @@ if [[ -n "$git_dir" && -n "$common_dir" && "$(canon "$git_dir")" != "$(canon "$c
   note "linked worktree: gitdir is $git_dir (under the main repository), so gitdir-anchored includeIf conditions classify this worktree WITH its repository — and a pattern anchored at this worktree's own tree path matches nothing, ever."
 fi
 
-# --- Declared includeIf conditions, and which files actually contributed ------
-# `git config --list --show-origin` searches all files (includes ON — the
-# default when no scope flag is given), emitting `includeif.<cond>.path` for
-# every declared condition whether or not it matched. Under -z each entry is
-# TWO NUL-delimited records — `origin<NUL>key<LF>value<NUL>` — so a value
-# carrying a newline cannot shear a record; keys cannot contain NUL or the LF
-# that ends them.
 declare -a inc_conds=() inc_paths=() inc_origins=() inc_resolved=()
 declare -A contributing_origin=()
 
-while IFS= read -r -d '' origin && IFS= read -r -d '' kv; do
-  if [[ "$kv" == *$'\n'* ]]; then
-    key="${kv%%$'\n'*}"
-    val="${kv#*$'\n'}"
-  else
-    key="$kv"
-    val=""
-  fi
-  # Origin is `file:<path>` for file-backed config; other origin types
-  # (blob:, command line:) are not include machinery.
-  ofile=""
-  [[ "$origin" == file:* ]] && ofile="${origin#file:}"
-  [[ -n "$ofile" ]] && contributing_origin["$(canon "$ofile")"]=1
-  if [[ "$key" == includeif.*.path ]]; then
-    cond="${key#includeif.}"
-    cond="${cond%.path}"
-    inc_conds+=("$cond")
-    inc_paths+=("$val")
-    inc_origins+=("$ofile")
-    # A relative include path resolves against the DECLARING file's directory.
-    rp="$(expand_tilde "$val")"
-    if [[ "$rp" != /* && ! "$rp" =~ ^[A-Za-z]:/ && -n "$ofile" ]]; then
-      rp="$(dirname "$ofile")/$rp"
-    fi
-    inc_resolved+=("$(canon "$rp")")
-  fi
-done < <(git -C "$repo_dir" config --list --show-origin -z 2>/dev/null | tr -d '\r')
+worktree_root_collect_includes "$repo_dir"
+for orig in ${WORKTREE_ROOT_ORIGINS[@]+"${WORKTREE_ROOT_ORIGINS[@]}"}; do
+  contributing_origin["$orig"]=1
+done
+for idx in ${WORKTREE_ROOT_INC_KINDS[@]+"${!WORKTREE_ROOT_INC_KINDS[@]}"}; do
+  [[ "${WORKTREE_ROOT_INC_KINDS[idx]}" == "includeif" ]] || continue
+  inc_conds+=("${WORKTREE_ROOT_INC_CONDS[idx]}")
+  inc_paths+=("${WORKTREE_ROOT_INC_PATHS[idx]}")
+  inc_origins+=("${WORKTREE_ROOT_INC_ORIGINS[idx]}")
+  inc_resolved+=("${WORKTREE_ROOT_INC_RESOLVED[idx]}")
+done
 
 git_version_num=0
 if [[ "$(git --version 2>/dev/null)" =~ ([0-9]+)\.([0-9]+) ]]; then
@@ -219,9 +109,6 @@ is_include_file() {
 for idx in ${inc_conds[@]+"${!inc_conds[@]}"}; do
   cond="${inc_conds[idx]}"
   resolved="${inc_resolved[idx]}"
-  # Fired-ness is per target FILE, not per condition — git does not report which
-  # condition spliced a file when several name the same one, so a file another
-  # condition pulled in reads as contributing for all of them.
   fired="did not contribute values here"
   [[ -n "${contributing_origin["$resolved"]:-}" ]] && fired="target file contributed values here"
   note "includeIf \"$cond\" -> ${inc_paths[idx]} — $fired"
@@ -259,18 +146,12 @@ for idx in ${inc_conds[@]+"${!inc_conds[@]}"}; do
   esac
 done
 
-# --- Resolution: which rule supplied the worktree root ------------------------
-# Shared resolver picks worktreeroot.path (and rewrites a retired alias when
-# one is still present). Origin attribution then loops that key so empty-last
-# fallthrough matches create.sh.
 declare -a val_origins=() val_values=()
 winning_key=""
 root_expanded=""
 if worktree_root_resolve "$repo_dir"; then
   winning_key="$WORKTREE_ROOT_KEY_USED"
   while IFS= read -r -d '' origin && IFS= read -r -d '' val; do
-    # Same alternating -z framing as above, except --get-all emits the value
-    # alone as the second record (no key<LF> prefix — measured, not assumed).
     ofile=""
     [[ "$origin" == file:* ]] && ofile="${origin#file:}"
     val_origins+=("$ofile")
@@ -297,8 +178,6 @@ else
   done
   ok "$winning_key = $win_val (supplied by $supplied_by)"
 
-  # Parse order is precedence: a plain value the parser meets after an
-  # include-supplied one silently overrides every identity include.
   if ((nvals > 1)); then
     losing_include=0
     for ((idx = 0; idx < win_idx; idx++)); do
@@ -311,34 +190,21 @@ else
     if ((losing_include && !win_from_include)); then
       warn "a plain $winning_key in $win_origin is parsed AFTER an include-supplied value and silently overrides it — precedence is parse order, not specificity. If the include is meant to win, move the plain default ABOVE the includeIf block."
     elif ((win_from_include)); then
-      # The recommended layout: a plain machine default parsed first, the
-      # include's more-specific answer after it. Say so — the absence of a
-      # confirmation is indistinguishable from an unchecked class.
       note "several values are set ($nvals); last parsed wins, and the winner comes from an include — the layering is working"
     fi
   fi
 
-  # Scoped-read divergence: a consumer passing a scope flag without --includes
-  # gets a DIFFERENT answer than the correct all-files read.
   scoped_val="$(git config --global --get --type=path "$winning_key" 2>/dev/null | tail -n 1 | tr -d '\r')"
   if [[ "$scoped_val" != "$win_val" ]]; then
     note "a scoped read ('git config --global --get $winning_key', includes OFF by default when a scope flag is given) returns '${scoped_val:-<nothing>}' here, not '$win_val' — consumers must never pass a scope flag without --includes"
   fi
 
-  # The root must satisfy the invariant the key exists for.
   root_expanded="$(expand_tilde "$win_val")"
   if [[ -e "$root_expanded" ]] && git -C "$root_expanded" rev-parse --show-toplevel >/dev/null 2>&1; then
     warn "the resolved root $win_val sits INSIDE a git working tree — the one placement the convention exists to prevent; point it at a directory outside every repository"
   fi
 fi
 
-# --- Worktrees nested in another repository ------------------------------------
-# For each registered worktree, walk up from its path. An ancestor that is the
-# work tree of a repository with a different git common dir means the worktree
-# sits inside another repository's tree (a worktree of B created under A's
-# .work/). The walk stops at the first ancestor that is missing or unreadable.
-
-# common_of <dir> — canonical absolute git common dir of the repository at <dir>.
 common_of() {
   local c
   c=$(git -C "$1" rev-parse --git-common-dir 2>/dev/null | tr -d '\r') || return 1
@@ -357,9 +223,6 @@ if [[ -n "$nested_porcelain" ]] && git -C "$repo_dir" worktree list --porcelain 
   root_canon=""
   [[ -n "$root_expanded" ]] && root_canon="$(canon "$root_expanded")"
   for wt_idx in ${WT_FACT_PATH[@]+"${!WT_FACT_PATH[@]}"}; do
-    # Linked worktrees only: the main checkout may legitimately sit under another
-    # repository (a submodule, a clone under a dotfiles repo), and git refuses
-    # to remove it.
     [[ "${WT_FACT_LINKED[wt_idx]}" == "yes" ]] || continue
     wt_path="${WT_FACT_PATH[wt_idx]}"
     wt_canon="$(canon "$wt_path")"
@@ -370,8 +233,6 @@ if [[ -n "$nested_porcelain" ]] && git -C "$repo_dir" worktree list --porcelain 
     while [[ -d "$ancestor" && -r "$ancestor" && -x "$ancestor" ]]; do
       if [[ -e "$ancestor/.git" ]]; then
         ancestor_common="$(common_of "$ancestor")" || ancestor_common=""
-        # Reaching the worktree's own repository means it sits in its own tree;
-        # anything above that is the main checkout's placement, not the worktree's.
         [[ "$ancestor_common" == "$own_common" ]] && break
         if [[ -n "$ancestor_common" ]]; then
           err "worktree $wt_path of repository $owner_main sits inside the work tree of a different repository ($ancestor). Remove it: git -C $owner_main worktree remove $wt_path"
@@ -386,11 +247,6 @@ if [[ -n "$nested_porcelain" ]] && git -C "$repo_dir" worktree list --porcelain 
 fi
 [[ -z "$nested_porcelain" ]] || rm -f "$nested_porcelain"
 
-# --- Identity partials ---------------------------------------------------------
-# An include that flips user.email without the signing/transport keys leaks the
-# global ones into that identity's commits — and a wrong SSH signing key still
-# verifies Good locally (git derives the principal from the signature), so the
-# leak surfaces only on the forge.
 signing_configured="$(git -C "$repo_dir" config --get user.signingkey 2>/dev/null | tr -d '\r')"
 for idx in ${inc_resolved[@]+"${!inc_resolved[@]}"}; do
   f="${inc_resolved[idx]}"
@@ -403,7 +259,6 @@ for idx in ${inc_resolved[@]+"${!inc_resolved[@]}"}; do
   fi
 done
 
-# --- Standing notes: classes no script can probe from here ---------------------
 note "not machine-checked here: NTFS junction-anchored gitdir patterns match nothing in either direction (anchor at canonical targets), and --show-scope collapses include-supplied values to 'global' (use --show-origin, as this doctor does)"
 
 ((FINDINGS == 0)) || exit 1

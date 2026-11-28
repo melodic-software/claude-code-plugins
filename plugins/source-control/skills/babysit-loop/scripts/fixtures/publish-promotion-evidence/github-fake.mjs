@@ -1,20 +1,13 @@
-// A recorded GitHub for the publisher's `gh` seam, shared by the publisher and resolver tests.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { ghFailure } from "../../publish-promotion-evidence.mjs";
 
-// Real `gh api` responses, recorded 2026-10-12 and 2026-10-13 and trimmed to the fields the
-// publisher reads: from this repository (PRs #7352 and #7063, a merge commit, a check run, a
-// status, an issue event, a review, a comment page, workflow runs, a compare, NOT_FOUND and 422
-// answers). The comment page's body is trimmed to its first line. Each case copies a record and
-// varies number, labels, merger, timestamps and the rung its pin names.
 export const REC = JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)), "recorded.json"), "utf8"));
 export const REPO = "melodic-software/claude-code-plugins";
 export const LANE = "lane-bot[bot]";
 export const MISSED = "ai-review: missed-blocking";
-// The recorded check run and status name the post-merge gate in every case.
 export const GATE = [REC.checkRun.name, REC.status.context];
 export const FULL = "pr-require-checks.yml";
 export const CANARY = "post-merge-detect-silent-revert.yml";
@@ -33,7 +26,6 @@ export function pr(
 ) {
   const names = labels.map((name) => ({ name }));
   return {
-    // The rung the default pin comment names (none when unset).
     pinRung: rung,
     graph: {
       ...REC.pullGraph.data.repository.pullRequest,
@@ -77,34 +69,6 @@ export const wfRun = (id, event, sha, created, { conclusion = "success", status 
   triggering_actor: { login: triggering },
 });
 
-// A recorded GitHub: answers only the GET paths the publisher is expected to call, with the
-// documented semantics of each (list sort order, check-runs `filter=latest` by default, statuses
-// newest first), and throws on any other, so an unexpected or mutating call fails the case.
-// A run marked `superseded` was re-run: only `filter=all` returns it.
-// `bumpOnPage2` updates that PR (a comment, a label) between the listing's first and second page.
-// `workflowRuns`: {<workflow file>: [run]}; `attempts`: {<run id>: {<n>: run}}; `history`: the
-// default branch's commits oldest first (linear, as a merge-queue branch is), defaulting to the
-// merge commits in merge order.
-// `offBranch`: commits not on the default branch that descend from it, as on a tag named main.
-// `onTop`: commits on top of the branch tip but not on the branch (a tag named main one commit
-// ahead), which a compare against the tip answers `behind`. `unknownCompare`: commits whose
-// compare answers no status. `tip`: what `refs/heads/main` reads, default the last commit.
-// `diverged`: head SHAs a compare reports as diverged. A PR number not in `pulls` answers with the
-// recorded NOT_FOUND response.
-// The lane posts a pin comment on every PR it enqueues and dispatches a full run after every merge
-// (babysit_merge.py --unattended, babysit_postmerge.py), so each PR gets a correct pin (naming the
-// rung `pr()` was given, if any) and a green
-// lane dispatch run on its merge commit an hour after merging, unless `comments` sets that PR's
-// comments or `noDefaultDispatch` is set; an explicit run with the same id replaces the default.
-// Each workflow's runs carry run_number 1, 2, ... in creation order unless a run sets its own (a
-// re-run keeps its number); `deletedRuns` lists run ids GitHub no longer lists, gaps included.
-// `demotionIssues`: issue nodes the GraphQL issues query returns, each with an `author` login and
-// the `comments` the REST comment listing returns for it (`issueComment` builds one).
-// `issueList`: the issues and pulls the REST issue listing returns (none by default, so no number
-// is a hole); `goneIssues`: numbers a read of answers 410 Gone; `missingIssues`: numbers it answers
-// 404; `discussions`: discussion number to author login, whose numbers also read 404 as issues;
-// `lateRuns`: run ids the run listing shows on every page but the first, as if listed mid-read.
-// babysit_postmerge.py pin_comment: the old shape names no rung, the new one `rung=C2|C3`.
 export const pinComment = (sha, rung) => ({ author: actorOf(LANE), body: `<!-- babysit-merge-pin sha=${sha}${rung ? ` rung=${rung}` : ""} -->\nThe unattended merge path is about to ask GitHub to enqueue this pull request at head \`${sha}\`. GitHub can still refuse it after accepting the request.`, lastEditedAt: null });
 export const demotionIssue = (number, createdAt, { author = "github-actions[bot]", body = REC.demotionIssue.body, updatedAt = createdAt, comments = [], edits = [], editCount = edits.length } = {}) => ({
   ...REC.demotionIssue,
@@ -159,7 +123,6 @@ export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}
         return { data: { repository: { pullRequest: { comments: { ...REC.commentsPage.data.repository.pullRequest.comments, pageInfo: { hasNextPage: more, endCursor: more ? String(n + 1) : null }, nodes } } } } };
       }
       if (/issues\(/.test(graphql.query)) {
-        // filterBy createdBy and since (updated at or after); one page.
         const author = graphql.variables.author.toLowerCase();
         const nodes = demotionIssues.filter((i) => i.author.toLowerCase() === author && Date.parse(i.updatedAt) >= Date.parse(graphql.variables.since)).map(({ author: _, comments: __, ...node }) => node);
         return { data: { repository: { issues: { pageInfo: { hasNextPage: false, endCursor: null }, nodes } } } };
@@ -187,7 +150,6 @@ export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}
       return page(listed.sort((a, b) => sign * a[key].localeCompare(b[key])), rest);
     }
     if ((m = /^issues\/(\d+)$/.exec(rest))) {
-      // The REST "Get an issue" 410 Gone for a deleted issue, in the shape of the recorded 404.
       if (goneIssues.includes(Number(m[1]))) {
         return ghFailure(path, undefined, REC.issueNotFound.stdout.replace("Not Found", "This issue was deleted").replace('"404"', '"410"'), "gh: This issue was deleted (HTTP 410)\n");
       }
@@ -205,7 +167,6 @@ export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}
       return { total_count: runs.length, check_runs: page(runs, rest) };
     }
     if ((m = /^commits\/([0-9a-f]{40})\/pulls$/.exec(rest))) {
-      // A SHA no commit has: the recorded 422, as realGh hands it to ghFailure.
       if (!branch.includes(m[1])) return ghFailure(path, undefined, REC.commitNotFound.stdout, REC.commitNotFound.stderr);
       return pulls.filter((p) => p.graph.mergeCommit.oid === m[1]).map((p) => ({ number: p.graph.number, merged_at: p.graph.mergedAt, merge_commit_sha: m[1] }));
     }
@@ -217,10 +178,8 @@ export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}
       return { total_count: runs.length, workflow_runs: page(runs, rest) };
     }
     if ((m = /^actions\/workflows\/([\w.-]+)\/runs\?created=([^&]+)&per_page=(\d+)&page=(\d+)$/.exec(rest))) {
-      // Every event and branch, newest first, but runs created in one second oldest first (measured
-      // 2026-10-15: runs 3100 and 3101, created in one second, listed 3100 then 3101). With `created`,
-      // GitHub returns at most 1,000 results (REST "List workflow runs for a workflow"); past them, and
-      // measured 2026-10-15, a page is empty with total_count 0, and total_count stops at 2,500.
+      // With `created`, GitHub returns at most 1,000 results per search:
+      // https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow
       const [lo, hi] = decodeURIComponent(m[2]).split("..").map(Date.parse);
       const [size, n] = [Number(m[3]), Number(m[4])];
       if (size * n > 1000) return { total_count: 0, workflow_runs: [] };
@@ -232,8 +191,6 @@ export function github({ pulls = [], commits = [], checkRuns = {}, statuses = {}
     if ((m = /^actions\/runs\/(\d+)\/attempts\/(\d+)$/.exec(rest))) return attempts[m[1]][m[2]];
     if (rest === "git/ref/heads/main") return { ref: "refs/heads/main", object: { sha: tip === undefined ? branch.at(-1) : tip } };
     if ((m = /^compare\/([0-9a-f]{40})\.\.\.([0-9a-f]{40})\?/.exec(rest))) {
-      // An off-branch commit (a tag named main) descends from every branch commit and is
-      // diverged from the tip.
       if (unknownCompare.includes(m[1]) || unknownCompare.includes(m[2])) return { ...REC.compare, status: undefined };
       if (onTop.includes(m[1])) return { ...REC.compare, status: "behind", ahead_by: 0, total_commits: 0, commits: [] };
       if (offBranch.includes(m[2]) || onTop.includes(m[2])) return { ...REC.compare, status: "ahead", ahead_by: 1, total_commits: 1, commits: [] };

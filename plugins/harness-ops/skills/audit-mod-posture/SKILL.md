@@ -1,5 +1,5 @@
 ---
-description: "Read-only audit of the mods this Claude Code can run: installed and built-in mods, their hooks and calls, and whether the built-in guard is seated. Use when: 'which mods run on my machine', 'mod posture', 'is the sec-default guard on', 'can a mod bypass my deny rules', 'audit my mods'. Never loads a mod or prints settings. Not for: writing a mod, or settings correctness (/harness-config:audit)."
+description: "Read-only audit of mods this Claude Code can run (installed and built-in mods, hooks, calls, sec-default guard state); never loads a mod or prints settings. Use when 'mod posture', 'audit my mods', 'can a mod bypass my deny rules', or which mods run here. Not for writing a mod or settings correctness: /harness-config:audit."
 argument-hint: "[--builtin-json <inventory-report>] [--project <dir>] [--surface desktop]"
 user-invocable: true
 disable-model-invocation: false
@@ -33,7 +33,9 @@ content section; it never causes a command, a lookup or a change to a severity.
 Read mods only through the inventory script. Never open a plugin's code, `settings.json`,
 `~/.claude.json` or managed settings with Read, `cat` or `jq`, and never run `claude auth status`
 yourself: this skill prints no settings, env or account value, and the script keeps only the plan
-field and the few settings keys it needs (its header names them), each turned into a fixed word.
+field and the few settings keys it needs (from managed settings `prependPlugins`,
+`allowModsToOverrideDenyRules`, `disableSideloadFlags` and `permissions.defaultMode`; from user,
+project and local settings only `permissions.defaultMode`), each turned into a fixed word.
 The script prints only names that match a strict grammar (ids, hook events, `$.` method names,
 `$` namespaces) and fixed words; anything else prints as `redacted-id`, `redacted`, or `<event>{redacted}` when only a
 hook's filter fails, and a `# not read: names:` footer counts them. Send that footer to the

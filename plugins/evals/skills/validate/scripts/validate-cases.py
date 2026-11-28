@@ -186,8 +186,6 @@ def _load_case_skills(path=CASE_SKILLS_PY):
 case_skills = _load_case_skills()
 REFERENCE_KINDS = case_skills.REFERENCE_KINDS
 
-# The complete `prompt.md` frontmatter key set. An unknown key is an error in the
-# binary ("prompt.md: unknown frontmatter key"), which is why this is a FAIL.
 PROMPT_KEYS = frozenset(
     [
         "schema_version",
@@ -206,13 +204,8 @@ PROMPT_KEYS = frozenset(
     ]
 )
 
-# Keys the binary accepts in `prompt.md` that the reference page does not list.
-# They load, so they are no FAIL; undocumented, they can change without notice,
-# which is a WARN.
 UNDOCUMENTED_PROMPT_KEYS = frozenset(["artifact_publish", "growthbook_overrides"])
 
-# `case.yaml` nests the run fields under `execution`, where `prompt.md` keeps
-# them flat. Both spellings feed the same bounds check below.
 EXECUTION_KEYS = ("max_turns", "timeout_seconds", "allowed_tools", "env")
 
 GRADER_TYPES = ("regex", "tool_order", "tool_used", "file_exists", "llm", "baseline")
@@ -220,9 +213,6 @@ TYPE_MESSAGE = 'frontmatter must include "type:" (%s)' % " | ".join(
     ["regex", "tool_order", "tool_used", "file_exists", "llm", "baseline"]
 )
 
-# Per-type option sets. `name` is common here rather than yaml-only: the
-# `case.yaml` grader list requires it, and no source records the `.md` layout
-# rejecting it, so accepting it invents no rejection the binary does not make.
 GRADER_COMMON = frozenset(["type", "weight", "arm", "name"])
 GRADER_FIELDS = {
     "regex": frozenset(["pattern", "flags", "match", "target"]),
@@ -235,19 +225,10 @@ GRADER_FIELDS = {
 JUDGE_TYPES = frozenset(["llm", "baseline"])
 ARMS = ("with-only", "both")
 
-# What a regex `target` or an llm `focus` may read: one of these names, or a
-# `{ source: file, path: <path> }` mapping. Any other value fails at load.
 LOOK_AT_FIELD = {"regex": "target", "llm": "focus"}
 LOOK_AT_NAMES = ("last_message", "trace", "files", "mock_calls")
 LOOK_AT_MESSAGE = " | ".join(LOOK_AT_NAMES) + " | { source: file, path: <path> }"
 
-# Tools a case may list without an operator grant. Everything else is removed
-# from the session and reported on stderr as `not granted`, so the case runs
-# without the tool it was written around. We mirror the page's no-grant list.
-# - Pointer: when this set may be stale, fetch
-#   https://code.claude.com/docs/en/plugin-evals#grant-tools live.
-# - As of: 2026-10-10
-# - Recheck trigger: that section's allowed-tools sentence changes.
 READ_ONLY_TOOLS = frozenset(
     [
         "Read",
@@ -266,44 +247,17 @@ READ_ONLY_TOOLS = frozenset(
     ]
 )
 
-# Tools Claude Code removed. No grant restores one, so suggesting
-# --allow-tools would send the case to a paid run without it.
-# - Pointer: when a tool here may be back, or another was removed, fetch
-#   https://code.claude.com/docs/en/changelog live (TaskOutput: 2.1.277).
-# - As of: 2026-10-10
-# - Recheck trigger: a release note removes or restores a tool a case can list.
 REMOVED_TOOLS = frozenset(["TaskOutput"])
 
-# A skill's pre-computed context line runs through Bash when the skill loads. A
-# case that names the skill, by a leading /plugin:skill command or a tag, and
-# lacks Bash fails to load it. The inline form counts only with its ! at a line
-# start or after whitespace, so `` !`command` `` in prose runs and ``!`command`
-# `` does not; a ```! block opens a line.
-# - Pointer: when what loads a pre-computed line may have changed, fetch
-#   https://code.claude.com/docs/en/skills#inject-dynamic-context live; the
-#   observed basis is run #8635, INVALID at 0 turns, and the 2026-11-14 compare
-#   on #15707, where skill-authoring's prose `` !`command` `` failed every load
-#   and plugin-eval's ``!`command` `` loaded.
-# - As of: 2026-11-14
-# - Recheck trigger: that section names a tool other than Bash for the line,
-#   or changes where the inline form is recognized.
 PRECOMPUTED = re.compile(r"(?:^|(?<=\s))!`[^`\n]+`|^[ \t]*```!", re.MULTILINE)
 SLASH_SKILL = re.compile(r"^\s*/(?:[\w.-]+:)?([\w-]+(?:\.[\w-]+)*)(?=[\s:,.;]|$)")
 SKILL_NAME = re.compile(r"^[\w-][\w.-]*$")
 
-# (field, minimum, maximum) for the run fields the schema bounds.
 BOUNDS = (("runs", 1, 50), ("max_turns", 1, 200), ("timeout_seconds", 1, 3600))
 
-# The `schema_version` major the binary supports; a newer major is refused, and
-# so is a value with no leading major. A case with no `case.yaml` gets a default
-# `schema_version` and takes its directory name as `name`; once a `case.yaml`
-# exists, the two come from it or from `prompt.md` frontmatter, or the case
-# fails to load.
 SCHEMA_MAJOR = 1
 SCHEMA_MAJOR_PREFIX = re.compile(r"^\s*([+-]?[0-9]+)")
 
-# The options each grader type marks required. A `graders/*.md` body stands in
-# for the option named in BODY_FIELD when the frontmatter leaves it out.
 GRADER_REQUIRED = {
     "regex": ("pattern",),
     "tool_used": ("tool",),
@@ -314,9 +268,6 @@ GRADER_REQUIRED = {
 }
 BODY_FIELD = {"regex": "pattern", "llm": "criteria", "baseline": "criteria"}
 
-# The double-quoted escapes this subset translates. Anything else is a ParseError
-# rather than a silent drop: YAML rejects an unknown escape too, so translating
-# `\d` to `d` would green-light input the binary refuses.
 ESCAPES = {"\\": "\\", '"': '"', "/": "/", "n": "\n", "t": "\t", "r": "\r"}
 
 ENV_KEY = re.compile(r"^EVAL_[A-Z0-9_]*$")
@@ -324,20 +275,12 @@ KEY_LINE = re.compile(r"^([A-Za-z_][A-Za-z0-9_.\-]*)[ \t]*:(?:[ \t]+(.*))?$")
 INT_SCALAR = re.compile(r"^[-+]?[0-9]+$")
 FLOAT_SCALAR = re.compile(r"^[-+]?[0-9]*\.[0-9]+$")
 
-# Never a case, whatever they contain: results are run output and mocks answer
-# tool calls. Anything else inside a case directory belongs to that case.
 SKIP_DIRS = frozenset(["results", "mocks", "graders", "node_modules", "__pycache__"])
 
-# Sample answers live beside graders/, never inside it, so the binary never
-# loads one as a grader, and a run cannot read the eval directory, so the agent
-# never sees them.
 SAMPLES_DIR = "samples"
 SAMPLE_KEYS = ("pass", "fail")
 DETERMINISTIC_TYPES = frozenset(["regex", "tool_used", "tool_order", "file_exists"])
 
-# JavaScript RegExp flags that change matching, and their `re` equivalents.
-# `g` and `d` do not change whether a fresh regex matches; `u` is the default
-# for a Python str pattern.
 JS_FLAGS = {"i": re.IGNORECASE, "m": re.MULTILINE, "s": re.DOTALL}
 NEUTRAL_FLAGS = frozenset("gdu")
 COUNT_MATCH = re.compile(r"^count:([0-9]+)$")
@@ -345,7 +288,6 @@ JS_NAMED_GROUP = re.compile(r"\(\?<(?![=!])")
 JS_NAMED_BACKREF = re.compile(r"\\k<([A-Za-z_][A-Za-z0-9_]*)>")
 GLOB_SPECIAL = frozenset(".+^${}()|[]\\")
 
-# Python-only regex syntax, found by `python_only_tokens`.
 PY_ONLY_ESCAPES = frozenset("AZz")
 PY_ONLY_GROUPS = (
     ("(?>", "atomic group (?>"),
@@ -357,12 +299,6 @@ PY_ONLY_GROUPS = (
 )
 BRACE_QUANTIFIER = re.compile(r"\{[0-9]+(?:,[0-9]*)?\}")
 
-# Run once per case with the case's regex and tool_used graders as JSON on
-# stdin; prints one result per grader: a compile error, or per answer whether it
-# matched and how many matches it holds. A text answer counts global matches; a
-# tool_used answer is the list of the grader tool's call inputs, each encoded as
-# compact JSON the way the binary does, and counts the calls that match. Each
-# engine in JS_ENGINES that is on PATH runs it with `-e`.
 JS_ENGINES = ("node", "bun")
 NODE_TIMEOUT_SECONDS = 30
 NODE_PROBE = r"""
@@ -416,7 +352,6 @@ class Unmirrored(Exception):
 
 
 def _prepare(text):
-    """Strip comments and blank lines, returning (indent, content) pairs."""
     prepared = []
     for raw in text.splitlines():
         stripped = raw.strip()
@@ -434,7 +369,6 @@ def _prepare(text):
 
 
 def _scalar(text):
-    """Convert a plain scalar to int, float, bool, None, or str."""
     if text in ("null", "~", ""):
         return None
     if text in ("true", "True"):
@@ -449,7 +383,6 @@ def _scalar(text):
 
 
 def _read_quoted(text, start):
-    """Read one quoted scalar, returning (value, index after the closing quote)."""
     quote = text[start]
     index = start + 1
     chars = []
@@ -465,7 +398,6 @@ def _read_quoted(text, start):
             index += 2
             continue
         if char == quote:
-            # A single-quoted scalar escapes its quote by doubling it.
             if quote == "'" and text[index + 1 : index + 2] == "'":
                 chars.append("'")
                 index += 2
@@ -487,7 +419,6 @@ def _is_key_separator(text, index):
 
 
 def _read_flow(text, start):
-    """Read one flow collection, returning (value, index after its closer)."""
     opener = text[start]
     closer = "]" if opener == "[" else "}"
     container = [] if opener == "[" else {}
@@ -513,7 +444,7 @@ def _read_flow(text, start):
         char = text[index]
         if char in "\"'":
             value, index = _read_quoted(text, index)
-            buffer.append("\0Q")  # marker: the buffer holds a parsed string
+            buffer.append("\0Q")
             buffer.append(value)
             continue
         if char in "[{":
@@ -564,7 +495,6 @@ def _construct_for(char):
 
 
 def _parse_value(text):
-    """Parse the value half of a `key: value` line."""
     text = text.strip()
     if text == "":
         return None
@@ -592,12 +522,6 @@ def _parse_value(text):
 
 
 def _parse_block(lines, index, indent, depth):
-    """Parse the block collection starting at lines[index].
-
-    `depth` counts MAPPING levels only. A sequence is not a level of its own:
-    the `graders:` list's items are mappings at the same depth the list sits at,
-    which is what lets a grader carry a block `target:` inside a case.yaml.
-    """
     if lines[index][1].startswith("-"):
         return _parse_sequence(lines, index, indent, depth)
     return _parse_mapping(lines, index, indent, depth)
@@ -691,7 +615,6 @@ class DelimiterInFrontmatter(ParseError):
 
 
 def split_markdown(text):
-    """Return (frontmatter block or None, body) of a markdown file."""
     lines = text.splitlines()
     if not lines or lines[0].strip() != "---":
         return None, text
@@ -707,7 +630,6 @@ def split_markdown(text):
 
 
 def split_frontmatter(text):
-    """Return the frontmatter block of a markdown file, or None when it has none."""
     return split_markdown(text)[0]
 
 
@@ -757,7 +679,6 @@ def unparsed(case, path, error):
 
 
 def discover_cases(eval_dir):
-    """Every directory under eval_dir holding a prompt.md or a case.yaml."""
     cases = []
     for dirpath, dirnames, filenames in os.walk(eval_dir):
         dirnames[:] = sorted(
@@ -883,7 +804,6 @@ def check_identity(identity, prompt, prompt_file, case, findings):
 
 
 def check_tools(fields, case, findings):
-    """Report tools the operator must grant, and say whether the case can write."""
     if "allowed_tools" not in fields:
         return False
     value, path = fields["allowed_tools"]
@@ -917,7 +837,6 @@ def check_tools(fields, case, findings):
 
 
 def skills_named(prompt, tags):
-    """Skill names a case points at: its leading slash command, then its tags."""
     names = []
     match = SLASH_SKILL.match(prompt)
     if match:
@@ -928,8 +847,6 @@ def skills_named(prompt, tags):
 
 
 def containment_root(eval_dir):
-    """The nearest directory at or above the suite holding a plugin manifest,
-    else the suite's parent, which is the plugin directory in the usual layout."""
     here = eval_dir
     while True:
         if os.path.isfile(
@@ -966,11 +883,6 @@ def check_plugins(case_dir, root, value, case, path, findings):
         ):
             continue
         else:
-            # The CLI refuses a second plugin anywhere else, such as a stub
-            # shared under evals/fixtures/: "a plugin shipped with a case must
-            # sit in its own subdirectory". Pointer: the Fix section of
-            # https://github.com/melodic-software/claude-code-plugins/pull/13376
-            # (as of 2026-11-04); recheck when that refusal message changes.
             message = (
                 "a second plugin must sit in a subdirectory of the case's own "
                 "directory; only the plugin under evaluation loads from elsewhere"
@@ -999,7 +911,6 @@ def on_history_chain(record):
 
 
 def history_chain_records(records):
-    """The (1-based record number, record) pairs on the chain."""
     return [
         (number, record)
         for number, record in enumerate(records, start=1)
@@ -1035,8 +946,6 @@ def check_history_chain(case_dir, case, history_file, findings):
     if not isinstance(history_file, str) or not history_file:
         return
     try:
-        # JSONL ends a record at "\n" only: splitlines() would also cut at
-        # U+2028 and the like, which JSON allows raw inside a string.
         lines = read_text(os.path.join(case_dir, history_file)).split("\n")
     except (OSError, ValueError):
         return
@@ -1106,8 +1015,6 @@ CONTEXT_PATHS = ("scaffold_script", "history_file", "add_dirs")
 
 
 def plugins_root(eval_dir):
-    """The nearest `plugins` directory above the suite, or None when the suite
-    is not under one, which leaves the name checks off."""
     here = eval_dir
     while True:
         parent = os.path.dirname(here)
@@ -1119,8 +1026,6 @@ def plugins_root(eval_dir):
 
 
 def missing_reference(root, kind, plugin, name, prefix=False):
-    """The `plugins/...` path a reference needs when it does not exist, else
-    None. With prefix, any name starting with `name` resolves it."""
     parts = REFERENCE_KINDS[kind](plugin, name)
     if os.path.isfile(os.path.join(root, *parts)):
         return None
@@ -1133,7 +1038,6 @@ def missing_reference(root, kind, plugin, name, prefix=False):
 
 
 def check_context_paths(case_dir, context, case, findings):
-    """FAIL a context path that names nothing in the case directory."""
     for field in CONTEXT_PATHS:
         value = context.get(field)
         for entry in value if isinstance(value, list) else [value]:
@@ -1153,12 +1057,6 @@ def check_context_paths(case_dir, context, case, findings):
 
 
 def check_references(root, prompt, prompt_file, tag_sources, graders, case, findings):
-    """FAIL a leading /plugin:skill, a plugin:skill tag, or a literal
-    plugin:skill or plugin:agent token in a Skill or Agent tool_used
-    input_match that names nothing under the plugins root. A `/` before a
-    token makes it a skill; a token the pattern leaves open on the right (at
-    the end, or before `|` or `)`) matches as a substring, so a prefix of a
-    real name resolves it."""
     for ref in case_skills.references(prompt, prompt_file, tag_sources, ()):
         if ref.form != "literal":
             continue
@@ -1198,7 +1096,6 @@ def check_references(root, prompt, prompt_file, tag_sources, graders, case, find
 
 
 def valid_look_at(value):
-    """True for a name in LOOK_AT_NAMES or a file source with a string path."""
     if isinstance(value, dict):
         path = value.get("path")
         return value.get("source") == "file" and isinstance(path, str) and path != ""
@@ -1206,7 +1103,6 @@ def valid_look_at(value):
 
 
 def check_grader(case, path, options, findings):
-    """One grader's type, option set, weight, arm, and documented mistakes."""
     kind = options.get("type")
     if kind not in GRADER_TYPES:
         findings.append(Finding("FAIL", case, path, TYPE_MESSAGE))
@@ -1318,7 +1214,6 @@ def check_grader_syntax(case, path, name, options, findings):
 
 
 def collect_graders(case_dir, case, yaml_data, findings):
-    """The union of the case.yaml grader list and graders/*.md, in that order."""
     graders = []
     listed = (yaml_data or {}).get("graders")
     if listed is not None:
@@ -1407,7 +1302,6 @@ def python_only_tokens(pattern, flags=""):
                 add("\\" + following)
             index += 2
             if following in "upP" and pattern[index : index + 1] == "{":
-                # `\u{41}` and `\p{L}` carry a brace body, not a quantifier.
                 close = pattern.find("}", index)
                 index = len(pattern) if close == -1 else close + 1
             continue
@@ -1423,7 +1317,6 @@ def python_only_tokens(pattern, flags=""):
             for opener, label in PY_ONLY_GROUPS:
                 if pattern.startswith(opener, index):
                     add(label)
-            # Skip the `?` so it is not read as a quantifier.
             index += 2 if pattern.startswith("(?", index) else 1
             continue
         quantifier = None
@@ -1509,8 +1402,6 @@ def _whole(value):
 
 
 def js_jobs(case, graders, samples):
-    """One JavaScript job per regex grader and per tool_used grader with an
-    `input_match`: its pattern, flags, how to read a match, and its samples."""
     jobs = []
     for name, options, grader_path in graders:
         if not isinstance(options, dict):
@@ -1521,14 +1412,14 @@ def js_jobs(case, graders, samples):
             mode = options.get("match", "contains")
             count = COUNT_MATCH.match(str(mode))
             if mode not in ("contains", "not_contains") and not count:
-                continue  # the Python check already reports the unknown mode
+                continue
             bounds = None
         elif kind == "tool_used" and options.get("input_match"):
             pattern, flags, mode, count = options.get("input_match"), "", None, None
             low, high = options.get("min"), options.get("max")
             low = 1 if low is None else low
             if not _whole(low) or not (high is None or _whole(high)):
-                continue  # the Python check already reports the bounds
+                continue
             bounds = (low, high)
         else:
             continue
@@ -1542,7 +1433,7 @@ def js_jobs(case, graders, samples):
                 for number, item in enumerate(data.get(key) or [], start=1):
                     answer = item["answer"]
                     if answer_error(kind, answer):
-                        continue  # the Python check already reports the shape
+                        continue
                     if kind == "tool_used":
                         answer = [
                             call.get("input", {})
@@ -1568,7 +1459,6 @@ def js_jobs(case, graders, samples):
 
 
 def run_js_jobs(jobs, engine="node"):
-    """Grade every job under `engine` in one process: (results, problem)."""
     if not jobs:
         return [], None
     return run_node_probe(
@@ -1596,8 +1486,6 @@ def js_passed(job, seen):
 
 
 def judge_js_jobs(jobs, results, findings):
-    """A FAIL for each pattern JavaScript cannot compile and each sample it sorts
-    the other way from its label."""
     for job, result in zip(jobs, results):
         case, name = job["case"], job["name"]
         if "error" in result:
@@ -1642,8 +1530,6 @@ def _counts(seen):
 
 
 def judge_js_engines(jobs, runs, findings):
-    """judge_js_jobs over the engines in `runs` ({engine: results}), naming the
-    engine in each finding, plus a FAIL for each sample the engines disagree on."""
     for index, job in enumerate(jobs):
         case, name = job["case"], job["name"]
         graded = {}
@@ -1716,7 +1602,6 @@ def check_js_engine(jobs, findings):
 
 
 def js_regex(pattern, flags=""):
-    """Compile a JavaScript regex with Python's re, or raise Unmirrored."""
     if not isinstance(pattern, str) or not isinstance(flags, str):
         raise Unmirrored("pattern and flags must be strings")
     compiled_flags = 0
@@ -1752,7 +1637,6 @@ def grade_regex(options, text):
 
 
 def call_matches(call, spec):
-    """One call against a tool name or a {tool, input_match} mapping."""
     if isinstance(spec, str):
         spec = {"tool": spec}
     if not isinstance(spec, dict):
@@ -1761,7 +1645,6 @@ def call_matches(call, spec):
         return False
     if not spec.get("input_match"):
         return True
-    # The binary matches the compact JSON encoding of the call's input.
     text = json.dumps(call.get("input", {}), separators=(",", ":"), ensure_ascii=False)
     return js_regex(spec["input_match"]).search(text) is not None
 
@@ -1843,7 +1726,6 @@ GRADE = {
 
 
 def answer_error(kind, answer):
-    """What `answer` must be for this grader type, or None when it fits."""
     if kind == "regex":
         return None if isinstance(answer, str) else "a string"
     if kind == "file_exists":
@@ -1877,7 +1759,6 @@ def sample_shape_error(data):
 
 
 def load_samples(case_dir, case, findings):
-    """Every samples/<grader>.json in the case, as {name: (path, data)}."""
     directory = os.path.join(case_dir, SAMPLES_DIR)
     loaded = {}
     if not os.path.isdir(directory):
@@ -1901,7 +1782,6 @@ def load_samples(case_dir, case, findings):
 
 
 def run_samples(case, path, kind, options, data, findings):
-    """Grade every sample; a mismatch with its expected verdict is a FAIL."""
     for key in SAMPLE_KEYS:
         if not data.get(key):
             findings.append(
@@ -1950,7 +1830,6 @@ def run_samples(case, path, kind, options, data, findings):
 
 
 def check_samples(case, graders, samples, findings):
-    """Run deterministic graders over their samples; flag what goes unchecked."""
     names = set()
     for name, options, grader_path in graders:
         names.add(name)
@@ -1998,15 +1877,12 @@ def check_samples(case, graders, samples, findings):
 def analyze_case(
     case_dir, case, findings, plugin_root, containment, references, js_jobs_out
 ):
-    """Validate one case, appending its findings and its JavaScript jobs."""
     fields = {}
     tags = None
     tag_sources = []
     yaml_data = None
     yaml_path = os.path.join(case_dir, "case.yaml")
     prompt_path = os.path.join(case_dir, "prompt.md")
-    # The case identity and prompt, each as (value, file it came from). Without
-    # a case.yaml the binary supplies the identity; with one it supplies none.
     identity = {}
     prompt = ""
     unread = False
@@ -2095,9 +1971,6 @@ def analyze_case(
                                 'unknown frontmatter key "%s"' % key,
                             )
                         )
-                # prompt.md frontmatter overrides the matching case.yaml field,
-                # so each check reads the effective value and reports the file
-                # the value actually came from.
                 for key in ("schema_version", "name"):
                     if key in prompt_fm:
                         identity[key] = (prompt_fm[key], "prompt.md")
@@ -2154,10 +2027,6 @@ def analyze_case(
         if options.get("type") == "file_exists":
             file_exists_sites.append(path)
 
-    # A file_exists grader passes only on a file Claude CREATED during the run,
-    # and every case runs in its own throwaway workspace, so it is this case's
-    # own tool grant that decides whether anything can be created. Another
-    # case's write tool cannot make this assertion satisfiable.
     if not can_write:
         for path in file_exists_sites:
             findings.append(

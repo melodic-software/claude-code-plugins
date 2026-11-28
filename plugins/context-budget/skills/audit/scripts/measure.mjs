@@ -1,35 +1,4 @@
 #!/usr/bin/env node
-// context-budget measurement engine.
-//
-// Measures a Claude Code session's fixed startup context payload on THIS
-// machine, at a pinned binary, and attributes the un-itemized built-in tool
-// pools per tool by A/B differencing. Ships no token values of its own: every
-// number it reports was measured by the run that reports it.
-//
-// Modes, in fixed preference order (the degradation ladder):
-//   sdk        Agent SDK getContextUsage() — exact integers. Requires
-//              @anthropic-ai/claude-agent-sdk to be resolvable (see --sdk-dir).
-//   cli-parse  `<binary> -p "/context"` markdown, parsed version-aware, with
-//              display-rounded values. Headless /context is undocumented as a
-//              -p-capable command, so this mode depends on unsanctioned
-//              behavior. The record says so in `caveats`.
-//   (neither)  a structured error naming the remediation, never a wrong
-//              number.
-//
-// Subcommands:
-//   snapshot          one measured snapshot (optionally under --deny);
-//                     --measure-only: sdk mode only, stdout only, no file written
-//   attribute         baseline + one deny run per tool -> ranked per-tool deltas
-//   compare           offline: two snapshot files -> one ledger row
-//   ledger            append a row / list rows under a caller-derived data dir
-//   parse-context     offline: parse a captured /context markdown file
-//   verify-catalogue  grep the stamped binary for each catalogue key/env name
-//
-// Exit codes: 0 success; 2 usage error; 3 measurement unavailable or
-// unparsable (the degradation path — stdout carries a context-budget.error/1
-// record with a remediation); 4 `snapshot --measure-only` found the Agent SDK
-// absent (no cli-parse fallback, no install offer).
-
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import {
@@ -164,7 +133,7 @@ function resolveBinary(explicit) {
       const candidate = join(dir, `claude${ext}`);
       try {
         if (existsSync(candidate) && statSync(candidate).isFile()) return realpathSync(candidate);
-      } catch { /* unreadable PATH entry — keep looking */ }
+      } catch {}
     }
   }
   return null;
@@ -188,14 +157,12 @@ function findSdkEntry(dirs) {
       const req = createRequire(join(resolve(dir), 'resolve-anchor.js'));
       const entry = req.resolve('@anthropic-ai/claude-agent-sdk');
       return { entry, anchor: resolve(dir) };
-    } catch { /* not resolvable from this anchor — next rung */ }
+    } catch {}
   }
   return null;
 }
 
 function sdkVersionFromEntry(entry) {
-  // The package's exports map hides package.json from resolve(); walk up from
-  // the resolved entry file to the package directory instead.
   let dir = dirname(entry);
   const marker = `${sep}@anthropic-ai${sep}claude-agent-sdk`;
   while (dir.includes(marker) && !existsSync(join(dir, 'package.json'))) dir = dirname(dir);
@@ -288,7 +255,7 @@ function parseContextMarkdown(text, { binaryVersion: version = null } = {}) {
     for (const cells of tableRows(lines, agentsTable)) {
       if (cells.length >= 3) {
         let tokens = null;
-        try { tokens = parseTokenCell(cells[2]).tokens; } catch { /* keep null */ }
+        try { tokens = parseTokenCell(cells[2]).tokens; } catch {}
         agents.push({ agentType: cells[0], source: cells[1], tokens });
       }
     }
@@ -352,7 +319,7 @@ async function sdkSnapshot({ sdk, sdkVersion, sdkEntry, bin, deny, label }) {
           const usage = await q.getContextUsage();
           clearTimeout(timer);
           resolvePromise({ init: msg, usage });
-          try { await q.interrupt(); } catch { /* session may have ended */ }
+          try { await q.interrupt(); } catch {}
           break;
         }
       }
@@ -868,7 +835,7 @@ function catalogueTokens(lever) {
           if (extractCamelKeys(k).includes(k)) tokens.add(k);
         }
       }
-    } catch { /* emittedConfig is not JSON — prose fields still contribute */ }
+    } catch {}
   }
   return [...tokens];
 }

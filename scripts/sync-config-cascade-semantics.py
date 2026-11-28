@@ -27,8 +27,6 @@ import sys
 BEGIN = "<!-- BEGIN GENERATED: config-cascade semantics. Edit the Implementers table, then run scripts/sync-config-cascade-semantics.py -->"
 END = "<!-- END GENERATED: config-cascade semantics -->"
 
-# The contract moved from docs/conventions/, which keeps a stub; the old path
-# is read only when the new one is absent.
 _ROOT = pathlib.Path(__file__).resolve().parent.parent
 README = next(
     (
@@ -57,7 +55,6 @@ def cells(line: str) -> list[str]:
 
 
 def implementers(text: str) -> list[list[str]]:
-    """The Surface, Who wins and Merge form cells of every Implementers row, in order."""
     lines = text.splitlines()
     if "## Implementers" not in lines:
         raise Fail(2, "no '## Implementers' heading")

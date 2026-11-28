@@ -1,5 +1,5 @@
 ---
-description: "Pick the repetition lever (/goal, /loop, routines and /schedule, a workflow, a Stop hook, or a one-shot prompt) and, when /goal fits, draft a transcript-demonstrable completion condition, checked against the documented limit by a deterministic counter. Use when: 'which loop should I use', 'pick the right autonomy lever', 'craft a /goal', 'make Claude keep working until X', 'my goal is not measurable', 'my /goal is too long'."
+description: "Pick the right autonomy lever (/goal, /loop, routines, /schedule, workflow, Stop hook, one-shot) and, when /goal fits, draft a transcript-demonstrable completion condition checked against the limit by a deterministic counter. Use when: 'which loop should I use', 'craft a /goal', 'make Claude keep working until X', or unmeasurable/too-long /goal."
 argument-hint: "[--unattended] [intent]"
 user-invocable: true
 disable-model-invocation: false
@@ -162,10 +162,22 @@ only end state:
   may waive;
 - names an identifier the user can replace or an account change can kill: a pull request number,
   an artifact or document URL;
-- fixes an order of work the user may reorder or defer.
+- fixes an order of work the user may reorder or defer;
+- needs something to happen before a fixed clock time, such as a line timestamped before 13:30Z:
+  once that time passes the element can never hold.
 
 Offer the OR exit, a more stable reference (the branch rather than the pull request number, "the
-artifact titled X" rather than its URL), or a wording about the outcome alone.
+artifact titled X" rather than its URL), or a wording about the outcome alone. A clock time enters
+the condition only as an end of its own that names the full UTC date and time ("…, or
+`date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-26T13:30Z or later"), never as a deadline an element must
+beat; a time of day alone is already true for a run that starts after it. That end goes inside the
+condition in the paste region, never left out of it or offered as a clause the user may append.
+
+**Check the elements against each other.** Before Step 3, read every required element against the
+others and against the repository's own gates, and refuse a draft in which one element requires a
+state another forbids, such as a hold label that keeps a required check red beside an element that
+needs that check green. No run can satisfy both. Ask the user which element gives way, or give the
+conflicting pair the OR exit above.
 
 ### When the outcome is not quantifiable
 

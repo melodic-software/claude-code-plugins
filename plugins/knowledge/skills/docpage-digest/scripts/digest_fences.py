@@ -5,7 +5,6 @@ this directory on sys.path and import from here. Parsing is exact — no
 ``.strip()`` on fence payloads — because a per-line strip is how indented-fence
 corruption and a load-bearing trailing space earned a clean quote-gate result.
 """
-
 from __future__ import annotations
 
 import argparse
@@ -14,7 +13,7 @@ import re
 import sys
 from typing import Callable, Iterator, List, NamedTuple, NoReturn, Optional, Tuple
 
-sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+sys.dont_write_bytecode = True
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir, "lib")
 )
@@ -37,9 +36,9 @@ class Failures(failures.Failures):
 
 
 class Fence(NamedTuple):
-    start_line: int  # 1-based, opener
+    start_line: int
     indented: bool
-    payload: str  # exact body; no strip; no closer-line newline
+    payload: str
 
 
 class Claim(NamedTuple):
@@ -178,7 +177,6 @@ def find_section(text: str, prefix: str) -> Optional[Tuple[str, str, int]]:
 
 
 def _is_fence_opener(line: str) -> Tuple[bool, bool, int]:
-    """Return (is_opener, indented, backtick-run-length)."""
     match = FENCE.match(line)
     if not match:
         return False, False, 0
@@ -236,8 +234,6 @@ def parse_claims(section_body: str, *, start_line: int = 1) -> List[Claim]:
             fences = []
         fence = fences[0] if fences else None
         prose = block.split("```", 1)[0] if fences else block
-        # Forbidden carriers are defects even when a later fence is valid —
-        # a leftover blockquote/inline quote is still hook-corruptible.
         has_bq = bool(re.search(r"(?m)^>", prose))
         has_inline = bool(re.search(r"(?<!`)`[^`\n]+`(?!`)", prose))
         claims.append(

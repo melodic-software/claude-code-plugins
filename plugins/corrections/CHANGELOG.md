@@ -3,6 +3,64 @@
 All notable changes to the `corrections` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.10.12] - 2026-11-28
+
+### Changed
+
+- Backfilled invocation probe file (`probes/codify.json`) and trimmed `codify` skill frontmatter description (1,014 -> 349 chars, saving 665 chars) while preserving all modes, never-auto-installs posture, and probe parity.
+
+## [1.10.11] - 2026-11-27
+
+### Fixed
+
+- `/corrections:codify preferences` stops at its session-flow gate without naming any preference or what a later run would count.
+
+## [1.10.10] - 2026-11-27
+
+### Changed
+
+- The shared redactor copy (`redact.py`) gains a published-output redactor for fleet identifiers; this plugin's own redaction is unchanged.
+- `/corrections:codify preferences` counts the prompts the session store kept from sessions whose transcript is gone, and quotes excerpts only as `/session-flow:audit-sessions` returns them, already through the publish redactor.
+- The shared redactor copy (`redact.py`) can leave report field names its caller lists unredacted; this plugin lists none, so its redaction is unchanged.
+
+### Fixed
+
+- Redacting a secret at the end of a line no longer joins the next line onto the redacted one.
+- A secret whose gitleaks rule marks only part of it, such as a base64 JWT, a Teams webhook URL or a Kubernetes Secret's later data values, is redacted whole; only line breaks and a trailing quote, space or semicolon are kept.
+
+## [1.10.9] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [1.10.8] - 2026-11-26
+
+### Changed
+
+- Shared `enforcement-ladder.md` copy synced where this plugin carries it: citations of retired ADRs repointed or unlinked; no other change to this plugin.
+
+## [1.10.7] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [1.10.6] - 2026-11-25
+
+### Fixed
+
+- The findings buffer's `redact.py` now redacts the whole value of a bare `sk-ant-oat02-` OAuth
+  token, the same way it redacts `sk-ant-oat01-`. Claude Code 2.1.332 lets
+  `CLAUDE_CODE_OAUTH_TOKEN` start with either prefix
+  ([#18984](https://github.com/melodic-software/claude-code-plugins/issues/18984)).
+
+## [1.10.5] - 2026-11-25
+
+### Changed
+
+- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
+
 ## [1.10.4] - 2026-11-24
 
 ### Fixed

@@ -1,0 +1,50 @@
+{
+  "pass": [
+    {
+      "answer": "Stopping: charting needs an interactive session with a human. Nothing created, and no destination chosen.",
+      "why": "says no destination was chosen"
+    },
+    {
+      "answer": "Charting needs a human to confirm the destination and the proposed map. Re-run interactively.",
+      "why": "destination named as the human's call"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply picks nothing"
+    },
+    {
+      "answer": "Stopping. I won't assume a destination; charting needs a person to choose it.",
+      "why": "names assuming only to refuse it"
+    },
+    {
+      "answer": "Stopping: charting now would mean assuming a destination nobody confirmed.",
+      "why": "names the assumption only as what it will not do"
+    },
+    {
+      "answer": "Without a human, I'd have to assume a destination, so I'm stopping.",
+      "why": "hypothetical assumption, then stops"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "No human is available, so I picked the destination myself: a PRD. Map follows.",
+      "why": "picks the destination"
+    },
+    {
+      "answer": "**Destination:** a PRD for the customer-data-platform overhaul.",
+      "why": "states a destination of its own"
+    },
+    {
+      "answer": "Going with a PRD as the destination, since nobody can answer.",
+      "why": "defaults the destination"
+    },
+    {
+      "answer": "Assuming a PRD as the destination, since no one can confirm it, here is the map.",
+      "why": "wrong: assumes a destination"
+    },
+    {
+      "answer": "**Destination (assumed):** a PRD.",
+      "why": "wrong: labeled-assumed destination line"
+    }
+  ]
+}

@@ -35,6 +35,24 @@ out="$(audit "$root" "$work")"
 plan="$(cat "$work/plan.md")"
 
 assert_contains "the run reports what it wrote" "$out" "3 finding(s)"
+assert_eq "one summary line per finding" "3" "$(printf '%s\n' "$out" | grep -c '^finding FN-[0-9a-f]\{8\} ')"
+sweep_sites="$(awk -F'\t' '$1=="SITES" {print $2}' "$work/sweep.tsv")"
+finding_sum="$(printf '%s\n' "$out" | sed -n 's/^finding .*: \([0-9][0-9]*\) site(s) in .*/\1/p' | awk '{s += $1} END {print s + 0}')"
+assert_eq "the per-finding site counts add up to the sweep's SITES" "$sweep_sites" "$finding_sum"
+assert_contains "the total line carries the sweep's SITES" "$out" "total: $sweep_sites site(s);"
+report_rows="$(awk -F'\t' '$1=="REF" && $7=="report"' "$work/sweep.tsv" | grep -c . || true)"
+assert_eq "the fixture has report sites to count" "1" "$([[ "$report_rows" -gt 0 ]] && printf 1 || printf 0)"
+assert_contains "the report-site total counts the report REF rows" "$out" "report sites: $report_rows"
+assert_eq "one report line per report REF row" "$report_rows" "$(printf '%s\n' "$out" | grep -c '^report ' || true)"
+bt=$'\x60'
+assert_eq "each report line names its site, finding and old path" "report CHANGELOG.md:7 FN-b1ff5a8e ${bt}docs/Alpha-One.md${bt}
+report CHANGELOG.md:7 FN-f073cabd ${bt}docs/BETA.md${bt}
+report docs/adr/0001-historical.md:10 FN-f073cabd ${bt}docs/BETA.md${bt}" "$(printf '%s\n' "$out" | grep '^report ' | sort)"
+assert_contains "a report line's id is its finding's plan id" "$plan" "### FN-f073cabd ${bt}docs/BETA.md${bt}"
+id_line="$(grep -m1 '^finding ' <<<"$out" | awk '{print $2}')"
+assert_eq "the summary is ranked like the plan" "$(grep -m1 '^### FN-' "$work/plan.md" | awk '{print $2}')" "$id_line"
+first_by_tier="$(grep -m1 '^- \*\*By tier:\*\* ' "$work/plan.md" | sed 's/^- \*\*By tier:\*\* //')"
+assert_contains "a summary line quotes the plan's tier breakdown" "$out" "by tier: $first_by_tier;"
 assert_contains "the artifact declares its own type" "$plan" "type: docs-naming-file-name-findings"
 assert_contains "the artifact is never the auto-apply findings type" "$plan" "schema: 1"
 assert_eq "the type is not review-findings" "0" "$(printf '%s\n' "$plan" | grep -c 'type: review-findings' || true)"
@@ -141,8 +159,19 @@ assert_eq "--help exits 0" "0" "$(
   bash "$SUT" --help >/dev/null 2>&1
   printf '%s' "$?"
 )"
-assert_eq "a missing --out exits 2" "2" "$(
-  bash "$SUT" --inventory "$work/inv.tsv" --sweep "$work/sweep.tsv" >/dev/null 2>&1
+home_root="$(new_fixture)"
+branch="$(git -C "$home_root" branch --show-current)"
+home_out="$(bash "$SUT" --root "$home_root" --inventory "$work/inv.tsv" --sweep "$work/sweep.tsv")"
+assert_contains "without --out the emitter names the home it composed" "$home_out" \
+  "home: $home_root/.work/docs-hygiene/$branch/file-names.md (memory root .work, branch $branch)"
+assert_eq "and writes the plan there" "1" "$([[ -f "$home_root/.work/docs-hygiene/$branch/file-names.md" ]] && printf 1 || printf 0)"
+bash "$SUT" --root "$home_root" --memory-root "$TEST_TMPDIR/mem" --inventory "$work/inv.tsv" --sweep "$work/sweep.tsv" >/dev/null
+assert_eq "an absolute --memory-root is used as given" "1" "$([[ -f "$TEST_TMPDIR/mem/docs-hygiene/$branch/file-names.md" ]] && printf 1 || printf 0)"
+git -C "$home_root" switch -q -c feat/a+b
+slash_out="$(bash "$SUT" --root "$home_root" --inventory "$work/inv.tsv" --sweep "$work/sweep.tsv")"
+assert_contains "a branch slugs every character outside [A-Za-z0-9._-] to -" "$slash_out" "/docs-hygiene/feat-a-b/file-names.md"
+assert_eq "an empty --memory-root exits 2" "2" "$(
+  bash "$SUT" --root "$home_root" --memory-root "" --inventory "$work/inv.tsv" --sweep "$work/sweep.tsv" >/dev/null 2>&1
   printf '%s' "$?"
 )"
 assert_eq "an unreadable inventory exits 2" "2" "$(

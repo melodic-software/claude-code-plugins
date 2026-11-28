@@ -1,5 +1,5 @@
 ---
-description: "What makes a test worth keeping: where each expected value must come from, when call-count and database checks are legitimate, and the can't-fail and change-detector taxonomy keyed to testing:audit rule ids. Use when writing, reviewing or fixing tests, or asking 'is this test worth keeping', 'where should the expected value come from', 'is this test tautological', 'should I assert this mock call'."
+description: "Reference on what makes a test worth keeping: expected-value provenance, legitimate call-count and database checks, and the can't-fail/change-detector taxonomy keyed to /testing:audit rule ids. Use when writing/reviewing tests or asking 'is this test worth keeping', 'is this test tautological', or 'should I assert this mock call'."
 user-invocable: false
 disable-model-invocation: false
 metadata:
@@ -149,7 +149,7 @@ https://jestjs.io/docs/snapshot-testing.
 | `rule-zero-assertion` | a test body with no assertion | assert the behavior |
 | `rule-recomputed-expectation` | both sides the same expression: `expect(LIMIT).toBe(LIMIT)` | take the expected side from §1 |
 | `rule-inert-assertion` | an assertion that never runs: unawaited `toBeVisible()`, `assert (x == 1, "msg")`, `m.called_once_with(...)`, bare `.Should();`, `Assert.True(true)`, `Assert.NotNull(typeof(T))` | await it, fix the tuple, use `assert_called_once_with`, assert a value the code computes |
-| `rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over the result; a C# `return;` before every assertion | assert unconditionally; check the length first; skip the test instead of returning |
+| `rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over the result; a C# `return;` before every assertion | assert unconditionally; check the length first; skip the test instead of returning <!-- portability-ok: R6 kept-adapter rule summary for testing:audit --> |
 | `rule-flaky-passes-suite`, `rule-only-not-forbidden` | Playwright retries without `failOnFlakyTests`; no `forbidOnly` | set both in the config |
 
 **Checks little** (can fail, but misses most wrong answers):

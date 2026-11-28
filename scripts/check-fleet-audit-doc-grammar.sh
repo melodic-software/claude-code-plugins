@@ -1,24 +1,4 @@
 #!/usr/bin/env bash
-# Gate: the audit skill's documented argument grammar must match what
-# audit-fleet.sh actually accepts.
-#
-#   scripts/check-fleet-audit-doc-grammar.sh --check
-#
-# Why this lives outside SKILL.md and audit-fleet.sh: a revert of either file's
-# half alone keeps every test inside the other green. A check that only lives
-# inside either protected file cannot defend the agreement between them.
-#
-# Agreement is established by probing the script and reading its answers — never
-# by pattern-matching the parser source:
-#   1. Bare positional is in both or neither (probe --apply-plan <missing> <dir>).
-#   2. Every scope form the no-scope remedy names has a grammar bullet in SKILL.md.
-#   3. No-scope stops non-zero with the remedy block (no report).
-#
-# The environment is sealed (HOME / USERPROFILE / CLAUDE_PROJECT_DIR /
-# XDG_CONFIG_HOME → scratch) so a maintainer config cannot change the verdict.
-# An unrecognized probe outcome is a hard exit 2 ("probe inconclusive"), never
-# a pass. FLEET_DOC_GRAMMAR_SCRIPT / FLEET_DOC_GRAMMAR_SKILL override paths
-# (self-test injection and historical proofs).
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.." || exit 2
@@ -46,15 +26,9 @@ fi
 seal_dir="$(mktemp -d)"
 probe_out="$seal_dir/probe.out"
 trap 'rm -rf "$seal_dir"' EXIT
-# The probe's working directory sits 4 levels below seal_dir, so the ancestor rung's 4
-# parents are all inside seal_dir and none holds a repository.
 probe_cwd="$seal_dir/a/b/c/d"
 mkdir -p "$seal_dir/home" "$seal_dir/xdg" "$seal_dir/project" "$seal_dir/probe" "$probe_cwd"
 
-# Seal config/project env so probes never reach a maintainer fleet config or an
-# incidental project-scoped rung. No network, no gh, no discovery.
-# The probe also runs from a non-Git directory with no ghq and no ancestor holding
-# repositories, so the collector's no-scope ladder finds nothing either.
 script_abs="$(cd "$(dirname "$SCRIPT")" && pwd)/$(basename "$SCRIPT")"
 run_sealed() {
   (cd "$probe_cwd" && env -i \
@@ -68,12 +42,6 @@ run_sealed() {
     bash "$script_abs" "$@") >"$probe_out" 2>&1
 }
 
-# Classify --apply-plan <missing> <dir>: three distinguishable outcomes after the
-# argument loop and before config resolution / discovery.
-#   rejected     → "unknown argument"
-#   accepted     → "cannot be combined with audit discovery flags"
-#   ignored      → "apply-plan file not found"
-# anything else  → inconclusive (exit 2)
 classify_bare_positional() {
   local missing="$seal_dir/probe/missing-plan-$$.json"
   local bare="$seal_dir/probe/bare-dir-$$"
@@ -91,15 +59,12 @@ classify_bare_positional() {
   fi
 }
 
-# argument-hint carries a bare positional form when it documents [<dir>], not
-# merely --root <dir> / --repo <dir> as flag values.
 argument_hint_has_bare() {
   local hint
   hint="$(grep -m1 -E '^argument-hint:' "$SKILL" || true)"
   [[ "$hint" == *'[<dir>]'* ]]
 }
 
-# Leading code span of each Input-resolution grammar bullet (structured surface).
 grammar_spans() {
   awk '
     /^## Input resolution/ { p = 1; next }
@@ -123,9 +88,6 @@ grammar_covers_token() {
   return 1
 }
 
-# No-scope probe: must stop non-zero with the remedy block, never a report.
-# Parse scope tokens from the script's own remedy (first field of each indented
-# form line), so the expected set tracks the script without a hand list.
 probe_no_scope_and_collect_tokens() {
   local tokens_file="$1" rc=0
   run_sealed || rc=$?
@@ -137,9 +99,6 @@ probe_no_scope_and_collect_tokens() {
     echo "check-fleet-audit-doc-grammar: probe inconclusive (no-scope): $(tr '\n' ' ' <"$probe_out")" >&2
     exit 2
   fi
-  # Remedy block: either the no-config form ("Give it a scope instead") or the
-  # consumed-empty-config form ("Add scope to that config"). Sealed env should
-  # hit the former; either way we require the indented scope-form lines.
   if ! grep -Eq 'Give it a scope instead|Add scope to that config' "$probe_out"; then
     echo "check-fleet-audit-doc-grammar: no-scope stop missing remedy block" >&2
     exit 1
@@ -150,11 +109,9 @@ probe_no_scope_and_collect_tokens() {
   fi
 
   : >"$tokens_file"
-  # Indented remedy forms: "  <dir> ..." or "  --root <dir> ..." (not git config lines).
   while IFS= read -r line; do
     case "$line" in
     '  <dir>'* | '  --'[a-z]*)
-      # First field; for "--root <dir>" keep only --root.
       # shellcheck disable=SC2086 # intentional word-split of the indented form line
       set -- $line
       printf '%s\n' "$1" >>"$tokens_file"
@@ -203,7 +160,6 @@ tokens_tmp="$seal_dir/tokens"
 probe_no_scope_and_collect_tokens "$tokens_tmp"
 
 while IFS= read -r token; do
-  # Bare <dir> is already asserted against the bare-positional probe above.
   [[ "$token" == '<dir>' ]] && continue
   if ! grammar_covers_token "$token"; then
     echo "MISSING GRAMMAR BULLET: remedy names $token but Input resolution has no matching bullet" >&2

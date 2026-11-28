@@ -3,6 +3,38 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## The `branding` setting, schema and resolver, 2026-11-27
+
+- **`rendered-views` gains the `branding` key and schema.** `SCHEMA` and `BRANDING_SCHEMA` in
+  `lib/view-registry.mjs` admit `branding` (`palette.light`, `palette.dark`, `type` stacks and
+  embedded `fonts`, and `logo` inline SVG, embedded PNG/JPEG/SVG file and text `label`) beside
+  `medium`, along with the canonical `BRANDING_USER_CONFIG_OPTION` manifest shape.
+- **`lib/view-settings.mjs` resolves `branding` in plain ADR 0075 order.** Personal override, then
+  team, then `userConfig`, then shipped defaults, reporting the supplying layer per key. Values are
+  validated per layer (six-digit hex, closed font charset, builder SVG allowlist, magic-byte checks
+  for PNG/JPEG and WOFF2/WOFF/TTF/OTF encoded as `data:` URLs, `--team-ref` reading committed blobs
+  only), and the WCAG 2.1 contrast floor drops any failing override back to the shipped value with
+  a notice naming the role, scheme, pair and ratio.
+
+## A page may embed a logo and brand fonts, 2026-11-26
+
+- **The builder's policy gains `img-src data:` and `font-src data:`.** Interactive rule 3 states the
+  builder's exact policy string, which now carries both directives and no other new source.
+- **The validator admits a `data:` URL in two positions.** The report profile, and with it the
+  interactive profile, admits a base64 PNG or JPEG as the `.rv-logo` rule's one `background-image`
+  (the logo slot, at the top level or inside `@media`, `@supports` or `@layer`) and a base64
+  WOFF2, WOFF, TTF or OTF font inside `@font-face`, both judged with CSS comments removed. Every other
+  `url(`, scheme and URL-bearing attribute stays refused. This is the policy change ADR 0133
+  records.
+
+## A consumer may brand rendered pages, 2026-11-25
+
+- **Palette, type and logo become consumer overrides.** The shared chrome section drops "no team or
+  user theme override": a consumer may set the palette, the type stacks and a logo through
+  configuration. Layout, the accessibility floor, the theme toggle and the comment box stay fixed,
+  and a page still offers no accent or palette picker. ADR 0133 records the setting's home, the
+  shared token layer, the migration order and the drift checks; no plugin implements it yet.
+
 ## A CDN library carries an integrity hash, 2026-11-21
 
 - **The pinned CDN library is checked, not only pinned.** Every CDN `<script>` and `<link>` tag

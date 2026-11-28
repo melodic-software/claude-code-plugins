@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for feedback-thread.sh, black-box, against a real git checkout. A `gh`
-# stub on PATH records every call and answers none: the tool reads nothing
-# from GitHub and posts nothing, so the call log stays empty.
 # shellcheck disable=SC2016  # backticks and $vars are literal fixture text
 
 set -uo pipefail
@@ -20,8 +17,6 @@ HEAD=$(printf 'a%.0s' {1..40})
 OLD=$(printf 'b%.0s' {1..40})
 FIX=$(printf 'f%.0s' {1..40})
 TOKEN=ghs_secretlanetoken1234567890
-# The stateless installation token is ghs_ then a JWT of about 520 characters: three
-# base64url segments joined by '.', each segment obviously fake. Built at run time.
 SEG=$(printf 'FAKE-not_a_token%.0s' {1..10})
 STATELESS="ghs""_123456_$SEG.$SEG.$SEG"
 JSEG=$(printf 'eyJGAKEnotAtoken%.0s' {1..10})
@@ -40,8 +35,6 @@ fixture_git() {
   GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git -C "$STUB/ws" -c user.email=t@example.com -c user.name=t -c commit.gpgsign=false "$@"
 }
 
-# setup: a fresh case with two kept threads and a checkout at the gated head,
-# whose .git/info/exclude keeps .lane/ out as the read runner's does.
 setup() {
   STUB=$(mktemp -d "$TEST_TMPDIR/case.XXXXXX")
   export STUB
@@ -126,9 +119,6 @@ for path in plugins/q/README.md plugins/q/evals/c/package.json plugins/pp/README
   assert_exit "check-paths refuses $path" 1 "$?"
 done
 
-# check-paths: a file the pull request already changes (pr_paths) joins every thread's scope while
-# the gated head holds it; a new file and a .github/workflows/ path stay out even when pr_paths
-# lists them (the select job leaves instruction and HIGH floor paths out of pr_paths)
 setup
 mkdir -p "$STUB/ws/.github/workflows"
 echo 'c' >"$STUB/ws/.github/workflows/ci.yml"
@@ -153,9 +143,6 @@ disposition '{"disposition":"VALID","evidence":["src/other.js:1"],"fix_sha":"","
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "record takes a VALID fix made in a pr_paths file" 0 "$?"
 
-# check-paths: any file of a plugin a pr_paths file sits in joins every thread's scope, and a
-# copy_paths file (a shared copy of a canonical the pull request changes, #12346) joins it while
-# the gated head holds it, without opening the rest of its plugin; .github/workflows/ stays out
 setup
 mkdir -p "$STUB/ws/plugins/a/hooks" "$STUB/ws/lib" "$STUB/ws/.github/workflows"
 echo 'h' >"$STUB/ws/plugins/a/hooks/hook-utils.sh"
@@ -177,9 +164,6 @@ jq '.copy_paths = []' "$STUB/threads.json" >"$STUB/t2" && mv "$STUB/t2" "$STUB/t
 run check-paths plugins/a/hooks/hook-utils.sh >/dev/null 2>&1
 assert_exit "check-paths refuses a shared copy copy_paths does not list" 1 "$?"
 
-# check-paths: a kept thread's named_paths join its scope only in its own plugins/<p>/ directory,
-# never under .github/, never an instruction path, and never off normal form. run-transcript.js is
-# the file #8116's thread PRRT_kwDOTCGFQM6tojDu was refused.
 setup
 T=plugins/knowledge/skills/video-digest/extraction/transcript
 run check-paths "$T/run-transcript.js" >/dev/null 2>&1
@@ -229,8 +213,6 @@ assert_contains "the tool says the reply job posts it" "$out" "reply job posts i
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a second record on the same thread is refused" 1 "$?"
 assert_eq "the refused second record appends nothing" 1 "$(recorded)"
-# the CLI's empty scrub stubs at the top of the checkout are no fix: an
-# untracked empty one is passed over, one with content is refused
 setup
 echo 'guarded' >"$STUB/ws/src/a.js"
 : >"$STUB/ws/package.json"
@@ -263,8 +245,6 @@ for path in plugins/p/.claude-plugin/plugin.json plugins/p/hooks/hooks.json plug
 done
 run check-paths plugins/p/notes.md >/dev/null 2>&1
 assert_exit "check-paths allows a plain file in the thread's plugin" 0 "$?"
-# The lane's sandbox masks a dotfile in the checkout with /dev/null, a device git
-# will not add: it is no fix, while a symlink to /dev/null still is one.
 if bwrap --bind / / --dev /dev true 2>/dev/null; then
   setup
   echo 'guarded' >"$STUB/ws/src/a.js"
@@ -305,8 +285,6 @@ run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a note naming a token placeholder and a commit sha is recorded" 0 "$?"
 assert_eq "the placeholder note record makes no API call" 0 "$(wc -l <"$STUB/calls")"
 
-# the note limit counts code points, as the reply job does: 2000 emoji pass,
-# 2001 are refused
 setup
 note=$(printf '😀%.0s' {1..2000})
 disposition "{\"disposition\":\"INCORRECT\",\"evidence\":[\"src/a.js:3\"],\"note\":\"$note\"}"
@@ -475,8 +453,6 @@ disposition '{"disposition":"INCORRECT","evidence":["src/a.js:3"],"note":"Guarde
 run record PRRT_a "$STUB/scratch/d.json" >/dev/null 2>&1
 assert_exit "a reply still records beside the body record" 0 "$?"
 
-# The replies file has one 49152-byte cap (the read runner's carry step): the
-# body record never costs a reply.
 REPLIES_CAP=49152
 filler() {
   jq -nc --arg note "$(printf 'n%.0s' $(seq 1 "$1"))" '{thread:"PRRT_fill",disposition:"UNCERTAIN",evidence:[],fix_sha:"",note:$note}' >>"$STUB/replies.jsonl"

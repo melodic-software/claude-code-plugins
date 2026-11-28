@@ -5,7 +5,7 @@ Operator setup (install, env, retention): [operator-setup.md](operator-setup.md)
 
 Batch reports and JSONL jq: this skill's scope actions. Product bugs: `/harness-ops:known-issues`.
 
-**CC** = Claude Code CLI (not .NET app OTEL). Full naming table: [operator-setup.md](operator-setup.md)
+**CC** = Claude Code CLI (not .NET app OTEL). Full naming table: [operator-setup.md](operator-setup.md) <!-- portability-ok: R6 mechanism disambiguation - Claude Code CLI vs app OTEL -->
 "Naming".
 
 ## Three layers (do not conflate)
@@ -39,7 +39,8 @@ quiet session. The skill-usage store and the OTEL store stay under `.claude/obse
   for which events the built-in guard keeps from a user's mod.
 - **As of**: 2026-10-09, Claude Code 2.1.288
 - **Recheck trigger**: a pin bump whose release notes change where mods load or which events the
-  built-in guard holds, or ADR 0065's list of accepted differences changes.
+  built-in guard holds, or the session-telemetry README's list of differences from the settings
+  rows changes.
 
 ## Quick routing: "I need to know X"
 

@@ -1,195 +1,7 @@
 #!/usr/bin/env bash
-# Shell-portability-lint gate (#1491): flags GNU-only shell constructs in
-# changed **/*.sh files and in skill markdown under plugins/*/skills/ (#2704)
-# — a class no existing gate covers. Skill markdown is not documentation about
-# code: for a skill, the markdown IS the executable surface an agent reads and
-# runs, so a GNU-only construct there fails on macOS exactly as it would in a
-# .sh file. `shellcheck` lints shell syntax/style; scripts/check-skill-portability.sh
-# (#531) matches skill-coupling tokens (stack/forge/branch/tracker defaults)
-# against changed *skill* files only. Neither has GNU-vs-BSD regex/flag
-# vocabulary, and no runner in this repo's CI uses BSD userland (a Windows
-# runner's Git Bash still ships GNU grep/sed, so it would not help either) —
-# the exposure is macOS system grep/sed/date/stat/mktemp/sort, unreachable
-# from any lane here.
-#
-#   scripts/check-shell-portability.sh <base-ref>   gate .sh + skill .md a PR changed
-#   scripts/check-shell-portability.sh --all         audit every tracked .sh + skill .md
-#   scripts/check-shell-portability.sh --paths F...   scan exactly these files
-#   scripts/check-shell-portability.sh --awk-probe SUITE...
-#                                                  run each suite once per awk
-#                                                  implementation; fail on a
-#                                                  suite whose exit differs
-#
-# `--awk-probe` is the runtime half of a rule no token can carry: an
-# `awk -v name="$shellvar"` assignment runs escape processing on the value, and
-# gawk and mawk disagree on an unknown escape, so a regex handed through `-v`
-# can work under one and die under the other. The value lives in a shell
-# variable, not on the scanned line, which is why it is a probe and not a token
-# (a token on `-v name="$..."` flags ~150 sites that carry plain values). Pass
-# such values through `ENVIRON["name"]`. The mode and its rationale live in
-# scripts/lib/awk-probe.sh; the token list's awk entry points there (#4143).
-#
-# The scanner engine is scripts/lib/shell-portability-scan.awk, run with
-# `awk -f` over two data operands: the active token list and the file. This
-# file owns mode dispatch, scannability, the skill-md baseline, and reporting.
-#
-# COST of `--all`. The quote-aware walk RESUMES per physical line of a joined
-# record instead of re-walking the whole accumulation, which is what keeps
-# per-file time from growing superlinearly.
-#
-# What made a file expensive was never its line count, which is why the shape
-# was so easy to misread: it was the length of its longest LOGICAL record. A
-# file of ordinary one-line commands scanned linearly before and still does.
-# A file carrying one long
-# quote-joined record paid a quadratic price for it. Cost is linear in file
-# length now ONLY while the longest logical record stays bounded: a file that
-# is one enormous record is still superlinear in that record's length, just
-# with a far smaller constant. The residue tracks record LENGTH, not how many
-# hits the record carries.
-#
-# CI still runs the changed-file mode rather than `--all` (see pr-require-checks.yml's
-# `shell-portability-lint`), and not because of what a sweep costs: a per-PR
-# fleet sweep is runner time spent re-proving files the PR did not touch.
-#
-# What follows is for a run that DOES outlive its command timeout:
-#
-#   - A timeout is not flakiness. Re-running an unchanged command that timed
-#     out is the predicted outcome, not new information.
-#   - Do NOT wait on it with `pgrep -f 'check-shell-portability'`. That pattern
-#     appears in the waiting shell's OWN command line, so the waiter matches
-#     itself and the condition never clears. Wait on the pid instead.
-#   - But waiting is not checking, and a pid wait alone is fail-open. A
-#     `while kill -0 "$pid" 2>/dev/null; do sleep 15; done` loop reports only
-#     WHEN the run ended, never how: the loop's own status is the last `sleep`'s,
-#     so it is 0 whether the audit exited 0, 1 (violation) or 2 (usage error).
-#     Measured: a child exiting 3 leaves that loop reporting 0. Reading it as
-#     "clean" is exactly the fail-open the next paragraph warns about.
-#       - If the run IS a child of your shell, `wait "$pid"` yields its real
-#         status (measured: 3 for that same child). Use it, and check it.
-#       - If it is NOT a child -- started in an earlier shell, or via `setsid`
-#         -- `wait` cannot help: it fails with "pid N is not a child of this
-#         shell" and returns 127, which is indistinguishable from a real failure
-#         if taken at face value. The status is then simply unavailable, so the
-#         outcome must be read from the run's own output, and the absence of a
-#         success line must be treated as unknown rather than as pass.
-#
-# Relatedly, if you sweep files individually to find slow ones, key the loop on
-# every non-zero status and not only on the timeout status: a loop that reports
-# just `rc == 124` passes silently over any file that exits 1, so its silence
-# looks like a clean audit when it is really an unasked question.
-#
-# WHAT is detected is data, not logic: the construct list lives in
-# scripts/shell-portability-tokens.txt (override with
-# SHELL_PORTABILITY_TOKENS), one ERE pattern per active line, so a reviewer
-# re-catch is a one-line data edit. HOW a legitimate hit is excused is this
-# script's job.
-#
-# A token line beginning with `!` names a class this script implements in CODE
-# rather than as an ERE, and ACTIVATION stays data even there: the class runs
-# only while its `!name` line is active in the token list, so a class-scoped
-# unit fixture enables exactly one class the same way `one_token_list` does for
-# an ERE. An unrecognized `!name` exits 2 rather than being ignored — a typo
-# that silently disabled a class is the fail-open this gate is tuned against.
-# Today there is one such class, and it is script-implemented for a reason the
-# ERE layer cannot work around:
-#
-#   !subst-replacement-ampersand — an UNQUOTED `&` in the REPLACEMENT half of a
-#   `${var/pat/repl}` / `${var//pat/repl}` expansion. Since bash 5.2 that `&`
-#   expands to the text the pattern just matched (the `sed` rule), under the
-#   `patsub_replacement` shell option which is ON by default; before 5.2 the
-#   same character was an ordinary literal. GNU Bash Reference Manual, Shell
-#   Parameter Expansion: "Any unquoted instances of '&' in string are replaced
-#   with the matching portion of pattern", and "Backslash escapes '&' in
-#   string; the backslash is removed in order to permit a literal '&' in the
-#   replacement string"
-#   <https://www.gnu.org/software/bash/manual/html_node/Shell-Parameter-Expansion.html>.
-#   Introduced in bash-5.2 ("New shell option: patsub_replacement", bash NEWS
-#   <https://tiswww.case.edu/php/chet/bash/NEWS>); verified locally on bash
-#   5.3.15, where `shopt -u patsub_replacement` restores the pre-5.2 literal.
-#   This lands on the gate's EXISTING uncovered-platform axis rather than a new
-#   one: macOS — the one platform no runner here covers — ships bash 3.2, while
-#   every runner in this repo ships 5.2 or later, so the same line silently
-#   means two different things on the two platforms.
-#
-#   It cannot be an ERE token. Matching runs on the `qline`/`cline` views, and
-#   `neutralize()` replaces every SEPS character — `&` among them — inside a
-#   masked run with a filler; a `${…}` body is masked in its entirety, which is
-#   exactly right for every other class (a `;` in an expansion body is data,
-#   not an operator) and leaves this one nothing to match on. The class is
-#   instead decided by subst_amp_hit(), which reads the ORIGINAL record text
-#   inside the `${…}` extents mask_quotes() already tracks, so the one
-#   authority on quote/frame structure stays the one authority.
-#
-# Changed-FILE scoping (not a whole-repo scan on every push) mirrors
-# check-skill-portability.sh exactly: a PR is responsible only for the files it
-# touches, so enabling a token class never red-lines main — main's push event
-# runs only the self-test, and pre-existing uses of a newly active construct
-# wait for their owning file's next edit (or a dedicated migration) rather than
-# failing every unrelated PR.
-#
-# A token hit fails UNLESS one of three reviewer-visible escapes applies:
-#   1. an auto-recognized same-line BSD-counterpart guard (is_guarded()) — a
-#      portable form already attempted on the same line, e.g.
-#      `realpath ... || readlink -f ...`;
-#   2. a per-site recorded exemption `portability-ok: <reason>` on the hit line
-#      or in the contiguous comment block directly above it;
-#   3. a whole-file `portability-scope: <reason>` declaration — a dedicated
-#      `#`-comment line whose content (after the `#` and optional whitespace)
-#      STARTS with the literal token, e.g. `# portability-scope: <reason>` —
-#      not merely a line that mentions the string somewhere (a doc-block
-#      sentence explaining this very mechanism, or a string literal), which
-#      would wrongly exempt a whole file for a reason it never actually
-#      declared. For a file that IS this gate's own fixture/test corpus and
-#      so necessarily contains the literal constructs it detects as test
-#      data (this script's own check-shell-portability.test.sh uses it), not
-#      for excusing a real shipped script's real coupling.
-#
-# Construct matching skips comment-only lines entirely (a `#`-prefixed line,
-# after leading whitespace) — this class is live command syntax, not prose;
-# several legitimate dual-dialect comments in this corpus name `date -d` /
-# `grep -P` only to explain the portable branch below them, and scanning
-# comments would flag documentation, not code. A `portability-ok:` marker is
-# still recognized on a comment line (same-line trailing note, or the
-# contiguous block directly above a hit) — comment-skip is for CONSTRUCT
-# matching only, never for annotation detection.
-#
-# This is a grep-level tripwire, not a semantic proof: it matches per LOGICAL
-# line — backslash- and quote-continued physical lines are joined first — so a
-# command assembled into a variable before use still evades detection (tracked
-# in #1513).
-#
-# COMMAND POSITION is deliberately not required, and this is the gate's largest
-# accepted over-flag. The leading boundary on a token establishes a shell-WORD
-# boundary, not command position, so a utility named inside a diagnostic string
-# or a heredoc example — `echo "run date -d tomorrow"`, a usage line spelling
-# `stat -c FORMAT FILE` — is reported although nothing executes. That is not an
-# oversight to be narrowed away: matching against text the shell would treat as
-# a string literal is the whole mechanism behind the regex-escape classes,
-# where `grep -E "\bword"` lives inside quotes and MUST still be caught.
-# Requiring command position for the option-based classes alone would need a
-# per-class axis in the token data on top of the word layer (#1551), and every
-# partial answer to it trades this false positive for a fail-OPEN — the
-# direction this gate is explicitly tuned against. The word layer's first
-# consumer, `--` end-of-options (#1562, recorded above dashdash_between() in
-# scripts/lib/shell-portability-scan.awk), shows the cost of doing it right:
-# suppression fires on nothing weaker than a
-# statically unambiguous marker word inside the matched extent.
-# `portability-ok: <reason>` is the one-line escape for a diagnostic
-# or example that names one of these utilities.
-# Guard markers are seeded for the two classes that need one today —
-# readlink -f behind a co-located `realpath ... || readlink -f` ladder, and
-# stat -c behind a co-located `stat -c ... || stat -f ...` ladder — each
-# requiring an actual `||` fallback relationship, not mere co-location; a
-# further class enables its own guard here, proven against an `--all` audit
-# first — see the token file's STAGED section.
-#
-# Exit 0 = clean (or nothing in scope); 1 = one or more violations; 2 = usage /
-# environment error (fail closed — never a silent skip).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
-# CHECK_DATA_ROOT: the tree to check, when it is not the one holding this
-# script (scripts/check-affected.sh sets it; code still loads from SCRIPT_DIR).
 cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 # shellcheck source=lib/changed-files.sh
 . "$SCRIPT_DIR/lib/changed-files.sh" || exit 2
@@ -202,8 +14,6 @@ cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 2
 # shellcheck source=lib/awk-probe.sh
 . "$SCRIPT_DIR/lib/awk-probe.sh" || exit 2
 
-# The probe needs no token list or baseline, so it is dispatched before either
-# is loaded. Suite paths are repo-relative, as for --paths.
 if [[ "${1:-}" == "--awk-probe" ]]; then
   shift
   if (($# == 0)); then
@@ -214,54 +24,24 @@ if [[ "${1:-}" == "--awk-probe" ]]; then
   exit
 fi
 
-# The scanner engine, as its own awk source file: `awk -f` reports a syntax
-# error in it at the line it is on, `awk -f … /dev/null` is a compile check the
-# suite runs, and a test can drive the program directly on its two operands
-# without this script around it. Absent, the gate fails closed HERE with a
-# diagnostic naming the path, rather than once per scanned file as an opaque
-# non-zero awk status.
 SCAN_AWK="$SCRIPT_DIR/lib/shell-portability-scan.awk"
 if [[ ! -f "$SCAN_AWK" ]]; then
   printf 'Error: scanner program not found: %s\n' "$SCAN_AWK" >&2
   exit 2
 fi
 
-# Active patterns are resolved HERE, before any scan, so a missing list or one
-# with no active patterns fails the gate closed with the path in the diagnostic.
-# The awk-side `np == 0 && ncls == 0` check stays as defense in depth.
 TOKENS_SRC="${SHELL_PORTABILITY_TOKENS:-scripts/shell-portability-tokens.txt}"
 # shellcheck disable=SC2034 # TOKENS_ACTIVE is set by load_active and read by its EXIT trap
 TOKENS_ACTIVE='' TOKENS=''
 token_scan::load_active "$TOKENS_SRC" TOKENS_ACTIVE TOKENS || exit 2
 
-# Pre-existing skill-markdown debt (#2704): widening selection onto every
-# SKILL.md / context/*.md / reference/*.md that already carries a token hit
-# would be a flag day. scripts/shell-portability-skill-md-baseline.txt
-# grandfathers today's measured hits so CI-facing modes gate NEW and CHANGED
-# skill markdown first; the baseline shrinks (a stale entry — file missing or
-# clean — fails the gate). --paths never consults it: that mode is the audit
-# tool that measured the backlog and must keep seeing every hit.
-BASELINE="${SHELL_PORTABILITY_MD_BASELINE:-scripts/shell-portability-skill-md-baseline.txt}" # env override is test injection
+BASELINE="${SHELL_PORTABILITY_MD_BASELINE:-scripts/shell-portability-skill-md-baseline.txt}"
 
 usage() {
   printf 'usage: check-shell-portability.sh <base-ref> | --all | --paths FILE... | --awk-probe SUITE...\n' >&2
   exit 2
 }
 
-# is_scannable <path> — a shell file this gate is responsible for. Vendor/
-# upstream-synced copies carry their own drift gate, not this contract.
-# Skill markdown under plugins/*/skills/ is in scope (#2704): agents execute
-# shell snippets from those files. Plugin reference docs under
-# plugins/*/reference/ are in scope for the same reason — a shared engine doc a
-# skill body cites carries the same executable snippets, and extracting a block
-# out of a skill and into a reference must not silently drop its gate coverage.
-# evals/ carries adversarial fixture prompts by design (same exclusion
-# check-skill-portability.sh uses). Likewise the
-# cross-plugin sync copies registered in
-# scripts/cross-plugin-source-registry.txt: a dedicated gate holds each copy
-# byte-identical to its in-repo SOURCE, so the source is where this contract
-# gates a change — scanning each copy would flag content no copy edit is
-# allowed to fix. The registry is read once, here.
 sync_copies=()
 if [[ -r scripts/cross-plugin-source-registry.txt ]]; then
   while IFS= read -r line; do
@@ -289,13 +69,8 @@ is_scannable() {
   return 0
 }
 
-# Active baseline entries: exact repo-relative paths, full-string equality.
 baseline_entries=()
 if [[ -f "$BASELINE" ]]; then
-  # `inline`: baseline entries are repo-relative paths, never regexes, so a `#`
-  # anywhere on the line is a comment. This gate's OTHER list — the token file —
-  # takes `leading` instead, because its entries are EREs that may contain a
-  # `#`.
   read_list::into baseline_entries "$BASELINE" --comments inline || exit 2
 fi
 
@@ -326,23 +101,16 @@ all)
   )
   ;;
 paths)
-  # --paths is the audit tool: scan exactly what was asked, no baseline skip.
   files=("${GE_PATHS[@]}")
   ;;
 base)
   apply_baseline=1
   base="$GE_REF"
-  # The NUL-safe read and the deletion filter live in the shared resolver; a
-  # failed diff is fatal there rather than arriving here as an empty scope.
-  # Diff plugins/ in addition to *.sh so skill markdown under
-  # plugins/*/skills/ reaches is_scannable (#2704); a plugins/*/skills/
-  # pathspec alone does not match under git's default (non-pathname) globbing
-  # (same rationale as check-skill-portability.sh).
   changed=()
   gate_entry::collect_changed changed "$base" -- '*.sh' 'plugins/'
   for f in ${changed[@]+"${changed[@]}"}; do
     is_scannable "$f" || continue
-    [[ -f "$f" ]] || continue # a rename-away/deletion leaves nothing to scan
+    [[ -f "$f" ]] || continue
     files+=("$f")
   done
   ;;
@@ -357,36 +125,15 @@ if ((${#files[@]} == 0)); then
   gate_entry::finish 0
 fi
 
-# scan_file <path> — print `LINE: token -> text` for each unexcused hit.
 scan_file() {
   local file="$1"
-  # The whole-file `portability-scope:` declaration is recognized INSIDE the awk
-  # program rather than by a pre-pass grep here. A grep sees no shell structure,
-  # so it honored the declaration wherever the characters appeared — including a
-  # heredoc BODY, where the line is generated data rather than a declaration this
-  # file is making about itself, and one such line silently exempted the whole
-  # file (#1544). awk already tracks heredocs and quoted runs for the scan, so
-  # the one place that knows what is code is the one place that decides.
-  #
-  # awk operand disambiguation: a bare relative operand shaped like
-  # identifier=value (e.g. a top-level file literally named FOO=bar.sh) is
-  # parsed by awk as a command-line variable assignment, not opened as a
-  # file — silently dropping it from the scan. See #1513; the rule now lives in
-  # scripts/lib/token-scan.sh, shared with the twin scanner.
   local awk_file
   awk_file="$(token_scan::awk_operand "$file")"
   awk -f "$SCAN_AWK" "$TOKENS" "$awk_file"
 }
 
 violations=0
-# Whether any reported hit belongs to the bash-version class, so its remediation
-# paragraph is printed to the developer who actually hit it and to nobody else.
-# Printed unconditionally it followed every `grep -P` and `sed -i` failure with
-# advice about an ampersand the developer never wrote.
 amp_violation=0
-# Baselined skill-md paths that still produced at least one hit this run — used
-# by the stale-baseline guard below so a cleaned-up file cannot linger on the
-# backlog list.
 declare -A baseline_still_hot=()
 declare -A files_in_scope=()
 for file in "${files[@]}"; do
@@ -395,9 +142,6 @@ for file in "${files[@]}"; do
     printf 'Error: no such file: %s\n' "$file" >&2
     exit 2
   fi
-  # Propagate a scanner fault (e.g. a malformed active ERE token makes awk exit
-  # non-zero with no stdout): without this the empty $out reads as "clean" and
-  # the file is silently skipped — the exact false negative fail-closed forbids.
   out="$(scan_file "$file")" || {
     printf 'Error: gate scanner failed on %s — failing closed\n' "$file" >&2
     exit 2
@@ -419,16 +163,6 @@ for file in "${files[@]}"; do
   fi
 done
 
-# Stale-baseline guard (CI-facing modes only): every entry must name a skill-md
-# file that still carries at least one unexcused hit when scanned. A missing
-# file or a cleaned-up file must leave the list — same shrink-only contract as
-# scripts/orphaned-fixtures-baseline.txt.
-#
-# All three stale branches share changed-file scoping: --all re-proves the
-# whole list; diff mode only re-proves entries in this run's file set. Missing
-# targets are never in that set (diff excludes deletions), so a deleted
-# baseline path is caught on the next `--all` rather than red-lining unrelated
-# PRs — same blast-radius contract as the cleaned-up / out-of-set branches.
 if ((apply_baseline)) && ((${#baseline_entries[@]} > 0)); then
   for entry in "${baseline_entries[@]}"; do
     if [[ "$GE_MODE" == "all" || -n "${files_in_scope[$entry]:-}" ]]; then
@@ -438,9 +172,6 @@ if ((apply_baseline)) && ((${#baseline_entries[@]} > 0)); then
         continue
       fi
       if [[ -z "${baseline_still_hot[$entry]:-}" ]]; then
-        # Confirm scannable rather than trusting set membership alone: a
-        # baseline entry that is_scannable rejected (vendor/evals) must still
-        # be shed.
         if is_scannable "$entry"; then
           echo "STALE BASELINE: $BASELINE: '$entry' no longer has unexcused hits — remove it" >&2
         else

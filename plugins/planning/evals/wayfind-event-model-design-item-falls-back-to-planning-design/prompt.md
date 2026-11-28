@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 35: a domain/event-model design item falls back to /planning:design when the event-storming plugin is not enabled (after-only)."
+description: "A domain/event-model design item falls back to /planning:design when the event-storming plugin is not enabled, without settling the event list inline (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

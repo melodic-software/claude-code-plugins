@@ -7,13 +7,8 @@ import { settingOf } from './settings.js'
 import { failedOnce, note } from './telemetry.js'
 import { send, sendCue } from './values.js'
 
-/** No piece built, no atmosphere: dusk, clear, Claude idle, the hallway still. */
 const QUIET: Fields = { sun: 0, weather: 0, work: 0, zone: 0, hall: 0 }
 
-/**
- * The pieces of this build, handed over by register with usePieces. A piece imports this file for ctxOf, and
- * pieces/index.ts imports the pieces, so nothing this file imports may import pieces/index.ts.
- */
 let pieces: readonly Piece[] = []
 export function usePieces(built: readonly Piece[]): void {
   pieces = built
@@ -23,7 +18,6 @@ export function builtPieces(): readonly Piece[] {
   return pieces
 }
 
-/** A piece's fields; one whose fields() throws gives none, so its fields read as QUIET's. */
 function fieldsOf(piece: Piece, ctx: Ctx): Partial<Fields> {
   try {
     return piece.fields?.(ctx) ?? {}

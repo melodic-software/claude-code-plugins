@@ -10,7 +10,6 @@ for props. It is a library, not a fixed character.
 import json
 
 PRESETS = {
-    # fractions of the frame. head_cy is the head center; the rest are boxes.
     "chibi": {
         "head_rx": 0.30, "head_ry": 0.26, "head_cy": 0.30,
         "torso": (0.30, 0.52, 0.40, 0.16),
@@ -169,7 +168,6 @@ def _body(canvas, lay, direction, step):
     if direction == "up":
         canvas.rect(tx, ty, tw, th + lh // 2, "cape")
     if side:
-        # behind the tunic's trailing edge, so the tunic drawn next does not cover it
         canvas.rect(tx + tw // 4 + tw // 2 + 2, ty, max(2, tw // 4), th, "cape")
     gap = lay["gap"]
     if side:

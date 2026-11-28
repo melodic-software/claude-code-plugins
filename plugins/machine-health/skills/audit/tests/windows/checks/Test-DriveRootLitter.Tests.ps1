@@ -1,16 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/checks/Test-DriveRootLitter.ps1.
-
-.DESCRIPTION
-Every test points -SystemRootPath (and usually an empty -DataRootPath) at a
-fixture directory, so the real machine's volume roots never leak into a
-result. The shipped baseline in reference/windows/drive-root-baseline.jsonc
-is used as-is: the tests double as a guard that the shipped data still admits
-the stock Windows layout and still catches the litter shapes.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-DriveRootLitter' -MockHelpers
@@ -28,12 +17,6 @@ BeforeAll {
     }
 
     function New-BaselineOnlyRoot {
-        <#
-        .SYNOPSIS
-        Builds a fixture root holding only entries the shipped baseline expects
-        at a system-drive root -- a representative subset of directories and
-        files, including the housekeeping names shared by every volume.
-        #>
         param([Parameter(Mandatory)] [string] $Path)
         New-Item -ItemType Directory -Path $Path -Force | Out-Null
         foreach ($d in @('Windows', 'Program Files', 'Program Files (x86)', 'ProgramData',

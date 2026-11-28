@@ -1,5 +1,5 @@
 ---
-description: "Council review: a panel of configured reviewer members (provider, model, brief, effort), chosen for this change by its paths, size or merge risk, reviews one change and writes one ranked findings report; optional repeated rounds run /review:fanout fix between them and stop on a checkable condition. Use when asked for a council review, a panel or multi-model review of a change, or a cross-vendor second opinion."
+description: "Council review: a panel of configured members (provider, model, brief, effort) chosen by paths, size, or merge risk writes one ranked findings report, with optional /review:fanout fix rounds stopping on a checkable condition. Use when asked for 'council review', a multi-model panel review, or a cross-vendor second opinion."
 argument-hint: "[--yes] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
@@ -20,7 +20,7 @@ A panel of members reviews one change. Each member is a catalog entry (provider,
 effort) from the `council_*` keys in [config.md](../../reference/config.md); a
 provider is an adapter record in [`adapters/`](adapters/) plus its runner. The deterministic half
 (config layers, rule matching, routes, skips, script member status) is `scripts/council-plan.mjs`;
-its header comment gives `config` and `select`, and Step 5 gives `member`. This body orchestrates and reports. A member that cannot run as configured is reported
+Steps 2, 4 and 5 give its `config`, `select` and `member` arguments. This body orchestrates and reports. A member that cannot run as configured is reported
 with its reason and never replaced by another.
 
 `<plugin-root>` below is `${CLAUDE_PLUGIN_ROOT}`; `<run-dir>` is the findings location of

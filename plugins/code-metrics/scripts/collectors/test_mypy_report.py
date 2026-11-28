@@ -31,19 +31,9 @@ from harness.stub_harness import (
 SCRIPT_DIR = Path(__file__).resolve().parent
 SCRIPT = SCRIPT_DIR / "mypy-report.py"
 CAPTURE = TOOL_OUTPUT / "mypy-any-exprs.txt"
-# The table mypy 1.19.1 writes when a blocking error (a duplicate module name)
-# aborts the build before analysis: no module rows and a Total of 0 over 0.
 ABORTED = TOOL_OUTPUT / "mypy-any-exprs-aborted.txt"
-# A real mypy 1.19.1 table over `pkg/a.py`, `pkg-x/b.py` and `c.py` run from
-# their parent directory: a dotted module, a bare stem under a hyphenated
-# directory (the walk stops there), and a plain top-level module.
 MODULES = TOOL_OUTPUT / "mypy-any-exprs-modules.txt"
-# A real mypy 1.19.1 table over `a-dir/mod.py` and `ok/other.py`: the run the
-# adapter makes once it holds out `b-dir/mod.py`, which derives the same bare
-# `mod` as `a-dir/mod.py` because the walk stops at a hyphenated directory.
 COLLISION = TOOL_OUTPUT / "mypy-any-exprs-collision.txt"
-# mypy 1.19.1's stdout for that pair when both are passed (exit 2, before
-# analysis), first line only.
 DUPLICATE_LINE = (
     'b-dir/mod.py: error: Duplicate module named "mod" (also at "a-dir/mod.py")'
 )
@@ -154,10 +144,7 @@ def rows_of(result: subprocess.CompletedProcess) -> list[dict]:
 
 
 class MypyReportCollectTests(unittest.TestCase):
-    def test_collect_prints_a_row_per_scope_file_and_the_lane_row(self) -> None:
-        # The capture lists `cm_sample`, the bare stem mypy gives a file under
-        # a hyphenated directory (`code-metrics`): a file row for the scope
-        # path plus the lane row summing it.
+    def test_collect_prints_a_row_per_scope_file_and_the_language_row(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp))
             result = run(
@@ -170,7 +157,7 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             rows = rows_of(result)
             self.assertEqual(len(rows), 2)
-            lane_row, file_row = rows
+            language_row, file_row = rows
             values = {
                 "any_expressions": 0,
                 "expressions_total": 13,
@@ -181,11 +168,11 @@ class MypyReportCollectTests(unittest.TestCase):
                 (f"{SOURCES}/cm_sample.py", None, []),
             )
             self.assertEqual(file_row["values"], values)
-            self.assertEqual((lane_row["file"], lane_row["function"]), (None, None))
-            self.assertEqual(lane_row["lane"], "python")
-            self.assertEqual(lane_row["collector"], "mypy-report")
-            self.assertEqual(lane_row["values"], values)
-            self.assertEqual(lane_row["labels"], ["lane-total"])
+            self.assertEqual((language_row["file"], language_row["function"]), (None, None))
+            self.assertEqual(language_row["language"], "python")
+            self.assertEqual(language_row["collector"], "mypy-report")
+            self.assertEqual(language_row["values"], values)
+            self.assertEqual(language_row["labels"], ["language-total"])
             self.assertEqual(result.stderr, "")
 
     def _collect_modules(
@@ -206,7 +193,7 @@ class MypyReportCollectTests(unittest.TestCase):
             cwd=Path(tmp),
         )
 
-    def test_module_rows_map_to_scope_files_and_the_lane_row_sums_them(self) -> None:
+    def test_module_rows_map_to_scope_files_and_the_language_row_sums_them(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             result = self._collect_modules(tmp, "pkg/a.py", "pkg-x/b.py", "c.py")
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -220,13 +207,10 @@ class MypyReportCollectTests(unittest.TestCase):
                     ("c.py", (0, 6, 100.0)),
                 ],
             )
-            self.assertEqual(rows[0]["labels"], ["lane-total", "mypy-reported-errors"])
+            self.assertEqual(rows[0]["labels"], ["language-total", "mypy-reported-errors"])
             self.assertEqual([r["labels"] for r in rows[1:]], [[], [], []])
 
     def test_a_src_layout_matches_the_shorter_names_a_config_base_gives(self) -> None:
-        # `mypy_path = src` makes mypy name src/pkg/a.py `pkg.a` while the
-        # cwd-based derivation says `src.pkg.a`: the listed name is matched to
-        # the one scope file whose derived name ends in it.
         with tempfile.TemporaryDirectory() as tmp:
             result = self._collect_modules(
                 tmp, "src/pkg/a.py", "src/pkg-x/b.py", "src/c.py", exit_code=0
@@ -238,7 +222,7 @@ class MypyReportCollectTests(unittest.TestCase):
             )
             self.assertEqual(result.stderr, "")
 
-    def test_the_lane_row_covers_the_scope_and_names_what_it_left_out(self) -> None:
+    def test_the_language_row_covers_the_scope_and_names_what_it_left_out(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             result = self._collect_modules(tmp, "pkg/a.py", "c.py", exit_code=0)
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -252,10 +236,10 @@ class MypyReportCollectTests(unittest.TestCase):
                     "type_coverage_pct": 66.67,
                 },
             )
-            self.assertEqual(rows[0]["labels"], ["lane-total"])
+            self.assertEqual(rows[0]["labels"], ["language-total"])
             self.assertEqual(
                 result.stderr.strip(),
-                "1 listed module(s) matched no scope file and are not counted in the lane row",
+                "1 listed module(s) matched no scope file and are not counted in the language row",
             )
 
     def test_a_scope_file_mypy_did_not_list_is_counted_in_the_note(self) -> None:
@@ -305,7 +289,6 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual(leaked, [])
 
     def test_a_reporting_exit_code_still_yields_a_row_and_a_label(self) -> None:
-        # mypy exits 1 on any type error while still writing the report (T1).
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(
                 Path(tmp),
@@ -320,19 +303,14 @@ class MypyReportCollectTests(unittest.TestCase):
                 path_prefix=Path(tmp),
             )
             self.assertEqual(result.returncode, 0, result.stderr)
-            lane_row = rows_of(result)[0]
-            self.assertEqual(lane_row["labels"], ["lane-total", "mypy-reported-errors"])
-            self.assertEqual(lane_row["values"]["expressions_total"], 13)
+            language_row = rows_of(result)[0]
+            self.assertEqual(language_row["labels"], ["language-total", "mypy-reported-errors"])
+            self.assertEqual(language_row["values"]["expressions_total"], 13)
             self.assertEqual(
                 result.stderr.strip(), "mypy reported 1 error (0 missing stubs)"
             )
 
     def test_a_fatal_exit_is_exit_4_with_the_tool_stderr_relayed(self) -> None:
-        # mypy exits 2 on a blocking error (a duplicate module name, a usage or
-        # config error) before analyzing anything, and still writes a report
-        # whose Total row reads 0 over 0. Nothing was measured: the tool
-        # resolved but cannot run on these files, which is the adapter
-        # contract's exit 4, an `unavailable` row carrying mypy's own message.
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(
                 Path(tmp),
@@ -372,8 +350,6 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual(result.stdout, "")
 
     def test_zero_expressions_is_null_coverage_never_100(self) -> None:
-        # A Total of 0 over 0 is "nothing was counted", which the report
-        # contract renders as null, not as the 100.00% mypy prints.
         with tempfile.TemporaryDirectory() as tmp:
             make_stub(Path(tmp), exit_code=0, capture=ABORTED)
             result = run(
@@ -398,10 +374,6 @@ class MypyReportCollectTests(unittest.TestCase):
     def test_collect_passes_explicit_package_bases_and_a_devnull_cache_dir(
         self,
     ) -> None:
-        # --explicit-package-bases derives module names from the path, so two
-        # same-named files under identifier-named directories no longer abort
-        # the build; --cache-dir os.devnull is mypy's documented "disable
-        # caching" value and keeps .mypy_cache out of the consumer's tree.
         with tempfile.TemporaryDirectory() as tmp:
             argv_log = Path(tmp) / "argv"
             make_stub(Path(tmp), argv_log=argv_log)
@@ -424,12 +396,6 @@ class MypyReportCollectTests(unittest.TestCase):
     def test_a_config_without_namespace_packages_reruns_in_mypys_own_naming(
         self,
     ) -> None:
-        # mypy allows --explicit-package-bases only with namespace packages on;
-        # a consumer config that turns them off makes the first run a usage
-        # error (exit 2, nothing measured). That is not the consumer's tree
-        # failing, so the run repeats without the flag and the note says which
-        # naming the rows follow. The capture's names (`pkg.a`, `b`, `c`) are
-        # the ones mypy's __init__.py walk gives too, so the rows still map.
         with tempfile.TemporaryDirectory() as tmp:
             argv_log = Path(tmp) / "argv"
             make_stub(
@@ -453,7 +419,7 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual(
                 [r["file"] for r in rows], [None, "pkg/a.py", "pkg-x/b.py", "c.py"]
             )
-            self.assertEqual(rows[0]["labels"], ["lane-total"])
+            self.assertEqual(rows[0]["labels"], ["language-total"])
             self.assertEqual(
                 result.stderr.strip(),
                 "namespace packages are off in the mypy config, so modules are "
@@ -470,10 +436,6 @@ class MypyReportCollectTests(unittest.TestCase):
     def test_same_named_files_under_hyphenated_dirs_are_a_partial_not_unavailable(
         self,
     ) -> None:
-        # `a-dir/mod.py` and `b-dir/mod.py` both derive `mod`. The second is
-        # held out before mypy runs (the stub would refuse it with mypy's
-        # duplicate-module exit 2), every other file is measured, and the
-        # partial-reason file names the one that was not.
         with tempfile.TemporaryDirectory() as tmp:
             argv_log = Path(tmp) / "argv"
             note = Path(tmp) / "partial"
@@ -506,7 +468,7 @@ class MypyReportCollectTests(unittest.TestCase):
                     ("ok/other.py", (1, 5, 80.0)),
                 ],
             )
-            self.assertEqual(rows[0]["labels"], ["lane-total", "partial"])
+            self.assertEqual(rows[0]["labels"], ["language-total", "partial"])
             self.assertEqual(
                 note.read_text(encoding="utf-8"),
                 "1 of 3 scope file(s) not measured: mypy derives the same module "
@@ -519,10 +481,6 @@ class MypyReportCollectTests(unittest.TestCase):
     def test_a_duplicate_only_mypys_own_naming_gives_is_held_out_from_its_message(
         self,
     ) -> None:
-        # With namespace packages off, `pkg/mod.py` and `other/mod.py` are both
-        # `mod` to mypy although their paths derive `pkg.mod` and `other.mod`,
-        # so nothing is held out up front. mypy's duplicate message names the
-        # file it refused; that file is held out and the run repeats.
         with tempfile.TemporaryDirectory() as tmp:
             argv_log = Path(tmp) / "argv"
             make_stub(
@@ -551,7 +509,7 @@ class MypyReportCollectTests(unittest.TestCase):
             self.assertEqual(
                 [r["file"] for r in rows], [None, "pkg/mod.py", "ok/other.py"]
             )
-            self.assertEqual(rows[0]["labels"], ["lane-total", "partial"])
+            self.assertEqual(rows[0]["labels"], ["language-total", "partial"])
             self.assertIn(
                 "not measured: mypy derives the same module name as an earlier "
                 'scope file for other/mod.py (as "mod")',
@@ -597,7 +555,7 @@ class MypyReportCollectTests(unittest.TestCase):
                 [r["file"] for r in rows], [None, "a-dir/mod.py", "ok/other.py"]
             )
             self.assertGreater(rows[0]["values"]["expressions_total"], 0)
-            self.assertEqual(rows[0]["labels"], ["lane-total", "partial"])
+            self.assertEqual(rows[0]["labels"], ["language-total", "partial"])
             self.assertIn("b-dir/mod.py", note.read_text(encoding="utf-8"))
 
     def test_a_usage_error_that_is_not_the_pairing_rule_is_still_exit_4(self) -> None:
@@ -677,9 +635,8 @@ class MypyReportTableTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.parse_total("      Name   Anys   Exprs   Coverage\n")
 
-    def test_the_lane_row_percentage_is_formatted_as_mypy_formats_it(self) -> None:
+    def test_the_language_row_percentage_is_formatted_as_mypy_formats_it(self) -> None:
         module = load_module()
-        # This repository's whole-tree Total: mypy prints 89.96% for it.
         self.assertEqual(
             module._summed([(14961, 149042, 89.96)]), (14961, 149042, 89.96)
         )
@@ -706,15 +663,11 @@ class MypyReportModuleNameTests(unittest.TestCase):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.touch()
             cases = {
-                # every directory up to the base is an identifier: the dotted path
                 "plugins/perf/lib/x.py": "plugins.perf.lib.x",
-                # the walk stops at a non-identifier directory: the stem alone
                 "harness-ops/lib/x.py": "x",
-                # a package names its directory; a stub keeps its stem
                 "pkg/sub/__init__.py": "pkg.sub",
                 "pkg/sub/c.pyi": "pkg.sub.c",
                 "top.py": "top",
-                # a package under a non-identifier directory is still a package
                 "dir-with-dash/deeper/__init__.py": "deeper",
                 "dir-with-dash/deeper/leaf.py": "deeper.leaf",
             }
@@ -752,7 +705,6 @@ class MypyReportCollisionTests(unittest.TestCase):
                 )
             finally:
                 os.chdir(cwd)
-        # A repeated path is the same file, not a collision.
         self.assertEqual(scope, ["b-dir/mod.py", "pkg/mod.py", "b-dir/mod.py"])
         self.assertEqual(held_out, [("a-dir/mod.py", "mod"), ("c-dir/mod.py", "mod")])
 

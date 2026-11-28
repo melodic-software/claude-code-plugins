@@ -10,7 +10,7 @@
   "kind": "drift",
   "maps_to": {
     "criterion": "Handoff redesign AC2: a rule id retired at an earlier hop and reused for a different rule.",
-    "risk": "The chain carries one id for two rules: the retired one in a hop file and a live, contradicting one in Current rules. A reader that follows the id into the hop file, or a writer that merges the two, acts on the retired rule."
+    "risk": "The chain carries one id for two rules: the retired one in an archive file and a live, contradicting one in Current rules. A reader that follows the id into the archive file, or a writer that merges the two, acts on the retired rule."
   },
   "description": "Source: design AC2 (validate accepts a retired id reused for a different entry), written as a synthetic release lane. Hard because Review before you continue points the reader at hop 3's file, where the same id holds the retired rule (bump pyproject.toml's version by hand in the release PR), while the live rule under that id says the release workflow sets the version from the pushed tag and no PR edits it. The reader's next action, cutting release 1.8.0, goes one way under each rule.",
   "seed": {

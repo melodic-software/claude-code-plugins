@@ -49,17 +49,20 @@ function closure() {
 }
 
 const ROOT = "../../../";
+const STANDARDS = ".github/scripts/lib/fixtures/standards/";
 const fileAt = (path) => (path.endsWith(".json") ? JSON.parse(read(`${ROOT}${path}`)) : read(`${ROOT}${path}`));
 
 const brokerFiles = () => ({
   config: read(`${ROOT}${LISTS.binding.config}`),
   ...Object.fromEntries(Object.entries(LISTS.binding.trust_files).map(([key, path]) => [key, fileAt(path)])),
+  ...Object.fromEntries(Object.entries(LISTS.binding.standards_lists.files).map(([key, path]) => [key, fileAt(`${STANDARDS}${path}`)])),
 });
 
 test("the copied lists name the azure-iac files and the commit they were read from", () => {
   assert.equal(LISTS.repository, "melodic-software/azure-iac");
   assert.match(LISTS.commit, /^[0-9a-f]{40}$/);
-  assert.equal(LISTS.fetch.path, "scripts/deploy/fetch-resolve-config.sh");
+  assert.equal(LISTS.tests.path, "src/lanes-token-broker/test/helpers.mjs");
+  assert.equal(LISTS.binding.standards_lists.repository, "melodic-software/standards");
   assert.equal(LISTS.loader.path, "src/lanes-token-broker/src/resolve-config-loader.mjs");
   assert.equal(LISTS.loader.entry, "resolve.mjs");
   assert.deepEqual(LISTS.calls.exports, ["loadConfig", "resolveGrant"]);
@@ -101,9 +104,9 @@ test("the broker's calls resolve this tree's config from the TRUST_FILES it read
 
 const TREE_FILES = Object.freeze({
   schema: "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
-  vocabulary: ".github/standards/github-actions-conventions/vocabulary.json",
+  vocabulary: `${STANDARDS}components/github-actions-conventions/vocabulary.json`,
   codeowners: ".github/CODEOWNERS",
-  trustedActors: ".github/standards/trusted-actors/trusted-actors.json",
+  trustedActors: `${STANDARDS}components/trusted-actors/trusted-actors.json`,
   laneRules: ".github/actions/resolve-config/lane-rules.json",
   effectGrants: ".github/actions/resolve-config/effect-grants.json",
   activityRules: ".github/actions/resolve-config/activity-rules.json",
@@ -128,31 +131,42 @@ const neededKeys = () => {
   });
 };
 
-function brokerGaps(needed, { trust_files: trustFiles, test_data: testData }, testFiles) {
+function brokerGaps(needed, { trust_files: trustFiles, standards_lists: { files: standardsFiles } }, served) {
   return needed
     .filter((key) => key !== "config")
     .flatMap((key) => {
-      if (!Object.hasOwn(trustFiles, key)) {
-        return [`binding.mjs TRUST_FILES must add ${key} (${TREE_FILES[key]}), or every broker request fails`];
+      const fromTip = Object.hasOwn(trustFiles, key);
+      const fromStandards = Object.hasOwn(standardsFiles, key);
+      if (fromTip === fromStandards) {
+        return [`binding.mjs must read ${key} (${TREE_FILES[key]}) from exactly one of TRUST_FILES and STANDARDS_LISTS, or every broker request fails`];
       }
-      const served = testData[key] ?? trustFiles[key];
-      return testFiles.includes(served) ? [] : [`fetch-resolve-config.sh's test_files list must add ${served}`];
+      const read = fromTip ? trustFiles[key] : `${STANDARDS}${standardsFiles[key]}`;
+      if (read !== TREE_FILES[key]) {
+        return [`the broker reads ${key} from ${read}, but this tree keeps it at ${TREE_FILES[key]}`];
+      }
+      return Object.hasOwn(served, key) ? [] : [`azure-iac's test helpers must serve ${key}`];
     });
 }
 
-test("every file loadConfig needs is one the broker reads from main's tip and serves its tests", () => {
-  assert.deepEqual(brokerGaps(neededKeys(), LISTS.binding, LISTS.fetch.test_files), []);
+test("every file loadConfig needs is one the broker reads where this tree keeps it, and serves its tests", () => {
+  assert.deepEqual(brokerGaps(neededKeys(), LISTS.binding, LISTS.tests.served), []);
 });
 
-test("a needed file the broker does not read is named by its key", () => {
+test("a needed file the broker does not read, reads elsewhere, or does not serve is named by its key", () => {
   const { activityRules: _dropped, ...trustFiles } = LISTS.binding.trust_files;
-  assert.deepEqual(brokerGaps(neededKeys(), { ...LISTS.binding, trust_files: trustFiles }, LISTS.fetch.test_files), [
-    "binding.mjs TRUST_FILES must add activityRules (.github/actions/resolve-config/activity-rules.json), or every broker request fails",
+  assert.deepEqual(brokerGaps(neededKeys(), { ...LISTS.binding, trust_files: trustFiles }, LISTS.tests.served), [
+    "binding.mjs must read activityRules (.github/actions/resolve-config/activity-rules.json) from exactly one of TRUST_FILES and STANDARDS_LISTS, or every broker request fails",
   ]);
-  const testFiles = LISTS.fetch.test_files.filter((file) => !file.endsWith("lane-rules.json"));
-  assert.deepEqual(brokerGaps(neededKeys(), LISTS.binding, testFiles), [
-    "fetch-resolve-config.sh's test_files list must add .github/actions/resolve-config/lane-rules.json",
+  const { vocabulary: _vocabulary, ...standardsFiles } = LISTS.binding.standards_lists.files;
+  assert.deepEqual(brokerGaps(neededKeys(), { ...LISTS.binding, standards_lists: { files: standardsFiles } }, LISTS.tests.served), [
+    `binding.mjs must read vocabulary (${STANDARDS}components/github-actions-conventions/vocabulary.json) from exactly one of TRUST_FILES and STANDARDS_LISTS, or every broker request fails`,
   ]);
+  const moved = { ...LISTS.binding.standards_lists.files, vocabulary: "vocabulary.json" };
+  assert.deepEqual(brokerGaps(neededKeys(), { ...LISTS.binding, standards_lists: { files: moved } }, LISTS.tests.served), [
+    `the broker reads vocabulary from ${STANDARDS}vocabulary.json, but this tree keeps it at ${STANDARDS}components/github-actions-conventions/vocabulary.json`,
+  ]);
+  const { laneRules: _laneRules, ...served } = LISTS.tests.served;
+  assert.deepEqual(brokerGaps(neededKeys(), LISTS.binding, served), ["azure-iac's test helpers must serve laneRules"]);
 });
 
 test("the patch rules are read by lane runs only, never by the broker's loadConfig", () => {
@@ -164,7 +178,7 @@ test("every listed file exists", () => {
   for (const file of [LISTS.loader.entry, ...LISTS.loader.dependency_files]) {
     assert.ok(existsSync(here(`./${file}`)), `the loader names ${file}, which does not exist`);
   }
-  for (const file of [...LISTS.fetch.test_files, ...Object.values(LISTS.binding.trust_files)]) {
+  for (const file of [...Object.values(LISTS.binding.trust_files), ...Object.values(LISTS.binding.standards_lists.files).map((path) => `${STANDARDS}${path}`)]) {
     assert.ok(existsSync(here(`${ROOT}${file}`)), `the lists name ${file}, which does not exist`);
   }
 });

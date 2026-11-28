@@ -1,21 +1,8 @@
 #!/usr/bin/env bash
 # spellchecker:off
-# Contract tests for the spelling lint entry (git-hooks/lint.sh): the typos
-# adapter runs with or without a repository typos config, a
-# typo on an added line blocks with "<path>:<line>: <message>", one on an
-# unchanged line does not, a partly staged file is judged as staged, the
-# repository's typos config (excludes, allow-list) governs, typos failing with
-# no finding fails closed, --worktree covers uncommitted and untracked files, a
-# .claude/ecosystems/ record never runs, a missing typos follows the skip-key
-# rule, and the plugin's own vendored installer wires the entry so `git commit`
-# runs it. The stub cases, which need no real typos, pin the resolve rows and the path
-# transport: paths reach typos as arguments after --.
-# "teh" -> "the" is typos' own built-in correction, the fixture every case uses;
-# typos --format brief prints "<path>:<line>:<col>: error: <message>" and exits
-# 0 when clean, 2 on typos, anything else on an error
-# (https://github.com/crate-ci/typos/blob/master/README.md).
 # test-scope: plugins/spelling/git-hooks/entries.json plugins/spelling/git-hooks/adapters.sh
 # test-scope: plugins/spelling/lib/git-hooks/check-lib.sh plugins/spelling/lib/git-hooks/resolve-tool.sh plugins/spelling/lib/git-hooks/install.mjs
+# test-scope: plugins/spelling/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
 
@@ -378,11 +365,56 @@ printf 'an old teh line\nfixed in 1aded9f\nagain 1aded9f\n' >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 expect "plugin source: the script finds config/default-typos.toml too" "0|" "$(check "$REPO")"
 
+STD="$WORK/standards"
+mkdir -p "$STD"
+printf '[default.extend-words]\ngrey = "gray"\n' >"$STD/_typos.toml"
+opt_in() {
+  mkdir -p "$REPO/docs/conventions"
+  printf 'standards_repository: acme/standards\n' >"$REPO/docs/conventions/source-control.yaml"
+}
+new_repo NONE
+opt_in
+printf 'a grey cat\n' >"$REPO/a.md"
+git -C "$REPO" add -A
+STANDARDS_DIR="$STD" stub_check "$REPO" >/dev/null
+expect "standards default: the standards _typos.toml goes to typos with -c in place of the bundled one" yes \
+  "$([[ "$(cat "$STUB_OUT/argv")" == *" -c $STD/_typos.toml --force-exclude "* ]] && echo yes)"
+expect "standards default: --resolve names the standards config" \
+  "spelling	lint	adapter:typos	typos	yes	no typos config: typos defaults plus the standards config; binary typos on PATH" \
+  "$(cd "$REPO" && STANDARDS_DIR="$STD" PATH="$STUB:$PATH" bash "$CHECK" --resolve)"
+expect "standards default: a word only the standards config flags blocks" "1|a.md:1: \`grey\` should be \`gray\`" \
+  "$(STANDARDS_DIR="$STD" check "$REPO" | head -1)"
+expect "standards default, control: opted out, the same word passes" "0|" "$(check "$REPO")"
+expect "standards default: no checkout holds the file, so the bundled config is the base" yes \
+  "$(STANDARDS_DIR="$WORK/nowhere" stub_check "$REPO" >/dev/null
+    [[ "$(cat "$STUB_OUT/argv")" == *" -c $PLUGIN/config/default-typos.toml "* ]] && echo yes)"
+printf '[default.extend-words]\nteh = "teh"\n' >"$REPO/_typos.toml"
+printf 'a grey teh cat\n' >"$REPO/a.md"
+git -C "$REPO" add -A
+out="$(STANDARDS_DIR="$STD" check "$REPO")"
+expect "standards extend: the standards word still blocks" "1|a.md:1: \`grey\` should be \`gray\`" "$(head -1 <<<"$out")"
+# shellcheck disable=SC2016 # the backticks are typos' output, not a command
+expect "standards extend: the repository's own word is accepted" no "$([[ "$out" == *'`teh`'* ]] && echo yes || echo no)"
+expect "standards extend: --resolve names the repository config over the standards one" \
+  "spelling	lint	adapter:typos	typos	yes	config _typos.toml over the standards config; binary typos on PATH" \
+  "$(cd "$REPO" && STANDARDS_DIR="$STD" PATH="$STUB:$PATH" bash "$CHECK" --resolve)"
+
 new_repo
 mkdir -p "$REPO/.git/hooks/spelling"
 git -C "$REPO" config --local checks.spelling.typos-check.declined true
 expect "a decline of the retired typos-check entry carries to lint" "declined	lint" \
   "$(node "$INSTALL" verify --repo "$REPO" | cut -f1,2)"
+
+new_repo
+printf 'clean words\n' >"$REPO/notes.md"
+git -C "$REPO" commit -q -am clean --no-verify
+git -C "$REPO" mv notes.md moved.md
+expect "an exact rename to a correct name passes" "0|" "$(check "$REPO")"
+git -C "$REPO" mv moved.md teh-notes.md
+out="$(check "$REPO")"
+name_typo="\`teh\` should be \`the\`"
+expect "an exact rename to a misspelled file name still fails on the name" "1|yes" \
+  "${out%%|*}|$([[ "$out" == *"$name_typo"* ]] && echo yes)"
 
 # spellchecker:on
 echo "lint: $PASS passed, $FAIL failed"

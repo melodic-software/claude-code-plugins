@@ -1,5 +1,3 @@
-// Runs workflows/plan-panel.js against stubbed workflow hooks (agent,
-// parallel, pipeline, phase, log, args) and asserts what it dispatches.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -11,7 +9,6 @@ const source = readFileSync(join(here, '..', 'workflows', 'plan-panel.js'), 'utf
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
 const body = source.replace(/^export const meta\b/m, 'const meta')
 
-// Banned by the bundled /workflow-authoring skill's determinism rules; the test enforces the same list.
 for (const banned of ['Date.now(', 'Math.random(', 'new Date()']) {
   test(`script does not call ${banned}`, () => assert.ok(!source.includes(banned)))
 }

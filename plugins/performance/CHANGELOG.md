@@ -3,6 +3,61 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.3] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across all seven `performance` skills (`climb` 592 -> 341 chars, `go-faster` 475 -> 344 chars, `goal` 432 -> 339 chars, `protect` 373 -> 323 chars, `snapshot` 482 -> 344 chars, `target` 491 -> 327 chars, `verify` 445 -> 336 chars; total 3290 -> 2354 chars, -936 chars) while preserving all workflow phases, human-gated/read-only safety postures, and sibling exclusions.
+
+## [0.17.2] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [0.17.1] - 2026-11-27
+
+### Fixed
+
+- `/performance:go-faster` no longer skips its sweeper when the prompt names the speedup it wants in adopt-now; a named speedup is adopted only when the sweeper's report lists it. A requested speedup or change to how the session works that the report does not list is declined, while ordinary task work is not: lower effort, a smaller model or shallower verification as `flag-only`, skipping or removing a check by routing it to `/overengineering:audit`, and any other speedup as not in this report, for the next run to measure.
+
+## [0.17.0] - 2026-11-27
+
+### Added
+
+- A `transcript_sources_file` option names a JSON file of transcript sources: Claude Code configuration directories on this host and on hosts reached over ssh. Unset, only this host's configuration directory is read.
+- `/performance:go-faster` reports (`findings.py render` and `finish`) pass through a publish redactor over the `--sources-file` sources: host names become stable `<host-N>` placeholders, and usernames, IP addresses, emails, home paths and secrets typed ones. The plugin now vendors the gitleaks rules (`vendor/gitleaks/`) the redactor reads. A new `redact_identifiers` option, passed as `--redact-identifiers`, adds comma-separated names and paths to replace with `<identifier>`. A sources file that is missing or unusable, or secret rules that do not load, stop the output with exit 2 and nothing published.
+
+### Changed
+
+- `/performance:go-faster` finds the session's transcript in every local source of the `transcript_sources_file`, quotes the resolver's warning about that file (not found, or refused) at the top of its reply, and its sweeper's `findings.py finish` receives the `transcript_sources_file` and `redact_identifiers` options for the publish redactor.
+- `lib/publish.py` also runs as a command that redacts its input.
+- A `transcript_sources_file` path, and a local source's `config_dir` in it, starting with `~` are read from the home directory; a missing sources file prints its warning once per run.
+- The shared redactor copy (`redact.py`) can leave report field names its caller lists unredacted; this plugin lists none, so its redaction is unchanged.
+
+### Fixed
+
+- Redacting a secret at the end of a line no longer joins the next line onto the redacted one.
+- A secret whose gitleaks rule marks only part of it, such as a base64 JWT, a Teams webhook URL or a Kubernetes Secret's later data values, is redacted whole; only line breaks and a trailing quote, space or semicolon are kept.
+
+## [0.16.12] - 2026-11-27
+
+### Changed
+
+- The shared transcript reader drops its record-type label comments.
+
+## [0.16.11] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.16.10] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.16.9] - 2026-11-24
 
 ### Fixed

@@ -1,34 +1,3 @@
-<!--
-  Variant switcher for the explore-directions HTML mockup. Paste this whole fragment just before
-  </body>. Each variant is an element carrying data-variant (its key) and data-variant-label (its
-  name), for example: <section data-variant="A" data-variant-label="Quiet">...</section>. Inside a
-  variant, each screen state is an element carrying data-screen-state (its key, the same in every
-  variant) and data-screen-state-label, for example:
-  <div data-screen-state="empty" data-screen-state-label="Empty">...</div>. The attribute is not
-  data-state, which component libraries (Radix, Headless UI) set on their own open/closed parts.
-  Keys 1-N and the left and right arrows switch variants (wrapping around), the state button and
-  the up and down arrows step through the current variant's states (wrapping around, kept across a
-  variant switch), R replays the current variant's entrance, W flips demo and worst content, S
-  steps the motion speed, and keys are ignored while a field has focus or a modifier is held. The
-  up and down arrows still scroll the page when the variant has fewer than two states. The
-  switcher keeps what it shows in memory only, so the page works from file:// under the mockup's
-  CSP (inline style and script, nothing remote). It reads the variant and state elements once,
-  when it runs, so render them before it: in the markup or a plain inline script above it, never a
-  module script or a DOMContentLoaded listener. Add data-position="top" to the nav when a variant
-  occupies the bottom center.
-  Worst content: mark the ordinary set data-content-set="demo" and the breaking set
-  data-content-set="worst"; the Demo/Worst button appears only when the page has both, and a script
-  that renders content reads document.documentElement.dataset.vsContent ("demo" or "worst").
-  Replay and the speed button appear only when a variant declares a CSS animation or transition, or
-  carries data-motion. Speed slows CSS animations, CSS transitions and Web Animations; motion a
-  script drives frame by frame (requestAnimationFrame, timers) is not slowed.
-  Switching and replay remount a variant from a copy of its markup, so listeners attached to
-  elements inside it are lost: wire variant interactions with listeners delegated from document.
-  Chrome, not a contestant: leave its look alone. It takes the notes host page's light and dark
-  tokens, and it hides when that page frames the mockup, whose command bar steps the variants.
-  Under that bar it also hides every element marked data-harness-chrome, such as the page's data
-  bar, whose controls the bar's Sample data menu presses.
--->
 <nav class="vs" aria-label="Variants" data-position="bottom">
   <span class="vs-highlight" aria-hidden="true"></span>
   <button type="button" class="vs-item vs-step" data-step="-1" aria-label="Previous variant">&larr;</button>
@@ -105,8 +74,6 @@
     transform-origin: left center;
     pointer-events: none;
   }
-  /* user-interface keys: 250ms is animation.duration_ms.medium and the curve animation.easing_library.out.quint;
-     the item's 150ms color transition below is animation.duration_ms.hover */
   @media (prefers-reduced-motion: no-preference) {
     .vs[data-ready] .vs-highlight { transition: transform 250ms cubic-bezier(0.23, 1, 0.32, 1); }
   }
@@ -200,7 +167,6 @@
       highlight.style.transform = `translate(${el.offsetLeft}px, ${el.offsetTop - 4}px) scaleX(${el.offsetWidth / 100})`;
     }
 
-    // Applies the speed to every running animation outside the switcher itself.
     function applySpeed() {
       for (const a of document.getAnimations()) {
         const target = a.effect && a.effect.target;
@@ -209,14 +175,12 @@
       }
     }
 
-    // Animations created later start at full speed, so a slowed page re-applies the speed each frame.
     function watchSpeed() {
       if (speeds[speed] === 1) return;
       applySpeed();
       requestAnimationFrame(watchSpeed);
     }
 
-    // Replacing the element with a fresh copy restarts its entrance animations.
     function remount(i) {
       const fresh = variants[i].cloneNode(true);
       variants[i].replaceWith(fresh);
@@ -224,10 +188,8 @@
       if (speeds[speed] !== 1) applySpeed();
     }
 
-    // Queried on each use, since remounting replaces the state elements.
     const states = () => [...variants[current].querySelectorAll("[data-screen-state]")];
 
-    // Falls back to the first state for display only, so the pick survives a variant without it.
     function applyState() {
       const all = states();
       stateParts.forEach((p) => { p.hidden = all.length === 0; });
@@ -306,8 +268,6 @@
       e.preventDefault();
     });
 
-    // A vs:show event on document restores a view a reload loses, for a script re-locating a note:
-    // detail {variant, state, content}, each optional; a part this page does not have is ignored.
     document.addEventListener("vs:show", (e) => {
       const d = e.detail;
       if (!d || typeof d !== "object") return;
@@ -318,7 +278,6 @@
     });
 
     show(0);
-    // The highlight slides only after first paint, so the load does not animate.
     requestAnimationFrame(() => requestAnimationFrame(() => nav.setAttribute("data-ready", "")));
   })();
 </script>

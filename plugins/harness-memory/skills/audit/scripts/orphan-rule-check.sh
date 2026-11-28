@@ -2,7 +2,6 @@
 
 set -uo pipefail
 
-# Resolved before the `cd` below so the sibling scripts stay locatable.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib/rule-scope.sh
 source "$SCRIPT_DIR/lib/rule-scope.sh"
@@ -45,7 +44,6 @@ for file in .claude/rules/*.md; do
   rule_frontmatter_declares "$file" paths && continue
   rule_frontmatter_declares "$file" description && continue
   base="${file##*/}"
-  # -xF: fixed-string whole-line match, so path dots stay literal.
   local_refs=$(git grep -l -F -- "$base" -- ":(exclude)${memory_dir}/" 2>/dev/null | grep -vcxF -- "$file" || true)
   [[ "$local_refs" -eq 0 ]] && orphans+=("$base")
 done

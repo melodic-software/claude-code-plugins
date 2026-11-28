@@ -26,13 +26,16 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
+from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from pathlib import Path
 
-# `from __future__ import annotations` needs 3.7; the .test.sh wrapper parses
-# this tuple to pick an interpreter.
+# `from __future__ import annotations` needs Python 3.7:
+# https://docs.python.org/3/library/__future__.html
 MIN_PYTHON = (3, 7)
 
 SCRIPT = Path(__file__).resolve()
@@ -47,9 +50,12 @@ SELF_FILES = frozenset(
         DATA.name,
         "check-vocabulary.test.sh",
         "test_check_vocabulary.py",
+        "vocabulary_allowlist_table.py",
     )
 )
 TEXT_LIMIT = 200
+CHUNK = 1024
+LINE_BOUND = re.compile(r"\(\?(?![:=]|<=)|[*+?}]\+|\\[AZzG]")
 
 
 class Unusable(Exception):
@@ -134,7 +140,12 @@ def load_senses(path: Path) -> list:
                 paths.append(glob_regex(entry["path"]))
             else:
                 phrases.append(compile_regex(entry["phrase"], where))
-        senses.append({"id": sid, "rules": rules, "paths": paths, "phrases": phrases})
+        prefilter = None
+        if not any(LINE_BOUND.search(m.pattern) for m, _ in rules):
+            prefilter = [re.compile(m.pattern, m.flags | re.MULTILINE) for m, _ in rules]
+        senses.append(
+            {"id": sid, "rules": rules, "prefilter": prefilter, "paths": paths, "phrases": phrases}
+        )
     if not senses:
         raise Unusable(f"{path.name} defines no senses")
     return senses
@@ -186,8 +197,14 @@ def scan(rel: str, senses: list) -> list:
     data = (REPO_ROOT / rel).read_bytes()
     if b"\0" in data[:8192]:
         return []
+    body = data.decode("utf-8", "replace")
+    active = [
+        s for s in active if s["prefilter"] is None or any(p.search(body) for p in s["prefilter"])
+    ]
+    if not active:
+        return []
     findings = []
-    lines = data.decode("utf-8", "replace").split("\n")
+    lines = body.split("\n")
     for lineno, line in enumerate(lines, 1):
         for sense in active:
             hit = any(
@@ -221,7 +238,14 @@ def main(argv: list) -> int:
     except Unusable as exc:
         print(f"check-vocabulary: {exc}", file=sys.stderr)
         return 2
-    findings = [f for rel in files for f in scan(rel, senses)]
+    cores = len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count() or 1
+    workers = min(cores, -(-len(files) // CHUNK))
+    if workers > 1:
+        with ProcessPoolExecutor(workers) as pool:
+            per_file = list(pool.map(partial(scan, senses=senses), files, chunksize=CHUNK))
+    else:
+        per_file = [scan(rel, senses) for rel in files]
+    findings = [f for found in per_file for f in found]
     for finding in findings:
         print(finding)
     if findings:

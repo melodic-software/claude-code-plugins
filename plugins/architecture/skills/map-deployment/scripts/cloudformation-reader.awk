@@ -1,22 +1,3 @@
-# CloudFormation reader for collect-deployment.sh. Prepend redact-connection.awk
-# and deployment-diff.awk, then yaml-rows.awk. Arguments are repo-relative YAML
-# or JSON templates and JSON parameter files prefixed with "./". Set tool to
-# cloudformation.
-#
-# Maps AWS::ECS::Cluster, AWS::ECS::TaskDefinition and AWS::ECS::Service. A
-# template with no parameter file is one environment named for its directory
-# (default at the repository root). A parameter file, the ParameterKey and
-# ParameterValue array or a { "Parameters": {} } object, is one environment:
-# <stem>.parameters.<env>.json or <stem>.<env>.json beside <stem>.<ext>, else
-# <env>.json (or parameters.<env>.json) when the repository holds exactly one
-# template. Only a Ref to a template parameter and a Sub over parameters are
-# resolved, from the parameter file then the parameter Default; every other
-# intrinsic is recorded as unresolved:<text>, never evaluated. A NoEcho
-# parameter, a parameter whose name names a credential, a dynamic reference
-# and a container secret are redacted. A
-# Transform, a nested AWS::CloudFormation::Stack, and a parameter file with no
-# template to pair refuse the record by file name.
-
 BEGIN { CAP = 1; CLUSTER_NAME_PROP = "ClusterName"; SERVICE_NAME_PROP = "ServiceName" }
 
 function resolve_param(sc, name, depth,    f, pf, r, sec) {
@@ -69,7 +50,6 @@ function resolve_at(sc, p, depth,    f, v, nm, out, rest, i, q, inner, r, sec, o
   return unres(f, p)
 }
 
-# The logical id a Ref or GetAtt names, when it is a declared resource.
 function lref(sc, p,    f, v) {
   f = S_file[sc]
   if ((f SUBSEP p ".Ref") in RV) v = RV[f, p ".Ref"]

@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": [{"tool": "Edit", "input": {"file_path": "/tmp/run/docs/onboarding.md", "old_string": "This page is basically just here to really help you", "new_string": "This page helps you"}}, {"tool": "Bash", "input": {"command": "npm run lint:md -- docs/onboarding.md"}}], "why": "compresses the target, then runs the repository's lint script"}
+  ],
+  "fail": [
+    {"answer": [{"tool": "Bash", "input": {"command": "npm run lint:md -- docs/onboarding.md"}}], "why": "runs the lint script and reports lint=PASS without compressing the target"},
+    {"answer": [{"tool": "Edit", "input": {"file_path": "docs/notes.md", "old_string": "just", "new_string": ""}}, {"tool": "Bash", "input": {"command": "npm run lint:md -- docs/notes.md"}}], "why": "edits another file"}
+  ]
+}

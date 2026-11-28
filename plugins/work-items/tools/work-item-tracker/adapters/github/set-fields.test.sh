@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# Offline: set-fields against a gh stub. The org field listing is a trimmed recording of
-# GET orgs/melodic-software/issue-fields (2026-10-18); the expected write is the documented
-# REST body, {"issue_field_values": [{"field_id", "value": <option name>}]}, since the REST
-# write takes the option's name, not its id.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -60,7 +56,6 @@ run() {
   ERR="$(<"$TMP_ROOT/err")"
 }
 
-# Two fields in one write, each sent by the name its option id has in the org listing.
 run "github:o/r#9" --field 15462270=27053568 --field 48625720=85127653
 assert_eq "valid fields → exit 0" "0" "$RC"
 assert_eq "output names each field's option name" '[{"field_id":15462270,"option_id":27053568,"value":"Small"},{"field_id":48625720,"option_id":85127653,"value":"High"}]' \
@@ -74,7 +69,6 @@ assert_eq "body pairs each field id with its option name in one object" \
   "$(jq -c . "$BODY" 2>/dev/null)"
 assert_contains "reads the item's own org" "$(head -n 1 "$LOG")" "orgs/o/issue-fields"
 
-# An option id the field does not hold is a stale map: refuse loudly, write nothing.
 run "github:o/r#9" --field 15462270=27053568 --field 48625720=27053568
 assert_eq "option of another field → exit 5" "5" "$RC"
 assert_contains "error names the field and option" "$ERR" "48625720"

@@ -38,7 +38,6 @@ class ExitCodeTaxonomy(unittest.TestCase):
         self.assertEqual(snapshot.exit_code_for({"errors": [_advisory_error()]}), 3)
 
     def test_substantive_precedence_over_advisory(self):
-        # A run carrying both must never be masked by the advisory split.
         self.assertEqual(
             snapshot.exit_code_for(
                 {"errors": [_advisory_error(), _substantive_error()]}
@@ -120,8 +119,6 @@ class ResolveSelfLoginsTests(unittest.TestCase):
             )
 
     def test_self_is_a_full_override_that_excludes_me(self) -> None:
-        # --self mirrors the gate: exactly the given logins, @me neither added nor
-        # even resolved.
         with mock.patch.object(
             gh, "resolve_author", side_effect=AssertionError("must not resolve @me")
         ):
@@ -144,18 +141,12 @@ class ResolveSelfLoginsTests(unittest.TestCase):
             )
 
     def test_empty_self_is_a_full_override_yielding_no_logins(self) -> None:
-        # An explicit `--self ""` must still be treated as "the flag was supplied"
-        # (full override, empty set) -- not as "the flag was omitted" (which would
-        # fall through to resolving and adding @me).
         with mock.patch.object(
             gh, "resolve_author", side_effect=AssertionError("must not resolve @me")
         ):
             self.assertEqual(snapshot.resolve_self_logins("", None), [])
 
     def test_unresolvable_authenticated_login_raises(self) -> None:
-        # In production `resolve_author("@me")` raises on broken auth rather than
-        # returning None, so the raise propagates (fail-loud, exit 2). This is the
-        # one edge where snapshot behavior diverges from the gate's degrade — #881.
         with (
             mock.patch.object(
                 gh, "resolve_author", side_effect=RuntimeError("no login")
@@ -168,12 +159,6 @@ class ResolveSelfLoginsTests(unittest.TestCase):
 HEAD = "a" * 40
 OBS = "2026-07-19T16:10:00Z"
 
-# Faithful abbreviation of the claude[bot] issue-comment review captured from
-# workflow run 29694104425: an explicit **Approve** verdict whose only findings
-# are two 🟡 nits, each self-deprioritized, and no CRITICAL/IMPORTANT/P-severity
-# marker anywhere. The load-bearing tokens are the descriptive occurrences of
-# the word "blocking" ("blocking criteria", "blocking checks", "No blocking
-# issues") that made the old text heuristic misfire.
 APPROVE_WITH_NITS_BODY = (
     "**Claude finished @kyle-sexton's task** —— [View job](run/29694104425)\n\n"
     "### PR Review\n\n"
@@ -254,16 +239,8 @@ class ApproveWithNitsClassification(unittest.TestCase):
         self.assertEqual(result["feedback"]["blocking"], [])
         self.assertEqual(result["new_feedback"]["blocking"], [])
         self.assertEqual(result["feedback"]["material"], [])
-        # classify_pr surfaces four buckets and collect_feedback puts every record
-        # in exactly one, so all four empty means this review was routed to
-        # `ignored` -- the bucket the snapshot shape does not project.
         self.assertEqual(result["feedback"]["human_blocking"], [])
         self.assertEqual(result["feedback"]["human"], [])
-        # Four-empty alone cannot distinguish "routed to `ignored`" from "dropped
-        # without reaching any bucket", and no sibling test covers this branch --
-        # they exit at CHANGES_REQUESTED and at the blocking-severity fallthrough.
-        # Assert the bucket at its own layer, under the same FeedbackConfig
-        # classify_pr passes down, so the two cannot drift apart.
         buckets = feedback.collect_feedback(
             _pr_with_claude_review(APPROVE_WITH_NITS_BODY),
             None,
@@ -271,13 +248,8 @@ class ApproveWithNitsClassification(unittest.TestCase):
             self._CONFIG.feedback,
         )
         self.assertEqual(len(buckets["ignored"]), 1)
-        # Pins the arrival branch, not just the destination: the approval-verdict
-        # downgrade, never the catch-all fallthrough that also lands in `ignored`.
         self.assertEqual(buckets["ignored"][0]["downgrade"], "approval_verdict")
         self.assertNotIn("1 blocking bot feedback item(s)", result["blockers"])
-        # Consistent with the gate's findings=0: a clean approval is fully
-        # non-blocking, so a worker is never dispatched for it and the PR routes
-        # straight to the direct merge gate.
         self.assertFalse(result["needs_worker"])
         self.assertTrue(result["pr_clean_ready_for_direct_gate"])
 
@@ -304,9 +276,6 @@ class BuildConfigSelfLoginsTests(unittest.TestCase):
         self.assertEqual(config.self_logins, frozenset({"kyle-sexton"}))
 
     def test_resolved_authors_are_ignored_for_self_logins(self) -> None:
-        # There is no author->self precedence path anymore (#511): build_config
-        # never reads resolved_authors, so a stray one with no resolved_self_logins
-        # yields an empty self set, never the authors.
         args = argparse.Namespace(
             owners="melodic-software",
             resolved_authors=["alice"],
@@ -315,9 +284,6 @@ class BuildConfigSelfLoginsTests(unittest.TestCase):
         self.assertEqual(config.self_logins, frozenset())
 
     def test_missing_resolved_self_logins_yields_empty_not_author(self) -> None:
-        # build_config never derives the self set from --author (#511): a
-        # Namespace without resolved_self_logins yields an empty set, not the
-        # discovery authors.
         args = argparse.Namespace(
             owners="melodic-software",
             author="@me,alice",
@@ -383,8 +349,6 @@ class SelfIdentityDecouplingTests(unittest.TestCase):
         return list(args.resolved_self_logins)
 
     def test_extra_self_survives_when_author_is_dropped(self) -> None:
-        # Autopilot widening drops --author; the configured extra identity must
-        # still be suppressed (under-inclusion regression).
         with tempfile.TemporaryDirectory() as state_dir:
             args = argparse.Namespace(
                 pr="owner/repo#1",
@@ -399,8 +363,6 @@ class SelfIdentityDecouplingTests(unittest.TestCase):
         self.assertIn("kyle-sexton", resolved)
 
     def test_discovery_author_is_not_treated_as_self(self) -> None:
-        # A discovery --author for someone other than the authenticated user must
-        # not enter the self set (over-inclusion regression).
         with tempfile.TemporaryDirectory() as state_dir:
             args = argparse.Namespace(
                 pr="owner/repo#1",
@@ -500,14 +462,8 @@ class SinglePrScopeClassifierConsumptionTests(unittest.TestCase):
                 }
             ]
         )
-        # It is still human-blocking (the maintainer keeps the ability to
-        # human-stop their own PR); it just must not re-dispatch a worker.
         self.assertTrue(classified["feedback"]["human_blocking"])
         self.assertEqual(classified["new_feedback"]["human"], [])
-        # The downstream effect, not just the mechanism: the suppressed comment
-        # contributes no dispatch reason. `needs_worker` itself stays True here
-        # on unrelated first-cycle reasons (empty state dir), so asserting on it
-        # would not isolate the self-exclusion.
         self.assertNotIn(
             "new_human_blocking_feedback", classified["needs_worker_reasons"]
         )

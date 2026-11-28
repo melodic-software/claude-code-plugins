@@ -25,6 +25,7 @@ import {
   selectCandidates,
   statusListing,
 } from "./triage-sweep.mjs";
+import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 const ROOT = new URL("../../..", import.meta.url).pathname;
 const FIELD = STATUS_CONFIG["field-id"];
@@ -87,7 +88,6 @@ test("a born-triaged issue in status: ready with no agent-ready, deferral, hold 
     born(10, [], { user: { id: OUTSIDER } }),
     born(11, [], { body: "<!-- work-items:born-triaged -->\nmore text" }),
     born(12, ["provenance: untrusted"]),
-    // #14801: a tracker whose sub-issues are open waits in admission.
     born(13, [], { sub_issues_summary: { total: 3, completed: 1, percent_completed: 33 } }),
     born(14, [], { sub_issues_summary: { total: 2, completed: 2, percent_completed: 100 } }),
   ];
@@ -197,7 +197,7 @@ test("a needs-human the job token writes to the field reads back and a later sel
   const fields = {};
   const github = fieldWorld(issues, fields);
   assert.deepEqual(await fieldSelect(issues, fields), [1]);
-  const { set } = await statusWriter({ env: { BASE_PATH: ROOT }, github, repository: "o/r" });
+  const { set } = await statusWriter({ env: { BASE_PATH: ROOT, STANDARDS_DIR: standardsCheckout() }, github, repository: "o/r" });
   await set(1, "needs-human");
   assert.deepEqual(fields[1], { state: "needs-human", setter: 41898282 });
   const names = await statusReader({ github, repository: "o/r", config: STATUS_CONFIG, trustedActors: TRUSTED_ACTORS, log: () => {} })(1, []);
@@ -352,14 +352,10 @@ function fakeGitHub({ issues, comments = {}, runs = {}, jobs = {}, annotations =
       assert.ok(found, decodeURIComponent(m[1]));
       return { incomplete_results: false, items: found.slice((Number(m[2]) - 1) * 100, Number(m[2]) * 100) };
     }
-    // The hand-off search: GitHub matches the phrase in any comment, so each
-    // hit comes with its comments as GraphQL answers them.
     if (method === "POST" && path === "/graphql") {
       if (graphqlError) return { errors: [{ message: "Something went wrong" }] };
       assert.equal(body.variables.q, 'repo:o/r is:issue is:open commenter:app/github-actions in:comments "so the sweep no longer dispatches it"');
       const start = body.variables.after === null ? 0 : Number(body.variables.after);
-      // GraphQL names an App's account `Bot`, drops the `[bot]` suffix and
-      // gives its account id as databaseId.
       const author = (user) =>
         /\[bot\]$/.test(user?.login ?? "")
           ? { __typename: "Bot", login: user.login.replace(/\[bot\]$/, ""), databaseId: user.id }
@@ -391,8 +387,6 @@ function fakeGitHub({ issues, comments = {}, runs = {}, jobs = {}, annotations =
       return annotations[m[1]];
     }
     writes.push({ method, path, body });
-    // API version 2022-11-28 returns the run id only when return_run_details
-    // is true, else 204, which `call` turns into null.
     if (method === "POST" && path === "/repos/o/r/actions/workflows/intake-triage.yml/dispatches") {
       if (body?.return_run_details !== true) return null;
       nextRun += 1;
@@ -410,7 +404,6 @@ const sweep = (gh, statusLabels) =>
   runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: gh.setStatus, statusLabels });
 
 test("a pass dispatches at most 5 issues, oldest first, and records each run on the issue", async () => {
-  // Listed newest first, as the issues API returns them.
   const issues = Array.from({ length: 7 }, (_, i) => issue(7 - i, { created_at: `2026-10-1${6 - i}T00:00:00Z` }));
   const gh = fakeGitHub({ issues });
   const result = await sweep(gh);
@@ -583,7 +576,7 @@ test("after 2 untriaged dispatches the sweep sets its Work status and hands it o
 test("a hand-off at needs-triage on the field alone is skipped unread on the next pass", async () => {
   const issues = [issue(1)];
   const fields = {};
-  const { set } = await statusWriter({ env: { BASE_PATH: ROOT }, github: fieldWorld(issues, fields), repository: "o/r" });
+  const { set } = await statusWriter({ env: { BASE_PATH: ROOT, STANDARDS_DIR: standardsCheckout() }, github: fieldWorld(issues, fields), repository: "o/r" });
   const runs = { 11: { status: "completed", conclusion: "failure" }, 22: { status: "completed", conclusion: "success" } };
   const first = fakeGitHub({ issues, comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }] }, runs });
   const result = await runSweep({ call: first.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: set });
@@ -634,14 +627,11 @@ test("a hand-off a person's late hold answers held writes no record and is not c
   assert.deepEqual(gh.writes, [], "no hand-off record");
 });
 
-// #14504: the listing read an agent-ready issue's field events stale, so the
-// sweep took it for untriaged; intake left it as is, and the hand-off must not
-// demote it. The hand-off's own field read decides, through the job's writer.
 test("an agent-ready issue the listing read stale as needs-triage is left as is at hand-off, and a fresh needs-triage one is handed off", async () => {
   const runs = { 11: { status: "completed", conclusion: "success" }, 22: { status: "completed", conclusion: "success" } };
   const handOffPass = async (fields, listed = ["needs-triage"], extra = []) => {
     const issues = [issue(1, { body: "Fix it.\n\n<!-- work-items:born-triaged -->" })];
-    const { set } = await statusWriter({ env: { BASE_PATH: ROOT }, github: fieldWorld(issues, fields), repository: "o/r" });
+    const { set } = await statusWriter({ env: { BASE_PATH: ROOT, STANDARDS_DIR: standardsCheckout() }, github: fieldWorld(issues, fields), repository: "o/r" });
     const gh = fakeGitHub({ issues, comments: { 1: [{ id: 5, user: BOT, body: renderState({ runs: [11, 22], filed: null, runUrl: "u" }) }, ...extra] }, runs });
     const stale = new Map([[1, listed]]);
     const result = await runSweep({ call: gh.call, repo: "o/r", serverUrl: "https://github.com", now: NOW, authorIds: authors, appId: String(APP), setStatus: set, statusLabels: stale });
@@ -944,13 +934,13 @@ test("a run from before the job rename, its jobs named by id, is classified the 
   }
 });
 
-test("a deferred triage counts as transient under the reusable's Title Case apply job and its earlier name, never under another job", async () => {
+test("a deferred triage counts as transient under post-triage, the reusable's Title Case apply job and its earlier name, never under another job", async () => {
   const renamed = (name) => DEFERRED.map((j) => (j.name === "Intake Triage / claude-intake-triage-apply" ? { ...j, name } : j));
-  for (const name of ["Intake Triage / Apply", "intake-triage / Apply", "Intake Triage / claude-intake-triage-apply"]) {
+  for (const name of ["Post Triage", "post-triage", "Intake Triage / Apply", "intake-triage / Apply", "Intake Triage / claude-intake-triage-apply"]) {
     const result = await sweep(transientRuns(renamed(name), { 221: NOTES.deferred }));
     assert.deepEqual([result.dispatched, result.handed], [[1], []], name);
   }
-  for (const name of ["Intake Triage / Status", "Other / Apply", "Apply"]) {
+  for (const name of ["Intake Triage / Status", "Other / Apply", "Apply", "Intake Triage / Post Triage"]) {
     const gh = transientRuns(renamed(name), { 221: NOTES.deferred });
     await sweep(gh);
     assert.ok(!gh.writes[1]?.body.body.includes("22~"), name);
@@ -1101,9 +1091,6 @@ test("issues the sweep already filed do not use up the per-pass check limit", as
   assert.deepEqual(result.dispatched, [21]);
 });
 
-// Codex P2 on #9303: with needs-triage no longer excluding them, the issues
-// an older sweep filed a hand-off issue for would spend the call budget on
-// their comments every pass. One search for those hand-off issues skips them unread.
 test("issues an older sweep filed a hand-off for are skipped without reading their comments", async () => {
   const handed = Array.from({ length: 118 }, (_, i) =>
     issue(i + 1, { labels: [{ name: "needs-triage" }], created_at: "2026-10-01T00:00:00Z" }),
@@ -1136,10 +1123,6 @@ test("issues an older sweep filed a hand-off for are skipped without reading the
   assert.equal(reads.filter((p) => p.includes("/comments")).length, 1);
 });
 
-// Review threads on #9814 (claude-review and Codex P2): work-unblock hands an
-// issue back to intake after a Refs: merge or a closed lane PR, so a lifetime
-// count of 2 dispatches would cut that flow off. The lanes App's hand-back
-// comment, newer than the state comment's last edit, starts a new cycle.
 const stateAt = (runs, filed, at) => ({
   id: 5,
   user: BOT,
@@ -1190,10 +1173,6 @@ test("a hand-back older than the state comment's last edit, or posted by anyone 
   }
 });
 
-// Codex P2 on #9814: hand-offs now live only in a comment, so each handed
-// issue would cost a comment read every pass and could use up the 120-call
-// budget before a fresh issue behind them. One search for the hand-off text
-// skips those still carrying needs-triage unread.
 test("issues this sweep handed off in a comment are skipped without reading their comments", async () => {
   const handed = Array.from({ length: 118 }, (_, i) =>
     issue(i + 1, { labels: [{ name: "needs-triage" }], created_at: "2026-10-01T00:00:00Z" }),
@@ -1228,10 +1207,6 @@ test("a search hit without needs-triage is read, so a hand-back after its label 
   assert.deepEqual(result.dispatched, [1]);
 });
 
-// Security review on #9814: the search matches the hand-off text in anyone's
-// comment, so a hit is skipped only on the bot's own filed=handed state
-// comment, with no newer hand-back. Each needs-triage hit below is read and
-// dispatched; the control, the bot's own hand-off, is skipped unread.
 test("a search hit whose hand-off text is not the bot's own hand-off is read and dispatched", async () => {
   const text = "Intake triage did not triage this issue after 2 dispatches, so the sweep no longer dispatches it.";
   const floor = [{ name: "needs-triage" }];
@@ -1261,10 +1236,6 @@ test("a search hit whose hand-off text is not the bot's own hand-off is read and
   assert.deepEqual(own.writes, []);
 });
 
-// Review on #9814: work-unblock adds no needs-triage, so one left from an
-// earlier hand-off can still be on an issue it hands back. The bot's own
-// filed=handed state with a newer lanes App hand-back is read, and its new
-// cycle dispatches.
 test("a needs-triage search hit with the bot's hand-off and a newer lanes App hand-back is read and dispatched", async () => {
   const gh = fakeGitHub({
     issues: [issue(1, { labels: [{ name: "needs-triage" }] })],
@@ -1276,9 +1247,6 @@ test("a needs-triage search hit with the bot's hand-off and a newer lanes App ha
   assert.deepEqual(result.dispatched, [1]);
 });
 
-// Security review on #10978: as readState counts only the lanes App's
-// hand-back, so does the hand-off search, so another App's comment cannot make
-// a handed-off issue cost a read every pass.
 test("a needs-triage search hit with the bot's hand-off and a newer hand-back from any other App is skipped unread", async () => {
   const gh = fakeGitHub({
     issues: [issue(1, { labels: [{ name: "needs-triage" }] })],
@@ -1308,9 +1276,6 @@ test("readState starts a new cycle on the lanes App's re-triage admission commen
   assert.deepEqual(readState([state, admissionAt({ login: "other-app[bot]", id: OUTSIDER }, retriage, "2026-10-18T08:00:00Z")], String(APP)).runs, [11, 22], "another App");
 });
 
-// #14801: a born-triaged tracker waits in admission while a sub-issue is open,
-// so the sweep leaves it; admission edits its wait comment in place and never
-// clears it, so once the sub-issues close the stale comment must not hold it.
 test("a born-triaged issue is dispatched once its sub-issues close, whatever admission's old wait comment says", async () => {
   const wait = admissionAt(LANES, "Not admitted to the issue lane yet: sub-issue #9 is open.", "2026-10-18T08:00:00Z");
   const born = (number, subs) => issue(number, { body: "Fix it.\n\n<!-- work-items:born-triaged -->", labels: [{ name: "status: ready" }], sub_issues_summary: subs });

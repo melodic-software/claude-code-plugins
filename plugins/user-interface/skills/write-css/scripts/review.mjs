@@ -1,19 +1,6 @@
 #!/usr/bin/env node
-/* Runs the vendored linter over CSS and HTML files and prints its
-   violations with a rule id, moving those the resolved config disables to
-   their own section.
-
-     node review.mjs [--config FILE|JSON] <path|glob> [<path|glob> …]
-
-   --config takes the resolved config values ({"css":{"rules":{"disable":[…]}},
-   "animation":{"duration_ms":{…}}}) or the whole resolver output
-   ({"values":{…}}), as a JSON string or a file. A transition longer than
-   animation.duration_ms.large, else the shipped default, is a `duration`
-   finding. Exit: 0 no findings (suppressed ones do not count), 1 findings,
-   2 usage error or crash. */
 import { existsSync, readFileSync, statSync } from "node:fs";
 
-/* Loaded inside the try at the bottom, so a failed load exits 2, not Node's 1. */
 let globSync, check, checkFile, parseYaml;
 
 const USAGE = "Usage: node review.mjs [--config FILE|JSON] <path|glob> [<path|glob> …]";
@@ -56,7 +43,6 @@ function disabledRules(values) {
   return new Set(disable);
 }
 
-/** animation.duration_ms.large from --config, else from the plugin's bundled defaults. */
 function durationCeiling(values) {
   const passed = values?.animation?.duration_ms?.large;
   const ceiling =
@@ -65,8 +51,6 @@ function durationCeiling(values) {
   return ceiling;
 }
 
-/* Comments and strings become spaces, and so does everything outside <style>
-   in a non-CSS file, so every line number stays where it was. */
 const blank = (text) => text.replace(/[^\n]/g, " ");
 const isCss = (path) => /\.css$/i.test(path);
 function cssOf(path, text) {
@@ -78,14 +62,12 @@ function cssOf(path, text) {
   return css.replace(/\/\*[\s\S]*?\*\/|"(?:\\.|[^"\\\n])*"|'(?:\\.|[^'\\\n])*'/g, blank);
 }
 
-/* Splits on commas outside parentheses. */
 const items = (value) => value.split(/,(?![^(]*\))/).map((item) => item.trim());
 const milliseconds = (word) => {
   const time = word.match(/^(\d*\.?\d+)(ms|s)$/i);
   return time ? Number(time[1]) * (time[2].toLowerCase() === "s" ? 1000 : 1) : null;
 };
 
-/** `{ line, rule, message }` for each transition and transition-duration longer than the ceiling. */
 function checkDurations(path, ceiling) {
   const found = [];
   let line = 1;
@@ -120,8 +102,6 @@ function expand(patterns) {
   });
 }
 
-/* Upstream reads only a lowercase `.css` suffix as CSS, so the suffix test is
-   made here and the HTML path is left to checkFile. */
 const lint = (path) => (isCss(path) ? check(readFileSync(path, "utf8")) : checkFile(path));
 
 function main(argv) {

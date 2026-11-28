@@ -1,4 +1,3 @@
-"""produce.py: boards, the approval digest, and shots.json as the cut list."""
 import json
 import subprocess
 import sys
@@ -15,7 +14,6 @@ def run(args):
 
 
 def fill(prod):
-    """Boards that pass, and two shot modules."""
     (prod / 'brief.md').write_text(
         '# Brief\n\nSubject: a harbor at dusk\nLength: 2s\nAudience: the user\n'
         'Packs: woodcut-ink\nDelivery: mp4\n', encoding='utf-8')
@@ -55,7 +53,7 @@ class ProduceTest(unittest.TestCase):
             again = run(['init', str(prod)])
             self.assertEqual(again.returncode, 0)
             self.assertIn('already has brief.md', again.stdout)
-            (prod / 'boards/vibe.md').unlink()   # an interrupted init: brief.md exists, a board file does not
+            (prod / 'boards/vibe.md').unlink()
             (prod / 'brief.md').write_text('# Mine\n', encoding='utf-8')
             run(['init', str(prod)])
             self.assertTrue((prod / 'boards/vibe.md').is_file())
@@ -154,7 +152,6 @@ class ProduceTest(unittest.TestCase):
                          ['render.json has 24 frames; the shot list through 10 s at 24 fps needs 240'])
         (short,) = produce.render_problems({**meta, 'duration': 1, 'frames': 24}, data)
         self.assertIn('does not cover the shot list through 10', short)
-        # 1.1875 s at 24 fps is 28.5 frames: capture.mjs's Math.round makes 29, so the check must round half up too
         half = {'fps': 24, 'size': [64, 48], 'shots': [{'t0': 0, 't1': 1.1875}]}
         self.assertEqual(produce.render_problems({**meta, 'duration': 1.1875, 'frames': 29}, half), [])
 

@@ -1,5 +1,5 @@
 ---
-description: "Map of where this repo's skills and agents duplicate a native Claude Code surface; read-only unless `apply` bakes an approved reference. Use when: 'does this skill duplicate a built-in', 'what does Claude Code already ship for this', 'is our install-state audit the same as /doctor', 'refresh the native-surfaces registry', 'which of our skills overlap bundled skills'. Enumerating what is invocable: /harness-ops:inventory."
+description: "Map where repo skills and agents duplicate native Claude Code surfaces; read-only unless apply bakes an approved reference. Use when 'does this skill duplicate a built-in', 'refresh the native-surfaces registry', 'which of our skills overlap bundled skills', or what Claude Code already ships. Not for enumerating invocables: /harness-ops:inventory."
 argument-hint: "[report|apply <plugin>|dismiss <native> <plugin:name> <reason>] [--store <p>] [--inventory <p>]"
 user-invocable: true
 disable-model-invocation: false
@@ -26,7 +26,7 @@ present in anyone's session), it is not a verdict engine (a person, or a session
 owner's recorded direction, writes every verdict, never an unattended run), and it is not a fleet
 editor (bare invocation mutates nothing at all).
 
-## Scope boundary
+## What this skill does not do
 
 | Question | Owner |
 |---|---|
@@ -380,8 +380,9 @@ whatever gate they run, or runs it by hand.
 Any claim about what Claude Code itself ships must come from the raw markdown endpoint. Run
 `bash "${CLAUDE_PLUGIN_ROOT}/scripts/fetch-docs.sh" --cache --max-age 0 --out <dir> skills`, then
 search `<dir>/skills.md` locally. `--max-age 0` asks the server every time, so the claim rests on
-fresh bytes; treat a page `<dir>/manifest.json` reports `unread` as no evidence. A summarizing fetch returns a small model's answer *about* the page, so absence from
-that answer is not evidence of absence. A `200` is also not proof you got the page you asked for:
+fresh bytes; treat a page `<dir>/manifest.json` reports `unread` as no evidence. Never rest an absence claim on
+a summarizing fetch; what one returns is read live from
+[tools reference: WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior). A `200` is also not proof you got the page you asked for:
 retired slugs are silently aliased, so the fetcher confirms the slug against the docs index
 (`llms.txt`); still read the body's own first heading before citing it.
 

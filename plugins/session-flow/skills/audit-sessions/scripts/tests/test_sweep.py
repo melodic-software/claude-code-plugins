@@ -1,18 +1,15 @@
-"""Contract tests for sweep.py: metrics, findings, drift degradation, rendering and reports.
-
-Runs sweep.py by subprocess over stores the tests write (seam 2). Records carry only the fields
-sweep reads; `census` rows are added where a test needs the drift guard. Reads
-`reference/sweep-rules.json` and `reference/canaries.json`.
-"""
-
+# test-scope: plugins/session-flow/.claude-plugin/plugin.json
 from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import census
 import pytest
+import sweep as sweep_module
 from conftest import SCRIPTS, envelope, run_cli
 
 RULES = json.loads((SCRIPTS.parent / "reference" / "sweep-rules.json").read_text(encoding="utf-8"))
@@ -23,11 +20,10 @@ UNITS = {"tokens", "s", "ms", "count", "ratio", "usd"}
 
 
 def record(session_id: str, **values) -> dict:
-    """A store record whose per-session metrics default to zero; keyword args set metric ids."""
     v = {metric: 0 for metric in RULE}
     v.update(values)
     return {
-        "schema": "session-record/v1",
+        "schema": "session-record/v2",
         "session_id": session_id,
         "repo_identity": v.get("identity", "github.com/o/r"),
         "cc_versions": v.get("cc_versions", ["2.0.1"]),
@@ -49,7 +45,7 @@ def record(session_id: str, **values) -> dict:
 
 def write_store(data_dir: Path, *records: dict) -> None:
     for rec in records:
-        path = census.store_dir(data_dir) / "p-000000000001" / f"{rec['session_id']}.json"
+        path = census.store_dir(data_dir) / "local" / "p-000000000001" / f"{rec['session_id']}.json"
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(rec), encoding="utf-8")
 
@@ -74,7 +70,6 @@ def test_rules_are_well_formed():
         assert rule["lens"] in LENSES and rule["unit"] in UNITS, metric
         assert rule["confidence"] in {"measured", "heuristic"} and rule["basis"], metric
         if rule["threshold"] is None:
-            # A report-only rule may keep its intended route, but names both or neither.
             assert (rule["route"] is None) == (rule["suggested_skill"] is None), metric
         else:
             assert rule["route"] in ROUTES and rule["suggested_skill"].startswith("/"), metric
@@ -138,16 +133,14 @@ def test_trigger_is_pinned_one_sided_at_half_again_the_threshold():
 
 
 def test_p90_uses_collects_percentile_rule():
-    import collect
+    import session_record
     import sweep
 
     for values in ([], [7], [1, 2], list(range(10)), list(range(11)), [5, 1, 9, 3, 7, 2]):
-        assert sweep.p90(values) == collect._percentile(values, 0.9), values
+        assert sweep.p90(values) == session_record._percentile(values, 0.9), values
 
 
 def test_store_p90_over_half_again_a_threshold_marks_the_row_and_keeps_the_exit_code(data_dir):
-    # Ten sessions: the p90 is the ninth value. human.turns's p90 of 22 exceeds
-    # 1.5 x 14 = 21; tools.denials's p90 of 40 does not exceed 1.5 x 27 = 40.5.
     turns, denials = RULE["human.turns"]["threshold"], RULE["tools.denials"]["threshold"]
     assert (turns, denials) == (14, 27)
     write_store(
@@ -204,7 +197,7 @@ def test_rules_file_without_a_usable_factor_is_rejected(tmp_path, factor):
 @pytest.mark.parametrize("bad", ["wrong-schema", "not-json"])
 def test_unusable_store_record_exits_2(data_dir, bad):
     write_store(data_dir, record("s1"))
-    target = census.store_dir(data_dir) / "p-000000000001" / "s2.json"
+    target = census.store_dir(data_dir) / "local" / "p-000000000001" / "s2.json"
     target.write_text('{"schema": "session-record/v0"}' if bad == "wrong-schema" else "{", encoding="utf-8")
     result = sweep(data_dir)
     assert result.returncode == 2
@@ -409,6 +402,36 @@ def test_canary_lost_degrades_metric(data_dir, tmp_path):
     assert "- canary-lost: `key_path:user:message.content`" in drift_md
 
 
+def test_published_report_keeps_metric_names_the_secret_rules_would_take(data_dir, tmp_path):
+    canaries = tmp_path / "canaries.json"
+    lost = "key_path:user:message.content"
+    canaries.write_text(
+        json.dumps(
+            {
+                "schema": census.CANARY_SCHEMA,
+                "canaries": [{"key": lost, "record_type": "user", "feeds": ["tokens.main", "cache.missed_input_tokens"]}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    write_store(
+        data_dir,
+        record("old", census={"2.0.1|*": {"record_type:user": 5, lost: 5}}),
+        record("new", census={"2.0.2|*": {"record_type:user": 5}}, cc_versions=["2.0.2"]),
+    )
+    args = ("--canaries", str(canaries), "--min-count", "1", "--versions", "1", "--session-floor", "1")
+    assert sweep(data_dir, *args, "--write-report").returncode == 1
+    written = json.loads(next((data_dir / "audit-sessions" / "reports" / "machine").glob("*.json")).read_text("utf-8"))
+    assert sorted(written["data"]["drift"]["degraded_metrics"]) == ["cache.missed_input_tokens", "tokens.main"]
+    assert written["summary"].endswith("; unavailable: " + ", ".join(written["data"]["drift"]["degraded_metrics"]))
+
+
+def test_report_field_names_cover_metrics_and_canary_keys_with_and_without_their_prefix():
+    names = sweep_module.report_field_names([{"key": "usage_key:cache_creation.ephemeral_5m_input_tokens"}])
+    assert {"cache.missed_input_tokens", "edits.churn_per_pr", "cache.write_5m_share"} <= names
+    assert {"usage_key:cache_creation.ephemeral_5m_input_tokens", "cache_creation.ephemeral_5m_input_tokens"} <= names
+
+
 def test_drift_markdown_keeps_a_hostile_key_inside_one_bullet():
     import sweep
 
@@ -418,7 +441,6 @@ def test_drift_markdown_keeps_a_hostile_key_inside_one_bullet():
     assert "\n" not in lines[0]
     assert lines[0].startswith("- unknown-record-type: ")
     assert "![a](https://evil.example/beacon)" in lines[0]
-    # The fence is longer than the backtick inside the key, so the span stays closed.
     assert lines[0].split("unknown-record-type: ", 1)[1].startswith("``")
 
 
@@ -475,7 +497,7 @@ def test_write_report_writes_a_pair_and_keeps_20(data_dir):
     reports.mkdir(parents=True)
     for n in range(21):
         (reports / f"20000101T0000{n:02d}Z.json").write_text("{}", encoding="utf-8")
-        if n != 0:  # the oldest pair, which a concurrent run already half-removed
+        if n != 0:
             (reports / f"20000101T0000{n:02d}Z.md").write_text("", encoding="utf-8")
     result = sweep(data_dir, "--write-report")
     assert result.returncode == 0, result.stdout + result.stderr
@@ -529,7 +551,6 @@ def test_session_limits_metrics_and_findings_to_the_named_session(data_dir):
     assert (data["metrics"]["tokens.main"]["value"], data["metrics"]["tokens.main"]["n"]) == (10, 1)
     found = findings_by_metric({"data": data})
     assert set(found) == {"tools.interrupts"} and found["tools.interrupts"]["evidence"] == [{"session_id": "now"}]
-    # The p90 stays the store's, over all three in-scope sessions (0, 2, 9), so it still marks a stale baseline.
     assert (data["metrics"]["tools.interrupts"]["p90"], data["metrics"]["tools.interrupts"]["baseline_stale"]) == (9, True)
     unchecked = {(u["what"], u["reason"]) for u in data["unchecked"]}
     for metric in ("cache.write_5m_share", "edits.churn_per_pr"):
@@ -579,7 +600,6 @@ def test_session_drift_check_still_reads_every_record(data_dir, tmp_path):
         ),
         encoding="utf-8",
     )
-    # The named session alone carries the key, so only the unnamed newer record loses the canary.
     old = record("old", **{"census": {"2.0.1|*": {"record_type:user": 5, "key_path:user:message.content": 5}}, "tools.interrupts": 3})
     new = record("new", **{"census": {"2.0.2|*": {"record_type:user": 5}}, "cc_versions": ["2.0.2"]})
     new["unknown"] = {"record_types": {"relocated": 1}}
@@ -624,7 +644,6 @@ def test_since_until_window_filters_on_session_start(data_dir):
 
 
 def typed(session_id: str, start: str, identity: str, *excerpts: str | None, suppressed: bool = False) -> dict:
-    """A store record holding typed-turn excerpts, shaped as collect.py writes `human.flagged`."""
     rec = record(session_id, start=start, identity=identity)
     rec["human"]["flagged"] = [{"idx": i, "words": 3, "flags": ["short-after-assistant"], "excerpt": e} for i, e in enumerate(excerpts)]
     rec["redaction"] = {"excerpts_suppressed": suppressed}
@@ -657,15 +676,15 @@ def test_excerpts_print_stored_typed_turns_inside_since_and_scope(data_dir):
 
 
 def test_excerpt_with_shell_syntax_round_trips_as_one_json_string(data_dir, tmp_path):
-    # Absolute marker paths: any shell that ever evaluates the text, in any
-    # working directory, creates them where this test looks.
     marker = tmp_path / "PWNED"
     hostile = f"tabs\there\nsecond line $(touch {marker}) `touch {marker}2`"
     write_store(data_dir, typed("s1", "2026-09-10T08:00:00Z", "github.com/acme/web", hostile))
     result = sweep(data_dir, "--excerpts")
     assert result.returncode == 0, result.stderr
     assert len(result.stdout.splitlines()) == 1
-    assert excerpt_lines(result)[0]["excerpt"] == hostile
+    excerpt = excerpt_lines(result)[0]["excerpt"]
+    assert excerpt.startswith("tabs\there\nsecond line $(touch /")
+    assert "/PWNED) `touch /" in excerpt and excerpt.endswith("/PWNED2`")
     assert not marker.exists() and not marker.with_name("PWNED2").exists()
 
 
@@ -823,7 +842,6 @@ def test_judged_refuses_write_report_and_the_turn_modes(data_dir, tmp_path):
 
 
 def edited(session_id: str, prs: list[tuple[str, int]] | None, paths: dict | None) -> dict:
-    """A store record carrying `prs` and `edits.by_relpath` as collect.py writes them; None drops the field."""
     rec = record(session_id)
     if prs is not None:
         rec["prs"] = [{"repo": repo, "number": number} for repo, number in prs]
@@ -833,9 +851,6 @@ def edited(session_id: str, prs: list[tuple[str, int]] | None, paths: dict | Non
 
 
 def test_churn_sums_one_paths_edits_across_the_sessions_of_one_pr(data_dir):
-    # The rule's threshold is 5: a.py is edited 4 + 3 = 7 times within PR 12, so it is over;
-    # b.py's 2 + 3 = 5 is not, and PR 13's a.py (6) is its own ticket. The placeholders collect.py
-    # stores in place of a path name no file, so PR 14 has no pair. Ties order by repo, then PR number.
     write_store(
         data_dir,
         edited("s1", [("o/r", 12)], {"a.py": 4, "b.py": 2}),
@@ -871,8 +886,6 @@ def test_churn_sums_one_paths_edits_across_the_sessions_of_one_pr(data_dir):
 
 
 def test_churn_joins_each_path_onto_its_sessions_working_directory(data_dir):
-    # One file edited from the checkout root and from a subdirectory is one path (3 + 3 = 6, over 5);
-    # same-named files in two subdirectories stay two paths (3 each, not over).
     def at(session_id, cwd, paths):
         rec = edited(session_id, [("o/r", 12)], paths)
         rec["cwd"] = cwd
@@ -889,6 +902,14 @@ def test_churn_joins_each_path_onto_its_sessions_working_directory(data_dir):
     assert findings_by_metric(env)["edits.churn_per_pr"]["evidence"] == [
         {"repo": "o/r", "number": 12, "path": "/w/sub/a.py", "edits": 6, "sessions": ["s1", "s2"]},
     ]
+
+
+def test_churn_keeps_a_redacted_out_of_cwd_path_whole(data_dir):
+    rec = edited("s1", [("o/r", 12)], {"a.py": 6, "~/worktrees/w/WS-M.md": 6})
+    rec["cwd"] = "~/repos/r"
+    write_store(data_dir, rec)
+    evidence = findings_by_metric(envelope(sweep(data_dir)))["edits.churn_per_pr"]["evidence"]
+    assert sorted(row["path"] for row in evidence) == ["~/repos/r/a.py", "~/worktrees/w/WS-M.md"]
 
 
 def keyed(session_id: str, start: str, end: str, *, title=None, branches=(), cwd=None, prs=(), output=0) -> dict:
@@ -983,7 +1004,6 @@ def test_pr_finds_sessions_by_link_or_head_branch_on_either_side(data_dir):
     linked["entrypoints"] = ["cli"]
     orchestrator = keyed("orch", "2026-09-02T10:00:00Z", "2026-09-02T11:00:00Z", branches=["main"], output=7)
     orchestrator["branches_sub"] = ["feat/x"]
-    # Matched on both sides: the main transcript's match wins, so no `-sub` entry repeats it.
     on_branch = keyed("on-branch", "2026-09-03T10:00:00Z", "2026-09-03T11:00:00Z", branches=["feat/x"], prs=[("o/r", 12)])
     on_branch["branches_sub"] = ["feat/x"]
     on_branch["prs_sub"] = [{"repo": "o/r", "number": 12}]
@@ -1060,3 +1080,43 @@ def test_records_without_prs_or_edits_sweep_cleanly(data_dir):
     churn_row = env["data"]["metrics"]["edits.churn_per_pr"]
     assert churn_row == {"value": None, "unit": "count", "n": 0, "p90": None, "threshold": 5, "baseline_stale": False}
     assert "edits.churn_per_pr" not in findings_by_metric(env)
+
+
+HISTORY_TEXT = "history only prompt about the invented widget"
+
+
+def test_history_prompts_only_in_excerpts(data_dir):
+    session = record("s1")
+    session["time"]["end"] = "2026-09-01T11:00:00Z"
+    write_store(data_dir, session)
+    prompt = {
+        "schema": "history-prompt/v1",
+        "key": "aaaabbbbaaaabbbb",
+        "session_id": "gone-0001",
+        "project": "/w/repo",
+        "time": {"start": "2026-09-02T10:00:00Z", "end": "2026-09-02T10:00:00Z"},
+        "excerpt": HISTORY_TEXT,
+        "pastes": {"restored": 0, "missing": 0},
+        "provenance": {"source": "local"},
+    }
+    path = census.store_dir(data_dir) / "local" / "history" / "aaaabbbbaaaabbbb.json"
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(prompt), encoding="utf-8")
+
+    excerpts = [json.loads(line) for line in sweep(data_dir, "--excerpts").stdout.splitlines()]
+    assert {"project": "/w/repo", "session": "gone-0001", "started": "2026-09-02T10:00:00Z", "excerpt": HISTORY_TEXT} in excerpts
+    candidates = sweep(data_dir, "--correction-candidates")
+    assert HISTORY_TEXT not in candidates.stdout, "the correction judge reads typed turns only"
+    report = sweep(data_dir, "--format", "json")
+    assert HISTORY_TEXT not in report.stdout and envelope(report)["data"]["window"]["sessions"] == 1
+    for command in ("census", "drift"):
+        done = run_cli("collect.py", command, "--data-dir", str(data_dir))
+        assert HISTORY_TEXT not in done.stdout and envelope(done)["data"]["skipped_records"] == 0, command
+    assert envelope(run_cli("collect.py", "census", "--data-dir", str(data_dir)))["data"]["sessions"] == 1
+    friction = SCRIPTS.parents[1] / "audit-friction" / "scripts" / "friction.py"
+    mined = subprocess.run(
+        [sys.executable, str(friction), "mine", "--data-dir", str(data_dir), "--since", "2026-08-01"],
+        capture_output=True, text=True, encoding="utf-8", timeout=60,
+    )
+    assert HISTORY_TEXT not in mined.stdout
+    assert json.loads(mined.stdout)["data"]["sessions"] == 1

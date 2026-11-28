@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=unresolved)\n\nLint: npm run lint:md ignores its arguments and names no failing file, so the result cannot be tied to the target.", "why": "the schema's summary line"},
+    {"answer": "| File | Action | Lint |\n|---|---|---|\n| onboarding.md | compressed | lint: unresolved |", "why": "a table row"},
+    {"answer": "- `onboarding.md`: compressed, `lint=unresolved` (`npm run lint:md` prints only a count)", "why": "code-formatted fields"}
+  ],
+  "fail": [
+    {"answer": "", "why": "empty reply"},
+    {"answer": "onboarding.md: reverted (compression_pct=21.4%, lint=FAIL)\n\nlint-md: 1 file(s) fail", "why": "reverted on a failure it cannot tie to the target"},
+    {"answer": "onboarding.md: reverted (compression_pct=21.4%, lint=unresolved)", "why": "reverted though the lint was unresolved"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=FAIL)", "why": "the unscoped failure counted against the target"},
+    {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=PASS)", "why": "an unresolved command counted as a pass"},
+    {"answer": "onboarding.md: compressed\n\nlint=unresolved", "why": "the action and the lint result on separate lines"}
+  ]
+}

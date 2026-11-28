@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# list-sub-items — Linear adapter. RAW enumeration of a container's DIRECT children.
-#
-# Contract: tools/work-item-tracker/CONTRACT.md — "Verbs", "Adapter contract",
-# "JSON output contract". Closed children and nested-container children are KEPT: the
-# closed-children invariant check and sub-map traversal both need them, and frontier
-# filtering is the separate core-side step.
-#
 # shellcheck disable=SC2016  # single-quoted `$name` here is a GraphQL variable, not a shell one
 set -uo pipefail
 
@@ -39,17 +32,9 @@ esac
 wit_need_linear_config
 wit_linear_require_scoped_id "$PARENT_ID"
 
-# The container itself is fetched first so a missing parent is exit 5 rather than an
-# empty child list — "no such container" and "a container with no children" are
-# different answers, and the second is legitimately an empty array.
 wit_linear_fetch_issue "$WIT_LINEAR_TEAM" "$WIT_ID_NUMBER"
 PARENT_UUID="$(jq -r '.id' <<<"$WIT_LINEAR_ISSUE")"
 
-# Linear's parent link is native and bidirectional (`Issue.children`), so children are
-# read directly rather than intersected with a repo-wide list the way the GitHub adapter
-# has to. A child in a team outside the declared scope is still returned: it IS a child
-# of this container, and hiding it would make the closed-children invariant check pass
-# on a container that still has open work under it.
 QUERY='query($id: String!, $first: Int!, $after: String) {
   issue(id: $id) {
     children(first: $first, after: $after) {
@@ -76,13 +61,6 @@ while :; do
       exit "$EX_INTERNAL"
     }
     [[ "$STATE" == all || "$(jq -r '.state' <<<"$ONE")" == "$STATE" ]] || continue
-    # Every child carries the container as parent_id. The normalizer already derives it
-    # from the child's own `parent`, but it is forced here so a child whose selection
-    # omitted the parent cannot emit a null and break sub-map traversal.
-    # Accumulator on stdin, one item in argv. The reverse puts an unboundedly growing array
-    # on jq's command line; past ARG_MAX the exec fails and the unchecked assignment would
-    # leave ITEMS empty — a container with many children reporting none, which the
-    # closed-children invariant would then read as "nothing open under it".
     ITEMS="$(jq -c --argjson one "$ONE" --arg p "$PARENT_ID" \
       '. + [$one + {parent_id: $p}]' <<<"$ITEMS")" || {
       printf 'list-sub-items.sh: could not accumulate a child of %s — refusing to report a partial child list as complete\n' \
@@ -92,9 +70,6 @@ while :; do
   done < <(jq -c '.nodes[]?' <<<"$PAGE")
   SEEN=$((SEEN + $(jq '(.nodes // []) | length' <<<"$PAGE" 2>/dev/null || echo 0)))
   PAGES=$((PAGES + 1))
-  # Bounded by the declared list ceiling. A truncated child list would read as "nothing
-  # open" to the closed-children invariant, so passing the ceiling is an error, never a
-  # partial list. Pages are counted too, so a server sending empty pages forever also stops.
   if ((SEEN > WIT_LINEAR_LIST_ITEMS_MAX || PAGES > WIT_LINEAR_LIST_ITEMS_MAX)); then
     printf 'list-sub-items.sh: the children of %s passed the declared ceiling of %s items; refusing to report a partial child list\n' \
       "$PARENT_ID" "$WIT_LINEAR_LIST_ITEMS_MAX" >&2
@@ -105,9 +80,6 @@ while :; do
   [[ -n "$CURSOR" ]] || break
 done
 
-# ITEMS travels on STDIN, not argv — see list-items.sh. An empty envelope emitted because the
-# exec failed would read as "this container has no children", which the closed-children
-# invariant would then treat as "nothing open under it".
 jq -c --arg sv "$WIT_SCHEMA_VERSION" '{schema_version: $sv, items: ., truncated: false}' <<<"$ITEMS" || {
   printf 'list-sub-items.sh: could not emit the child envelope for %s\n' "$PARENT_ID" >&2
   exit "$EX_INTERNAL"

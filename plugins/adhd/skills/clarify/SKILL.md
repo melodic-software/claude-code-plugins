@@ -1,5 +1,5 @@
 ---
-description: "Faithful restructure of one dense, decision-heavy message: one decision at a time, the session's jargon defined, the choices surfaced with operative terms quoted verbatim, and an HTML decision table for decision-dense content. Use when the user says 'make this clear', 'clarify this', 'help me digest this', 'break this down', 'I can't parse this', 'what am I actually deciding here' or 'this is a wall of text'; with no argument it targets the previous assistant response. Changes structure only: a plain-language drop is education:explain, a picture or ELI5 is education:illustrate, a standing session style is adhd:shape."
+description: "Restructure a dense, decision-heavy message or previous response: clear chunks, choices, jargon defined, verbatim terms, HTML decision table. Use when asked to digest, parse, or see what you're deciding: 'clarify this', 'break this down', 'wall of text'. Not for simpler prose: /education:explain; ELI5: /education:illustrate; style: /adhd:shape."
 argument-hint: "[--medium <medium>] [artifact to clarify]"
 user-invocable: true
 disable-model-invocation: false
@@ -82,11 +82,13 @@ recommendation the source re-stated as old → new → why keeps all three parts
 
 Before choosing a form, run the shared medium resolver. Add `--argument` only when the reader
 passed `--medium`, with the value they gave. `<option>` is this plugin's `medium` option,
-`${user_config.medium}`; pass `""` when that reads empty or as an unsubstituted placeholder. Read
-each option value from this text; never put a `${user_config.*}` string in a shell command.
+`${user_config.medium}` (`""` when empty or unsubstituted), and `<branding JSON>` is
+`${user_config.branding}` (omit `--branding-option` when empty or unsubstituted; otherwise
+single-quote the JSON value, escaping any `'` as `'\''`, never double-quoting JSON). Read each
+option value from this text; never put a `${user_config.*}` string in a shell command.
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane adhd:clarify --option "<option>" [--argument <medium>]
+node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer adhd:clarify --option "<option>" [--argument <medium>] [--branding-option '<branding JSON>']
 ```
 
 It prints one JSON line, then the report line naming the medium and what decided it, then one line
@@ -129,11 +131,16 @@ plugin-data substitution variable for it.
 With neither a writable temp location nor the Artifact surface, use terminal markdown. The
 fidelity rules hold in every medium.
 
-**Page chrome.** For the artifact or local HTML file, take the palette, type stacks, radii and
+**Page chrome and branding.** For the artifact or local HTML file, take the palette and type stacks
+from `${CLAUDE_PLUGIN_ROOT}/reference/html-tokens.css` and the toggle, comment box, radii and
 accessibility floor (link and focus contrast tokens, color-scheme and reduced-motion behavior) from
-this plugin's bundled chrome reference, `${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`, rather
-than inventing a look per page. The chrome does not settle layout: the decision table stays the
-page's main content.
+`${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`, rather than inventing a look per page. Run
+`node "${CLAUDE_PLUGIN_ROOT}/lib/html-branding.mjs" --in "<page>" --out "<page>" [--option '<branding JSON>']`
+(omit `--option` when empty or unsubstituted; single-quote the JSON value, escaping any `'` as `'\''`)
+to inline the token layer and any resolved `branding` overrides into the page's one `<style>`
+element and show any resolved logo in `.rv-bar`'s fixed slot while keeping the toggle, comment box
+and floor unchanged (print any notices it reports; with no `branding` set, the page stays
+unchanged). The chrome does not settle layout: the decision table stays the page's main content.
 
 ### The decision table
 
@@ -176,7 +183,7 @@ only numbering), no pill-shaped badges, and no style the reader names; when the 
 choice, add it to that list and render again. In the terminal, give a one-line summary and the
 link or path, not the table a second time.
 
-## Boundaries
+## What this skill does not do
 
 - **`education:explain`** lowers the altitude (plain words, analogy) and trades precision for it.
   This skill keeps altitude fixed.

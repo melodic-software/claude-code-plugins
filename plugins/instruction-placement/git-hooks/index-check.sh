@@ -1,19 +1,4 @@
 #!/bin/sh
-# instruction-placement pre-commit check: fail when the generated rules index no
-# longer matches .claude/rules/.
-#
-#   index-check.sh               the staged changes (git runs it as pre-commit)
-#   index-check.sh --worktree    the uncommitted changes against HEAD
-#
-# The check runs only when a changed path is under a .claude/rules/ directory
-# (a deletion or rename included) or is the index file itself: the root
-# AGENTS.md, else the root CLAUDE.md. It compares that file's index block with a
-# fresh render (at pre-commit, of the staged copies) and prints the regenerate
-# command when they differ. A renderer error blocks. A repository
-# with no index block has not adopted an index and is never failed. This check
-# needs no external tool; render-index.sh and discover.sh sit beside this script
-# in an installed copy.
-#
 # POSIX sh until check-lib.sh, sourced first, has it running under bash.
 # shellcheck shell=bash
 case "$0" in
@@ -34,17 +19,16 @@ renderer="$here/render-index.sh"
 
 checks_init pre-commit "$@" || exit 0
 
-src="$PWD"
-if [[ "$CHECKS_MODE" == pre-commit ]]; then
-  src="$CHECKS_TMP/index"
-  mkdir -p "$src" || exit 1
-  git ls-files -z -- ':(glob)**/AGENTS.md' ':(glob)**/CLAUDE.md' ':(glob)**/.claude/rules/**/*.md' |
-    git checkout-index -z --stdin --prefix="$src/" || exit 1
-fi
-
+present() {
+  if [[ "$CHECKS_MODE" == pre-commit ]]; then
+    git cat-file -e ":$1" 2>/dev/null
+  else
+    [[ -f "$1" ]]
+  fi
+}
 target=AGENTS.md
-[[ -f "$src/$target" ]] || target=CLAUDE.md
-[[ -f "$src/$target" ]] || exit 0
+present "$target" || target=CLAUDE.md
+present "$target" || exit 0
 
 relevant=0
 while IFS= read -r -d '' f; do
@@ -58,8 +42,14 @@ done < <(
 )
 ((relevant)) || exit 0
 
-# check exits 0 in sync, 1 drifted, 3 with no index block (not adopted); any
-# other status is no verdict, and no verdict blocks.
+src="$PWD"
+if [[ "$CHECKS_MODE" == pre-commit ]]; then
+  src="$CHECKS_TMP/index"
+  mkdir -p "$src" || exit 1
+  git ls-files -z -- ':(glob)**/AGENTS.md' ':(glob)**/CLAUDE.md' ':(glob)**/.claude/rules/**/*.md' |
+    git checkout-index -z --stdin --prefix="$src/" || exit 1
+fi
+
 verdict="$(checks_bash_run "$renderer" check --file "$src/$target" --root "$src" 2>"$CHECKS_TMP/render.err")"
 rc=$?
 ((rc == 0 || rc == 3)) && exit 0
@@ -71,7 +61,5 @@ fi
 
 printf '%s:1: the rules index no longer matches .claude/rules/. Regenerate it: bash "%s" write --file "%s" --root "%s", then stage %s\n' \
   "$target" "$renderer" "$PWD/$target" "$PWD" "$target" >&2
-# The row lines name what to add, change or remove; check's own FIX line names
-# the scratch tree at pre-commit, so the command above replaces it.
 printf '%s\n' "$verdict" | grep -E '^(ADD|CHANGE|REMOVE|NOTE)'$'\t' >&2
 exit 1

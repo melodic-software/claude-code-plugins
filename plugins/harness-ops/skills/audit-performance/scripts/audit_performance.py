@@ -48,10 +48,7 @@ _LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
-# Re-exported, not merely used: the spawn-noise names are part of this engine's
-# surface (its tests and its --spawn-samples default read them from here), and
-# the module they now live in is shared with the `performance` plugin so the
-# bimodal threshold has exactly one home.
+import transcript_sources  # noqa: E402  (path set above; plugin-bundled module)
 from spawn_noise import (  # noqa: E402  (path set above; plugin-bundled module)
     BIMODAL_SPREAD_RATIO,
     NOOP_SPAWN,
@@ -76,45 +73,23 @@ ACTIVE_SESSION_WINDOW_S = 3600
 STALE_SWEEP_DAYS = 2.0
 SUBPROCESS_TIMEOUT_S = 20
 
-#: Plugin install scopes, most specific first. A plugin installed at two scopes loads once.
 SCOPE_PRECEDENCE = ("local", "project", "user")
 
-#: Files whose CONTENT this engine may read. Everything else is stat-only.
 ALLOWLISTED_READS = (
-    "settings.json",  # install-root and project settings: sweep config, hooks, statusline, env
-    ".last-cleanup",  # retention-sweep sentinel (mtime only, but read as a file)
-    "hooks.json",  # a plugin's hook manifest: event, matcher, command
-    "installed_plugins.json",  # plugins/installed_plugins.json: where each plugin is installed
+    "settings.json",
+    ".last-cleanup",
+    "hooks.json",
+    "installed_plugins.json",
 )
 
-#: Kernel-generated `/proc/<pid>/` files whose CONTENT this engine may read on Linux, and only
-#: to tell a kernel thread from a user process. Both are produced by the kernel from task state
-#: and carry no user content: `status` holds the `Kthread:` line, `stat` holds the task flags
-#: word. Enforced in `read_proc_text`, which raises on any other name. `cmdline` is deliberately
-#: absent: it is process-supplied text, and an empty read is not evidence of a kernel thread.
 PROC_TEXT_READS = frozenset({"status", "stat"})
-#: Root of the proc filesystem. A parameter rather than a literal so the classifier is testable.
 PROC_ROOT = Path("/proc")
-#: `PF_KTHREAD` in the kernel's task flags word, stable from v2.6.32 through v6.18. proc(5)
-#: disclaims stability for the flags field, so a renumbering would classify every kernel thread
-#: as user-space: the failure mode is under-exclusion (an investigable false alarm), never
-#: over-exclusion (a hidden user-space leak).
 PF_KTHREAD = 0x00200000
-#: Ceiling on how many processes one population read may classify. The shortlist is ten names
-#: wide, and a machine selected for being contended must not pay an unbounded per-pid read.
 KTHREAD_CLASSIFY_CAP = 50
-#: How many non-kernel rows the population shortlist keeps. Ranked rows are walked until this
-#: many survive, so kernel threads at the top of the ranking never crowd out user-space rows.
 SHORTLIST_SIZE = 10
 
-#: Seconds between the two process-population samples that separate churn from accumulation.
 POPULATION_GAP_S = 3.0
-#: A process younger than this is not an orphan candidate however dead its parent looks.
 ORPHAN_MIN_AGE_HOURS = 24.0
-#: Orphan attribution is scoped to the debris the fan-out layer actually leaves behind:
-#: the shells, console hosts, and runtimes that hooks, statusline renders, and subagents
-#: spawn. A top-level desktop application normally outlives whatever launched it, so
-#: sweeping every process would report a dead parent as a defect hundreds of times over.
 ORPHAN_CANDIDATE_NAMES = frozenset(
     {
         "bash",
@@ -137,16 +112,7 @@ ORPHAN_CANDIDATE_NAMES = frozenset(
         "cygwin-console-helper.exe",
     }
 )
-#: Dead-parent census only. The orphan verdict still uses ORPHAN_MIN_AGE_HOURS and
-#: ORPHAN_CANDIDATE_NAMES, because that verdict is what routes a process toward a kill.
-#: A process this young is still inside teardown, so the census requires an age strictly
-#: above this guard.
 DEAD_PARENT_CENSUS_MIN_AGE_SECONDS = 5.0
-#: MSYS coreutils names background tasks and Monitors leave behind, added to the census
-#: and not to the verdict set. Suffixed only: the census runs on Windows process tables
-#: alone (see attribute_orphans), where every image name carries its extension.
-#: `find.exe` is omitted: name-only matching cannot tell MSYS find from
-#: C:\Windows\System32\find.exe.
 DEAD_PARENT_CENSUS_EXTRA_NAMES = frozenset(
     {
         "tail.exe",
@@ -157,26 +123,15 @@ DEAD_PARENT_CENSUS_EXTRA_NAMES = frozenset(
         "du.exe",
     }
 )
-#: How many rows the dead-parent CPU ranking keeps. It needs no name list: any process whose
-#: parent is gone is ranked, so a detached-by-design process surfaces only when it burns CPU.
 DEAD_PARENT_BY_CPU_SIZE = 10
 
-#: Executable names a `claude` on PATH can carry. Windows resolves `.exe` and `.cmd` through
-#: PATHEXT, so a PATH scan that looks only for the bare name under-reports there.
 CLAUDE_ON_PATH_NAMES = ("claude", "claude.exe", "claude.cmd")
-#: Every CLI-probe finding routes to the first-party install-diagnostics command; this engine
-#: observes which binary it measured and never adjudicates an install.
 DOCTOR_ROUTE = "run `claude doctor`"
-#: Only the native installer has a documented binary path, so an unrecognized path is an
-#: unclassified layout rather than evidence of an irregular install.
 UNCLASSIFIED_LAYOUT_NOTE = (
     "official docs publish a binary path only for the native installer; Homebrew, WinGet, "
     "apt/dnf/apk, npm-global and direct-download installs land wherever they land"
 )
 
-#: Hook events that fire on every matching tool call. These scale with tool-call volume, and
-#: they are also the only events on which the handler `if` field is evaluated: a hook carrying
-#: an `if` on any other event never runs at all.
 PER_TOOL_CALL_EVENTS = frozenset(
     {
         "PreToolUse",
@@ -186,53 +141,32 @@ PER_TOOL_CALL_EVENTS = frozenset(
         "PermissionDenied",
     }
 )
-#: Hook events that fire once per conversational turn. These are what make a long session degrade.
 PER_TURN_EVENTS = frozenset(
     {"Stop", "SubagentStop", "UserPromptSubmit", "Notification"}
 )
 
-#: A matcher built only from these characters is an exact tool name, or a list of exact names
-#: separated by `|` or `,`. A matcher containing anything else is an unanchored regular
-#: expression instead, which is why `Edit.*` also selects `NotebookEdit`.
 MATCHER_EXACT_CHARS = re.compile(r"^[A-Za-z0-9_\- ,|]+$")
-#: Matcher spellings that select every tool. An absent matcher does the same.
 MATCHER_MATCH_ALL = frozenset({"*", ""})
 
-#: The file kinds the fan-out projection always runs. A fixed representative baseline, not a
-#: scan of any tree: the projection answers "how many handlers fire for a write of this kind of
-#: file", and a baseline that changed with the machine would make two captures incomparable.
-#: Every extension a classified `if` gate names is projected as well, so a gate on a kind
-#: outside this baseline gets its own row instead of matching nothing; `other` stays last and
-#: means a file no gate names.
 PROJECTION_FILE_KINDS = (".md", ".py", ".sh", ".ts", ".json", "other")
 PROJECTION_OTHER_KIND = "other"
-#: Tools whose calls carry a file path, so an `Edit(...)` or `Write(...)` extension gate is decided by extension.
 FILE_WRITING_TOOLS = ("Write", "Edit", "NotebookEdit")
-#: Tools the projection runs. Bash carries no single file path, so it gets one tool-only row.
 PROJECTION_TOOLS = FILE_WRITING_TOOLS + ("Bash",)
-#: The only `if` shape this engine classifies: an `Edit` or `Write` rule whose glob ends in
-#: `*<suffix>`, optionally under a directory prefix (`**/` and literal segments). `dir` is that
-#: prefix and `suffix` the dotted tail; the last dotted component is the extension the rule is
-#: decided by, so it compares directly against PROJECTION_FILE_KINDS.
 IF_EXTENSION_GATE = re.compile(
     r"^(?P<tool>Edit|Write)\((?P<dir>(?:\*\*/)?(?:[^()*{},\s/]+/)*)\*(?P<suffix>(?:\.[A-Za-z0-9_]+)+)\)$"
 )
 
-#: Hook cost is never a sum. Named once so the block's `note` and its `notes` list cannot drift.
 HOOK_PARALLEL_NOTE = (
     "Hooks on one event run in parallel, so wall-clock cost is roughly the slowest hook "
     "plus contention, NOT the sum of their timings. This engine enumerates configured "
     "hooks and never executes one; a hook is third-party code with arbitrary side "
     "effects, and running it would make this capture a mutation."
 )
-#: What the projection cannot see. Both are over-counts rather than hidden spawns, and both are
-#: reported so a reader never mistakes a ceiling for a measurement.
 HOOK_ANCHOR_NOTE = (
     "An `if` rule matches only under its anchor, so an edit to a file outside the project "
     "directory never matches one; the projection counts those rows as firing and over-counts "
     "there."
 )
-#: The `source` labels `hook_inventory` gives settings files, the only handlers the projection collapses.
 SETTINGS_SOURCES = frozenset({"settings.json", "project settings.json"})
 HOOK_DEDUP_NOTE = (
     "Handlers from settings files that spawn the same command and arguments count once toward "
@@ -244,41 +178,18 @@ SETTINGS_DUPLICATE_REASON = (
     "duplicate settings handler: an earlier settings-file handler spawns the same command and "
     "arguments, so this copy counts toward the ceiling only (see HOOK_DEDUP_NOTE)"
 )
-#: Shell executables whose repeated appearance in one command line means nested shells.
 SHELL_TOKENS = ("bash", "sh", "zsh", "pwsh", "powershell", "cmd")
-#: Tokens after which the NEXT token is the thing being run rather than an argument value.
-#: Without this test a bare shell-token match convicts `node run.js cmd` and `make sh`, where
-#: `cmd` and `sh` are values and no shell starts. The list is a FLOOR: a shell reached through
-#: a position it does not cover is missed, and the note beside the finding says so. Known
-#: misses: a shell reached through a subshell (`$(bash x.sh)` or a backquoted one) and one
-#: reached through a runner that takes arguments of its own first (`timeout 5 bash x.sh`).
 COMMAND_POSITION_PREDECESSORS = frozenset(
     {"exec", "env", "sudo", "nohup", "command", "|", "||", "&&", ";"}
 )
-#: `-c` is deliberately NOT in that set: it means "count" to grep and "create" to tar, so it
-#: hands the next token the command slot only when the token before it is itself a shell.
 SHELL_COMMAND_FLAG = "-c"
-#: A run of shell operators, padded apart from its neighbors before the command-position
-#: test tokenizes: `a&&bash b` and `a && bash b` are the same command line, and only the
-#: spaced spelling survives a plain split. Applied to that test's own token list only.
 OPERATOR_RUN = re.compile(r"([;|&]+)")
-#: Characters the command-position tokenizer maps to a sentinel while it is inside a quoted
-#: run, so a quoted executable containing spaces stays one token and a quoted operator is not
-#: read as a delimiter. The sentinels are control characters no real command line carries, and
-#: none of them is whitespace to `str.split`.
 QUOTED_SENTINELS = {" ": "\x00", ";": "\x01", "|": "\x02", "&": "\x03"}
-#: The reverse map, applied to one token at a time before its basename is taken.
 SENTINEL_CHARACTERS = {sentinel: raw for raw, sentinel in QUOTED_SENTINELS.items()}
-#: Quote characters that open and close a quoted run.
 QUOTE_CHARACTERS = "\"'"
-#: The variable that selects which bash Claude Code hands a shell-form command to on Windows.
 GIT_BASH_PATH_ENV = "CLAUDE_CODE_GIT_BASH_PATH"
-#: The only filenames Claude Code accepts in that variable. Any other name is ignored and the
-#: harness auto-detects Git Bash as if the variable were unset.
 ACCEPTED_GIT_BASH_NAMES = frozenset({"bash.exe", "sh.exe", "bash", "sh"})
 
-#: The wrapping shell no command string can show. Stated once so the hook block, the statusline
-#: block and SKILL.md cannot drift apart on what an empty finding list means.
 HARNESS_WRAPPER_NOTE = (
     "Shell form (no `args`) hands the whole `command` string to a shell before its first word "
     "runs, and the statusline command runs in a shell the same way, so a shell-form command "
@@ -298,28 +209,13 @@ HARNESS_WRAPPER_NOTE = (
     "gains a documented no-shell variant for shell form.)"
 )
 
-#: Concurrency and fan-out env vars, with the default the official docs state.
-#: A value of None means the variable is not documented at all, which is itself reportable.
-#: Pointer: https://code.claude.com/docs/en/sub-agents#concurrent-subagent-limit (the
-#: concurrent-subagent default and its exemptions) and
-#: https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents (the
-#: nesting-depth default). As of 2026-10-18. Recheck when either
-#: section changes a default, its accepted values, or its exemptions.
 CONCURRENCY_ENV_DEFAULTS = {
     "CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS": 20,
     "CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH": 3,
     "CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS": None,
 }
-#: Vars gated by a JavaScript truthiness test on the raw string. In JavaScript the string
-#: "0" is truthy, so setting one of these to "0" reads like a disable and is a silent no-op:
-#: only ABSENCE disables them. Never advise setting one to 0.
 TRUTHINESS_GATED_ENV = frozenset({"CLAUDE_CODE_EXPERIMENTAL_OBSERVER_AGENTS"})
 
-#: Kernel object types the Windows census reports, Token first. A Token object that outlives
-#: every handle to it is alive only through a kernel reference, and a reference leak in a
-#: driver or service path accumulates them for the life of the boot. The host that motivated
-#: this probe carried 3.81M Token objects and about 10 GB of paged pool at two days' uptime,
-#: every process creation on it cost 1.4 to 4 s at 7% CPU, and a reboot restored a 14 ms floor.
 KERNEL_OBJECT_TYPES = (
     "Token",
     "Process",
@@ -330,21 +226,9 @@ KERNEL_OBJECT_TYPES = (
     "Event",
     "EtwRegistration",
 )
-#: Live Token objects at or above which the census reports a leak: ten times what the audited
-#: host carried two hours after a clean boot, a fifteenth of what it carried when spawns cost
-#: seconds. Calibrated on one host's two states; see known-performance-issues.md for the basis.
 TOKEN_LEAK_OBJECTS = 250_000
-#: Paged pool at or above which the census reports it as high. The leaking host sat near
-#: 10 GB; the same host after reboot near 1 GB. The figure is aggregate and unattributed
-#: (GetPerformanceInfo cannot say what charged it), so this finding never carries the
-#: Token-leak verdict on its own; `poolmon` is what attributes pool to a tag.
 PAGED_POOL_HIGH_MB = 4096
 
-# NtQueryObject(NULL, ObjectTypesInformation) block layout on x64. The information class is
-# unofficial but has been stable across Windows releases (it is what Process Explorer and
-# System Informer read). A ULONG count padded to pointer alignment leads the block; each
-# entry is a 0x68-byte OBJECT_TYPE_INFORMATION whose first 16 bytes are the UNICODE_STRING
-# type name, followed by that name's buffer padded to 8 bytes.
 _OBJECT_TYPES_INFORMATION = 3
 _OBJECT_TYPES_HEADER_BYTES = 8
 _OBJECT_TYPE_INFORMATION_BYTES = 0x68
@@ -364,11 +248,6 @@ def utc_now() -> datetime:
 def iso_utc(epoch: float) -> str:
     """An epoch timestamp as the UTC, second-precision string every section emits."""
     return datetime.fromtimestamp(epoch, timezone.utc).isoformat(timespec="seconds")
-
-
-def default_root() -> Path:
-    env = os.environ.get("CLAUDE_CONFIG_DIR")
-    return Path(env) if env else Path.home() / ".claude"
 
 
 def timed(fn, *args, **kwargs):
@@ -714,7 +593,6 @@ def _windows_object_type_table() -> dict[str, dict]:
         ctypes.c_uint32,
         ctypes.POINTER(ctypes.c_uint32),
     ]
-    # ~75 types at ~130 bytes each; a megabyte leaves two orders of magnitude spare.
     size = 1 << 20
     block = ctypes.create_string_buffer(size)
     needed = ctypes.c_uint32(0)
@@ -902,10 +780,9 @@ def _windows_process_table() -> list[dict]:
 
     th32cs_snapprocess = 0x00000002
     query_limited_information = 0x1000
-    epoch_offset_seconds = 11644473600  # 1601-01-01 to 1970-01-01
+    epoch_offset_seconds = 11644473600
 
     def process_times(pid: int) -> tuple[float | None, float | None]:
-        """Return (creation epoch, kernel plus user CPU seconds); None where unreadable."""
         handle = kernel32.OpenProcess(query_limited_information, False, pid)
         if not handle:
             return None, None
@@ -1020,7 +897,6 @@ def is_claude_process(name: str) -> bool:
 
 
 def _parent_state(record: dict, by_pid: dict[int, dict], started: float) -> str:
-    """Classify a record's parent as dead, recycled, unknown, or live."""
     parent = by_pid.get(record["ppid"])
     if parent is None:
         return "dead"
@@ -1028,7 +904,6 @@ def _parent_state(record: dict, by_pid: dict[int, dict], started: float) -> str:
     if parent_started is None:
         return "unknown"
     if parent_started > started:
-        # The PID was recycled: this "parent" started after its supposed child.
         return "recycled"
     return "live"
 
@@ -1039,12 +914,6 @@ def rank_dead_parent_by_cpu(
     by_pid: dict[int, dict],
     size: int = DEAD_PARENT_BY_CPU_SIZE,
 ) -> list[dict]:
-    """Rank every dead-parent process, any name, by CPU seconds. A ranking, not a kill list.
-
-    Same parent rules as the census: a recorded parent pid, a readable start time, an age
-    above the teardown guard, and a parent that is gone or whose pid was recycled. A process
-    whose CPU time is unreadable ranks after every known figure rather than as zero.
-    """
     ranked: list[dict] = []
     for record in records:
         if record.get("ppid", 0) <= 0:
@@ -1119,8 +988,6 @@ def attribute_orphans(
     orphans: list[dict] = []
     live_parent: list[dict] = []
     unknown: list[dict] = []
-    # name -> [count, youngest_hours, oldest_hours, cpu_seconds]. Counted in full before the
-    # orphan sample cap below; this table is not a kill list.
     census_by_name: dict[str, list] = {}
     census_unknown = 0
     census_names = (
@@ -1177,7 +1044,6 @@ def attribute_orphans(
                 row[0] += 1
                 row[1] = min(row[1], age_hours)
                 row[2] = max(row[2], age_hours)
-                # One unreadable member makes the sum unknown, never an undercount.
                 row[3] = None if row[3] is None or cpu is None else row[3] + cpu
         elif census_aged and parent_state == "unknown":
             census_unknown += 1
@@ -1365,10 +1231,6 @@ def population_trend(
     rows.sort(
         key=lambda r: (r["exited"] + r["started"], r["count_second"]), reverse=True
     )
-    # The second sample is the live one, so classify its pids; a name that has since drained
-    # entirely falls back to the first sample's pids rather than going unclassified. The
-    # ranked rows are walked until ten non-kernel rows are kept, so kernel threads at the top
-    # of the ranking never crowd user-space rows out of the shortlist.
     live = {
         row["name"]: second.get(row["name"]) or first.get(row["name"], set())
         for row in rows
@@ -1400,15 +1262,6 @@ def exclude_kernel_threads(
     classify_cap: int = KTHREAD_CLASSIFY_CAP,
     keep: int = SHORTLIST_SIZE,
 ) -> dict:
-    """Walk ranked rows, dropping those whose every process is a kernel thread, until
-    `keep` rows survive.
-
-    Only the kept rows' processes are read, and only up to `classify_cap` of them, because
-    a per-pid read on a machine chosen for being contended must carry a stated bound. A row
-    is excluded only when every one of its processes was examined and every verdict is
-    True; a row the cap leaves partially or wholly unclassified is kept, so the ceiling never
-    silently hides a user process. Rows past the cap are kept unclassified in rank order.
-    """
     if (platform or sys.platform) != "linux":
         return {
             "rows": rows[:keep],
@@ -1509,10 +1362,6 @@ def flatten_hook_block(hooks_block: dict, source: str) -> list[dict]:
                         "args": [str(a) for a in args]
                         if isinstance(args, list)
                         else [],
-                        # The KEY's presence, not the list's truthiness: upstream makes a
-                        # hook exec form when `args` is present, and an explicit `[]` is
-                        # present. `args` itself keeps its normalized value, which
-                        # `command_key` and the projection both read.
                         "exec_form": "args" in hook,
                         "timeout": hook.get("timeout"),
                         "if": hook.get("if"),
@@ -1523,11 +1372,6 @@ def flatten_hook_block(hooks_block: dict, source: str) -> list[dict]:
 
 
 def command_key(entry: dict) -> str:
-    """What a firing row actually spawns: the command plus its args.
-
-    Counting the command alone would collapse two handlers that share a dispatcher and pass
-    different arguments into one, and those are two process creations, not one.
-    """
     args = entry.get("args") or []
     return " ".join([str(entry.get("command") or "")] + [str(a) for a in args])
 
@@ -1607,8 +1451,6 @@ def classify_if_gate(rule: object) -> dict:
     text = str(rule).strip()
     match = IF_EXTENSION_GATE.match(text)
     if match:
-        # Lower-cased so a mixed-case extension folds into its projection row; kept as-is it
-        # would match no file kind and vanish. Its case is not modeled, so it is narrowed.
         suffix = match.group("suffix")
         components = suffix.lower().split(".")[1:]
         return {
@@ -1840,23 +1682,12 @@ def project_fan_out(entries: list[dict]) -> dict:
 
 
 def projected_file_kinds(gate_kinds: set[str]) -> tuple[str, ...]:
-    """The baseline kinds in their stated order, then gate-named extras sorted, then `other`.
-
-    Baseline order is kept so two captures stay comparable row for row; the extras follow it so
-    a discovered kind is visibly an addition rather than a reordering.
-    """
     baseline = tuple(k for k in PROJECTION_FILE_KINDS if k != PROJECTION_OTHER_KIND)
     extras = sorted(set(gate_kinds) - set(PROJECTION_FILE_KINDS))
     return baseline + tuple(extras) + (PROJECTION_OTHER_KIND,)
 
 
 def shell_basename(token: str) -> str:
-    """A command-line token reduced to what it would match in SHELL_TOKENS.
-
-    Match the BASENAME, never a suffix: a suffix match counts `entrypoint.sh` as a shell
-    because it ends in "sh", which turns every ordinary script invocation into a false
-    nested-shell report.
-    """
     basename = token.rsplit("/", 1)[-1]
     return basename[: -len(".exe")] if basename.endswith(".exe") else basename
 
@@ -1889,7 +1720,6 @@ def tokenize_honouring_quotes(lowered: str) -> list[str]:  # identifier, not pro
 
 
 def restore_sentinels(token: str) -> str:
-    """One token with its protected characters put back, for reading rather than splitting."""
     for sentinel, raw in SENTINEL_CHARACTERS.items():
         token = token.replace(sentinel, raw)
     return token
@@ -1946,11 +1776,6 @@ def invocation_shape(entry: dict) -> list[str]:
     basenames = [shell_basename(t) for t in tokens]
     if sum(1 for b in basenames if b in SHELL_TOKENS) >= 2:
         findings.append("nested-shell-invocation")
-    # Exec form (`args` present) is documented as having no shell at all, so the harness
-    # wraps nothing and there is no second shell to name. A record that carries `exec_form`
-    # states the KEY's presence; one that does not falls back to the list's truthiness, which
-    # is what the statusline wants: statusline.md documents a command string run in a shell
-    # and no exec form at all, so its `args: []` must stay shell form.
     exec_form = entry["exec_form"] if "exec_form" in entry else bool(entry.get("args"))
     if not exec_form and names_a_shell_in_command_position(lowered):
         findings.append("shell-form-hook-names-a-second-shell")
@@ -2374,14 +2199,6 @@ def fan_out_layer(
 
 
 def operator_context(notes: list[str] | None, source: str = "unspecified") -> dict:
-    """Record what only a human at the machine can know, and record its absence as a fact.
-
-    The engine sees the machine, never the intent: which thing felt slow, how many terminals
-    were open, what the session was doing. A run with none of that is incomplete, and saying
-    so in the report is what keeps the gap visible instead of letting a silent absence read
-    as a clean bill of health. The declared source is taken at face value because nothing in
-    a process can verify who typed a flag.
-    """
     supplied = list(notes or [])
     return {
         "status": "present" if supplied else "absent",
@@ -2406,13 +2223,21 @@ def advisories(root: Path) -> list[str]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    """The CLI surface, built apart from `main` so the flag contract is directly testable."""
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument(
         "--root",
         type=Path,
         default=None,
-        help="install root (else $CLAUDE_CONFIG_DIR, else ~/.claude)",
+        help="install root (else the first local source's config dir, else $CLAUDE_CONFIG_DIR, else ~/.claude)",
+    )
+
+    ap.add_argument(
+        "--sources-file",
+        default="",
+        help="the transcript_sources_file option: the first local source is the config dir",
+    )
+    ap.add_argument(
+        "--diagnostics-dir", help="write a lookup gap here as a diagnostics record"
     )
     ap.add_argument(
         "--session-id",
@@ -2476,9 +2301,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main() -> int:
     args = build_parser().parse_args()
-
-    root = (args.root or default_root()).expanduser().resolve()
+    try:
+        lookup = transcript_sources.lookup_report(
+            args.sources_file, transcript_sources.retry_argv(__file__, sys.argv[1:]), args.diagnostics_dir,
+        )
+    except transcript_sources.SourcesError as exc:
+        print(json.dumps({"errors": [f"sources-file: {exc}"]}, indent=2))
+        return 2
+    root = (args.root.expanduser() if args.root else transcript_sources.first_local_config_dir(lookup.sources)).resolve()
     report: dict = {
+        "header": lookup.header,
         "generated_at": utc_now().isoformat(timespec="seconds"),
         "root": str(root),
         "platform": sys.platform,

@@ -89,7 +89,6 @@ const GUARD = 'M-2.5,-13C-5,-16 -8,-19 -9.5,-16C-10.5,-12 -9,-7 -9.5,-3C-10,3 -9
 const HEAD = 'M-2,-53C-2,-60 -2.5,-66 -1,-71.5C.5,-73 2.5,-72 3,-70L5,-66C5.5,-62 3,-59 2,-53Z'
 const PICKUPS = 'M-3.5,-8h7v1.2h-7zM-3.5,-3h7v1.2h-7zM-3.5,2.5l7,-1.3v1.2l-7,1.3z'
 
-/** body, pickguard, neck, fretboard */
 const guitar = (t: string, c: string[], extra = ''): string =>
   `<g${t && ` transform="${t}"`}><use href="#dresser-gB" fill="${c[0]}"/>${extra}<use href="#dresser-gP" fill="${c[1]}"/><use href="#dresser-gK" fill="#121012"/>` +
   `${rect(-2, -54, 4, 42, c[2])}${rect(-1.6, -53, 3.2, 40, c[3])}<use href="#dresser-gH" fill="${c[2]}"/></g>`

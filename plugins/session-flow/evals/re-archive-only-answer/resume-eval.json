@@ -196,7 +196,7 @@
         "target_regex": "(?s)^(?!.*\\b(?:ls|stat|wc)\\s)(?=.*handoffs/(?:archive/|2026061[5-8]T\\d{6}Z-handoff-))",
         "at_least": 2
       },
-      "note": "Graded only when recall-lease-reason passed. Counts the main run's reads whose target is the predecessor (its hop stamps are 2026-06-15 to 2026-06-18) or an archive hop file, never the hot file the writer produced or an ls; two or more fail. The main run, because the follow-up turn is told not to run tools.",
+      "note": "Graded only when recall-lease-reason passed. Counts the main run's reads whose target is the predecessor (its hop stamps are 2026-06-15 to 2026-06-18) or an archive file, never the handoff file the writer produced or an ls; two or more fail. The main run, because the follow-up turn is told not to run tools.",
       "arms": [
         "before",
         "after"
@@ -231,7 +231,7 @@
         "kind": "handoff_regex",
         "pattern": "(?is)(latency|pick-up|poll)[^\\n]{0,300}archive/[^\\s)`]*h\\d+|archive/[^\\s)`]*h\\d+[^\\n]{0,300}(latency|pick-up|poll)"
       },
-      "note": "Brief: for each open item the hot file names the archive section to read. Provisional pattern: Phase 3 pins it to the shape-3 review-first list format."
+      "note": "Brief: for each open item the handoff file names the archive section to read. Provisional pattern: Phase 3 pins it to the shape-3 review-first list format."
     }
   ]
 }

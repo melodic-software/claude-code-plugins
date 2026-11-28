@@ -161,8 +161,6 @@ def _run_aseprite(spec, out_dir, scale, spec_path, env):
         if problem:
             return fallback(f"Aseprite sheet rejected ({problem})")
         gif_dir = work / "gif"
-        # The native render into out_dir drops GIFs of removed animations using the previous
-        # sheet.json; do the same here, since this path only copies the new GIFs.
         previous = out_dir / "sheet.json"
         if previous.is_file():
             try:
@@ -188,7 +186,6 @@ def _run_aseprite(spec, out_dir, scale, spec_path, env):
 
 
 def ingest_png(image_path, palette_value, out_dir, width, height, scale, base_dir):
-    """Snap one generated PNG into the artifact contract. Used for MCP images."""
     palette = palette_mod.resolve_palette(palette_value, base_dir)
     _w, _h, rows = palette_mod.read_png(image_path)
     frame = image_pipeline.frame_from_rgba(rows, palette, width, height, dither=False)

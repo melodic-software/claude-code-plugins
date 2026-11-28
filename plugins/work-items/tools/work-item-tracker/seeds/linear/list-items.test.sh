@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# list-items: offline contract tests. Pagination, state filtering, and the scope
-# boundary are driven through a mocked curl — no live Linear call.
 # test-scope: plugins/work-items/tools/work-item-tracker/seeds/linear/*.sh
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-items.sh"
@@ -19,8 +17,6 @@ assert_usage_error "$S" --repo
 lin_fixture_init
 trap 'rm -rf "$LIN_FIX"' EXIT
 
-# --repo is caller text that reaches a request variable, so it faces the same anchored
-# allowlist the binding's own scopes did, then the scope list itself.
 rc="$(lin_run "$S" --repo "ENG")"
 assert_eq "--repo without a workspace → exit 2" "2" "$rc"
 rc="$(lin_run "$S" --repo "acme/eng")"
@@ -30,7 +26,6 @@ assert_eq "undeclared team → exit 2" "2" "$rc"
 assert_contains "refusal names the declared scope" "$(lin_err)" "config.linear.scopes"
 assert_eq "and nothing was requested" "" "$(lin_requests)"
 
-# seed_page <nodes-json> [has-next] [cursor]
 seed_page() {
   lin_data 'issues(filter:' "$(jq -cn --argjson n "$1" --argjson h "${2:-false}" --arg c "${3:-}" \
     '{issues: {nodes: $n, pageInfo: {hasNextPage: $h, endCursor: $c}}}')"
@@ -44,13 +39,10 @@ assert_eq "envelope schema_version" "1.0" "$(jq -r '.schema_version' <<<"$(lin_o
 assert_eq "one item" "1" "$(jq -r '.items | length' <<<"$(lin_out)")"
 assert_eq "item id is fully qualified" "linear:acme/ENG#12" "$(jq -r '.items[0].id' <<<"$(lin_out)")"
 assert_eq "a row carries milestone as null" "true" "$(jq -c '.items[0] | has("milestone") and .milestone == null' <<<"$(lin_out)")"
-# The filter travels as a VARIABLE, never interpolated into the query text.
 assert_contains "teams travel in the filter variable" "$(lin_bodies)" '"team":{"key":{"in":["ENG"]}}'
 assert_contains "an explicit page size is sent" "$(lin_bodies)" '"first":50'
 assert_not_contains "no label filter unless asked" "$(lin_bodies)" '"labels"'
 
-# --- the state and label filters travel in the query ---
-# Built from done_state_types, the set the normalizer classifies with.
 lin_reset
 seed_page '[]'
 lin_run "$S" --state open >/dev/null
@@ -73,7 +65,6 @@ assert_contains "--label asks for issues carrying that label" "$(lin_bodies)" \
 assert_usage_error "$S" --label
 assert_usage_error "$S" --label ""
 
-# --- the normalized state is still checked after the query ---
 lin_reset
 seed_page "$(jq -cn --argjson o "$(lin_issue_json 12 started)" --argjson c "$(lin_issue_json 13 completed)" '[$o, $c]')"
 rc="$(lin_run "$S" --state open)"
@@ -91,7 +82,6 @@ seed_page "$(jq -cn --argjson o "$(lin_issue_json 12 started)" --argjson c "$(li
 lin_run "$S" --state all >/dev/null
 assert_eq "--state all returns both" "2" "$(jq -r '.items | length' <<<"$(lin_out)")"
 
-# The override reaches list filtering too, not just get-item.
 lin_write_binding '{"done_state_types":["canceled"]}'
 lin_reset
 seed_page "[$(lin_issue_json 13 completed)]"
@@ -109,9 +99,6 @@ assert_eq "both pages collected" "2" "$(jq -r '.items | length' <<<"$(lin_out)")
 assert_contains "the cursor is sent on the second call" "$(lin_bodies)" '"after":"cursor-1"'
 assert_eq "a listing whose last page arrived carries truncated:false" "false" "$(jq -c '.truncated' <<<"$(lin_out)")"
 
-# --- the declared ceiling ends the walk and the envelope says so ---
-# A fixture copy of the adapter declares a ceiling of 2, so two one-item pages reach it
-# and the third page, asked for one node past the ceiling, proves more exist.
 FIX_ADAPTER="$LIN_FIX/adapter"
 mkdir -p "$FIX_ADAPTER"
 cp "$D"/*.sh "$FIX_ADAPTER/"
@@ -127,9 +114,6 @@ assert_eq "and the envelope carries truncated:true" "true" "$(jq -c '.truncated'
 assert_contains "and stderr announces it" "$(lin_err)" "ceiling of 2 items"
 assert_contains "the page after the ceiling asks for one node" "$(lin_bodies)" '"first":1'
 
-# --- a ceiling below the page size bounds one page too ---
-# Ceiling 25, 30 issues: the request asks for 26, and a provider that returns all 30 on
-# one last page still yields 25 items and truncated:true, never 30 and false.
 jq '.limits.list_items_max = 25' "$D/capabilities.json" >"$FIX_ADAPTER/capabilities.json"
 THIRTY="$(for n in $(seq 1 30); do lin_issue_json "$n" started; done | jq -cs '.')"
 lin_reset
@@ -146,11 +130,6 @@ rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" lin_run "$FIX_ADAPTER/list-items.sh")"
 assert_eq "exactly the ceiling: 25 items" "25" "$(jq -r '.items | length' <<<"$(lin_out)")"
 assert_eq "exactly the ceiling: truncated:false" "false" "$(jq -c '.truncated' <<<"$(lin_out)")"
 
-# --- the ceiling counts only issues the filter matches (#7173) ---
-# A server that applies whatever filter it is sent, over a team holding three closed
-# issues (more than a ceiling of 2) and one open one. Fetching the whole team and
-# dropping closed issues afterward hits the ceiling and reports truncated:true; sending
-# the filter lists the one open issue, complete.
 SERVER="$LIN_FIX/server"
 mkdir -p "$SERVER"
 jq -cn --argjson a "$(lin_issue_json 1 completed)" --argjson b "$(lin_issue_json 2 canceled)" \
@@ -192,7 +171,6 @@ rc="$(WIT_SEAM_LIB_DIR="$D/../../lib" WIT_LINEAR_CURL="$SERVER/curl" \
 assert_eq "a label carried by one of four issues, ceiling 2 → complete" "linear:acme/ENG#4 false" \
   "$(jq -r '([.items[].id] | join(",")) + " " + (.truncated | tostring)' <<<"$(lin_out)")"
 
-# An empty result is an empty envelope, never an error.
 lin_reset
 seed_page '[]'
 rc="$(lin_run "$S")"
@@ -210,9 +188,6 @@ lin_run "$S" --repo "acme/OPS" >/dev/null
 assert_contains "--repo narrows to one team" "$(lin_bodies)" '"team":{"key":{"in":["OPS"]}}'
 lin_write_binding
 
-# --- a scopes list spanning two workspaces is a config error ---
-# One API key reaches exactly one workspace, so such a binding describes something it
-# cannot address — better refused than half-working.
 lin_write_binding '{"scopes":["acme/ENG","other/OPS"]}'
 lin_reset
 rc="$(lin_run "$S")"

@@ -1,11 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for skills/setup/scripts/Install-MonthlyRun.ps1, which setup's schedule
-step uses to copy the monthly wrapper, and its check step uses to tell whether
-that copy is current and to refresh a stale one.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1"

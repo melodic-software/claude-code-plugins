@@ -90,8 +90,6 @@ class WinTest(unittest.TestCase):
         self.assertGate(proc, "margin")
 
     def test_a_gain_inside_the_aa_interval_does_not_win(self):
-        # The a/a interval runs -0.06 to +0.24, so an edit whose lower end
-        # clears 0.05 but not the a/a upper end still loses.
         noisy = shifted((0.20, 0.15, -0.20, 0.18, 0.12))
         proc = self.run_test(noisy, shifted((0.12, 0.10, 0.11, 0.13, 0.12)))
         self.assertGate(proc, "margin")

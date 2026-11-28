@@ -3,6 +3,48 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.1] - 2026-11-28
+
+### Changed
+
+- Added explicit `user-invocable: true` to `/plugin-profiles:profile` frontmatter.
+
+## [0.14.0] - 2026-11-28
+
+### Added
+
+- Two on/off settings, `session_start_profile_enabled` and `plugin_profile_module_enabled`, both on by default, turn off the SessionStart profile notice and the `/plugin-profile` mod on their own. Your value wins when set; otherwise the same key in the repository's `docs/conventions/plugin-profiles.yaml` decides. Both resolve through the shared hook-enablement helper, and `schemas/plugin-profiles.schema.json` checks the repository file.
+
+## [0.13.7] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.13.6] - 2026-11-26
+
+### Changed
+
+- `/plugin-profiles:profile` points at the errors reference's "Unknown command" section instead of quoting the error string ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [0.13.5] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [0.13.4] - 2026-11-26
+
+### Changed
+
+- The README and the scenarios reference name a machine side by host and platform instead of *lane*, matching the fleet plugin.
+
+## [0.13.3] - 2026-11-24
+
+### Fixed
+
+- The session-start hook writes `~/.claude/plugin-profiles-state/root` only from the copy that `plugins/installed_plugins.json` records as this plugin's user-scope install, so a running session whose hooks load an older cached version no longer points the `claude` shell function back at that old code. A missing or unreadable record writes nothing.
+
 ## [0.13.2] - 2026-11-24
 
 ### Fixed

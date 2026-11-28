@@ -1,6 +1,7 @@
 # Portability-lint token list — coupling tokens that break declared skill
 # agnosticism (issue #531). Each ACTIVE line is one ERE pattern that
-# scripts/check-skill-portability.sh matches against changed skill files.
+# scripts/check-skill-portability.sh matches against changed skill, agent,
+# plugin-level reference, and plugin-level context files.
 #
 # Ownership / growth: this list is the gate's data, deliberately kept OUT of the
 # script so a reviewer re-catch of this coupling class becomes a one-line data
@@ -62,6 +63,34 @@ origin/(main|master)
 # from matching where the optional suffix stops short on the right.
 (^|[^a-zA-Z0-9_])Clean Arch(itecture)?([^a-zA-Z0-9_]|$)
 
+# Ecosystem specifics in model-read text (skills, agents, plugin reference and
+# context files; executed .sh adapters stay exempt under ADR 0101). Resolve
+# language, framework, tool, and library choices from the consumer repository
+# through the ecosystem-resolution contract
+# (docs/contracts/ecosystem-resolution/README.md). Surviving specifics kept
+# under ADR 0101's named exceptions carry `portability-ok: <rule id and reason>`
+# at the site or `portability-scope: <reason>` on a declared-ecosystem file.
+[Dd]otnet
+(^|[^a-zA-Z0-9_])\.NET([^a-zA-Z0-9_]|$)
+\.csproj
+(^|[^a-zA-Z0-9_])C#([^a-zA-Z0-9_]|$)
+[Bb]lazor
+\.sln([^a-zA-Z0-9_]|$)
+\.razor
+\*\*/\*\.cs([^a-zA-Z0-9_]|$)
+(^|[^a-zA-Z0-9_])fast-check([^a-zA-Z0-9_]|$)
+(^|[^a-zA-Z0-9_])proptest([^a-zA-Z0-9_]|$)
+(^|[^a-zA-Z0-9_])jqwik([^a-zA-Z0-9_]|$)
+(^|[^a-zA-Z0-9_])Chakra([^a-zA-Z0-9_]|$)
+(^|[^a-zA-Z0-9_])Vue([^a-zA-Z0-9_]|$)
+(^|[^a-zA-Z0-9_])Svelte([^a-zA-Z0-9_]|$)
+(^|[^a-zA-Z0-9_])FluentAssertions([^a-zA-Z0-9_]|$)
+(^|[^a-zA-Z0-9_])AutoFixture([^a-zA-Z0-9_]|$)
+(^|[^a-zA-Z0-9_])Moq([^a-zA-Z0-9_]|$)
+(^|[^a-zA-Z0-9_])NSubstitute([^a-zA-Z0-9_]|$)
+(^|[^a-zA-Z0-9_])RSpec([^a-zA-Z0-9_]|$)
+(^|[^a-zA-Z0-9_])Dapper([^a-zA-Z0-9_]|$)
+
 # --- STAGED (commented until the class is proven clean against the corpus) ---
 #
 # Every staged entry carries a MEASURED residue (`--all` hit and file counts at
@@ -89,52 +118,6 @@ origin/(main|master)
 #     violations). Rewrite to a POSIX-safe boundary before activating, e.g.
 #     `(^|[^a-zA-Z0-9_])dotnet([^a-zA-Z0-9_]|$)`, or a simpler `[Dd]otnet`-style
 #     alternative.
-
-# Ecosystem hardcode: .NET-flavored defaults in an ecosystem-agnostic skill
-# (#491 #492), staged one literal at a time per #714. Every pattern below is
-# POSIX-safe — the previously staged `\bdotnet\b` / `\bClean Arch\b` spellings
-# were INERT (see the POSIX note above: on gawk and on mawk/nawk `\b` matches a
-# literal backspace, so those entries matched nothing and would have gone green
-# on activation while missing every violation). They are replaced here rather
-# than merely uncommented.
-#
-# Residue measured at c7b0af78 through the gate itself, so the ecosystem guard
-# markers, per-site annotations, and whole-file scope declarations below are
-# already applied. Re-run `--all` before acting on any of these — a count is a
-# measurement with a shelf life.
-#
-# The blocker is shared by the whole set: these are not stray hardcodes, they are
-# skills that legitimately need to NAME an ecosystem and have no seam to read it
-# from. The fix is a `userConfig` seam per #405 / #406 / #421 / #428 (the gate is
-# the forcing function, not the fix), or a `portability-scope` declaration on the
-# genuinely ecosystem-locked files. Enable each literal when its own `--all`
-# audit is green.
-#
-# The dominant residual shape across every literal is a MULTI-ECOSYSTEM
-# ENUMERATION with no placeholder and no illustration lead — "`*.csproj`,
-# `package.json`, `pyproject.toml`, and equivalents". It reads as correct and it
-# is not guarded, deliberately: a co-occurrence test cannot distinguish it from a
-# line that hardcodes one stack and merely mentions another (see is_guarded in
-# check-skill-portability.sh). Those sites take a per-site `portability-ok`, or
-# somebody brings evidence for a tighter marker.
-#
-# Residue at c7b0af78 — 107 hits / 40 files.
-# [Dd]otnet
-# Residue at c7b0af78 — 63 hits / 37 files.
-# (^|[^a-zA-Z0-9_])\.NET([^a-zA-Z0-9_]|$)
-# Residue at c7b0af78 — 26 hits / 17 files.
-# \.csproj
-# Residue at c7b0af78 — 19 hits / 15 files.
-# (^|[^a-zA-Z0-9_])C#([^a-zA-Z0-9_]|$)
-# Residue at c7b0af78 — 13 hits / 5 files.
-# [Bb]lazor
-# Residue at c7b0af78 — 7 hits / 7 files.
-# \.sln([^a-zA-Z0-9_]|$)
-# Residue at c7b0af78 — 1 hit / 1 file (verification:confirm names the Blazor
-# component extensions as its browser-asset glob). Closest of the set to green.
-# \.razor
-# Residue at c7b0af78 — 1 hit / 1 file. Also near-green.
-# \*\*/\*\.cs([^a-zA-Z0-9_]|$)
 
 # Publisher-org tokens (marketplace id, org name, fleet repo names, MELODIC_*
 # keys) are NOT this file's job. They live in scripts/org-agnosticism-tokens.txt

@@ -31,10 +31,6 @@ const artifact = (id, created_at, runId, extra = {}) => ({
   ...extra,
 });
 
-// GraphQL answers come from the same REST routes: the open pull request
-// list (newest update first) and each PR's comments, oldest first, as
-// GraphQL shapes them: a Bot's login without [bot], pages of 100 from the
-// newest back, a cursor being the index the page starts at.
 const GRAPHQL = "POST /graphql";
 const node = (c) => ({
   author: c.user && { __typename: /\[bot\]$/.test(c.user.login) ? "Bot" : "User", login: c.user.login.replace(/\[bot\]$/, "") },
@@ -48,11 +44,6 @@ const commentPage = (all, before = all.length) => {
   return { pageInfo: { hasPreviousPage: start > 0, startCursor: String(start) }, nodes: all.slice(start, before).map(node) };
 };
 
-// A nodes(ids:) query answered from the same REST routes, as GraphQL shapes
-// them (the recorded pair in "the GraphQL check-run and annotation readers"
-// test below): a run's check runs newest first with upper-case enums and no
-// steps, a check run's annotations with an upper-case level. An id in `nulls`,
-// or one whose REST route fails, answers null with an error naming its index.
 const upper = (value) => (typeof value === "string" ? value.toUpperCase() : null);
 function nodesAnswer(resolve, query, ids, nulls) {
   const errors = [];
@@ -112,7 +103,15 @@ function fakeApi(routes, { nulls = new Set() } = {}) {
     const first = /pullRequests\(states: OPEN, baseRefName: "main", first: (\d+)/.exec(query);
     if (first) {
       const pulls = resolve(`/repos/${repo}/pulls?state=open&base=main&sort=updated&direction=desc&per_page=10000&page=1`);
-      const nodes = pulls.slice(0, Number(first[1])).map((pull) => ({ number: pull.number, isDraft: pull.draft === true, headRefOid: pull.head.sha, comments: commentPage(comments(pull.number)) }));
+      const nodes = pulls.slice(0, Number(first[1])).map((pull) => ({
+        number: pull.number,
+        isDraft: pull.draft === true,
+        headRefOid: pull.head.sha,
+        author: pull.user ? { __typename: /\[bot\]$/.test(pull.user.login) ? "Bot" : "User", login: pull.user.login.replace(/\[bot\]$/, "") } : null,
+        labels: { nodes: (pull.labels ?? []).map((name) => (typeof name === "string" ? { name } : name)) },
+        body: pull.body ?? "",
+        comments: commentPage(comments(pull.number)),
+      }));
       return { data: { repository: { pullRequests: { totalCount: pulls.length, nodes } } } };
     }
     const repository = {};
@@ -785,7 +784,6 @@ test("failed test-suite runs on main are not read as lane runs, so a test named 
   );
 });
 
-// GitHub's `created` range filter, applied the way the runs list applies it.
 const createdIn = (path, runs) => {
   const m = /created=([^&.]+)\.\.([^&]+)/.exec(path);
   return { workflow_runs: m ? runs.filter((r) => r.created_at >= m[1] && r.created_at <= m[2]) : runs };
@@ -847,7 +845,6 @@ test("the signal timers round-trip, and a stale, missing or misshapen carry read
   assert.throws(() => parseEpisodeCarry(carried({ at: "2026-10-19T15:52:00Z", signals: { x: { onSince: "not a time", clearSince: null } } }), repo, now), /unexpected shape/);
 });
 
-// GitHub's open pull request list, honoring sort direction, page and per_page.
 const openPulls = (pulls) => (path) => {
   const q = new URL(path, "https://x").searchParams;
   const sorted = [...pulls].sort((a, b) => a.updated_at.localeCompare(b.updated_at) * (q.get("direction") === "desc" ? -1 : 1));
@@ -871,9 +868,6 @@ test("stalled stops: more open PRs than the read covers is a gap naming the true
   assert.ok(!api.calls.some((p) => /\/pulls\?state=open|\/issues\/\d+\/comments/.test(p)));
 });
 
-// Review finding on #10252: the read spent up to 3 + 40 + 20 calls of the
-// run's CALL_BUDGET. Worst case now: 145 open PRs, every one stopped long ago
-// with no attempt, each with 350 comments so every comment round runs.
 test("stalled stops: the worst case spends at most 1 + 2 + 20 calls", async () => {
   const many = Array.from({ length: 145 }, (_, i) => idle(9000 + i, 1 + (i % 17)));
   const chatter = Array.from({ length: 350 }, (_, i) => ({ id: i, body: "chatter", user: { login: "someone" }, created_at: "2026-10-17T00:00:00Z" }));
@@ -889,10 +883,6 @@ test("stalled stops: the worst case spends at most 1 + 2 + 20 calls", async () =
   assert.equal(data.stalledStops.length, 20);
 });
 
-// Review finding on #10252: an older head's lane-stopped comment among the
-// newest 100 hid the current head's stop in an older comment (edited in place
-// at the new stop) and recorded no gap. Only a current-head marker ends the
-// read; past the comment rounds, the PR is a gap.
 test("stalled stops: an older head's marker does not stop the read before the current head's stop", async () => {
   const chatter = (n) => Array.from({ length: n }, (_, i) => ({ id: i, body: "chatter", user: { login: "someone" }, created_at: "2026-10-18T10:00:00Z" }));
   const current = stopComment(8501, sha("1"), "2026-10-19T12:00:00Z");
@@ -907,6 +897,53 @@ test("stalled stops: an older head's marker does not stop the read before the cu
   const data = await collect(input(api));
   assert.deepEqual(data.stalledStops.map((s) => [s.pr, s.activity]), [[8501, "fix-ci"]]);
   assert.ok(data.gaps.includes("stalled stops: #8502 has over 300 comments and none names a stop on its head; older ones not read"), data.gaps.join("\n"));
+});
+
+test("openLanePrs counts only open, non-draft, unheld PRs by agentIdentity and returns null when truncated with none seen", async () => {
+  const lane = { login: "melodic-automation-lanes[bot]" };
+  const owner = { login: "kyle-sexton" };
+  const open = [
+    { number: 9501, head: { sha: sha("1") }, user: owner, labels: [], body: "" },
+    { number: 9502, head: { sha: sha("2") }, user: lane, draft: true, labels: [], body: "" },
+    { number: 9503, head: { sha: sha("3") }, user: lane, labels: ["do-not-merge"], body: "" },
+    { number: 9504, head: { sha: sha("4") }, user: lane, labels: ["needs-human"], body: "" },
+    { number: 9505, head: { sha: sha("5") }, user: lane, labels: [], body: "Hold: a human merges this" },
+    { number: 9506, head: { sha: sha("6") }, user: lane, labels: ["bug"], body: "Closes #1" },
+  ];
+  const api = fakeApi([
+    [/\/pulls\?state=open/, open],
+    [/\/issues\/950\d\/comments/, []],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  assert.equal(data.openLanePrs, 2, "a Hold: body line holds nothing; only a hold label does");
+
+  const ownerOnly = fakeApi([
+    [/\/pulls\?state=open/, [open[0]]],
+    [/\/issues\/9501\/comments/, []],
+    ...routes(),
+  ]);
+  const quietData = await collect(input(ownerOnly));
+  assert.equal(quietData.openLanePrs, 0);
+  assert.equal(detect(quietData).some((f) => f.key === "throughput-zero"), false);
+
+  const truncated = fakeApi([
+    [/\/pulls\?state=open/, Array.from({ length: LIMITS.stalledPulls + 5 }, (_, i) => ({ number: 9600 + i, head: { sha: sha("a") }, user: owner }))],
+    [/\/issues\/96\d\d\/comments/, []],
+    ...routes(),
+  ]);
+  const truncatedData = await collect(input(truncated));
+  assert.equal(truncatedData.openLanePrs, null);
+  assert.ok(truncatedData.gaps.some((g) => g.startsWith("stalled stops:")));
+  assert.ok(!truncatedData.gaps.some((g) => g.startsWith("open pull requests:")));
+
+  const failedOpenList = fakeApi([
+    [GRAPHQL, Object.assign(new Error("HTTP 502"), { status: 502 })],
+    ...routes(),
+  ]);
+  const failedData = await collect(input(failedOpenList));
+  assert.equal(failedData.openLanePrs, undefined);
+  assert.ok(failedData.gaps.some((g) => g.startsWith("open pull requests:")));
 });
 
 test("stalled stops: a freshly stopped PR behind more than 20 idle ones is read and listed", async () => {
@@ -924,12 +961,6 @@ test("stalled stops: a freshly stopped PR behind more than 20 idle ones is read 
   assert.ok(!data.gaps.some((g) => g.startsWith("stalled stops:")), data.gaps.join("\n"));
 });
 
-// Shapes a skip-blind attempt rule missed: a select job's lane-stopped check
-// posted after the comment's edit, and a draft's feedback skip (not-applicable
-// from the slot's draft predicate). Neither ran the activity, so both stay
-// stalled. A label clear-escalations took off for a reason now routed to a
-// failing status (#10136's shape: no stop comment on that head) is a stop too,
-// except feedback-not-landed, which clears only once its cause is gone.
 test("stalled stops: a skip is no attempt, and a cleared fail-routed label is a stop", async () => {
   const skip = (title, at) => ({ conclusion: "neutral", output: { title }, started_at: at });
   const cleared = (pr, head, reason) => ({
@@ -1075,9 +1106,6 @@ test("post-merge reports: none from the last 70 minutes is a gap, not a clear", 
   }
 });
 
-// dispatch-post-merge-runs keeps its report before the merge and enable-auto-merge
-// jobs that need it finish, so the newest report usually comes from a run
-// still in progress (#11382 review).
 test("post-merge reports: a still-running sweep's report is read first; the budget source waits for it to complete", async () => {
   const routes = reportRoutes([reportArtifact(9, 2), ...[10, 11, 12, 13].map((id, i) => reportArtifact(id, 10 + 15 * i))]);
   const list = routes[0][1].workflow_runs;
@@ -1620,7 +1648,6 @@ test("lane holds: pr-verify's runs are listed through GraphQL, with no REST jobs
   assert.deepEqual(after.heldCarry, before.heldCarry);
   assert.equal(after.laneHolds.filter((h) => h.lane === "pr-verify").length, 2);
   assert.deepEqual(restLeft, []);
-  // A GraphQL list has no steps, so every green hold job's annotations are read in the batch.
   for (const id of ["WFR_4000", "WFR_4003", "CR_40000", "CR_40010", "CR_40011", "CR_40020", "CR_40030"]) assert.ok(listed.includes(id), id);
 });
 
@@ -1880,8 +1907,6 @@ test("with node ids listed, job lists and annotations are read through GraphQL a
     .concat(["check-runs/100/", "check-runs/300/", "check-runs/810/", "check-runs/850/", "check-runs/870/", "check-runs/70001/"]);
   assert.deepEqual(restGets(gql), restGets(rest).filter((c) => !replaced.some((p) => c.includes(p))));
   for (const path of replaced) assert.ok(restGets(rest).some((c) => c.includes(path)), `the REST read makes ${path}`);
-  // pr-review-main's check-trigger job, whose Note the hold was skipped: a REST list
-  // shows it, so its annotations go unread; a GraphQL list does not, so they are read in the batch.
   assert.ok(!restGets(rest).some((c) => c.includes("check-runs/70000/")));
   assert.ok(nodeQueries(gql).some((q) => q.variables.ids.includes("CR_70000")));
   assert.ok(restGets(gql).some((c) => c.includes("runs/50/jobs")));

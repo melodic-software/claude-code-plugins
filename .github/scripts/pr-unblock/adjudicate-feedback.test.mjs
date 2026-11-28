@@ -34,9 +34,6 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 
 const HEAD = "a".repeat(40);
 const STANDS = "<!-- pr-unblock adjudicate-feedback: finding-stands -->\n**pr-unblock / adjudicate-feedback: the finding stands**";
-// Review comment shapes the two review lanes post (claude-review and
-// claude-security-review on #9504): a bold claim, or a severity line, then
-// the rationale, a repro, a suggested fix and the lane footer.
 const REVIEW = [
   "**A column-0 comment inside `remotes:` hides every entry after it.**",
   "",
@@ -78,8 +75,6 @@ test("disputes takes each INCORRECT reply's whole review comment and both sides'
   assert.doesNotMatch(JSON.stringify(slots), /argument/);
 });
 
-// The post-hoc review of #9565: the judge saw the lane's cited files but only
-// the review comment's first paragraph, so the inputs favored the lane.
 const CITING = [
   "**The lock is read before it is written.**",
   "",
@@ -121,13 +116,8 @@ test("disputes stages the files the reviewer cited beside the lane's, and keeps 
   assert.equal(slot.finding.comment, CITING);
 });
 
-// A CRITICAL code-review finding takes no slot, and any verdict is ignored;
-// the lane leaves security to the security-review lane, so a session, not a
-// person, takes it.
 const CRITICAL_REVIEW = ["**The token reaches the log.**", "", "Repro: run the job.", "", "Severity: critical", "claude-lane: claude-review"].join("\n");
 const criticalThread = (id) => thread(id, [{ id: 1, author: "reviewer", lane: "claude-review", body: CRITICAL_REVIEW }]);
-// A pr-verify verifier note: a lane verdict would resolve the thread while
-// the FAIL still holds the merge, and nothing re-judges that head.
 const verifierThread = (id) => {
   const [note] = noteComments({ head: HEAD, summary: "s", notes: ["lib/install.mjs:4 x"], files: ["lib/install.mjs"] });
   return thread(id, [{ id: 1, author: "verifier", body: note.body }]);
@@ -140,7 +130,6 @@ test("disputes never adjudicates a CRITICAL code-review finding or a verifier no
   assert.deepEqual(disputes(fileOf(important), incorrect("PRRT_i")).slots.map((slot) => slot.thread), ["PRRT_i"]);
 });
 
-// settleDisputes with no API call allowed, on one posted thread.
 const settleOffline = (now, disposition, verdicts = new Map([["PRRT_a", { verdict: "lane", question: "none" }]]), escalationReason = "") =>
   settleDisputes({
     api: new Proxy({}, { get: (_, name) => () => assert.fail(`no API call expected, got ${String(name)}`) }),
@@ -167,8 +156,6 @@ test("settleDisputes sends a CRITICAL code-review finding left open to a session
   }
   assert.equal(escalationRoute("feedback-disputed"), "fail");
   assert.equal(escalationRoute("feedback-uncertain"), "fail");
-  // The same CRITICAL line on a security-review finding, or on a lane this
-  // does not know, still goes to a person.
   for (const lane of ["claude-security-review", "another-lane"]) {
     const held = new Map([["PRRT_a", thread("PRRT_a", [{ id: 1, author: "reviewer", lane, body: CRITICAL_REVIEW }])]]);
     assert.deepEqual(await settleOffline(held, "INCORRECT"), { escalationReason: "feedback-disputed-security", skipReason: "" }, lane);
@@ -190,18 +177,10 @@ test("a reason held for a person outranks every fail-routed reason in one round"
   assert.deepEqual(await settleOffline(verifier, "UNCERTAIN", undefined, "feedback-partial"), { escalationReason: "feedback-partial", skipReason: "" });
 });
 
-// Only an INCORRECT reply is the lane disputing the finding with evidence.
-// On UNCERTAIN (the lane could not tell) or VALID-defer (it agreed the finding
-// holds), a lane verdict would let one model turn close a finding no one
-// disputed (#10252 security review), so neither settles it: no reply, the
-// thread stays open (the ruleset's thread resolution still holds the merge)
-// and the round ends in a failing status. settleOffline fails on any API call
-// or resolve.
 test("settleDisputes resolves only an INCORRECT finding on a lane verdict: UNCERTAIN and VALID-defer stay open as feedback-unadjudicated", async () => {
   const now = new Map([["PRRT_a", thread("PRRT_a")]]);
   for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
     assert.deepEqual(await settleOffline(now, disposition), { escalationReason: "feedback-unadjudicated", skipReason: "" }, disposition);
-    // A person's reason in the same round still outranks it.
     assert.deepEqual(await settleOffline(now, disposition, undefined, "feedback-uncertain"), { escalationReason: "feedback-uncertain", skipReason: "" }, disposition);
   }
 });
@@ -231,7 +210,6 @@ test("disputes skips a thread whose finding already stood, a thread the select j
   const { slots } = disputes(fileOf(stoodThread, thread("PRRT_b")), replies);
   assert.deepEqual(slots.map((slot) => slot.thread), ["PRRT_b"]);
   assert.deepEqual(slots[0].evidence, [{ path: "ok.js", line: 4 }]);
-  // A finding-stands line from anyone but the lane, or not first, is no stand.
   const quoted = thread("PRRT_a", [
     { id: 1, author: "reviewer", lane: "claude-review", body: REVIEW },
     { id: 2, author: "trusted-human", body: STANDS },
@@ -240,9 +218,6 @@ test("disputes skips a thread whose finding already stood, a thread the select j
   assert.equal(disputes(fileOf(quoted), incorrect("PRRT_a")).slots.length, 1);
 });
 
-// A trusted person's fix request (threadAuthors tags it direction) outranks
-// the adjudicator: the thread is not adjudicated, and an INCORRECT reply on
-// it goes back to that person as feedback-disputed.
 const directedThread = (id) =>
   thread(id, [
     { id: 1, author: "reviewer", lane: "claude-review", body: REVIEW },
@@ -287,12 +262,7 @@ test(`disputes adjudicates at most ${MAX_THREADS} threads and names the rest`, (
   assert.deepEqual(over, ["PRRT_d"]);
 });
 
-// A security-review finding rated CRITICAL goes to a person and takes no
-// slot. The reviewer bot's own finding (claude[bot], whose root keepThreads
-// tags with no lane, a footer it wrote included) is judged as a code-review
-// finding: it takes a slot, and no person decides it.
 const securityThread = (id) => thread(id, [{ id: 1, author: "reviewer", lane: "claude-security-review", body: SECURITY.replace("IMPORTANT", "CRITICAL") }]);
-// claude[bot] wrote its own footer: keepThreads gives it no lane.
 const claudeBotThread = (id) => thread(id, [{ id: 1, author: "reviewer", body: REVIEW }]);
 const unnamedThread = (id) => thread(id, [{ id: 1, author: "reviewer", body: "The guard is missing." }]);
 
@@ -308,7 +278,6 @@ test("disputes never adjudicates a security-review finding a person decides, and
       assert.deepEqual(disputes(fileOf(make("PRRT_u")), incorrect("PRRT_u", { disposition })).slots.map((slot) => slot.thread), ["PRRT_u"], disposition);
     }
   }
-  // A CRITICAL line still holds it, as it holds a code-review finding.
   const critical = thread("PRRT_k", [{ id: 1, author: "reviewer", body: CRITICAL_REVIEW }]);
   assert.equal(adjudicable(critical.comments), false);
 });
@@ -352,7 +321,6 @@ test("settleDisputes settles the reviewer bot's own finding with no person: a la
     for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
       assert.deepEqual(await settleOffline(now, disposition), { escalationReason: "feedback-unadjudicated", skipReason: "" }, disposition);
     }
-    // The adjudicator's security question on it still goes to a person.
     assert.deepEqual(await settleOffline(now, "INCORRECT", new Map([["PRRT_a", { verdict: "human", question: "security" }]])), { escalationReason: "feedback-question-security", skipReason: "" });
   }
   assert.equal(escalationRoute("feedback-unadjudicated"), "fail");
@@ -380,10 +348,6 @@ test("settleDisputes sends an INCORRECT reply on a security-review thread a pers
   }
 });
 
-// The floor for a reply the lane could not settle: on a security-review
-// finding a person decides, an UNCERTAIN or VALID-defer reply holds for a
-// person whatever verdict arrived, and that reason routes `hold` (the
-// needs-human label), not a failing status a new head would clear.
 test("settleDisputes holds an UNCERTAIN or VALID-defer security-review finding a person decides for a person, whatever verdict arrived", async () => {
   for (const [label, make] of [["security-review", securityThread]]) {
     for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
@@ -399,11 +363,6 @@ test("settleDisputes holds an UNCERTAIN or VALID-defer security-review finding a
   assert.equal(escalationRoute("feedback-disputed-security"), "hold");
 });
 
-// A person decides only a security-review finding rated CRITICAL, or one with
-// no rating it can read (owner decision on #11020). A SUGGESTION (the #10810
-// shape: its text says no change is required) or an IMPORTANT one (the #11344
-// shape) is settled like a code-review dispute, by the adjudicator or a
-// failing status.
 const SUGGESTION = SECURITY.replace("severity: IMPORTANT", "severity: SUGGESTION");
 const ratedThread = (id, body) => thread(id, [{ id: 1, author: "reviewer", lane: "claude-security-review", body }]);
 const UNRATED = [
@@ -422,9 +381,6 @@ test("disputes stages a SUGGESTION or IMPORTANT security-review finding, never a
     assert.deepEqual(disputes(fileOf(ratedThread("PRRT_s", body)), incorrect("PRRT_s")).slots, []);
   }
   assert.deepEqual(disputes(fileOf(ratedThread("PRRT_s", SUGGESTION)), incorrect("PRRT_s")).slots.map((slot) => slot.thread), ["PRRT_s"]);
-  // A comment whose lane keepThreads did not tag is the reviewer bot's own,
-  // judged as a code-review finding, except one whose text claims the
-  // security-review lane at a rating a person decides, or with none.
   for (const body of [SUGGESTION, SECURITY]) {
     assert.equal(adjudicable(thread("PRRT_u", [{ id: 1, author: "reviewer", body }]).comments), true, body.split("\n")[0]);
   }
@@ -449,7 +405,6 @@ test("adjudicable fails closed on a CRITICAL rating in any rating shape, on any 
     const body = `The token leaks.\n\n${line}\n\nclaude-lane: claude-review`;
     assert.equal(adjudicable(thread("PRRT_c", [{ id: 1, author: "reviewer", lane: "claude-review", body }]).comments), false, line);
   }
-  // A rating line that is not CRITICAL, or prose that mentions the word.
   for (const line of ["severity: IMPORTANT", "Severity: not critical", "Severity: IMPORTANT, a critical path", "This is a critical path."]) {
     const body = `The token leaks.\n\n${line}\n\nclaude-lane: claude-review`;
     assert.equal(adjudicable(thread("PRRT_c", [{ id: 1, author: "reviewer", lane: "claude-review", body }]).comments), true, line);
@@ -458,19 +413,15 @@ test("adjudicable fails closed on a CRITICAL rating in any rating shape, on any 
 
 for (const [rating, body] of [["SUGGESTION", SUGGESTION], ["IMPORTANT", SECURITY]]) test(`settleDisputes settles a disputed ${rating} security-review finding without a person`, async () => {
   const now = new Map([["PRRT_a", ratedThread("PRRT_a", body)]]);
-  // No verdict: a failing status, not a person.
   assert.deepEqual(await settleOffline(now, "INCORRECT", new Map()), { escalationReason: "feedback-unadjudicated", skipReason: "" });
   for (const disposition of ["UNCERTAIN", "VALID-defer"]) {
     assert.deepEqual(await settleOffline(now, disposition), { escalationReason: "feedback-unadjudicated", skipReason: "" }, disposition);
   }
-  // An adjudicator's security question on it is no question for a person either.
   for (const disposition of DISPUTED) {
     assert.deepEqual(await settleOffline(now, disposition, new Map([["PRRT_a", { verdict: "human", question: "security" }]])), { escalationReason: "feedback-unadjudicated", skipReason: "" }, disposition);
   }
   assert.equal(escalationRoute("feedback-unadjudicated"), "fail");
-  // An intent or design question still goes to a person, as on a code-review finding.
   assert.deepEqual(await settleOffline(now, "INCORRECT", new Map([["PRRT_a", { verdict: "human", question: "intent" }]])), { escalationReason: "feedback-question-intent", skipReason: "" });
-  // On a code-review finding a security question still holds.
   assert.deepEqual(await settleOffline(new Map([["PRRT_a", thread("PRRT_a")]]), "INCORRECT", new Map([["PRRT_a", { verdict: "human", question: "security" }]])), { escalationReason: "feedback-question-security", skipReason: "" });
 });
 
@@ -484,10 +435,6 @@ test("settleDisputes holds a disputed CRITICAL or unrated security-review findin
   assert.equal(escalationRoute("feedback-uncertain-security"), "hold");
 });
 
-// Only the lane's own line rates a finding: the comment's first line (the
-// #10810 shape) or the last one above the footer (the #10833 shape). A rating
-// quoted from the pull request supplies nothing, so the finding is unrated and
-// a person decides (#10833 security review).
 const RATED_FIRST = "severity: SUGGESTION\n\nThe gate blocks less now. No change is required.\n\nclaude-lane: claude-security-review";
 const RATED_LAST = "**A quoted line can supply the rating.**\n\nNo change is required.\n\nseverity: SUGGESTION\n\nclaude-lane: claude-security-review";
 const QUOTED = [
@@ -582,7 +529,6 @@ test("prepare writes an empty index into an output directory that does not exist
 test("prepare stages a cited CLAUDE.md under the suffix, and a path that cannot be staged is absent, not a failed round", async (t) => {
   const dir = tempDir("adjudicate-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  // `lib` is a file in this staging, so `lib/install.mjs.txt` cannot be written beside it.
   const getText = async () => "text\n";
   mkdirSync(join(dir, "0", "files"), { recursive: true });
   writeFileSync(join(dir, "0", "files", "lib"), "a file where a directory goes\n");
@@ -676,11 +622,6 @@ test("main prepare reads its inputs only as the bytes their writers hashed", asy
   assert.match(readFileSync(env.GITHUB_OUTPUT, "utf8"), new RegExp(`\nsha256=${sum(text)}\n$`));
 });
 
-// A finding a listed review bot (pr-pipeline.yaml review-threads.reviewer-ids)
-// opened: keepThreads tags it listed from the account id, never from its text,
-// with the security-review lane's state for it (held, clear or pending). The
-// badge line is Codex's, as on #10092 (P1) and #10293 (P2); its level is the
-// bot's own pick.
 const badged = (level, color, title = "The lock is read first") =>
   `**<sub><sub>![${level} Badge](https://img.shields.io/badge/${level}-${color}?style=flat)</sub></sub>  ${title}**\n\n\`lib/lock.mjs:40\` reads it.`;
 const listedThread = (id, body = badged("P2", "yellow"), security = "clear") => thread(id, [{ id: 1, author: "reviewer", listed: true, security, body }]);
@@ -709,14 +650,11 @@ test("a listed review bot's dispute is adjudicated at any badge once the securit
     badged("P1", "orange"),
     badged("P0", "red"),
     "No badge at all.\n\n`lib/lock.mjs:40` reads it.",
-    // Security wording no keyword list catches: the security lane's rating,
-    // not the bot's words, decides, and it held nothing here.
     badged("P2", "yellow", "The helper trusts the caller's ref"),
   ]) {
     assert.equal(adjudicable(listedThread("PRRT_l", body).comments), true, body);
     assert.deepEqual(slotted(listedThread("PRRT_l", body)), ["PRRT_l"], body);
   }
-  // The CRITICAL guard still holds for a listed finding.
   assert.deepEqual(slotted(listedThread("PRRT_c", `${badged("P3", "green")}\n\nseverity: critical`)), []);
 });
 
@@ -726,7 +664,6 @@ test("a listed review bot's dispute the security lane held, or has not reviewed 
     assert.equal(adjudicable(t.comments), false, String(security));
     assert.deepEqual(slotted(t), [], String(security));
   }
-  // The state means nothing on the code lane's own finding.
   assert.equal(adjudicable([{ id: 1, author: "reviewer", lane: "claude-review", security: "held", body: "The token is logged." }]), true);
 });
 
@@ -738,12 +675,9 @@ test("settleDisputes sends a held listed dispute to a person as a security quest
 
 test("settleDisputes defers a listed dispute the security lane has not reviewed yet: no escalation, no verdict, the head released for the next round", async () => {
   const pending = listedThread("PRRT_p", badged("P2", "yellow", "The helper trusts the caller's ref"), "pending");
-  // The verdict is ignored; nothing is posted or resolved (the API fails on any call).
   assert.deepEqual(await settle(pending), { escalationReason: "", skipReason: FINDING_STANDS_SKIP });
   assert.deepEqual(await settle(pending, { verdict: { verdict: "human", question: "security" } }), { escalationReason: "", skipReason: FINDING_STANDS_SKIP });
-  // A round that pushed moved the head; its review run starts the next round.
   assert.deepEqual(await settle(pending, { pushed: true }), { escalationReason: "", skipReason: "" });
-  // A pending listed finding that carries `severity: CRITICAL` still goes to a person.
   assert.deepEqual(await settle(listedThread("PRRT_c", `${badged("P3", "green")}\n\nseverity: critical`, "pending")), { escalationReason: "feedback-disputed-security", skipReason: "" });
 });
 
@@ -754,13 +688,10 @@ test("settleDisputes leaves a clear listed dispute to the adjudicator, whose own
   });
 });
 
-// Contract settling: the done-when line and URL below are a hand-written
-// fixture, not output of the code under test.
 const DONE_WHEN = "Done when: the install step reads the lock file before it resolves any version.";
 const ISSUE = { number: 7, body: `## Done when\n\n- ${DONE_WHEN}\n`, comments: ["The owner decided: keep the cache key per lock file."] };
 const ISSUE_URL_7 = "https://github.com/o/r/issues/7";
 
-// settleDisputes with a reply API that records each reply it posts.
 const settleWithReply = async (now, disposition, verdicts) => {
   const posted = [];
   const result = await settleDisputes({
@@ -815,9 +746,6 @@ test("a quote that is the linked issue's own text settles an intent or design qu
   assert.equal(checkQuote({ verdict: "reviewer", question: "design", quote: ISSUE.comments[0] }, [{ ...ISSUE, url: ISSUE_URL_7 }]).url, ISSUE_URL_7);
 });
 
-// A quote shows the text exists, not that it bears on the finding, so it may
-// only keep a finding standing (a fix round follows); dismissing one by quote
-// stays a person's (review of PR 10954, thread PRRT_kwDOTCGFQM6xlgoa).
 test("a quote never dismisses a finding: a lane verdict on an intent or design question goes to a person", async (t) => {
   const dir = tempDir("adjudicate-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
@@ -841,7 +769,6 @@ test("a quote that is not an exact substring of the staged text settles nothing:
   }
   const verdicts = new Map([["PRRT_a", checkQuote({ verdict: "lane", question: "design", quote: "the install step" }, issues)]]);
   assert.deepEqual(await settleOffline(new Map([["PRRT_a", thread("PRRT_a")]]), "INCORRECT", verdicts), { escalationReason: "feedback-question-design", skipReason: "" });
-  // A verdict file that names a settling quote without the URL collect found it at holds too.
   const text = JSON.stringify({ version: 1, head_sha: HEAD, threads: [{ thread: "PRRT_a", verdict: "lane", question: "intent", quote: DONE_WHEN }] });
   assert.deepEqual(parseVerdicts(text, HEAD).get("PRRT_a"), { verdict: "human", question: "intent" });
 });
@@ -851,7 +778,6 @@ test("with no contract text no quote settles: the question stays a person's", as
   assert.equal(quoteSource(DONE_WHEN, [{ number: 7, url: ISSUE_URL_7, body: null, comments: [] }]), null);
   assert.deepEqual(contractIssues(undefined, "o/r"), []);
   assert.equal(verdictOf({ verdict: "lane", question: "intent", quote: "" }), null);
-  // A security question never settles by quote.
   assert.equal(verdictOf({ verdict: "lane", question: "security", quote: DONE_WHEN }), null);
   assert.deepEqual(verdictOf({ verdict: "human", question: "security", quote: DONE_WHEN }), { verdict: "human", question: "security" });
 });
@@ -867,11 +793,6 @@ test("a security-review or code-review CRITICAL finding stays open even with a s
   }
 });
 
-// A security-review flag on a plugin manifest's `dependencies` (the #10049
-// shape: planning -> work-items), rated IMPORTANT. The script checks the
-// manifest and the marketplace at the adjudicated head itself, the marketplace
-// at the PR's base, and the lane's cited call site at both the head and the
-// base, before it settles the flag without a person.
 const FLAG_PATH = "plugins/planning/.claude-plugin/plugin.json";
 const SITE = "plugins/planning/skills/wayfind/SKILL.md:2";
 const GUARDED_SITE = "plugins/planning/skills/wayfind/SKILL.md:6";
@@ -912,15 +833,9 @@ const FLAG_FILES = {
   "plugins/work-items/skills/track/SKILL.md": "Run `/work-items:track add` for each item.\n",
   "plugins/work-items/.claude-plugin/plugin.json": JSON.stringify({ name: "work-items", version: "1.0.0", description: "Tracker", author: { name: "o" }, license: "MIT", keywords: [], userConfig: {} }),
 };
-// The dependency's top-level entries, as listTree returns them.
 const FLAG_TREES = { "plugins/work-items": [".claude-plugin", "skills", "lib", "scripts", "README.md", "CHANGELOG.md"].map((name) => ({ name })) };
 
-// The PR's base, where the marketplace must already list each dependency and
-// each cited call-site file must already invoke it unguarded.
 const BASE = "d".repeat(40);
-// A flag rated below CRITICAL that hardRequire does not settle takes no
-// adjudicator slot, so it stays with the lane as a failing status, never a
-// person (owner decision on #11020).
 const UNSETTLED = { escalationReason: "feedback-unadjudicated", skipReason: "" };
 const settleFlag = async ({ files = FLAG_FILES, baseFiles = FLAG_FILES, baseMarketplace = FLAG_FILES[MARKETPLACE], trees = FLAG_TREES, baseTrees = trees, baseSha = BASE, body = FLAG, disposition = "INCORRECT", evidence = [SITE], path = FLAG_PATH, headSha } = {}) => {
   const posts = [];
@@ -999,14 +914,10 @@ test("settleDisputes resolves a same-marketplace bare-name hard-require flag wit
   assert.deepEqual(posts, [hardRequireReply(FLAG_PATH, [SITE], HEAD)]);
   assert.equal(posts[0].split("\n")[0], FINDING_ANSWERED);
   assert.match(posts[0], new RegExp(`Evidence: \`${SITE}\``));
-  // A guarded line cited beside the call site does not stop it.
   assert.equal((await settleFlag({ evidence: [GUARDED_SITE, SITE] })).resolved, true);
-  // After this round's fix push the files are read, and named, at the new head.
   const moved = await settleFlag({ headSha: MOVED });
   assert.equal(moved.resolved, true);
   assert.deepEqual(moved.posts, [hardRequireReply(FLAG_PATH, [SITE], MOVED)]);
-  // An INCORRECT reply on the flag takes no adjudicator slot, at either rating;
-  // an UNCERTAIN one on a SUGGESTION flag is adjudicated as before.
   const flagThread = (body) => thread("PRRT_a", [{ id: 1, author: "reviewer", lane: "claude-security-review", body }], FLAG_PATH);
   const SUGGESTED = FLAG.replace("IMPORTANT", "SUGGESTION");
   assert.deepEqual(disputes(fileOf(flagThread(FLAG)), incorrect("PRRT_a")).slots, []);
@@ -1031,11 +942,9 @@ test("a cross-marketplace, versioned or externally sourced entry, an optional co
     ["cited line that invokes nothing", { evidence: ["plugins/planning/skills/wayfind/SKILL.md:1"] }],
     ["unsettled SUGGESTION flag", { body: FLAG.replace("IMPORTANT", "SUGGESTION"), evidence: [GUARDED_SITE] }],
     ["flagged plugin not in the marketplace", { files: { ...FLAG_FILES, [MARKETPLACE]: JSON.stringify({ plugins: [{ name: "work-items", source: "./plugins/work-items" }] }) } }],
-    // The same PR adds the dependency's marketplace entry: only the head lists it.
     ["dependency not in the marketplace at the PR base", { baseMarketplace: JSON.stringify({ plugins: [{ name: "planning", source: "./plugins/planning" }] }) }],
     ["dependency at another source at the PR base", { baseMarketplace: JSON.stringify({ plugins: [{ name: "work-items", source: "./plugins/other" }] }) }],
     ["no marketplace at the PR base", { baseMarketplace: null }],
-    // null, not undefined: settleFlag's default would replace undefined with BASE.
     ["unknown PR base", { baseSha: null }],
     ["a failed read", { files: null }],
   ];
@@ -1051,11 +960,9 @@ test("a cross-marketplace, versioned or externally sourced entry, an optional co
     assert.deepEqual(posts, [], disposition);
   }
   assert.equal(escalationRoute(UNSETTLED.escalationReason), "fail");
-  // Any other security-review finding rated below CRITICAL stays with the lane too.
   const hooks = await settleFlag({ body: FLAG.replace("manifest dependencies:", "manifest hooks:") });
   assert.deepEqual(hooks.result, UNSETTLED);
   assert.deepEqual(hooks.posts, []);
-  // A CRITICAL flag is no dependencyFlag: it goes to a person.
   const critical = await settleFlag({ body: FLAG.replace("IMPORTANT", "CRITICAL") });
   assert.deepEqual(critical.result, { escalationReason: "feedback-disputed-security", skipReason: "" });
   assert.deepEqual(critical.posts, []);
@@ -1077,7 +984,6 @@ test("hardRequire reads the cited call site at the PR base as well as the head",
     assert.equal(resolved, false, label);
     assert.ok(logs.some((line) => line.includes(baseWhy)), label);
   }
-  // An unguarded call line at both base and head settles, wherever it sits at the base.
   const settled = await settleFlag({ baseFiles: withBase(["# wayfind", "", "", "", "", "Write each item through `/work-items:track add`.", ""].join("\n")) });
   assert.deepEqual(settled.result, { escalationReason: "", skipReason: "" });
   assert.equal(settled.resolved, true);
@@ -1126,7 +1032,6 @@ test("hardRequire settles only a dependency that adds nothing Claude Code runs, 
   }
 });
 
-// A planning skill whose text is the same at the base and the head, cited at `line`.
 const PROBE = "plugins/planning/skills/probe/SKILL.md";
 const settleProbe = (text, line, options = {}) => {
   const files = { ...FLAG_FILES, [PROBE]: text };
@@ -1151,12 +1056,10 @@ test("a call under a `## Next` section is a successor mention, not a call site, 
     assert.equal(resolved, false, `head line ${line}`);
     assert.equal(result.escalationReason, UNSETTLED.escalationReason, `head line ${line}`);
   }
-  // A heading inside a fenced block does not end the section.
   const fenced = ["# probe", "", "## Next", "", "```bash", "# a comment", "```", "", "", "Run `/work-items:track add`.", ""].join("\n");
   assert.equal((await settleProbe(fenced, 10)).resolved, false);
   const after = ["# probe", "", "## Next", "", "", "## Steps", "", "", "Run `/work-items:track add`.", ""].join("\n");
   assert.equal((await settleProbe(after, 9)).resolved, true);
-  // The head call holds up, but the base file's only call sits under `## Next`.
   const files = { ...FLAG_FILES, [PROBE]: after };
   const baseOnlyNext = { ...FLAG_FILES, [PROBE]: next };
   assert.equal((await settleFlag({ files, baseFiles: baseOnlyNext, evidence: [`${PROBE}:9`] })).resolved, false);
@@ -1186,8 +1089,6 @@ test("a conditional word or a contracted negation within two lines guards the ca
   assert.equal((await settleProbe("# probe\n\n\n\nUse `/work-items:track add` for each item.\n", 5)).resolved, true);
 });
 
-// A finding whose only ask is to run tests CI runs (#10075): the select job
-// recorded the head's covering check runs in run.json's `ci`.
 const RUNS = [
   { name: "Test Bash (0)", url: "https://github.com/o/r/actions/runs/1/job/11" },
   { name: "Test Node", url: "https://github.com/o/r/actions/runs/1/job/12" },
@@ -1233,7 +1134,6 @@ test("settleDisputes resolves an UNCERTAIN tests-only finding on a green head wi
     assert.ok(posts[0].includes(`[${run.name}](${run.url})`), run.name);
   }
   assert.ok(posts[0].includes(HEAD));
-  // It claims only what the snapshot shows: the plan's checks passed at the head.
   assert.ok(posts[0].includes(`Every check the plan selected (\`scripts/plan-test-lanes.sh\`) passed at \`${HEAD}\``));
   assert.ok(!posts[0].includes("the tests this finding asks for"));
 });
@@ -1273,7 +1173,6 @@ test("settleDisputes leaves a tests-only finding open when this round pushed a f
   }
 });
 
-// Green CI says nothing about a security finding, however minor (#11041 review).
 test("settleDisputes leaves a tests-only verdict on a security-review finding open, even on a green head", async () => {
   const { result, posts, resolved } = await settleTests({ current: ratedThread("PRRT_a", RATED_FIRST) });
   assert.deepEqual(result, { escalationReason: "feedback-unadjudicated", skipReason: "" });
@@ -1284,6 +1183,5 @@ test("settleDisputes leaves a tests-only verdict on a security-review finding op
 test("verdictOf takes tests-only with no question", () => {
   assert.deepEqual(verdictOf({ verdict: "tests-only", question: "none" }), { verdict: "tests-only", question: "none" });
   assert.equal(verdictOf({ verdict: "tests-only", question: "design" }), null);
-  // Only a reviewer verdict settles a question by quote.
   assert.equal(verdictOf({ verdict: "tests-only", question: "design", quote: "a quote copied from the linked issue" }), null);
 });

@@ -1,5 +1,5 @@
 ---
-description: "Reach Anthropic's first-party playground capability in one step: verify the upstream playground plugin is installed, invoke its skill for interactive single-file HTML explorers (controls beside a live preview, output is a prompt to paste back), or emit the exact install commands when it is absent. Use when: 'make me a playground', 'interactive explorer for X', 'install the playground plugin', 'critique this document with approve/reject controls', or any ask to tune a parameter space visually and see the result (sliders, balancing, exploring parameters). Also carries field-tested prompt recipes, delivery guidance for cloud and remote sessions where a local browser cannot open, and known-limitation notes. This wrapper generates nothing itself; the upstream skill owns generation. Not for choosing a visual form for conversation content (a visualization capability owns that) or for throwaway variations of the project's own UI (a prototyping capability owns that)."
+description: "Invoke Anthropic's upstream playground plugin for interactive HTML explorers (controls balancing parameters, prompt to paste back), or emit install commands; this wrapper generates nothing. Use when: 'make me a playground', 'interactive explorer for X', 'install the playground plugin'. Not for UI mockups: /prototype:explore-directions. Not for conversation visuals: /visualization:visualize."
 argument-hint: "[what to explore]"
 user-invocable: true
 disable-model-invocation: false
@@ -130,8 +130,8 @@ generated playground for anything beyond personal exploration.
   is why Step 1 judges by install record and treats wording as advisory.
 - The copy-prompt button is the product; a sandboxed page (an Artifact) can restrict
   clipboard access, so confirm the round trip once before a long exploration.
-- A summarizing fetch of the upstream marketplace can misreport its contents;
-  verify upstream facts against raw files or the install record, never a summary.
+- Verify upstream marketplace facts against raw files or the install record, never a summarizing
+  fetch (how WebFetch reads a page: [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)).
 
 ## Boundary
 

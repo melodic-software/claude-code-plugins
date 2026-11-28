@@ -16,7 +16,7 @@ terminal with no downstream consumer (a general decision, per SKILL.md Step 5), 
 This skill treats model and effort as two separate levers. Recommend against the right one,
 because they are not interchangeable:
 
-- **Model tier (capability).** Raise the model when the assistant would be
+- **Capability tier.** Raise the model when the assistant would be
   **confidently wrong despite full context**, where the failure is a reasoning ceiling,
   not missing information. Signals from the interview: the task turned on subtle
   correctness, dense cross-module invariants, or tradeoffs the user themselves found
@@ -135,7 +135,7 @@ that does not exist.
 Complexity and ambiguity apply to engineering and general sessions alike: a hard
 general decision can warrant the top model just as a subtle refactor can. Surface the
 recommendation for both; it is orthogonal to the engineering/general domain split and
-to the `me`/`auto`/`lock` action. Framing differs by what the session hands off to
+to the `auto`/`lock` action. Framing differs by what the session hands off to
 (SKILL.md Step 5): an engineering session's recommendation configures the
 **downstream execution session** it hands off to. A general session is **terminal**,
 with nothing downstream, so its recommendation configures the **current or next

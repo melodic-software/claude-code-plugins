@@ -134,7 +134,6 @@ run "cat .env" 'cat .env' 0
 run "cat .netrc" 'cat ~/.netrc' 0
 run "cat .docker/config.json" 'cat ~/.docker/config.json' 0
 run "cat by redirect" 'cat < .env' 0
-# Writing a fake credential file in a test is not a read: this once blocked.
 run "cat > .netrc from a heredoc" "cat > /tmp/x/.netrc <<EOF
 machine a login b password c
 EOF" 0
@@ -210,8 +209,6 @@ run "echo of a command as prose" 'echo "run gh auth token to see it"' 0
 run "issue body naming .netrc" 'gh issue create --title "never cat .netrc" --body-file b.md' 0
 run "issue body naming printenv" 'gh issue comment 1 --body "do not printenv GH_TOKEN"' 0
 run "commit message naming a credential file read" 'git commit -m "docs: never cat .env"' 0
-# A shell word inside an argument runs nothing: these two once blocked, the
-# first as `cat .env` beside `bash`, the second as `gh auth token` beside it.
 run "grep pattern naming bash and .env" 'grep -n -i -E "do not apply to bash|cat \.env|Read\(\./\.env" docs/permissions.md' 0
 run "printf of a quoted bash -c line" "printf '%s\n' 'bash -c \"gh auth token\"' > cases.txt" 0
 run_ps "PowerShell: commit message naming gh auth token" 'git commit -m "block gh auth token"' 0

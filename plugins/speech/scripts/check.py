@@ -33,7 +33,7 @@ def declared_rows(path=PREREQUISITES, which=shutil.which):
     rows = []
     for entry in json.loads(Path(path).read_text(encoding='utf-8'))['requires']:
         detect = entry['detect']
-        if entry['kind'] == 'env':   # the value is never read into a row
+        if entry['kind'] == 'env':
             name = detect['name']
             rows.append(('PASS', entry['id'], f'{name} is set') if os.environ.get(name, '').strip()
                         else ('INFO', entry['id'], f'{name} is not set (optional). {entry["degrade"]}'))
@@ -66,8 +66,8 @@ def package_row(data):
     if target.is_dir() and pydeps.loads(target, pydeps.PROBE):
         return 'PASS', 'python-packages', f'{", ".join(pydeps.PROBE)} load from {target}'
     return ('FAIL', 'python-packages',
-            f'not installed for {sys.implementation.cache_tag}; the SessionStart hook installs them, or run: '
-            f'{pydeps.repair_line(data)}')
+            f'not installed for {sys.implementation.cache_tag}; run: {pydeps.repair_line(data)}, '
+            'or set install_python_deps_enabled to true and start a new session')
 
 
 def model_row(data, model_dir=None):

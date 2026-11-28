@@ -48,7 +48,7 @@ holds:
   its extension, also infers its id, with that type's extensions as its globs. The report names each inferred id with the globs inferred for it, on one line per
   id: `Inferred <id>: globs <glob>, <glob>`.
 
-Name a stated or inferred id by the id the skills' aliases resolve to where one fits (`dotnet`,
+Name a stated or inferred id by the id the skills' aliases resolve to where one fits (`dotnet`, <!-- portability-ok: R6 kept-adapter ecosystem id alias and lockfile inference rule -->
 `python`, `typescript` for a JavaScript or TypeScript package, `bash` for shell, `powershell`,
 `markdown`, `go`), else by the language or format's lowercase kebab-case name. The plugin ships no
 ecosystem file, so no id is covered unless it is recorded, stated or inferred. Once a repository
@@ -145,7 +145,7 @@ in this order, stopping at the first that yields it:
    as found with no flag added: a manifest script (`package.json` `scripts.test`, run through the
    package manager its lockfile names, `npm` with no lockfile), a task-runner target (a `Makefile`
    target, a `justfile` recipe), or the build tool's own verb on a named entry point
-   (`dotnet build Cart.sln`, `cargo build` beside the one `Cargo.toml`). A lockfile counts only
+   (`dotnet build Cart.sln`, `cargo build` beside the one `Cargo.toml`). A lockfile counts only <!-- portability-ok: R6 kept-adapter ecosystem id alias and lockfile inference rule -->
    when it is present and `git ls-files` lists it, so an untracked lockfile names no package
    manager. Outside a git repository, or when git cannot list the files, every lockfile present
    counts.
@@ -165,7 +165,7 @@ out of a CI workflow file. A malformed record degrades to the stated and inferre
 - **Install nothing, write nothing.** Install no dependency or tool, write no
   `docs/conventions/ecosystems/` or legacy `.claude/ecosystems/` file, and offer no `/toolchain:setup` persist. To make the next
   unattended run resolve a key, a person records it with `/toolchain:setup apply <ecosystem>`, or merges a
-  lane's record pull request.
+  lane's record pull request (`/toolchain:check --propose-records` drafts one).
 
 ## Setup writer
 

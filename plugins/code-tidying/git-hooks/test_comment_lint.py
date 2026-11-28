@@ -1,9 +1,10 @@
-# test-scope: plugins/code-tidying/git-hooks/fixtures/*.sh.txt
+# test-scope: plugins/code-tidying/git-hooks/fixtures/*.sh.txt plugins/code-tidying/.claude-plugin/plugin.json
 from __future__ import annotations
 
 import contextlib
 import importlib.util
 import io
+import json
 import os
 import subprocess
 import sys
@@ -25,6 +26,15 @@ MESSAGE = (
 )
 SHA = "3d3c42e5aac5ba805825da76410c181273ba90b1"
 
+for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_CONFIG"):
+    os.environ.pop(_leaked_git_var, None)
+os.environ["GIT_CONFIG_GLOBAL"] = os.devnull
+os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
+HOOK_DIFF = (
+    "--no-color", "--no-ext-diff", "-U0", "--text", "--diff-filter=ACMR",
+    "--src-prefix=a/", "--dst-prefix=b/", "--inter-hunk-context=0",
+)
+
 
 def flagged(path, text, posture="necessary", added=None, allow=()):
     lines = text.count("\n") + 1
@@ -45,6 +55,135 @@ class FindingLine(unittest.TestCase):
         self.assertIsNone(
             lint.findings("a.zzzunknown", "# x\n", [(1, 1)], "necessary", [])
         )
+
+
+class GitDiff:
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.repo = Path(tmp.name)
+        self.git("init", "-q")
+        self.git("config", "user.name", "t")
+        self.git("config", "user.email", "t@example.invalid")
+
+    def git(self, *args):
+        return subprocess.run(["git", "-C", str(self.repo), *args], check=True, capture_output=True).stdout
+
+    def commit(self, files):
+        for name, text in files.items():
+            (self.repo / name).write_text(text, encoding="utf-8")
+        self.git("add", "-A")
+        self.git("commit", "-q", "--no-verify", "-m", "c")
+        return self.git("rev-parse", "HEAD").decode().strip()
+
+    def staged(self, base, new):
+        self.commit(base)
+        for name, text in new.items():
+            (self.repo / name).write_text(text, encoding="utf-8")
+        self.git("add", "-A")
+        return self.git("-c", "core.quotePath=false", "diff", "--cached", *HOOK_DIFF, "--")
+
+    def pushed(self, *ranges):
+        return b"".join(self.git("-c", "core.quotePath=false", "diff", old, new, *HOOK_DIFF, "--") for old, new in ranges)
+
+    def hunks(self, diff):
+        p = self.repo / ".git" / "hook.diff"
+        p.write_bytes(diff)
+        return lint._hunks(p)
+
+    def lint(self, path, text, hunks):
+        got = lint.findings(path, text, [(1, text.count("\n"))], "necessary", [], hunks=hunks)
+        return [int(f.split(":")[1]) for f in got]
+
+
+class UnchangedTrailingComment(GitDiff, unittest.TestCase):
+    def test_diff_hunks_keep_removed_lines(self):
+        diff = self.staged({"a.js": "f\nx=1;  // why\n+++ b/z\n"}, {"a.js": "f\nx = 1; // why\n"})
+        self.assertEqual(self.hunks(diff)["a.js"], [(2, ["x=1;  // why", "+++ b/z"], 2, 1)])
+
+    def test_quoted_path_hunk_content_is_never_a_header(self):
+        quoted = 'q"é.py'
+        diff = self.staged({"a.py": "x=1\n", quoted: "x\n"}, {"a.py": "x = 1\n", quoted: "++ b/a.py\n"})
+        self.assertIn(b'+++ "b/q\\"', diff, "control: git quotes the header of a name holding a double quote")
+        self.assertEqual(self.hunks(diff), {"a.py": [(1, ["x=1"], 1, 1)]})
+
+    def test_path_with_a_space_keys_its_hunks_by_name(self):
+        diff = self.staged({"a b.py": "x=1  # why\n"}, {"a b.py": "x = 1  # why\n"})
+        self.assertEqual(self.hunks(diff), {"a b.py": [(1, ["x=1  # why"], 1, 1)]})
+
+    def test_slash_comment_unchanged_behind_respaced_code_passes(self):
+        text = "let x = 1; // why\nlet y = 2; // new\n"
+        diff = self.staged({"a.js": "let x=1;  // why\nlet y=2;\n"}, {"a.js": text})
+        self.assertEqual(self.lint("a.js", text, self.hunks(diff)["a.js"]), [2])
+
+    def test_path_in_two_pushed_ranges_pairs_nothing(self):
+        base = self.commit({"a.py": "x=1  # why\n"})
+        one = self.commit({"a.py": "x = 1  # why\n"})
+        self.git("checkout", "-q", "-b", "other", base)
+        two = self.commit({"a.py": "x  =  1  # why\n"})
+        hunks = self.hunks(self.pushed((base, one), (base, two)))["a.py"]
+        self.assertIsNone(hunks)
+        self.assertEqual(self.lint("a.py", "x = 1  # why\n", hunks), [1])
+
+    def test_diff_of_another_text_pairs_nothing(self):
+        head = "a = 0\nb = 0\nc = 0\nd = 0\n"
+        diff = self.staged({"a.py": head + "x=1  # why\n"}, {"a.py": head + "x = 1  # why\n"})
+        hunks = self.hunks(diff)["a.py"]
+        self.assertEqual(self.lint("a.py", head + "x = 1  # why\n", hunks), [], "control: the diff pairs its own text")
+        self.assertEqual(self.lint("a.py", "x = 1  # why\n", hunks), [1])
+
+
+class RewordedComment(GitDiff, unittest.TestCase):
+    BASE = "x = 1\n# The step runs even after a failure\n# so the verdict is still read.\ny = 2\n"
+
+    def check(self, new, base=BASE):
+        hunks = self.hunks(self.staged({"a.py": base}, {"a.py": new}))["a.py"]
+        added = [(c, c + d - 1) for _, _, c, d in hunks if d]
+
+        def judged(pairing):
+            got = lint.findings("a.py", new, added, "necessary", [], hunks=pairing)
+            return [int(f.split(":")[1]) for f in got]
+
+        self.unpaired = judged(None)
+        return judged(hunks)
+
+    def test_multi_line_reword_passes(self):
+        new = "x = 1\n# The step runs unless the run was cancelled\n# so chunk 1's verdict is read.\ny = 2\n"
+        self.assertEqual(self.check(new), [])
+        self.assertEqual(self.unpaired, [2, 3], "control: with no diff every added comment is judged")
+
+    def test_reword_of_one_line_in_the_run_passes(self):
+        self.assertEqual(self.check(self.BASE.replace("still read", "read anyway")), [])
+
+    def test_reword_that_shortens_the_run_passes(self):
+        self.assertEqual(self.check("x = 1\n# The step reads the verdict after a failure.\ny = 2\n"), [])
+
+    def test_new_prose_comment_fails(self):
+        new = "x = 1\n# The step runs even after a failure\n# so the verdict is still read.\n# set up y\ny = 2\n"
+        self.assertEqual(self.check(new, "x = 1\ny = 2\n"), [2, 3, 4])
+
+    def test_comment_that_grows_its_run_fails(self):
+        new = self.BASE.replace("read.\n", "read.\n# A cancel stops it.\n")
+        self.assertEqual(self.check(new), [4])
+
+    def test_reword_that_grows_its_run_fails(self):
+        new = "x = 1\n# The step runs unless\n# the run was cancelled,\n# so the verdict is read.\ny = 2\n"
+        self.assertEqual(self.check(new), [2, 3, 4])
+
+    def test_hunk_that_splits_a_base_run_and_adds_comment_lines_fails(self):
+        base = "# a1\n# a2\n# a3\n# a4\nx = 1\n"
+        self.assertEqual(self.check("# a1\n# a2\n# a3\nx = 9\n# new 1\n# new 2\ny = 2\n", base), [5, 6])
+
+    def test_comment_moved_to_another_hunk_fails(self):
+        base = "# a note on x\nx = 1\ny = 2\nz = 3\n"
+        self.assertEqual(self.check("x = 1\ny = 2\n# a note on z\nz = 3\n", base), [3])
+
+    def test_comment_replacing_code_fails(self):
+        self.assertEqual(self.check("x = 1\n# a note\n", "x = 1\ny = 2\n"), [2])
+
+    def test_one_base_run_split_into_two_fails(self):
+        base = "x = 1\n# first half\n# second half\ny = 2\n"
+        self.assertEqual(self.check("x = 1\n# first part\nz = 3\n# second part\ny = 2\n", base), [2, 4])
 
 
 class AddedLinesOnly(unittest.TestCase):
@@ -230,6 +369,58 @@ class Shape8LinkOrRfc(unittest.TestCase):
         text = "# The gateway closes idle sockets at 60s remove-comments-ignore\nx=45\n"
         self.assertEqual(flagged("a.sh", text), [])
 
+    def test_link_passes_only_its_own_paragraph_of_a_header(self):
+        text = (
+            "#!/bin/sh\n# Usage: a.sh <dir>\n# Runs the suites.\n#\n"
+            "# Timeouts follow https://example.com/docs/idle\n#\n# More narrative.\nx=1\n"
+        )
+        self.assertEqual(flagged("a.sh", text), [2, 3, 7])
+
+    def test_two_line_link_paragraph_below_narrative_passes(self):
+        text = (
+            "# narrative\n#\n# The gateway closes idle sockets at 60s,\n"
+            "# https://example.com/docs/idle\nx=45\n"
+        )
+        self.assertEqual(flagged("a.sh", text), [1])
+
+    def test_link_paragraph_over_the_line_budget_fails_whole(self):
+        text = "# a\n# b\n# c\n# d\n# https://example.com/docs/idle\nx=45\n"
+        self.assertEqual(flagged("a.sh", text), [1, 2, 3, 4, 5])
+
+    def test_line_budget_is_the_class_c_max_lines_value(self):
+        five = "# a\n# b\n# c\n# d\n# https://example.com/docs/idle\nx=45\n"
+        two = "# The gateway closes idle sockets at 60s,\n# https://example.com/docs/idle\nx=45\n"
+        for text, budget, want in ((five, 5, []), (two, 1, [1, 2])):
+            with self.subTest(budget=budget):
+                got = lint.findings("a.sh", text, [(1, 6)], "necessary", [], max_lines=budget)
+                self.assertEqual([int(f.split(":")[1]) for f in got], want)
+
+    def test_punctuation_line_below_a_linked_paragraph_fails(self):
+        cases = [
+            ("a.js", "// The gateway closes idle sockets at 60s,\n// https://example.com/docs/idle\n//\n// ----\nconst x = 45;\n", [4]),
+            ("a.lua", "-- The gateway closes idle sockets at 60s,\n-- https://example.com/docs/idle\n-- ====\nlocal x = 45\n", [3]),
+            ("a.js", "// https://example.com/docs/idle\n// +--+--+\nconst x = 45;\n", [2]),
+        ]
+        for path, text, want in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged(path, text), want)
+
+    def test_lines_passing_by_their_own_shape_take_no_line_budget(self):
+        linked = "# Header order is fixed by RFC 9110 section 5.3,\n# so the proxy writes Host first.\n"
+        cases = [
+            ("a.sh", "#!/bin/sh\n" + linked + "x=1\n"),
+            ("a.py", "#!/usr/bin/env python3\n" + linked + "x = 1\n"),
+            ("a.py", "# -*- coding: utf-8 -*-\n" + linked + "x = 1\n"),
+            ("a.sh", "x=1\n# shellcheck disable=SC2086\n" + linked + "y=1\n"),
+        ]
+        for path, text in cases:
+            with self.subTest(path=path, text=text):
+                self.assertEqual(flagged(path, text), [])
+
+    def test_default_line_budget_is_the_userconfig_default(self):
+        manifest = json.loads((HERE.parent / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(lint.CLASS_C_MAX_LINES, manifest["userConfig"]["class_c_max_lines"]["default"])
+
 
 class AdrPointer(unittest.TestCase):
     def setUp(self):
@@ -388,6 +579,49 @@ class AllowPatterns(unittest.TestCase):
         self.assertEqual(flagged("a.sh", text, allow=["^# (test|case)-scope:"]), [])
 
 
+SCAFFOLD = (
+    "#!/usr/bin/env bash\n"
+    "set -euo pipefail\n"
+    "\n"
+    "# Seeds a repository with one planted defect.\n"
+    "#\n"
+    "# Leaves the defect unstaged.\n"
+    "here=$(dirname \"$0\")\n"
+    "# a later note\n"
+)
+
+
+def kept(text, path="a.sh", keep=True):
+    got = lint.findings(path, text, [(1, text.count("\n") + 1)], "necessary", [], keep_opening=keep)
+    return [int(f.split(":")[1]) for f in got]
+
+
+class KeepOpening(unittest.TestCase):
+    def test_opening_block_after_shebang_set_and_blank_passes_and_a_later_comment_fails(self):
+        self.assertEqual(kept(SCAFFOLD), [8])
+
+    def test_without_the_setting_the_opening_block_fails(self):
+        self.assertEqual(kept(SCAFFOLD, keep=False), [4, 5, 6, 8])
+
+    def test_block_without_shebang_passes(self):
+        self.assertEqual(kept("# summary\n# more\nx=1\n"), [])
+
+    def test_blank_line_ends_the_block(self):
+        self.assertEqual(kept("#!/bin/sh\n# summary\n\n# second paragraph\nx=1\n"), [4])
+
+    def test_set_line_after_the_block_ends_it(self):
+        self.assertEqual(kept("# summary\nset -e\n# after set\nx=1\n"), [3])
+
+    def test_code_before_any_comment_keeps_nothing(self):
+        self.assertEqual(kept("x=1\n# note\n"), [2])
+
+    def test_trailing_comment_on_the_first_code_line_fails(self):
+        self.assertEqual(kept("# summary\nx=1  # note\n"), [2])
+
+    def test_other_set_commands_end_the_skip(self):
+        self.assertEqual(kept("set +x\n# summary\nx=1\n"), [2])
+
+
 class StayQuiet(unittest.TestCase):
     def test_code_the_old_heuristic_misread(self):
         cases = {
@@ -438,6 +672,24 @@ class Cli(unittest.TestCase):
             proc.stderr.decode(),
             "comment-lint: b.zzzunknown: no pygments lexer for this name, skipped\n",
         )
+
+    def test_cli_keeps_the_opening_block_of_listed_paths_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp, "root")
+            root.mkdir()
+            for name in ("kept.sh", "judged.sh"):
+                (root / name).write_text("# summary\nx=1\n", encoding="utf-8")
+            Path(tmp, "ranges").write_text("kept.sh\t1\t2\njudged.sh\t1\t2\n", encoding="utf-8")
+            Path(tmp, "keep").write_bytes(b"kept.sh\0")
+            proc = subprocess.run(
+                [sys.executable, str(SCRIPT), "--posture", "necessary", "--root", str(root),
+                 "--ranges", str(Path(tmp, "ranges")), "--keep-opening", str(Path(tmp, "keep"))],
+                input=b"kept.sh\0judged.sh\0",
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(proc.stdout.decode(), "judged.sh:1: " + MESSAGE.format("necessary") + "\n")
 
     def test_cli_rejects_bad_allow_pattern(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -503,6 +755,15 @@ class MoreDirectives(unittest.TestCase):
         for path, text in cases:
             with self.subTest(text=text):
                 self.assertEqual(flagged(path, text), [])
+
+    def test_triple_slash_reference_is_a_directive_with_or_without_a_space(self):
+        for text in ('/// <reference path="a.d.ts" />', '///<reference path="a"/>'):
+            with self.subTest(text=text):
+                self.assertIsNotNone(lint.DIRECTIVE.search(text))
+
+    def test_spellchecker_ignore_next_line_passes(self):
+        text = "# spellchecker:ignore-next-line\nx = 'Win32_SignedDriver'\n"
+        self.assertEqual(flagged("t.py", text), [])
 
     def test_portability_ok_passes(self):
         text = '#!/usr/bin/env bash\n# portability-ok: GNU stat only, Linux-only script\nsize=$(stat -c %s "$1")\necho "$size"\n'
@@ -578,6 +839,161 @@ class RunsAndLexers(unittest.TestCase):
 
     def test_powershell_comment_after_whitespace_still_fails(self):
         self.assertEqual(flagged("n.ps1", "$x = 1 # a note\n"), [1])
+
+
+class AddedTypes(unittest.TestCase):
+    def test_a_comment_in_each_added_type_fails(self):
+        cases = [
+            ("a.awk", '{ print "# not" } # a note\n', [1]),
+            ("a.css", 'a::before { content: "/* not */"; } /* a note */\n', [1]),
+            ("a.scss", "$x: 1;\n// a note\n", [2]),
+            ("a.html", '<a title="<!-- not -->">x</a>\n<!-- a note -->\n', [2]),
+            ("a.htm", "<p>x</p>\n<!-- a note -->\n", [2]),
+            ("a.xml", '<?xml version="1.0"?>\n<a><![CDATA[<!-- not -->]]>\n<!-- a note -->\n</a>\n', [3]),
+            (".editorconfig", "root = true\n# a note\n", [2]),
+            ("x/.editorconfig", "root = true\n; a note\n", [2]),
+            ("a.jsonc", '{\n  // a note\n  "a": "// not"\n}\n', [2]),
+            ("a.psd1", "@{\n  # a note\n  RootModule = 'x # not'\n}\n", [2]),
+        ]
+        for path, text, want in cases:
+            with self.subTest(path=path):
+                self.assertEqual(flagged(path, text), want)
+
+    def test_a_directive_in_each_added_type_passes(self):
+        cases = [
+            ("a.awk", "# cspell:disable\n{ print $1 }\n"),
+            ("a.css", "/* stylelint-disable-next-line color-named */\na { color: red; }\n"),
+            ("a.css", "a { color: red; }\n/*# sourceMappingURL=a.css.map */\n"),
+            ("a.scss", "$x: 1; // stylelint-disable-line scss/dollar-variable-pattern\n"),
+            ("a.html", "<!-- prettier-ignore -->\n<p>x</p>\n"),
+            ("a.htm", "<p>x</p>\n<!-- cspell:disable -->\n"),
+            ("a.xml", "<a>\n<!-- prettier-ignore -->\n</a>\n"),
+            (".editorconfig", "# cspell:disable\nroot = true\n"),
+            ("a.jsonc", "{\n  // cspell:disable\n  \"a\": 1\n}\n"),
+            ("a.psd1", "@{\n  # cspell:disable\n  RootModule = 'x.psm1'\n}\n"),
+            ("a.js", "const x = 1;\n//# sourceMappingURL=a.js.map\n"),
+            ("a.js", "const x = 1;\n//# sourceURL=a.js\n"),
+            ("a.css", "/* stylelint-disable color-named */\na { color: red; }\n/* stylelint-enable color-named */\n"),
+        ]
+        for path, text in cases:
+            with self.subTest(path=path, text=text):
+                self.assertEqual(flagged(path, text), [])
+
+    def test_an_upper_case_extension_is_judged(self):
+        for path in ("A.CSS", "B.PY", "c.Sh"):
+            with self.subTest(path=path):
+                self.assertEqual(flagged(path, "x\n# a note\n" if path != "A.CSS" else "a { }\n/* a note */\n"), [2])
+
+    def test_an_extensionless_script_is_judged_by_its_shebang(self):
+        cases = [
+            ("bin/tool", "#!/usr/bin/env bash\nx=1\n# a note\n", [3]),
+            ("bin/tool", "#!/bin/sh\nx=1\n# a note\n", [3]),
+            ("bin/tool", "#!/usr/bin/zsh\nx=1\n# a note\n", [3]),
+            ("bin/tool", "#!/bin/dash\nx=1\n# a note\n", [3]),
+            ("bin/tool", "#!/usr/bin/env -S node --no-warnings\nconst x = 1; // a note\n", [2]),
+            ("bin/tool", '#!/usr/bin/env python3\n"""Doc."""\nx = 1  # a note\n', [3]),
+            ("bin/tool", "#!/usr/bin/env bash\r\nx=1\r\n# a note\r\n", [3]),
+        ]
+        for path, text, want in cases:
+            with self.subTest(text=text):
+                self.assertEqual(flagged(path, text), want)
+
+    def test_an_extensionless_file_without_a_known_shebang_is_not_read(self):
+        for text in ("#!/usr/bin/perl\n# a note\n", "# a note\n", "#!/usr/bin/python3.11\n# a note\n"):
+            with self.subTest(text=text):
+                self.assertIsNone(lint.findings("bin/tool", text, [(1, 2)], "necessary", []))
+
+
+class LiteralsAreNoComments(unittest.TestCase):
+    def test_a_regex_literal_after_an_arrow_is_no_comment(self):
+        lines = [
+            "assert.ok(!api.calls.some((p) => /runs\\/8[12356]\\/jobs|check-runs\\/840\\//.test(p)));",
+            'assert.deepEqual(posts(w.calls).map((call) => /issues\\/(\\d+)\\//.exec(call)[1]), ["9"]);',
+            "const isWorkflow = (path) => /^\\.github\\/workflows\\//i.test(path) || ACTION.test(path);",
+            "const fs = [...(e.clipboardData?.files || [])].filter(x => /^image\\//.test(x.type));",
+            "k.srcs.replaceChildren(...(x.sources || []).filter(s2 => /^https?:\\/\\//i.test(s2.url)));",
+            'ok("x", await until(owner, () => /^data:image\\//.test(src || ""), null, 10000));',
+        ]
+        after = (
+            'const digest = { number: 1, body: "<!-- lane-sweep-digest -->\\nx" };\n'
+            'for (const path of paths) assert.equal(new URL(path, "https://x").searchParams.get("c"), "b");\n'
+            "const y = 2; // a note\n"
+        )
+        for path in ("a.mjs", "a.js", "a.ts", "a.jsx", "a.tsx"):
+            for line in lines:
+                with self.subTest(path=path, line=line):
+                    self.assertEqual(flagged(path, line + "\n" + after), [4])
+
+    def test_division_after_an_arrow_still_reads_a_comment(self):
+        self.assertEqual(flagged("a.js", "const g = (a) => a / 2 / 3; // a note\n"), [1])
+
+    def test_a_bash_match_pattern_is_no_comment(self):
+        lines = [
+            '[[ "$1" =~ ^[[:space:]]*(#|//|/\\*|\\*|--) ]]',
+            'if [[ "$line" =~ ^(#{1,6})[[:space:]]+(.*)$ ]]; then :; fi',
+            '[[ "$1" =~ ^(https://github\\.com/[A-Za-z0-9._/-]+(#[A-Za-z0-9_-]+)?|[0-9a-f]{7,40}|#[0-9]+)$ ]] || exit 1',
+            '[[ "$line" =~ ^[[:space:]]*(#|$) ]] && continue',
+            "[[ $x =~ (a b) ]]",
+        ]
+        for line in lines:
+            with self.subTest(line=line):
+                self.assertEqual(flagged("a.sh", line + "\nx=1 # a note\n"), [2])
+
+    def test_a_comment_after_a_bash_match_still_fails(self):
+        self.assertEqual(flagged("a.sh", "[[ $x =~ ^a$ ]] # a note\n"), [1])
+
+    def test_a_quoted_yaml_value_is_no_comment_and_a_plain_scalar_hash_is(self):
+        self.assertEqual(flagged("s.yaml", "action: 'expect text \"Order #1001\"'\n"), [])
+        self.assertEqual(flagged("s.yaml", 'action: "Order #1001"\n'), [])
+        self.assertEqual(flagged("s.yaml", 'action: expect text "Order #1001"\n'), [1])
+
+
+class GeneratedMarker(unittest.TestCase):
+    MARKER = HERE.parent / "scripts" / "generated-marker.ere"
+
+    def matches(self, line):
+        return subprocess.run(
+            ["grep", "-qiE", "-f", str(self.MARKER)], input=line + "\n", text=True, check=False
+        ).returncode == 0
+
+    def test_a_marker_on_a_comment_line_matches(self):
+        for line in (
+            "# GENERATED from lib/x.sh by scripts/sync-shared-copies.sh. Do not edit this copy:",
+            "// Code generated by protoc-gen-go. DO NOT EDIT.",
+            "<!-- GENERATED from a.md by s.sh. Do not edit this copy: -->",
+            "/* GENERATED from a.css by s.sh. Do not edit this copy:",
+            "  // @generated from lights.glsl by glsl2dsl.mjs.",
+            "# SYNC-MANAGED FILE: DO NOT EDIT IN THE CONSUMING REPOSITORY.",
+            "-- @generated",
+            "<!-- firecrawl update state: do not edit by hand. -->",
+            "@generated by mypy-protobuf.  Do not edit manually!",
+            "  This file is generated. Do not edit.",
+            "sync-managed: from lib/x.sh",
+        ):
+            with self.subTest(line=line):
+                self.assertTrue(self.matches(line))
+
+    def test_a_docstring_or_block_comment_header_skips_the_file(self):
+        marker = HERE.parent / "scripts" / "generated-marker.ere"
+        for text in (
+            '"""\n@generated by mypy-protobuf.  Do not edit manually!\nisort:skip_file\n"""\n',
+            "/*\n  This file is generated. Do not edit.\n*/\nint x;\n",
+        ):
+            with self.subTest(text=text):
+                head = "".join(text.splitlines(keepends=True)[:10])
+                rc = subprocess.run(["grep", "-qiE", "-f", str(marker)], input=head, text=True, check=False).returncode
+                self.assertEqual(rc, 0)
+
+    def test_a_marker_outside_a_comment_line_does_not_match(self):
+        for line in (
+            "description: still counts a finding in an @generated file",
+            '"answer": "#!/usr/bin/env bash\\n# GENERATED by x. DO NOT EDIT: changes are overwritten"',
+            'x = "Code generated by protoc-gen-js. DO NOT EDIT."',
+            'x: "// Code generated by protoc-gen-js. DO NOT EDIT."',
+            "^[[:blank:]]*(#|//)sync-managed",
+        ):
+            with self.subTest(line=line):
+                self.assertFalse(self.matches(line))
 
 
 DESYNC = "cat >stub <<'STUB'\necho \"$STUB_LOG\" \"it's\"\nSTUB\n"

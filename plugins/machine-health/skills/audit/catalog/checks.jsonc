@@ -1,22 +1,3 @@
-// machine-health check catalog
-//
-// Self-maintained by the skill. Entries are OS-tagged so a single catalog serves
-// all hosts; the orchestrator filters to the current OS. Never silently remove an
-// entry -- set "deprecated": true with a rationale instead.
-//
-// Field reference:
-//   id                    - stable identifier used in reports and history
-//   category              - high-level grouping (storage, security, updates, ...)
-//   os                    - array of OS labels this check applies to
-//   script                - path (relative to skill root) of the check implementation
-//   severity_rules        - pointer to the human-readable rubric in reference/
-//   needs_admin           - whether elevation is required (hint, not enforced)
-//   enabled               - false disables without deprecating
-//   deprecated            - true keeps the entry for history continuity but skips execution
-//   deprecation_reason    - required when deprecated is true
-//   added_on              - ISO date when the entry was added
-//   crash_count           - consecutive unhandled failures (3 triggers removal proposal)
-//   identical_streak      - consecutive identical outputs (4 triggers demotion proposal)
 {
   "checks": [
     {

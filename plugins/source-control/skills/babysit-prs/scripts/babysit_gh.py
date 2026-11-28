@@ -61,9 +61,6 @@ VIEW_FIELD_NAMES: tuple[str, ...] = (
     "url",
 )
 VIEW_FIELDS = ",".join(VIEW_FIELD_NAMES)
-# `mergeStateStatus` values under which `view_pr` compares the head against the
-# live base: BLOCKED can mask BEHIND, and CLEAN/HAS_HOOKS do not imply an
-# up-to-date head on a base that does not require one.
 BASE_COMPARE_MERGE_STATES = frozenset({"BLOCKED", "CLEAN", "HAS_HOOKS"})
 SEARCH_FIELDS = "number,repository,url,title,updatedAt,isDraft"
 RECONCILE_FIELDS = "number,url,title,updatedAt,isDraft"
@@ -93,10 +90,6 @@ _GH_API_VALUE_FLAGS = frozenset(
     | {"--hostname", "--cache"}
 )
 _GH_API_BODY_FLAGS = frozenset({"-f", "--raw-field", "-F", "--field", "--input"})
-# The REST route words the babysit scripts call. Any other segment is logged
-# as `{}`, so a value that happens to look like a word (a branch, an owner, a
-# label) never reaches the log; a new route word reads as `{}` until it is
-# added here.
 _ROUTE_WORDS = frozenset(
     {"actions", "activity", "annotations", "app", "artifacts", "attempts"}
     | {"branches", "check-runs", "collaborators", "comments", "commits"}
@@ -220,8 +213,6 @@ def _run_gh(
     return proc
 
 
-# A `Link` header's next page (GitHub's REST pagination), and the API origin
-# gh adds back to the path it is given.
 _LINK_NEXT = re.compile(r'<([^<>\s]+)>;\s*rel="next"')
 _API_ORIGIN = re.compile(r"^https://[^/]+/(api/v3/)?")
 
@@ -454,44 +445,14 @@ def _send_once(
     return proc, headers, status
 
 
-# The GitHub API rate guard. GitHub: "Continuing to make requests while you are
-# rate limited may result in the banning of your integration." Once a response
-# shows a pool exhausted, this process sends nothing more to that pool until
-# its reset: every later call raises `RateLimitExhausted` before it runs, and
-# the process exits red naming the reset, with no retry and no wait. The
-# signals are the documented ones below; the shares of each pool's limit
-# (`writer-pause`, `read-floor`) are `limits.api` in pr-pipeline.yaml, unset
-# fields filled from .github/actions/log-api-budget/rate-limits.json, and an
-# unreadable block or defaults file
-# refuses every call. With no pr-pipeline.yaml at all (an installed plugin, a
-# consumer repo) there are no margins, and the signals alone still latch. `evaluate_rate_response` is the shared decision table's
-# port: .github/actions/log-api-budget/rate-guard.vectors.json tests it here
-# and in the JavaScript client. In a job (RUNNER_TEMP set), each stop also goes
-# in the job's stop file that rate-guard.mjs and api-budget.bash share, and a
-# stop recorded there holds in this process too, so one stop holds for every
-# step and every process of the job; the same vectors file's `stop_files`
-# pins its reading. A stop the file cannot take is reported, naming the pool,
-# and the in-process trip still holds. A stop file that is missing holds no
-# stop; one that exists but cannot be read holds every pool until MAX_RESET,
-# with an `::error` naming it (the vectors file's `stop_file_errors`).
-#   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api>
-#   and <https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api>
-#   As-of: 2026-10-24.
-#   Recheck trigger: either page changes the headers, statuses or messages
-#   that signal a primary or secondary limit.
 RATE_LIMIT_STATUSES = frozenset({403, 429})
 RATE_LIMIT_MESSAGE = re.compile(r"rate limit|abuse detection", re.IGNORECASE)
 SECONDARY_MESSAGE = re.compile(r"secondary rate limit|abuse detection", re.IGNORECASE)
 GRAPHQL_RATE_LIMITED = "RATE_LIMITED"
-# No header gives a reset still ahead: a secondary limit waits the pages'
-# minute, as does a header time already past; any other stop waits the hour.
 FALLBACK_RESET_SECONDS = 60
 PRIMARY_FALLBACK_SECONDS = 3600
-# Stop-file readers take at most 12 digits, so a later stop is written at the
-# largest they read, as rate-guard.mjs MAX_RESET clamps it.
 MAX_RESET = 999_999_999_999
 RESOURCE_RE = re.compile(r"^[a-z_]+$")
-# The pool a URL spends when the response names none; else `core`.
 URL_POOLS = (
     (re.compile(r"(^|/)graphql(\?|$)"), "graphql"),
     (re.compile(r"(^|/)search/code([/?]|$)"), "code_search"),
@@ -499,11 +460,7 @@ URL_POOLS = (
 )
 _INT_HEADER = re.compile(r"\d{1,12}")
 ALL_POOLS = "*"
-# The pools a non-`api` subcommand (`gh pr view`, `gh repo list`) may spend:
-# gh picks GraphQL or REST per command.
 _SUBCOMMAND_POOLS = ("core", "graphql")
-# The repository root, five levels up; None in a copy too shallow for one,
-# which then has no config and no margins.
 _PARENTS = Path(__file__).resolve().parents
 _REPO_ROOT = _PARENTS[5] if len(_PARENTS) > 5 else None
 _CONVENTIONS = None if _REPO_ROOT is None else _REPO_ROOT / "docs" / "conventions"
@@ -514,14 +471,10 @@ LIMITS_DEFAULTS = (
     else _REPO_ROOT / ".github" / "actions" / "log-api-budget" / "rate-limits.json"
 )
 LIMITS_FIELDS = ("writer-pause", "read-floor")
-# The shares with no repo config: no margin, so only a signal stops a call.
 NO_MARGINS = dict.fromkeys(LIMITS_FIELDS, 0.0)
 TOKEN_POOLS = frozenset({"github-token", "lanes-app", "owner-token"})
-# The YAML reader's runner, bound at import: a test that fakes `gh` through
-# `run_command` still reads the real limits.
 _reader_run = run_command
 _LOCAL_SUBCOMMANDS = frozenset({"--version", "version", "help", "config"})
-# Subcommand verbs that only read; any other subcommand verb writes.
 _READ_VERBS = frozenset({"checks", "diff", "download", "list", "status", "view"})
 
 
@@ -554,7 +507,6 @@ class RateLimitExhausted(BaseException):
                 )
             )
         except (OverflowError, OSError, ValueError):
-            # MAX_RESET is past the year 9999 datetime can show.
             reset = f"epoch second {int(self.reset)}"
         if self.server_status is not None:
             return (
@@ -577,9 +529,6 @@ class WritesPaused(RuntimeError):
     RuntimeError, so each write path reports it as a write that did not land."""
 
 
-# Set to 1, a read is not sent once its pool is below its `read-floor` share
-# (`low_headroom`), so a process that no estimate bounds, such as ci-status's
-# verdict reader, never spends the floor. Unset, only report-only reads skip.
 READ_FLOOR_STOP_ENV = "BABYSIT_READ_FLOOR_STOP"
 READ_FLOOR_REFUSAL = "is below its read-floor share"
 
@@ -590,11 +539,6 @@ class ReadsFloored(RuntimeError):
     read that failed and the caller fails closed."""
 
 
-# Whole seconds a caller of a process under `READ_FLOOR_STOP_ENV` may wait for
-# a floored pool's reset before it judges again (`read_floor_refusals`), as
-# ci-status's verdict reader does: the job passes rate-guard.mjs's
-# WAIT_BUDGET_SECONDS.ciStatusVerify, which rate-guard.test.mjs pins
-# (https://github.com/melodic-software/claude-code-plugins/issues/16642).
 READ_FLOOR_WAIT_ENV = "BABYSIT_READ_FLOOR_WAIT_SECONDS"
 
 
@@ -627,14 +571,7 @@ _limits: dict[str, dict[str, float]] = {}
 _trip_reported = False
 _job_stops: dict[str, int] | None = None
 _job_stops_error: str | None = None
-# One line of it, as rate-guard.mjs reads one: `<pool> <reset epoch>`, ASCII
-# digits only. Lines split on \n alone, so a line holding a \r is skipped, and
-# the piece after the last \n is no line.
 _STOP_LINE = re.compile(r"([a-z_]+|\*) ([0-9]{1,12})")
-# The job's cause file beside it, as rate-guard.mjs reads it: one line
-# `<pool> <reset epoch> <cause>` per stop, cause `limit` or `server-<5xx>` for
-# a `server_error_hold`, read once with the stop file. A missing or unreadable
-# file holds no cause.
 _CAUSE_LINE = re.compile(r"([a-z_]+|\*) ([0-9]{1,12}) (limit|server-5[0-9]{2})")
 _job_causes: list[tuple[str, int, str]] = []
 
@@ -716,7 +653,6 @@ def _read_job_stops() -> dict[str, int]:
     global _job_stops_error
     path = _stop_file()
     try:
-        # Bytes, not read_text: universal newlines would turn \r into \n.
         text = Path(path).read_bytes().decode("utf-8", "replace") if path else ""
     except OSError as exc:
         if isinstance(exc, FileNotFoundError) and not _under_a_file(path):
@@ -844,8 +780,6 @@ def evaluate_rate_response(
     reset_header = _int_header(headers, "x-ratelimit-reset")
     ra = _int_header(headers, "retry-after")
     body, errors = _body_and_errors(body)
-    # GraphQL answers a secondary limit with a 200 or a 403 and an error
-    # message, so for a GraphQL call any status counts, and so do its errors'.
     graphql = any(r.search(url) for r, p in URL_POOLS if p == "graphql")
     messages = [body.get("message")]
     if graphql:
@@ -867,7 +801,6 @@ def evaluate_rate_response(
     }
     if not latched:
         return result
-    # A secondary limit is not per resource, whatever remaining says.
     if ra is not None or secondary or ((msg or too_many) and remaining != 0):
         pool = ALL_POOLS
     else:
@@ -976,7 +909,6 @@ def _read_pool_limits(pool: str) -> dict[str, float] | str:
         return f"{LIMITS_CONFIG.name} does not parse"
     shares: dict[str, float] = {}
     for name, (key, _) in zip(LIMITS_FIELDS, keys, strict=True):
-        # The config reader gives text; the defaults file must hold a number.
         raw = values[key][0] if values[key] else dig(defaults, pool, name)
         try:
             share = float(raw)
@@ -1065,8 +997,6 @@ def _guard_response(
     )
     remaining = _int_header(headers, "x-ratelimit-remaining")
     limit = _int_header(headers, "x-ratelimit-limit")
-    # `limits.api` shares a token's core and GraphQL pools; a smaller pool
-    # (search, code search) is no reading of either.
     resource = headers.get("x-ratelimit-resource")
     if remaining is not None and limit and resource in (None, "core", "graphql"):
         _headroom[limits_pool] = (remaining, limit)
@@ -1131,8 +1061,6 @@ def _is_write(args: list[str]) -> bool:
     return gh_call_kind(args, None).split(" ")[1] != "GET"
 
 
-# The exit code of a process the guard stopped, which no caller reads as a
-# verdict (EX_TEMPFAIL): pr-merge.yml stops calling on it.
 RATE_LIMIT_EXIT = 75
 
 
@@ -1163,22 +1091,10 @@ def _exit_red_if_tripped() -> None:
 
 _previous_excepthook = sys.excepthook
 sys.excepthook = _rate_limit_excepthook
-# atexit runs last-registered first: the call summary prints before this.
 atexit.register(_exit_red_if_tripped)
 atexit.register(_emit_gh_call_summary)
 
 
-# Rate-limit readings for the job-end api-budget notice
-# (.github/actions/log-api-budget/api-budget.bash holds the line shape and the
-# notice). Every `api` call runs with -i so the guard reads its headers; the
-# leading header block is dropped from stdout, so the caller sees the output it
-# would have without -i. In a job that names the token (API_BUDGET_TOKEN for a
-# call on the process's own GH_TOKEN, API_BUDGET_OVERRIDE_TOKEN for one that
-# carries its own), the block also becomes one reading line in
-# $RUNNER_TEMP/api-budget/<token>.
-# --paginate prints a header block per page, which could not be told from
-# body text that looks like one, so such a call runs as it is; the scripts'
-# own `--paginate --slurp` reads never reach gh so (`_run_pages`).
 _API_BUDGET_SKIP_FLAGS = frozenset(
     {"-i", "--include", "--silent", "--slurp", "--paginate"}
 )
@@ -1194,7 +1110,6 @@ _API_BUDGET_VALUES = {
 
 
 def _includes_headers(args: list[str]) -> bool:
-    # GET /rate_limit reports another bucket than the one the calls spend.
     return (
         args[:1] == ["api"]
         and "rate_limit" not in args
@@ -1232,8 +1147,6 @@ def _split_headers(stdout: str) -> tuple[int | None, dict[str, str], str]:
 def _api_budget_write(
     token: str, status: int, headers: Mapping[str, str], route: str = "other"
 ) -> None:
-    """Append one reading. Never raises: a reading that cannot be written is
-    dropped."""
     readings = {
         key.removeprefix("x-ratelimit-"): value
         for key, value in headers.items()
@@ -1264,12 +1177,6 @@ def _api_budget_line(
     return f"{status} {' '.join(values)} {route}\n"
 
 
-# api-budget.bash's api_budget_traced port. A call that gives no header block
-# (a binary download, a subcommand other than `api`, a bare --paginate) runs
-# with GH_DEBUG=1, which logs only head lines per request, never headers or
-# bodies. Each request to a GitHub API URL (a redirect to a download host is
-# not one) becomes a `request <route>` line in the token's file, so the job's
-# api-calls notice counts it; the debug lines are then dropped from stderr.
 _TRACE_API_URL = re.compile(r"https://((api|uploads)\.github\.com|[^/]+/api)/")
 _TRACE_DROP = re.compile(r"\* (Using proxy|Skipping TLS verification): |\[git[] ]")
 
@@ -1460,22 +1367,7 @@ def gh_json(args: list[str], env_overrides: Mapping[str, str] | None = None) -> 
     return json.loads(text) if text.strip() else None
 
 
-# `gh` reports the HTTP status in its own stderr message, e.g.
-# `gh: Forbidden (HTTP 403)` (verified against gh 2.95.0). The exit code alone is
-# 1 for every failure, so this is the only signal separating "the API answered
-# no" from "the call never landed".
 GH_HTTP_STATUS_RE = re.compile(r"\(HTTP (\d{3})\)")
-# Sandboxed sessions (Claude Code on the web and remote execution) route GitHub
-# through a proxy that refuses GraphQL requests with HTTP 403, whatever the
-# credential. The refusal reads like an expired token or a missing scope and is
-# neither: re-authenticating never clears it, and the only remedy is to source
-# the same fact over REST. The marker is the casefolded GraphQL refusal wording
-# from the section below, matched with or without its leading "GitHub"; its repository-scope refusal is a different failure
-# and deliberately not a marker.
-#   Pointer: <https://code.claude.com/docs/en/cloud-environments#github-proxy>
-#   As-of: 2026-10-11.
-#   Recheck trigger: that section stops rejecting GraphQL outright, or changes
-#   the refusal's message prefix.
 GRAPHQL_UNAVAILABLE_MARKERS = ("graphql is not available from claude code sessions",)
 
 
@@ -1718,12 +1610,8 @@ def _search_prs_for_owners(
             try:
                 owner_has_repos = bool(list_repos_for_owner(owner))
             except RuntimeError:
-                owner_has_repos = True  # unconfirmed; fail closed as before.
+                owner_has_repos = True
             if not owner_has_repos:
-                # GitHub's search API rejects an owner qualifier that has zero
-                # repositories rather than returning empty results. The repo
-                # listing above authoritatively confirms there is nothing to
-                # search, so this is not queue-completeness uncertainty.
                 continue
             errors.append(f"owner search {owner}: {exc}")
             continue
@@ -1903,7 +1791,6 @@ def fetch_pull_request_author(repo: str, number: int) -> str:
     payload = gh_json(["pr", "view", str(number), "--repo", repo, "--json", "author"])
     login = dig(payload, "author", "login")
     if not isinstance(login, str) or not login:
-        # Fail closed: an unread author cannot be shown not to be a self login.
         raise RuntimeError(f"Unexpected gh pr view author for {repo}#{number}")
     return login
 
@@ -1993,8 +1880,6 @@ def view_pr(repo: str, number: int) -> dict[str, Any]:
         base_ref = str(data.get("baseRefName") or "")
         compare = fetch_base_compare(repo, base_ref, str(data.get("headRefOid") or ""))
         data["_base_compare"] = compare
-        # Only a mergeable head behind its base pays the rules read: BLOCKED
-        # keeps its queue-blind fallback, and an up-to-date head needs no answer.
         if merge_state != "BLOCKED" and compare_shows_behind(compare):
             data["_base_merge_queue"] = base_requires_merge_queue(repo, base_ref)
     return data
@@ -2032,8 +1917,6 @@ def rest_check_rollup(repo: str, head_sha: str) -> list[dict[str, Any]]:
             workflow_names[suite_id] = str(run.get("name") or "")
 
     rollup: list[dict[str, Any]] = []
-    # An object endpoint: each page is `{total_count, check_runs: [...]}`, so
-    # the items live under `check_runs` rather than being the page itself.
     for run in fetch_paginated_api(
         f"repos/{repo}/commits/{head_sha}/check-runs?per_page=100",
         f"{repo}@{head_sha} check runs",
@@ -2138,12 +2021,8 @@ def rest_view_pr(repo: str, number: int) -> dict[str, Any]:
         },
         "isDraft": bool(pull.get("draft")),
         "isCrossRepository": bool(head_repo and base_repo and head_repo != base_repo),
-        # REST labels already carry `name`, the only key any caller reads.
         "labels": json_array(pull.get("labels")),
         "mergeStateStatus": str(pull.get("mergeable_state") or "").upper(),
-        # REST reports a tri-state boolean where GraphQL reports an enum; `null`
-        # means GitHub has not finished computing it, which is UNKNOWN, never
-        # mergeable.
         "mergeable": (
             "MERGEABLE"
             if mergeable is True
@@ -2293,7 +2172,6 @@ def flatten_paginated_items(
 
 # A filtered workflow-run listing returns at most this many runs per search:
 # https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow
-# (as of 2026-10-23; recheck when that page's result limit changes).
 RUN_SEARCH_CAP = 1000
 
 
@@ -2369,9 +2247,6 @@ def fetch_issue_comments(repo: str, number: int) -> list[dict[str, Any]]:
     ]
 
 
-# One candidate's reads of a pull request's commits, keyed by (repo, number,
-# head SHA): the commit rows and the record's commit count. None outside
-# `candidate_reads`, so nothing is shared beyond one candidate's gate process.
 _CANDIDATE_COMMITS: dict[tuple[str, int, str], list[dict[str, Any]]] | None = None
 _CANDIDATE_TOTALS: dict[tuple[str, int, str], int] | None = None
 
@@ -2444,8 +2319,6 @@ def fetch_pull_request_commits(
             f"{repo}#{number} commits",
         ),
     )
-    # The record's count is for `head`; rows that do not end there were read
-    # after the head moved, so they need a count read alongside them.
     reported_total = None
     if rows and rows[-1].get("sha") == head:
         reported_total = (_CANDIDATE_TOTALS or {}).get(
@@ -2456,8 +2329,8 @@ def fetch_pull_request_commits(
             ["api", f"repos/{repo}/pulls/{number}", "--jq", ".commits"]
         )
     total = int(reported_total) if isinstance(reported_total, int) else 0
-    # GitHub documents a 250-commit ceiling on this endpoint; pagination does not
-    # lift it, so a short walk against a larger PR is under-reporting.
+    # GitHub lists at most 250 commits per pull request, so a short walk of a larger one under-reports:
+    # https://docs.github.com/en/rest/pulls/pulls#list-commits-on-a-pull-request
     if total > len(rows) and len(rows) >= 250:
         raise RuntimeError(
             f"commit list exceeded the API's 250-commit cap "
@@ -2688,16 +2561,9 @@ def fetch_review_threads(
     return threads
 
 
-# A completed lane run's attempts, saved in the pr-merge run cache
-# (babysit_run_cache.py) by run, attempt and lane, and carried to the next
-# run by .github/scripts/pr-merge/carry-run-cache.mjs, which bounds them and
-# checks the same key and format.
 LANE_RUN_SECTION = "lane-run"
 CARRIED_LANE_RUN_SECTION = "carried-lane-run"
 LANE_RUN_FORMAT = "v2"
-# What `babysit_review_evidence.bind()` reads of an attempt, a job and an
-# annotation; a saved attempt keeps only these. A change to what bind() reads
-# changes LANE_RUN_FORMAT, so no record saved without the new field is used.
 LANE_ATTEMPT_FIELDS = (
     "id",
     "run_attempt",
@@ -2801,8 +2667,6 @@ def carried_lane_attempts(
 def _api_read(
     path: str, env: Mapping[str, str] | None = None, binary: bool = False
 ) -> Any:
-    """One REST GET: parsed JSON, or the raw bytes when `binary`. A failed
-    read raises `RuntimeError`."""
     if binary:
         return _run_gh(
             ["api", path],
@@ -2826,7 +2690,9 @@ def lane_binding_checker(
     carries a binding; a failed read raises."""
     return lane_binding.lane_checker(
         pr=number,
-        get_pull=lambda pr: json_object(_api_read(f"repos/{repo}/pulls/{pr}", env_overrides)),
+        get_pull=lambda pr: json_object(
+            _api_read(f"repos/{repo}/pulls/{pr}", env_overrides)
+        ),
         get_run=lambda run_id: json_object(
             _api_read(f"repos/{repo}/actions/runs/{run_id}", env_overrides)
         ),
@@ -2914,16 +2780,11 @@ def collect_main_reviews(
     return records
 
 
-# The check run pr-review-main.yml's report-review-counts job posts per lane on each head it
-# reviewed, titled with its counts, or with the designed stop that left that
-# head without a verdict (a diff the review cannot read whole, or a chunked
-# review one of whose chunks left no verdict).
 MAIN_REVIEW_CHECK_TITLE = re.compile(r"findings=(\d{1,6}) critical=(\d{1,6})")
 MAIN_REVIEW_STOP_TITLE = re.compile(
     r"verdict=none reason=(too-large|binary|long-line|chunk-failed)"
 )
 
-# One record: (findings, CRITICAL), ("stop", reason), or None when unread.
 MainReviewRecord = tuple[int, int] | tuple[str, str] | None
 
 
@@ -2961,7 +2822,6 @@ def collect_main_review_counts(
             )
             counts: list[MainReviewRecord] = []
             for check in runs:
-                # Only the report-review-counts job's own token posts as github-actions.
                 app = json_object(check.get("app")).get("slug")
                 if check.get("name") != name or app != "github-actions":
                     continue
@@ -3080,8 +2940,6 @@ def collect_lane_runs(
     for path, job_names in lanes:
         if not path or not job_names:
             continue
-        # The cache key carries one slash-free name: carry-run-cache.mjs keeps
-        # only such a key.
         job_suffix = job_names[0].rsplit(" / ", 1)[-1]
         workflow = quote(path.rsplit("/", 1)[-1], safe="")
         payload = read_all(
@@ -3109,8 +2967,6 @@ def collect_lane_runs(
                 raise RuntimeError(f"{workflow} run without an id")
             listed = item.get("run_attempt")
             if item.get("status") == "completed" and isinstance(listed, int):
-                # Only the section carry-run-cache.mjs checked and bounded:
-                # a lane-run section the run cache starts with is never read.
                 saved = carried_lane_attempts(
                     item,
                     run_cache.get(
@@ -3129,19 +2985,10 @@ def collect_lane_runs(
             attempts = []
             for n in range(1, count + 1):
                 base = f"repos/{repo}/actions/runs/{run_id}/attempts/{n}"
-                # The run object is its latest attempt: the two responses
-                # differ only in `jobs_url` and `logs_url`, which nothing reads.
                 attempt = latest if n == count else json_object(read(base))
                 jobs = pages(f"{base}/jobs?per_page=100", f"run {run_id} jobs", "jobs")
                 lane_jobs = [job for job in jobs if job.get("name") in job_names]
                 for job in jobs:
-                    # With no lane job, the kill-switch notice, or the
-                    # upstream-status error that failed the job, shows the
-                    # review never started (`babysit_review_evidence.rerun_binds`).
-                    # `Check Kill Switch` is the job's name, `Kill Switch` its
-                    # name before that rename, and `kill-switch` a head tested
-                    # before an earlier rename, or a repository whose job has
-                    # no display name.
                     if (
                         job in lane_jobs
                         or (

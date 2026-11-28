@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Discovery wrapper for review-precision.test.mjs: run-plugin-tests.sh discovers only *.test.sh,
-# so the cases live in the .mjs file and this only runs node and forwards its exit status.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

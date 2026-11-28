@@ -1,67 +1,7 @@
 #!/usr/bin/env bash
-# worktree-add-containment-gate.sh — PreToolUse hook: block a raw
-# `git worktree add` whose resolved target lands INSIDE a git repository — a
-# working tree, or a .git / bare directory (#2611).
-#
-# WHY IT EXISTS — the nesting invariant was enforced only on the one creation
-# path that already knew about it: the `/worktree create` skill routes through
-# scripts/worktree-create.sh, and the WorktreeCreate hook covers the
-# harness-driven paths (`claude --worktree`, subagent worktree isolation,
-# background sessions). A raw `git worktree add` from a Bash tool call bypassed
-# both, and the fleet measurement in #2611 found 9 of 292 linked worktrees
-# nested inside their repository and ~245 more at other non-conforming
-# locations. This hook is the seam for the raw-Bash path. The invariant itself
-# is owned, measured and dated in exactly one place, not restated here:
-# skills/worktree/reference/nesting-invariant.md § "The nesting invariant, dated measurement".
-#
-# WHAT IT BLOCKS — precisely the nesting class, nothing else. The resolved
-# target's nearest existing ancestor is asked (via `git rev-parse`) whether it
-# sits inside a working tree or a git directory; only a yes blocks. A target
-# outside every repository passes SILENTLY even when it is not under the
-# configured root — the convention exempts tool-owned conventions (Codex,
-# Cursor), and #2611 rules out a generic "use the skill" advisory on every
-# `git worktree add` as noise that gets routed around. PreToolUse is the only
-# useful moment: advising after the worktree exists adds nothing.
-#
-# FAIL-OPEN ON EXTRACTION, FAIL-CLOSED ON A DETERMINABLE NESTED TARGET. The
-# target is only judged when it can be resolved statically: a literal path,
-# relative paths resolved against the payload `cwd` composed with wrapper
-# chdirs (`env -C`, `sudo -D`) and `git -C` values. A path carrying an
-# unexpanded `$`/backtick, a segment after a `cd`/`pushd`/`popd` (the effective
-# directory is a runtime fact), a missing payload cwd for a relative path, or a
-# command this hook cannot tokenize all ALLOW: a misplaced worktree is
-# reversible (`git worktree remove`), so blocking arbitrary Bash on a guess is
-# the worse failure. Same posture and same wrapper/segment machinery as the
-# sibling pr-body-linkage-gate; jq gate is the fail-open hook::require jq per
-# the posture doctrine in hook-utils.sh (this guard fails closed on no other
-# unparsable-input condition, so it does not join the fail-closed class).
-#
-# DECLARED BYPASS COVERAGE (out of scope, documented): the PowerShell tool
-# (Bash-matcher hook; the PowerShell classifier is guardrails-owned and not
-# vendored here); `git -C` / `--work-tree` values that are themselves dynamic;
-# a worktree created by a program the command runs (a script, make target, or
-# `gh` extension); and `EnterWorktree(name:)`, which is not a Bash call and is
-# therefore invisible to any Bash-scoped hook — its misplacement is handled by
-# the WorktreeCreate hook (worktree-create-gate.sh) for harness-driven
-# creations, and the `/worktree create` skill is contractually forbidden from
-# calling the name form at all (SKILL.md safety invariants). Whether
-# EnterWorktree(name:) fires WorktreeCreate on the current harness is recorded
-# where it is measured, skills/worktree/fixtures/README.md, not asserted here.
-#
-# Kill switch: worktree_add_containment_gate_enabled userConfig option.
-#
-# BLOCKING: exits 2 naming the resolved target, what encloses it, and the
-# configured root (worktreeroot.path key, then the worktree_root plugin
-# option, then the plugin data dir) so the remedy is concrete.
-
 set -uo pipefail
 
-# Kill switch FIRST, above every source: a disabled guard must not pay to parse
-# hook-utils.sh. scripts/check-killswitch-hoist.sh pins this line to
-# hook::is_enabled's semantics.
 [[ "${CLAUDE_PLUGIN_OPTION_WORKTREE_ADD_CONTAINMENT_GATE_ENABLED:-true}" == "true" ]] || exit 0
-# Parameter expansion, not `dirname`: a command substitution forks, which is a
-# process on Windows Git Bash. A bare filename strips to itself, so it means `.`.
 HOOK_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$HOOK_DIR" == "${BASH_SOURCE[0]}" ]] && HOOK_DIR=.
 
@@ -75,30 +15,16 @@ hook::buffer_stdin_to INPUT || exit 0
 
 hook::require jq "PreToolUse" "source-control" "$INPUT"
 
-# Fed through `printf '%s' "$INPUT" | jq`, never a here-string: bash fills a
-# here-string's pipe itself, so a payload at or above the 64 KiB pipe capacity
-# blocks the shell before jq runs, and the timed-out hook fails open. CRs are
-# stripped by parameter expansion rather than a `tr` stage.
 COMMAND=$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty' 2>/dev/null)
 COMMAND="${COMMAND//$'\r'/}"
 [[ -n "$COMMAND" ]] || exit 0
-# Applicability pre-filter before any parsing: `git` as its own word (or a
-# path's last segment) plus both subcommand words, so an unrelated Bash call
-# never pays for the tokenizer. The command text is pre-tokenizer, so quotes
-# count as boundaries.
 [[ "$COMMAND" =~ (^|[^[:alnum:]_.-])[Gg][Ii][Tt][^[:alnum:]_-] ]] || exit 0
 [[ "$COMMAND" == *worktree* ]] || exit 0
 [[ "$COMMAND" == *add* ]] || exit 0
 
-# Same `printf | jq` feed and parameter-expansion CR strip as the command read.
 HOOK_CWD=$(printf '%s' "$INPUT" | jq -r '.cwd // empty' 2>/dev/null)
 HOOK_CWD="${HOOK_CWD//$'\r'/}"
 
-# git_unlocated <git-args…> — run git with the locating env vars unset, so an
-# inherited GIT_DIR cannot skew a probe's answer (#972 discipline, same as
-# hook::in_git_working_tree). The unset is confined to the subshell, so it never
-# reaches the hook's own environment. The `2>/dev/null` sits on the subshell so
-# bash execs git in it rather than forking again.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 git_unlocated() {
   (
@@ -108,12 +34,6 @@ git_unlocated() {
   ) 2>/dev/null
 }
 
-# repo_enclosing <abs-target> — if the target's nearest existing ancestor sits
-# inside a git working tree or a git directory, print a two-line
-# "<kind>\n<detail>" and return 0; return 1 otherwise. The walk probes the
-# target's PARENT side, never the target itself (the target must not exist for
-# `git worktree add` to succeed anyway). Every probe goes through
-# `git_unlocated` so an inherited GIT_DIR cannot skew the answer.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 repo_enclosing() {
   local target="$1" probe parent top inside gitdir
@@ -140,14 +60,6 @@ repo_enclosing() {
   return 1
 }
 
-# configured_root <repo-hint-dir> — the root the block message names, resolved
-# with the same precedence the creation helper uses: worktreeroot.path from
-# the repository the command targets (includes
-# on, last value wins, gated on the repository actually resolving — never the
-# silent dubious-ownership global fallback), then the plugin option, then the
-# plugin data dir. Echoes empty when nothing is configured. Empty last value
-# on a key is unusable and falls through — same contract as
-# scripts/worktree-root-resolve.sh / worktree-create.sh.
 # shellcheck disable=SC2329  # reached via the hook::bash_parse_segments callback chain
 configured_root() {
   local hint="$1" r=""
@@ -157,7 +69,6 @@ configured_root() {
   fi
   if [[ -z "$r" ]]; then
     r="${CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT:-}"
-    # An unexpanded ${user_config placeholder is an unset value.
     # shellcheck disable=SC2016  # the single-quoted token is matched literally
     [[ "$r" == *'${user_config'* ]] && r=""
   fi
@@ -181,12 +92,6 @@ block() {
   exit 2
 }
 
-# The parse, the `cd`/`pushd`/`popd` poisoning, the wrapper/`-C` base
-# composition and the add-target walk are worktree-path-lib.sh's, shared
-# verbatim with the claim sibling so the two gates can never disagree about
-# which target a command names. The nesting verdict is this hook's alone, and
-# WORKTREE_ADD_BASE carries the composed effective directory the block message
-# needs as its repository hint.
 # shellcheck disable=SC2329  # invoked indirectly as the hook::bash_parse_segments callback
 check_segment() {
   local abs verdict kind detail

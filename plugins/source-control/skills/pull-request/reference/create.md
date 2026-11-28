@@ -21,50 +21,26 @@
    **Detection:**
 
    ```bash
-   # Am I in a worktree?
-   GIT_COMMON=$(git rev-parse --git-common-dir 2>/dev/null)
-   GIT_DIR=$(git rev-parse --git-dir 2>/dev/null)
-   if [[ "$GIT_COMMON" != "$GIT_DIR" ]]; then
-     # .worktreeinclude lives at the repo root and its globs are root-relative —
-     # run from the worktree toplevel, not wherever the session happens to be.
-     cd "$(git rev-parse --show-toplevel)" || return
-     MAIN_ROOT=$(git worktree list | head -1 | awk '{print $1}')
-     # Read .worktreeinclude patterns (one per line, .gitignore syntax)
-     while IFS= read -r pattern; do
-       [[ -z "$pattern" || "$pattern" == \#* ]] && continue
-       # Worktree side: modified or new files. An unmatched glob stays
-       # literal — skip it (no phantom CHANGED for absent files).
-       for f in $pattern; do
-         [[ -f "$f" ]] || continue
-         if [[ -f "$MAIN_ROOT/$f" ]]; then
-           diff -q "$f" "$MAIN_ROOT/$f" >/dev/null 2>&1 || echo "CHANGED: $f"
-         else
-           echo "CHANGED (new): $f"
-         fi
-       done
-       # Main side: a carried file deleted in the worktree no longer expands
-       # locally — expand from MAIN_ROOT too. ABSENT is ambiguous: the file may
-       # have been deleted here, or never copied at all (manual `git worktree
-       # add`, or a worktree created before .worktreeinclude existed).
-       for m in "$MAIN_ROOT"/$pattern; do
-         [[ -f "$m" ]] || continue
-         f="${m#"$MAIN_ROOT"/}"
-         [[ -f "$f" ]] || echo "ABSENT here (deleted, or never carried): $f"
-       done
-     done < .worktreeinclude
-   fi
+   # Uses git ls-files -o -i -z --exclude-from intersected with git check-ignore --stdin -z.
+   # Exit 0: clean (or not a linked worktree / no .worktreeinclude).
+   # Exit 1: differences printed as TSV: status<TAB>relpath<TAB>main_path (MODIFIED | NEW | ABSENT).
+   # Exit 3: unreadable worktree, main root, or .worktreeinclude (fail closed).
+   bash "<plugin-root>/scripts/worktree-include.sh" diff
    ```
 
-   **If differences found:**
+   **If differences found (exit 1):**
 
-   1. Show diff for each changed file (`diff --unified "$MAIN_ROOT/$f" "$f"`; for a `(new)` file
-      diff against `/dev/null`, since main has no copy yet; for an `ABSENT` file show main's copy)
+   1. Show unified diffs with `bash "<plugin-root>/scripts/worktree-include.sh" diff --unified`.
    2. Show active worktrees (`git worktree list`). If >1 worktree exists beyond main, warn: *"Other active worktrees have their own copies of this file. Overwriting main's copy won't affect existing worktrees but will affect future ones."*
    3. Present options per file:
       - **Copy to main:** overwrite main's copy with worktree's version. Safe for cosmetic changes (reordering), new additions, or when this is the only active session
       - **Skip:** proceed without syncing. User accepts that worktree changes will be lost on cleanup
       - For an `ABSENT` file only: **Remove from main**, offered only if the user confirms the file was deliberately deleted in this worktree this session. ABSENT is ambiguous (a manual or pre-`.worktreeinclude` worktree never received the copy), so default to **Skip**; never remove main's copy without that explicit confirmation
-   4. If user chooses "copy to main": `mkdir -p "$(dirname "$MAIN_ROOT/$f")" && cp "$f" "$MAIN_ROOT/$f"` (a new topic slug has no parent directory in main yet); confirmed deliberate deletion: `rm "$MAIN_ROOT/$f"`
+   4. Apply the user's choices through `worktree-include.sh sync-back` (which rejects path traversal or any path outside the `.worktreeinclude` ∩ `.gitignore` intersection, and exits 2 without writing when main's copy changed since the worktree's copy was made: show the user both versions and let them merge by hand):
+
+      ```bash
+      bash "<plugin-root>/scripts/worktree-include.sh" sync-back . --copy "<relpath>" --remove "<confirmed-absent-relpath>"
+      ```
 
    **Why here (not WorktreeRemove hook):** this is the last checkpoint where the user is engaged and can inspect a diff. A WorktreeRemove hook cannot prompt, and this plugin's (`hooks/worktree-remove-gate.sh`) compares no carried file. A silent copy could overwrite concurrent session changes. One mechanism per concern.
 
@@ -455,7 +431,7 @@ other issue or pull request without one, for example `delivered by #M` or `follo
 
 - **Pointer**: GitHub's [Linking a pull request to an issue using a keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword), for the keywords and where in a body they apply.
 
-**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}`; `${SIBLINGS_LINE}` (§2.4.0) when non-empty, at the first column directly below it; when §2.7's `--hold` gave a line, that line on its own line below those, before the first `##` block, so the §2.4.2 gates check the body the PR opens with; a blank line when any is non-empty; then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the `## Acceptance criteria` block when a plan supplied one and no scaffold heading holds it, then the `## Remaining` block for a `Refs:` link, then the `## Glossary candidates` block when an unattended run coined a term, then the `## Loosened checks` block when prep listed an entry, then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
+**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}`; `${SIBLINGS_LINE}` (§2.4.0) when non-empty, at the first column directly below it; a blank line when either is non-empty; then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the `## Acceptance criteria` block when a plan supplied one and no scaffold heading holds it, then the `## Remaining` block for a `Refs:` link, then the `## Glossary candidates` block when an unattended run coined a term, then the `## Loosened checks` block when prep listed an entry, then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
 
 **Why a file, not a shell variable:** the Write tool's content is a JSON string no shell parses, so a `$(...)`, `${...}` or backtick typed into the orphan-PR or multi-issue prompt stays literal, and a long body never pushes a Bash command past the tool's length cap (inline `--body` calls were rejected for length on an unattended lane). The §2.4.2 gates read the same file `--body-file` hands to `gh`.
 
@@ -663,6 +639,7 @@ and write targets that repository, and names the number.
 - **Open state:** always a draft at creation (`ready` flips it when the state resolves to `ready`). A draft owes no review: review lanes that filter
   drafts skip it, so opening ready for review would claim a review that has not happened.
   `/source-control:pull-request ready` performs the flip ([ready-for-review.md](ready-for-review.md)).
+- **Held create:** §2.7's `--hold` opens the PR with the `do-not-merge` label.
 
 **Sandboxed sessions: open the PR over REST.** The CLI's PR create sends a GraphQL query before touching the pull-request API, so under §2.4.0's GraphQL restriction it returns `HTTP 403` having created nothing. The REST pull-request endpoint works, with these differences: the base branch must be passed (resolved over REST as well, since §2.2's repository read 403s alongside the rest), a head from a fork must be namespaced `<fork-owner>:<branch>`, the body is sent from its file, `draft` is sent as a boolean, and the response carries the PR number and URL ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-over-rest)). Placeholder expansion and the out-of-tree anchoring rule are as stated in §2.4.0, and apply to both of its calls.
 
@@ -723,10 +700,10 @@ BRANCH=$(git -C "$WT" branch --show-current)
 
 - `--draft '<reason>'` is §2.4.3's request level, the same flag the normal `create` path takes,
   for example `Draft: merge hold unread`.
-- `--hold '<line>'` takes a line starting `Hold:`, which §2.4.1's body composition places
-  below `${CLOSES_LINE}` and any `Siblings:` line in `$BODY_FILE` before the §2.4.2 gates run, so the PR opens
-  with the hold before `ready --unattended` can flip it. A value not starting `Hold:` is refused:
-  stop and report it.
+- `--hold` takes no value: §2.4.3's create adds the `do-not-merge` label, so the PR opens with its
+  merge held; the label never holds the ready flip. Where the label cannot be set at create, the
+  provider reference labels the PR right after; when that fails, report it, leave the PR a draft
+  and skip Phase 2.5 ([GitHub](../../../reference/providers/github/pull-request/create.md#label-a-held-pr-over-rest)).
 
 **Sub-steps relative to the normal `create` path:**
 

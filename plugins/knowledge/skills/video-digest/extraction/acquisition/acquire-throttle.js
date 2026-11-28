@@ -1,7 +1,3 @@
-/**
- * Process-wide throttle for concurrent yt-dlp acquisition runs.
- */
-
 import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
@@ -14,8 +10,6 @@ const DEFAULT_MAX_CONCURRENT = 1;
 const ABSOLUTE_MAX_CONCURRENT = 3;
 const LOCK_STALE_MS = 15 * 60 * 1000;
 const LOCK_POLL_MS = 250;
-// Refresh a held slot's mtime well inside the stale TTL so a long-running
-// acquisition is never misclassified as stale and reclaimed by a peer.
 const SLOT_HEARTBEAT_MS = 5 * 60 * 1000;
 
 /**

@@ -1,5 +1,5 @@
 ---
-description: "Accept the recommendations in the agent's latest message after a full evidence check: each is re-grounded in the affected code and current sources, changed or unconfirmable ones come back as old, new and why, and plain-word exceptions override single items. Use when: 'go with recommendations', 'go with your recommendations', 'approve', 'accept all', 'do what you recommended'."
+description: "Accept the agent's latest recommendations after re-grounding each in code/sources, surfacing changed or unconfirmable items; supports exceptions."
 argument-hint: "[exception ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -12,7 +12,8 @@ metadata:
 /go-with-recommendations except Q3: use the queue, /go-with-recommendations skip the rename
 
 Accepting is the person's decision; this skill makes sure what they accept still stands on current
-evidence before any of it runs.
+evidence before any of it runs. Running it is the same accept as typing "go with recommendations",
+with any exceptions typed after it; a record that quotes the reply may quote either form.
 
 ## 1. Collect the recommendations
 

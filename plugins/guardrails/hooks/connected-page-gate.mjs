@@ -30,7 +30,7 @@ function connected(path, cwd) {
   try {
     text = head(resolve(cwd, path));
   } catch {
-    return false; // unreadable: the Artifact tool fails on it anyway
+    return false;
   }
   if (!HTML_NAME.test(path) && !HTML_SNIFF.test(text.slice(0, 1024))) return false;
   return loopbackConnect(text);
@@ -61,7 +61,6 @@ process.stdin.on('end', () => {
       },
     }));
   } catch {
-    // fail-open
   }
   process.exit(0);
 });

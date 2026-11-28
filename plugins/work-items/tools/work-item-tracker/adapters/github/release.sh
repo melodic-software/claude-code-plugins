@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# release <id> --lease-comment-id <n> [--holder <h>] — CONTRACT.md "Lease protocol". Ends the
-# caller's own live lease early by adding superseded_at in place, then unassigns the
-# holder unless another live lease of that holder remains. The PATCH routes through the
-# same writer that posted the lease comment (bot).
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -42,8 +38,6 @@ emit() {
       released: $released, reason: $reason}'
 }
 
-# The comment REST path is repo + comment id, not issue-scoped, so a stale or
-# cross-issue handle would otherwise supersede a different item's lease.
 wit_run_gh read api "repos/$owner/$repo/issues/comments/$lease_comment_id" \
   --jq '{body, issue: (.issue_url | capture("/issues/(?<n>[0-9]+)$") | .n)}'
 comment_issue="$(jq -r '.issue // empty' <<<"$WIT_GH_OUT")"
@@ -58,9 +52,6 @@ if [[ -z "$lease_json" ]]; then
   exit "$EX_CONFLICT"
 fi
 
-# Comment ids are public, so the handle alone would let any session end another
-# login's lease. Same-login sessions are told apart by the handle, as for renew-lease.
-# --holder stands in for the login where `gh api user` cannot run (an installation token).
 if [[ -n "$holder_override" ]]; then
   login="$holder_override"
 else
@@ -69,8 +60,6 @@ else
 fi
 holder="$(jq -r '.holder // empty' <<<"$lease_json")"
 
-# Every exit-0 path for the caller's own lease hands the assignee back too, since the caller
-# relies on release for it; another login's superseded lease exits 0 with no write.
 hand_back() {
   [[ "$holder" == "$login" ]] && wit_hand_back_assignee "$owner" "$repo" "$number" "$login" "$lease_comment_id"
   emit "$1" "$2"
@@ -94,9 +83,6 @@ fi
 leases="$(wit_list_lease_comments "$owner" "$repo" "$number")" || exit "$?"
 now_epoch="$(date -u +%s)"
 
-# An expired lease already blocks nobody; superseding it is reclaim's business. It is
-# still refused under a newer non-superseded lease, as a stale handle, and the assignee
-# goes back unless that lease or another live one is this login's.
 if ! wit_lease_is_live "$lease_json" "$now_epoch"; then
   wit_select_active_lease "$leases"
   if [[ "$WIT_ACTIVE_LEASE_ID" != "$lease_comment_id" ]]; then
@@ -108,8 +94,6 @@ if ! wit_lease_is_live "$lease_json" "$now_epoch"; then
   hand_back false "lease already expired"
 fi
 
-# The holder is the earliest live lease (claim step 4); a newer live lease is a claimant
-# that has not backed off yet and does not stop the holder's release.
 wit_lease_winner "$leases" "$now_epoch" "$lease_comment_id" wit_lease_released_by_run
 if [[ "$WIT_WINNER_ID" != "$lease_comment_id" ]]; then
   outcome="lease superseded"

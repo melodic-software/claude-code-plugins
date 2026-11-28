@@ -35,7 +35,7 @@ test("other plugin files, and a skills directory outside plugins/<name>/, select
   );
 });
 
-test("any changed path of a selected plugin outside skills/, agents/, context/ and evals/ is refused; another plugin's is not", () => {
+test("any changed path of a selected plugin outside skills/, agents/, context/, evals/, reference/ and README.md is refused; another plugin's is not", () => {
   const paths = [
     "plugins/testing/evals/c/graders/g.md",
     "plugins/testing/hooks/hooks.json",
@@ -46,13 +46,30 @@ test("any changed path of a selected plugin outside skills/, agents/, context/ a
     "plugins/testing/bin/tool",
     "plugins/testing/commands/c.md",
     "plugins/testing/output-styles/s.md",
-    "plugins/testing/README.md",
+    "plugins/testing/docs/README.md",
     "plugins/review/hooks/hooks.json",
   ];
-  assert.deepEqual(
-    refusals(paths, selectPlugins(paths)).map((line) => line.split(":")[0]),
-    paths.slice(1, -1),
-  );
+  const out = refusals(paths, selectPlugins(paths));
+  assert.deepEqual(out.map((line) => line.split(":")[0]), paths.slice(1, -1));
+  assert.ok(out.every((line) => line.endsWith("outside skills/, agents/, context/, evals/, reference/ and README.md")), out.join("\n"));
+});
+
+test("reference/ markdown and the plugin README.md never select a plugin, and pass the skill markdown rules beside a suite change", () => {
+  assert.deepEqual(selectPlugins(["plugins/x/reference/a.md", "plugins/x/README.md"]), []);
+  const read = (text) => (side) => (side === "base" ? "Old.\n" : text);
+  for (const path of ["plugins/x/reference/a.md", "plugins/x/reference/deep/b.md", "plugins/x/README.md"]) {
+    assert.deepEqual(refusals([path], ["plugins/x"], read("New.\n")), [], path);
+    assert.deepEqual(refusals([path], ["plugins/x"], read("Run !`id` now.\n")), [`${path}: adds or changes a ! shell-preprocessing line`]);
+    assert.deepEqual(refusals([path], ["plugins/x"], read(SKILL("hooks:\n  SessionStart: []"))), [`${path}: changes frontmatter hooks`]);
+    assert.deepEqual(refusals([path], ["plugins/x"]), [`${path}: cannot be read to inspect`]);
+  }
+});
+
+test("a non-markdown file under reference/ is refused", () => {
+  const out = run("plugins/x/reference/run.sh\nplugins/x/reference/data.json\nplugins/x/evals/c/prompt.md\n");
+  assert.equal(out.status, 1);
+  assert.match(out.stderr, /reference\/run\.sh: not markdown/);
+  assert.match(out.stderr, /reference\/data\.json: not markdown/);
 });
 
 test("a script that an unchanged hook calls, changed beside an eval, is refused", () => {
@@ -60,6 +77,15 @@ test("a script that an unchanged hook calls, changed beside an eval, is refused"
   assert.equal(out.status, 1);
   assert.equal(out.stdout, "");
   assert.match(out.stderr, /plugins\/x\/scripts\/h\.sh: outside/);
+});
+
+test("a CRLF path list is read like an LF one, so a hooks script beside an eval is refused either way", () => {
+  for (const eol of ["\n", "\r\n"]) {
+    const out = run(`plugins/x/scripts/h.sh${eol}plugins/x/evals/c/prompt.md${eol}`);
+    assert.equal(out.status, 1, JSON.stringify(eol));
+    assert.equal(out.stdout, "", JSON.stringify(eol));
+    assert.match(out.stderr, /^plugins\/x\/scripts\/h\.sh: outside skills\/, agents\/, context\/, evals\/, reference\/ and README\.md$/m, JSON.stringify(eol));
+  }
 });
 
 test("a path git quoted is refused, since its real name is unknown", () => {
@@ -208,8 +234,6 @@ test("the command prints nothing for no match, and refuses a selected plugin who
   assert.match(unread.stderr, /plugins\/testing: its tree cannot be read/);
 });
 
-// A repository whose commits are built from the index, so a symlink (120000)
-// or gitlink (160000) entry needs no filesystem link.
 const linkRepo = () => {
   const repo = mkdtempSync(join(tmpdir(), "select-plugins-links-"));
   const git = (...args) => execFileSync("git", ["-C", repo, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8" }).trim();
@@ -333,7 +357,7 @@ test("the command lets a context/ markdown edit through and refuses one beside p
     for (const other of ["plugins/x/.claude-plugin/plugin.json", "plugins/x/probes/p.md"]) {
       const out = run(`plugins/x/context/rules.md\n${other}\n`, ["--repo", repo, "--base", base, "--head", head]);
       assert.equal(out.status, 1, other);
-      assert.ok(out.stderr.includes(`${other}: outside skills/, agents/, context/ and evals/`), out.stderr);
+      assert.ok(out.stderr.includes(`${other}: outside skills/, agents/, context/, evals/, reference/ and README.md`), out.stderr);
     }
   } finally {
     rmSync(repo, { recursive: true, force: true });
@@ -418,7 +442,6 @@ test("a case loading a plugin outside its own, or a stub directory the pull requ
   ]);
 });
 
-// The two attack paths from the security review, end to end through git.
 test("the command refuses a stub plugin with a SessionStart hook added under evals/", () => {
   const { repo, blob, entry, commit } = linkRepo();
   try {

@@ -10,7 +10,6 @@ const read = (p) => JSON.parse(readFileSync(join(PLUGIN, p), "utf8"));
 const table = read("reference/concerns.json");
 const opts = { pluginRoot: PLUGIN, schema: read("reference/concerns.schema.json"), routing: read("reference/routing.json") };
 const check = (t) => checkConcerns(t, opts);
-/** The table with its first row changed by `edit`. */
 const withRow = (edit) => {
   const t = structuredClone(table);
   edit(t.concerns[0], t);
@@ -21,7 +20,6 @@ test("concerns.json validates", () => {
   assert.deepEqual(check(table), []);
 });
 
-// Expected values: the motion row the plan's concern-table design names.
 test("the motion row reads the four animation spokes and both animation routing concerns", () => {
   const motion = table.concerns.find((c) => c.id === "motion");
   assert.deepEqual(motion.spokes.map((s) => s.path), [
@@ -40,7 +38,6 @@ test("a missing spoke file is rejected", () => {
 });
 
 test("a spoke path that leaves the plugin root is rejected", () => {
-  // A real file of a sibling plugin: it exists, so only the root guard rejects it.
   const path = "reference/../../user-experience/reference/flows-ia.md";
   assert.deepEqual(check(withRow((c) => (c.spokes[0].path = path))), [`$.concerns[0].spokes[0].path: ${path} leaves the plugin root`]);
 });
@@ -49,12 +46,12 @@ test("a missing recipe or procedure file is rejected", () => {
   const errors = check(
     withRow((c) => {
       c.recipes = ["skills/write-css/reference/no-such-recipe.md"];
-      c.audit.procedure = "skills/audit/reference/no-such-lane.md";
+      c.audit.procedure = "skills/audit/reference/no-such-concern.md";
     }),
   );
   assert.deepEqual(errors, [
     "$.concerns[0].recipes[0]: no file skills/write-css/reference/no-such-recipe.md",
-    "$.concerns[0].audit.procedure: no file skills/audit/reference/no-such-lane.md",
+    "$.concerns[0].audit.procedure: no file skills/audit/reference/no-such-concern.md",
   ]);
 });
 

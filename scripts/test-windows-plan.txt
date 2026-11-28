@@ -11,6 +11,7 @@
 # that these lines and the workflow's step conditions name the same keys.
 test-windows-rename-1 plugins/docs-naming/skills/realign-file-names/scripts/apply-rename.test.sh
 test-windows-rename-1 plugins/guardrails/hooks/run-guards.test.sh
+test-windows-rename-1 scripts/pre-push-timing.test.sh
 test-windows-rename-2 plugins/docs-naming/skills/realign-file-names/scripts/apply-rename.test.sh
 test-windows-rename-2 scripts/check-pipefail-grep-q.test.sh
 test-windows-rename-2 scripts/check-drive-root-litter.test.sh

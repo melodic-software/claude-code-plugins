@@ -3,6 +3,31 @@
 All notable changes to the `mcp-tools` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.9] - 2026-11-28
+
+### Changed
+
+- Trimmed `mcp-tools` skill frontmatter descriptions (`audit` 941 -> 347 chars, `audit-posture` 963 -> 374 chars; total 1904 -> 721 chars, -1183 chars) while preserving scorecard scope, the P1-P4 scored supply-chain checks and the P5 inventory (P1 now names `npx @latest` as one floating-version case), never-executes/never-prints-env safety posture, and sibling boundaries.
+
+## [0.9.8] - 2026-11-27
+
+### Changed
+
+- `/mcp-tools:audit` links the Claude Code MCP page sections that own result-size limits and each `_meta` annotation instead of the bare page, and `/mcp-tools:audit-posture` points at the MCP installation scopes and environment variables references for where user and local servers live ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [0.9.7] - 2026-11-27
+
+### Added
+
+- The tool audit's checklist records the server capabilities no criterion grades (serving skills, answering a long call with a task, asking the user through elicitation), with links to where each is documented, for a review of a server we build or update.
+- The posture audit's checklist records that a configured server's skills are reviewed with the server, on each pinned version bump and for a remote server at any time, with links to the scanning and serving docs.
+
+## [0.9.6] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.9.5] - 2026-11-24
 
 ### Changed

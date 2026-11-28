@@ -47,24 +47,16 @@ from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
+from pathlib import Path
+
+_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
+
+import transcript_sources  # noqa: E402  (path set above; plugin-bundled module)
 
 MIN_PYTHON = (3, 11)
 
-# 1.1.0: `listing` gains `inputs` (settings and environment provenance) and,
-# when no window or bytes-per-token pin is given, a `band` array with the
-# top-level numbers nulled. Every 1.0.0 field is still present.
-# 1.3.0: reachability gains `not-enabled` (cause `plugin-never-enabled`);
-# consumers keyed on `hidden` for "plugin off" must also accept it.
-# 1.4.0: `hidden` gains cause `settings-file-rejected`.
-# 1.5.0: `overflow_chars` is the whole rendered listing (`listing_chars`)
-# over budget, not descriptions alone; `listing` and every band row gain
-# `floor_chars` and `listing_chars` (band rows also `demand_chars`), `listing`
-# gains `coverage` and, with --listing-capture, `capture`; eligibility gains
-# `exempt-name-only`; rows may be user or project skills, plugin commands or
-# workflows (`kind`).
-# 1.6.0: `listing.verdict` and band rows gain `overflow-unconfirmed`;
-# `listing.capture` gains `not_in_fleet`; a withheld starvation row may carry
-# reason `capture-mismatch`.
 SCHEMA_VERSION = "1.6.0"
 
 
@@ -94,14 +86,9 @@ def is_usage_evidence(entry: dict) -> bool:
     return int(entry.get("usageCount", 0) or 0) > 0
 
 
-# What each tier can actually answer. A claim is rendered only where it is
-# supported -- the alternative is a report whose confidence silently varies with
-# whichever sources happened to be present on the machine.
 TIER_CAPABILITIES = {
     "T-full": {"invocation_trigger", "windowed_count", "per_repo", "lifetime_count"},
     "T-local": {"windowed_count", "per_repo", "lifetime_count"},
-    # Native counters are lifetime-since-install and never windowed, so no
-    # windowed claim is honest at this tier.
     "T-baseline": {"lifetime_count"},
     "T-none": set(),
 }
@@ -110,7 +97,6 @@ REDACTED_SKILL_NAME = "custom_skill"
 
 
 def resolve_tier(sources: set[str]) -> str:
-    """Richest tier the present sources can support."""
     if "otel" in sources:
         return "T-full"
     if "jsonl" in sources:
@@ -124,41 +110,6 @@ def tier_supports(tier: str, claim: str) -> bool:
     return claim in TIER_CAPABILITIES.get(tier, set())
 
 
-# Claude Code's own listing-budget scorer, mirrored so the starvation band can
-# predict which descriptions the product will actually drop. Before this existed
-# the band sorted on a field nothing populated, so it rendered alphabetical order
-# dressed as usage-informed.
-#
-# -- Verification stamp (docs/contracts/upstream-drift) ----------------------
-# Claim: the product ranks skills for description truncation by
-#   `usageCount * max(0.5 ** (daysSinceUse / 7), 0.1)`, sorts that score
-#   descending, then walks EVERY competing entry with a running description
-#   budget, granting whatever fits and rendering the rest name-only. The walk is
-#   greedy first-fit with no early exit, so it is not a score-ordered prefix and
-#   description length is a second ranking input.
-# Basis: string extraction of `claude.exe`, first at Claude Code 2.1.251 (`zPe`
-#   the scorer, `Ymt` the truncator, plus the scorer's two other call sites, the
-#   slash-menu top-5 pin and the command-search score boost), then RE-VERIFIED
-#   unchanged at 2.1.252 and again at 2.1.263, where the truncation runs in two
-#   places with identical semantics (the system-prompt listing, which collects
-#   grants, and `budgetTruncatedSkills`, which collects refusals). Evidence in
-#   reference/listing-scorer.md, beside this skill. Re-verified at 2.1.289,
-#   together with the fit check `compute_listing` mirrors (the whole rendered
-#   listing against the budget) and the 3-bytes-per-token default for every
-#   model outside the product's 4-byte list.
-# As-of: 2026-10-04, re-verified against Claude Code 2.1.289.
-# Locate it by SHAPE, never by name. The minified identifier is not stable across
-#   builds: the scorer was `zPe` in 2.1.251, `WPe` in 2.1.252 and `t$e` in
-#   2.1.263, with a byte-identical body. Grep for the arithmetic instead, e.g.
-#   `grep -a -o -E '.{0,180}Math\.pow\(0\.5,.{0,180}' <claude binary>`, and for
-#   the truncator `budgetTruncatedSkills`.
-# Reasoning and the counters' own semantics: reference/listing-scorer.md and
-#   reference/usage-counters.md, beside this skill.
-# Recheck trigger: a release note naming the skill listing, its character budget,
-#   or skill usage counters; or the counters changing shape in `~/.claude.json`.
-# On mismatch: the report must degrade to `score_basis: "unscored"` and say the
-#   ordering is unknown. A confidently wrong band is worse than no band.
-# -----------------------------------------------------------------------------
 LISTING_SCORE_HALF_LIFE_DAYS = 7.0
 LISTING_SCORE_FLOOR = 0.1
 
@@ -189,12 +140,6 @@ def resolve_event_keys(
     ambiguous key is returned for the withheld section instead of being spent.
     """
     qualified = {entry["qualified_name"] for entry in denominator}
-    # Owners are counted per ENTRY, not per distinct qualified name. Two
-    # marketplaces shipping the same plugin produce two denominator rows with an
-    # identical qualified name, which the report already marks
-    # `ambiguous-attribution`. Collapsing them into a set would let a bare key
-    # pass the single-owner test and then be reported on BOTH rows, inventing
-    # usage for an attribution the audit already knows it cannot make.
     leaf_owners: dict[str, list[str]] = defaultdict(list)
     for entry in denominator:
         name = entry["qualified_name"]
@@ -246,11 +191,6 @@ def parse_native(
 
 
 def parse_jsonl(rows: list[str]) -> tuple[list[dict], datetime | None]:
-    """The plugin's own `skill-usage.jsonl` -> events.
-
-    A malformed row is skipped rather than fatal: this is an observability
-    store, and one bad line must not cost the whole report.
-    """
     events: list[dict] = []
     for raw in rows:
         try:
@@ -320,9 +260,6 @@ def _fold_lines(lines: list[str], separator: str) -> str:
     return text
 
 
-# The true spellings of a boolean frontmatter field. Pointer: for what a boolean
-# field accepts, fetch https://code.claude.com/docs/en/skills#frontmatter-reference
-# live. As of: 2026-11-04. Recheck trigger: that section changing its spellings.
 FRONTMATTER_TRUE = frozenset({"true", "yes", "on", "1"})
 
 
@@ -339,9 +276,6 @@ def _yaml_scalar(value: str, continuation: list[str]) -> str:
         indents = [len(ln) - len(ln.lstrip()) for ln in continuation if ln.strip()]
         cut = min(indents, default=0)
         body = [line[cut:] for line in continuation]
-        # No trailing newline whatever the chomping indicator: Claude Code
-        # 2.1.289 listed a `description: |` skill without the newline YAML
-        # keeps, one character shorter than a literal YAML load.
         if block.group(1) == ">":
             return _fold_lines(body, " ")
         return "\n".join(body).rstrip("\n")
@@ -431,15 +365,6 @@ def parse_command_frontmatter(text: str) -> dict:
 
 
 def collect_fleet(plugins_root: str) -> list[dict]:
-    """Walk a plugins root into denominator entries with frontmatter attached.
-
-    `inventory.py` owns "what is installed" but emits bare leaf names with no
-    frontmatter and no paths, so reachability cannot be answered from it alone
-    (a gap the design recorded). This walk supplies the frontmatter for the
-    skills it finds. It does not assess enablement: a checkout is not an
-    install, so `enabledPlugins` has nothing to say about it, and every entry
-    is marked `not-assessed` rather than `unknown`.
-    """
     entries: list[dict] = []
     if not os.path.isdir(plugins_root):
         return entries
@@ -448,8 +373,6 @@ def collect_fleet(plugins_root: str) -> list[dict]:
     return entries
 
 
-# The evidence marker a checkout walk carries instead of a settings path:
-# enablement is a property of an install, and a checkout is not one.
 ENABLEMENT_NOT_ASSESSED = "not-assessed"
 
 
@@ -568,8 +491,6 @@ def collect_local_skills(
             and configured
             else leaf
         )
-        # Two folders declaring one `name` list once; the first in folder
-        # order is the one counted.
         if any(e["qualified_name"] == name for e in entries):
             continue
         entries.append(
@@ -601,7 +522,6 @@ def _project_skill_dirs(project: str) -> list[str]:
             break
         parent = os.path.dirname(current)
         if parent == current:
-            # No repository above: only the starting directory loads.
             chain = chain[:1]
             break
         current = parent
@@ -645,7 +565,6 @@ SYNCED_PREFIX = "anthropic-skills:"
 
 
 def synced_skills_folder(config_root: str, claude_json_path: str) -> str | None:
-    """The signed-in account's synced-skills folder, or None with no account."""
     try:
         with open(claude_json_path, encoding="utf-8") as handle:
             account = (json.load(handle) or {}).get("oauthAccount") or {}
@@ -740,12 +659,6 @@ def parse_workflow_meta(text: str) -> dict | None:
     }
 
 
-# Scope precedence, highest first. NOT a guess and NOT re-derived here: the
-# rule is stated in this same plugin's
-# `skills/plugins/context/scope-semantics.md`, which verified it against the
-# official plugins-reference docs -- "the record that actually loads for a
-# given directory is the one at the highest-precedence scope present, never
-# simply 'the newest version installed.'"
 SCOPE_PRECEDENCE = ("local", "project", "user")
 
 
@@ -852,9 +765,6 @@ def resolve_installed(
 
         applicable = [e for e in installs if _install_applies(e, current_project)]
         if not applicable:
-            # Every record is a project/local install belonging to a DIFFERENT
-            # project. Real state, but it cannot load here, so it is reported
-            # and excluded rather than counted into the denominator.
             not_applicable.append(
                 {
                     "plugin": name,
@@ -870,9 +780,6 @@ def resolve_installed(
             applicable,
             key=lambda e: (_scope_rank(e.get("scope", "")), e.get("scope", "")),
         )
-        # A directory-source marketplace loads the CHECKOUT, so neither cached
-        # record is what runs and a "loads project X, superseding user Y" line
-        # would name two versions that are both beside the point.
         from_directory = (entry.get("source") or {}).get(
             "source"
         ) == "directory" and bool(location)
@@ -887,20 +794,12 @@ def resolve_installed(
                 }
             )
 
-        # A directory-source marketplace loads from the checkout rather than
-        # from the cached installPath, so the catalog -- not a hardcoded
-        # layout -- names where each plugin lives. `source` there is a path
-        # relative to installLocation; a plugin may legitimately declare `.`
-        # or a custom directory, so guessing `plugins/<name>` would silently
-        # miss it.
         root = winner.get("installPath", "")
         scope = winner.get("scope", "unknown")
         version = winner.get("version", "")
         if from_directory:
             declared = _catalog_source(entry, name)
             root = os.path.normpath(os.path.join(location, declared))
-            # The checkout is the code; the cached versions describe copies
-            # that are not being loaded, so neither is reported as running.
             scope, version = "marketplace-directory", ""
 
         resolved.append(
@@ -915,16 +814,8 @@ def resolve_installed(
 
     return {
         "plugins": resolved,
-        # Same plugin, several applicable scopes: resolved by the documented
-        # precedence rule, and the losing records are reported so the reader
-        # can see a project pin being outranked rather than wonder why a
-        # version they installed is not the one measured.
         "superseded": superseded,
-        # Project/local records owned by another project. Excluded from the
-        # denominator because they cannot load here.
         "not_applicable": not_applicable,
-        # Both numbers are reported so the collapse is auditable: a reader can
-        # see that N installs became M plugins rather than trusting that it did.
         "manifest_entries": entry_count,
         "plugins_resolved": len(resolved),
     }
@@ -958,11 +849,6 @@ def collect_installed(
         return _load_json(os.path.join(plugins_dir, name))
 
     marketplaces = _load("known_marketplaces.json")
-    # Attach EVERY marketplace's catalog (`<installLocation>/.claude-plugin/
-    # marketplace.json`, the same file `plugins/scripts/fleet-state.sh`
-    # reads). A directory-source marketplace needs it so the resolver honors
-    # the plugin's DECLARED source path instead of assuming a layout. A
-    # missing or unparsable catalog attaches an empty list.
     for entry in marketplaces.values():
         if not isinstance(entry, dict):
             continue
@@ -988,7 +874,6 @@ def collect_installed(
 
 
 def collect_native(claude_json_path: str) -> tuple[list[dict], datetime | None]:
-    """Read `~/.claude.json` -> events + horizon, or nothing if absent."""
     try:
         with open(claude_json_path, encoding="utf-8") as handle:
             blob = json.load(handle)
@@ -1000,21 +885,6 @@ def collect_native(claude_json_path: str) -> tuple[list[dict], datetime | None]:
     return parse_native(blob.get("skillUsage") or {}, _parse_ts(first_start))
 
 
-# -- Verification stamp (docs/contracts/upstream-drift) ----------------------
-# Claim: a session transcript (`~/.claude/projects/<project>/<session>.jsonl`)
-#   records the listing the model received as an `attachment` line of type
-#   `skill_listing` carrying `content` (the rendered listing, entries joined by
-#   newlines), `names` (entry names in order), `skillCount` and `isInitial`; a
-#   `model` attachment carries `identity.modelId`.
-# Basis: observed in a Claude Code 2.1.289 transcript, where `content` was
-#   149,934 characters for 289 names and matched the rendered entries plus
-#   288 newlines exactly. Not a published format.
-# As-of: 2026-10-04, Claude Code 2.1.289.
-# Recheck trigger: a release note naming transcripts or the skill listing, or
-#   this reader returning `not-read` on a fresh transcript.
-# On mismatch: the capture reports `not-read` with its reason and the verdict
-#   falls back to enumerated coverage; nothing is guessed from a partial parse.
-# -----------------------------------------------------------------------------
 def parse_listing_capture(lines: list[str]) -> dict:
     """The last full skill listing in a transcript, split into entries.
 
@@ -1087,7 +957,6 @@ def read_listing_capture(path: str) -> dict:
 
 
 def collect_jsonl(store_path: str) -> tuple[list[dict], datetime | None]:
-    """Read the skill-usage store, its rotated `.1` history first, if they exist."""
     rows: list[str] = []
     for path in (store_path + ".1", store_path):
         try:
@@ -1100,9 +969,6 @@ def collect_jsonl(store_path: str) -> tuple[list[dict], datetime | None]:
 
 COMPONENT = "audit-skill-visibility"
 
-# One safe path segment. Mirrors the pattern lib/state-key.sh validates its own
-# output against, so a hand-supplied key is held to the same bar as a derived
-# one. `..` cannot match: the first character class excludes `.`.
 SAFE_KEY_SEGMENT = re.compile(r"[a-z0-9][a-z0-9._-]*")
 
 
@@ -1132,15 +998,6 @@ def report_path(data_root: str, state_key: str, stamp: str) -> str:
             "overwrites the last"
         )
 
-    # The key becomes DIRECTORY COMPONENTS, and `makedirs` will happily build
-    # whatever it is told to. `strip('/')` only trims the ends, so a value like
-    # `../../../tmp/evil` would escape the plugin's namespace entirely and turn
-    # a report writer into an arbitrary-directory-creation primitive.
-    #
-    # `lib/state-key.sh` already validates the identities it produces against a
-    # strict segment pattern for exactly this reason, and `clean.sh` rejects the
-    # same shape in `--skill-usage-dir`. A caller-supplied key gets the same
-    # treatment here rather than trusting every future caller to pre-sanitize.
     segments = [s for s in state_key.strip("/").split("/") if s]
     if not segments or not all(SAFE_KEY_SEGMENT.fullmatch(s) for s in segments):
         raise ValueError(
@@ -1151,7 +1008,6 @@ def report_path(data_root: str, state_key: str, stamp: str) -> str:
 
 
 def append_history(path: str, entry: dict) -> None:
-    """Append one line to the run history. Never rewrites prior lines."""
     with open(path, "a", encoding="utf-8") as handle:
         handle.write(json.dumps(entry, sort_keys=True) + "\n")
 
@@ -1227,13 +1083,8 @@ class ListingConfig:
     budget_fraction: float = 0.01
     max_desc_chars: int = 1536
     bytes_per_token: int = 4
-    # The literal " - " the harness inserts between description and when_to_use.
     joiner_chars: int = 3
     env_char_budget: int | None = None
-    # Where `budget_fraction` came from: "fraction" for the documented default,
-    # "settings:<path>" for the settings file that supplied it, or
-    # "pin:--budget-fraction" for a command-line pin. Rendered as
-    # `budget_basis` unless the env override short-circuits the arithmetic.
     fraction_basis: str = "fraction"
 
 
@@ -1254,21 +1105,8 @@ def listing_budget_chars(cfg: ListingConfig) -> int:
 
 
 def budget_basis(cfg: ListingConfig) -> str:
-    """The `budget_basis` label one budget computation carries."""
     return "env-override" if cfg.env_char_budget is not None else cfg.fraction_basis
 
-
-# --- Settings scopes ---------------------------------------------------------
-#
-# The two listing keys are `Any file` scope keys, merged PER KEY across the
-# settings scopes with the precedence user < project < local < flag < policy:
-# the last scope that defines a key wins it. The flag scope (`--settings` on the
-# command line) lives inside the running session and cannot be observed from an
-# out-of-process script, so it is recorded as unread rather than as absent.
-# Environment variables are not a level in this stack. Basis:
-# https://code.claude.com/docs/en/settings (precedence) and the settings schema
-# text in the shipped binary; verified 2026-09-11 at Claude Code 2.1.263. Recheck when the
-# settings page's precedence list adds or reorders a scope.
 
 LISTING_SETTINGS_KEYS = ("skillListingBudgetFraction", "skillListingMaxDescChars")
 
@@ -1344,7 +1182,6 @@ ENABLED_PLUGINS_KEY = "enabledPlugins"
 
 
 def _non_boolean_plugins(settings: dict) -> list[str]:
-    """Each non-Boolean `enabledPlugins` entry, as `'key' is value`."""
     block = settings.get(ENABLED_PLUGINS_KEY)
     if not isinstance(block, dict):
         return []
@@ -1452,9 +1289,6 @@ def merge_enabled_plugins(layers: list[dict]) -> dict:
     }
 
 
-# The evidence a key no readable scope carries resolves to, the provenance
-# of the rule behind it, and the shape a key must have before it is
-# interpolated into a suggested shell command.
 NEVER_ENABLED = "no enabledPlugins scope names this plugin"
 NEVER_ENABLED_PROVENANCE = (
     "observed: claude plugin list --json fixture probe, Claude Code 2.1.280; "
@@ -1507,7 +1341,6 @@ def enablement_for(merged: dict, key: str) -> dict:
 
 
 def _read_settings_file(path: str) -> tuple[str, dict | None, str | None]:
-    """One settings file -> (status, parsed object or None, note)."""
     if not os.path.isfile(path):
         return "absent", None, None
     try:
@@ -1523,7 +1356,6 @@ def _read_settings_file(path: str) -> tuple[str, dict | None, str | None]:
 
 
 def _stub_layer(scope: str, path: str | None, status: str, note: str | None) -> dict:
-    """A scope that carries no settings, only the reason it carries none."""
     return {
         "scope": scope,
         "path": path,
@@ -1538,10 +1370,6 @@ def _settings_layer(scope: str, path: str) -> dict:
     return _stub_layer(scope, path, status, note) | {"settings": settings}
 
 
-# The bash shim the managed-scope enumeration runs. `$1` is the vendored
-# library, `$2` an optional base-file override (the library's own test seam,
-# passed through so a fixture can relocate the whole managed tree). The three
-# groups are separated by a bare `--` line so an empty group still parses.
 MANAGED_SCOPE_SHIM = (
     'source "$1" || exit 3; '
     'mscope::base_file "$2"; mscope::dropin_dir "$2"; '
@@ -1586,8 +1414,6 @@ def enumerate_managed_scope(
     if not os.path.isfile(lib_path):
         return _unreadable("vendored lib/managed-scope.sh is missing")
     if not os.path.dirname(bash):
-        # Windows CreateProcess searches System32 before PATH and would run
-        # the WSL relay bash.exe; resolve the name the way PATH does.
         resolved = shutil.which(bash)
         if resolved is None:
             return _unreadable(f"{bash} is not on PATH")
@@ -1623,9 +1449,6 @@ def enumerate_managed_scope(
         "lib": lib_path,
         "base_file": groups[0][0],
         "dropin_dir": groups[0][1],
-        # Registry keys and the preferences domain are policy surfaces this
-        # reader does not open; they are named so an empty file list is never
-        # mistaken for "no managed policy deployed".
         "unread_surfaces": groups[1] + groups[2],
     }
 
@@ -1685,23 +1508,6 @@ def settings_layers(project_root: str, config_root: str, managed: dict) -> list[
         )
     return layers
 
-
-# --- Context window and bytes per token ---------------------------------------
-#
-# Both are per model, and this script never resolves the model from disk: the
-# session's model is not written anywhere an out-of-process reader can trust.
-# The honest static report is a band over every combination, collapsed only by
-# an operator pin or by an environment variable the product itself honors.
-#
-# Window resolution assumes a model ID Claude Code recognizes, the only case
-# where `CLAUDE_CODE_MAX_CONTEXT_TOKENS` needs `DISABLE_COMPACT`: the variable
-# wins only when `DISABLE_COMPACT` is also set; else a truthy
-# `CLAUDE_CODE_DISABLE_1M_CONTEXT` forces 200k; else the active model decides,
-# which from outside the session means both windows. This script models
-# recognized IDs only and cannot tell the ID from outside the session, so for
-# any other ID, such as a gateway alias, the operator pins `--context-window`.
-# Which IDs the product treats how:
-# https://code.claude.com/docs/en/model-config#which-ids-claude_code_max_context_tokens-applies-to
 
 WINDOW_BAND: tuple[int, ...] = (200_000, 1_000_000)
 BYTES_PER_TOKEN_BAND: tuple[int, ...] = (4, 3)
@@ -1789,7 +1595,6 @@ def _window_label(window: int) -> str:
 
 
 def band_label(window: int, bytes_per_token: int) -> str:
-    """The row label a band entry carries, e.g. `1M/4`."""
     return f"{_window_label(window)}/{bytes_per_token}"
 
 
@@ -1810,13 +1615,6 @@ class ListingAxes:
 def build_listing_inputs(
     pins: Mapping[str, object], env: Mapping[str, str], layers: list[dict]
 ) -> tuple[ListingConfig, ListingAxes]:
-    """Turn pins, environment, and settings layers into the budget inputs.
-
-    `pins` holds the four command-line values (`context_window`,
-    `bytes_per_token`, `budget_fraction`, `max_desc_chars`), each None when
-    not given. A pin outranks a settings value, which outranks the default;
-    every choice is recorded in `ListingAxes.inputs` with its provenance.
-    """
     merged = merge_listing_settings(layers)
 
     fraction_pin = pins.get("budget_fraction")
@@ -1926,12 +1724,6 @@ def _demand_chars(entry: dict, cfg: ListingConfig) -> int:
 
 
 def _description_chars(entry: dict, cfg: ListingConfig) -> int:
-    """The uncapped length the listing would charge, joiner included.
-
-    Kept beside the capped charge because the two answer different questions:
-    the charge is what the budget counts, and the source length is what an
-    author has to trim, which only lowers the charge once it crosses the cap.
-    """
     frontmatter = entry.get("frontmatter") or {}
     description = frontmatter.get("description") or ""
     when_to_use = frontmatter.get("when_to_use") or ""
@@ -1981,30 +1773,18 @@ def compute_listing(
 
     rows: list[dict] = []
     demand = 0
-    # The grant loop's budget is computed FORWARD from a floor, never backward
-    # from the overflow: the product starts at `budget - V`, where V is what the
-    # listing costs before any description is granted. Every entry that appears
-    # at all pays for its own name; the exempt classes pay their full rendering
-    # because they are never candidates.
     floor = 0
     listed = 0
-    # The full rendering, every description granted: what the product compares
-    # with the budget to decide whether the listing fits at all.
     full = 0
     for entry in denominator:
         eligibility = _eligibility(entry)
         desc_chars = _demand_chars(entry, cfg)
         chars = desc_chars if eligibility == "competing" else 0
         demand += chars
-        # A `disable-model-invocation` skill and a disabled plugin's skill are
-        # absent from the listing ENTIRELY, so unlike the bundled class they
-        # cost nothing and take no separator.
         if eligibility not in ("exempt-user-only", "exempt-hidden"):
             listed += 1
             name_only = len(entry["qualified_name"]) + 2
             rendered = name_only + 2 + desc_chars
-            # A bundled entry keeps its description unconditionally, so its
-            # floor is charged for it.
             floor += rendered if eligibility == "exempt-bundled" else name_only
             full += name_only if eligibility == "exempt-name-only" else rendered
         rows.append(
@@ -2019,8 +1799,6 @@ def compute_listing(
             }
         )
 
-    # The counted entries alone, before any capture charge: an overflow here
-    # holds whatever fleet the capture came from.
     enumerated_full = full + max(0, listed - 1)
     extra = unenumerated or []
     extra_chars = sum(e["rendered_chars"] for e in extra)
@@ -2032,20 +1810,11 @@ def compute_listing(
     full += separators
 
     overflow = max(0, full - budget)
-    # Overflow survives missing entries, since adding one only grows the
-    # listing. A fit does not: without a capture the built-in and bundled
-    # entries go uncounted, so the counted ones fitting is not the listing
-    # fitting, and the verdict says so instead of claiming it. A capture
-    # confirms a fit only when it covers the counted fleet (`capture_covers`):
-    # one from a session that loaded a different fleet says nothing about this
-    # one.
     fits = (
         "listing-fits"
         if unenumerated is not None and capture_covers
         else "fit-unconfirmed"
     )
-    # The mirror image: a capture of another fleet cannot confirm an overflow
-    # its own charges produce.
     unconfirmed = overflow > 0 and capture_stale and enumerated_full <= budget
     if unconfirmed:
         verdict = "overflow-unconfirmed"
@@ -2054,38 +1823,13 @@ def compute_listing(
 
     competing = [r for r in rows if r["eligibility"] == "competing"]
 
-    # Basis is decided by whether any score survived AMONG THE CONTENDERS, not
-    # by whether a scores argument arrived and not over the whole denominator. A
-    # bundled or disable-model-invocation skill can carry real native
-    # usage while being excluded from the contest entirely; counting its score
-    # here would label a listing `native-counters` whose every actual contender
-    # is at zero, so a pure catalog ordering would be dressed as `inferential`.
-    # That is the exact defect this report exists to stop, one scope up.
     score_basis = (
         "native-counters" if any(r["usage_score"] for r in competing) else "unscored"
     )
 
-    # WHICH rows are shed is a GREEDY FIRST-FIT walk, not a score-ordered
-    # prefix. The product sorts descending by score and then walks EVERY
-    # competing entry with a running description budget, granting whatever still
-    # fits and shedding whatever does not. Crucially its loop has no early exit,
-    # so a cheap low-scored description can still be granted after an expensive
-    # higher-scored one was refused. Modeling this as a prefix understated the
-    # protection long descriptions lose and overstated it for short ones.
-    #
-    # Consequence worth stating plainly: description LENGTH is a ranking input,
-    # which no prose description of this mechanism mentions.
-    #
-    # Ties keep CATALOG ORDER, not alphabetical. The product's sort is stable, so
-    # equal scores stay in input order; Python's is too, which is why this sorts
-    # on the score alone. It matters most in the `unscored` case, where every
-    # score is 0 and the tiebreaker IS the whole ordering: an alphabetical one
-    # would disagree with the product on every row.
     competing.sort(key=lambda r: -r["usage_score"])
     remaining = max(0, budget - floor)
     for row in competing:
-        # A grant costs the description plus its `: ` joiner: the entry grows
-        # from `- <name>` to `- <name>: <description>`.
         grant = row["demand_chars"] + 2
         if overflow <= 0:
             row["verdict"] = fits
@@ -2095,17 +1839,9 @@ def compute_listing(
         else:
             row["verdict"] = "likely-starved"
 
-    # The band is a separate question from the verdict: it ranks how exposed a
-    # row is, lowest score first, so band 1 is the row the mechanism protects
-    # least. It can disagree with the verdict, and that disagreement is real
-    # rather than a bug -- a band-1 row with a very short description can survive
-    # a first-fit pass that sheds a better-scored row with a long one.
     by_exposure = sorted(competing, key=lambda r: r["usage_score"])
     for rank, row in enumerate(by_exposure, start=1):
         row["band"] = rank if overflow > 0 else None
-        # An unscored ordering is catalog order, so its band carries no signal
-        # at all. That is a weaker claim than an inferential one and must not
-        # wear the same label.
         if overflow <= 0:
             row["confidence"] = "certain"
         elif score_basis == "unscored":
@@ -2118,15 +1854,8 @@ def compute_listing(
             row["verdict"] = "not-assessable"
             row["confidence"] = "certain"
 
-    # HOW MANY descriptions cannot fit is arithmetic and survives whatever the
-    # ordering is worth. WHICH ones is a separate claim, settled next.
     starved_count = sum(1 for r in competing if r["verdict"] == "likely-starved")
 
-    # WHILE no contender carries any usage, every score is 0 and the ordering
-    # above is the catalog-order tie a stable sort leaves behind. Naming the
-    # rows it sheds would publish catalog position as a usage ranking, which is
-    # the defect this report exists to expose, one scope up. So the per-row
-    # claim is withheld with its reason and the count above still stands.
     if unconfirmed or (overflow > 0 and score_basis == "unscored"):
         for row in competing:
             row["verdict"] = "withheld"
@@ -2134,8 +1863,6 @@ def compute_listing(
             row["band"] = None
 
     return {
-        # The env override sets the budget whatever the window and bytes per
-        # token, so its row is named for the variable, not for those axes.
         "label": "SLASH_COMMAND_TOOL_CHAR_BUDGET"
         if cfg.env_char_budget is not None
         else band_label(cfg.context_window_tokens, cfg.bytes_per_token),
@@ -2233,9 +1960,6 @@ def compute_listing_band(
         exposed = most_exposed["skills"][index]
         merged["band"] = exposed["band"]
         merged["confidence"] = exposed["confidence"]
-        # A row that withholds its starvation verdict carries the reason with
-        # it, so the merged row does too: a band whose rows disagree still has
-        # to say why the overflowing ones name nobody.
         reason = next((r["reason"] for r in per_row if r.get("reason")), None)
         if reason:
             merged["reason"] = reason
@@ -2285,11 +2009,6 @@ def starvation_withheld(listing: dict) -> bool:
 
 
 def listing_overflows(listing: dict) -> bool:
-    """Whether any budget row overflows: one row is enough for a band.
-
-    An `overflow-unconfirmed` row does not count: only a capture of another
-    fleet makes it overflow.
-    """
     return any(
         row.get("overflow_chars") and row.get("verdict") != "overflow-unconfirmed"
         for row in listing.get("band") or [listing]
@@ -2297,17 +2016,12 @@ def listing_overflows(listing: dict) -> bool:
 
 
 def listing_overflow_unconfirmed(listing: dict) -> bool:
-    """Whether any budget row overflows only on a mismatched capture's charges."""
     return any(
         row.get("verdict") == "overflow-unconfirmed"
         for row in listing.get("band") or [listing]
     )
 
 
-# Remedies are phrased as fixes on purpose. Several of these causes are SILENT
-# -- the skill looks fine, can never be selected, and nothing surfaces outside
-# --debug -- which makes them read exactly like disuse. Recommending removal for
-# a skill that is merely misconfigured is the failure this table prevents.
 MISCONFIGURED_REMEDIES = {
     "malformed-frontmatter": (
         "The frontmatter YAML does not parse, so the skill loads with empty "
@@ -2370,19 +2084,11 @@ def _not_loaded(entry: dict, evidence: str) -> dict:
 
 
 def reachability(entry: dict) -> dict:
-    """Structural: can the model ever select this skill?
-
-    Independent of whether it has been *observed* -- see the module docstring.
-    Returns a value plus the causes and evidence behind it, never a bare label,
-    because the remedy differs per cause.
-    """
     frontmatter = entry.get("frontmatter") or {}
     enabled = entry.get("plugin_enabled")
     enabled_evidence = entry.get("plugin_enabled_evidence")
     override = entry.get("skill_override")
 
-    # A settled `False` comes first: a skill that never loads has no listing
-    # entry for its frontmatter to misconfigure.
     if enabled is False:
         return _not_loaded(entry, enabled_evidence or "")
     if override == "off":
@@ -2409,16 +2115,9 @@ def reachability(entry: dict) -> dict:
             "causes": causes,
             "remedy": " ".join(MISCONFIGURED_REMEDIES[c] for c in causes),
             "evidence": "frontmatter",
-            # Provenance matters: this catalogue is assembled from scattered doc
-            # sections plus binary strings. There is no official list of reasons
-            # a skill is never auto-invoked, and claiming otherwise to a user
-            # would cite something that does not exist.
             "provenance": "assembled-from-docs-and-binary, not an official list",
         }
 
-    # `skillOverrides` governs non-plugin skills only: the product's listing
-    # resolver returns "on" for every plugin-sourced skill before it reads the
-    # override map, so a plugin entry never carries one.
     if override is not None:
         if override == "user-invocable-only" or frontmatter.get(
             "disable_model_invocation"
@@ -2450,8 +2149,6 @@ def reachability(entry: dict) -> dict:
         }
 
     if enabled is None and enabled_evidence == ENABLEMENT_NOT_ASSESSED:
-        # A checkout is not an install: there is no enablement to read, so
-        # the question is declined rather than answered `unknown`.
         return {
             "value": "not-assessed",
             "causes": ["checkout-not-an-install"],
@@ -2464,7 +2161,6 @@ def reachability(entry: dict) -> dict:
         }
 
     if enabled is None:
-        # The sources genuinely could not answer. Never guess; name the file.
         named = (
             f"{enabled_evidence} could not be read or parsed, and a setting "
             "there would outrank every readable scope"
@@ -2483,7 +2179,6 @@ def reachability(entry: dict) -> dict:
         }
 
     if frontmatter.get("disable_model_invocation"):
-        # Not a defect and not disuse: the operator typed it by design.
         return {
             "value": "user-only",
             "causes": ["disable-model-invocation"],
@@ -2554,16 +2249,6 @@ def _walkable_name(name: str, walked: Walked) -> bool:
 def _capture_gap(
     denominator: list[dict], capture: dict, cfg: ListingConfig, walked: Walked
 ) -> dict[str, list[str]]:
-    """Where a read capture fails to cover the counted fleet.
-
-    `not_in_capture`: listed entries the capture does not name, as when a
-    plugin was installed after the captured session started. `longer_in_capture`:
-    entries the capture rendered in full at more characters than they are
-    counted here, so the count is short. `not_in_fleet`: captured entries a
-    walk would have found but the fleet lacks, as when a plugin was uninstalled
-    after the captured session started; they are not charged. Any of the three
-    means the capture came from a different fleet and cannot confirm a fit.
-    """
     known = {entry["qualified_name"] for entry in denominator}
     stale = sorted(
         e["name"]
@@ -2611,7 +2296,6 @@ def _capture_summary(
     if capture.get("status") != "read":
         return {k: capture.get(k) for k in ("status", "reason", "path")}
     gap = gap or {}
-    # A stale entry is not in this fleet, so its shedding is not reported.
     forced = {
         r["qualified_name"]
         for r in listing["skills"]
@@ -2655,27 +2339,9 @@ def classify(
     listing_capture: dict | None = None,
     walked: Walked | None = None,
 ) -> dict:
-    """Pure. Fleet + events + config + clock + horizons -> report model.
-
-    `listing_axes` names the window and bytes-per-token values to budget for
-    and carries the provenance of every budget input; without it the listing
-    is the single row `listing_config` describes, which is the replay path.
-    `listing_capture` is `read_listing_capture`'s result: its entries that the
-    denominator does not name are charged at their captured length, unless
-    `walked` says a disk walk would have found them. Without `walked`, as on
-    replay, every plugin counts as walked and synced skills count as walked
-    when the denominator holds one.
-    """
     tier = resolve_tier(set(horizons))
     events_by_skill, ambiguous_keys = resolve_event_keys(denominator, events)
 
-    # The band mirrors the product, so it is scored the way the product scores:
-    # from the NATIVE counters only, under the EXACT qualified key. `zPe` does no
-    # bare-key fallback of its own -- when usage was recorded under a bare leaf
-    # the product's own scorer sees zero for that listing entry too, so scoring
-    # the merged total here would predict a truncation the product will not
-    # perform. The merge below is for the observation count, which asks a
-    # different question and wants every event.
     native_scores: dict[str, float] = {}
     for entry in denominator:
         name = entry["qualified_name"]
@@ -2701,8 +2367,6 @@ def classify(
         if captured
         else {}
     )
-    # Only what no walk could enumerate is a fixed cost; a captured entry the
-    # walk would have found is stale and lands in the gap instead.
     known = {entry["qualified_name"] for entry in denominator}
     known.update(gap.get("not_in_fleet", []))
     unenumerated = (
@@ -2732,17 +2396,6 @@ def classify(
             listing, listing_capture, unenumerated, gap
         )
     starvation_by_name = {r["qualified_name"]: r for r in listing["skills"]}
-    # Narrowest horizon = the most recent start = the least we can see back to.
-    # Two different questions, two different horizons.
-    #
-    # `observed_horizon` is the NARROWEST (most recent start) — it answers "what
-    # is the least this run can see", and belongs in the run header.
-    #
-    # A per-row "nothing was recorded" claim is backed by the WIDEST coverage
-    # available, because a source that looked across a year and saw nothing
-    # supports the claim regardless of another source's short retention. Gating
-    # every row on the narrowest span let a 7-day OTEL retention erase a year of
-    # native history and pin the whole fleet to `not-observable`.
     observed_horizon = max(horizons.values()) if horizons else clock
     widest_horizon = min(horizons.values()) if horizons else clock
     observable_days = (clock - widest_horizon).days
@@ -2754,9 +2407,6 @@ def classify(
     skills: list[dict] = []
     withheld: list[dict] = []
 
-    # One entry for the run, not one per skill: the refusal is a property of the
-    # ordering, and repeating it per row would bury the observation claims that
-    # really are per skill.
     if starvation_withheld(listing):
         withheld.append(
             {
@@ -2821,8 +2471,6 @@ def classify(
                     "ambiguous-attribution" if seen[name] > 1 else "unambiguous"
                 ),
                 "reachability": reachability(entry),
-                # Blank, not zero: a skill authored elsewhere has no
-                # measurement, which is a different fact from never-touched.
                 "churn": entry.get("churn"),
                 "starvation": {
                     k: v
@@ -2866,17 +2514,14 @@ def _observation_value(
     observable_days: int,
     own_events: list[dict],
 ) -> tuple[str, str | None]:
-    """Resolve one observation value, refusing any verdict the span cannot back."""
     backed_by = own_events[0].get("source") if own_events else None
 
     if count == 0:
-        # A span shorter than the floor cannot support a cold verdict at all.
         if observable_days < config.exposure_floor_days:
             return "not-observable", backed_by
         return "no-observation-in-horizon", backed_by
 
     age_days = (clock - last_used).days
-    # Never render a window wider than the span that could have observed it.
     if age_days <= config.active_days:
         return "active", backed_by
     if observable_days < config.dormant_days:
@@ -2887,11 +2532,6 @@ def _observation_value(
 
 
 def _plural(count: int, noun: str) -> str:
-    """Regular-plural helper for counted nouns in the rendered report.
-
-    A report that says "1 plugins" undercuts the care the rest of it claims,
-    and every counted noun here is regular, so the -s rule is sufficient.
-    """
     return noun if count == 1 else f"{noun}s"
 
 
@@ -2976,10 +2616,6 @@ def _render_markdown(model: dict) -> str:
         lines += _render_coverage(listing)
         any_overflow = listing_overflows(listing)
         if any_overflow:
-            # An unscored run has no usage behind its ordering at all. Saying
-            # "inferential" there would repeat the exact defect this report
-            # exists to expose, one level up, so the two cases get different
-            # prose rather than a shared hedge.
             if listing.get("score_basis") == "unscored":
                 lines += [
                     "**No usage signal was available for any competing skill, so "
@@ -3012,10 +2648,6 @@ def _render_markdown(model: dict) -> str:
     authored = [s for s in model["skills"] if s.get("churn")]
     if authored:
         lines += ["## Authoring churn (cross-reference)", ""]
-        # The label is load-bearing. In a public marketplace, skills are
-        # authored FOR CONSUMERS, so the author's own non-use of a skill they
-        # wrote is the expected case -- not effort thrown away. Reading this
-        # quadrant as waste would invert what it means.
         lines += [
             "How much each skill was *authored* here, cross-referenced with how",
             "much it is *used* here. These measure different things: in a",
@@ -3053,20 +2685,10 @@ def _render_markdown(model: dict) -> str:
 
 
 def _hidden_by_override(row: dict) -> bool:
-    """A non-plugin skill set off by `skillOverrides`, not a disabled plugin."""
     return "skill-override-off" in row["reachability"]["causes"]
 
 
 def _render_reachability(skills: list[dict]) -> list[str]:
-    """Per-value counts, the one checkout line, the hidden table, and the
-    not-enabled summary.
-
-    A checkout run declines enablement once, for the run, rather than once
-    per row. An installed run groups the hidden rows by owning plugin, since
-    the cause is per plugin and the evidence is the scope file that set it.
-    Never-enabled plugins get one summary line and no table: they are the
-    install-time default, not something to fix.
-    """
     counts: dict[str, int] = defaultdict(int)
     for row in skills:
         counts[row["reachability"]["value"]] += 1
@@ -3112,9 +2734,6 @@ def _render_reachability(skills: list[dict]) -> list[str]:
     never = [r for r in skills if r["reachability"]["value"] == "not-enabled"]
     if never:
         plugins = {r["qualified_name"].partition(":")[0] for r in never}
-        # The flag scope is never readable from outside a session; any other
-        # unread scope (managed policy that could not be enumerated) might
-        # enable these, which the line states without changing the verdict.
         unread = {
             name: None
             for r in never
@@ -3141,13 +2760,6 @@ def _render_reachability(skills: list[dict]) -> list[str]:
 
 
 def _render_misconfigured(skills: list[dict]) -> list[str]:
-    """The misconfigured table, with each cause's remedy stated once.
-
-    Every row here is a fix, never a removal candidate: the causes are silent,
-    so a misconfigured skill reads exactly like an unwanted one until it is
-    named. The remedy is keyed by cause rather than repeated per row, because
-    two rows with the same cause need the same fix.
-    """
     rows = sorted(
         (r for r in skills if r["reachability"]["value"] == "misconfigured"),
         key=lambda r: r["qualified_name"],
@@ -3267,12 +2879,6 @@ def _budget_control(listing: dict) -> str:
 
 
 def _render_next_actions(model: dict) -> list[str]:
-    """One line naming the actions this run's findings support, and no other.
-
-    Built only from conditions present in the model, so a clean run says there
-    is nothing to fix rather than listing generic advice. Usage and token cost
-    per skill belong to the bundled `/skill-doctor` and are not pointed at.
-    """
     counts: dict[str, int] = defaultdict(int)
     for row in model["skills"]:
         if not _hidden_by_override(row):
@@ -3306,7 +2912,6 @@ def _render_next_actions(model: dict) -> list[str]:
 
 
 def _render_single_budget(listing: dict) -> list[str]:
-    """The pinned single-row paragraph."""
     if listing["verdict"] == "overflow-unconfirmed":
         return [
             f"Overflow unconfirmed at {listing['label']}: "
@@ -3331,8 +2936,6 @@ def _render_single_budget(listing: dict) -> list[str]:
             f"{listing['budget_chars']:,} characters of description budget, "
         )
         if listing.get("score_basis") == "unscored":
-            # The count is the whole claim here. Saying which skills are running
-            # name-only would name the ones the catalog happens to list last.
             return [
                 over_budget + f"and **{listing['starved_count']}** of "
                 f"{listing['competing_count']} competing descriptions cannot fit; "
@@ -3340,9 +2943,6 @@ def _render_single_budget(listing: dict) -> list[str]:
                 f"the ordering is catalog position, not preference.",
                 "",
             ]
-        # The certain half: documented settings vs summed description
-        # lengths. No undocumented constant is involved, so this is stated
-        # plainly rather than hedged.
         return [
             over_budget + f"and descriptions are shed lowest-score-first, so roughly "
             f"**{listing['starved_count']}** of them are running name-only, "
@@ -3372,7 +2972,6 @@ def _render_single_budget(listing: dict) -> list[str]:
 
 
 def _render_coverage(listing: dict) -> list[str]:
-    """What the verdict counted, and what a captured listing says about it."""
     capture = listing.get("capture") or {}
     if capture.get("status") != "read":
         counted = listing.get("counted") or ["the entries in the collection"]
@@ -3457,7 +3056,6 @@ def _render_coverage(listing: dict) -> list[str]:
 
 
 def _name_preview(names: list[str]) -> str:
-    """The first ten names in backticks, with an ellipsis when more follow."""
     preview = ", ".join(f"`{name}`" for name in names[:10])
     return preview + ("…" if len(names) > 10 else "")
 
@@ -3470,7 +3068,6 @@ _SUBAGENT_NOTE = (
 
 
 def _render_band(listing: dict) -> list[str]:
-    """The unpinned band table. No row is named as this session's."""
     lines = [
         "The budget is `window x bytes-per-token x fraction`, and both the "
         "window and the bytes-per-token are per model. This run does not "
@@ -3502,8 +3099,6 @@ def _render_band(listing: dict) -> list[str]:
 
 
 def _render_inputs(inputs: dict) -> list[str]:
-    """What was consulted for the budget, with provenance, as one short list."""
-
     def _prov(row: dict) -> str:
         provenance = row.get("provenance", "")
         if provenance in ("default", "fraction"):
@@ -3650,7 +3245,16 @@ def main(argv: list[str] | None = None) -> int:
         "--state-key",
         help="repo-identity/worktree-discriminator, from lib/state-key.sh",
     )
+    parser.add_argument(
+        "--sources-file",
+        default="",
+        help="the transcript_sources_file option: the first local source is the config dir",
+    )
+    parser.add_argument(
+        "--diagnostics-dir", help="write a lookup gap here as a diagnostics record"
+    )
     args = parser.parse_args(argv)
+    header: list[str] = []
     if args.now:
         try:
             _parse_ts(args.now)
@@ -3672,29 +3276,22 @@ def main(argv: list[str] | None = None) -> int:
         denominator = bundle["denominator"]
         cfg = Config(**bundle.get("config", {}))
         listing_cfg = ListingConfig(**bundle.get("listing_config", {}))
-        # A replay is a recorded collection: the bundle's listing_config is
-        # the single row it describes, and no settings or environment are
-        # consulted on top of it.
         listing_axes = None
         walked = None
     else:
-        # Live collection. Each source is optional: a missing one narrows the
-        # tier rather than failing the run, which is the same honesty the
-        # verdicts themselves apply.
         clock = _parse_ts(args.now) if args.now else datetime.now(tz=UTC)
-        # CLAUDE_PROJECT_DIR is the project Claude Code itself resolved; cwd
-        # is the fallback. Project/local install records are matched against
-        # it, since those load only in their own project, and the project and
-        # local settings scopes are read from its `.claude/`.
         current_project = os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd()
-        # The settings scopes feed two consumers: the listing keys below, and
-        # `enabledPlugins` for the installed fleet. One read, one merge walk,
-        # the managed locations from the vendored managed-scope.sh, never
-        # from a path written here. CLAUDE_CONFIG_DIR relocates the whole
-        # ~/.claude tree, user settings included.
-        config_root = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser(
-            "~/.claude"
-        )
+        try:
+            lookup = transcript_sources.lookup_report(
+                args.sources_file,
+                transcript_sources.retry_argv(__file__, sys.argv[1:] if argv is None else argv),
+                args.diagnostics_dir,
+            )
+            config_root = str(transcript_sources.first_local_config_dir(lookup.sources))
+            header = lookup.header
+        except transcript_sources.SourcesError as exc:
+            print(f"error: --sources-file: {exc}", file=sys.stderr)
+            return 2
         layers = settings_layers(
             current_project,
             config_root,
@@ -3712,8 +3309,6 @@ def main(argv: list[str] | None = None) -> int:
                     file=sys.stderr,
                 )
                 return 2
-            # The listing also carries the user's and the project's own
-            # skills, governed by `skillOverrides` instead of enabledPlugins.
             overrides = merge_skill_overrides(layers)
             denominator += collect_user_and_project_skills(
                 config_root, current_project, overrides
@@ -3804,8 +3399,6 @@ def main(argv: list[str] | None = None) -> int:
         try:
             path = report_path(args.write, args.state_key or "", stamp)
         except ValueError as exc:
-            # A missing key is an operator-fixable mistake, not a crash: say
-            # what to run rather than printing a traceback.
             print(f"error: {exc}", file=sys.stderr)
             print(
                 'hint: pass --state-key "$(bash "${CLAUDE_PLUGIN_ROOT}/lib/state-key.sh")"',
@@ -3816,8 +3409,6 @@ def main(argv: list[str] | None = None) -> int:
             os.makedirs(os.path.dirname(path), exist_ok=True)
             with open(path, "w", encoding="utf-8") as handle:
                 json.dump(model, handle, indent=2)
-            # One file per run PLUS an appended history line: a rolling latest.json
-            # would hand any future scheduled run an overwrite defect on day one.
             append_history(
                 os.path.join(os.path.dirname(path), "history.jsonl"),
                 {
@@ -3837,10 +3428,12 @@ def main(argv: list[str] | None = None) -> int:
         print(path)
         return 0
 
+    model["header"] = header
     if args.render == "json":
         print(json.dumps(model, indent=2))
     else:
-        print(_render_markdown(model))
+        lead = "\n".join(transcript_sources.report_header_md(header)) + ("\n" if header else "")
+        print(lead + _render_markdown(model))
     return 0
 
 

@@ -20,7 +20,6 @@ try {
   process.exit(2);
 }
 
-/** The git toplevel of `dir`, else `dir`: settings anchor at the repository root, never a subdirectory. */
 function gitRoot(dir) {
   const r = spawnSync("git", ["-C", dir, "rev-parse", "--show-toplevel"], { cwd: ROOT, encoding: "utf8" });
   return r.status === 0 ? r.stdout.trim() : dir;
@@ -28,7 +27,6 @@ function gitRoot(dir) {
 const start = resolvePath(opts.project ?? process.cwd());
 const project = resolvePath(gitRoot(start));
 
-/** {home} or {home: null, skipped} from the project's pointer line, as lib/resolve-convention-home.sh reports it. */
 function conventionHome() {
   const r = spawnSync("bash", [join(ROOT, "lib/resolve-convention-home.sh"), "--root", project], { cwd: ROOT, encoding: "utf8", timeout: 15_000 });
   if (r.status === 0) return { home: r.stdout.trim() };
@@ -43,7 +41,6 @@ const inside = (child, parent) => child === parent || child.startsWith(parent.en
 
 const SAFE = /^[A-Za-z0-9._/\\-]+$/;
 
-/** The absolute directory for a value contained in `base`, else null. Checked after SAFE. */
 function contained(value, base) {
   const normalized = value.replaceAll("\\", "/");
   if (normalized.startsWith("/") || /^[A-Za-z]:/.test(normalized)) return null;
@@ -58,7 +55,6 @@ function contained(value, base) {
   }
 }
 
-/** [data_dir, null] for a usable value, else [null, why it is not]. */
 function check(value, base) {
   if (typeof value !== "string" || !SAFE.test(value)) return [null, "holds a character outside letters, digits, . _ - / and \\ (it reaches a shell command)"];
   const dir = contained(value, base);

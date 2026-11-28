@@ -1,5 +1,5 @@
 ---
-description: "Audits a repository's existing enforcement surface (hooks, agent instructions, CI lanes, gate scripts, branch protection, forge apps, integrations) and reports which mechanisms no longer earn their keep; security-class items cap at flag-for-human. Read-only. Use when the user asks whether their CI, hooks or gates are overengineered or still earn their keep. Not for proposing new automation."
+description: "Read-only: audits existing enforcement surface (hooks, agent instructions, CI lanes, gate scripts, branch protection, forge apps, integrations) for mechanisms not earning their keep; security-class items cap at flag-for-human. Use when asking whether CI, hooks or gates are overengineered or 'still earn their keep'. Not for proposing new automation."
 argument-hint: "[--unattended] [--medium <value>] [layer ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -143,15 +143,12 @@ scope, `--unattended` and focus hint. What differs here:
    and suppression entries from the consuming repo's `<home>/overengineering.yaml` and
    `<home>/overengineering.local.yaml` through the config-cascade layering, per
    `${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`. Every file layer absent is valid: bundled
-   defaults apply, and the run says so. Name a personal layer that materially shapes output. An old
-   file that page's "Old paths: the dual-read window" lists is still read as it says, and the run
-   prints that section's warning for each one it finds.
+   defaults apply, and the run says so. Name a personal layer that materially shapes output.
 3. **Load the prior artifact** if present. Write `Status: OPEN` on a finding not seen before and
    carry every other status forward verbatim; never advance, downgrade or clear one.
 4. **Assess evidence availability** per tier (§2), naming the probe for each, the shallow-clone probe
    included. This leads the report, ahead of any finding (§8).
-5. **Exclude** every config file `consumer-config.md` names from the scan set: both new files and
-   each old-path file present, applied or not.
+5. **Exclude** every config file `consumer-config.md` names from the scan set.
 
 ## The walk
 

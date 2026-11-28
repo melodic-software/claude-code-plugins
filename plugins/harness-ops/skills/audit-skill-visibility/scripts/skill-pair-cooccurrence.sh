@@ -1,51 +1,4 @@
 #!/usr/bin/env bash
-# skill-pair-cooccurrence.sh — does skill B get invoked where skill A ran?
-#
-# Reads a `skill-usage.jsonl` store (SkillUse events, written by harness-ops'
-# skill-usage-audit.sh and the UserPromptExpansion row of audit-event-emitter.sh)
-# and reports, for an
-# ordered pair CALLER,CALLEE: across the groups where CALLER fired, in what
-# fraction did CALLEE also fire, and in which order.
-#
-# WHY THIS IS A PROXY, NOT A MEASUREMENT — stated here and re-stated in every
-# report this script prints, because the number is misleading without it:
-#
-#   The SkillUse record carries no caller attribution. A PostToolUse hook on the
-#   Skill tool receives `tool_name`, `tool_input`, and `tool_response`; nothing
-#   in that payload names the skill whose instructions caused the call. So this
-#   script cannot observe "CALLEE was invoked BY CALLER". It observes only that
-#   both fired in the same (project_id, branch) group, and orders them by
-#   timestamp. Co-occurrence is consistent with causation and does not
-#   demonstrate it — a CALLEE the user invoked by hand counts identically to one
-#   CALLER's instructions produced.
-#
-#   The group key is a proxy for "session" too. The record has no session id;
-#   (project_id, branch) is the nearest available partition, so two sessions on
-#   one branch collapse into one group and one session spanning a branch switch
-#   splits into two.
-#
-# Inflating this proxy into a measurement is the specific failure mode this
-# script is written to prevent, which is why a thin store produces WITHHELD
-# rather than a small number: a store younger than the exposure floor cannot
-# distinguish "CALLEE never fired" from "nothing was observed yet".
-#
-# WHERE THE STORE IS — the hooks decide, this script asks them:
-#
-#   The writers select the store through harness_ops::resolve_skill_usage_dir
-#   in ../../../hooks/harness-ops-paths.sh (skill_usage_scope: repo, user or
-#   data-dir; skill_usage_dir under the scope root). Without --store this script
-#   sources that same resolver and feeds it the same options, so the file it
-#   opens is the file the hooks wrote for every scope. A restated default here
-#   would be one branch of that policy, correct only until the policy moved.
-#   The hooks read their options from CLAUDE_PLUGIN_OPTION_* in the hook
-#   environment; a skill subprocess inherits none of those, so the skill body
-#   passes the rendered ${user_config.*} values through --scope / --dir. The
-#   data-dir root arrives the same way, through --data-root: a skill
-#   subprocess was observed carrying an UNRELATED plugin's CLAUDE_PLUGIN_DATA
-#   (docs/contracts/plugin-data-report-keying/README.md rule 2), so this
-#   script never reads that variable and the sibling pruner
-#   (skills/observability/scripts/clean.sh) refuses to either.
-#
 # Exit:
 #   0  a reading was produced — a VERDICT or an honest WITHHELD — or, with
 #      --print-store, the resolved store path was printed
@@ -58,8 +11,6 @@ EX_NO_STORE=2
 EX_USAGE=3
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# The plugin is cache-isolated and the hooks ship inside it, so the resolver is
-# reachable by a path relative to this script: skills/<skill>/scripts -> hooks.
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 
 DEFAULT_SCOPE="repo"
@@ -101,13 +52,8 @@ die_usage() {
   exit "$EX_USAGE"
 }
 
-# need_value <flag> <remaining argument count>: every value-taking option is
-# checked the same way, so the message is derived from the flag rather than
-# restated per branch.
 need_value() { [[ "$2" -ge 2 ]] || die_usage "$1 needs a value"; }
 
-# An option the skill body passed through unrendered (`${user_config.x}`) or
-# empty is an unset option, and reads as its default.
 # shellcheck disable=SC2016  # the literal placeholder text is the thing matched
 unset_value() { [[ -z "$1" || "$1" == '${user_config.'* ]]; }
 
@@ -177,18 +123,12 @@ done
 [[ "$FLOOR_DAYS" =~ ^[0-9]+$ ]] || die_usage "--floor-days must be a non-negative integer: $FLOOR_DAYS"
 [[ "$FLOOR_GROUPS" =~ ^[0-9]+$ ]] || die_usage "--floor-groups must be a non-negative integer: $FLOOR_GROUPS"
 
-# The pair is split on the FIRST comma only. Skill names are `plugin:skill` and
-# contain no comma, so a second one means the caller passed something else.
 [[ "$PAIR" == *,* ]] || die_usage "--pair must be CALLER,CALLEE: $PAIR"
 CALLER="${PAIR%%,*}"
 CALLEE="${PAIR#*,}"
 [[ -n "$CALLER" && -n "$CALLEE" ]] || die_usage "--pair needs a non-empty name on both sides: $PAIR"
 [[ "$CALLEE" != *,* ]] || die_usage "--pair takes exactly two names: $PAIR"
 
-# Resolve the store the way the writers do. Sets STORE and STORE_ORIGIN (the
-# phrase the missing-store message names, so a wrong-scope run says which scope
-# it looked in). Exits 2 when the destination itself cannot be resolved: that
-# is a configuration answer, not "nothing observed".
 resolve_store_from_scope() {
   local project_dir store_dir rc
   # shellcheck source=../../../hooks/hook-utils.sh
@@ -198,25 +138,16 @@ resolve_store_from_scope() {
 
   unset_value "$SCOPE" && SCOPE="$DEFAULT_SCOPE"
   unset_value "$REL_DIR" && REL_DIR="$DEFAULT_REL_DIR"
-  # DATA_ROOT has no environment fallback on purpose: an inherited
-  # CLAUDE_PLUGIN_DATA in a skill subprocess can name another plugin's data
-  # directory, so an unpassed --data-root is an unanswerable data-dir scope
-  # rather than a guess at one.
   unset_value "$DATA_ROOT" && DATA_ROOT=""
   case "$SCOPE" in
   repo | user | data-dir) ;;
   *)
-    # The same fallback the writers apply to an unknown scope, so the reader
-    # still lands on the file they wrote.
     printf 'skill-pair-cooccurrence.sh: unknown skill_usage_scope "%s" (valid: repo, user, data-dir); reading the default %s scope, as the hooks write to it\n' \
       "$SCOPE" "$DEFAULT_SCOPE" >&2
     SCOPE="$DEFAULT_SCOPE"
     ;;
   esac
 
-  # Same project root the writers key on: CLAUDE_PROJECT_DIR in a hook or
-  # skill subprocess, the working directory otherwise. An unresolved root
-  # (not a git checkout) falls back to the hint, as it does for the writers.
   project_dir=$(hook::repo_root "${CLAUDE_PROJECT_DIR:-.}") || true
   store_dir=$(CLAUDE_PLUGIN_DATA="$DATA_ROOT" harness_ops::resolve_skill_usage_dir "$SCOPE" "$project_dir" "$REL_DIR")
   rc=$?
@@ -251,30 +182,18 @@ if ((PRINT_STORE)); then
   exit "$EX_OK"
 fi
 
-# Below the --print-store arm on purpose: printing the resolved path is pure
-# path arithmetic, and the Python auditor this mode bridges to is the one
-# consumer whose host is only promised Python. Everything past here reads the
-# JSONL store, which jq does.
 command -v jq >/dev/null 2>&1 || {
   printf 'skill-pair-cooccurrence.sh: jq is required to read the JSONL store\n' >&2
   exit "$EX_NO_STORE"
 }
 
 if [[ ! -r "$STORE" ]]; then
-  # Absent store is not a crash: it is the commonest state on a fresh install,
-  # and the honest answer is "nothing observed", said out loud, with the scope
-  # it was said about — a store written under another scope is the other
-  # common reason for this branch.
   printf 'skill-pair-cooccurrence.sh: no readable skill-usage store at %s (%s)\n' "$STORE" "$STORE_ORIGIN" >&2
   printf 'Nothing has been observed. This is the normal state before the harness-ops skill-usage hooks have run in this repo; it is not evidence about %s or %s.\n' \
     "$CALLER" "$CALLEE" >&2
   exit "$EX_NO_STORE"
 fi
 
-# One jq program does the whole reduction, so the grouping rule lives in exactly
-# one place. Malformed rows are dropped rather than fatal — this is an
-# observability store and one bad line must not cost the report (the same
-# posture parse_jsonl() takes in audit_skill_visibility.py).
 REPORT="$(
   jq -Rnc \
     --arg caller "$CALLER" \
@@ -353,8 +272,6 @@ if [[ -z "$REPORT" ]]; then
 fi
 
 if ((AS_JSON)); then
-  # The caveat rides in the JSON too. A consumer that machine-reads this must not
-  # get a number stripped of the thing that qualifies it.
   jq -c '. + {proxy_limit: "Co-occurrence within a (project_id, branch) group, NOT caller attribution: the SkillUse record has no field naming the invoking skill, and no session id. Consistent with causation; does not demonstrate it."}' <<<"$REPORT"
   exit "$EX_OK"
 fi

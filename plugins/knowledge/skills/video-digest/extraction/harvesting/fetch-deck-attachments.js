@@ -144,20 +144,20 @@ function isNonPublicIPv6(address) {
   const g = ipv6Groups(address);
   if (!g) return true;
   const zeroPrefix = (n) => g.slice(0, n).every((x) => x === 0);
-  if (zeroPrefix(7) && g[7] <= 1) return true; // :: and ::1
-  if (zeroPrefix(6)) return embeddedIPv4NonPublic(g[6], g[7]); // ::a.b.c.d (compatible)
-  if (zeroPrefix(5) && g[5] === 0xffff) return embeddedIPv4NonPublic(g[6], g[7]); // ::ffff:a.b.c.d (mapped)
-  if (zeroPrefix(4) && g[4] === 0xffff && g[5] === 0) return embeddedIPv4NonPublic(g[6], g[7]); // ::ffff:0:a.b.c.d
+  if (zeroPrefix(7) && g[7] <= 1) return true;
+  if (zeroPrefix(6)) return embeddedIPv4NonPublic(g[6], g[7]);
+  if (zeroPrefix(5) && g[5] === 0xffff) return embeddedIPv4NonPublic(g[6], g[7]);
+  if (zeroPrefix(4) && g[4] === 0xffff && g[5] === 0) return embeddedIPv4NonPublic(g[6], g[7]);
   if (g[0] === 0x64 && g[1] === 0xff9b && g.slice(2, 6).every((x) => x === 0)) {
-    return embeddedIPv4NonPublic(g[6], g[7]); // 64:ff9b::/96 NAT64
+    return embeddedIPv4NonPublic(g[6], g[7]);
   }
   const [first] = g;
-  if (first === 0x2002) return embeddedIPv4NonPublic(g[1], g[2]); // 6to4
+  if (first === 0x2002) return embeddedIPv4NonPublic(g[1], g[2]);
   return (
-    (first & 0xfe00) === 0xfc00 || // fc00::/7 unique-local
-    (first & 0xffc0) === 0xfe80 || // fe80::/10 link-local
-    (first & 0xffc0) === 0xfec0 || // fec0::/10 site-local
-    (first & 0xff00) === 0xff00 // ff00::/8 multicast
+    (first & 0xfe00) === 0xfc00 ||
+    (first & 0xffc0) === 0xfe80 ||
+    (first & 0xffc0) === 0xfec0 ||
+    (first & 0xff00) === 0xff00
   );
 }
 

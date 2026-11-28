@@ -1,0 +1,93 @@
+{
+  "jobs": [
+    {
+      "conclusion": "failure",
+      "id": 138942439395,
+      "name": "Check Trigger",
+      "run_attempt": 1,
+      "runner_id": 1001776019,
+      "status": "completed",
+      "steps": [
+        {
+          "number": 1,
+          "name": "Set up job",
+          "status": "completed",
+          "conclusion": "failure"
+        }
+      ]
+    },
+    {
+      "conclusion": "skipped",
+      "id": 138944492276,
+      "name": "Review",
+      "run_attempt": 1,
+      "runner_id": null,
+      "status": "completed",
+      "steps": []
+    },
+    {
+      "conclusion": "skipped",
+      "id": 138944492356,
+      "name": "Review Handoffs Credit",
+      "run_attempt": 1,
+      "runner_id": null,
+      "status": "completed",
+      "steps": []
+    },
+    {
+      "conclusion": "skipped",
+      "id": 138944492581,
+      "name": "Collect Trusted Text",
+      "run_attempt": 1,
+      "runner_id": null,
+      "status": "completed",
+      "steps": []
+    },
+    {
+      "conclusion": "skipped",
+      "id": 138944492883,
+      "name": "Review Handoffs",
+      "run_attempt": 1,
+      "runner_id": null,
+      "status": "completed",
+      "steps": []
+    },
+    {
+      "conclusion": "skipped",
+      "id": 138944493063,
+      "name": "Review Subscription",
+      "run_attempt": 1,
+      "runner_id": null,
+      "status": "completed",
+      "steps": []
+    },
+    {
+      "conclusion": "skipped",
+      "id": 138944493642,
+      "name": "Collect Subscription Handoffs",
+      "run_attempt": 1,
+      "runner_id": null,
+      "status": "completed",
+      "steps": []
+    },
+    {
+      "conclusion": "skipped",
+      "id": 138944494285,
+      "name": "Review Fallback",
+      "run_attempt": 1,
+      "runner_id": null,
+      "status": "completed",
+      "steps": []
+    },
+    {
+      "conclusion": "skipped",
+      "id": 138944495590,
+      "name": "Report Review Counts",
+      "run_attempt": 1,
+      "runner_id": null,
+      "status": "completed",
+      "steps": []
+    }
+  ],
+  "total_count": 9
+}

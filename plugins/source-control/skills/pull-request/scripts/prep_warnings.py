@@ -113,8 +113,6 @@ def protected_paths(
     paths: list[str], denied: list[str], floor: risk.Floor
 ) -> list[str]:
     problems: list[str] = []
-    # The merge's own reading of the configured set: an unreadable one matches
-    # only the floor.
     configured = risk._readable_globs(denied, problems)
     lines = [f"note: {problem}; only the floor is matched" for problem in problems]
     patterns = tuple(dict.fromkeys((*floor.high, *configured)))

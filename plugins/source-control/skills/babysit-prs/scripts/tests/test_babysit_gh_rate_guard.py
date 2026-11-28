@@ -52,7 +52,7 @@ def core(remaining: int, limit: int = 5000, **extra: str) -> dict[str, str]:
     return {
         "X_Ratelimit_Limit": str(limit),
         "X_Ratelimit_Remaining": str(remaining),
-        "X_Ratelimit_Reset": "4102444800",  # 2100-01-01, after any test run
+        "X_Ratelimit_Reset": "4102444800",
         "X_Ratelimit_Resource": "core",
         **extra,
     }
@@ -131,7 +131,6 @@ class GuardCase(unittest.TestCase):
         self.addCleanup(gh.reset_rate_guard)
         self.sent: list[list[str]] = []
         self.answers: list[tuple[int, str, str]] = []
-        # A job's real RUNNER_TEMP must never take a test's stop.
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.runner_temp = temp.name
@@ -284,7 +283,6 @@ class AServerErrorWithRetryAfterIsHeldButNotARateLimit(GuardCase):
                 self.assertIn(f"HTTP {status} with a Retry-After", line)
                 self.assertNotIn("rate limit", line.lower())
                 self.assertNotIn("pool is exhausted", line)
-                # The hold is Retry-After's 120 s, over every pool, as before.
                 self.assertEqual(first.pool, gh.ALL_POOLS)
                 self.assertGreaterEqual(first.reset, int(before) + 120)
                 self.assertLessEqual(first.reset, time.time() + 120)
@@ -349,12 +347,10 @@ class AServerErrorWithRetryAfterIsHeldButNotARateLimit(GuardCase):
             cause_file.read_text(encoding="utf-8"),
             f"* {int(first.reset)} server-503\n",
         )
-        # A later process reads the stop from the job's files alone.
         gh.reset_rate_guard()
         later = self.trip(["api", "repos/o/r/pulls/2"])
         self.assertEqual(len(self.sent), 1)
         self.assertEqual(later.error_line(), first.error_line())
-        # A rate limit's stop reads as one.
         gh.reset_rate_guard()
         self.stop_file.unlink()
         cause_file.unlink()
@@ -441,10 +437,7 @@ class WhatIsNotARateLimit(GuardCase):
         self.assertEqual(len(self.sent), 2)
 
     def test_a_5xx_keeps_its_bounded_retry(self) -> None:
-        # The verdict listing re-reads after each of LISTING_WAITS on a 5xx;
-        # the guard lets every one of those reads through.
         for _ in range(len(verify_evidence.LISTING_WAITS) + 1):
-            # A paginated read runs without -i: gh prints only its message.
             self.answer(1, "", "gh: Server Error (HTTP 502)")
         reader = verify_evidence.Reader("o/r", "main")
         with (
@@ -490,10 +483,6 @@ class HeadroomShares(GuardCase):
     def test_planned_to_the_header_limit_2766_of_5000_left_sends_the_read(
         self,
     ) -> None:
-        # Owner decision D418: the merge-group verdict reader of
-        # https://github.com/melodic-software/claude-code-plugins/actions/runs/44463304120
-        # refused with 2,766 of 5,000 left; planned to the header's 5,000 the
-        # floor is 500 left, so that read goes out.
         self.answer(0, head(200, **core(2766)) + "{}")
         self.answer(0, head(200, **core(2765)) + "{}")
         gh.gh_capture(["api", "repos/o/r/pulls/1"])
@@ -617,7 +606,6 @@ class NoRepoConfig(GuardCase):
             (403, "API rate limit exceeded for user ID 1."),
             (429, "You have exceeded a secondary rate limit."),
         ):
-            # Each case is its own job: the last one's stop file goes too.
             gh.reset_rate_guard()
             self.stop_file.unlink(missing_ok=True)
             self.sent.clear()
@@ -652,7 +640,6 @@ class FailClosed(GuardCase):
         self.assertEqual(self.sent, [])
 
     def test_a_present_config_its_reader_cannot_run_sends_nothing(self) -> None:
-        # No usable bash: the shared reader fails.
         def no_bash(
             argv: list[str], **_kwargs: Any
         ) -> subprocess.CompletedProcess[str]:
@@ -726,12 +713,11 @@ class TheProcessExitsRed(unittest.TestCase):
             raise gh.RateLimitExhausted("core", 1792863330, "x-ratelimit-reset reset")
             """
         )
-        self.assertEqual(proc.returncode, 75)  # the code pr-merge.yml stops on
+        self.assertEqual(proc.returncode, 75)
         errors = [
             line for line in proc.stderr.splitlines() if line.startswith("::error")
         ]
         self.assertEqual(len(errors), 1, proc.stderr)
-        # 1792863330 is 2026-10-24T17:35:30Z (date -u -d @1792863330).
         self.assertIn("2026-10-24T17:35:30Z", errors[0])
         self.assertIn("core", errors[0])
         self.assertNotIn("Traceback", proc.stderr)
@@ -751,8 +737,6 @@ class TheProcessExitsRed(unittest.TestCase):
         self.assertIn("graphql", proc.stderr)
 
     def test_a_later_process_sends_nothing_while_the_job_stop_holds(self) -> None:
-        # One process per pull request (enable-auto-merge's reader): the
-        # stop an earlier one recorded holds in the next, before any call.
         with tempfile.TemporaryDirectory() as temp:
             stop = pathlib.Path(temp, "api-budget", "stop")
             stop.parent.mkdir()
@@ -822,8 +806,6 @@ class TheJobStopFile(GuardCase):
             gh.gh_capture(["api", "repos/o/r/pulls/2"])
         self.assertEqual(len(self.sent), 1)
 
-    # The read happens before the first call and finds no file; the path then
-    # breaks, so only the append fails.
     def test_a_stop_the_file_cannot_take_is_reported_and_the_latch_holds(
         self,
     ) -> None:
@@ -846,7 +828,6 @@ class TheJobStopFile(GuardCase):
             (raised.exception.pool, raised.exception.reset), ("core", 4102444800)
         )
         self.assertEqual(self.sent, [])
-        # Its refusal is no new stop: the file is unchanged.
         self.assertEqual(
             self.stop_file.read_text(encoding="utf-8"), "core 4102444800\n"
         )
@@ -953,7 +934,6 @@ class TheJobStopFile(GuardCase):
                 gh.gh_capture(args)
             self.assertEqual(got.exception.pool, gh.ALL_POOLS)
             self.assertIn("cannot be read", got.exception.reason)
-            # The reset is past datetime's range; the line still prints.
             self.assertIn(str(self.stop_file), got.exception.error_line())
         self.assertEqual(self.sent, [])
 

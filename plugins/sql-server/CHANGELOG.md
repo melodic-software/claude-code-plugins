@@ -3,6 +3,31 @@
 All notable changes to the `sql-server` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.20] - 2026-11-28
+
+### Changed
+
+- Trimmed `/sql-server:setup` user-invoked frontmatter description (387 -> 140 chars) to a one-line summary without trigger phrasing.
+
+## [0.6.19] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [0.6.18] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [0.6.17] - 2026-11-24
+
+### Changed
+
+- **Bump tedious from 20.4.0 to 20.4.1 in /plugins/sql-server in the npm-minor-patch group** (#18838).
+  - `tedious` 20.4.0→20.4.1
+
 ## [0.6.16] - 2026-11-24
 
 ### Changed

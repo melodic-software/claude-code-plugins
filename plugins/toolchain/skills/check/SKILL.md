@@ -1,14 +1,14 @@
 ---
-description: "Build, test, and lint verification for changed files in each ecosystem the repository records or its build files imply, running only the project's own commands and reporting any it cannot resolve. Use when: 'does it compile', 'run tests', 'build it', 'run the tests', 'does this still build', 'check it', or after any code edit. Lint only: /toolchain:lint; outcome verification: /verification:confirm."
+description: "Build, test, and lint verification for changed files in each recorded or build-file-implied ecosystem, running only project commands and reporting unresolved ones. Use when: 'does it compile', 'run tests', 'does this still build', or after code edits. Not for lint only: /toolchain:lint; outcome verification: /verification:confirm."
 user-invocable: true
 disable-model-invocation: false
-argument-hint: "[ecosystem] [--unattended]"
+argument-hint: "[ecosystem] [--unattended] [--propose-records <dir>]"
 metadata:
   workflow-stage: verify
   summary: Build, test, and lint changed files across detected ecosystems
 ---
 
-**Arguments.** `[ecosystem] [--unattended]`. e.g., /toolchain:check dotnet, /toolchain:check python, /toolchain:check all, /toolchain:check --unattended. Default: auto-detect from git status
+**Arguments.** `[ecosystem] [--unattended] [--propose-records <dir>]`. e.g., /toolchain:check dotnet, /toolchain:check python, /toolchain:check all, /toolchain:check --unattended. Default: auto-detect from git status
 
 ## Repository context. Gather first
 
@@ -32,6 +32,8 @@ Commands are resolved, not hardcoded: the three-rung ladder in [`${CLAUDE_PLUGIN
 `$ARGUMENTS` is an optional ecosystem filter: any covered ecosystem id, meaning one recorded, stated or inferred this run ([resolution ladder](${CLAUDE_PLUGIN_ROOT}/reference/resolution-ladder.md) "Covered ecosystems"), except the lint-only `yaml` and `cross-cutting`. A consumer record such as `docs/conventions/ecosystems/rust.yaml` makes `rust` a filter. Aliases: `ts`/`node` → `typescript`, `shell` → `bash`, `ps`/`pwsh` → `powershell`, `md` → `markdown`, `golang` → `go`. Literal `all` runs every covered ecosystem. The lint-only `yaml` and `cross-cutting` surfaces belong to `/toolchain:lint`; this skill never runs them (and never matches `cross-cutting`'s `**` glob).
 
 `--unattended` marks the run unattended; strip it before reading the ecosystem filter. A run without it is still unattended when the ladder's "Run kind" says so, including a run that cannot tell whether a person is present. An unattended run resolves commands by the ladder's "Unattended runs": it runs only a recorded, stated or inferred command, logs each as `assumed:` with its source, asks nothing, installs nothing, writes no `docs/conventions/ecosystems/` or legacy `.claude/ecosystems/` record, and reports a key nothing resolved, or a tie, as `skip (unresolved: <ecosystem>.<key>)`.
+
+`--propose-records <dir>` drafts ecosystem records from the run's `assumed:` lines into `<dir>` (section 5); strip it and its value before reading the ecosystem filter. Only an unattended run drafts; an attended run ignores the flag, says so, and offers `/toolchain:setup` as usual.
 
 Read on demand:
 
@@ -79,7 +81,7 @@ If neither path yields changes and no `$ARGUMENTS`: report "No changes found (wo
 
 **Files outside every ecosystem.** A changed file is outside every ecosystem when no resolved ecosystem's `globs` match it, cross-cutting's `**` aside: that glob is never a claim by itself, and this skill never runs cross-cutting. A match by any other ecosystem counts, even the lint-only `yaml` surface or one that is disabled or skipped for an unmet opt-in. Collect each such text file for the report's `Outside every ecosystem` line; a deleted file is not named. Under `all` the changed files still come from the detection paths above; an ecosystem argument skips this step. A binary file stays quiet. Decide binary with `git ls-files --eol -c -o -- <file>`: the file is binary when Git identifies its working-tree content as not text ([`--eol`](https://git-scm.com/docs/git-ls-files#Documentation/git-ls-files.txt---eol)). A path with no working-tree content is deleted or not a regular file, never binary. One command serves a working-tree change, the branch diff and a caller-supplied changed-file list. If files changed but no ecosystem runs, print the `Outside every ecosystem` line (when it names any file) instead of the table, and exit.
 
-**Conversation-aware targeting.** When the conversation has been working in specific files or projects, scope the build to what was touched. The ecosystem's `anchor` is the default entry point; substitute a narrower project file when changes stay in one project. For .NET, use the specific `.csproj` for a one-project change, and the solution file when changes span projects or touch shared files (`.props`, `.targets`, the solution file).
+**Conversation-aware targeting.** When the conversation has been working in specific files or projects, scope the build to what was touched. The ecosystem's `anchor` is the default entry point; substitute a narrower project file when changes stay in one project. For .NET, use the specific `.csproj` for a one-project change, and the solution file when changes span projects or touch shared files (`.props`, `.targets`, the solution file). <!-- portability-ok: R2/R6 vetted lockfile install allowlist and toolchain check output format -->
 
 ### 1.5 Resolve each ecosystem's command surface
 
@@ -113,7 +115,7 @@ For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-
 
 - Install only in an attended run. An unattended run (the ladder's "Run kind": an `--unattended` argument, `CLAUDE_CODE_REMOTE` set, `claude -p`, an autonomous loop, or a run that cannot tell) installs nothing: report `skip (dependencies missing: unattended run)`.
 - Never install a declared prerequisite (below), attended or not: its probe decides the cell before the command runs.
-- Install only from the committed lockfile, with install scripts disabled, and only with one of these commands: `npm ci --ignore-scripts`, `uv sync --frozen --no-build --no-install-local`, `dotnet restore --locked-mode`. Any other package manager installs nothing: report `skip (dependencies missing: no vetted install)`. With no lockfile, do not install; report `skip (dependencies missing: no lockfile)`. The uv command builds nothing at install time, so a third-party dependency that ships no wheel fails the install: report `skip (dependencies missing: no wheel for <package>)`. Pointer: for the flags, see <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-build> and <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-install-local>.
+- Install only from the committed lockfile, with install scripts disabled, and only with one of these commands: `npm ci --ignore-scripts`, `uv sync --frozen --no-build --no-install-local`, `dotnet restore --locked-mode`. Any other package manager installs nothing: report `skip (dependencies missing: no vetted install)`. With no lockfile, do not install; report `skip (dependencies missing: no lockfile)`. The uv command builds nothing at install time, so a third-party dependency that ships no wheel fails the install: report `skip (dependencies missing: no wheel for <package>)`. Pointer: for the flags, see <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-build> and <https://docs.astral.sh/uv/reference/cli/#uv-sync--no-install-local>. <!-- portability-ok: R2/R6 vetted lockfile install allowlist and toolchain check output format -->
 - Stay within the session's permission mode. Never use `sudo` or any other elevation, and never retry a denied install another way: report `skip (dependencies missing: install denied)`.
 - Never install a tool. A runner missing from `PATH` stays `skip (tool missing: <tool>)`.
 - Capture `git status --porcelain` and a hash of `git diff HEAD --binary` before the install and again after it, so a file that was already modified and changes again is caught. If either differs, stop the whole run and report `Overall: STOPPED (dependency install changed: <paths>)`. Run no further check: the tree is no longer the one under test.
@@ -134,14 +136,14 @@ For each affected ecosystem run the resolved `build-cmd`, `test-cmd` and `check-
 
 ### 3. Report results
 
-Settle the Overall line and record it (section 4) before writing this report, so the report is the reply's last text.
+Settle the Overall line, record it (section 4) and draft any records (section 5) before writing this report, so the report is the reply's last text.
 
 ```text
 ## Build Results
 
 | Ecosystem  | Build | Test | Lint | Status |
 |------------|-------|------|------|--------|
-| dotnet     | pass  | pass | pass | PASS   |
+| typescript | pass  | pass | pass | PASS   |
 | python     | —     | pass | FAIL | FAIL   |
 
 Gates: go-mod-tidy-drift — FAIL (run go mod tidy and commit the updated go.mod/go.sum)
@@ -178,6 +180,26 @@ node "${CLAUDE_PLUGIN_ROOT}/scripts/record-result.mjs" --skill check --dir "$REP
 ```
 
 The plugin's Stop hook reads it when the turn ends and warns when the line is not `PASS`, or when no result is recorded for the current tree. An edit after the run changes the tree, so the record no longer counts. A failed record (exit 2, for example where a sandbox blocks the git calls that hash the tree, or exit 1 for a line it rejects) changes nothing in the report: put one `Not recorded: <the script's reason>` line above the table, and still end the reply with the full report, its table, the lines below it and the Overall line. Skip this step when an ecosystem argument narrowed the run (a narrowed `PASS` does not cover the whole tree; `all` and a caller's changed-file list do), and when the run stopped at "No changes found" or with no ecosystem to run.
+
+### 5. Propose records (only under `--propose-records`)
+
+Run this after section 4 and before writing the report, only in an unattended run given `--propose-records <dir>`. Put `<dir>` outside the working tree, or in a gitignored folder, so a draft neither changes the tree section 4 recorded nor gets committed with the run's change. The script refuses an output inside `docs/conventions/ecosystems/`, the legacy `.claude/ecosystems/` or `~/.claude/ecosystems/`, so no run reads a draft as a record, and refuses to overwrite a file.
+
+For each ecosystem with at least one `assumed:` line and no team record (no `<ecosystem>.yaml` in either folder), write that run's `assumed:` lines, exactly as printed, to `<dir>/<ecosystem>.assumed.txt`, then run, as its own Bash call, with one `--glob` per glob the ecosystem resolved (its `Inferred <id>: globs` line, or the file types a stated command checks):
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/check/scripts/lane-record.mjs" write --ecosystem <ecosystem> --glob '<glob>' --out "<dir>/<ecosystem>.yaml" --lines "<dir>/<ecosystem>.assumed.txt" --repo "$REPO_ROOT"
+```
+
+The script re-reads each line's cited `file:line` as it was at the merge-base with the default branch the draft's pull request targets, so a line the branch added or changed supports nothing, and accepts only a command that line holds: a record line, an instructions-file line stating it as a whole code span, a root `package.json` script, a `Makefile` target or `justfile` recipe, or a build tool's verb on its entry point, cited at line 1. A `package.json` script runs under the package manager the lockfiles at that same merge-base name (`npm` with none), and is refused when git cannot list them there; this is stricter than the unattended run's own lockfile rule in the resolution ladder, which this script does not follow. It refuses an install verb, a package runner, a shell command string and a CI workflow file as the source, leaves a gate's line out with a note, and does not propose a key already recorded. Exit 0 wrote the draft. Exit 1 refused and wrote nothing: list each `refused:` line below the table and propose nothing for that ecosystem; never edit the draft or the lines to get past a refusal. It finds the default branch as section 1's branch diff does: a remote's `refs/remotes/<remote>/HEAD` ref, else the branch the remote's own `HEAD` names (`git ls-remote --symref`, the only source in a GitHub Actions checkout), when that branch has a local tracking ref. Exit 2 is a usage or I/O error, including a `--repo` that git does not confirm as the work tree's root and a repository where the script finds no default branch: report it and draft nothing, rather than pass a `--base` that is not the default branch's merge-base.
+
+Below the table, name each draft path with its content. This skill commits, pushes and opens nothing. After it returns, the unattended session opens one separate pull request per draft through `/source-control:pull-request` (if enabled): it commits the draft as `docs/conventions/ecosystems/<ecosystem>.yaml` on a branch from the default branch, never inside the pull request for its own change, pushes it, and runs `create --pushed --worktree <path> --draft 'a person reads this proposed ecosystem record' --hold 'Hold: a person reads this proposed ecosystem record before it merges.'`, with the ecosystem's `assumed:` lines in the body. Every record pull request opens as a draft held for a person's read, so only a person marks it ready: verify proves where each command came from, not that the command suits its key, and its test that an instructions file does not forbid a stated command is a word-list heuristic. Without that skill, the report is the whole proposal. For an ecosystem record only, "a merged pull request counts as acceptance" ([ecosystem-resolution contract, "Recording rule"](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/ecosystem-resolution/README.md#recording-rule)).
+
+A reviewer or the consumer's CI runs the same script's verify mode on that pull request, from its copy of this plugin, with the lines from the body. It exits non-zero on any key other than `globs` and the command keys, and on any command the lines do not support; it does not check `globs`. It requires `--base`, the pull request's base commit, and exits 2 without it: it reads every cited line as it was at that commit, so the pull request cannot cite lines it adds or alters:
+
+```bash
+node "${CLAUDE_PLUGIN_ROOT}/skills/check/scripts/lane-record.mjs" verify --record "$REPO_ROOT/docs/conventions/ecosystems/<ecosystem>.yaml" --lines <assumed-lines-file> --base <base-commit> --repo "$REPO_ROOT"
+```
 
 ## For other skills referencing /toolchain:check
 

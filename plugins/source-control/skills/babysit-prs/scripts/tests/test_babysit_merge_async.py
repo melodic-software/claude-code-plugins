@@ -33,7 +33,6 @@ from repo_config_fake import RepoConfigFake
 import babysit_merge as merge
 
 HEAD = "c" * 40
-# The base compare the freshness hold reads for an otherwise-ready PR.
 UP_TO_DATE = {"status": "ahead", "ahead_by": 1, "behind_by": 0}
 LAYER1 = "1" * 40
 LAYER2 = "2" * 40
@@ -63,7 +62,6 @@ def _queue(
     armed: bool = False,
     timeline: list[Any] | None = None,
 ) -> dict[str, Any]:
-    """A GraphQL `PullRequest` merge-queue read; a position puts the PR in the queue."""
     in_queue = position is not None
     pull_request = {
         "merged": merged,
@@ -90,7 +88,6 @@ NODE_ID = "PR_kwDOnode0001"
 
 
 def _enqueued(state: str = "QUEUED", position: int = 1) -> dict[str, Any]:
-    """An `enqueuePullRequest` answer carrying the new `MergeQueueEntry`."""
     entry = {"state": state, "position": position}
     return {"data": {"enqueuePullRequest": {"mergeQueueEntry": entry}}}
 
@@ -1055,10 +1052,6 @@ def _annotation(level: str, message: str) -> dict[str, str]:
     return {"annotation_level": level, "message": message}
 
 
-# The failure and warning annotations of run 43155083740's CI Status job
-# (check run 130976739440, the merge group of #15535 on 2026-11-12), as GitHub
-# returned them; the notices, one repeated pair and the long request-id warning
-# are left out, and the jobs read's jq filter is cut from its command.
 RATE_LIMITED_GATE = [
     _annotation("failure", "Process completed with exit code 1."),
     _annotation(
@@ -1224,10 +1217,6 @@ class RateLimitedQueueRemovalsAreNotCounted(unittest.TestCase):
         self.now = merge.parse_github_timestamp("2026-11-12T04:50:00Z")
         self.assert_counted([REMOVED_AT, REMOVED_AT])
 
-    # A server error hold (a 5xx whose only signal was Retry-After) in the
-    # guards whose rate-limit wording of it matched before: a gate that failed
-    # on those lines alone is not counted once the hold has passed, and is
-    # before.
     SERVER_ERROR_GATE: ClassVar[list[dict[str, Any]]] = [
         _annotation("failure", "Process completed with exit code 75."),
         _annotation(
@@ -1811,7 +1800,6 @@ def _listed(number: int, sha: str, *, merged: bool = False) -> dict[str, Any]:
     }
 
 
-# The harness PR is #1; #2 is the open layer below it, evaluated at LAYER2.
 AS_EVALUATED = [_listed(2, LAYER2), _listed(1, HEAD)]
 LANDED = [_listed(2, LAYER2, merged=True), _listed(1, HEAD, merged=True)]
 
@@ -2205,8 +2193,6 @@ class GateEvaluation(unittest.TestCase):
                 return self.views[int(args[2])]
             path = args[1]
             if path.startswith("repos/owner/repo/rules/branches/"):
-                # The gate percent-encodes the branch. GitHub decodes that
-                # segment back to the branch name before matching rules.
                 branch = unquote(path.split("/rules/branches/", 1)[1])
                 return self.rules.get(branch, [])
             if path == "repos/owner/repo":

@@ -1,4 +1,4 @@
-// test-scope: .github/actions/resolve-config/package.json
+// test-scope: .github/actions/resolve-config/package.json plugins/work-items/skills/triage/schemas/ci-verdict.schema.json
 import assert from "node:assert/strict";
 import { OUTSIDE_ACTOR_LABEL } from "../pr-merge/merge-holds.mjs";
 import { STATUS_CONFIG, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
@@ -38,7 +38,6 @@ import {
 const TRUSTED = fileURLToPath(new URL("../work-unblock/fixtures/trusted-actors.json", import.meta.url));
 const HUMAN = 153232337;
 const LANES_APP = 337595936;
-const CLASSES = ["work-class: scoped", "work-class: structural", "work-class: mechanical", "provenance: untrusted"];
 const OLD_BASIS = "Basis: automated intake triage; a maintainer confirms or changes it.";
 const OLD_FOOTER = "<sub>Automated triage. A maintainer reviews it.</sub>";
 const OUTSIDER = 4242;
@@ -137,14 +136,13 @@ describe("parseVerdict with a typed verdict", () => {
     }
   });
 
-  test("the workflow's verdict-schema offers exactly the values the verdict reads", () => {
-    const workflow = readFileSync(new URL("../../workflows/intake-triage.yml", import.meta.url), "utf8");
-    const schema = JSON.parse(/^ +verdict-schema: '(.+)'$/m.exec(workflow)[1]);
+  test("the triage skill's verdict schema offers exactly the flags and typed fields the verdict reads", () => {
+    const schema = JSON.parse(readFileSync(new URL("../../../plugins/work-items/skills/triage/schemas/ci-verdict.schema.json", import.meta.url), "utf8"));
     for (const key of ["size", "complexity", "uncertainty"]) {
-      assert.deepEqual(schema.properties[key].enum.map((value) => value.toLowerCase()).sort(), Object.values(DIMS.fields[key].options).sort(), key);
+      for (const value of Object.values(DIMS.fields[key].options)) assert.match(value, new RegExp(schema.properties[key].pattern, "u"), `${key} ${value}`);
     }
     assert.deepEqual(schema.properties.flags.items.enum, ["intent", "security", "cost", "untrusted"]);
-    assert.deepEqual(schema.required, ["size", "complexity", "uncertainty", "flags", "blocked_by"]);
+    for (const key of ["size", "complexity", "uncertainty", "flags", "blocked_by"]) assert.ok(schema.required.includes(key), key);
   });
 });
 
@@ -344,7 +342,6 @@ describe("planWrites", () => {
         assert.deepEqual(result.remove, [hold]);
       });
 
-      // Owner decision on #9799's review: a flagged hold is not lifted by a later clean verdict.
       test(`${hold} the lanes App set after an earlier flagged verdict stays on a clean verdict`, () => {
         const result = plan(laneBody(), { labels: [hold], holdSetters: { [hold]: LANES_APP }, earlierFlags: ["security"] });
         assert.equal(result.ready, false);
@@ -370,8 +367,6 @@ describe("planWrites", () => {
     }
   }
 
-  // Owner decision on #9799's review, fail-closed: with no readable earlier
-  // verdict, the earlier run may have flagged, so the hold stays and says so.
   for (const hold of ["needs-reporter-info", NEEDS_DECISION]) {
     test(`${hold} the lanes App set with no readable earlier verdict stays on a clean verdict`, () => {
       const result = plan(laneBody(), { labels: [hold], holdSetters: { [hold]: LANES_APP }, earlierFlags: null });
@@ -389,10 +384,6 @@ describe("planWrites", () => {
     assert.deepEqual(result.reasons, []);
   });
 
-  // Owner decision on #9799's review: a clean verdict never lifts needs-human,
-  // whoever set it, except a same-run, no-flag needs-human on an otherwise
-  // ready plan (the owner's standing direction: a capability limit routes to
-  // host-run, never to a person).
   test("needs-human the lanes App set stays on a clean verdict", () => {
     const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": LANES_APP } });
     assert.equal(result.ready, false);
@@ -401,9 +392,6 @@ describe("planWrites", () => {
     assert.ok(result.reasons.includes("held by needs-human"), result.reasons.join("; "));
   });
 
-  // Run 41064812826 (#9953): the triage run applied needs-human for a host-run
-  // step. A capability limit is admission's to route (host-run), never a
-  // person's: needs-human this run's triage applied holds only beside a flag.
   test("needs-human this run's triage applied with no flag is refused and the verdict reaches ready", () => {
     const result = plan(laneBody(), { labels: ["needs-human"], holdSetters: { "needs-human": ACTIONS_BOT }, triageLabels: ["needs-human"] });
     assert.equal(result.ready, true);
@@ -494,9 +482,6 @@ describe("planWrites", () => {
     assert.ok(!result.remove.includes("needs-human"), result.remove.join(", "));
   });
 
-  // Run 41064812826 (#9953) also applied needs-owner-decision with no flag.
-  // Owner's standing direction §2: only a flag (intent, security, cost) stops
-  // for a person, so this run's flagless needs-decision gives way like needs-human.
   test("needs-owner-decision this run's triage applied with no flag is refused on an otherwise ready plan", () => {
     const result = plan(laneBody(), { labels: [NEEDS_DECISION], triageLabels: [NEEDS_DECISION] });
     assert.equal(result.ready, true);
@@ -1231,8 +1216,6 @@ describe("run", () => {
   });
 
   test("keeps an old class the lanes App added and replaces its own earlier field values given real-shaped ids", async () => {
-    // GraphQL answers databaseId as a number, here passed as a string to
-    // prove the type does not matter.
     const fake = fakeGitHub({
       issue: { labels: [{ name: "work-class: mechanical" }] },
       comments: [laneComment()],
@@ -1330,8 +1313,6 @@ describe("run", () => {
       post.body.issue_field_values.map(({ field_id }) => field_id),
       [48625720, 48625721],
     );
-    // Setting a field to an option leaves the same state when sent twice, so
-    // a 5xx on it is resent once (run 41814429466 failed on one 500).
     assert.deepEqual(post.options, { resendOnce: true });
   });
 
@@ -2278,7 +2259,6 @@ describe("run", () => {
       14: { id: 9014, number: 14, state: "closed", repository_url: REPO },
     };
     const edgePosts = (calls) => calls.filter(({ method, path }) => method === "POST" && path.endsWith("/dependencies/blocked_by")).map(({ body }) => body.issue_id);
-    // #8994's shape: the model's verdict names none, the body names one.
     const body = "## Problem\n\n#13 is related.\n\nBlocked by: #12\n\n## Depends on\n- #14\n\n<!-- work-items:born-triaged -->\n";
 
     test("get an edge before admission when the verdict's line names none", async () => {
@@ -2532,63 +2512,15 @@ describe("the workflow's --check steps", () => {
   }
 });
 
-const PROMPT = ["../../workflows/intake-triage.yml", "./triage-rubric.txt"]
-  .map((file) => readFileSync(new URL(file, import.meta.url), "utf8"))
-  .join("\n")
-  .split("\n")
-  .map((line) => line.trim())
-  .join(" ");
-
-describe("the triage prompt", () => {
-  test("an intent question is an open outcome, done-when or unpicked primary design, never a choice of implementation means", () => {
-    assert.doesNotMatch(PROMPT, /lists options and picks none/);
-    assert.doesNotMatch(PROMPT, /intent when the intended outcome is not exact or needs the owner's decision/);
-    assert.doesNotMatch(PROMPT, /A choice among means the issue lists, or of how to do the work, is not an intent question/);
-    assert.match(PROMPT, /Flags: intent when the intended outcome or done-when is not exact, or the issue lists primary-design alternatives and picks none/);
-    assert.match(
-      PROMPT,
-      /A choice among implementation means that leaves the primary design \(architecture, cross-module contracts, data ownership, public interfaces\) unchanged is not an intent question: the issue lane decides it on evidence/,
-    );
-    assert.match(
-      PROMPT,
-      /A primary-design choice the issue lists and leaves unpicked \(two architectures, a new shared store or an existing one\) is an intent question: set `Flags: intent`, apply `needs-owner-decision`, and ask it as a numbered question with a `RECOMMENDED:` answer/,
-    );
-  });
-
-  test("every needs-owner-decision the prompt asks for comes with a flag, and a flagless one is said to come off", () => {
-    assert.match(PROMPT, /c\. When one or more stay open, set `Flags: intent`, apply `needs-owner-decision`/);
-    assert.match(PROMPT, /A `needs-owner-decision` or `needs-human` label you apply holds only beside a flag on the Flags line/);
-  });
-
-  test("a charge a recorded decision covers goes on a Cost decided line, never a Cost line", () => {
-    assert.match(PROMPT, /already covers that charge; then name it on one `Cost decided: <what bills; the decision that covers it>` line instead, never a `Cost: ` line/);
-  });
-
-  test("the rubric names no work class", () => {
-    assert.doesNotMatch(PROMPT, /work class/i);
-    for (const name of [...CLASSES, "work-class: read-only"]) {
-      assert.ok(!PROMPT.includes(`\`${name}\``), `the rubric offers ${name}`);
-    }
-    assert.doesNotMatch(PROMPT, /work-class-labels\.md/);
-  });
-
-  test("the prompt marks untrusted provenance on the Flags line, which the parser reads as untrusted", () => {
-    assert.match(PROMPT, /Flags: none\|intent\|security\|cost\|untrusted/);
+describe("verdict lines the triage rules name", () => {
+  test("an untrusted value on the Flags line reads as untrusted", () => {
     const verdict = parseVerdict(laneBody({ lines: ["Size: Small", "Complexity: Low", "Uncertainty: Known", "Flags: untrusted"] }), DIMS);
     assert.equal(verdict.untrusted, true);
   });
 
-  // #13197: the issue lane's blocked-by-issue stop names its blocker for
-  // triage to record as an edge, never in reverse of an existing one.
-  test("a blocker the issue lane names on a blocked-by-issue stop goes on the Blocked by line", () => {
-    assert.match(PROMPT, /latest stop comment on the\s+issue is `blocked-by-issue` and names an open issue, list that issue there, unless the\s+named issue is itself blocked by this one/);
+  test("a blocked-by-issue stop routes the issue back to intake", () => {
     const routes = JSON.parse(readFileSync(new URL("../work-resolve-issue/stop-routes.json", import.meta.url), "utf8"));
     assert.equal(routes["blocked-by-issue"]?.route, "intake");
-  });
-
-  test("a Cost line is written exactly in its form, and work with no charge gets none", () => {
-    assert.match(PROMPT, /Write a Cost line exactly as `Cost: <what bills, where; the owner decision it lacks>` or `Cost decided: <what bills; the decision that covers it>`/);
-    assert.match(PROMPT, /Work with no charge gets no Cost line/);
   });
 });
 

@@ -3,6 +3,47 @@
 All notable changes to the `external-agents` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.5] - 2026-11-28
+
+### Changed
+
+- Backfilled invocation probe file (`probes/antigravity.json`) and trimmed skill frontmatter descriptions (`antigravity`: 430 -> 318 chars, `codex`: 378 -> 293 chars; total 808 -> 611 chars, saving 197 chars) while preserving all job modes, delegate-only-when-asked posture, exclusions, and probe parity.
+
+## [0.8.4] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.8.3] - 2026-11-26
+
+### Changed
+
+- `/external-agents:codex` and `/external-agents:antigravity` point at the tools reference's Bash timeout section for how long a foreground call may wait, instead of stating it ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [0.8.2] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [0.8.1] - 2026-11-25
+
+### Changed
+
+- The `codex` skill now says that a write run cannot `git add` or `git commit`, because Codex's
+  sandbox keeps the Git directory read-only, including a linked worktree's. The caller stages and
+  commits after the run. Tasks that run `uv` should set `UV_CACHE_DIR` under the temp directory.
+  The skill also explains why a run whose only refusals were worked-around cache writes is still
+  recorded `blocked-by-mode`. It also states plainly that `--add-dir` is only for directories the
+  task writes outside both the worktree and the temp directories, which the sandbox already allows.
+
+## [0.8.0] - 2026-11-24
+
+### Added
+
+- Plugin options `antigravity_uses_task_mode`, `antigravity_uses_investigate_mode`, `codex_uses_task_mode` and `codex_uses_investigate_mode` set a use's mode once per machine, for every repository. The runner reads them from your user settings (found from a cache install's own path) and managed settings, below a repository's team and personal files, so a repository file still overrides them. A value outside the option's list, or a settings file that cannot be read, is reported as a config notice and leaves the mode at the repository's or the plugin's value. Options need Claude Code v2.1.271 or later.
+
 ## [0.7.2] - 2026-11-24
 
 ### Changed

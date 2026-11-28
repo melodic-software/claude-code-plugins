@@ -37,8 +37,6 @@ function Get-CheckSelection {
         [datetime] $Now
     )
 
-    # Just under 28 so weekly-run jitter still fires a monthly check on the 4th
-    # weekly run (~28d) rather than slipping to the 5th.
     $monthlyMinIntervalDays = 27
 
     $nowOffset = [DateTimeOffset]$Now

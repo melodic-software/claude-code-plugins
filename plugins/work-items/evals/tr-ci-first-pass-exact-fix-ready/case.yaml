@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: tr-ci-first-pass-exact-fix-ready
+description: 'Triage --ci first pass on an owner-filed, exact, small fix whose claims hold in the checkout: Flags none, the Blast radius and Reversible lines, no needs-owner-decision, needs_human false. Ported from the retired intake reentry-eval case first-pass-exact-fix-ready. A run needs --scaffold.'
+tags: [triage, ci-mode, intake, first-pass]
+plugins: ["../.."]
+expected_outcome: 'The run reads .lane/scratch/issue.json, checks both claims against scripts/check-fragments.sh and docs/changelog-fragments.md, writes Flags: none with Blast radius and Reversible lines, applies no needs-owner-decision, and keeps needs_human false.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/work-items:triage --issue 99906 --ci\n\nYour scratchpad directory is `.lane/scratch`. The lane's output schema takes these keys: size small, medium or large; complexity low, medium or high; uncertainty known, knowable or unknown; type Bug, Task or Feature. This session has no structured-output channel, so end the run with a reply that is only the verdict: one JSON object in the schema's shape."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: flags-none
+    type: 'regex'
+    pattern: '(?:^|\\n|\n)Flags: none(?:\\n|\n|"|$)'
+    target: 'last_message'
+    arm: both
+  - name: writes-blast-radius
+    type: 'regex'
+    pattern: '(?:^|\\n|\n)Blast radius: \S'
+    target: 'last_message'
+    arm: both
+  - name: writes-reversible
+    type: 'regex'
+    pattern: '(?:^|\\n|\n)Reversible: (?:yes|partly|no)\b'
+    target: 'last_message'
+    arm: both
+  - name: no-needs-decision
+    type: 'regex'
+    pattern: '"labels"\s*:\s*\[[^\]]*"needs-owner-decision"'
+    match: 'not_contains'
+    target: 'last_message'
+    arm: both
+  - name: keeps-needs-human-false
+    type: 'regex'
+    pattern: '"needs_human"\s*:\s*false'
+    target: 'last_message'
+    arm: both

@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# check-browser-driver.sh — stop a /testing:run-e2e playwright drive whose
-# browser tool is not installed.
-#
-# Resolves browser_driver through `resolve-config.sh e2e` and checks that the
-# command it names is an executable file on PATH. It takes the arguments
-# resolve-config.sh e2e takes (--root, --home, --user browser_driver=<value>).
-#
-# Exit: 0 the command resolves, 1 it does not (the message on stderr names the
-# setting, the value, its source and the two ways forward), 2 the setting did
-# not resolve (resolve-config.sh's own exit and message).
 set -uo pipefail
 
 here="${BASH_SOURCE[0]%/*}"

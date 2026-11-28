@@ -60,11 +60,10 @@ import assets
 import pydeps
 
 SAMPLE_RATE = 24000
-# fp32: on a 32-thread x86 CPU it ran at 0.37 x real time, the int8 export at 2.62 and fp16 at 0.46 (2026-10-02)
 MODEL = 'onnx/model.onnx'
-MAX_TOKENS = 500             # the model reads 512 ids, two of them pads; each voice holds 510 style rows
+MAX_TOKENS = 500
 DEFAULT_VOICE = 'af_heart'
-LANGS = {'a': 'en-us', 'b': 'en-gb'}   # a voice name's first letter is its accent
+LANGS = {'a': 'en-us', 'b': 'en-gb'}
 SENTENCE_END = set('.!?…')
 SPACE = ' '
 
@@ -93,12 +92,10 @@ def espeak_phonemizer(lang):
 
 
 def plan(text, phonemize, vocab):
-    """Each script token with the model ids it contributes: leading punctuation, its phonemes, trailing punctuation.
-    `core` is the slice of `ids` the word's timing covers: its phonemes, or its punctuation when it has none."""
     words = []
     for token in text.split():
         lead, body, trail = re.fullmatch(r'(\W*)(.*?)(\W*)', token).groups()
-        if not body:   # all punctuation, such as an em dash
+        if not body:
             lead, trail = token, ''
         pre = [vocab[c] for c in lead if c in vocab]
         core = [vocab[c] for c in (phonemize(body) if body else '') if c in vocab]
@@ -142,14 +139,12 @@ def chunks(words, limit=MAX_TOKENS):
 
 
 def token_edges(durations, samples):
-    """Sample offset of every token boundary, the leading pad included, scaled so the last edge is the audio's end."""
     import numpy as np
     frames = np.concatenate([[0.0], np.cumsum(np.asarray(durations, dtype=np.float64))])
     return np.round(frames * (samples / frames[-1])).astype(np.int64)
 
 
 def synthesize(batches, session, style_rows, speed, space_id):
-    """Run the model per batch. Returns the float32 audio and, per word, its (start, end) sample offsets."""
     import numpy as np
     audio, spans, offset = [], [], 0
     for batch in batches:
@@ -169,7 +164,6 @@ def synthesize(batches, session, style_rows, speed, space_id):
         edges = token_edges(np.asarray(durations).ravel(), len(waveform))
         for w, start in zip(batch, starts):
             a, b = w['span']
-            # +1 skips the leading pad: id position p spans edges[p + 1] .. edges[p + 2]
             spans.append((offset + int(edges[start + a + 1]), offset + int(edges[start + b + 1])))
         audio.append(waveform)
         offset += len(waveform)
@@ -201,8 +195,9 @@ def narrate(text, out, data, voice=DEFAULT_VOICE, speed=1.0, phonemize=None, mod
         import numpy as np
         import onnxruntime as rt
     except ImportError as e:
-        raise Missing(f'the Python packages do not import ({e}); start a new session, whose SessionStart hook '
-                      f'installs them, or run the repair line that python3 "{Path(__file__).with_name("check.py")}" prints.') from e
+        raise Missing(f'the Python packages do not import ({e}); run the repair line that '
+                      f'python3 "{Path(__file__).with_name("check.py")}" prints, or set '
+                      'install_python_deps_enabled to true and start a new session.') from e
     root = assets.assets_dir(data, m, model_dir)
     vocab = json.loads((root / 'tokenizer.json').read_text(encoding='utf-8'))['model']['vocab']
     phonemize = phonemize or espeak_phonemizer(LANGS[voice[0]])
@@ -231,9 +226,9 @@ def narrate(text, out, data, voice=DEFAULT_VOICE, speed=1.0, phonemize=None, mod
 
 
 RETRY_DELAYS_S = (1, 2, 4)
-EDGE_RETRY_DELAYS_S = (5, 20, 60)   # the endpoint drops requests for a while, then recovers (rany2/edge-tts#473)
+EDGE_RETRY_DELAYS_S = (5, 20, 60)
 DEFAULT_TIMEOUT_S = 120.0
-TIMEOUT_GRACE_S = 1.0        # the adapter's own timeout reports first; the thread join is the backstop
+TIMEOUT_GRACE_S = 1.0
 FLOOR_VAR = 'SPEECH_EGRESS_FLOOR'
 EDGE_VOICE = 'en-US-AndrewNeural'
 OPENAI_HOST, OPENAI_MODEL, OPENAI_VOICE = 'api.openai.com', 'gpt-4o-mini-tts', 'marin'
@@ -252,17 +247,16 @@ class CallTimeout(Exception):
 @dataclass(frozen=True)
 class Backend:
     name: str
-    voice: Callable    # (script, out_dir, voice, timeout) -> (wav path, [{word, start, end}])
+    voice: Callable
     default_voice: str = ''
     online: bool = True
     paid: bool = False
-    timed: bool = False   # the words come from the voice itself, not an estimate
-    per_paragraph: bool = False   # one request per paragraph: a long request drops late and loses everything
+    timed: bool = False
+    per_paragraph: bool = False
     retry_delays_s: tuple = RETRY_DELAYS_S
 
 
 def estimate_words(text, duration):
-    """Word times for a voice that reports none: the duration shared out by each token's length plus one."""
     tokens = text.split()
     total = sum(len(t) + 1 for t in tokens) or 1
     words, at = [], 0
@@ -274,8 +268,6 @@ def estimate_words(text, duration):
 
 
 def align_boundaries(text, marks):
-    """One {word, start, end} per whitespace token of `text` from (spoken text, start, end) marks in speaking order.
-    A token spans the marks found inside it; a token with none, such as a dash, sits at the previous token's end."""
     lower, placed, cursor = text.lower(), [], 0
     for said, start, end in marks:
         said = said.strip().lower()
@@ -295,13 +287,12 @@ def align_boundaries(text, marks):
 
 
 def bounded(fn, timeout):
-    """fn() on a daemon thread, abandoned after the timeout: an in-process call that hangs cannot hold the chain."""
     box = {}
 
     def run():
         try:
             box['value'] = fn()
-        except BaseException as e:   # re-raised on the caller's thread below
+        except BaseException as e:
             box['error'] = e
     t = threading.Thread(target=run, daemon=True)
     t.start()
@@ -381,8 +372,9 @@ def edge_backend():
         try:
             import edge_tts
         except ImportError as e:
-            raise Unavailable(f'the edge-tts package does not import ({e}); start a new session, whose SessionStart '
-                              'hook installs it') from None
+            raise Unavailable(f'the edge-tts package does not import ({e}); run the repair line from '
+                              f'python3 "{Path(__file__).with_name("check.py")}", or set '
+                              'install_python_deps_enabled to true and start a new session') from None
         ffmpeg = shutil.which('ffmpeg')
         if not ffmpeg:
             raise Unavailable('ffmpeg is not on PATH; edge-tts sends MP3, which ffmpeg turns into narration.wav')
@@ -396,7 +388,7 @@ def edge_backend():
             async for chunk in talk.stream():
                 if chunk['type'] == 'audio':
                     audio += chunk['data']
-                elif chunk['type'] == 'WordBoundary':   # offsets in 100 ns ticks
+                elif chunk['type'] == 'WordBoundary':
                     marks.append((chunk['text'], chunk['offset'] / 1e7, (chunk['offset'] + chunk['duration']) / 1e7))
             return bytes(audio), marks
         try:
@@ -435,7 +427,7 @@ def openai_backend(env):
             raise Unavailable(f'{OPENAI_HOST} answered HTTP {e.code}') from None
         except (urllib.error.URLError, OSError) as e:
             reason = getattr(e, 'reason', e)
-            if isinstance(reason, TimeoutError):   # a read timeout, or one while connecting (URLError)
+            if isinstance(reason, TimeoutError):
                 raise CallTimeout(f'{OPENAI_HOST} passed {timeout:g} s') from None
             raise RuntimeError(f'the request to {OPENAI_HOST} failed: {reason}') from None
         if not pcm or len(pcm) % 2:
@@ -454,7 +446,7 @@ def elevenlabs_backend(env, data_flag):
         except elevenlabs.TimedOut as e:
             raise CallTimeout(str(e)) from None
         except (elevenlabs.Missing, elevenlabs.Blocked, elevenlabs.Failed, ValueError) as e:
-            raise Unavailable(str(e)) from None   # elevenlabs.py already retries 429 and 5xx itself
+            raise Unavailable(str(e)) from None
         return out_dir / 'narration.wav', record['words']
     import elevenlabs
     return Backend('elevenlabs', voice, elevenlabs.DEFAULT_VOICE, paid=True, timed=True)
@@ -472,18 +464,16 @@ def scan_script(text, extra=()):
     try:
         import media_scan
         result = media_scan.scan({'narration': text}, extra=extra)
-    except Exception as e:   # the floor fails closed on any error
+    except Exception as e:
         return [f'scan-error: {type(e).__name__}']
     return (['rules-failed-to-load'] if result.fail_closed else []) + sorted({f['kind'] for f in result.findings})
 
 
 def paragraphs(text):
-    """The script's blank-line separated paragraphs that hold a word."""
     return [p.strip() for p in re.split(r'\n\s*\n', text) if p.split()]
 
 
 def join_wavs(parts, path):
-    """One WAV at `path` from the parts' (wav, words) in order, each part's words moved past the audio before it."""
     fmt, frames, words, offset = None, [], [], 0.0
     for wav, part_words in parts:
         with wave.open(str(wav), 'rb') as w:
@@ -506,7 +496,6 @@ def join_wavs(parts, path):
 
 def run_chain(text, out, chain, backends, voices=None, timeout=DEFAULT_TIMEOUT_S, allow_paid=False, env=None,
               sleep=time.sleep, scan=None):
-    """Voice the whole script with the first backend in `chain` that can; returns the exit code."""
     env = os.environ if env is None else env
     voices, scan = voices or {}, scan or scan_script
     tokens = text.split()
@@ -522,7 +511,6 @@ def run_chain(text, out, chain, backends, voices=None, timeout=DEFAULT_TIMEOUT_S
                          **({'error': str(error)[:ERROR_CHARS]} if error else {})})
 
     def voice_part(b, v, part, paragraph):
-        """One request for `part`, retried; (wav, words, work dir), or None when this backend is done."""
         expected = part.split()
         for delay in (0, *b.retry_delays_s):
             if delay:
@@ -539,7 +527,7 @@ def run_chain(text, out, chain, backends, voices=None, timeout=DEFAULT_TIMEOUT_S
                      time.monotonic() - began, paragraph)
                 shutil.rmtree(work, ignore_errors=True)
                 return None
-            except Exception as e:   # any other failure of a voice is retried
+            except Exception as e:
                 note(b.name, v, 'failed', str(e) or type(e).__name__, time.monotonic() - began, paragraph)
             else:
                 note(b.name, v, 'ok', '', time.monotonic() - began, paragraph)

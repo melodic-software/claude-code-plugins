@@ -1,27 +1,12 @@
 #!/usr/bin/env bash
-# Known-answer tests for metrics.sh, raters.sh and sample.sh's label guard. No
-# expected value here comes from running those scripts. Each names its source:
-#   - Wikipedia "Cohen's kappa", worked example (50 items: 20 yes/yes, 5 yes/no,
-#     10 no/yes, 15 no/no; po 0.7, pe 0.5, kappa 0.4).
-#   - Newcombe 1998, "Two-sided confidence intervals for the single proportion",
-#     Stat Med 17:857-872, Table I: 81/263, Wilson score interval 0.2553-0.3662.
-#   - The rest by hand, each cross-checked with python3's standard library
-#     (fractions.Fraction for kappa, statistics.NormalDist().inv_cdf(0.975) =
-#     1.959964 for z, the Wilson formula, and math.comb for the exact McNemar
-#     p = min(1, 2 * sum(comb(n, k) for k <= min(b, c)) / 2^n)), never with
-#     these scripts.
-# Every interval prints to 4 decimals with z = 1.959964.
 # test-scope: plugins/testing/skills/audit/adapters/*.yaml
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# The judge hooks' fixtures: a temp dir, a `claude` on PATH that records any
-# real call, the stub judge behind TEST_JUDGE_CMD, and the ok/fail counters.
 # shellcheck source=../../../../hooks/judge-test-helpers.sh
 source "$HERE/../../../../hooks/judge-test-helpers.sh"
 METRICS="$HERE/metrics.sh"
 RATERS="$HERE/raters.sh"
 W="$TMP/cal"
 mkdir -p "$W/cases"
-# A real codex is often on PATH: a recording fake shadows it, like `claude`.
 cat >"$TMP/bin/codex" <<EOF
 #!/usr/bin/env bash
 echo "a real codex was called" >>"$TMP/real-codex-called"
@@ -31,23 +16,18 @@ chmod +x "$TMP/bin/codex"
 
 COLS=(id source language file test in_scope reference_label opus_label codex_label judge_verdict evidence note stratum split)
 header() { (IFS=$'\t' && echo "${COLS[*]}"); }
-# row <id> <stratum> <split> <human> <opus> <codex> <judge> [file] [test] [note]
 row() { printf '%s\tsrc\tts\t%s\t%s\tyes\t%s\t%s\t%s\t%s\t\t%s\t%s\t%s\n' "$1" "${8:-}" "${9:-}" "$4" "$5" "$6" "$7" "${10:-}" "$2" "$3"; }
-# rows <count> <args for row after the id>: <count> rows with ids <prefix>1..n
 rows() {
   local n="$1" p="$2" i
   shift 2
   for ((i = 1; i <= n; i++)); do row "$p$i" "$@"; done
 }
-# setcol <file> <id> <column> <value>: set one cell, found by header name.
 setcol() {
   awk -F'\t' -v OFS='\t' -v id="$2" -v k="$3" -v v="$4" \
     'NR == 1 { for (i = 1; i <= NF; i++) c[$i] = i } NR > 1 && $c["id"] == id { $c[k] = v } 1' "$1" >"$1.new" && mv "$1.new" "$1"
 }
-# col <file> <column>: one column's values, by header name, without the header.
 col() { awk -F'\t' -v k="$2" 'NR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next } { print $c[k] }' "$1"; }
 
-# --- Cohen's kappa, two classes (Wikipedia worked example: 0.4) ---------------
 {
   header
   rows 20 a s tune FLAG FLAG "" ""
@@ -61,21 +41,7 @@ assert_contains "kappa, Wikipedia worked example, with coverage and raw agreemen
 assert_contains "no judge labels gives NA" "$out" 'kappa judge-user in s NA (n=0) coverage NA (0/0) agreement NA (0/0)'
 assert_not_contains "a rater with no label on any row gets no line" "$out" 'kappa user-codex'
 
-# --- Three classes and the UNKNOWN rule, one matrix used three ways ------------
-# Rows are the judge (and the opus rater), columns the user's label:
-#             FLAG PASS UNKNOWN
-#   FLAG        6    2     1
-#   PASS        1    8     1
-#   UNKNOWN     1    1     3
-# By hand: n 24. The two UNKNOWN verdicts on a user FLAG or PASS row abstain,
-# so kappa runs over 22 rows: agree 6 + 8 + 3 = 17, po 17/22; judge totals
-# 9 10 3, user totals 7 10 5; pe (63 + 100 + 15)/484 = 178/484; kappa
-# (374 - 178)/(484 - 178) = 98/153 = 0.6405. Coverage: 19 user FLAG or PASS
-# rows, 17 not abstained: 0.8947. FLAG precision 6/9 (the FLAG on a user
-# UNKNOWN row counts against it): Wilson 0.3542-0.8794. FLAG recall 6/7 (the
-# abstention on a user FLAG row is left out): 0.4869-0.9743. Prevalence 8/24.
-# On the 5 user UNKNOWN rows: 3 judge UNKNOWN (correct), 2 over-reach.
-matrix() { # matrix <stratum> <split>: the 24 rows; codex agrees with the user
+matrix() {
   local s="$1" sp="$2"
   rows 6 "$s-ff" "$s" "$sp" FLAG FLAG FLAG FLAG
   rows 2 "$s-fp" "$s" "$sp" PASS FLAG PASS FLAG
@@ -90,7 +56,6 @@ matrix() { # matrix <stratum> <split>: the 24 rows; codex agrees with the user
 {
   header
   matrix seed tune
-  # A second stratum where every label agrees on PASS: pe = 1, kappa undefined.
   rows 3 same in-use holdout PASS PASS PASS PASS
 } >"$W/three.tsv"
 out="$(bash "$METRICS" "$W/three.tsv")"
@@ -114,14 +79,10 @@ assert_contains "precision NA when the judge never says FLAG" "$out" $'flag-prec
 assert_contains "recall NA with no user FLAG" "$out" $'flag-recall in-use NA (0/0)'
 assert_contains "strata pooled into all" "$out" $'confusion all judge=PASS FLAG=1 PASS=11 UNKNOWN=1'
 assert_contains "stratum header" "$out" $'stratum in-use n=3'
-# The plan's Sanity Check greps, over a report with two strata and the pool.
 check "the user-opus grep finds exactly the pooled line" "[[ \$(grep -cE '^kappa user-opus .* all ' <<<\"\$out\") -eq 1 ]]"
 check "the user-codex grep finds exactly the pooled line" "[[ \$(grep -cE '^kappa user-codex .* all ' <<<\"\$out\") -eq 1 ]]"
 check "the judge-user grep finds the pooled line" "[[ \$(grep -cE '^kappa judge-user .* all ' <<<\"\$out\") -ge 1 ]]"
 
-# --- Wilson edge and published cases --------------------------------------------
-# Newcombe 1998 Table I: 81/263 gives 0.2553-0.3662. By the formula: 0/5 gives
-# 0.0000-0.4345 and 5/5 gives 0.5655-1.0000.
 {
   header
   rows 81 t s tune FLAG FLAG FLAG FLAG
@@ -159,8 +120,6 @@ commit() { git -C "$CR" add -A && git -C "$CR" -c user.name=t -c user.email=t@t 
 printf 'prompt v1\n' >"$CR/plugins/testing/hooks/test-judge-prompt.md"
 printf '# Calibration\n' >"$CAL"
 commit prompt
-# Passing set: 2 strata, holdout exactly a third of each, opus rated every
-# row, codex none (so codex is not configured).
 {
   header
   rows 2 s seed tune FLAG FLAG "" ""
@@ -172,7 +131,7 @@ commit labels
 out="$(bash "$METRICS" --check "$LBL" 2>&1)"
 check "--check exits 0 on a complete, frozen set (output: ${out:0:200})" "[[ $? -eq 0 ]]"
 
-expect_check_fail() { # <name> <message part>
+expect_check_fail() {
   local o rc
   o="$(bash "$METRICS" --check "$LBL" 2>&1)"
   rc=$?
@@ -197,9 +156,6 @@ expect_check_fail "too small a holdout" "in-use: holdout 0 of 6"
 cp "$TMP/good.tsv" "$LBL"
 setcol "$LBL" u1 opus_label FLAG
 setcol "$LBL" u2 opus_label FLAG
-# By hand: user FLAG 4, PASS 5; opus FLAG 6, PASS 3; agree 7 of 9.
-# pe (4*6 + 5*3)/81 = 39/81; kappa (63/81 - 39/81)/(42/81) = 24/42 = 0.5714.
-# The user's labels are the ground truth, so a weak rater does not block.
 out="$(bash "$METRICS" --check "$LBL" 2>&1)"
 check "a rater under 0.6 does not fail --check (output: ${out:0:200})" "[[ $? -eq 0 ]]"
 assert_contains "a rater under 0.6 is reported as failed" "$(bash "$METRICS" "$LBL")" \
@@ -213,8 +169,6 @@ printf 'holdout-only: %s\n' "${late:0:7}" >>"$CAL"
 commit "record holdout-only metrics"
 bash "$METRICS" --check "$LBL" >/dev/null 2>&1
 check "--check accepts a later prompt change with a holdout-only marker" "[[ $? -eq 0 ]]"
-# With the marker, figures come from holdout rows only (h1, v1, v2). The arm
-# is wrong on s1 alone, a tune row: 3/3 on holdout, where all rows give 8/9.
 mkdir -p "${LBL%/*}/sweep"
 for i in s1 s2 h1 u1 u2 u3 u4 v1 v2; do
   v="$(awk -F'\t' -v id="$i" '$1 == id { print $7 }' "$LBL")"
@@ -226,7 +180,6 @@ assert_contains "a holdout-only marker scores the table on holdout" "$out" '| so
 assert_contains "and says so" "$out" "holdout rows only"
 assert_contains "a holdout-only marker scores the report on holdout" "$(bash "$METRICS" "$LBL" 2>&1)" "stratum all n=3"
 rm -rf "${LBL%/*}/sweep"
-# Section 1 of test-value/SKILL.md is part of the judge prompt; other sections are not.
 SK="$CR/plugins/testing/skills/test-value/SKILL.md"
 mkdir -p "${SK%/*}"
 printf '# Test value\n\n## 1. Rubric\n\nv1\n\n## 2. Other\n\nx\n' >"$SK"
@@ -247,21 +200,6 @@ rm -rf "$CR/.git"
 git -C "$CR" init -q -b main
 expect_check_fail "labels outside git history" "labels.tsv has no commit"
 
-# --- --table: selection over kept sweep files, known answers ----------------------
-# 12 rows: r1-r4 the user labeled FLAG, r5-r12 PASS. Each arm answers the
-# user's label except where listed; "wrong" rows flip FLAG and PASS.
-#   opus high:     r12 FLAG                  11/12, the most accurate
-#   opus medium:   r10 FLAG, r11 UNKNOWN     10/12; vs best b=1 c=2: p 1
-#   opus low:      r1-r9 wrong               3/12;  b=1 c=9: p 22/1024 = 0.0215
-#   sonnet low:    r1-r6 wrong               6/12;  b=1 c=6: p 16/128 = 0.1250
-#   sonnet medium: r1-r2 wrong               10/12; b=1 c=2: p 1
-#   sonnet high:   r1-r2 wrong               10/12; p 1
-#   sonnet xhigh:  r1-r9 wrong               3/12;  p 0.0215
-# Tied with opus high (p >= 0.05): opus medium and sonnet low, medium and
-# high. Sonnet wins; p95 wall (nearest rank) is 30 for low and 20 for medium
-# and high; cost per row 0.03/12 = 0.0025 for medium beats 0.06/12 for high:
-# chosen sonnet medium. Fallback, opus by the same rule: opus high is its most
-# accurate, opus medium ties with it (p 1) and has the lower p95 (40 vs 50).
 TB="$TMP/table"
 mkdir -p "$TB/sweep"
 {
@@ -269,7 +207,7 @@ mkdir -p "$TB/sweep"
   for i in 1 2 3 4; do row "r$i" s tune FLAG "" "" ""; done
   for i in 5 6 7 8 9 10 11 12; do row "r$i" s tune PASS "" "" ""; done
 } >"$TB/labels.tsv"
-arm_file() { # arm_file <model> <effort> <wrong rows "a-b"> [row=verdict...]
+arm_file() {
   local m="$1" e="$2" lo="${3%-*}" hi="${3#*-}" i v
   shift 3
   for i in $(seq 1 12); do
@@ -295,8 +233,6 @@ printf '0.03\t10\n0.03\t20\n' >"$TB/sweep/sonnet-high.runs.tsv"
 printf '0.1\t5\n0.1\t6\n' >"$TB/sweep/sonnet-xhigh.runs.tsv"
 out="$(bash "$METRICS" --table "$TB/labels.tsv" 2>&1)"
 check "--table exits 0 (output: ${out:0:300})" "[[ $? -eq 0 ]]"
-# opus high: FLAG on r1-r4 and r12, so precision 4/5 (Wilson 0.3755-0.9638)
-# and recall 4/4 (0.5101-1.0000); cost 0.10/12; wall median 45, p95 50, total 90.
 # shellcheck disable=SC2016 # literal dollar amounts
 assert_contains "the most accurate arm's row" "$out" \
   '| opus | high | 0.9167 (11/12) | 0.8000 [0.3755, 0.9638] (4/5) | 1.0000 [0.5101, 1.0000] (4/4) | 1.0000 (12/12) | $0.0083 | 45.0 s | 50.0 s | 90.0 s | 1.0000 |'
@@ -313,7 +249,6 @@ assert_contains "chosen: sonnet, then p95 wall, then cost" "$out" $'\nchosen: so
 assert_contains "fallback: the other class by the same rule" "$out" $'\nfallback: opus medium'
 check "the table has the seven rows the Sanity Check greps for" \
   "[[ \$(grep -cE '^\\| (sonnet \\| (low|medium|high|xhigh)|opus \\| (low|medium|high)) \\|' <<<\"\$out\") -eq 7 ]]"
-# The most accurate arm tied on accuracy: sonnet wins it.
 arm_file sonnet medium 0-0 r12=FLAG
 out="$(bash "$METRICS" --table "$TB/labels.tsv" 2>&1)"
 assert_contains "an accuracy tie at the top goes to sonnet" "$out" '| sonnet | medium | 0.9167 (11/12) |'
@@ -327,9 +262,6 @@ assert_contains "a missing verdict is named" "$out" "sweep/sonnet-high.tsv: miss
 assert_contains "a duplicate verdict is named" "$out" "sweep/sonnet-low.tsv: duplicate r4"
 assert_contains "an unknown id is named" "$out" "sweep/opus-low.tsv: unknown r99"
 assert_not_contains "no arm is chosen from it" "$out" "chosen:"
-# Cost per row divides by the rows the runs judged, not the rows scored: with
-# r12's label blank, 11 rows are scored but the arm judged all 12, so sonnet
-# medium stays 0.03/12 = 0.0025 (0.03/11 would print 0.0027).
 TC="$TMP/table-cost"
 mkdir -p "$TC/sweep"
 awk -F'\t' -v OFS='\t' 'NR > 1 && $1 == "r12" { $7 = "" } { print }' "$TB/labels.tsv" >"$TC/labels.tsv"
@@ -344,9 +276,6 @@ mkdir -p "$SW/cases/case-1/test" "$SW/cases/case-1/src" "$SW/cases/case-2"
 printf 'it("adds", () => {\n  expect(add(1, 2)).toBe(3);\n});\n\nit("flag restates", () => {\n  expect(add(1, 2)).toBe(1 + 2);\n});\n' \
   >"$SW/cases/case-1/test/add.test.ts.fixture"
 printf 'export const add = (a, b) => a + b;\n' >"$SW/cases/case-1/src/add.ts.fixture"
-# The stub's FLAG diff edits a block's first line, here the whole file's: it
-# must be code, since a diff that changes only a comment (a shebang) is not a
-# repair and validation makes it UNKNOWN.
 # shellcheck disable=SC2016 # the case file holds a literal $(...)
 printf 'fail() { exit 1; }\n[[ "$(echo a)" == a ]] || fail\n' >"$SW/cases/case-2/flag.test.sh.fixture"
 {
@@ -355,7 +284,6 @@ printf 'fail() { exit 1; }\n[[ "$(echo a)" == a ]] || fail\n' >"$SW/cases/case-2
   row c2 seed holdout FLAG "" "" "" cases/case-1/test/add.test.ts.fixture "flag restates"
   row c3 in-use holdout FLAG "" "" "" cases/case-2/flag.test.sh.fixture flag.test.sh "changed 2-3"
 } >"$SW/labels.tsv"
-# Every stub answer costs $0.01.
 cat >"$TMP/cost-stub.sh" <<EOF
 #!/usr/bin/env bash
 find . -type f -not -path "./.git/*" >"\$STUB_DIR/ls-\$\$-\$RANDOM"
@@ -371,10 +299,6 @@ check "--sweep exits 0 (output: ${out:0:300})" "[[ $rc -eq 0 ]]"
 check "the sweep table has the seven rows calibration.md greps for" \
   "[[ \$(grep -cE '^\\| (sonnet \\| (low|medium|high|xhigh)|opus \\| (low|medium|high)) \\|' <<<\"\$out\") -eq 7 ]]"
 check "seven distinct arms" "[[ \$(grep -E '^\\| (sonnet|opus) \\| (low|medium|high|xhigh) \\|' <<<\"\$out\" | cut -d'|' -f2,3 | sort -u | wc -l) -eq 7 ]]"
-# c2 and c3 are user FLAG and the stub flags both (names hold "flag"); c1 is
-# PASS and passes: accuracy 3/3, precision 2/2 and recall 2/2 (Wilson
-# 0.3424-1.0000), coverage 3/3. Cost: two runs (one per case file) at $0.01
-# over 3 rows, $0.0067 a row.
 # shellcheck disable=SC2016 # a literal dollar amount
 assert_contains "a row reports accuracy, precision, recall, coverage and cost" "$out" \
   '| sonnet | low | 1.0000 (3/3) | 1.0000 [0.3424, 1.0000] (2/2) | 1.0000 [0.3424, 1.0000] (2/2) | 1.0000 (3/3) | $0.0067 |'
@@ -391,12 +315,8 @@ done
 for e in low medium high xhigh; do
   assert_contains "arm effort $e reached the judge" "$args" $'--effort\n'"$e"
 done
-# judge::class maps the current Haiku model ID (claude-haiku-5-5, the models
-# overview's Claude API ID) to the haiku class, as it does the alias.
 cls="$(bash -c 'source "$1/scanner-run.sh" && source "$1/judge-lib.sh" && judge::class claude-haiku-5-5 && judge::class haiku' _ "$HERE/../../../../hooks")"
 assert_contains "judge::class resolves claude-haiku-5-5 and the alias to haiku" "$cls" $'haiku\nhaiku'
-# judge::pick never falls back to haiku (calibration.md, Haiku). Writers come
-# from transcripts: the main one at TPATH and each listed session's beside it.
 PK="$TMP/pick"
 mkdir -p "$PK"
 printf '{"type":"assistant","message":{"model":"claude-opus-5-5"}}\n' >"$PK/main.jsonl"
@@ -421,8 +341,6 @@ assert_contains "verdicts map back to case ids" "$(cat "$SW/sweep/opus-medium.ts
 check "each arm keeps one cost and wall time per run" \
   "[[ \$(awk -F'\t' 'NF == 2 && \$1 == 0.01 && \$2 ~ /^[0-9]+(\\.[0-9]+)?\$/' \"\$SW/sweep/sonnet-xhigh.runs.tsv\" | wc -l) -eq 2 ]]"
 
-# --- --rerun: run-to-run variance of one arm ---------------------------------------
-# The re-runs pass every block: c2 and c3 change, c1 does not: 2/3.
 cat >"$TMP/pass-stub.sh" <<EOF
 #!/usr/bin/env bash
 "$TMP/cost-stub.sh" "\$@" | jq -c '.result |= ("Here you go: " + (sub("^Here you go: "; "") | fromjson | .verdicts |= map(.verdict = "PASS" | .diff = "") | tojson))'
@@ -448,9 +366,6 @@ cp -R "$SW/cases" "$RW/cases"
   row c3 in-use holdout "" "" "" "" cases/case-2/flag.test.sh.fixture flag.test.sh "changed 2-3"
   row c4 in-use holdout "" "" "" "" cases/case-2/flag.test.sh.fixture "leaky one"
 } >"$RW/labels.tsv"
-# The claude stub: logs its arguments, cwd listing and prompt; FLAG when the
-# test name holds "flag", else PASS; a "leaky" test's transcript reads the
-# labels, which the guard must catch.
 cat >"$TMP/rater-claude.sh" <<'EOF'
 #!/usr/bin/env bash
 n="$(date +%s)-$$-$RANDOM"
@@ -465,7 +380,6 @@ reason="stub\\treason"
 [[ $label == FLAG ]] && reason+=" {x: 1}" # a reason quoting code braces
 jq -cn --arg r "Label: {\"label\": \"$label\", \"reason\": \"$reason\"}" '{type: "result", subtype: "success", is_error: false, result: $r}'
 EOF
-# The codex stub: `login status` per STUB_CODEX_LOGIN; exec writes UNKNOWN to -o.
 cat >"$TMP/rater-codex.sh" <<'EOF'
 #!/usr/bin/env bash
 [[ "$1" == login ]] && { [[ "${STUB_CODEX_LOGIN:-ok}" == ok ]]; exit; }

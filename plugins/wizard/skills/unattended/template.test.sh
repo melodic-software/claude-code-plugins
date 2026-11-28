@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for the unattended PowerShell library.
 # test-scope: plugins/wizard/README.md
 set -uo pipefail
 
@@ -79,10 +78,10 @@ else
 fi
 
 if [[ "$SKILL_FLAT" == *'WIZARD_INSIDE_MARKER'* && "$SKILL_FLAT" == *'the test seam'* ]] \
-  && grep -Fq 'the test seam for template.test.sh' "$TEMPLATE"; then
-  pass "WIZARD_INSIDE_MARKER is named as the test seam in the template and SKILL.md"
+  && grep -Fq "\$env:WIZARD_INSIDE_MARKER" "$TEMPLATE"; then
+  pass "WIZARD_INSIDE_MARKER is named as the test seam in SKILL.md and read by the template"
 else
-  fail "WIZARD_INSIDE_MARKER is named as the test seam in the template and SKILL.md" "seam not named"
+  fail "WIZARD_INSIDE_MARKER is named as the test seam in SKILL.md and read by the template" "seam not named"
 fi
 
 # shellcheck disable=SC2016 # backticks quote literal SKILL.md text
@@ -248,7 +247,6 @@ else
   fail "a native proof's nonzero exit keeps the resource unreleased" "$msg"
 fi
 
-# Prove must be a real proof: name|prove block|expected outcome.
 # shellcheck disable=SC2016 # PowerShell expressions are literal data, not shell expansions
 for case in 'provefalse|$false|held' 'provenone||held' 'provetrue|$true|released' 'provecmp|1 -eq 1|released'; do
   IFS='|' read -r name prove outcome <<<"$case"
@@ -504,7 +502,6 @@ else
   fail "a wrong confirmation answer aborts the run" "$msg"
 fi
 
-# Assert-ParsedState: name|value expression|expected (throws, or the item count).
 # shellcheck disable=SC2016 # PowerShell expressions are literal data, not shell expansions
 for case in 'parsednull|$null|throws' 'parsedarray|@()|throws' "parsedblank|'   '|throws" "parsedblanks|@('', ' ')|throws" \
   "parsedone|'Ubuntu-26.04'|1" "parsedtwo|@('a', 'b')|2" 'parsedlines|("a" + [Environment]::NewLine + "b")|2'; do
@@ -567,8 +564,6 @@ else
   fail "a real run records mode run and no dry-run fields" "$msg"
 fi
 
-# Dry runs launch a copy of the template with a small stages block, as the operator would.
-# Every mutating block writes under DRY_MARKER, so a leftover file proves a block ran.
 DRY_STAGES="$(
   cat <<'PS'
 # STAGES
@@ -586,8 +581,6 @@ Invoke-UnattendedRun -ResultDirectory (Join-Path $env:DRY_DIR 'results') -Irreve
 PS
 )"
 
-# run_launch <name> <stages> [script flags...]: prints the exit code; output lands in $TEST_TMPDIR/<name>/{out,err}.
-# -NonInteractive makes a reached Read-Host throw, so a prompt shows up as a failure.
 run_launch() {
   local name="$1" stages="$2" dir
   shift 2
@@ -602,7 +595,6 @@ run_launch() {
   printf '%s' "$?"
 }
 
-# summarize <result json>: one line of the fields the tests compare.
 summarize() {
   pwsh -NoProfile -Command "
     \$json = Get-Content -Raw '$1' | ConvertFrom-Json
@@ -658,7 +650,6 @@ else
   fail "-Test wins over -WhatIf" "code=$code $(cat "$TEST_TMPDIR/dry-both/out")"
 fi
 
-# The same stages without a flag do the work; the wait times out after 1s, which stops the run.
 code="$(DRY_WAIT=1 run_launch real "$DRY_STAGES")"
 dir="$TEST_TMPDIR/real"
 summary="$(summarize "$dir/results/result-latest.json" 2>&1)"
@@ -755,10 +746,6 @@ else
   fail "a dry run still enforces the elevation guard" "code=$code $(head -c 300 "$dir/err")"
 fi
 
-# Declared secrets: the mocks below stand in for the prompt (Read-Host) and the credential store (Get-Secret).
-# A function outranks a cmdlet in PowerShell command resolution, so the calls the library makes reach the mocks.
-# Read-Host records 'prompt:<Prompt>' in $global:Log and answers 'typed-<Name>'.
-# An empty PSModulePath keeps a real SecretManagement install from answering when no store mock is defined.
 SECRET_MOCKS="$(
   cat <<'PS'
 $global:Log = [System.Collections.Generic.List[string]]::new()
@@ -809,7 +796,6 @@ else
   fail "without a credential store the rung is skipped silently" "code=$code out=$(cat "$TEST_TMPDIR/store-absent.out") err=$(head -c 300 "$TEST_TMPDIR/store-absent.err")"
 fi
 
-# The passwords are built from parts: the transcript records this command text, so a literal would match itself.
 NONSTRING_MOCK="$(
   cat <<'PS'
 function Get-Secret {
@@ -876,9 +862,6 @@ else
   fail "a declared secret resolves environment over file over store over prompt" "code=$code msg=$msg err=$(head -c 300 "$TEST_TMPDIR/precedence.err")"
 fi
 
-# Native store rungs: stub `security` (macOS Keychain) and `pass` (Linux) print "native-<name>" for a NATIVE_ or ALL_ name
-# and exit 1 otherwise; each appends its own name to $STUB_LOG so a test can tell which command was consulted.
-# WIZARD_PLATFORM is the platform seam; PATH puts the stubs first, or holds only pwsh for the absent-command case.
 STUBS="$TEST_TMPDIR/stubs"
 NOSTUBS="$TEST_TMPDIR/nostubs"
 mkdir -p "$STUBS" "$NOSTUBS"
@@ -888,7 +871,6 @@ printf '%s\n' '#!/bin/sh' 'echo security >>"$STUB_LOG"' 'case "$3" in NATIVE_* |
 # shellcheck disable=SC2016 # stub script bodies are literal data, not shell expansions
 printf '%s\n' '#!/bin/sh' 'echo pass >>"$STUB_LOG"' 'case "$3" in NATIVE_* | ALL_*) echo "native-$3" ;; DIR_*) printf "%s\n" "$3" "|-- child" ;; *) exit 1 ;; esac' >"$STUBS/pass"
 chmod +x "$STUBS/security" "$STUBS/pass"
-# pass is asked only for names that are entry files in the store; DIR_A is a directory there, as pass itself lists it.
 PASS_STORE="$TEST_TMPDIR/pass-store"
 mkdir -p "$PASS_STORE/DIR_A"
 for entry in NATIVE_A NATIVE_ONLY NATIVE_LEAK UNKNOWN_A DIR_A/child; do

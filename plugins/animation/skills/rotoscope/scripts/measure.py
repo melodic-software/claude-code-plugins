@@ -32,7 +32,7 @@ import workdir  # noqa: E402
 from decode import MID  # noqa: E402
 
 FLOOR_GRAY, FLOOR_X, SSIM_MIN, SSIME_MIN = 4, 1.2, 0.980, 0.980
-BRUSH = json.load(open(HERE / 'brush.json', encoding='utf-8'))   # roto.js's mode (b) defaults: bias, blur, grain
+BRUSH = json.load(open(HERE / 'brush.json', encoding='utf-8'))
 
 
 def replicas(work, ks, rep_dir, query='', workers=render.WORKERS, playwright_core=None):
@@ -72,9 +72,9 @@ def measure(k, work, out, images=True):
     band = (cv2.dilate(m8, ker) ^ cv2.erode(m8, ker)).astype(bool)
     if images:
         heat = np.full(src.shape, 255, np.uint8)
-        heat[ms & mr] = (200, 200, 200)                               # agreed ink, light gray
-        heat[mr & ~ms] = (0, 0, 255)                                  # BGR: red replica-only
-        heat[ms & ~mr] = (255, 0, 0)                                  # blue source-only
+        heat[ms & mr] = (200, 200, 200)
+        heat[mr & ~ms] = (0, 0, 255)
+        heat[ms & ~mr] = (255, 0, 0)
         cv2.imwrite(str(workdir.drawing(out / 'heat', k)), heat)
         cv2.imwrite(str(workdir.drawing(out / 'ab', k)), np.vstack([src, rep]))
     pe, pd = paper(src, rep, d['T'])

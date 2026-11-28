@@ -1,5 +1,5 @@
 ---
-description: "Re-anchor cooperative communication (Grice's maxims plus AI-augmented transparency): audit recent responses and artifacts for completeness (neither too little nor too much), relevance, clarity, and disclosed boundaries. Use when: 'mind your maxims', 'communication quality', 'answer what I asked', 'you buried the answer', 'you didn't answer the question', 'too vague', 'stay on topic', 'is this clear', 'grice', 'maxims', or at conversation start to set the communication posture."
+description: "Re-anchor cooperative communication quality (Grice maxim plus AI transparency): audit recent response and artifact for completeness (neither too little nor too much), relevance (stay on topic), clarity (clear, not vague, answer the question), and disclosed boundary. Use when 'mind your maxims', 'answer what I asked', 'you buried the answer'."
 user-invocable: true
 disable-model-invocation: false
 metadata:

@@ -1,13 +1,3 @@
-"""An unreadable post-merge answer at main's head, checked once per pr-merge
-run (`babysit_postmerge.reuse_unreadable`).
-
-Each gate candidate is its own process reading the run's report file, so the
-reuse goes through the file. Expected values: a check that came back
-unreadable at the same main head, floor, identity and lane refuses every
-later candidate with that same reason and is not run again; anything else
-runs the check as before. An unreadable answer never reads as a pass.
-"""
-
 from __future__ import annotations
 
 import json
@@ -91,8 +81,6 @@ class UnreadableReuseTest(unittest.TestCase):
         return gate(FLOOR, IDENTITY)
 
     def test_three_candidates_run_the_check_once(self) -> None:
-        # The report the gate starts from binds no head (a malformed one),
-        # so the first candidate checks; the next two reuse its answer.
         self.write({**unreadable_report(), "since": FLOOR.isoformat()})
         answers = [self.candidate() for _ in range(3)]
         self.assertEqual(self.check.runs, 1)
@@ -124,8 +112,6 @@ class UnreadableReuseTest(unittest.TestCase):
         self.assertEqual(self.check.runs, 2)
 
     def test_a_stored_answer_marked_ok_is_never_reused(self) -> None:
-        # Unreadable never reads as a pass: a stored report claiming `ok`
-        # beside `readable: false` is not reused, so the check runs.
         report = self.step_report(HEAD, datetime.now(UTC))
         report["ok"] = True
         self.write(report)

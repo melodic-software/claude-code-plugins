@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2016 # jq programs and markdown code spans are literal
-# Runs the two step bodies of .github/workflows/maintenance-file-dead-links.yml
-# under the shell Actions gives a step with no `shell:` (bash -e): `Check the
-# dead links` against artifact fixtures, and `Rewrite the rollup issue`
-# against a stub `gh` that applies the step's own --jq filter to a fixture
-# issue list and logs every write. Also checks the workflow's shape: the
-# trigger names the link-check workflow, and each job holds one scope.
 # test-scope: .github/workflows/maintenance-file-dead-links.yml
 # test-scope: .github/workflows/maintenance-check-links-online*.yml
 set -uo pipefail
@@ -17,7 +11,6 @@ WORKFLOW="$ROOT/.github/workflows/maintenance-file-dead-links.yml"
 # shellcheck source=lib/test-harness.sh
 . "$ROOT/scripts/lib/test-harness.sh"
 
-# The sync-managed link-check caller: exactly one must exist.
 callers=("$ROOT"/.github/workflows/maintenance-check-links-online*.yml)
 CALLER="$ROOT/.github/workflows/maintenance-check-links-online.yml"
 if ((${#callers[@]} != 1)) || [[ ! -f "$CALLER" ]]; then
@@ -30,7 +23,6 @@ TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 export TMPDIR="$TMP_ROOT"
 
-# The `run: |` body of the step named $1, de-indented.
 step_body() {
   awk -v name="      - name: $1" '$0 == name { on = 1; next }
     on && /^      - / { exit }
@@ -49,7 +41,6 @@ for body in read file; do
     exit 1
   fi
 done
-# The rollup marker as the workflow sets it.
 MARKER="$(sed -n 's/^          MARKER: //p' "$WORKFLOW")"
 
 job() { awk -v j="  $1:" '$0 == j { on = 1; next } on && /^  [a-z-]+:$/ { exit } on' "$WORKFLOW"; }
@@ -88,7 +79,7 @@ else
   fail "the rollup marker is '$MARKER'"
 fi
 
-run_read() { # <download outcome> <conclusion> <fixture or ''> [MAX_LINKS]
+run_read() {
   local out="$TMP_ROOT/read-output" fixture="$TMP_ROOT/dead-links.json"
   : >"$out"
   rm -f "$fixture"
@@ -166,7 +157,6 @@ else
   fail "a non-array artifact did not fail: $READ_STATUS $READ_LOG"
 fi
 
-# --- Rewrite the rollup issue -------------------------------------------------
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'STUB'
 #!/usr/bin/env bash
@@ -204,7 +194,7 @@ STUB
 chmod +x "$TMP_ROOT/bin/gh"
 
 issues() { jq -n --arg m "$MARKER" "$1" >"$TMP_ROOT/issues.json"; }
-run_file() { # <links json> [VAR=value ...]
+run_file() {
   local links="$1"
   shift
   : >"$TMP_ROOT/gh.log"
@@ -221,7 +211,6 @@ run_file() { # <links json> [VAR=value ...]
 }
 two='[{"url":"https://example.com/a","status":404,"locations":[{"path":"docs/a.md","line":7},{"path":"docs/b.md","line":null}]},{"url":"https://example.com/b","status":null,"locations":[{"path":"README.md","line":2}]}]'
 
-# No rollup yet: a marker on a later line, or on a pull request, is not one.
 issues '[{number: 4, state: "open", state_reason: null, body: ("intro\n" + $m)},
   {number: 5, state: "open", state_reason: null, body: $m, pull_request: {url: "x"}}]'
 run_file "$two"
@@ -256,9 +245,6 @@ else
   fail "no overflow line: $BODY"
 fi
 
-# 50 long URLs with 20 locations each on long paths: the read step keeps 5
-# locations a link and stays under the 128 KiB a single environment variable
-# holds, and the file step keeps the body under the 65,536-character limit.
 big="$(jq -cn '[range(53) as $i | {url: ("https://example.com/" + ("u" * 950) + "/\($i)"), status: 404,
   locations: [range(20) as $j | {path: ("docs/" + ("p" * 185) + "/\($j).md"), line: $j}]}]')"
 run_read success failure "$big"
@@ -278,7 +264,6 @@ else
   fail "the big body was not capped: status $FILE_STATUS, ${#BODY} characters, $shown shown, over '$over'"
 fi
 
-# An open rollup wins over an older closed one.
 issues '[{number: 9, state: "closed", state_reason: "completed", body: $m},
   {number: 8, state: "open", state_reason: null, body: ("\n" + $m + "\n\nold")}]'
 run_file "$two"

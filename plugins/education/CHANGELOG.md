@@ -3,6 +3,77 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.6] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across 4 `education` skills (2,009 -> 1,169 chars, -840 / -41.8%): `explain` (570 -> 349), `illustrate` (611 -> 341), `quiz-me` (677 -> 344), and `teach` (151 -> 135, `disable-model-invocation: true`), while preserving altitude/preset/non-gating postures, `(if installed)` qualifiers, and sibling exclusions (`setup` untouched at 140 chars).
+
+## [3.1.5] - 2026-11-28
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
+## [3.1.4] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [3.1.3] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
+## [3.1.2] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [3.1.1] - 2026-11-26
+
+### Changed
+
+- `teach` names its successors in `## Next`: `/education:quiz-me` after a codebase lesson on a change just made, `/planning:interview` when a change to the concept comes next.
+
+## [3.1.0] - 2026-11-26
+
+### Changed
+
+- Shared `view-builder.mjs` and `html-escape.mjs` synced: an interactive page's policy adds `img-src data:` and `font-src data:`, and both validator profiles admit a base64 `data:` URL in two places only, a PNG or JPEG as the `.rv-logo` rule's one `background-image`, and a WOFF2, WOFF, TTF or OTF font inside `@font-face`. Every other `url(`, scheme and URL-bearing attribute is still refused. Pages built today look the same; no other change to this plugin.
+
+## [3.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+- The README calls `explain` and `illustrate` the two one-shot skills, not lanes.
+
+## [2.1.16] - 2026-11-26
+
+### Changed
+
+- `/education:setup` points at the plugin manifest reference's user configuration sections for how Claude Code asks for and stores `userConfig` values, instead of describing it ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [2.1.15] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [2.1.14] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
 ## [2.1.13] - 2026-11-24
 
 ### Changed

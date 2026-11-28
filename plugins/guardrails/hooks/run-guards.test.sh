@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for hooks/run-guards.sh, the one-process dispatcher that runs
-# several guards for one hook event. The guards' own decisions are covered by
-# their own *.test.sh; this file covers what the dispatcher owns: stdin read
-# once and re-served with the same rc, jq answered from one cache with a
-# byte-identical fallback, every guard run to completion, exit aggregation,
-# and the merge of several stdout documents into one.
-#
-# Stub guards isolate each of those mechanics, but a mechanic asserted only
-# against a stub is asserted against a stand-in for the thing it serves, so the
-# merge, the no-jq arbitration and the exit aggregation are each also driven
-# with SHIPPED guards, whose documents this file does not write. The guards'
-# own decisions stay covered by their own *.test.sh, which now assert those
-# decisions on both paths (`expect_both` in guardrails-test-helpers.sh).
-#
-# The stub guard bodies below are single-quoted on purpose: they are written
-# verbatim into stub scripts, so their `$` must not expand here.
 # test-scope: plugins/guardrails/hooks/*.sh plugins/guardrails/.claude-plugin/plugin.json plugins/guardrails/hooks/hooks.json plugins/guardrails/prerequisites.json
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -53,8 +37,7 @@ stub() {
   chmod +x "$TEST_TMPDIR/$name"
 }
 SEEN="$TEST_TMPDIR/seen"
-# The stub bodies are written verbatim into the stub scripts, so the `$` in them
-# must NOT expand here.
+# The stub bodies are written verbatim into stub scripts, so their `$` must not expand here.
 # shellcheck disable=SC2016
 stub allow.sh 'hook::buffer_stdin_to INPUT || { rc=$?; ((rc == 2)) && exit 2; exit 0; }
 hook::jq_fields "$INPUT" ".tool_input.command" ".tool_name" || exit 0
@@ -139,7 +122,7 @@ run "$PAYLOAD" "$TEST_TMPDIR/ctx1.sh" "$TEST_TMPDIR/allow.sh" "$TEST_TMPDIR/ctx2
 assert_exit "merge run exits 0" 0 "$RC"
 assert_eq "merged output is exactly one JSON document" "1" "$(jq -s 'length' <<<"$OUT")"
 merged_ctx=$(jq -r '.hookSpecificOutput.additionalContext' <<<"$OUT")
-merged_ctx="${merged_ctx//$'\r'/}" # the Windows jq build writes CRLF
+merged_ctx="${merged_ctx//$'\r'/}"
 assert_eq "merged additionalContext carries both guards, in order" $'ctx one\n\nctx two' "$merged_ctx"
 assert_eq "merged hookEventName kept" "PreToolUse" "$(jq -r '.hookSpecificOutput.hookEventName' <<<"$OUT")"
 assert_eq "merged systemMessage carries the one guard that set it" "sys two" "$(jq -r '.systemMessage' <<<"$OUT")"
@@ -350,10 +333,6 @@ assert_absent "benign Bash dispatcher never sources ps-command.sh" \
   "$DISPATCH_XTRACE" "ps-command.sh"
 assert_eq "benign Bash dispatcher forks only the shared parse (five BASHPIDs in the xtrace)" \
   "5" "$(grep -o 'PID=[0-9]*' <<<"$DISPATCH_XTRACE" | sort -u | wc -l | tr -d ' ')"
-# --- a parse seeded by exec-bash.mjs --bps-seed --------------------------------
-# The pair is trusted only under --bps-seeded, which only the hooks.json row
-# passes. A forged pair that gives a refused command the list of a benign one is
-# ignored without the flag, and a seeded call runs no shfmt or jq in bash.
 # shellcheck disable=SC2016  # the child shell expands these
 seed_list() { bash -c 'source "$1/hook-utils.sh"; hook::_bps_shfmt_to l "$2" && printf %s "$l"' -- "$HOOK_DIR" "$1"; }
 LS_LIST=$(seed_list 'ls')
@@ -392,8 +371,6 @@ if [[ -x "$SHIM/jq" ]]; then
     "$SPAWN_LOG" "$(type -P realpath)" >"$SHIM/realpath"
   printf '#!/usr/bin/env bash\nprintf "git %%s\\n" "$*" >>%q\nexec %q "$@"\n' \
     "$SPAWN_LOG" "$(type -P git)" >"$SHIM/git"
-  # Git Bash resolves `git` to `git.exe` via PATHEXT. A shim named only `git`
-  # is skipped and the rev-parse count stays 0 (#4527).
   cp "$SHIM/git" "$SHIM/git.exe"
   chmod +x "$SHIM/realpath" "$SHIM/git" "$SHIM/git.exe"
   : >"$SPAWN_LOG"
@@ -562,14 +539,7 @@ assert_contains "hard error, closed posture: the fail-closed line is on stderr" 
 assert_silent "hard error, closed posture: no stdout document" "$OUT"
 assert_eq "hard error, closed posture: the next guard still ran" $'hardc\ngit status --short\nBash' "$(cat "$SEEN")"
 
-# A guard's `exit` once ran the next guard from inside its own call, so a guard
-# that exited deep left its frames under every guard after it. Git Bash has a
-# 2 MB stack: an attended alias walk that exited about 140 frames down, then a
-# second walk, overflowed it, and bash died with exit 0 and no output, an
-# allow. Now `exit` unwinds the guard, and after a deep exit the rest runs in a
-# forked process; its documents and status still count. The depth a later
-# guard sees is the structural pin; it holds on every platform.
-deep_stub() { # <name> <status>: recurse 100 frames, then exit <status> from the bottom
+deep_stub() {
   stub "$1" 'd() { if (($1)); then d $(($1 - 1)); else exit '"$2"'; fi; }
 d 100'
 }
@@ -736,7 +706,7 @@ assert_exit "two real emitters: advisory lane still exits 0" 0 "$GUARD_RC"
 assert_eq "two real emitters: exactly one JSON document on stdout" \
   "1" "$(jq -s 'length' <<<"$GUARD_OUT")"
 POST_CTX=$(jq -r '.hookSpecificOutput.additionalContext' <<<"$GUARD_OUT")
-POST_CTX="${POST_CTX//$'\r'/}" # the Windows jq build writes CRLF
+POST_CTX="${POST_CTX//$'\r'/}"
 assert_contains "two real emitters: the stale path is in the merged context" \
   "$POST_CTX" "  docs/gone.md"
 assert_contains "two real emitters: the unresolved skill is in the merged context" \
@@ -759,19 +729,13 @@ done
 for g in secret-pattern-detection hardcoded-path-check block-no-verify block-dangerous-git \
   flag-commit-pr-skill-bypass block-noncanonical-commit \
   block-convention-violation block-windows-drive-tmp block-exported-msys-pathconv \
-  block-root-delete-target block-fix-request-post block-github-post-content block-cross-domain block-cd-prefix block-foreground-wait block-lane-pr-disable-auto block-main-checkout-edit; do
+  block-root-delete-target block-fix-request-post block-github-post-content block-body-format-violation block-cross-domain block-cd-prefix block-foreground-wait block-pr-poller block-lane-pr-disable-auto block-main-checkout-edit; do
   n=$(jq -r --arg g "$g.sh" '[.hooks[][] | .hooks[] | if (.args | type) == "array" then (.args | map(tostring) | join(" ")) else .command end | select(contains("run-guards.sh") and contains(" " + $g))] | length' "$HOOKS_JSON")
   if ((n > 0)); then ok "hooks.json dispatches $g"; else bad "hooks.json does not dispatch $g"; fi
   if [[ -f "$HOOK_DIR/$g.sh" ]]; then ok "$g.sh exists on disk"; else bad "$g.sh missing on disk"; fi
 done
 
-# --- the reference-verify git hook reads every extension the verifiers do -----
-# The three verifiers run at commit time through git-hooks/reference-verify.sh,
-# which hands over only the extensions its own `case "$f"` lists. That list must
-# equal the union of the verifiers' `case "$FILE"` gates: an extension a gate
-# accepts and the list omits is a verifier that silently never runs on it. Both
-# sides are read from the scripts' source rather than a second hand-kept list.
-gate_exts_of() { # $1 verifier name -> its case-gate extensions, one per line
+gate_exts_of() {
   sed -n '/^case "\$FILE" in/,/^esac/p' "$HOOK_DIR/$1.sh" | grep -v '^[[:space:]]*#' | grep -oE '\*\.[a-z0-9]+' | sed 's/^\*\.//' | sort -u
 }
 git_hook_exts=$(sed -n '/^  case "\$f" in/,/^  esac/p' "$HOOK_DIR/../git-hooks/reference-verify.sh" |
@@ -781,18 +745,6 @@ assert_eq "reference-verify.sh extensions equal the union of the verifiers' case
 assert_eq "no PostToolUse row is left for the verifiers" 0 \
   "$(jq '[.hooks.PostToolUse // [] | .[] | .hooks[]] | length' "$HOOKS_JSON")"
 
-# --- the dispatcher and the guards declare ONE contract ----------------------
-# hooks/guard-requires.sh is where a guard states what it CONSUMES: the payload
-# fields it reads, and the libraries it calls into. Two things are compiled
-# from that declaration and nothing at run time re-derives either — the
-# dispatcher's PRIME_FILTERS, and the `--lib` arguments in hooks.json — so this
-# is where the three are held to each other, in both directions, against each
-# guard's own source rather than against a second hand-kept list.
-#
-# Both directions cost something real. The cached hook::jq_fields is
-# all-or-nothing per call, so a field a guard reads and the dispatcher does not
-# prime spends a jq process on EVERY payload of that lane; a field primed that
-# no guard reads is jq work nothing reads.
 # shellcheck source=guard-requires.sh
 source "$HOOK_DIR/guard-requires.sh"
 
@@ -809,10 +761,7 @@ prime_filters() {
     }
   ' "$1" | sort -u
 }
-guard_reads() { # <guard.sh> -> the literal filters its source hands jq_fields
-  # The call plus its backslash continuations, single-quoted operands only: a
-  # filter built from a variable (`.tool_input.files[$i].path`) names an index
-  # the dispatcher cannot know and is never a candidate for priming.
+guard_reads() {
   awk -v q="'" '
     /^[[:space:]]*#/ { next }
     index($0, "hook::jq_fields \"$INPUT\"") { incall = 1 }
@@ -1175,10 +1124,7 @@ assert_contains "cap row: the root-delete guard refused it" "$ERR" "filesystem r
 cap_run "$(tool_payload Bash "bash <<'EOF'${NL}$(rep '$(: rm) ' 300)rm -rf /${NL}EOF")" "${BASH_ROW_ARGS[@]}"
 assert_exit "cap row: bash <<'EOF' with 300 substitutions then a root delete is refused" 2 "$RC"
 assert_contains "cap row: that one is refused by the count" "$ERR" "$CAP_MSG"
-# bash runs each substitution in an unquoted heredoc body, so every guard on
-# the row judges it as it judges the same text at top level; a quoted body is
-# data (docs/contracts/hook-precision/README.md).
-hd_row() { # <label> <expected rc> <command>
+hd_row() {
   cap_run "$(tool_payload Bash "$3")" "${BASH_ROW_ARGS[@]}"
   assert_exit "heredoc row: $1" "$2" "$RC"
 }
@@ -1192,10 +1138,6 @@ assert_contains "heredoc row: the root-delete guard refused the \${...} one" "$E
 hd_row "a body holding \$(date) is allowed" 0 "cat <<EOF${NL}today: \$(date)${NL}EOF"
 hd_row "a body holding \$HOME is allowed" 0 "cat <<EOF${NL}home: \$HOME${NL}EOF"
 hd_row "a quoted body holding \$(rm -rf /) is allowed" 0 "cat <<'EOF'${NL}\$(rm -rf /)${NL}EOF"
-# No guard reads `${x@P}` or `$[1 + 2]`, so those rows hold whether or not the
-# body is scanned; the rows whose top-level verdict is a refusal are the ones
-# that can fail. `${ echo }; rm -rf /; }` pins the `${ ` command-substitution
-# frame: a `${` frame that ended at the first `}` would let the delete through.
 # shellcheck disable=SC2016  # literal shell text under test
 for hd_expr in '${x@P}' '$[1 + 2]' '$[$(rm -rf /)]' '${x:-$(rm -rf /)}' '${ echo }; rm -rf /; }'; do
   cap_run "$(tool_payload Bash "$hd_expr")" "${BASH_ROW_ARGS[@]}"

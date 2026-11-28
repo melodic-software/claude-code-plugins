@@ -4,9 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# main serves the format plugin from the repository. The branch points the
-# entry at an outside GitHub repository with no ref or sha; the entry sets no
-# defaultEnabled, so it stays on for every user.
 mkdir -p .claude-plugin plugins/format/.claude-plugin
 
 cat >plugins/format/.claude-plugin/plugin.json <<'JSON'

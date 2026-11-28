@@ -1,7 +1,3 @@
-/**
- * Remove byte-identical duplicates from the key-frames/frames/ lane directory.
- */
-
 import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";

@@ -1,18 +1,11 @@
 #!/usr/bin/env bash
-# Offline test of the review agents' turn budgets and the checkpoint contract
-# of the reviewers that write a findings file: derives both sets from the agent
-# definitions, checks each capped agent's stated cap, stop turn and closing
-# not-reached line, each findings-file reviewer's sentinel, and that every
-# caller of the contract names the same sentinel. Reads files only.
 # test-scope: plugins/review/agents/*.md plugins/review/reference/reviewer-handback.md plugins/review/reference/findings-normalization.md plugins/review/skills/quality-gate/context/*.md plugins/review/workflows/fanout-sweep.js
 set -uo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 AGENTS="$PLUGIN_DIR/agents"
 SENTINEL='Coverage: in progress'
-# Turns kept back for the report: the final write, when there is one, and the reply.
 RESERVE=6
-# Capped agents that keep no Turn budget section, each with its reason.
 declare -A EXEMPT=(
   [stage-normalizer]='a single Read-only extraction pass whose output schema the workflow enforces'
   [brief-reviewer]='cap 60, sized by its callers'
@@ -28,16 +21,6 @@ assert_contains() {
   case "$2" in *"$3"*) pass "$1" ;; *) fail "$1" "expected to contain: $3" ;; esac
 }
 
-# One pass per agent file. Prints key=value facts:
-#   tools, cap            frontmatter tools and maxTurns
-#   handback              1 when the Handback section names a `Findings path:` line
-#   budget                1 when a `## Turn budget` section exists
-#   budget_cap            the integer after `maxTurns:` in that section
-#   stop                  N from `Stop gathering by turn N`
-#   reach                 1 when that section names what the agent `did not reach`
-#   sentinel              1 when the body names the checkpoint sentinel
-#   out_criteria/out_coverage  1 when Output format names `Criteria read:` / `Coverage:`
-#   never                 1 when a Handback line naming the sentinel also names `No findings.`
 facts() {
   awk -v s="$SENTINEL" '
     NR == 1 && /^---[[:space:]]*$/ { fm = 1; next }
@@ -57,14 +40,9 @@ facts() {
   ' "$1"
 }
 
-# get <facts> <key>: the value of key, empty when absent.
 get() { [[ $1 =~ (^|$'\n')$2=([^$'\n']*) ]] && printf '%s' "${BASH_REMATCH[2]}"; }
-# flag <facts> <key> <name>: passes when key=1.
 flag() { if [[ "$(get "$1" "$2")" == 1 ]]; then pass "$3"; else fail "$3" "not found"; fi; }
 
-# Facts for every agent, read once. The capped set: agents with a maxTurns, less
-# the exemptions. The handback set: agents that hold Write and name a
-# `Findings path:` in Handback.
 declare -A FACTS=()
 CAPPED=() HANDBACK=()
 for file in "$AGENTS"/*.md; do
@@ -120,12 +98,10 @@ for a in "${HANDBACK[@]}"; do
   flag "$f" never "$a Handback keeps 'No findings.' out of the checkpoint on the sentinel's line"
 done
 
-# Every consumer of the findings file names the same sentinel.
 for rel in reference/reviewer-handback.md skills/quality-gate/context/security.md skills/quality-gate/context/self.md workflows/fanout-sweep.js; do
   assert_contains "$rel names the checkpoint sentinel" "$(<"$PLUGIN_DIR/$rel")" "$SENTINEL"
 done
 
-# reviewer-handback.md "After the reply", one list item or paragraph per line, wrapping joined.
 after="$(awk '
   /^## / { on = ($0 == "## After the reply"); next }
   !on { next }
@@ -139,7 +115,6 @@ CLEAN="Only \`Coverage: all changed files reviewed\` can be clean"
 assert_contains "reviewer-handback.md After the reply lets only full coverage be clean" "$after" "$CLEAN"
 assert_contains "workflows/fanout-sweep.js extractor brief lets only full coverage be clean" \
   "$(<"$PLUGIN_DIR/workflows/fanout-sweep.js")" "$CLEAN"
-# A reply with no block must never be written over the agent's checkpoint.
 keeps=0 clobbers=0
 while IFS= read -r item; do
   [[ $item == *"Never write"* && $item == *"$SENTINEL"* ]] && keeps=1
@@ -148,7 +123,6 @@ done <<<"$after"
 if ((keeps)); then pass "reviewer-handback.md never writes a reply over a checkpoint"; else fail "reviewer-handback.md never writes a reply over a checkpoint" "no item pairs 'Never write' with '$SENTINEL'"; fi
 if ((clobbers)); then fail "reviewer-handback.md does not take a no-block reply as the report" "an item pairs 'no block' with taking or writing the reply as the report"; else pass "reviewer-handback.md does not take a no-block reply as the report"; fi
 
-# The quality-gate callers point at the handback recovery and treat the unresolved-base decline as no result.
 DECLINE='Coverage: none, change set unresolved'
 for rel in skills/quality-gate/context/self.md skills/quality-gate/context/security.md; do
   text="$(<"$PLUGIN_DIR/$rel")"
@@ -156,7 +130,6 @@ for rel in skills/quality-gate/context/self.md skills/quality-gate/context/secur
   assert_contains "$rel names the unresolved-base decline" "$text" "$DECLINE"
 done
 
-# Stage 0, which the main-thread fanout paths run, judges the reviewers by the handback rule.
 stage0="$(awk '/^## / { on = (index($0, "## Stage 0") == 1); next } on' "$PLUGIN_DIR/reference/findings-normalization.md")"
 assert_contains "findings-normalization.md Stage 0 points at reviewer-handback.md" "$stage0" "(reviewer-handback.md) \"Incomplete reply\""
 

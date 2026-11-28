@@ -4,9 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# digest already resolves where its page goes through lib/view-settings.mjs,
-# which publishes only a value from a trusted scope. The branch adds a medium
-# userConfig key whose options include hosted and passes it to that resolver.
 mkdir -p .claude-plugin plugins/digest/.claude-plugin plugins/digest/skills/digest plugins/digest/lib
 
 cat >.claude-plugin/marketplace.json <<'JSON'

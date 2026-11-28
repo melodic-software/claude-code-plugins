@@ -1,5 +1,8 @@
 # yaml-language-server: $schema=../../plugins/architecture/schemas/architecture.schema.json
 
+adr_extra_triggers:
+  - crosses a trust boundary or sets a security control
+
 layout:
   exclude_authors:
     - "melodic-release[bot]"

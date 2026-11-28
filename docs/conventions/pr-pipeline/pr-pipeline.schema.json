@@ -591,7 +591,7 @@
         "defer-run-minutes-review": {
           "type": "integer",
           "minimum": 1,
-          "description": "github-token only. The horizon in whole minutes of a hosted review run (its callers' gates' defer-job review), the p90 of that run's measured time; replaces defer-run-minutes for it."
+          "description": "github-token only. The horizon in whole minutes of a hosted review run (its callers' gates' defer-job review), set under that run's p90 time by a replay of the busiest windows; replaces defer-run-minutes for it."
         },
         "read-floor": {
           "type": "number",
@@ -637,15 +637,17 @@
     "stage": {
       "enum": [
         "intake",
-        "work",
-        "pre-ready",
+        "admit",
+        "build",
         "refine",
+        "review",
+        "fix",
         "verify",
-        "unblock",
+        "hold",
         "merge",
         "post-merge",
-        "maintenance",
-        "upstream"
+        "upstream",
+        "maintenance"
       ],
       "description": "Pipeline stage. Order and meaning: README.md, Stages."
     },
@@ -869,9 +871,9 @@
         "applied-by": {
           "type": "object",
           "minProperties": 1,
-          "propertyNames": { "enum": ["patch", "feedback-replies", "dependency-verdict", "work-outcome"] },
+          "propertyNames": { "enum": ["patch", "feedback-replies", "dependency-verdict", "work-outcome", "triage-verdict"] },
           "additionalProperties": { "$ref": "#/$defs/name" },
-          "description": "What this read skill hands on, keyed by artifact, and the script activity that applies each: patch (its change to the tree, applied by a prepare: apply-patch script), feedback-replies, dependency-verdict, work-outcome. Only a skill with effect read and gating advisory sets it. The config reader rejects a target that is not a script, is not in every lane that holds the producer, or whose slot does not need the producer (README.md, Activities)."
+          "description": "What this read skill hands on, keyed by artifact, and the script activity that applies each: patch (its change to the tree, applied by a prepare: apply-patch script), feedback-replies, dependency-verdict, work-outcome, triage-verdict (an intake skill's verdict, its structured output on the read runner's verdict mode). Only a skill with effect read and gating advisory sets it. The config reader rejects a target that is not a script, is not in every lane that holds the producer, or whose slot does not need the producer (README.md, Activities)."
         },
         "args": {
           "type": "string",
@@ -1057,6 +1059,12 @@
       "properties": {
         "stage": { "$ref": "#/$defs/stage" },
         "enabled": { "type": "boolean", "default": true },
+        "every-days": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 1,
+          "description": "Days a scheduled lane waits before it runs again, counted from its last run whose Scan job succeeded, read by the lane's gate script; a lane with no cadence gate ignores it (README.md, Lanes)."
+        },
         "slots": { "type": "array", "items": { "$ref": "#/$defs/slot" } }
       }
     },
@@ -1374,7 +1382,7 @@
         "in-flight-sizing": {
           "type": "object",
           "additionalProperties": false,
-          "description": "The recorded inputs `max-in-flight` is computed from; pr-pipeline.yaml states the formula beside them.",
+          "description": "The recorded inputs `max-in-flight` is computed from; the README's Merges in flight item states the formula.",
           "required": ["measured", "peak-merges-per-hour", "mean-minutes-in-flight", "app-hourly-limit", "app-target-percent", "app-peak-hourly-used", "app-calls-per-candidate", "reader-runs-per-hour"],
           "properties": {
             "measured": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$", "description": "The last day of the measured day." },

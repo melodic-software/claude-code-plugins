@@ -1,15 +1,3 @@
-// pr-rate-merge-risk.yml picks each leg's credential through ci-workflows'
-// select-model-credential, fetched at the pin the workflow names; the key
-// job reads its credit history inside its credential call. This truth table
-// drives the workflow's own conditions, inputs and outputs through every
-// combination of the checker step's outcome, credit verdict, secrets set or
-// empty, how each leg's rating ends (a rating, a failure, or each handoff
-// run-claude-cli's own handoffReason can produce), and a step failing after
-// the leg, and holds each state to the expressions the workflow used before
-// the action (quoted from 5599e627fc): for a head rated, or refused by the
-// resolver, the same jobs start and each leg gets the same present,
-// fallback-ready and fallback-reason; for any head, the same legs run the
-// model.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -34,7 +22,6 @@ const RUN = {
 };
 const TRIGGER = "github.ref == 'refs/heads/main' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_repository.full_name == github.repository";
 
-// The old job conditions, outputs, reasons and fail steps, at 5599e627fc.
 const OLD = {
   sub: `!cancelled() && ${TRIGGER} && needs.${KEY}.result == 'success' && (needs.${KEY}.outputs.handoff == 'true' || needs.${KEY}.outputs.credential-present == 'false' || needs.${KEY}.outputs.skip-key == 'true')`,
   fallback: `!cancelled() && ${TRIGGER} && needs.${SUB}.result == 'success' && needs.${SUB}.outputs.fallback-ready == 'true' && (needs.${SUB}.outputs.handoff == 'true' || needs.${SUB}.outputs.credential-present == 'false')`,
@@ -59,8 +46,6 @@ const failIf = (job) => /^ {6}- name: Fail without a rating\n {8}if: (.*)$/m.exe
 const prefixed = (prefix, map) => Object.fromEntries(Object.entries(map).map(([k, v]) => [`${prefix}.${k}`, v]));
 const evalMap = (map, ctx) => Object.fromEntries(Object.entries(map).map(([k, v]) => [k, value(v, ctx)]));
 
-// The rate and rating steps' outputs when the leg ran (or did not) and
-// ended in `end`.
 function rateSteps(ran, end) {
   if (!ran) return { "steps.rating.outcome": "skipped" };
   const handoff = end.kind === "handoff";
@@ -72,7 +57,6 @@ function rateSteps(ran, end) {
   };
 }
 
-// A job's result: a step that failed after the leg, or its own last check.
 const result = (failAt, failExpr, ctx) => (failAt === "after-leg" || runs(failExpr, ctx) ? "failure" : "success");
 
 function ends(handoffReason, leg, fallbackReady) {
@@ -108,12 +92,6 @@ function oldRun(s) {
   return out;
 }
 
-// One job as the workflow now runs it. `s.checker` is whether the resolver,
-// the trigger check and the steps after them would carry this head to the
-// model; a head they refuse is refused at the resolver or, past it, at the
-// trigger check (`s.refusal`). The trigger check's step and the checker
-// step only run where their conditions hold, so a key job that decides its
-// credential before the trigger check and holds the key off reaches neither.
 function newJob(job, leg, s, needs, end) {
   const base = {
     ...RUN,
@@ -131,9 +109,6 @@ function newJob(job, leg, s, needs, end) {
     ctx["steps.checker.outcome"] = triggered && s.checker === "success" ? "success" : "skipped";
   };
   if (!credentialFirst) check(base);
-  // The key job's credit read is its own step under continue-on-error: a read
-  // that fails or times out (gate "failed") leaves its outputs empty, the
-  // key call's selected with them, and the key runs, as before.
   const credit = leg === "key" ? wf.step(job, "credit") : null;
   if (credit) {
     assert.equal(credit.inputs.leg, "start", job);
@@ -145,23 +120,17 @@ function newJob(job, leg, s, needs, end) {
   let credential = {};
   if (runs(call.if, base)) {
     const input = (name) => (call.inputs[name] === undefined ? "" : value(call.inputs[name], base));
-    // The key call reads the credit history itself when it names key-job;
-    // a failed read runs the key.
     const held = leg === "key" && input("key-job") !== "" && s.gate === "skip";
     credential = S.leg({ leg, role: input("role"), credentialSet: input("credential-set"), fallbackSet: input("fallback-set"), keyOff: input("key-off"), selected: input("selected"), held, reason: input("reason") }).outputs;
   }
   const decided = { ...base, ...prefixed("steps.credential.outputs", credential) };
   if (credentialFirst) check(decided);
-  // The model's steps start from Write the prompt and schema, whose if the
-  // rate step follows.
   const ran = runs(wf.step(job, "prompt").if, decided);
   const ctx = { ...decided, ...rateSteps(ran, end) };
   const outputs = { result: result(s.failAt, failIf(job), ctx) };
   if (leg !== "fallback") {
     const next = wf.step(job, "next");
     assert.equal(next.if, "", `${job}'s next-leg call has no if`);
-    // No if: it runs only when no step before it failed. The failing step
-    // of an after-leg state sits before it; the fail step comes after it.
     const decided = s.failAt === "after-leg" ? {} : S.next({ state: value(next.inputs.state, ctx), handoff: value(next.inputs.handoff, ctx), handoffReason: value(next.inputs["handoff-reason"], ctx) });
     Object.assign(outputs, evalMap(wf.outputs(job), { ...ctx, ...prefixed("steps.next.outputs", decided) }));
   } else {
@@ -170,8 +139,6 @@ function newJob(job, leg, s, needs, end) {
   return { credential, outputs, ran, resolved, triggered };
 }
 
-// The jobs that start and each leg's credential decision, as oldRun reports
-// them, plus which jobs run the resolver, the trigger check and the model.
 function traced(s) {
   const trace = { resolved: [], triggered: [], ran: [] };
   const note = (id, j) => {
@@ -210,13 +177,9 @@ function* states() {
             for (const failAt of ["none", "after-leg"])
               for (const keyEnd of ends(S.handoffReason, "api-key", false))
                 for (const subEnd of ends(S.handoffReason, "subscription", fallback))
-                  // A refused head rates nothing, so its legs' ends do not
-                  // matter; every credential state does.
                   if (checker === "success" || (failAt === "none" && keyEnd.kind === "rating" && subEnd.kind === "rating")) yield { checker, refusal, gate, key, sub, fallback, failAt, keyEnd, subEnd };
 }
 
-// The legs that run the model, by the old run's own decision: a leg whose
-// credential call said present on a head the resolver rates.
 const oldRan = (s, before) => (s.checker === "success" ? Object.entries(before.legs).filter(([, l]) => l.present === "true").map(([id]) => id) : []);
 
 test("pr-rate-merge-risk's legs start the same jobs with the same credential decisions as before select-model-credential", () => {
@@ -228,13 +191,8 @@ test("pr-rate-merge-risk's legs start the same jobs with the same credential dec
     const { out, trace } = traced(s);
     assert.deepEqual(trace.ran, oldRan(s, before), `the same legs run the model: ${JSON.stringify(s)}`);
     if (s.refusal !== "trigger") {
-      // A rated head, or one the resolver refuses: exactly as before.
       assert.deepEqual(out, before, JSON.stringify(s));
     } else {
-      // A head the resolver passes and the trigger check refuses: the key
-      // job may now hand a held-off or empty key to the subscription job
-      // before its trigger check runs, and that job's own trigger check
-      // stops it, so nothing runs a model and the fallback job never starts.
       const handsOff = out.legs[KEY].present !== "true";
       assert.deepEqual(out.started, handsOff ? [KEY, SUB] : [KEY], `a refused head starts no model leg: ${JSON.stringify(s)}`);
       assert.deepEqual(trace.triggered, handsOff ? [SUB] : [KEY], `each started leg's trigger check judges the head: ${JSON.stringify(s)}`);

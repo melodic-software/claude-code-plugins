@@ -1,103 +1,4 @@
 #!/usr/bin/env bash
-# instruction-scan.sh — advisory deterministic pre-scan for the audit-instructions
-# skill. Marks CANDIDATE lines for catalog checks (reference/criteria.md) in the
-# instruction files handed to it:
-#
-#   I6  imperative bare prohibition: a SENTENCE that opens with "never", "do
-#       not", "don't", "must not", or "should not" (after list, blockquote,
-#       checkbox, and emphasis markers), carries no paired positive ("instead",
-#       "rather than", "prefer", "in place of", "in favor of"), and carries no
-#       rationale marker (because/since/so that/…). Soft-wrapped paragraph lines
-#       are accumulated into one text before sentences are split, and a row is
-#       attributed to the first physical line of its sentence. Frontmatter,
-#       fenced code, table rows, headings, and HTML comment lines are never
-#       read. These are the gates docs-hygiene's audit-noise
-#       rule-negation-without-positive measures, less its hard-guardrail
-#       carve-out (secrets, credentials, production, …): a guardrail "never"
-#       still owes I6's fallback rationale (I7), so it stays a candidate.
-#       The gates are structural, not the catalog's fences, which the model
-#       lane still applies to every row.
-#       --i6-counts reports the raw count (the per-line rule: a prohibition
-#       token on a line with no rationale marker) beside the surviving count.
-#   I10 reasoning-echo directive (show/explain/reproduce your thinking or
-#       reasoning, "think out loud", reasoning_extraction, a `<scratchpad>` tag
-#       or a scratchpad paired with thinking or working a problem out). These
-#       tell the model to emit its internal reasoning as response text. A
-#       `<scratchpad>/` path placeholder is not marked.
-#   I38 progress-update suppressor ("hold all findings for the final
-#       response", "don't narrate", "no interim updates"). Final-message shape
-#       contracts and "narrate" meaning "describe as" are criteria-owned
-#       fences the model lane applies.
-#   I8  model-era candidates, five pattern families emitted with per-family ids
-#       matching the catalog's I8 rows — I8-a and I8-c are Opus-5-scoped, I8-b is
-#       unscoped (promotion gate met; fires for every target). The scanner is
-#       model-blind — the model lane adjudicates against the resolved target model
-#       and the criteria-owned fences:
-#         I8-a instructed self-check ("double-check", "re-verify", "final
-#              verification step", "use a subagent to verify", "verify your own work")
-#         I8-b conservative-reporting directives ("be conservative", "only report
-#              high-severity", "don't nitpick")
-#         I8-c don't-think / don't-reason directives ("do not think", "don't
-#              reason", "without thinking", "skip the reasoning")
-#         I8-f think-carefully steers ("think carefully", "think step by step",
-#              "ultrathink"); Opus-5.5-scoped
-#         I8-g standing keep-going exhortations ("keep going.", "loop until
-#              done", "don't be lazy"); unscoped
-#       Over-production is by design: restraint clauses, quoted/meta text,
-#       idiomatic uses ("do not think of this as…"), and substring near-misses
-#       ("don't reasonably…") ARE emitted; the fences live in
-#       reference/criteria.md, never here.
-#   I23 self-estimated context-budget trigger ("context is heavy", "running low
-#       on context", "remaining context", "check /context", "final third of the
-#       window"). The catalog's subject is a directive to judge one's own window
-#       and then stop, summarize, hand off, or trim on that basis — but the
-#       scanner marks the BUDGET PHRASING alone and never the verb it governs,
-#       because the two routinely sit in different sentences. It therefore also
-#       emits the counter-steer text that forbids the behavior (inverted
-#       polarity), documents ABOUT the pattern, and operator-facing budgets:
-#       all three are criteria-owned exemptions the model lane applies.
-#   I27 effort-for-brevity candidates: a line pairing an effort-lowering
-#       directive ("lower/reduce/decrease/drop … effort") with a brevity token
-#       (short/brief/concise/terse/length/verbose/wordy). The model lane
-#       adjudicates whether the line actually premises brevity on effort.
-#   I28 trigger-emphasis / blanket-default candidates, two families:
-#         I28-a forced-compliance emphasis ("CRITICAL:", "You MUST", "MANDATORY";
-#              case-sensitive — the all-caps marker is the signal)
-#         I28-b blanket tool defaults ("default to using", "if in doubt, use")
-#   I25 retired sampling parameters (temperature/top_p/top_k prescriptions; the
-#       affected-model range is a criteria-owned Detect condition)
-#   I40 own-repository history reference (a bare hash-number, alone or after a
-#       pull-request word) on agents/*.md paths only. Code spans, owner/repo
-#       references, a tracked-work marker's issue link, fenced and indented code,
-#       a reference whose block cites the same number upstream, and every line
-#       of a block carrying an as-of date and a recheck trigger are exempt.
-#
-# Advisory: prints candidate rows, ALWAYS exits 0 (candidates never fail a run).
-# Requires grep, tr, and awk; exits 2 when one is absent.
-#
-# Rows are `file:line:check-id` (grep -n convention). An I6 row is a sentence
-# that opens on a prohibition and survives the paired-positive and rationale
-# gates; a line may surface once per matching check
-# id (I6, I10, I23, I27, I38, I40, and one of the I8 families). Nonexistent path
-# arguments are skipped, not errors.
-#
-# --body-only skips YAML frontmatter (a leading `---` block), so no row can point
-# at a `description`, `when_to_use`, or any trigger phrase quoted in one. This is
-# the fence the findings-relay path requires: check-skill.sh check 3 hard-FAILs a
-# dropped `'trigger phrase'` versus the base ref, so a remediation that edits a
-# description is an auto-invocation regression. It is OPT-IN rather than the
-# default because the human-facing audit legitimately reports on frontmatter
-# content (a stale harness claim in a description is a real finding) — what must
-# never happen is such a row reaching an APPLY relay. Callers that persist
-# findings pass it; the report path does not.
-#
-# Usage:
-#   instruction-scan.sh FILE...            # one candidate row per line; exit 0
-#   instruction-scan.sh --count FILE...    # integer candidate count only; exit 0
-#   instruction-scan.sh --body-only FILE...  # skip YAML frontmatter; exit 0
-#   instruction-scan.sh --i6-counts FILE...  # `I6 raw=<n> surviving=<n>`; exit 0
-#   instruction-scan.sh --help
-
 set -uo pipefail
 
 usage() {
@@ -170,133 +71,40 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# --- Detection patterns (case-insensitive) -----------------------------------
-# POSIX ERE has no word-boundary assertion (GNU grep's ERE \b is an extension
-# BSD grep lacks), so compose boundaries from consuming byte classes — safe here
-# because every use is line-level -q/-n matching, never match extraction. The
-# negated classes are single-byte under a C locale, which still bounds correctly
-# against multibyte neighbors: their first byte is non-alnum.
 WB_L="(^|[^[:alnum:]_])"
 WB_R='([^[:alnum:]_]|$)'
-# Rationale markers: a prohibition sentence carrying one of these is not an I6
-# candidate.
 RATIONALE_ERE="because|${WB_L}since${WB_R}|${WB_L}so that${WB_R}|${WB_L}so it${WB_R}|${WB_L}so the${WB_R}|${WB_L}to avoid${WB_R}|${WB_L}otherwise${WB_R}|${WB_L}in order to${WB_R}|${WB_L}rationale${WB_R}|${WB_L}reason${WB_R}"
-# I6's sentence-level gates. Lowercase spellings throughout: the awk program
-# folds each sentence to lowercase before testing it, so `do NOT` reads as
-# `do not`. The ('|’)? alternation covers straight, curly (U+2019), and absent
-# apostrophes as literal byte sequences; a `.` or bracket class breaks on the
-# multibyte apostrophe under a C locale.
 I6_CUE_ALT="never|do not|don('|’)?t|must ?not|mustn('|’)?t|should ?not|shouldn('|’)?t"
 I6_PAIRED_ERE="${WB_L}(instead|rather than|prefer(s|red|ring)?|in place of|in favou?r of)${WB_R}"
 I6_CLAUSE_STOPWORDS=" the a an and or but nor so yet if unless until when while where which who whose that this these those it its they their them we our us you your he she his her i is are was were be been being as at by for from in into of on onto to with without not no never nor don't do does did doing ever even because since though although however therefore thus hence per via plus minus other others such same both all any each every more most less least than there here what how why "
 I6_CLAUSE_TRANSPARENT=" just simply always then also still only first next now again finally "
-# I10 reasoning-echo phrasing.
 I10_ERE="(show|explain|reproduce|echo|transcribe|verbalize|narrate|share|describe) (your |the )?(thinking|reasoning|thought process|chain of thought)"
 I10_ERE="${I10_ERE}|think out loud|walk (me|us) through your (thinking|reasoning)|reasoning_extraction|chain[- ]of[- ]thought"
-# Scratchpad in the reasoning sense only: the tag (not a `<scratchpad>/` path
-# placeholder), or the word within one sentence of a think/reason/work-out verb.
 I10_ERE="${I10_ERE}|<scratchpad>([^/]|\$)|(think|reason|work (it |this |things )?out|work through)[^.]{0,40}scratchpad|scratchpad[^.]{0,40}(think|reason|work (it |this |things )?out|work through)"
-# I38 progress-update suppressors. Same apostrophe handling as I8-b.
 I38_ERE="hold (all |any |your |the )?(findings|results|updates|output)( until| for)|(don('|’)?t|do not|never) narrate"
 I38_ERE="${I38_ERE}|no (interim|intermediate|progress) (updates|messages|output|status|notes)|(stay|remain|work) silent(ly)? until"
 I38_ERE="${I38_ERE}|(don('|’)?t|do not|never) (send|give|post|write) (any )?(interim|intermediate|progress) (updates|messages|notes|status)"
-# I8 model-era candidate families (I8-a/I8-c Opus-5-scoped, I8-b unscoped;
-# scanner is model-blind; per-family ids I8-a/I8-b/I8-c). Stem forms
-# (`re[- ]?verif`) deliberately catch inflections; over-production is the contract.
 I8_A_ERE="double[- ]check|${WB_L}re[- ]?verif|final verification step|(sub)?agent to verify|have (a |an )?(sub)?agent verify|verifier (sub)?agent|verify your (own )?work"
 I8_B_ERE="be conservative|(only report|report only) (the )?(high|critical)|(don('|’)?t|do not) nitpick"
 I8_C_ERE="(do not|don('|’)?t) (think|reason)|without thinking|skip the reasoning"
 I8_F_ERE="think (very |really )?(carefully|hard|harder|deeply|thoroughly|step[- ]by[- ]step)|${WB_L}ultrathink${WB_R}"
-# I8-g ends the keep-going arm at a sentence end or a vague finish word, so
-# "keep going until the tests pass" (a check, the row's own remediation),
-# "keep going, with status notes" (the P6 statement) and a heading or wrapped
-# line ending on the phrase are never rows.
 I8_G_DONE="(it('|’)?s |you('|’)?re |everything is |the (task|work) is )?(done|finished|complete)${WB_R}"
 I8_G_ERE="(keep going|keep working|continue|loop) until ${I8_G_DONE}|keep going( no matter what|[.!])|(don('|’)?t|do not|never) (be lazy|give up)"
-# I23 self-estimated context-budget phrasing. Deliberately anchored to
-# BUDGET-AS-TRIGGER forms, never to the bare term "context window" — that term
-# is ordinary vocabulary in any instruction surface discussing sessions, and
-# matching it would return the whole corpus rather than a candidate set.
 I23_ERE="context (is |gets |getting |grows )?(heavy|tight|saturated|exhausted)|heavy context"
 I23_ERE="${I23_ERE}|(running|runs|run) (out of|low on) context|low on context"
 I23_ERE="${I23_ERE}|remaining[- ](context|window|tokens)|context[- ](budget|percentage|occupancy|countdown)|token[- ](budget|countdown)"
 I23_ERE="${I23_ERE}|(check|checking|watch|watching|monitor|monitoring) (the |your )?/context|/context output"
 I23_ERE="${I23_ERE}|(final|last) (third|quarter|half) of (the|your|its) window|window position"
 I23_ERE="${I23_ERE}|(nearing|approaching) (the )?(context|token)[- ](limit|cap|budget|window)"
-# I27 effort-for-brevity: both patterns must hit the SAME line — the AND lives
-# in scan_file. Stem forms catch inflections (decrease/decreasing via the bare
-# stem, drop/dropped/dropping via the doubled-p form; verbos carries no left
-# boundary so compounds match too); over-production is the contract, as with I8.
 I27_EFFORT_ERE="(lower|reduc|decreas|dropp?)(e|ed|es|ing|s)? (the |your )?effort" # spellchecker:disable-line
 I27_BREVITY_ERE="${WB_L}short|${WB_L}brief|${WB_L}concise|${WB_L}terse|${WB_L}length|verbos|${WB_L}wordy"
-# I28 trigger-emphasis / blanket-default candidates (criteria fences decide:
-# a document about the pattern is not a finding; a marker set on a stated
-# hard precondition still is). Case-sensitive arm: the all-caps markers themselves. "use even
-# when" is an attested blanket-default form ("Use even when you think you know
-# the answer"), not a quoted guide example — over-production by design.
 I28_A_ERE="CRITICAL:|IMPORTANT:|(You|you) MUST|MANDATORY|ALWAYS use|NEVER skip"
 I28_B_ERE="${WB_L}default to (using|running|calling)${WB_R}|if in doubt,? use|${WB_L}always use${WB_R}|use even when"
-# I25 retired sampling parameters (model range is a criteria-owned Detect
-# condition; the scanner is model-blind and marks every prescription).
 I25_ERE="${WB_L}temperature${WB_R}|${WB_L}top_p${WB_R}|${WB_L}top_k${WB_R}"
-# I40 this repository's history references, agent definitions only. Matched on
-# the lowercased line after code spans and tracked-work marker links are removed, outside fenced
-# and indented code blocks. The ERE itself rejects owner/repo#N:
-# a `#` after a word character, `&`, `/`, `.`, `#`, or `-` is an anchor, an
-# entity, or a path, not a reference. A reference whose block (a run of
-# non-blank lines) also cites its number upstream, as owner/repo#N or an
-# /issues/N or /pull/N URL, belongs to a pointer record and never emits; nor
-# does any line of a stored-value block, one carrying both an as-of date and a
-# recheck trigger.
 I40_REF_ERE="(^|[^[:alnum:]_&/.#-])#[0-9]+([^[:alnum:]_]|\$)|${WB_L}(pr|pull request)s? #?[0-9]+${WB_R}"
 I40_ASOF_ERE="as[- ]of[^0-9]{0,24}[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]"
 I40_RECHECK_ERE="${WB_L}re-?check"
 
-# --- Scan ---------------------------------------------------------------------
-# Each family runs ONE grep over every file (per argv chunk), so the process
-# count is a fixed number per run rather than per file or per hit: the group
-# subshell, one grep per family per chunk, one tr, and one awk. The awk regroups
-# the rows into argument order, then family order, then line order, which is
-# the order a per-file scan produces.
-#
-# grep --null ends each file name with a NUL so a path containing a colon (C:/...)
-# splits unambiguously; tr maps the NUL to \003 because not every awk reads NUL
-# bytes. The awk applies I27's same-line filter to the line TEXT alone:
-# a hit is kept only when a brevity token shares its line. The filter pattern
-# is lowercase, so matching it against tolower(text) is the case fold grep -i
-# gives. I6 is not one of these greps. Its sentence gates run as one awk per
-# file, and the two streams merge back into argument order, then family order.
-
-# frontmatter_end (awk function in SCAN_AWK)
-#
-# The line number of a leading YAML frontmatter block's CLOSING `---`, or 0
-# when the file has none. Frontmatter is recognized only when `---` is the very
-# first line, which is the form every skill, agent, and output-style surface
-# uses; a `---` thematic break mid-document therefore opens nothing. An UNCLOSED
-# leading `---` returns the file's line count, fencing the whole file rather than
-# none of it — the fail-safe direction, since the alternative would route a
-# malformed-frontmatter description straight to an apply relay.
-#
-# BOTH comparisons use `^---[[:space:]]*$`, deliberately identical to this repo's
-# authoritative extractor `skill_frontmatter::extract`
-# (plugins/skill-quality/scripts/skill-frontmatter.sh) — what `check-skill.sh`, the
-# hard-FAIL gate this fence exists to satisfy, actually parses frontmatter with.
-# Exact equality against `---` is STRICTER than that parser, and the mismatch runs
-# the dangerous way: a delimiter carrying trailing whitespace or a CR is real
-# frontmatter to the gate but invisible here, so the block would be read as body
-# and the description and when_to_use lines would become emittable candidates —
-# the fence silently inverted on exactly the Windows-authored and
-# hand-edited files it most needs to hold for. Measured, not theorized: before
-# this, a CRLF fixture produced rows at lines 2 and 3. `[[:space:]]` covers CR.
-#
-# Under --body-only the awk drops every hit at or above that line, so no emitted
-# row can carry a remediation that edits a description, when_to_use, or a
-# trigger phrase quoted in one. It reads a file's frontmatter only when that
-# file has a hit, and never forks to do it.
-#
-# A grep "Binary file X matches" notice (no NUL) is kept as a row with the text
-# before its first colon as the line field, which is what a per-file read of
-# grep -n output makes of it.
 # shellcheck disable=SC2016 # an awk program: its $0 is awk's, not the shell's
 SCAN_AWK='
 function frontmatter_end(p,   line, n) {
@@ -345,15 +153,11 @@ END {
   if (mode == "count") print total
 }'
 
-# Existing files in argument order, duplicates kept: each occurrence re-emits
-# its rows, and a nonexistent path is skipped.
 files=()
 for file in "$@"; do
   [[ -f "$file" ]] && files+=("$file")
 done
 
-# Chunk the file list so no single grep command line nears the 32,767-character
-# Windows limit.
 chunk_start=()
 chunk_len=()
 start=0
@@ -376,10 +180,6 @@ if ((len > 0)); then
   chunk_len+=("$len")
 fi
 
-# run_family <index> <grep-flags> <ere>
-#
-# The grep flags travel per family because I28-a is case-SENSITIVE by design
-# (the all-caps marker IS the signal) while every other family folds case.
 run_family() {
   local idx="$1" flags="$2" ere="$3" c
   printf '\001%s\n' "$idx"
@@ -388,12 +188,6 @@ run_family() {
   done
 }
 
-# run_i40 <index>
-#
-# One awk per chunk over the chunk's agents/*.md files, printing rows in the
-# shape the batched greps produce after tr (path, \003, `line:`), so SCAN_AWK
-# orders, dedupes, counts, and applies --body-only to them like any family.
-# Fenced code is never read, and a fence line ends the block.
 run_i40() {
   local idx="$1" c f agents
   printf '\001%s\n' "$idx"
@@ -473,8 +267,6 @@ run_i40() {
   done
 }
 
-# I6 sentence scan, one awk per file. A file with no lines still gets a group
-# marker so the merge stays aligned with the batched families.
 run_i6() {
   local file
   : >"$i6_tmp"

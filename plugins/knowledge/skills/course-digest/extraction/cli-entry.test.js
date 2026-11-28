@@ -134,7 +134,6 @@ describe("course-dir CLIs", () => {
         timeout: 20000,
       });
     } finally {
-      // Drop the link before afterEach's recursive rm, so no cleaner can follow it into source.
       unlinkSync(link);
     }
     expect(result.status).toBe(1);

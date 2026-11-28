@@ -1,11 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/checks/Test-BrowserExtensions.ps1, with the three
-adapters mocked. Expected severities follow the rubric in check-catalog.md
-section 23 (owner-approved judgment rules).
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-BrowserExtensions' `
@@ -38,7 +32,6 @@ BeforeAll {
         param([string] $Browser, [object[]] $Extensions = @(), [string] $ReadState = 'ok', [int] $Stubs = 0)
         [pscustomobject]@{
             Browser = $Browser; ReadState = $ReadState; ProfileCount = 1; StubsSkipped = $Stubs
-            # A browser-level failure (Local State unread) lists no profiles, as the adapter does.
             Profiles = @(if ($ReadState -eq 'ok') { [pscustomobject]@{ ProfileDir = 'Default'; ReadState = 'ok' } }); Extensions = $Extensions
         }
     }
@@ -62,8 +55,6 @@ BeforeAll {
         }
     }
 
-    # Mock bodies run inside the check script, where $script: names the check's
-    # scope, so the fake reads live in one table the mock reaches by closure.
     $script:Reads = @{}
     $reads = $script:Reads
     Set-Item -Path function:Get-FakeRead -Value ({ param([string] $Name) $reads[$Name] }.GetNewClosure())

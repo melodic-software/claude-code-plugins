@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
-# Regression tests for lib/resolve-convention-pattern.sh — the shared commit/PR
-# convention ENFORCEMENT-pattern resolver. Run: bash lib/resolve-convention-pattern.test.sh
-# The resolver is POSIX sh: the cases run it under dash where installed, else
-# sh, and one runs it under bash too.
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -41,24 +35,19 @@ assert_exit() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "expected exit $2, got $3"; fi
 }
 
-# The canonical Conventional Commits ERE — kept in lockstep with the SUT header.
 CC_ERE='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\(.+\))?!?: .+'
 
 TEAM_YAML="docs/conventions/source-control.yaml"
 WELL_KNOWN="docs/conventions/source-control/commit-convention.yml"
 
-# addfile <repo> <repo-relative path> <body>: write a file inside the repo.
 addfile() {
   local d="$1" path="$2" body="$3"
   mkdir -p "$d/$(dirname "$path")"
   printf '%s\n' "$body" >"$d/$path"
 }
-# Both team files count only while git tracks them, so a case stages each one.
 track() {
   git -C "$1" add -- "$2" 2>/dev/null || true
 }
-# newrepo [team yaml body]: an isolated git repo; a body becomes the tracked
-# team file.
 newrepo() {
   local d
   d="$(mktemp -d "$TEST_TMPDIR/repo.XXXXXX")"
@@ -69,24 +58,21 @@ newrepo() {
   fi
   printf '%s' "$d"
 }
-# addyaml <repo> <body>: write the team file into an existing repo and track it.
 addyaml() {
   addfile "$1" "$TEAM_YAML" "$2"
   track "$1" "$TEAM_YAML"
 }
-# addfolder <repo> <body>: write the folder-form file and track it.
 addfolder() {
   addfile "$1" "$WELL_KNOWN" "$2"
   track "$1" "$WELL_KNOWN"
 }
-# sp <pattern>: a single-quoted subject_pattern line, the pattern as written.
 sp() { printf "subject_pattern: '%s'" "$1"; }
 run() { "$SH" "$SCRIPT" "$1" "${2:-subject_pattern}"; }
 layer() { "$SH" "$SCRIPT" --layer "$1" "${2:-subject_pattern}"; }
 
 out="$("$SH" "$SCRIPT" --help)"
 assert_exit "--help exits 0" 0 $?
-assert_eq "--help prints the header, not the linter directive" "yes|no" \
+assert_eq "--help prints usage, not the linter directive" "yes|no" \
   "$(grep -q '^Usage:' <<<"$out" && echo yes || echo no)|$(grep -q 'shellcheck' <<<"$out" && echo yes || echo no)"
 
 r="$(newrepo 'subject_pattern: Conventional Commits')"
@@ -102,17 +88,6 @@ assert_eq "plain ERE unchanged" '^[A-Z]+-[0-9]+: .+' "$(run "$r")"
 r="$(newrepo "$(sp '^(feat|fix): .+')")"
 assert_eq "ERE alternation unchanged" '^(feat|fix): .+' "$(run "$r")"
 
-# --- PCRE-only constructs are NOT translated -> no enforcement ---
-# The resolver accepts POSIX ERE and rejects PCRE; a team writes [0-9] not \d.
-#
-# Every `\w`, `\s` and `\b` from here down is TEST DATA: a PCRE token written
-# into a fixture config file and handed to the resolver so the case can assert
-# the resolver REJECTS it. None is a pattern this suite passes to grep or sed, so
-# none can behave differently on a BSD userland — and the shorthand cannot be
-# spelled away, because the shorthand is the thing under test. Each hit carries
-# its own `portability-ok:` marker rather than a whole-file declaration: the
-# whole-file escape is reserved for the portability gate's own fixture corpus,
-# and this file is the convention resolver's.
 r="$(newrepo "$(sp '^(?:feat|fix): .+')")"
 run "$r" >/dev/null 2>&1
 assert_exit "(?: non-capturing group -> exit 1" 1 $?
@@ -149,7 +124,6 @@ r="$(newrepo "$(sp '^\tJIRA-[0-9]+: .+')")"
 run "$r" >/dev/null 2>&1
 assert_exit "\\t -> exit 1" 1 $?
 
-# --- an escaped backslash (\\d = literal, not the class) -> no enforcement ---
 r="$(newrepo "$(sp '^foo\\d: .+')")"
 run "$r" >/dev/null 2>&1
 assert_exit "escaped backslash -> exit 1" 1 $?
@@ -164,7 +138,6 @@ rc=$?
 assert_exit "uncompilable ERE -> exit 1" 1 "$rc"
 assert_eq "uncompilable ERE -> empty stdout" "" "$out"
 
-# --- unresolved: no team file at all -> exit 1, NEVER the CC default ---
 r="$(newrepo "")"
 out="$(run "$r")"
 rc=$?
@@ -181,9 +154,6 @@ assert_eq "pr deferral -> subject" '^ABC-[0-9]+: .+' "$(run "$r" pr_title_patter
 r="$(newrepo "$(sp '^X: .+')"$'\npr_title_pattern: \047^PR: .+\047')"
 assert_eq "pr explicit value" '^PR: .+' "$(run "$r" pr_title_pattern)"
 
-# --- the retired markdown team file is not read ---
-# Neither its `## <key>` H2 nor a `## convention_source` pointer enforces
-# anything, even while git tracks the file and the file it points at.
 r="$(newrepo "")"
 addfile "$r" ".claude/source-control.md" $'## convention_source\nconventions.yml\n\n## subject_pattern\n^MD-[0-9]+: .+\n\n## pr_title_pattern\n^MDPR: .+'
 addfile "$r" "conventions.yml" "$(sp '^POINTED-[0-9]+: .+')"
@@ -196,11 +166,6 @@ assert_eq "markdown: a tracked H2 and pointer are not enforced -> exit 1, silent
 run "$r" pr_title_pattern >/dev/null 2>&1
 assert_exit "markdown: a tracked pr_title_pattern H2 is not enforced" 1 $?
 
-# =====================================================================
-# The folder-form file (docs/conventions/source-control/commit-convention.yml):
-# flat-scalar YAML, read for a key the team file lacks, only while git
-# tracks it.
-# =====================================================================
 
 r="$(newrepo "")"
 addfolder "$r" $'# team commit convention\n'"$(sp '^SW2-[0-9]+: .+')"
@@ -243,7 +208,6 @@ r="$(newrepo "")"
 addfolder "$r" $'# convention SSOT\n\n# see CONTRIBUTING.md\n'"$(sp '^C-[0-9]+: .+')"
 assert_eq "folder form: comments/blanks inert" '^C-[0-9]+: .+' "$(run "$r")"
 
-# --- CRLF line endings: each value loses its CR, the dialect and deferral included ---
 r="$(newrepo "")"
 addfolder "$r" $'dialect: posix-ere\r\nsubject_pattern: \047^CR-[0-9]+: .+\047\r\npr_title_pattern: Same as `subject_pattern`.\r'
 assert_eq "folder form: CRLF subject" '^CR-[0-9]+: .+' "$(run "$r")"
@@ -267,7 +231,6 @@ printf '%s' "subject_pattern: '^NONL: .+'" >"$r/$WELL_KNOWN"
 track "$r" "$WELL_KNOWN"
 assert_eq "folder form: final line without newline" '^NONL: .+' "$(run "$r")"
 
-# --- an unreadable folder form says so on stderr (skipped where it stays readable, as root) ---
 r="$(newrepo "")"
 addfolder "$r" "$(sp '^U-[0-9]+: .+')"
 chmod 000 "$r/$WELL_KNOWN"
@@ -293,14 +256,12 @@ addfolder "$r" $'subject_pattern:'
 run "$r" >/dev/null 2>&1
 assert_exit "folder form: bare empty key -> exit 1" 1 $?
 
-# --- POLICY FLOOR: an untracked folder form is not a layer ---
 r="$(newrepo "")"
 addfile "$r" "$WELL_KNOWN" "$(sp '^untracked: .+')"
 out="$(run "$r" 2>"$TEST_TMPDIR/untracked.err")"
 rc=$?
 assert_eq "folder form: an untracked file -> exit 1, silent" "1||" "$rc|$out|$(<"$TEST_TMPDIR/untracked.err")"
 
-# --- symlink escapes are rejected (skipped where ln -s can't make symlinks) ---
 outside="$TEST_TMPDIR/outside.yml"
 printf '%s\n' "subject_pattern: '^outside: .+'" >"$outside"
 r="$(newrepo "")"
@@ -310,9 +271,6 @@ if [[ -L "$r/$WELL_KNOWN" ]]; then
   track "$r" "$WELL_KNOWN"
   run "$r" >/dev/null 2>&1
   assert_exit "folder form: symlinked file rejected" 1 $?
-  # A symlinked DIRECTORY segment escaping the repo is rejected too. The file is
-  # tracked first, then its directory is swapped for the link, since git will
-  # not add a path beyond a symlink.
   mkdir -p "$TEST_TMPDIR/outdir"
   printf '%s\n' "subject_pattern: '^outdir: .+'" >"$TEST_TMPDIR/outdir/commit-convention.yml"
   r="$(newrepo "")"
@@ -330,12 +288,6 @@ else
   echo "SKIP: symlink cases (ln -s unavailable on this filesystem)"
 fi
 
-# =====================================================================
-# Team YAML (docs/conventions/source-control.yaml) ahead of the folder form.
-# Precedence, per key:
-#   1. docs/conventions/source-control.yaml   (git-tracked)
-#   2. docs/conventions/source-control/commit-convention.yml   (git-tracked)
-# =====================================================================
 
 r="$(newrepo "")"
 addfolder "$r" "$(sp '^old-folder: .+')"
@@ -357,7 +309,6 @@ out="$(layer "$r")"
 rc=$?
 assert_eq "team yaml and folder form lack the key: exit 1, no layer" "1|" "$rc|$out"
 
-# --- POLICY FLOOR: an untracked YAML is not a layer ---
 r="$(newrepo "")"
 addfolder "$r" "$(sp '^tracked-folder: .+')"
 addfile "$r" "$TEAM_YAML" "$(sp '^untracked-yaml: .+')"
@@ -385,7 +336,6 @@ assert_eq "team yaml: a broken folder form does not disable a key the yaml carri
 run "$r" pr_title_pattern >/dev/null 2>&1
 assert_exit "team yaml lacks the key: the broken folder form still fails closed" 1 $?
 
-# --- fail closed: a YAML the parser rejects, never a folder-form fallback ---
 r="$(newrepo $'subject_pattern: \047^unclosed: .+')"
 addfolder "$r" "$(sp '^stale: .+')"
 out="$(run "$r" 2>"$TEST_TMPDIR/yaml.err")"
@@ -440,7 +390,6 @@ assert_exit "team yaml: no parser beside the resolver -> exit 1" 1 "$rc"
 assert_eq "team yaml: no parser beside the resolver -> a diagnostic, not silence" yes \
   "$(grep -q 'yaml-subset.awk' "$TEST_TMPDIR/lone.err" && echo yes || echo no)"
 
-# --- a symlinked YAML is rejected (skipped where ln -s can't make symlinks) ---
 printf '%s\n' "subject_pattern: '^outside-yaml: .+'" >"$TEST_TMPDIR/outside-team.yaml"
 r="$(newrepo "")"
 mkdir -p "$r/docs/conventions"
@@ -455,18 +404,8 @@ else
   echo "SKIP: symlinked team yaml (ln -s unavailable on this filesystem)"
 fi
 
-# =====================================================================
-# The personal layer (docs/conventions/source-control.local.yaml): one
-# operator's subject_pattern, read only while git ignores the file and only
-# when the team layer supplies no subject_pattern. Never merged with a team
-# pattern.
-# =====================================================================
 
 PERSONAL="docs/conventions/source-control.local.yaml"
-# addpersonal <repo> <body> [gitignore|exclude|none]: write the personal file,
-# ignored through .gitignore (the default) or .git/info/exclude, or not at all.
-# core.excludesFile names a file that does not exist, so no global ignore rule
-# on the machine running the suite can decide a case.
 addpersonal() {
   local d="$1" how="${3:-gitignore}"
   git -C "$d" config core.excludesFile "$TEST_TMPDIR/no-global-excludes"
@@ -506,8 +445,6 @@ r="$(newrepo "")"
 addfolder "$r" "$(sp '^FOLDER-[0-9]+: .+')"
 addpersonal "$r" "$P_BODY"
 assert_eq "personal: a folder-form team pattern wins over the personal one" '^FOLDER-[0-9]+: .+' "$(run "$r")"
-# A team value that cannot be enforced disables the gate; the personal pattern
-# never stands in for it.
 r="$(newrepo "")"
 addpersonal "$r" "$P_BODY"
 addyaml "$r" "$(sp '^(?:feat|fix): .+')"
@@ -565,7 +502,6 @@ rc=$?
 assert_exit "personal: a tracked personal file -> exit 1 though .gitignore matches it" 1 "$rc"
 assert_eq "personal: a tracked personal file -> empty stdout" "" "$out"
 
-# --- fail closed: the personal file gets the team file's checks ---
 r="$(newrepo "")"
 addpersonal "$r" $'subject_pattern: \047^unclosed: .+'
 out="$(run "$r" 2>"$TEST_TMPDIR/personal.err")"
@@ -603,7 +539,6 @@ if [[ -L "$r/$PERSONAL" ]]; then
   rc=$?
   assert_exit "personal: a symlinked file -> exit 1" 1 "$rc"
   assert_eq "personal: a symlinked file -> empty stdout" "" "$out"
-  # The symlink check, not the ignore check, refused it.
   assert_eq "personal: a symlinked file -> the symlink diagnostic" yes \
     "$(grep -q "the personal file '$PERSONAL' is a symlink" "$TEST_TMPDIR/personal.err" && echo yes || echo no)"
 else

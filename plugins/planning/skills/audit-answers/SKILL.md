@@ -1,5 +1,5 @@
 ---
-description: "Re-check a filled /planning:interview ledger with fresh-context agents blind to each answer's rationale; only doubtful answers come back. Use when: 'audit my interview answers', 'validate the interview answers', 'have agents check the answers', 'accept all and have agents check them', 'agent-validated interview', 'have subagents second-guess the recommendations', 'auto-answer then verify the ledger'. Plans: '/planning:devils-advocate'; first-time questions: '/planning:interview'."
+description: "Re-check a filled /planning:interview ledger with fresh-context subagents blind to answer rationales; only doubtful answers return. Use to validate answers, auto-answer, or second-guess ('audit my interview answers', 'have agents check the answers', 'verify the ledger'). Not for plans: /planning:devils-advocate; new: /planning:interview."
 argument-hint: "[topic]"
 user-invocable: true
 disable-model-invocation: false
@@ -54,8 +54,8 @@ whichever form:
 
 - an engineering session's `## Brief` in `PLAN.md` (its resolved decisions, Captured assumptions,
   and Deferred questions with their **arbiter tags**);
-- the decision-tree ledger (`interview-checklist.md` in the memory slice), present only when the
-  interview emitted one (≥2 open questions or `me` mode);
+- the interview ledger (`interview-checklist.md` in the memory slice), present only when the
+  interview emitted one (≥2 open questions);
 - a general (non-engineering) session's shared-understanding summary in the memory slice.
 
 The answer set is the resolved decisions in the ledger when present, else the Brief's decisions,
@@ -82,7 +82,7 @@ Validation needs a complete answer set. If the interview is already fully answer
 - a decision the interview's **auto-guard** class covers, a genuine user choice with real tradeoffs and no codebase answer, is held out of the auto-accept and routed to the human as a real question in the confirm round (Step 4).
 - an open row asking a fact no self-answer source settled (the shared step's **Needs the user** outcome) is held out of the auto-accept with the auto-guard decisions and routed to the human the same way. The orchestrator's recommendation never becomes the fact, and no validator supplies one.
 - an open row whose resolution carries **`kind:: discovery`** (a question about what only the user knows, asked with no recommendation) is held out of the auto-accept, since it has no recommended answer to accept, and routed to the human the same way.
-- a register row at **`superseded-by-plan`** (a plan change displaced the user's answer) is held out of the auto-accept, never validated into `answered`, and routed to the human as a real question showing both the proposed and the displaced answer. Only the user's reply to that row moves it.
+- a register row at **`superseded-by-plan`** (a plan change displaced the user's answer) is held out of the auto-accept, never validated into `answered`, and routed to the human as a real question showing both the proposed and the displaced answer. Only the user's reply to that row moves it, an "approve" of the approval request that listed it included.
 - a register row whose resolution carries `hedged:` anywhere (including the page's `hedged:` answer and the legacy `free-text: hedged:` export) is validated, but it never closes on a CONFIRMED verdict: it is routed to the human in the Step 4 confirm round whatever the validators return. Its `open` commitment rows are held out of the auto-accept like any other floor item.
 
 A `free-text:` row is validated like any answer and flagged in its verdict, so the human sees which answers were given in the user's own words rather than picked from the authored options.
@@ -111,8 +111,9 @@ Each validator receives the whole provisional answer set and the interview's per
 Each answer also carries the evidence it rested on: the question's Context block, read from the
 interview's kept round file (`<memory_dir>/<topic-slug>/round-<N>.md`, the question's `Context:`
 lines) or, on the page, the question's `context` field. Hand each validator that block as written,
-with its links and `file:line` references, and keep the `My recommendation:` reasoning, `Basis:`,
-any `Inference:` line (older rounds) and `Flips if:` lines withheld. A Context claim whose cited source does not say what
+with its links and `file:line` references, and keep the `My recommendation:` reasoning (its
+`Why:`, `Gains:`, `Costs:` and `Evidence:` lines), `Basis:`, any `Inference:` line (older rounds)
+and `Flips if:` lines withheld. A Context claim whose cited source does not say what
 the claim says, or a Context that leaves out a fact that would change the decision, is grounds for
 CHALLENGED. A question with no kept Context is validated on the answer alone, and its verdict says
 so.

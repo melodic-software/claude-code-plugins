@@ -3,6 +3,58 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-11-28
+
+### Removed
+
+- Drop legacy `.claude/mutation-testing.local.md` dual-read, warning, and move flow from `/mutation-testing:setup` and multi-repo audit context.
+
+## [0.23.10] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across all four `mutation-testing` skills (`audit` 530 -> 346 chars, `principles` 511 -> 338 chars, `seed-faults` 412 -> 342 chars, `setup` 719 -> 148 chars; total 2172 -> 1174 chars, -998 chars) while preserving all modes, source-reversion/no-commit safety posture, and sibling exclusions.
+
+## [0.23.9] - 2026-11-27
+
+### Changed
+
+- Synced shared `reference/detector-findings.md` with `portability-ok` annotations from `docs/contracts/detector-findings/README.md` and annotated surviving ecosystem specifics under ADR 0101 (#17746); no behavior change.
+
+## [0.23.8] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.23.7] - 2026-11-26
+
+### Changed
+
+- Tidied dotnet-test-selection.sh and estimate-run.sh: extracted the project lookup into a helper and made the argument checks plain guard clauses.
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [0.23.6] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+- Shared detector-findings contract synced where this plugin carries it: it registers `code-tidying/remove-comments/rule-glossary-candidate`; no other change to this plugin.
+
+## [0.23.5] - 2026-11-25
+
+### Changed
+
+- The detector-findings reference links the organization's `REVIEW.md` on melodic-software/standards main as the live severity-crosswalk instance.
+
+## [0.23.4] - 2026-11-25
+
+### Changed
+
+- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
+
 ## [0.23.3] - 2026-11-24
 
 ### Changed

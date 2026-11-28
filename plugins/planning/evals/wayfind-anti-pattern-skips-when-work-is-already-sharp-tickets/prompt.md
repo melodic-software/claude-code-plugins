@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 6, run as a plugin-eval case for the before/after comparison (loss-set)."
+description: "Asked to chart three already-sharp tickets, wayfind says they are sharp, builds no map, offers no interview and routes them to /work-items:decompose (loss-set)."
 tags: [wayfind, wayfind-charting, loss-set]
 runs: 3
 max_turns: 30

@@ -16,9 +16,6 @@ anything it finds.
 [CmdletBinding()]
 param(
     [switch]$Human,
-    # The overrides below exist for tests and manual scratch-tree runs; the
-    # orchestrator dispatches argument-less (Get-CheckArgument default) and the
-    # defaults resolve the real volumes and the shipped baseline.
     [string]$SystemRootPath,
     [string[]]$DataRootPath,
     [string]$BaselinePath
@@ -93,15 +90,11 @@ function Get-RootResidue {
     $litterDirs = Get-BaselineList -Baseline $Baseline -Section 'data_volume_litter' -Kind 'directories'
     $litterFiles = Get-BaselineList -Baseline $Baseline -Section 'data_volume_litter' -Kind 'files'
 
-    # -ErrorAction Stop: a root that cannot be listed at all must surface as a
-    # failed scan, not as a clean one -- an empty listing reads as zero residue.
     $entries = @(Get-ChildItem -LiteralPath $Root -Force -ErrorAction Stop)
 
     $residue = [System.Collections.Generic.List[pscustomobject]]::new()
     foreach ($e in $entries) {
         $isDir = [bool]$e.PSIsContainer
-        # Volume housekeeping ($Recycle.Bin etc.) appears on data volumes
-        # too; it is expected there, not litter.
         if (Test-NameMatchesAny -Name $e.Name -Patterns ($isDir ? $sharedDirs : $sharedFiles)) { continue }
         if ($IsSystem) {
             if (Test-NameMatchesAny -Name $e.Name -Patterns ($isDir ? $systemDirs : $systemFiles)) { continue }
@@ -147,23 +140,17 @@ $commands = @(
 
 $FailureSummary = 'Drive-root litter check failed.'
 $PassThru = $false
-# Captured before the body. $PSBoundParameters inside a dot-sourced scriptblock
-# is the scriptblock's own (empty) dictionary, not the script's.
 $CheckBoundParameters = $PSBoundParameters
 $CheckBody = {
     if (-not $BaselinePath) {
         $BaselinePath = Join-Path (Resolve-SkillRoot) 'reference\windows\drive-root-baseline.jsonc'
     }
-    # No baseline means no way to tell residue from a legitimate entry, so the
-    # check cannot answer -- UNKNOWN, never a guess.
     $baseline = Get-Content -LiteralPath $BaselinePath -Raw -ErrorAction Stop | ConvertFrom-Jsonc
 
     $systemRoot = if ($SystemRootPath) { $SystemRootPath } else { "$env:SystemDrive\" }
     $dataRoots = if ($CheckBoundParameters.ContainsKey('DataRootPath')) {
         @($DataRootPath)
     } else {
-        # Fixed, lettered volumes only: removable media and network drives hold
-        # user-managed content with no OS-imposed root layout to diff against.
         $systemLetter = $systemRoot.TrimEnd('\').TrimEnd(':')
         @(Get-Volume -ErrorAction SilentlyContinue |
                 Where-Object { $_.DriveType -eq 'Fixed' -and $_.DriveLetter } |
@@ -176,8 +163,6 @@ $CheckBody = {
     $residue = [System.Collections.Generic.List[pscustomobject]]::new()
     $failedRoots = [System.Collections.Generic.List[string]]::new()
 
-    # Trailing separator so detail.residue "volume + name" concatenations read
-    # as real paths ("C:\tmp"), for drive roots and override paths alike.
     $normalize = { param($p) ($p.EndsWith('\') -or $p.EndsWith('/')) ? $p : "$p\" }
     $systemRoot = & $normalize $systemRoot
     $dataRoots = @($dataRoots | ForEach-Object { & $normalize $_ })
@@ -200,8 +185,6 @@ $CheckBody = {
         }
     }
 
-    # Deterministic order: identical machine state must produce identical
-    # output run over run so the catalog's identical_streak accounting works.
     $residueSorted = @($residue | Sort-Object volume, name)
 
     $detail = @{
@@ -215,9 +198,6 @@ $CheckBody = {
     }
 
     if ($failedRoots.Count -gt 0) {
-        # An unlistable root can hide any amount of litter, so a threshold
-        # verdict on the volumes that did scan would overstate what is known.
-        # Partial residue still ships so the human sees what was found.
         $result = New-HealthResult -Id $id -Category $category -Os 'windows' `
             -Severity 'UNKNOWN' `
             -Summary ("Drive-root scan incomplete: $($failedRoots.Count) root(s) could not be " +
@@ -226,21 +206,11 @@ $CheckBody = {
             -RanSuccessfully $false `
             -ErrorMessage ($failedRoots -join '; ')
     } else {
-        # Severity ladder (most severe first). This check never emits CRIT:
-        # root litter is tidiness with no data-loss or security consequence,
-        # and severity-rubric.md reserves CRIT for imminent-failure and
-        # security conditions while directing ambiguity to the lower level.
-        #   WARN -- >=10 residue entries: something is actively dumping at a root.
-        #   INFO -- 1-9 residue entries.
-        #   OK   -- none.
         $severity = if ($residueSorted.Count -ge 10) { 'WARN' } elseif ($residueSorted.Count -ge 1) { 'INFO' } else { 'OK' }
 
         $summary = if ($residueSorted.Count -eq 0) {
             "Volume roots clean: $($volumes.Count) root(s) scanned, no unexpected entries."
         } else {
-            # Full paths when they fit, bare names when they don't: the schema
-            # caps summary at 240 chars and an override root can be arbitrarily
-            # long. Deterministic either way; detail.residue always has the paths.
             $lead = "$($residueSorted.Count) unexpected " +
                 "entr$($residueSorted.Count -eq 1 ? 'y' : 'ies') at volume roots"
             $tail = '. Route removal to disk-hygiene:clean.'

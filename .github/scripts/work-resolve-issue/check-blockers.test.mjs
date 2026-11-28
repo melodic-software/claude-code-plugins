@@ -8,6 +8,7 @@ import { after, describe, test } from "node:test";
 import { renderSplitRecord, SIZE_SPLIT_MARKER } from "../intake-triage/size-split.mjs";
 import { main } from "./check-blockers.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { standardsAt } from "../lib/trusted-actors.fixtures.mjs";
 
 const HUMAN = { id: 101, login: "person" };
 const STRANGER = { id: 202, login: "stranger" };
@@ -15,9 +16,10 @@ const APP = { id: 303, login: "melodic-automation-lanes[bot]" };
 const UNTRUSTED = "provenance: untrusted";
 const dir = tempDir("check-blockers-");
 after(() => rmSync(dir, { recursive: true, force: true }));
-const TRUSTED = join(dir, "trusted-actors.json");
+const STANDARDS = standardsAt(join(dir, "standards"));
+const TRUSTED = STANDARDS.list;
 writeFileSync(TRUSTED, JSON.stringify({ version: 1, actors: [{ kind: "human", id: HUMAN.id, login: HUMAN.login }] }));
-const ENV = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "42", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(APP.id), BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)) };
+const ENV = { GITHUB_REPOSITORY: "o/r", ISSUE_NUMBER: "42", TRUSTED_ACTORS_PATH: TRUSTED, LANES_APP_ID: String(APP.id), BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: STANDARDS.dir };
 
 const issue = (number, state, { repo = "o/r", reason = state === "closed" ? "completed" : null, closer = HUMAN } = {}) => ({
   number,
@@ -338,12 +340,15 @@ const reportClose = (user, at) => ({
   html_url: "https://github.com/o/r/issues/7#issuecomment-1",
   body: ["<!-- work-resolve-issue outcome=closed run=555 -->", "The work-resolve-issue lane stopped on this issue (`report-delivered`): the run posted the report.", "", "In the run's words:", "", "> the report"].join("\n"),
 });
-const reportWorld = ({ comments, readyAt, closer = APP }) => (path) => {
+const reportWorld = ({ comments, readyAt, closer = APP, reopenedAt }) => (path) => {
   if (path === "/repos/o/r/issues/42") {
     return { number: 42, state: "open", user: HUMAN, labels: [{ name: "agent-ready" }] };
   }
   if (path.startsWith("/repos/o/r/issues/42/events")) {
     return [{ event: "labeled", label: { name: "agent-ready" }, actor: APP, created_at: readyAt }];
+  }
+  if (path.startsWith("/repos/o/r/issues/7/events")) {
+    return reopenedAt ? [{ event: "reopened", created_at: reopenedAt }] : [];
   }
   if (path.includes("/dependencies/blocked_by")) {
     return [issue(7, "closed", { closer })];
@@ -366,17 +371,19 @@ const reportWorld = ({ comments, readyAt, closer = APP }) => (path) => {
   throw new Error(`unexpected ${path}`);
 };
 
-test("a blocker the lanes App closed report-delivered runs once agent-ready postdates the close; before that, or unread, it blocks", async () => {
+test("a blocker the lanes App closed report-delivered runs on the App's own outcome comment; otherwise it blocks until agent-ready postdates the close", async () => {
   const comments = [reportClose(APP, "2026-10-28T00:00:00Z")];
   assert.deepEqual((await run(reportWorld({ comments, readyAt: "2026-10-29T00:00:00Z" }))).outputs, RUN);
-  assert.deepEqual((await run(reportWorld({ comments, readyAt: "2026-10-27T00:00:00Z" }))).outputs, SKIP);
+  assert.deepEqual((await run(reportWorld({ comments, readyAt: "2026-10-27T00:00:00Z" }))).outputs, RUN);
+  assert.deepEqual((await run(reportWorld({ comments, readyAt: "2026-10-27T00:00:00Z", reopenedAt: "2026-10-28T12:00:00Z" }))).outputs, SKIP);
   assert.deepEqual((await run(reportWorld({ comments: [reportClose(STRANGER, "2026-10-28T00:00:00Z")], readyAt: "2026-10-29T00:00:00Z" }))).outputs, SKIP);
+  assert.deepEqual((await run(reportWorld({ comments: [], readyAt: "2026-10-29T00:00:00Z" }))).outputs, SKIP);
   assert.deepEqual((await run(reportWorld({ comments: new Error("502"), readyAt: "2026-10-29T00:00:00Z" }))).outputs, SKIP);
 });
 
 test("a field-only `ready` from the lanes App after the report-delivered close clears it; one from the mirror era does not", async () => {
   const fieldWorld = (readyAt) => {
-    const world = reportWorld({ comments: [reportClose(APP, "2026-11-08T00:00:00Z")], readyAt: "2026-10-01T00:00:00Z" });
+    const world = reportWorld({ comments: [reportClose(APP, "2026-11-08T00:00:00Z")], readyAt: "2026-10-01T00:00:00Z", reopenedAt: "2026-11-08T12:00:00Z" });
     return (path, body) => {
       if (path.startsWith("/repos/o/r/issues/42/events")) {
         return [];
@@ -405,10 +412,6 @@ test("a blocker someone other than the lanes App closed blocks even with an olde
   assert.deepEqual((await run(reportWorld({ comments, readyAt: "2026-10-29T00:00:00Z", closer: STRANGER }))).outputs, SKIP);
 });
 
-// The read runner's in-slot re-check (RECHECK=true): a blocker added while
-// the run waited for its slot stops it as admission's blocker gate does; a
-// map or untrusted label added in that wait, or a list of closed blockers,
-// takes the full check (https://github.com/melodic-software/claude-code-plugins/issues/18061).
 describe("the in-slot re-check", () => {
   const RECHECK = { ...ENV, RECHECK: "true" };
   const RECHECK_RUN = { proceed: "true", untrusted: "false" };

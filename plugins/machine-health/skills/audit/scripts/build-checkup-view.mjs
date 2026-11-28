@@ -1,27 +1,58 @@
 #!/usr/bin/env node
-// Build the checkup decision page for one audit run.
-//
-//   build-checkup-view.mjs --latest <state/latest.json> --views-dir <StateBase/views>
-//                          --run-stamp <yyyy-MM-ddTHHmmssfffZ> --remediations <id,id> --report <file name>
-//
-// Reads latest.json and the remediation id list the orchestrator passes, and writes
-// exactly three files into the views folder, which the orchestrator creates:
-//   checkup-<runStamp>.html      the page, built by the shared view builder
-//   checkup-<runStamp>.json      the page data
-//   checkup-<runStamp>.ids.json  the id map setup's picks step resolves a payload against
-//
-// Every machine-derived string in latest.json is K2: it reaches the page only as JSON
-// data that the shared runtime renders as text. The markup is templates/checkup.html.
-// A row id is <parent row id>-<list key>-<n>, the scheme the runtime assigns, so the
-// id map names each pick the page can return. The page carries one hidden run choice,
-// the lowercased run stamp, so a copied payload names the map it belongs to.
-// Exit 0 built, 1 the input or the page fails its checks, 2 usage or environment.
-
 import { createHash } from "node:crypto";
 import { readFileSync, writeFileSync } from "node:fs";
-import { join, win32 } from "node:path";
+import { join, resolve, win32 } from "node:path";
 import { fileURLToPath } from "node:url";
+import { escapeHtml } from "../../../lib/html-escape.mjs";
+import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "../../../lib/plugin-options.mjs";
 import { buildView, ViewBuildError } from "../../../lib/view-builder.mjs";
+import { findRoot, resolveBranding } from "../../../lib/view-settings.mjs";
+
+const PLUGIN_ROOT = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
+const BRAND_CSS = [
+  ".rv-brand { display: inline-flex; align-items: center; gap: 0.5rem; margin-right: auto; }",
+  ".rv-brand svg { height: 1.5rem; width: auto; display: block; }",
+  ".rv-brand-mark { display: inline-block; width: 1.5rem; height: 1.5rem; background-size: contain; background-repeat: no-repeat; background-position: center; }",
+  ".rv-brand-label { font-family: var(--sans); font-weight: 600; font-size: 0.95rem; color: var(--fg); }",
+].join("\n");
+
+function readBrandingOption(explicitOption) {
+  if (typeof explicitOption === "string" && explicitOption !== "" && !/^\$\{user_config\./.test(explicitOption)) {
+    return explicitOption;
+  }
+  if (process.env.CLAUDE_PLUGIN_OPTION_BRANDING) {
+    return process.env.CLAUDE_PLUGIN_OPTION_BRANDING;
+  }
+  try {
+    return readOperatorOptions(resolveInstall(PLUGIN_ROOT), managedSettingsFiles(), ["branding"]).branding?.value ?? null;
+  } catch (err) {
+    if (err instanceof OptionsError) {
+      process.stderr.write(`notice: branding userConfig: ${err.message}\n`);
+      return null;
+    }
+    throw err;
+  }
+}
+
+function applyBranding(template, tokensCss, branding) {
+  const tokens = tokensCss.replace(/\r\n?/g, "\n").replace(/^(?:\s*\/\*[\s\S]*?\*\/\s*)+/, "").trim();
+  const logo = branding?.logo;
+  const parts = [];
+  if (logo?.kind === "svg" && logo.svg) {
+    parts.push(logo.svg);
+  } else if (logo?.kind === "image") {
+    parts.push(`<span class="rv-brand-mark rv-logo" role="img" aria-label="${escapeHtml(logo.label || "Brand logo")}"></span>`);
+  }
+  if (logo?.label) {
+    parts.push(`<span class="rv-brand-label">${escapeHtml(logo.label)}</span>`);
+  }
+  const slot = parts.length ? `<div class="rv-brand">${parts.join("")}</div>` : "";
+  const extraCss = [slot ? BRAND_CSS : "", branding?.css ?? ""].filter(Boolean).join("\n");
+  let out = template.replace(/<style>\s*/i, (open) => `${open}${tokens}\n`);
+  if (extraCss) out = out.replace(/<\/style>/i, (close) => `\n${extraCss}\n${close}`);
+  if (slot) out = out.replace(/<div class="rv-bar">/i, (bar) => `${bar}${slot}`);
+  return out;
+}
 
 const STAMP = /^\d{4}-\d{2}-\d{2}T\d{9}Z$/;
 const FINDING_KEY = /^[a-z-]{1,16}:[0-9a-f]{16}$/;
@@ -31,8 +62,6 @@ const SEVERITIES = ["crit", "warn", "unknown", "info", "ok"];
 const ITEM_FIELDS_SHOWN = 8;
 const TEXT_MAX = 300;
 const RUN_PLACEHOLDER = 'value="run-stamp"';
-// A Defender exclusion value stays off the page, its data and the id map, as it stays out of
-// the report; the appendix shows the same placeholder.
 const EXCLUSION_WITHHELD = "(exclusion value withheld)";
 
 export class CheckupInputError extends Error {}
@@ -118,7 +147,6 @@ export function toCheckupData(latest, remediations, report) {
     elevated: latest.elevated === true ? "elevated" : "not elevated",
     report: text(report),
   };
-  // A scheduled run's research notes, named by file only; win32 basename splits on / and \.
   if (typeof latest.discovery_path === "string" && latest.discovery_path) {
     run.notes = text(win32.basename(latest.discovery_path));
   }
@@ -146,12 +174,14 @@ function main(argv) {
   for (let i = 0; i < argv.length; i += 2) {
     args[argv[i]] = argv[i + 1];
   }
-  const known = ["--latest", "--views-dir", "--run-stamp", "--remediations", "--report"];
+  const required = ["--latest", "--views-dir", "--run-stamp", "--remediations", "--report"];
+  const known = [...required, "--branding-option"];
   const ok =
-    known.every((key) => typeof args[key] === "string") &&
-    Object.entries(args).every(([key, value]) => known.includes(key) && typeof value === "string" && (value !== "" || key === "--remediations"));
+    argv.length % 2 === 0 &&
+    required.every((key) => typeof args[key] === "string") &&
+    Object.entries(args).every(([key, value]) => known.includes(key) && typeof value === "string" && (value !== "" || key === "--remediations" || key === "--branding-option"));
   if (!ok || !STAMP.test(args["--run-stamp"])) {
-    console.error("usage: build-checkup-view.mjs --latest <latest.json> --views-dir <dir> --run-stamp <yyyy-MM-ddTHHmmssfffZ> --remediations <id,id> --report <file name>");
+    console.error("usage: build-checkup-view.mjs --latest <latest.json> --views-dir <dir> --run-stamp <yyyy-MM-ddTHHmmssfffZ> --remediations <id,id> --report <file name> [--branding-option <value>]");
     return 2;
   }
   const stamp = args["--run-stamp"];
@@ -167,7 +197,13 @@ function main(argv) {
   try {
     const remediations = args["--remediations"].split(",").filter(Boolean);
     const { data, rows } = toCheckupData(latest, remediations, args["--report"]);
-    const page = buildView({ profile: "interactive", template: withRunChoice(template, stamp), data });
+    const tokensCss = readFileSync(new URL("../../../reference/html-tokens.css", import.meta.url), "utf8");
+    const branding = resolveBranding({ userConfig: readBrandingOption(args["--branding-option"] ?? null), projectRoot: findRoot() });
+    for (const notice of branding.notices) {
+      process.stderr.write(`notice: ${notice.text}\n`);
+    }
+    const branded = applyBranding(withRunChoice(template, stamp), tokensCss, branding);
+    const page = buildView({ profile: "interactive", template: branded, data });
     const base = join(args["--views-dir"], `checkup-${stamp}`);
     const idMap = {
       format: "checkup-ids/1",

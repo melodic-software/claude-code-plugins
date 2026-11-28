@@ -1,0 +1,20 @@
+{
+  "claim": "A manual `/compact <focus>` with no PreCompact hook text reaches the summary, and the hook's marker does not.",
+  "tags": ["/compact", "PostCompact", "compact summary", "hook"],
+  "permission_mode": "default",
+  "model": "claude-haiku-5-5",
+  "max_turns": 4,
+  "max_budget_usd": 0.5,
+  "cli_args": ["--input-format", "stream-json"],
+  "target": {
+    "compaction": true,
+    "patterns": [
+      "^(?=.*\"hook_event_name\":\\s*\"PostCompact\")(?=.*\"trigger\":\\s*\"manual\")(?=.*FOCUS-4242)"
+    ],
+    "absent": ["HOOK-9191"],
+    "example": [
+      "{\"session_id\":\"s\",\"hook_event_name\":\"PostCompact\",\"trigger\":\"manual\",\"compact_summary\":\"Summary. FOCUS-4242\"}"
+    ]
+  },
+  "outcome": "transcript-grep"
+}

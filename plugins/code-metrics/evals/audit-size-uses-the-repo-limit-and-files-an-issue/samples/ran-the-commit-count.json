@@ -13,6 +13,14 @@
     {
       "answer": [],
       "why": "no shell call at all"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "grep -n -- '--commits-since' /plugins/code-metrics/skills/audit/actions/size.md"}}],
+      "why": "the flag read from the skill, the script never run"
+    },
+    {
+      "answer": [{"tool": "Bash", "input": {"command": "cat /plugins/code-metrics/skills/audit/scripts/audit-size.sh; echo --commits-since x"}}],
+      "why": "the script read, never run; the flag is in a later command"
     }
   ]
 }

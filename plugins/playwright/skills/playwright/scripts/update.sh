@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-# No set -e — exit codes captured explicitly for a clean report.
 set -uo pipefail
 
 UPSTREAM_PACKAGE="@playwright/cli"
@@ -118,8 +117,6 @@ run_apply() {
   log "upstream version:     $upstream_ver"
   log "upstream dist.shasum: $upstream_sha"
 
-  # LICENSE comes from the package root, not the compared skill directory, so it
-  # would read as wholly deleted and fill the preview.
   section "Diff against vendor/ (first 200 lines)"
   diff -ruN --exclude=.markdownlint-cli2.jsonc --exclude=LICENSE "$VENDOR_DIR" "$upstream_dir" | head -200 || true
 
@@ -128,8 +125,6 @@ run_apply() {
   rm -rf "$VENDOR_DIR"
   mkdir -p "$VENDOR_DIR"
   cp -r "$upstream_dir"/. "$VENDOR_DIR"/
-  # Apache-2.0 redistribution requires the license to travel with the vendored
-  # content; it lives at the package root, not in the skill subdirectory.
   if [[ -f "${TMPDIR_RUN}/package/LICENSE" ]]; then
     cp "${TMPDIR_RUN}/package/LICENSE" "${VENDOR_DIR}/LICENSE"
   else

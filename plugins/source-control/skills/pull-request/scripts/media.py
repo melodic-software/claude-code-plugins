@@ -69,7 +69,6 @@ _RUN_URL = re.compile(
 _REASON = re.compile(r"^[a-z0-9][a-z0-9-]{0,39}$")
 _ARTIFACT_NAME = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
-# GitHub keeps each revision of the body as one edit, its `diff` holding the full text.
 _EDITS_QUERY = (
     "query($owner:String!,$name:String!,$number:Int!){viewer{login}"
     " repository(owner:$owner,name:$name){pullRequest(number:$number)"
@@ -101,8 +100,8 @@ class Hosting(enum.Enum):
 @dataclass(frozen=True)
 class Status:
     state: State
-    claim: tuple[str, str] | None = None  # (head sha, run id)
-    shown: str | None = None  # the commit the posted media show
+    claim: tuple[str, str] | None = None
+    shown: str | None = None
 
 
 @dataclass(frozen=True)
@@ -229,9 +228,9 @@ def clock(seconds: float) -> str:
 @dataclass(frozen=True)
 class Asset:
     source: Path
-    name: str  # the staged file name, which the section references as ./<name>
+    name: str
     label: str
-    sha256: str  # the digest the manifest binds the file to
+    sha256: str
 
 
 @dataclass(frozen=True)
@@ -240,10 +239,9 @@ class Media:
     videos: list[Asset]
     sheets: list[Asset]
     screenshots: list[Asset]
-    chapters: list[tuple[str, str]]  # (start time, title)
-    # Text the scan reads as written: escaping a chapter title would hide a secret in it.
+    chapters: list[tuple[str, str]]
     unrendered: dict[str, str]
-    video_unhosted: str  # why the video cannot be attached, "" when it can
+    video_unhosted: str
 
     @property
     def assets(self) -> list[Asset]:
@@ -656,7 +654,6 @@ def has_failure_comment(forge: Forge, head: str, login: str | None) -> bool:
         "--jq",
         ".[] | {login: .user.login, type: .user.type, body: .body}",
     ).stdout
-    # Only this account's or a bot's comment counts, so nobody else can suppress or forge the failure comment.
     return any(
         isinstance(c, dict)
         and ((login and c.get("login") == login) or c.get("type") == "Bot")
@@ -752,7 +749,6 @@ def _post(
         artifact_line = artifact_line_of(
             a.artifact_url, name, a.retention_days, hosting, media
         )
-        # Both variants are built and scanned now, so the head read just before the write picks one.
         sections = {
             stale: render(media, hosting, stale, artifact_line, nl)
             for stale in (False, True)
@@ -771,7 +767,6 @@ def _post(
                 or "the scan rules did not load"
             )
             raise Refusal(5, "scan", found)
-        # Every file is staged already, so from this read to gh's write only the gh call runs.
         seen = {e["id"] for e in forge.edits()[1]}
         now = forge.read()
         parts = split(now["body"])

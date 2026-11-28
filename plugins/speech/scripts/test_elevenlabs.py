@@ -1,7 +1,4 @@
 # test-scope: plugins/speech/prerequisites.json plugins/speech/.claude-plugin/plugin.json
-"""elevenlabs.py: the statement and quota gate before every call, the proceed gate, the egress floor, the cache, the
-retry policy, key delivery through vault-exec, the key never leaking, and the mapping from character alignment to word
-timings. No test reaches the network: the transport is injected, or urlopen is replaced."""
 import base64
 import contextlib
 import io
@@ -61,8 +58,6 @@ def run(out, proceed=True, env=None, quota=None, **kw):
 
 
 def cli(env_extra=None, *args, vault=None, run_child=None):
-    """main() as a user would run it, in process, with the key and floor cleared, the network replaced, and vault-exec
-    resolvable only when the test says so."""
     env = {k: v for k, v in os.environ.items() if k not in (elevenlabs.KEY_VAR, elevenlabs.FLOOR_VAR,
                                                              elevenlabs.CHILD_VAR)}
     env.update(env_extra or {})

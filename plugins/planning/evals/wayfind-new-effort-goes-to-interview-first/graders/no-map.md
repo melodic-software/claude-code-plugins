@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+match: not_contains
+pattern: 'work-items:track[\s`*"]*(?:(?:Arg|arg)(?:ument)?s[\s:=*`"]*)?(?:add|edit|start|done|link|publish-plan)\b|(?<!\bnot )(?<!\bno )(?<!\bbefore )(?<!\bwithout )(?<!\bof )(?<!\bthan )(?<!n''t be )\b(?:(?:Created|created)|(?:Creating|creating)|(?:Opened|opened)|(?:Filed|filed))\s+(?:the\s+|a\s+)?(?:map\b|decision items?\b|items?\s+[''"‘“])'
 ---
-
-The user asked wayfind to chart a rewrite of the search indexing pipeline and said it has not been discussed at all yet; it just feels big. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply creates no map issue and no decision items.
-
-FAIL if it creates or writes out a map issue or decision items.

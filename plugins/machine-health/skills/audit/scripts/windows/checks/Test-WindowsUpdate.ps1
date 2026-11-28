@@ -27,10 +27,6 @@ function Test-PfroPending {
     [OutputType([bool])]
     param()
 
-    # The registry property exists on most systems but usually holds an
-    # empty value array, so a presence test (`$null -ne (Get-ItemProperty ...)`)
-    # reports a permanent reboot_pending=true. Authoritative check: the
-    # VALUE is a non-empty string array.
     try {
         $prop = Get-ItemProperty `
             'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager' `
@@ -72,9 +68,6 @@ $CheckBody = {
 
     $pswuPresent = $null -ne (Get-Module -ListAvailable PSWindowsUpdate -ErrorAction SilentlyContinue)
     $pendingUpdates = @()
-    # Distinguish "module absent" (documented reboot-signals-only fallback) from
-    # "module present but the query failed" (a degraded run: we genuinely do not
-    # know whether updates are pending, so OK 'no pending updates' would lie).
     $pswuQueryFailed = $false
     $pendingUpdatesNote = $pswuPresent ? $null : 'PSWindowsUpdate not installed -- reboot signals only.'
     if ($pswuPresent) {
@@ -86,9 +79,6 @@ $CheckBody = {
         }
     }
 
-    # Pending-reboot age: compute days since most recent hotfix. When paired
-    # with a reboot-pending flag, a large age implies the user has been
-    # ignoring a post-update reboot and should escalate severity.
     $hotfixAgeDays = $null
     if ($recentHotfixes.Count -gt 0 -and $recentHotfixes[0].installed_on) {
         try {
@@ -121,9 +111,6 @@ $CheckBody = {
             }
         }
     } elseif ($rebootPending) {
-        # Escalate INFO -> WARN -> CRIT based on how long the reboot has been
-        # pending (proxied by hotfix install age since the reboot flag persists
-        # until the machine reboots).
         if ($null -ne $hotfixAgeDays -and $hotfixAgeDays -gt 7) {
             $severity = $hotfixAgeDays -gt 14 ? 'CRIT' : 'WARN'
             $summary = "Reboot pending for $hotfixAgeDays days (last hotfix install age)."
@@ -133,8 +120,6 @@ $CheckBody = {
         }
     }
 
-    # A failed enumeration must not read as a clean OK. Surface it as INFO
-    # (reboot signals are still valid, so the check itself ran successfully).
     if ($severity -eq 'OK' -and $pswuQueryFailed) {
         $severity = 'INFO'
         $summary = 'Update enumeration degraded (Get-WUList failed); reboot signals only.'
@@ -148,10 +133,6 @@ $CheckBody = {
             pfro = $pfroPending
         }
         recent_hotfixes         = $recentHotfixes
-        # Null (not 0) when the enumeration was degraded: 0 would be a false
-        # "no pending updates" that the history flattener persists as the
-        # windows-update trend metric, corrupting the next run's delta. Null is
-        # skipped by the flattener, so a transient failure leaves the trend intact.
         pending_update_count    = $pswuQueryFailed ? $null : $pendingUpdates.Count
         pswindowsupdate_present = $pswuPresent
         update_enum_degraded    = $pswuQueryFailed

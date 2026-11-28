@@ -344,7 +344,7 @@ Interview-first per contract; register gate clean (8/8); user confirmed. Rubric 
 | User vs project scope + cloud caveat (L5) | ADOPT | Remote/cloud sessions never load `~/.claude` user scope — project/marketplace skills are the only steering that reaches them; recorded as the rubric's surface-coverage/cloud-scope evidence axis |
 | Invocation-reach invariant (MECHANICS) | CONFIRMED | Docs-verified 2026-08-17 (`true` → model-invisible everywhere, human `/name` only); SSOT strand records CONFIRMED with the audit-side trigger kept, upstream-release trigger retired |
 
-Fleet re-grade (ADR 0005-bounded, executed in-lane): 10 non-setup `true` skills graded — 9
+Fleet re-grade (bounded by question, not population, executed in-lane): 10 non-setup `true` skills graded — 9
 KEEP, 1 FLIP (`planning:questionnaire` → model-invoked). Lane 8 closed with the rubric homed,
 enforcement filed
 ([#2968](https://github.com/melodic-software/claude-code-plugins/issues/2968): explicit-key

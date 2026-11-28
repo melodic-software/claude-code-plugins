@@ -60,7 +60,6 @@ $CheckBody = {
     foreach ($s in $sources) { $byName[$s.Source] = $s }
     $systemImage = $byName[$BackupSourceId.SystemImage]
     $deprecation = 'System Image Backup has been deprecated since Windows 10 version 1709.'
-    # The note rides on the summary only when a system image is what protects the machine.
     $summary = "$lead$adminNote." + ($systemImage -and $systemImage.State -eq 'present' ? " $deprecation" : '')
     $detail = @{
         sources           = @($sources | ForEach-Object {

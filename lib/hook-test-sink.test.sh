@@ -24,8 +24,6 @@ source "$LIB_DIR/hook-test-sink.sh"
 source "$LIB_DIR/hook-utils.sh"
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
-# now_ms -> NOW_MS = milliseconds since the epoch. EPOCHREALTIME is Bash 5+,
-# which hook::emit_telemetry needs as well.
 now_ms() {
   local t=$EPOCHREALTIME
   NOW_MS=$((${t%[.,]*} * 1000 + 10#${t#*[.,]} / 1000))
@@ -52,8 +50,6 @@ emit_with_sink() {
   EMIT_RC=$(<"$rc_file")
 }
 
-# Upper bound for a wait of one to five 20ms polls. Generous on purpose: a
-# single process spawn has been measured at 3.2 s on a loaded host.
 BOUND_MS=5000
 
 # shellcheck disable=SC2016  # $1 expands in the child shell, not here

@@ -13,7 +13,6 @@ const pt = (p: readonly number[]): string => `${g(p[0])},${g(p[1])}`
 const pts = (list: readonly (readonly number[])[]): string => list.map(pt).join(' ')
 
 type Stop = [number, string, number?]
-/** Two decimals, no leading zero (f() keeps only one, which merges close gradient stops). */
 const d2 = (v: number): string => String(Math.round(v * 100) / 100).replace(/^(-?)0\./, '$1.')
 const stops = (list: Stop[]): string =>
   list.map(([o, c, op]) => `<stop offset="${d2(o)}" stop-color="${c}"${op === undefined ? '' : ` stop-opacity="${d2(op)}"`}/>`).join('')
@@ -30,20 +29,17 @@ function sub(x0: number, y0: number, x1: number, y1: number, s: number): string 
 }
 const box = (x0: number, y0: number, x1: number, y1: number, s: number, a: string): string => `<path d="${sub(x0, y0, x1, y1, s)}" ${a}/>`
 
-/** Rain's defs: one tile of streaks, the same offset for a second fall, the opening they are seen in, and beads on the glass. */
 const RAIN_DEFS =
   '<pattern id="window-rp" width="24" height="44" patternUnits="userSpaceOnUse"><path d="M3 0l-.8 10M15 19l-.7 8M9 31l-.6 7M21 7l-.5 6" stroke="#cdd4e0" stroke-width=".45"/></pattern>' +
   '<pattern id="window-rq" href="#window-rp" patternTransform="translate(11 21)"/>' +
   '<clipPath id="window-ro"><rect x="266" y="232" width="246" height="366"/></clipPath>' +
   '<pattern id="window-bp" width="17" height="21" patternUnits="userSpaceOnUse"><g fill="#dfe6f2"><circle cx="3" cy="4" r=".6"/><circle cx="11" cy="13" r=".45"/><ellipse cx="7" cy="18.5" rx=".4" ry=".7"/><circle cx="15" cy="8" r=".35"/></g></pattern>'
-/** The rain's falls beyond the glass, light then heavy: each moves down one tile and starts again. */
 const RAIN = [
   '<g class="window-ra"><rect x="266" y="188" width="246" height="410" fill="url(#window-rp)" opacity=".3"/></g>',
   '<g class="window-rb"><rect x="266" y="188" width="246" height="410" fill="url(#window-rq)" opacity=".24"/></g>',
 ]
 const RAIN_STYLE = '.window-ra{animation:window-rn 2.8s linear infinite}.window-rb{animation:window-rn 2s linear infinite}@keyframes window-rn{to{transform:translateY(44px)}}'
 
-/** A clockwise outline roughened by midpoint displacement into a leaf edge; segments listed in `plain` stay straight. */
 function rough(keys: V[], seed: number, amp: number, min: number, plain: number[] = []): string {
   const out: V[] = [keys[0]]
   let n = 0
@@ -95,7 +91,6 @@ const right = rough(
   23, 0.55, 1.4, [0, 14],
 )
 
-/** A sash frame: outline with two pane holes split by one muntin, at plane scale s. Returns the frame path and its small details. */
 function sash(y0: number, y1: number, s: number, tr: number, br: number, gop: string): [string, string] {
   const st = 17
   const m = 3
@@ -120,9 +115,7 @@ export function part(state: State = DEFAULT_STATE): Part {
   const gop = L6 ? '.09' : '.04'
   const out = outside(state.look ?? { sun: 0, weather: 0 })
   const [hz0, hz1, fd0, fd1, tree, pole] = out.land
-  /** The dusk's warm horizon stops, scaled by the hour's glow. */
   const warm = (list: Stop[]): Stop[] => list.map(([o, c, a]) => [o, c, (a ?? 1) * out.glow])
-  /** The outside is brighter than the lamp-lit room by day, so the lit room lowers the glass less. */
   const exposure = (v: number): string => d2(v * (1 - 0.7 * out.day))
 
   const cloud = (cx: number, cy: number, w: number, h: number, seed: number, n: number): string => {
@@ -250,7 +243,6 @@ export function part(state: State = DEFAULT_STATE): Part {
   if (L6) body += `<rect x="270" y="234" width="234" height="240" fill="#06070c" opacity="${exposure(0.5)}"/><rect x="266" y="474" width="246" height="124" fill="#06070c" opacity="${exposure(0.32)}"/><rect x="270" y="234" width="234" height="240" fill="url(#window-rf)"/><rect x="270" y="234" width="234" height="240" fill="url(#window-rg)"/><rect x="289" y="474" width="216" height="116" fill="#6a6258" opacity=".13"/><path d="${scr}" fill="#5a524a" opacity=".7"/>`
   if (L7) body += `<rect x="440" y="520" width="66" height="72" fill="url(#window-lq)"/>`
   const jamb = `270,234 270,593 ${pts([proj(270, 593, SS), proj(270, 234, SS)])}`
-  /** Dusk fill, or the lit fill when L6 is on. */
   const lit = (dusk: string, l6: string): string => `fill="${(L6 ? l6 : dusk).replace(/^(\w+)$/, 'url(#window-$1)')}"`
   body += `<polygon points="${jamb}" ${lit('jb', 'jL')}/>`
   body += [0.995, 0.981].map(s => box(270, 234, 270.8, 593, s, 'fill="#07080f" opacity=".45"')).join('')

@@ -146,9 +146,8 @@ None. The guardrails plugin's connected-page guard denies publishing a page buil
 The `evals/recall-*` cases measure whether `/review:code-review` finds bugs the review lanes
 missed in this repository. Each case's scaffold rebuilds a reverted or fixed pull request's
 affected files offline from `evals/fixtures/`, and its regex grader reports the bug found or
-missed at the file and line of the rebuilt files. Each `case.yaml` records the pull request, its
-base commit, the bug's `file:line`, the fix and who confirmed the location. The lane's other
-findings on that pull request stay in the run output and are not graded.
+missed at the file and line of the rebuilt files. The lane's other findings on that pull request
+stay in the run output and are not graded.
 
 A pull request that changes a review lane's prompt, model or effort cites the recall score before
 and after the change: the number of `recall-*` cases found, from the same command run on the base
@@ -176,14 +175,13 @@ cases and reports a run. Run `list` and `build` from a clone with full history:
    request, whose revert removes no line the original added, or whose original no longer
    reverses cleanly onto the revert's parent, and prints each skip with its reason on stderr.
 2. `bash plugins/review/evals/revert-cases.sh build <original> <revert> <slug>` writes
-   `evals/revert-<pr>-<slug>/` with a regex grader on those lines and `fixtures.tar.gz`: the
-   files holding those lines at the base and the merge, and the original commit message as the
-   pull request context. They are an archive because they are byte copies of history that
-   repository lints must not judge. Its `case.yaml` records the pull request, the revert and the lines, matched by
-   their text. A verifier agent then checks the lines against the revert and drops any that only
-   repeat a reverted line's text. `build` writes the lines to three places, and nothing rebuilds
-   one from another, so the verifier drops each line from all three: the `# lines:` comment in
-   `case.yaml`, `expected_outcome` in `prompt.md`, and the line alternation in
+   `evals/revert-<pr>-<slug>/` with a regex grader on those lines and `fixtures/`: the files
+   holding those lines at the base (`base/`) and the merge (`head/`), each as `<path>.txt`, and
+   the original commit message as the pull request context (`pr-context.md.txt`). They are byte
+   copies of history, named `.txt` so repository lints skip them. A verifier agent then checks the lines, matched by their
+   text, against the revert and drops any that only repeat a reverted line's text. `build` writes
+   the lines to two places, and nothing rebuilds one from the other, so the verifier drops each
+   line from both: `expected_outcome` in `prompt.md`, and the line alternation in
    `graders/caught.md`, removing a file's whole alternative when none of its lines remain. A line
    left in the grader still counts a citation of it as caught. Last, the verifier names itself on
    the `confirmed-by:` line. Until then the case's scaffold refuses to run.
@@ -266,7 +264,7 @@ Each setting is set per user through the option below or per repository in
 for its safety fact (`run`) or only states it (`report`). It is a policy floor: `report` in either
 layer wins, and the repository value is read from the default branch. `fanout_diversity` decides
 whether `/review:fanout run-everything` runs one reviewer agent per concern (`lens`, the default)
-or sends one review prompt to each model tier the role map names (`model`), or runs the lens roster
+or sends one review prompt to each fan-out model the role map names (`model`), or runs the lens roster
 with the Codex reviewer as its model-diversity panel (`codex`). `fanout_act_on_cap` decides how
 many rows under each `### Spec` and `### Standards` heading of a `/review:fanout` report are marked
 act on (default `2`); every other row stays in the report. `reproduce_findings` decides whether
@@ -300,7 +298,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `downstream_probe` | string | `"run"` | run (default): /review:quality-gate downstream mode writes one probe for its safety fact in a temp directory outside the tree and runs it. report: it shows the probe without running it. report here or in a repository's docs/conventions/review.yaml (default branch) wins over run. |
-| `fanout_diversity` | string | `"lens"` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: one review prompt per fan-out model tier. codex: the lens roster plus the Codex reviewer as the model panel. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
+| `fanout_diversity` | string | `"lens"` | lens (default): /review:fanout run-everything runs one reviewer agent per concern. model: one review prompt per fan-out model. codex: the lens roster plus the Codex reviewer as the model panel. A repository's docs/conventions/review.yaml fanout_diversity wins over this option. |
 | `fanout_act_on_cap` | number<br>*min 1* | `2` | How many rows under each By axis heading (Spec, Standards) of a /review:fanout report are marked act on; default 2, a whole number of at least 1. The other rows stay in the report, marked no. A repository's docs/conventions/review.yaml fanout_act_on_cap wins over this option. |
 | `reproduce_findings` | string | `"off"` | off (default): reports unchanged. label: findings at or above the floor go to a refute gate and get evidence labels; refuted ones are not acted on. require: unreproduced ones are not acted on either. Nothing runs reviewed code without your yes. The repository's docs/conventions/review.yaml wins. |
 | `reproduce_findings_floor` | string | `"IMPORTANT"` | The lowest tier the reproduce_findings gate checks; findings below it are labeled not-attempted. IMPORTANT (default), CRITICAL or SUGGESTION; another value is reported and every finding is checked. A repository's docs/conventions/review.yaml reproduce_findings_floor wins over this option. |

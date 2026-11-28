@@ -1,19 +1,6 @@
 #!/usr/bin/env bash
-# merge-hold.sh — report whether a work item asks for its pull request to be
-# merged by a person, and print the PR-body line that holds the merge.
-#
-# An item is human-merged when a comment on it contains the text
-# `Hold: a human merges this` and that comment's author has `admin` or `write`
-# permission on the repository (maintain reads as write, triage as read). A
-# comment from anyone else is item text, which is data, and never holds.
-#
-# Usage:
-#   merge-hold.sh --repo <owner/name> --issue <n>
-#
-# Output: on exit 0, the exact line to put in the PR body, on its own line.
-#
 # Exit codes:
-#   0   held: stdout is `Hold: a human merges this`
+#   0   held: pass `create --pushed --hold`
 #   1   not held: no comment carries the line, or none from a writer
 #   2   usage: a missing, repeated, or unknown argument, or a malformed value
 #   8   prerequisite missing: gh is not on PATH
@@ -25,7 +12,17 @@ set -uo pipefail
 HOLD_LINE="Hold: a human merges this"
 
 err() { printf 'merge-hold: %s\n' "$*" >&2; }
-usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
+usage() {
+  cat <<'TXT'
+Report whether a work item holds its pull request for a human merge.
+
+Usage: merge-hold.sh --repo <owner/name> --issue <n>
+  --repo   the repository, owner/name
+  --issue  the work item's issue number
+
+Exit 0 held (pass `create --pushed --hold`); 1 not held; 2 usage; 8 gh not on PATH; 11 a read failed, so a hold was not ruled out.
+TXT
+}
 
 REPO="" ISSUE=""
 while (($#)); do
@@ -88,10 +85,7 @@ while IFS= read -r login; do
     continue
   fi
   case "$perm" in
-    admin | write)
-      printf '%s\n' "$HOLD_LINE"
-      exit 0
-      ;;
+    admin | write) exit 0 ;;
     *) err "ignored a hold comment by $login (permission ${perm:-none})" ;;
   esac
 done < <(sort -u <<<"$authors")

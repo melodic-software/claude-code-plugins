@@ -101,11 +101,11 @@ sc_stub() {
   out="$(cd "$1" && SC_STUB_LOG="$WORK/sc.log" PATH="$WORK/sc-stub:$PATH" bash "$CHECK" 2>&1)"
   printf '%s|%s' "$?" "$out"
 }
-# 250 paths of about 150 characters: about 37,000 in all, past the cap, while
-# each path stays under Windows' 260-character MAX_PATH once a temp dir prefixes it.
 LONG="$(printf 'd%.0s' {1..60})/$(printf 'f%.0s' {1..80})"
 new_repo
 mkdir -p "$REPO/${LONG%/*}"
+# Windows MAX_PATH is 260 characters without the long-path opt-in.
+# https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation
 for i in {1..250}; do
   printf '#!/bin/bash\necho ok %s\n' "$i" >"$REPO/$LONG-$i.sh"
 done
@@ -298,6 +298,15 @@ git -C "$REPO" add seed.sh
 expect "a finding on a line the commit did not add does not block" "0||" "$(check "$REPO")"
 
 new_repo
+printf '%s\nif true; then\necho "$undefined_var"\nfi\n' "$SHEBANG" >"$REPO/seed.sh"
+git -C "$REPO" add seed.sh
+git -C "$REPO" commit -q -m old --no-verify
+printf '%s\nif true; then\n  echo "$undefined_var"\nfi\n' "$SHEBANG" >"$REPO/seed.sh"
+git -C "$REPO" add seed.sh
+expect "a finding on a line the commit only reindented blocks" "1||seed.sh:3: warning: undefined_var is referenced but not assigned. [SC2154]
+$HINT" "$(check "$REPO")"
+
+new_repo
 printf '%s\nunused_variable=1\n' "$SHEBANG" >"$REPO/a.sh"
 git -C "$REPO" add a.sh
 expect "a warning-level finding (SC2034) blocks" "1||a.sh:2: warning: unused_variable appears unused. Verify use (or export if used externally). [SC2034]
@@ -427,6 +436,38 @@ git -C "$REPO" config --unset checks.skipmissing
 out="$(cd "$REPO" && CLAUDECODE=1 PATH="$WORK/no-shellcheck" bash "$CHECK" --worktree 2>&1)"
 expect "missing shellcheck, --worktree: an agent fails as at commit time" \
   "1|FAIL: shellcheck missing. Install: $SC_INSTALL" "$?|${out%%$'\n'*}"
+
+if command -v shellcheck >/dev/null 2>&1; then
+  STD="$WORK/standards"
+  mkdir -p "$STD" "$WORK/home"
+  printf 'disable=SC2154\n' >"$STD/.shellcheckrc"
+  UNSET="$SHEBANG"$'\necho "$never_assigned"'
+  opt_in() {
+    mkdir -p "$REPO/docs/conventions"
+    printf 'standards_repository: acme/standards\n' >"$REPO/docs/conventions/source-control.yaml"
+  }
+  std_check() { HOME="$WORK/home" STANDARDS_DIR="$1" check "$REPO"; }
+  new_repo NONE
+  opt_in
+  printf '%s\n' "$UNSET" >"$REPO/u.sh"
+  git -C "$REPO" add -A
+  expect "standards default: the standards .shellcheckrc's disable holds" "0||" "$(std_check "$STD")"
+  expect "standards default, control: with no standards checkout SC2154 blocks" "1||u.sh:2: warning: never_assigned is referenced but not assigned. [SC2154]
+$HINT" "$(std_check "$WORK/nowhere")"
+  expect "standards default: --resolve names the standards rc" \
+    "bash-format	lint	adapter:shellcheck	shellcheck	yes	config the standards .shellcheckrc; binary shellcheck on PATH" \
+    "$(cd "$REPO" && HOME="$WORK/home" STANDARDS_DIR="$STD" bash "$CHECK" --resolve)"
+  printf '%s\necho edited\n' "$UNSET" >"$REPO/u.sh"
+  expect "standards default: a partly staged script is linted from the index with the standards rc" "0||" "$(std_check "$STD")"
+  new_repo '# the repository rc'
+  opt_in
+  printf '%s\n' "$UNSET" >"$REPO/u.sh"
+  git -C "$REPO" add -A
+  expect "standards replace: the repository's .shellcheckrc replaces the standards rc whole" "1||u.sh:2: warning: never_assigned is referenced but not assigned. [SC2154]
+$HINT" "$(std_check "$STD")"
+else
+  echo "SKIP: shellcheck not on PATH -- standards rc cases skipped"
+fi
 
 echo "lint: $PASS passed, $FAIL failed"
 ((FAIL == 0))

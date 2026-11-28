@@ -1,10 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/Enter-RunLock.ps1 -- the exclusive lock file
-the orchestrator (run.lock) and Set-ApprovalState (approvals.lock) hold.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Enter-RunLock.ps1' -MockHelpers

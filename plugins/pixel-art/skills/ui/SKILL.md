@@ -1,5 +1,5 @@
 ---
-description: "Pixel-art UI: window skins (RPG Maker MZ Window.png, 9-slice frames), icon grids (MZ IconSet.png), HUD elements, and bitmap fonts (glyph grid or BMFont .fnt). Use when asked for a 'window skin', '9-slice frame', 'icon set', 'HUD', 'bitmap font', 'Window.png', or 'IconSet'. One item icon or character: /pixel-art:sprite; a tileset: /pixel-art:tileset; an effect sheet: /pixel-art:vfx."
+description: "Pixel-art UI: window skins (RPG Maker MZ Window.png, 9-slice frames), icon grids (MZ IconSet.png), HUD elements, and bitmap fonts (glyph grid or BMFont .fnt). Use when: 'window skin', 'icon set', 'bitmap font', 9-slice frame, or HUD. Not for one item/character: /pixel-art:sprite; tilesets: /pixel-art:tileset; effects: /pixel-art:vfx."
 argument-hint: "<window, icons, hud, or font> [engine]"
 user-invocable: true
 disable-model-invocation: false

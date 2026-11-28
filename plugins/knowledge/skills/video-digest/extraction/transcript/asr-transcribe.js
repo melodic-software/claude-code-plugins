@@ -1,13 +1,3 @@
-/**
- * Optional local ASR rung: faster-whisper `large-v3` via batched
- * inference (`batch_size=8`), invoked through the machine's Python.
- *
- * Delivery contract: the toolchain is a DOCUMENTED OPTIONAL PREREQUISITE
- * detected at runtime — never auto-installed, by this module or anything it
- * spawns. Absent toolchain = capability absent; the strategy seam then
- * degrades explicitly (`transcriptDegradation`).
- */
-
 import path from "node:path";
 
 import { spawnAsync } from "@melodic/video-digestion/shared/process";

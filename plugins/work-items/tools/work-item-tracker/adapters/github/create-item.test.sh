@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
-# In a CI job the adapter wraps its gh calls and records into the job's
-# RUNNER_TEMP; the stubs here answer the unwrapped calls.
 unset RUNNER_TEMP
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GITHUB_ACTIONS
 
@@ -14,12 +12,9 @@ source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 assert_help "$S"
 assert_usage_error "$S" --nope
 assert_usage_error "$S" --title x --type
+assert_usage_error "$S" --title x --native-status
+assert_usage_error "$S" --title x --native-status 3
 
-# --- create-item succeeds on a mocked gh 2.45 that serves REST only ---
-# GraphQL-backed calls (`issue create`, `issue view`, `repo view`) fail with the
-# sandbox's HTTP 403; `gh api` succeeds. Below 2.94 the create, the emit read and
-# the repo resolve must all take the REST path. Direct adapter invocation
-# (dispatcher gate is covered in work-item-tracker.test.sh).
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
   PROJECT="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
@@ -72,11 +67,28 @@ issue)
 api)
   case "$*" in
   *"--jq .permissions.push") [[ "$2" == repos/up/r ]] && echo false || echo true ;;
+  *"-X PATCH"*)
+    if [[ -n "${GH_STUB_PATCH_ERR:-}" ]]; then
+      printf '%s\n' "$GH_STUB_PATCH_ERR" >&2
+      exit 1
+    fi
+    st=""
+    for a in "$@"; do
+      case "$a" in status=*) st="${a#status=}" ;; *) : ;; esac
+    done
+    jq -cn --arg s "$st" '{number: 42, status: {id: 3, name: $s, category: "planned"}}'
+    ;;
   *"--method POST"*) printf '42\n' ;;
   *"/labels?"*) printf '%b' "${GH_STUB_LABELS-type: bug\ntype: feature\ntype: task\n}" ;;
   *"repos/{owner}/{repo}"*) printf 'o/r\n' ;;
   *"--jq .full_name") printf '%s\n' "${2#repos/}" ;;
-  *) printf '{"number":42,"title":"t","state":"open","assignees":[],"labels":[{"name":"a"},{"name":"type: task"}],"type":{"name":"Task"},"html_url":"https://github.com/o/r/issues/42"}\n' ;;
+  *)
+    if [[ -n "${GH_STUB_ISSUE_STATUS:-}" ]]; then
+      jq -cn --arg s "$GH_STUB_ISSUE_STATUS" '{number: 42, title: "t", state: "open", assignees: [], labels: [{name: "a"}, {name: "type: task"}], type: {name: "Task"}, html_url: "https://github.com/o/r/issues/42", status: {id: 3, name: $s, category: "planned"}}'
+    else
+      printf '{"number":42,"title":"t","state":"open","assignees":[],"labels":[{"name":"a"},{"name":"type: task"}],"type":{"name":"Task"},"html_url":"https://github.com/o/r/issues/42"}\n'
+    fi
+    ;;
   esac
   exit 0
   ;;
@@ -154,7 +166,7 @@ EOF
   assert_contains "create-item on gh 2.94 calls issue create" "$(<"$STUB/calls.log")" "issue create"
   assert_not_contains "create-item without --parent reads no sub-issues" "$(<"$STUB/calls.log")" "api graphql"
 
-  siblings() { # <state> <closedAt or null> <title>
+  siblings() {
     printf '{"data":{"repository":{"issue":{"subIssues":{"nodes":[{"number":7,"title":%s,"state":"%s","closedAt":%s,"repository":{"nameWithOwner":"O/R"}}]}}}}}' \
       "$(jq -cn --arg t "$3" '$t')" "$1" "$2"
   }
@@ -189,7 +201,6 @@ EOF
   assert_eq "create-item --parent with a differently titled sibling creates a new issue" "github:o/r#42" "$(jq -r '.id' <<<"$OUT")"
   rm -f "$DEDUPE_ERR"
 
-  # CLAUDE_CODE_REMOTE=true: the cloud proxy refuses GraphQL, so gh 2.94 takes REST.
   OUT="$(CLAUDE_CODE_REMOTE=true GH_STUB_VERSION=2.94.0 run_create --title t --labels a --repo o/r)"
   rc=$?
   assert_eq "create-item on gh 2.94 in a remote session → exit 0" "0" "$rc"
@@ -206,7 +217,6 @@ EOF
     "$(<"$STUB/err")" "unavailable in this Claude Code cloud session"
   assert_not_contains "create-item --parent in a remote session sends nothing" "$(<"$STUB/calls.log")" "POST"
 
-  # A native create the proxy refuses with its GraphQL 403 retries over REST.
   OUT="$(GH_STUB_REFUSE=1 GH_STUB_VERSION=2.94.0 run_create --title t --labels a --repo o/r)"
   rc=$?
   assert_eq "create-item on a refused gh 2.94 create falls back → exit 0" "0" "$rc"
@@ -216,7 +226,6 @@ EOF
   assert_contains "create-item on a refused gh 2.94 create POSTs over REST" "$CALLS" \
     "api --method POST repos/o/r/issues"
 
-  # The refused native create degrades --type to a label, which the REST POST must carry.
   GH_STUB_REFUSE=1 GH_STUB_VERSION=2.94.0 run_create --title t --type Task --labels a --repo o/r >/dev/null 2>&1
   rc=$?
   assert_eq "create-item --type on a refused gh 2.94 create falls back → exit 0" "0" "$rc"
@@ -241,6 +250,32 @@ EOF
   GH_STUB_VERSION=2.45.0 run_create --title t --repo up/r >/dev/null 2>&1
   assert_eq "create-item --repo naming a repository you cannot push to → exit 3" "3" "$?"
   assert_not_contains "create-item --repo naming a repository you cannot push to files nothing" "$(<"$STUB/calls.log")" "--method POST"
+
+  OUT="$(WIT_WRITE_SPACING_S=0 GH_STUB_VERSION=2.94.0 GH_STUB_ISSUE_STATUS=Todo run_create --title t --labels agent-ready --repo o/r)"
+  assert_eq "create-item --labels agent-ready exits 0" "0" "$?"
+  assert_eq "create-item --labels agent-ready emits native_status Todo" "Todo" "$(jq -r '.native_status' <<<"$OUT")"
+  assert_contains "create-item --labels agent-ready PATCHes native status Todo" "$(<"$STUB/calls.log")" \
+    "api -X PATCH repos/o/r/issues/42 -f status=Todo"
+
+  OUT="$(WIT_WRITE_SPACING_S=0 GH_STUB_VERSION=2.94.0 GH_STUB_ISSUE_STATUS=Todo run_create --title t --labels session-owned --repo o/r)"
+  assert_eq "create-item --labels session-owned PATCHes native status Todo" "0" "$?"
+  assert_contains "create-item --labels session-owned sends status=Todo" "$(<"$STUB/calls.log")" \
+    "api -X PATCH repos/o/r/issues/42 -f status=Todo"
+
+  OUT="$(WIT_WRITE_SPACING_S=0 GH_STUB_VERSION=2.94.0 GH_STUB_ISSUE_STATUS=Backlog run_create --title t --labels needs-triage --repo o/r)"
+  assert_eq "create-item intake (needs-triage) exits 0" "0" "$?"
+  assert_eq "create-item intake surfaces GitHub default Backlog" "Backlog" "$(jq -r '.native_status' <<<"$OUT")"
+  assert_not_contains "create-item intake skips redundant PATCH" "$(<"$STUB/calls.log")" "-X PATCH"
+
+  OUT="$(WIT_WRITE_SPACING_S=0 GH_STUB_VERSION=2.94.0 GH_STUB_ISSUE_STATUS=Backlog run_create --title t --native-status Backlog --repo o/r)"
+  assert_eq "create-item --native-status Backlog exits 0" "0" "$?"
+  assert_contains "create-item --native-status Backlog sends explicit PATCH" "$(<"$STUB/calls.log")" \
+    "api -X PATCH repos/o/r/issues/42 -f status=Backlog"
+
+  OUT="$(WIT_WRITE_SPACING_S=0 GH_STUB_VERSION=2.94.0 GH_STUB_PATCH_ERR='gh: Validation Failed (HTTP 422)' run_create --title t --labels agent-ready --repo o/r 2>/dev/null)"
+  assert_eq "create-item degrades cleanly on HTTP 422 native status → exit 0" "0" "$?"
+  assert_eq "create-item on 422 still emits created id" "github:o/r#42" "$(jq -r '.id' <<<"$OUT")"
+  assert_eq "create-item on 422 emits native_status null" "null" "$(jq -r '.native_status' <<<"$OUT")"
 
   rm -rf "$STUB" "$PROJECT" "$THEIRS"
 fi

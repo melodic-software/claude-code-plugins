@@ -1,5 +1,5 @@
 ---
-description: "Configure the testing plugin's can't-fail checks for this repository. check prints the resolved testing config cascade, which test-lint rules the repo's lint config turns on per language (a missing one is a finding), an optional instruction line to paste, and any test glob the shipped test-weaken hook skips; apply writes your answers to docs/conventions/testing.yaml (or to the docs/conventions/testing.md block or .claude/testing.yaml when that is the team file in use). Use when: 'set up testing', 'configure the test scan', 'exclude these tests from the audit', 'add a test glob', 'which test lint rules are missing', 'testing setup'. Re-runnable."
+description: "Check (read-only) or apply repo testing config (docs/conventions/testing.yaml): can't-fail rules, test-lint audit, and hook skips. Re-runnable."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -109,7 +109,7 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
      [playwright/no-focused-test](https://github.com/playwright-community/eslint-plugin-playwright/blob/main/docs/rules/no-focused-test.md).
      As of 2026-11-10; recheck when a plugin release note moves one of these rules out of its
      recommended config or renames it.
-   - C#: `xUnit2021` (xunit.analyzers, which the check counts as present through an `xunit` or
+   - C#: `xUnit2021` (xunit.analyzers, which the check counts as present through an `xunit` or <!-- portability-ok: R6 kept-adapter check - setup.sh analyzer detection -->
      `xunit.v3` reference) and `NUnit2009` (NUnit.Analyzers, which the check requires as its own
      reference). Packaging: [xUnit2021](https://xunit.net/xunit.analyzers/rules/xUnit2021) and
      [NUnit2009](https://docs.nunit.org/articles/nunit-analyzers/NUnit2009.html). As of 2026-11-10;

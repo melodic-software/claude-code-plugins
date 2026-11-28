@@ -232,9 +232,6 @@ def resolve_thread_audit_log_path() -> Path:
     override = os.environ.get("SOURCE_CONTROL_RESOLVE_THREAD_AUDIT_LOG")
     if override:
         return Path(override).expanduser()
-    # Another plugin's SessionStart hook can export its own data dir into every
-    # Bash call under this name, so an inherited value counts only when its last
-    # path segment names this plugin.
     plugin_data = os.environ.get("CLAUDE_PLUGIN_DATA", "")
     segment = Path(plugin_data.rstrip("/\\")).name if plugin_data else ""
     if segment == "source-control" or segment.startswith("source-control-"):
@@ -256,32 +253,12 @@ def append_resolve_thread_audit(record: dict[str, object]) -> None:
         fh.write(json.dumps(stamped, separators=(",", ":"), sort_keys=True) + "\n")
 
 
-# Deterministic proxies for "a security or P1 thread" -- deliberately NARROWER
-# than the shared P0-P3 vocabulary in babysit_classify: the permission grants
-# forbid the unattended path only for security/P1-class findings, while
-# advisory P2/P3 threads are exactly what the worker is documented to resolve
-# once outdated (reference/orchestration.md), so a P0-P3-wide guard would
-# permanently self-block the merge gate on its own advisory threads. The word
-# "security" is matched as prose (the shared vocabulary ignores prose words to
-# avoid false READINESS counts, but the grant names it); uppercase CRITICAL is
-# the word-form of the same forbidden class. A false positive only routes the
-# thread to interactive judgment.
-# Structured P0/P1 markers only -- shields badge (/badge/P0- or /badge/P1-) or
-# bracketed [P0]/[P1] -- not bare prose mentions such as "P1/P4 defect" in a P2
-# thread's body (#1939). Line-leading `P1:` / `P0:` declarations and explicit
-# `P1 must fix` forms remain blocking -- bots emit them as severity labels.
-# Vetted `--resolve --thread-id` mode applies no severity screen; it trusts the
-# calling agent's vetting. That asymmetry is intentional.
 FORBIDDEN_P01_BADGE_RE = re.compile(r"/badge/P[01]-", re.IGNORECASE)
 FORBIDDEN_P01_BRACKET_RE = re.compile(r"\[P[01]\]", re.IGNORECASE)
 FORBIDDEN_P01_PREFIX_RE = re.compile(r"(?:^|[\s\n])P[01]\s*:", re.IGNORECASE)
 FORBIDDEN_P01_MUST_FIX_RE = re.compile(r"\bP[01]\s+must\s+fix\b", re.IGNORECASE)
 SEVERITY_BLOCK_WORD_RE = re.compile(r"\bCRITICAL\b")
 SECURITY_TEXT_RE = re.compile(r"security", re.IGNORECASE)
-# Bulk `--include-human` must not sweep a thread whose most recent human reply
-# explicitly parks the finding (#671). Structured VALID (defer) markers and the
-# defer-language phrases operators use when holding a thread pending a ruling
-# are treated equivalently.
 HUMAN_DEFERRAL_RE = re.compile(
     r"(?:"
     r"VALID\s*\(\s*defer\s*\)"
@@ -305,17 +282,10 @@ FORBIDDEN_CLASS_PATTERNS = (
 )
 
 
-# The first line address-feedback's `renderReply`
-# (.github/scripts/pr-unblock/publish-feedback.mjs) writes for a fixed finding.
-# Its other dispositions leave the thread open, so only this one counts as an
-# answer, and only on the lane's latest reply.
 LANE_FIXED_HEADER = "**pr-unblock / address-feedback: VALID, fixed**"
 
 
 def _has_severity_marker(body: str) -> bool:
-    """True for the forbidden class only: structured P0/P1 markers (badge,
-    bracket, or declaration prefix), the word CRITICAL, or the word
-    "security"."""
     return any(pattern.search(body) for pattern in FORBIDDEN_CLASS_PATTERNS)
 
 
@@ -325,7 +295,6 @@ def _most_recent_human_reply_body(
     extra_bot_logins: frozenset[str],
     self_logins: frozenset[str],
 ) -> str | None:
-    """Body of the latest non-bot, non-self comment, or None when none exists."""
     for comment in reversed(comments):
         author = _comment_author(comment)
         login = author.get("login")
@@ -455,32 +424,14 @@ def project_thread(
         if not isinstance(body, str):
             return None
         if _author_is_self(comment):
-            # The mandated classification reply (review-discipline.md) restates
-            # the source finding's own severity marker as one of its table
-            # columns -- scanning a self-reply raw would re-trip this guard on
-            # the worker's own echo, stranding the thread again right after
-            # `bot_only` above stopped treating that same reply as a
-            # disqualifying human participant. Stripping only the
-            # classification-table rows (not the whole body) mirrors
-            # `babysit_classify.count_findings`: non-table self content -- a
-            # maintainer using a self-login to raise a genuine new finding --
-            # still flags.
             return strip_classification_rows(body)
         return body
 
-    # Fail closed on truncation: an unfetched comment could carry the marker,
-    # so a truncated thread is treated as severity-flagged, not as clean.
     severity_flagged = truncated or any(
         (body := _severity_scan_body(c)) is not None and _has_severity_marker(body)
         for c in comments
     )
 
-    # How many SOURCE findings this thread carries, over the same bodies the
-    # severity scan reads -- so a self classification reply's table rows are
-    # stripped here too and the worker's own echo of a finding is not counted a
-    # second time. None means the count is unknown (a truncated comment page could
-    # hide another finding), which the independent-resolver guard treats as
-    # multi-finding rather than as one.
     finding_count = (
         None
         if truncated
@@ -491,17 +442,6 @@ def project_thread(
         )
     )
 
-    # The `incorrect` disposition is proven by counter-evidence someone POSTED IN
-    # REPLY to the finding, and "someone" cannot be the finding's own author:
-    # the opener is excluded, and so is every later reply under the OPENER'S
-    # login. The mandated classification reply restates the finding's own text
-    # (`reference/review-discipline.md`), so a finding bot that also replies on
-    # its own thread would otherwise supply the very words asserted as the
-    # rebuttal -- the finding rebutting itself. A DIFFERENT bot's reply, and the
-    # caller's own reply under a self-login, both remain admissible: those are
-    # the independent parties the disposition is about. An opener whose login the
-    # API withheld cannot be excluded by identity, so no reply is admitted at
-    # all (such a thread is already not `botOnly`).
     opener_login = first_author.get("login")
     opener_key = opener_login.casefold() if isinstance(opener_login, str) else None
 
@@ -514,7 +454,6 @@ def project_thread(
         body = comment.get("body")
         return body if isinstance(body, str) else None
 
-    # A human reply that explicitly parks the thread instead of addressing it.
     human_deferred = truncated or (
         (
             human_reply := _most_recent_human_reply_body(
@@ -535,13 +474,7 @@ def project_thread(
         "laneAnswered": lane_answered,
         "severityFlagged": severity_flagged,
         "findingCount": finding_count,
-        # Live count of ALL comments (not just the fetched page) -- the TOCTOU
-        # comparison signal, so a reply beyond the first fetched page is detected.
         "commentCount": total_count if isinstance(total_count, int) else None,
-        # Latest comment-edit signal; None (fail closed) when a page is
-        # undisclosed, since an edit could hide beyond page 1. None never matches
-        # a real pinned timestamp, so the guard refuses rather than trusting an
-        # incomplete view.
         "lastCommentUpdatedAt": None if truncated else _latest_comment_update(comments),
         "path": (
             comments[0].get("path")
@@ -563,8 +496,6 @@ def fetch_threads(
     self_logins: frozenset[str] = frozenset(),
     lane_logins: frozenset[str] = frozenset(),
 ) -> list[dict[str, object]]:
-    # include_resolved so the caller can see (and skip) already-resolved threads;
-    # comments_first=100 to inspect every participant for the bot-only test.
     project = partial(
         project_thread,
         extra_bot_logins=extra_bot_logins,
@@ -637,50 +568,20 @@ def classify(
     if thread["isResolved"]:
         return "skipped-already-resolved"
     if not thread["botOnly"] and not include_human:
-        # bright line: never touch a thread unless a bot OPENED it and every
-        # other participant is a bot too (checked across all comments, not just
-        # the first), unless autopilot opts in
         return "skipped-human-thread"
     if include_human and not pinned_thread and thread.get("humanDeferred", True):
-        # Bulk `--include-human` must not sweep a thread a human deliberately
-        # parked pending a ruling (#671). A pinned `--thread-id` call is an
-        # explicit per-thread vet and may still proceed.
         return "skipped-human-deferred"
     if (autonomous or only_outdated) and not thread["isOutdated"]:
-        # unattended: require a deterministic "addressed" signal so the worker
-        # cannot resolve a still-current finding and self-satisfy the merge gate
         return "skipped-not-outdated"
     if (autonomous or independent) and thread.get("severityFlagged", True):
-        # unattended: never a security or P1 thread. Default True fails closed
-        # when the projection did not compute the signal.
         return "skipped-severity-marked"
     if own_pr and not thread.get("laneAnswered", False):
-        # The own-PR exception admits only a thread a lane already answered:
-        # the resolver is the PR's author, so the "handled" claim must come
-        # from another actor. Default False fails closed.
         return "skipped-own-pr-not-lane-answered"
     if independent and not _is_single_finding(thread):
-        # Resolution is a THREAD-level act while a disposition is a claim about ONE
-        # finding, so a thread carrying several findings cannot be cleared on one
-        # evidence tuple: `resolveReviewThread` drops every comment the thread
-        # carries out of the readiness denominator
-        # (`babysit_classify.thread_is_open`), so evidence for finding A would
-        # suppress an unaddressed finding B and let the merge gate pass over it.
-        # D7.5 (`reference/review-discipline.md`) states the same rule as a
-        # property of the whole thread: every finding extracted from it needs its
-        # own recorded disposition. This mode validates exactly one, so a
-        # multi-finding thread is refused and escalates instead.
-        #
-        # Scoped to `independent` alone: `--autonomous`'s addressed signal is
-        # `isOutdated`, which GitHub computes for the thread as a whole rather
-        # than per finding, so there is no per-finding claim there to under-cover.
         return "skipped-multi-finding-thread"
     return "eligible"
 
 
-# A disposition is admissible only with its own evidence flag, and only that
-# flag -- the pairing is what makes the claim checkable, so a caller cannot
-# assert `fixed` and hand over a tracker id.
 DISPOSITION_EVIDENCE: dict[str, str] = {
     "fixed": "--fix-commit",
     "deferred": "--tracker-item",
@@ -709,7 +610,6 @@ def gh_http_status(proc: subprocess.CompletedProcess[str]) -> int | None:
     return http_status_from_text(proc.stderr or "")
 
 
-# owner/repo#N, #N, or a bare N (bare and #N default to the PR's own repo).
 TRACKER_ITEM_RE = re.compile(
     r"\A(?:(?P<repo>[A-Za-z0-9._-]+/[A-Za-z0-9._-]+)#|#)?(?P<number>[0-9]+)\Z"
 )
@@ -754,14 +654,6 @@ def verify_fix_commit(repo: str, number: int, sha: str) -> tuple[bool, str]:
         and isinstance(head_owner, str)
     ):
         return False, "refused-evidence-unverifiable"
-    # Every segment interpolated into the compare path is FORMAT-VALIDATED first,
-    # matching `babysit_gh.fetch_base_compare`'s rule for the identical
-    # call shape. Two of the three arrive in an API response body, so "the API
-    # said so" is their only provenance: a crafted or compromised response
-    # carrying path syntax would otherwise redirect this request to an
-    # unintended endpoint. `sha` is validated here too rather than resting on
-    # `main`'s argument check, so the function's own contract holds for every
-    # caller.
     if not (
         is_owner_repo_pair(head_owner, head_name)
         and FIX_COMMIT_RE.match(head_oid)
@@ -773,12 +665,6 @@ def verify_fix_commit(repo: str, number: int, sha: str) -> tuple[bool, str]:
         ["api", f"repos/{head_owner}/{head_name}/compare/{sha}...{head_oid}"]
     )
     if compare.returncode != 0:
-        # A SHA absent from the head repository 404s here -- the world answering
-        # "no such commit", which is a not-on-head refusal. Every OTHER failure
-        # (403, 5xx, rate limit, timeout, no HTTP response at all) is the world
-        # being unreachable, and reporting that as a not-on-head answer would send
-        # the caller off to replace evidence that may be perfectly valid instead
-        # of retrying the outage.
         return False, (
             "refused-fix-commit-not-on-head"
             if gh_http_status(compare) == 404
@@ -790,45 +676,21 @@ def verify_fix_commit(repo: str, number: int, sha: str) -> tuple[bool, str]:
         return False, "refused-evidence-unverifiable"
     status = dig(result, "status")
     behind_by = dig(result, "behind_by")
-    # base=sha, head=head_oid: `identical` or `ahead` both mean head_oid
-    # descends from sha with no divergence, i.e. sha IS in the head branch's
-    # history. `behind_by == 0` restates that from the other side, so a
-    # `diverged`/`behind` result cannot slip through on status alone.
     if status in ("identical", "ahead") and behind_by == 0:
         return True, ""
     return False, "refused-fix-commit-not-on-head"
 
 
 def verify_tracker_item(default_repo: str, token: str) -> tuple[bool, str]:
-    """True when the named tracker item exists and is OPEN.
-
-    An item that is already closed is not a deferral -- it is a claim that the
-    follow-up is filed pointing at work nobody will do, which is
-    indistinguishable from suppressing the finding.
-    """
     match = TRACKER_ITEM_RE.match(token.strip())
     if not match:
         return False, "refused-tracker-item-not-found"
     repo = match.group("repo") or default_repo
-    # `TRACKER_ITEM_RE` admits an owner/repo SHAPE, not a valid one: its character
-    # class allows a leading dot and a bare dot-dot, so a repository component of
-    # `..` builds a `repos/<owner>/../issues/<n>` path that normalizes to something
-    # that was never a GitHub endpoint. The same format validation
-    # `verify_fix_commit` applies to the analogous compare URL therefore applies
-    # here, so the refusal names the malformed reference rather than reporting a
-    # lookup miss for an item nobody ever looked up. Applied to the RESOLVED repo,
-    # which costs nothing on the `default_repo` path (already validated by
-    # `parse_repo_number`) and keeps one rule instead of two.
     owner, _, name = repo.partition("/")
     if not is_owner_repo_pair(owner, name):
         return False, "refused-evidence-unverifiable"
     proc = gh_capture(["api", f"repos/{repo}/issues/{match.group('number')}"])
     if proc.returncode != 0:
-        # Only a confirmed 404 means the item is not there. A 403 on an issues
-        # endpoint is a permission answer, not a lookup miss, and a 5xx or a
-        # timeout is no answer at all -- telling the caller to fix a reference
-        # that does not exist while the API is merely unavailable is exactly what
-        # `refused-evidence-unverifiable` exists to prevent.
         return False, (
             "refused-tracker-item-not-found"
             if gh_http_status(proc) == 404
@@ -847,13 +709,6 @@ def verify_tracker_item(default_repo: str, token: str) -> tuple[bool, str]:
 
 
 def verify_counter_evidence(thread: dict[str, object], text: str) -> tuple[bool, str]:
-    """True when `text` appears in a reply already posted on the thread.
-
-    The evidence must be ON the thread, not merely asserted on the command line:
-    the point of the `incorrect` disposition is that the rebuttal is visible to
-    whoever reads the thread later. Case-insensitive substring, because the
-    caller is quoting a fragment of a reply it did not necessarily author.
-    """
     needle = text.strip().casefold()
     replies = thread.get("replyBodies")
     if (
@@ -970,12 +825,6 @@ def parse_extra_bot_logins(raw: str | None) -> frozenset[str]:
 
 def main() -> int:
     configure_stdio()
-    # allow_abbrev=False: the permission grants covering this helper state
-    # their conditions as the literal presence or absence of a flag in the
-    # command text. Prefix abbreviation (argparse's default) lets `--i` resolve
-    # to --include-human while the text contains neither, so the written
-    # command and the resolved behavior diverge -- exactly what those
-    # conditions must be able to rule out.
     parser = argparse.ArgumentParser(description=__doc__, allow_abbrev=False)
     parser.add_argument("pr", help="owner/repo#number or PR URL")
     parser.add_argument(
@@ -1173,8 +1022,6 @@ def main() -> int:
     }
 
     if not args.independent_resolver:
-        # Evidence flags outside the mode that consumes them would be accepted
-        # and ignored, which reads to the caller like the evidence was checked.
         stray = [flag for flag, value in evidence_args.items() if value is not None]
         if args.disposition is not None:
             stray.insert(0, "--disposition")
@@ -1315,16 +1162,9 @@ def main() -> int:
             inScope=False,
         )
 
-    # Resolve self logins only after the owner-scope refusal above: '@me'
-    # resolution is a network call, mirroring babysit_merge.py's ordering, so
-    # an out-of-scope owner refuses with no gh invocation at all.
     try:
         self_logins = normalize_self_logins(resolve_authors(args.self_logins))
     except RuntimeError:
-        # '@me' could not be resolved to a gh login; fail closed by keeping
-        # only the explicit non-'@me' logins -- an unresolved self identity
-        # is simply not recognized as self, so a comment under it is judged a
-        # third-party human, never silently trusted as self on a guessed identity.
         self_logins = normalize_self_logins(
             token
             for token in (args.self_logins or "").split(",")
@@ -1340,8 +1180,6 @@ def main() -> int:
             return _refuse(f"{type(exc).__name__}: {exc}")
         own_pr = is_self_login(pr_author, self_logins)
         if own_pr and args.autonomous and not lane_logins:
-            # babysit_lane_logins unset: fall back to the repository's own
-            # lane identity, read only where a person merges it.
             identity, lane_logins_source = repo_lane_identity(repo, number)
             lane_logins = normalize_login_set([identity] if identity else [])
         if own_pr and not (args.autonomous and lane_logins):
@@ -1377,9 +1215,6 @@ def main() -> int:
     except (RuntimeError, ValueError, json.JSONDecodeError) as exc:
         return _refuse(f"{type(exc).__name__}: {exc}")
 
-    # One definition for both consumers below: the per-resolve audit record and
-    # the summary on stdout. Two copies of this rule could drift, and one of
-    # them is an append-only audit trail.
     if args.autonomous:
         mode = "autonomous"
     elif args.independent_resolver:
@@ -1421,18 +1256,9 @@ def main() -> int:
             args.expected_last_updated is not None
             and thread.get("lastCommentUpdatedAt") != args.expected_last_updated
         )
-        # Evaluated in list mode too, not only under --resolve. A dry run whose
-        # pins have already drifted would otherwise report would-resolve for a
-        # thread the very next --resolve refuses, making the prediction wrong in
-        # the one direction that matters. Both pin flags already require
-        # --thread-id (a usage error otherwise), so the pin has a target whenever
-        # either comparison can be true.
         stale_pin = count_stale or last_updated_stale
         evidence_refusal = ""
         if verdict == "eligible" and not stale_pin and args.independent_resolver:
-            # Validate in list mode too: a dry run of an evidence-gated mode that
-            # skipped validation would report would-resolve for evidence the
-            # world rejects, which is the one answer this mode exists to prevent.
             verified, evidence_refusal = verify_disposition(
                 thread,
                 repo=repo,
@@ -1497,13 +1323,6 @@ def main() -> int:
                 "includeHuman": args.include_human,
                 "ownPr": own_pr,
                 "laneLoginsSource": lane_logins_source if own_pr else None,
-                # Count only threads whose OPENING author is human. `botOnly`
-                # (every comment in the thread is a bot) is the wrong gate: a
-                # bot-opened thread carrying a later human reply is `botOnly:
-                # false` yet was never a human's thread, so counting it here
-                # reported a human-thread action that never happened (#512). The
-                # opening-author test matches the `--include-human` eligibility
-                # decision, via the shared `is_bot` authorship classifier.
                 "humanThreadsActed": sum(
                     1
                     for row in results
@@ -1518,9 +1337,6 @@ def main() -> int:
                 "skippedOwnPrNotLaneAnswered": acted(
                     "skipped-own-pr-not-lane-answered"
                 ),
-                # Independent-resolver refusals, rolled up alongside the other
-                # skip counters so a caller sees "the evidence did not hold"
-                # without re-deriving it from the per-thread action values.
                 "refusedEvidence": sum(
                     1
                     for row in results

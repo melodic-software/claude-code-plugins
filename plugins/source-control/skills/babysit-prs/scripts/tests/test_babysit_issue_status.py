@@ -131,7 +131,6 @@ def setter(actor_id: int, login: str, kind: str = "Bot") -> dict[str, Any]:
 
 
 WORK_STATUS = {"fullDatabaseId": str(FIELD)}
-# A Work status POST's answer with the field at confirmed (pr-pipeline.yaml).
 CONFIRMED_ROWS = [{"issue_field_id": FIELD, "single_select_option": {"id": 86380002}}]
 AGENT_READY_ROWS = [{"issue_field_id": FIELD, "single_select_option": {"id": 84879220}}]
 
@@ -186,8 +185,6 @@ def answer(
     }
 
 
-# One fixture, neutral between the two readers: who set the field, to what,
-# and the state the rule above gives.
 PARITY = [
     {
         "setter": [HUMAN_ID, "kyle-sexton", "User"],
@@ -858,9 +855,6 @@ class TheCappedClose(unittest.TestCase):
     def test_a_park_field_write_that_does_not_land_raises_before_the_close(
         self,
     ) -> None:
-        # No label stands in: a failed or drifted field write raises before
-        # agent-ready comes off or the pull request closes, so the next run
-        # retries the park.
         for name, rows in (
             ("failed", None),
             ("other option", [{"issue_field_id": FIELD, "single_select_option": {"id": 86380003}}]),
@@ -893,8 +887,6 @@ class TheCappedClose(unittest.TestCase):
             ],
             "no park, field or label write over the hold",
         )
-        # Both records say the hold, neither says parked, and the issue's
-        # marker names no attempt, so a rerun restarts nothing.
         for index in (0, 1):
             body = world.body(index)
             self.assertIn("held at Work status `needs-human`", body)
@@ -903,8 +895,6 @@ class TheCappedClose(unittest.TestCase):
         self.assertNotIn("attempt=", world.body(1).splitlines()[0])
 
     def test_a_restart_clears_then_sets_the_field_with_no_label_write(self) -> None:
-        # write-status.mjs restart: DELETE the field value, then POST
-        # agent-ready (option 84879220 in pr-pipeline.yaml).
         world = World()
         world.field_rows = AGENT_READY_ROWS
         result = self.run_close(world, lambda *a: "agent-ready")
@@ -937,7 +927,6 @@ class TheCappedClose(unittest.TestCase):
         )
 
     def restart_rerun(self) -> World:
-        # Run 1 wrote both records with an attempt and stopped before the close.
         world = World()
         world.field_rows = AGENT_READY_ROWS
         world.comments[CAPPED_PR] = [
@@ -999,7 +988,6 @@ class TheCappedClose(unittest.TestCase):
         self.assertEqual(world.calls(), [f"PATCH repos/{CAPPED_REPO}/pulls/{CAPPED_PR}"])
 
     def test_a_parked_rerun_with_the_field_confirmed_writes_nothing(self) -> None:
-        # A lingering agent-ready label does not make the park unfinished.
         world = World()
         world.field_rows = CONFIRMED_ROWS
         world.comments[CAPPED_PR] = [
@@ -1023,8 +1011,6 @@ class TheCappedClose(unittest.TestCase):
         self.assertEqual(world.writes, [])
 
     def test_a_parked_rerun_is_done_as_statusLabels_reads_it(self) -> None:
-        # read-status.mjs statusLabels: the field decides; a stale queue-state
-        # label gives way to it.
         parked = (
             f"<!-- verify-capped-close pr={CAPPED_PR} heads= attempt=1 of=1 parked -->"
         )
@@ -1071,8 +1057,6 @@ class StatusGh(FakeGh):
         self.field_answer: Any = [
             {"issue_field_id": FIELD, "single_select_option": {"id": 86380005}}
         ]
-        # The PolicyIssueStatus answer for a record, or the HTTP status its
-        # read fails with.
         self.work_status: Any = answer(None, None)
 
     def __call__(
@@ -1169,8 +1153,6 @@ class TheDemotionRecord(CheckCase):
         )
 
     def test_a_failed_or_mismatched_write_errors_with_no_label(self) -> None:
-        # As post-merge-file-demotion-issues.yml: the field write that did not land
-        # is an error, and no status label stands in for it.
         for name, field_answer in (
             ("failed", 502),
             (
@@ -1197,8 +1179,6 @@ class TheDemotionRecord(CheckCase):
     def test_a_later_pass_retries_a_hold_only_while_the_field_is_unset(
         self,
     ) -> None:
-        # The first hold write fails; the record then exists, so a second pass
-        # over the same verdict takes the existing-record path.
         person = setter(HUMAN_ID, "kyle-sexton", "User")
         for name, work_status, want_hold, want_errors in (
             ("unset", answer(None, None), True, 0),
@@ -1355,7 +1335,6 @@ class TheBlockReachesEveryRead(unttd.Unattended):
                 REPO, 7, IDENTITY, "main", self.config, {"pr": {"head": {"sha": SHA}}}
             )
         self.assertEqual(close.call_args.kwargs["admission"], "go ready")
-        # The default label is not passed, so the kwarg is the remap alone.
         self.assertNotIn("admission", self.default_close_kwargs())
 
     def default_close_kwargs(self) -> dict[str, Any]:

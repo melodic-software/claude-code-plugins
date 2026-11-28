@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract tests for session-compare.sh against tiny OTLP/JSON fixture stores
-# (CC_OTEL_STORE points at a temp dir; the real store is never read). The cases that need the
-# real duckdb query gate on `command -v duckdb` (CI installs it in ci.yml test-linux).
 
 set -uo pipefail
 
@@ -19,8 +16,6 @@ fail() {
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 
-# Metric data point: <session> <model> <effort|-> <type|-> <value fragment, e.g. "asInt":"5">.
-# A `-` effort leaves the attribute out, as Claude Code does for a model without effort.
 point() {
   local attrs
   attrs="{\"key\":\"session.id\",\"value\":{\"stringValue\":\"$1\"}},{\"key\":\"model\",\"value\":{\"stringValue\":\"$2\"}}"
@@ -34,8 +29,6 @@ metric() {
   printf '{"resourceMetrics":[{"scopeMetrics":[{"metrics":[{"name":"%s","unit":"x","sum":{"dataPoints":[%s],"aggregationTemporality":%s,"isMonotonic":true}}]}]}]}\n' \
     "$name" "$*" "$temporality"
 }
-# api_request log line: <session> <cost attribute fragment>. cc_logs_from binds intValue on
-# event.sequence, so the record carries it, as a real one does.
 api_request() {
   printf '{"resourceLogs":[{"scopeLogs":[{"logRecords":[{"timeUnixNano":"%s000000000","body":{"stringValue":"claude_code.api_request"},"attributes":[{"key":"session.id","value":{"stringValue":"%s"}},{"key":"event.name","value":{"stringValue":"api_request"}},{"key":"event.sequence","value":{"intValue":"3"}},{"key":"input_tokens","value":{"intValue":"10"}},%s],"traceId":"","spanId":""}]}]}]}\n' \
     "$EPOCHSECONDS" "$1" "$2"
@@ -72,7 +65,6 @@ if command -v duckdb >/dev/null 2>&1; then
   main="$TMP/main"
   mkdir -p "$main"
   {
-    # s-a: model m-x, effort high and medium; every value type in both encodings.
     metric "$TOKENS" 1 \
       "$(point s-a m-x high input '"asInt":"100"')" \
       "$(point s-a m-x high input '"asInt":"10"')" \
@@ -80,13 +72,11 @@ if command -v duckdb >/dev/null 2>&1; then
       "$(point s-a m-x high cacheRead '"asInt":"1000"')" \
       "$(point s-a m-x high cacheCreation '"asDouble":200')" \
       "$(point s-a m-x medium input '"asInt":"5"')"
-    # s-b: model m-y, no effort attribute.
     metric "$TOKENS" 1 \
       "$(point s-b m-y - input '"asInt":"7"')" \
       "$(point s-b m-y - output '"asInt":"3"')" \
       "$(point s-b m-y - cacheCreation '"asInt":"30"')"
     metric "$TOKENS" 1 "$(point s-c m-x low input '"asInt":"1"')" "$(point s-z m-z high input '"asInt":"9999"')"
-    # s-t: token points but no cost point.
     metric "$TOKENS" 1 "$(point s-t m-x high input '"asInt":"4"')"
     metric "$COST" 1 \
       "$(point s-a m-x high - '"asDouble":0.75')" \

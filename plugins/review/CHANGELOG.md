@@ -3,6 +3,116 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [12.0.0] - 2026-11-28
+
+### Removed
+
+- Drop legacy `~/.claude/review-digest.json` and `.claude/review-digest.local.json` dual-reads, warnings, and `digest-migrate.mjs` migration helper from `review-digest` config resolution and `/review:setup`.
+
+## [11.1.5] - 2026-11-28
+
+### Changed
+
+- Backfilled invocation probe sets (`probes/code-review.json`, `probes/security-review.json`) and trimmed 8 skill frontmatter descriptions (3,361 -> 2,383 chars across changed skills, -978c / -29.1%: `code-review` 494 -> 343, `council` 413 -> 324, `fanout` 460 -> 320, `merge-risk` 356 -> 296, `quality-gate` 537 -> 348, `reviewer-media` 408 -> 286, `security-review` 496 -> 322, `setup` 197 -> 144) with zero body changes and zero probe trigger-rate regressions.
+
+## [11.1.4] - 2026-11-28
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources, and from its eval fixtures; no behavior change.
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
+## [11.1.3] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [11.1.2] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
+## [11.1.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [11.1.0] - 2026-11-26
+
+### Changed
+
+- Shared `view-builder.mjs` and `html-escape.mjs` synced: an interactive page's policy adds `img-src data:` and `font-src data:`, and both validator profiles admit a base64 `data:` URL in two places only, a PNG or JPEG as the `.rv-logo` rule's one `background-image`, and a WOFF2, WOFF, TTF or OTF font inside `@font-face`. Every other `url(`, scheme and URL-bearing attribute is still refused. Pages built today look the same; no other change to this plugin.
+
+## [11.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+- Shared `enforcement-ladder.md` copy synced where this plugin carries it: citations of retired ADRs repointed or unlinked; no other change to this plugin.
+
+## [10.15.0] - 2026-11-26
+
+### Added
+
+- quality-gate's self mode resolves the standards the change's surfaces match through the standards contract's Resolution ladder, as criteria mode does, subscribed layers included, and hands them to its reviewer. `/review:code-review` and self mode follow the contract's new "Adopted shipped concepts" rule (standards contract 1.3.1), with `/engineering-concepts:lookup` (if enabled).
+
+### Fixed
+
+- The `architecture-guardian` and `security-reviewer` agents open a `REVIEW.md` citation only from `scripts/org-standards.sh citations`, never by splitting a citation and reading its path themselves, and read standards through the Resolution ladder, personal subscriptions included.
+- `/review:code-review` opens a criteria citation only from the `ORG STANDARDS:` folder's `citations.tsv` when it has one, the organization's and the repository's citations alike, and reads its `docs/standards/README.md` as the printed index; a folder without `citations.tsv` is still read as the raw org checkout.
+
+## [10.14.0] - 2026-11-26
+
+### Added
+
+- Standards resolution reads personal subscriptions, standards contract 1.3.0: the repositories the user-global index lists in `standards_repositories`, each a personal layer beneath the user's own standards files and every team-tracked one. `scripts/org-standards.sh subscriptions` prints each layer with its checkout and its topic-filtered index; an untrusted owner's repository must be pinned to a commit one of its branches or tags reaches. The `code-reviewer` agent reads the matching rows and names `<repo>@<sha>` in a finding they shape, and quality-gate names the command in each reviewer's dispatch prompt. A subscribed repository adds no `REVIEW.md`.
+
+### Fixed
+
+- `scripts/org-standards.sh` confines the org layer and every subscribed layer to its own checkout: a `standards_dir` or index `File` value that is absolute, has a `..` segment or resolves through a symbolic link outside the checkout is reported and dropped, and so are an org `REVIEW.md` or `.claude/standards.yaml` that resolves outside it and an org `REVIEW.md` line whose `<path>.md#<heading>` citation does. Every `.md` or `.markdown` citation on an org `REVIEW.md` line, a code span split across lines included, is checked as a reader would resolve it, and control characters, C1 included, in the printed criteria are escaped. A new `citations` command prints the citations a consumer may open, in every composition of the criteria: each single-backtick `<path>.md#<heading>` span that resolves to a regular file inside its own checkout, with its absolute path. `review` prints the criteria text alone, so no `REVIEW.md` text can add to them, and consumers, the `code-reviewer` agent and quality-gate's reviewers included, open a `REVIEW.md` citation only from `citations`. Every org checkout writes a committed symbolic link as a plain file, so a path printed before a refresh never resolves outside the checkout afterwards, and an org cache that holds one or allows them is deleted without following a link and cloned again. `index` and `subscriptions` print a new index written under the reader's cache state, never inside a checkout, built only from the `standards-contract` version, the table header and each well-formed table row rebuilt from its cells, each `File` rewritten to the absolute path it resolves to inside the checkout; no prose or HTML is copied. Its clones, fetches, checkouts, `ls-remote` calls and lazy object fetches give up after `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60), and never prompt. Every git command it runs ignores the system and global git config except the user's proxy, CA, `core.sshCommand`, `url.<base>.insteadOf` and `credential.*` settings (their `include` and `includeIf` sections followed, a `gitdir:` condition matched against the `--root` repository), handed to git in environment variables rather than on a command line other users can list, so a private repository loads with the person's own credential helper or SSH key and no hook, fsmonitor, filter driver (git-lfs included) or template from that config runs, and a `trusted_owners` that is not a block list, however its key is quoted or spaced, trusts no owner and is reported, as is a repository layer's `trusted_owners` in any of those spellings and a `trusted_owners` or `standards_repositories` nested under another key. No redirect is followed, so credentials go only to the configured host; a repository that answers with one is reported with a pointer to name its new location. A git command that needs no repository runs in the cache directory, reading no config of the repository the reader runs from, and no transport but `https`, `ssh`, `git` and `file` runs; a symbolic link at an owner directory or an entry of the cache is removed before the entry is read or built; every value a report quotes, the printed criteria and each printed index cell show each control character and each byte outside valid UTF-8 as `\xNN`, so no control sequence reaches the terminal; a `STANDARDS_DIR` holding one is refused, and so is a cache directory holding one when an org layer or a subscription needs the cache. A user index with CRLF line endings is read like one with LF endings.
+
+## [10.13.1] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [10.13.0] - 2026-11-26
+
+### Changed
+
+- `/review:merge-risk` `--dir` mode also reads a diff cut into chunks of part files (`<dir>/chunks.json`). With more than one chunk it rates through agents dispatched at once, a rater and a blind checker per chunk, takes the highest level per area on each side, and adds a HIGH `Diff coverage` row for any chunk left out or any part an agent could not read, so a rating never claims a diff it did not read.
+
+## [10.12.1] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+## [10.12.0] - 2026-11-25
+
+### Added
+
+- Review criteria compose the organization's `REVIEW.md` (the repository `standards_repository` names, read from its `main`) with the repository's appended; a repository `REVIEW.md` whose first non-blank line is `<!-- review-base: replace -->` replaces it. `scripts/org-standards.sh review` prints the result, and the CI lane reads the composed file a `REVIEW CRITERIA:` line names. Standards contract 1.2.0 adds the org layer beneath the team layer.
+
+## [10.11.1] - 2026-11-24
+
+### Changed
+
+- `fanout_diversity: model` text names what it spreads over as fan-out models, not model tiers,
+  since capability tier is the glossary word for frontier, strong and fast. The
+  `review:fanout-sweep` workflow returns the list under `fanoutModels` in place of `tiers`, and
+  its fallback log line says `fan-out model(s)`. The `model` config value is unchanged.
+
 ## [10.11.0] - 2026-11-24
 
 ### Added
@@ -3317,7 +3427,7 @@ All notable changes to the `review` plugin are documented here. Format follows
 ### Changed
 
 - **`fanout`'s `fix` action consumes a merged SET of findings files, not the newest one
-  ([ADR 0010](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0010-merge-findings-across-producers-and-mark-consumption-explicitly.md),
+  (ADR 0010,
   #2678).** The findings-file shape is the whole integration contract, and nothing authenticates the
   writer, so any component that persists a conforming file reaches the apply relay. That made a
   second producer a silent-data-loss bug: `fix` took the newest `*.md` and merged nothing, so a

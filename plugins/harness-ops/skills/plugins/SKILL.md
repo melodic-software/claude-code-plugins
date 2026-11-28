@@ -1,5 +1,5 @@
 ---
-description: "Bring a machine's plugin fleet current on demand: marketplace refresh, update the plugins that actually load (including in-repo project/local-scope installs), install new catalog plugins per policy, detect scope divergence, and surface (never silently fix) drift, with a terse actionable report; refuses to downgrade by default. Actions: sync (default, mutating), converge (explicit scope consolidation); the read-only dry run is /harness-ops:plugins-audit. Use when: 'sync plugins', 'update my plugins', 'converge plugin scopes'."
+description: "Sync (mutating default) or converge installed plugins and marketplaces, surfacing scope drift without silent downgrades."
 argument-hint: "[sync|converge] [<marketplace>|all] [--allow-downgrade] [--update-other-paths]"
 user-invocable: true
 disable-model-invocation: true
@@ -9,7 +9,7 @@ metadata:
   cadence: weekly
 ---
 
-**Arguments.** `[sync|converge] [<marketplace>|all] [--allow-downgrade] [--update-other-paths]`. Full form: [action] [<marketplace>|all] [--allow-downgrade] [--update-other-paths]. Actions: sync (default; alias update), converge. The read-only `audit` is its own skill, `/harness-ops:plugins-audit`, which the model may start; this skill is user-only because `sync` can update the project and local plugin pins of every repository on disk
+**Arguments.** `[sync|converge] [<marketplace>|all] [--allow-downgrade] [--update-other-paths]`. Actions: sync (default; alias update), converge. The read-only `audit` is its own skill, `/harness-ops:plugins-audit`; this skill is user-only because `sync` can update the project and local plugin pins of every repository on disk
 
 ## Variables
 
@@ -17,138 +17,112 @@ Arguments: `$ARGUMENTS`
 
 ## Scope
 
-Guarantees that the plugins which actually load, for the machine's user scope, and for any repo
-you're standing in with its own project/local-scope installs, are the latest published versions of
-everything the marketplace offers, and surfaces any state where something older or unintended is
-what really runs.
+Guarantees that the plugins which actually load, at user scope and in the repo you stand in, are
+the latest published versions of everything the marketplace offers, and surfaces any state where
+something older or unintended is what really runs.
 
-Distinct from Claude Code's own background `autoUpdate`, which we treat as a background refresh of
-already-installed plugins, never a substitute for this skill
-([context/scope-semantics.md](context/scope-semantics.md) holds that reading and its pointer). This
-skill covers what we do not rely on `autoUpdate` for: installing new catalog plugins, checking
-`enabledPlugins` completeness, detecting and reporting scope divergence, and running on demand.
+Distinct from Claude Code's background `autoUpdate`, which we treat as a refresh of installed
+plugins, never a substitute ([context/scope-semantics.md](context/scope-semantics.md) holds that
+reading): this skill also installs new catalog plugins, checks `enabledPlugins` completeness,
+reports scope divergence, and runs on demand.
 
-Distinct from `harness-config`'s `audit` skill's plugin-drift check: that check compares a project's
-committed `enabledPlugins` against a marketplace's *upstream* `marketplace.json` (orphan/new/rename
-plugin names). This skill compares the *local, already-installed* state (`installed_plugins.json`,
-per-scope `enabledPlugins`) against the *local* marketplace catalog, a different axis (install/scope
-completeness, not settings-vs-upstream drift).
+Distinct from `harness-config`'s `audit` plugin-drift check, which compares committed
+`enabledPlugins` against a marketplace's *upstream* `marketplace.json`: this skill compares the
+*local* installed state against the *local* catalog.
 
 **Never silently fixes drift it finds.** `sync` mutates only via the documented CLI actions below,
 plus the one `git pull --ff-only` of a `directory` source the user agreed to (see "userConfig:
-`directory_source_pull`"), and never writes a committed `.claude/settings.json`: its Step 5
-enables automatically only at `user` and `local` scope, and reports a `project`-scope gap rather
-than filling it, because a committed file is `converge`'s to write, behind its per-plugin confirm. After Step 4 installs
-anything, `sync` may reorder keys in user-scope `~/.claude/settings.json` (machine-local, already
-written by `claude plugin install -s user`) so the map stays alphabetical; it never reorders a
-project-scope map. `converge` is the one action that can touch committed settings, and only after
+`directory_source_pull`"). It never writes a committed `.claude/settings.json`: Step 5 enables
+automatically only at `user` and `local` scope and reports a `project`-scope gap, and after Step 4
+installs anything it may reorder only the user-scope `~/.claude/settings.json` map, never a
+project-scope one. `converge` is the one action that can touch committed settings, and only after
 an explicit per-plugin confirm. See [context/scope-semantics.md](context/scope-semantics.md) for
 which CLI calls write that file.
 
-**For `sync` and the audit, the script computes every number and the model reports it.** Steps 1
-through 5b and the Step 6 render are one `sync-run.sh` call; the digest and the rendered report
-are the record, and the model adds the reload guidance and answers questions. Nothing in the
-report is retyped, recounted, or re-derived by the model. `converge` follows the same rule for
-its plan: `converge-plan.sh` computes every row's strategy, command and class, grouped by path, and
-the model presents it and runs only what the user confirms.
+**The scripts compute every number and the model reports it.** For `sync` and the audit, Steps 1
+through 5b and the Step 6 render are one `sync-run.sh` call, and nothing in the report is retyped,
+recounted or re-derived. `converge-plan.sh` computes every `converge` row's strategy, command and
+class, grouped by path; the model presents it and runs only what the user confirms.
 
-**The skill never branches on the host to change its algorithm or its report.** There is no
-cloud-versus-local branch, and no detection of or coordination with a repository's bootstrap hook:
-the same steps run and the same report renders wherever the skill is invoked. Three things this
-invariant does not cover, because they are not algorithm or report branches: the destructive-tier
-autonomy abort `converge` performs before touching anything (`CLAUDE_CODE_REMOTE`, `/loop`,
-`/schedule`; see [context/converge.md](context/converge.md)), the same autonomy test `sync`
-applies before it offers or runs a `directory`-source pull (it then behaves as `never`), and the platform-portability
-detection in `fleet-state.sh` (`$OSTYPE` for MSYS and Cygwin path forms), which changes how a path
-is spelled and never what is computed.
+**The skill never branches on the host to change its algorithm or its report**: no cloud-versus-local
+branch and no coordination with a repository's bootstrap hook. Outside that invariant are the two
+uses of the autonomy test below and `fleet-state.sh`'s `$OSTYPE` check, which changes how a path
+is spelled, never what is computed.
+
+**The autonomy test.** A session fails it, meaning no human is there to answer a question, when
+`CLAUDE_CODE_REMOTE` is set, when the invocation arrived via `/loop` or `/schedule`, or when it is
+unclear a human is present. `sync-run.sh` checks the `CLAUDE_CODE_REMOTE` half itself; the model
+checks the rest. On a session that fails it, `converge` aborts before touching anything, and `sync`
+neither offers nor runs a `directory`-source pull.
 
 ## Action Router
 
 Parse `$ARGUMENTS` for the action (first token) and an optional marketplace target (second token:
 a marketplace name, or `all`).
 
-`--allow-downgrade` is position-independent: remove it from `$ARGUMENTS` first, then apply the
-first-token / second-token parse to what remains, so it reads the same before, between, or after the
-other two. It applies to `sync` only, and it opts that run into moving an install backward when the
-marketplace catalog reads lower than what is installed. See [context/sync.md](context/sync.md)'s
-"Downgrade guard".
+`--allow-downgrade` is position-independent: remove it from `$ARGUMENTS` before that parse. It
+applies to `sync` only, and opts the run into moving an install backward when the catalog reads
+lower than what is installed ([context/sync.md](context/sync.md) "Downgrade guard").
 
-This table is an index, not a substitute: read the linked detail file before executing any action,
-except `sync`, which one script runs and which loads its file on the triggers under
-"Running `sync`". Each Description names the territory an action covers, never its algorithm, the steps, their
-ordering, and their failure handling live only in the linked file.
+This table is an index: read the linked detail file before executing any action, except `sync`,
+which one script runs and which loads its file on the triggers under "Running `sync`". Steps, their
+order and their failure handling live only in the linked file.
 
-One block below is a deliberate exception to that index-only rule and has to live in the hub
-rather than in a spoke: the **`install_new` render**, because we rely on `${user_config.*}` being
-substituted only when Claude Code renders the *skill*; a spoke opened later as a file read is plain
-bytes, so the same token in a spoke would arrive as a literal placeholder with no error to warn
-anyone.
-See [context/gotchas.md](context/gotchas.md). The Report section below is a pointer: the report
-itself is rendered by the script.
+The **`${user_config.*}` tokens** in step 1's command and the **Configured value** line are the
+deliberate exception and must stay in the hub: we rely on `${user_config.*}` being substituted only
+when Claude Code renders the *skill*, so in a spoke read as a file the token arrives as a literal
+placeholder with no error. See [context/gotchas.md](context/gotchas.md).
 
 | Action | Mutates | Description | Detail |
 |---|---|---|---|
 | `sync` (default) | Yes. CLI only | Marketplace, install, and enable-state maintenance for the effective fleet | [context/sync.md](context/sync.md) |
 | `converge` | Yes. Can rewrite committed settings after confirm | Cross-scope divergence reconciliation, preview- and confirm-gated | [context/converge.md](context/converge.md) |
 
-Bare invocation (no arguments) → `sync` against the default marketplace. `update` is an alias for
-`sync`. `audit` → run nothing here and point the user to `/harness-ops:plugins-audit`, the
-read-only dry run of this algorithm. `help` or an unrecognized action → show this table.
+Bare invocation → `sync` against the default marketplace. `update` is an alias for `sync`. `audit`
+→ run nothing here and point the user to `/harness-ops:plugins-audit`. `help` or an unrecognized
+action → show this table.
 
 ## Running `sync`
 
-`sync` executes Steps 1 through 5b and renders Step 6's report as one bundled script call:
-it prints the JSON digest, then the report. The step sequence, and the reason behind every step,
-stay in [context/sync.md](context/sync.md); the script is bound to that file.
+One script call runs Steps 1 through 5b and renders Step 6's report; the step sequence and the
+reason behind every step stay in [context/sync.md](context/sync.md).
 
-1. **Run it.** Substitute the marketplace target, the policy, and the flags into this command. The
-   journal root is written here because we rely on `${CLAUDE_PLUGIN_DATA}` resolving in skill
-   content and **not** in a `context/*.md` spoke, which is read raw (see "Spoke paths" below):
+1. **Run it.** Substitute the marketplace target and the flags into this command. The journal root
+   is written here because `${CLAUDE_PLUGIN_DATA}` resolves in skill content, never in a spoke:
 
    ```bash
    "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/sync-run.sh \
      [--marketplace <name> | --all] \
      --journal-root "${CLAUDE_PLUGIN_DATA}/plugins-sync/runs" \
-     --install-new <policy> --source-pull <pull> [--quiet-auto-update <names>] \
+     --install-new '${user_config.install_new}' \
+     --source-pull '${user_config.directory_source_pull}' \
+     --quiet-auto-update '${user_config.quiet_auto_update_marketplaces}' \
      [--allow-downgrade] [--update-other-paths] --render
    ```
 
-   `<pull>` is the word from the **Configured value** line under "userConfig:
-   `directory_source_pull`", and `ask` while that line shows the unset placeholder token. Pass
-   `never` instead when the session is autonomous or you cannot tell a human is present.
-   `--quiet-auto-update` takes the names from the **Configured value** line under "userConfig:
-   `quiet_auto_update_marketplaces`"; leave the flag out while that line shows the placeholder
-   token or nothing.
+   Run the three option values as they appear here: each holds the configured value, or the
+   unset placeholder token, which the single quotes keep from the shell and the script reads as
+   that option's default. Pass `--source-pull never` instead on a session that fails the autonomy
+   test. A value the script does not know runs as `ask` and is named in the report.
 
-   `<policy>` is the word from the **Configured value** line under "userConfig: `install_new`"
-   below: `all`, `none`, or `ask`, and `ask` when that line still shows the unset placeholder
-   token. Pass the word, never the token: a placeholder inside a command is a shell substitution
-   error, not a policy. Any other value is treated as `ask` and named back in the digest's
-   `install_new_invalid` so the report can flag it, on the first pass and on an `--only-install`
-   re-entry alike.
-
-2. **Read the output.** The first line is one compact JSON digest, also written to
-   `<run_dir>/digest.json`; after a blank line comes the rendered report, also written to
-   `<run_dir>/report.txt`. The digest carries a `run_dir` that holds every snapshot and the
-   journal, and the fields the `ask` re-entry needs.
+2. **Read the output.** The first line is one compact JSON digest (also `<run_dir>/digest.json`),
+   then a blank line and the rendered report (also `<run_dir>/report.txt`). The digest's `run_dir`
+   holds every snapshot, the journal and what the `ask` re-entry needs.
 
 3. **Resolve a pull offer.** When a block's `source_pull.status` is `offered`, ask the user once
    per such marketplace whether to fast-forward its checkout (one `AskUserQuestion` question per
-   marketplace, Pull or Skip). Never ask in an autonomous session (`CLAUDE_CODE_REMOTE` set, or the
-   run arrived via `/loop` or `/schedule`) or when it is unclear a human is present; the first run
-   then had `--source-pull never` and offers nothing. On a yes, run the step 1 command again with
-   `--pull-source "<the names the user agreed to, comma-separated>"` added: the script checks each
-   checkout again, fast-forwards it with `git pull --ff-only` before that marketplace's refresh, or
-   refuses with the reason and touches nothing, and the sync then runs against the refreshed
-   catalog. Its report supersedes the first one, so read the next step from its digest. A no or
-   no answer keeps the first report and its pull-and-rerun bullet. Ask once per invocation: a
-   marketplace the user declined stays `offered` in later digests of this sync and is not asked
-   about again. Resolve this before step 4: an install gap read from a stale checkout is not the
-   one to offer.
+   marketplace, Pull or Skip). A session that fails the autonomy test never gets here: its first
+   run had `--source-pull never` and offers nothing. On a yes, run the step 1 command again with
+   `--pull-source "<the names the user agreed to, comma-separated>"` added: the script rechecks
+   each checkout and fast-forwards it with `git pull --ff-only` before its refresh, or refuses with
+   the reason and touches nothing. Its report supersedes the first, so read the next step from its
+   digest. A no or no answer keeps the first report and its pull-and-rerun bullet. Ask once per
+   invocation: a declined marketplace stays `offered` in later digests and is not asked about
+   again. Resolve this before step 4, so the install gap comes from the current checkout.
 
-4. **Resolve an `ask` install gap.** When a block has a non-empty `install_gap` and
-   `stopped_before_install: true` (the report says so under `Action needed`), run the chunked
-   "install and enable" offer from
+4. **Resolve an `ask` or held install gap.** When a block has a non-empty `install_gap` and
+   `stopped_before_install: true` (the report says so under `Action needed`), ask the questions
+   its `install_offer` lists, worded per
    [context/sync-install-enable.md](context/sync-install-enable.md), then re-enter for Steps 4 and
    5 against the same run. The re-entry installs each pick and enables any the CLI installed
    disabled by default:
@@ -158,75 +132,54 @@ stay in [context/sync.md](context/sync.md); the script is bound to that file.
      --only-install "<the ids the user picked, comma-separated>" --run-dir "<the digest's run_dir>" --render
    ```
 
-   An empty id list is legal and means "install nothing, still complete Step 5". A dismissed or
-   unanswered chunk declines only its own ids: leave them out of the list and keep the picks from answered chunks. When nothing was answered, the list is empty: re-enter with `--only-install ""`, and the report lists
-   the declined gap under `Action needed`. The report that
-   call prints supersedes the first one and covers the whole run. When the first pass stopped
-   before install it skipped the cache-content check, and this re-entry runs that check after the
-   installs; otherwise the re-entry reuses the finding the first pass wrote.
+   A dismissed or unanswered question declines only its own ids: leave them out and keep the
+   answered questions' picks. When nothing was answered, re-enter with `--only-install ""`, which
+   installs nothing, still completes Step 5, and lists the declined gap under `Action needed`. The
+   re-entry's report supersedes the first and covers the whole run, its cache-content check
+   included.
 
-5. **Report.** Paste the rendered report and append the one model-owned line; see the Report
-   section below.
+5. **Report.** Paste the rendered report; see the Report section below.
 
 Load [context/sync.md](context/sync.md) when a digest carries errors, a non-empty gap, a catalog
-regression, a cache-content finding, a `source_pull` that was refused or failed, or a nonzero `moved_during_run` or `noop_unverified` count
-(plugins that moved during the run under an update call that reported them current, or
-already-current answers the snapshots could not confirm), and when the user asks why a step behaved
-the way it did.
+regression, a cache-content finding, a refused or failed `source_pull`, or a nonzero
+`moved_during_run` or `noop_unverified` count, and when the user asks why a step behaved as it did.
 
 ## Marketplace resolution
 
 No hardcoded marketplace name anywhere in this skill. Every action resolves its target the same way:
 
-- No marketplace argument → the default: the marketplace this plugin (`harness-ops`) was itself
-  installed from, resolved dynamically by `fleet-state.sh` (joins `${CLAUDE_PLUGIN_ROOT}` against
-  `installed_plugins.json`'s install records, never a hardcoded name).
+- No marketplace argument → the marketplace this plugin was installed from, which `fleet-state.sh`
+  resolves from `${CLAUDE_PLUGIN_ROOT}` and the install records.
 - `<marketplace-name>` argument → that marketplace only.
-- `all` argument → every marketplace in `known_marketplaces.json`; per-marketplace failures are
-  reported inline and never abort the sweep (see [context/sync.md](context/sync.md)). **`all` also
-  multiplies the `install_new` policy across every catalog**: under a rendered policy of `all` this
-  target installs every plugin published in every known marketplace. Confirm the resolved install
-  gap with a human first, per "userConfig: `install_new`" below.
+- `all` argument → every marketplace in `known_marketplaces.json`; a per-marketplace failure is
+  reported inline and never aborts the sweep. Under a policy of `all` this target installs
+  nothing on its own: the script holds the gap (`install_held: "all-target"`) for step 4's offer.
 
 ## State inspection
 
-Every action reads the fleet through the bundled read-only `fleet-state.sh`, checks cache content
-through `cache-content-check.sh`, and reorders a user-scope `enabledPlugins` map only through
+Every action reads the fleet through the read-only `fleet-state.sh`, checks cache content through
+`cache-content-check.sh`, and reorders a user-scope `enabledPlugins` map only through
 `normalize-enabled-plugins.sh`. Never hand-parse `installed_plugins.json`,
 `known_marketplaces.json`, or a settings file, never write them, and never hand-write a `jq`
-extraction where a script's `--ids` form exists. `converge`'s
-committed-enable check ([context/converge.md](context/converge.md) Step 2) reads each path's
-`enabledPlugins` entry from `fleet-state.sh`'s `projectEnabledEntry`, never from the file. `sync-run.sh` calls all three during `sync` and `/harness-ops:plugins-audit`. Alongside them `scripts/jq-capture.sh` ships as a sourced library, never invoked: it
-carries the CR-stripping `jq` capture and the JSON string encoder that `fleet-state.sh`,
-`cache-content-check.sh`, and `sync-run.sh` each source from their own directory.
-Read [context/script-contracts.md](context/script-contracts.md) when a step misbehaves,
-when `converge` needs an id list, or before invoking one of the scripts from anywhere other than
-`sync-run.sh`; it carries each script's invocation forms and the `\r` rule behind `--ids`.
+extraction where a script's `--ids` form exists. `converge`'s committed-enable check
+([context/converge.md](context/converge.md) Step 2) reads each path's `enabledPlugins` entry from
+`fleet-state.sh`'s `projectEnabledEntry`, never from the file. `scripts/jq-capture.sh` (the
+CR-stripping `jq` capture and JSON string encoder the scripts share) and
+`scripts/snapshot-ledger.sh` (the run's snapshot lookup) are sourced libraries, never invoked. Read
+[context/script-contracts.md](context/script-contracts.md) when a step misbehaves, when `converge`
+needs an id list, or before invoking a script from anywhere other than `sync-run.sh`; it carries
+each script's invocation forms and the `\r` rule behind `--ids`.
 
 ## The read-only audit
 
-`/harness-ops:plugins-audit` runs this skill's algorithm through `sync-run.sh --audit`, with every
-mutating CLI call replaced by a prediction, and the model may start it. It is a separate skill
-because `disable-model-invocation` applies to a whole skill, and only the read-only action is safe
-for the model to start. The Report section below still describes its render, since one
-`render-report.jq` prints both.
+`/harness-ops:plugins-audit` runs `sync-run.sh --audit`, every mutating call predicted. It is a
+separate skill so the model may start it, since `disable-model-invocation` covers a whole skill.
 
 ## Operator script: refresh and clean
 
-`scripts/reset-refresh.sh` re-fetches the user-scope fleet with its configuration unchanged. It has
-three levels:
-
-- `preview` changes nothing and prints what `refresh` and `clean` would discard.
-- `refresh` moves the marketplace clones and `cache/` aside and reinstalls each user-scope record
-  through the CLI.
-- `clean` does the same and also discards `data/`. It keeps the moved copies as one
-  `~/.claude/plugins.bak-<ts>` backup and moves that backup back on any difference.
-
-Both runs then check that marketplaces, user installs and user `enabledPlugins` match their
-pre-run snapshots. Neither is an action of this skill. Both refuse to run while a `claude` process
-is running, and `clean` also refuses without a terminal. So the operator runs them from a terminal
-with every session closed. When the user asks for one, give them these commands and do not run
-them:
+`scripts/reset-refresh.sh` re-fetches the user-scope fleet with its configuration unchanged. It
+refuses to run beside a live session, so when the user asks for it, give them these commands to
+run from a terminal with every session closed, and run none:
 
 ```bash
 bash "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/reset-refresh.sh preview
@@ -234,181 +187,71 @@ bash "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/reset-refresh.sh refresh
 bash "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/reset-refresh.sh clean
 ```
 
-[context/refresh.md](context/refresh.md) holds what each level does, its safeguards, and the probe
-record behind them.
+[context/refresh.md](context/refresh.md) holds what each level does and its safeguards.
 
 ## Report
 
-Step 6 is rendered by the script. `sync-run.sh --render` prints the fixed-section report after the
-digest line, every run writes the same text to `<run_dir>/report.txt`, and
+The script renders Step 6 and writes it to `<run_dir>/report.txt`;
 `jq -r -f "${CLAUDE_PLUGIN_ROOT}"/skills/plugins/scripts/render-report.jq <run_dir>/digest.json`
-reproduces it from a run directory later.
+reproduces it later, or prints one line pointing at `report.txt` for a digest of another
+`digest_version`.
 
-The layout is fixed and reads the same on every platform. The first line is the verdict. It is
-`Result: <N> item(s) under Action needed` when that section has items. Otherwise it is
-`Result: changes applied, nothing under Action needed` or `Result: clean, nothing changed and
-nothing under Action needed`. In `audit` it is `Result: see the predictions below, nothing under
-Action needed`, or `Result: no change predicted, a lower bound against the unrefreshed catalog`.
-The verdict counts `Action needed` items only. A `remedy:` on a row outside that section, such as
-`converge` for divergences, still applies. Each line carries one fact. Each part of a multi-part row gets its own indented line
-under a short heading: a divergence class, a timing figure, a cache tally. A list of more than three
-ids also gets one line per id. A remedy is its own `remedy:` line under the fact it fixes. No
-line is wrapped by hand, version moves read `<old> -> <new>`, and every character is ASCII except
-text the digest carries, such as a CLI's own output. Why a row says what it says lives in
-[context/sync.md](context/sync.md) and
-[context/stale-records-cache-content.md](context/stale-records-cache-content.md), not in the
-render, so a clean run prints no explanatory paragraphs.
-
-Every section, conditional row, annotation, and
-`Action needed` bullet is a function of digest fields, which is what keeps a number, an id, or a
-scope from being misstated between the run and the report: the `Marketplace:` line with its
-three-way `autoUpdate` slot (`on`; `off` with a `remedy:` line to enable it, or bare `off` for a
-marketplace named in `quiet_auto_update_marketplaces`; `unreadable` for a
-`null`, never rendered as off), whose status reads `needs update` only for refresh, update and
-failure state (a failed refresh or CLI call, or an error; in `audit`, an update, install or enable `sync`
-would make), `source checkout behind <upstream>` when a `directory` source's git checkout is behind
-its upstream, and `current` otherwise, followed by `, N action(s) pending` when work is left to a
-person (an install declined, skipped by policy or held for the `ask` prompt, an unfilled or project-scope enable, an
-install left not enabled, a delisted plugin, a withheld downgrade), so
-`current, 1 action(s) pending` is a fleet with nothing to update and one such action. Each pending
-action is an `Action needed` bullet, except `audit`'s withheld downgrades, counted once as their
-`Would withhold:` row; the `source:` row under
-it for a `directory` source (branch, upstream, ahead/behind as of the checkout's last fetch, modified
-tracked files, or why freshness was not checked; the run fetches or pulls the checkout only on a
-`--pull-source` request, and then the row names the commits it fast-forwarded from and to); the fixed `In-repo:` row in its three variants (`skipped` naming
-the cwd when no project root resolved, `0` naming a root with no project/local installs, and the
-counted variant, forward moves only); `Behind in other paths:` (the count Step 3a left alone while
-off, with its remedy); `Catalog moved during this run:`; `Updated in other paths:` and `Not moved in other paths:`
-(the records of every other present path that sync forward-updated from that path, and the
-linked-worktree or user-home ones the call left behind; `Would update in other paths:` under audit);
-`Updated:` (forward moves and pairs flagged
-`(direction unknown)`) and `Downgraded:` (a backward move that happened during the run says so); `Moved during this run:` (ids
-whose update call the CLI answered "already at the latest version" while the run's snapshots show
-their version changed, which the run did not do and does not attribute; with a `Not verified:` row
-for already-current answers the snapshots could not confirm); `Catalog regression:`; `Installed:` with the policy-`all`
-recurrence clause; `Normalized:`; `Enabled:`; the `Divergences:` section (one line per non-zero
-class, each with its `remedy:` lines: actionable, with its here and elsewhere counts under it and
-the one `converge` remedy; in linked worktrees; blocked. Under a `by origin:` heading come the
-pre-existing and newly created counts, with the per-step lines only when the run created any. A
-digest from before the class split shows the machine-wide count, this project's count under it when
-a root resolved, and one `converge` remedy) and its `by project path:` lines naming each present path's record
-count and up to three ids (`+K more` past that), with the paths that are not present counted on one
-line; the self-update note when this plugin's install record moved during the run; the stale project
-records and user-scope cache content sections; the `Timing:` row (the marketplace total, with the slowest step,
-the seconds outside the named steps and the clock's resolution each on its own line under it; a measurement with no threshold); and `Action needed` (a behind `directory` checkout with the
-`git -C <path> pull --ff-only` to run and the marketplace to resync, a requested fast-forward that
-was refused or failed with its reason, install and enable gaps, failed CLI calls, user-scope orphans, installs that left userConfig options unset,
-installs the CLI reported as disabled by default that this run did not enable, plugins absent from the catalog (installed, or
-only enabled in settings),
-updated plugins whose installed build declares a monitor, reorder refusals, an unsorted
-project-scope map, withheld downgrades with both versions and the likely cause, and every error).
-In `audit` mode every call `sync` would make carries the `would run:` prefix, and a remedy `sync`
-never runs itself (the `git -C … pull --ff-only`, a project-scope enable) reads the same as in
-`sync`, unprefixed. `Would withhold:` sits beside `Would update:` whether or not a downgrade was
-found; `--allow-downgrade` is named as ignored. Each shape is pinned to a golden file under `scripts/fixtures/render/` by
-`scripts/sync-run.test.sh`.
+Every row is a function of digest fields: [scripts/verdict.jq](scripts/verdict.jq) classifies,
+[scripts/render-report.jq](scripts/render-report.jq) holds the row rules, and the goldens under
+[scripts/fixtures/render/](scripts/fixtures/render/) record every shape the report takes. Why a row
+says what it says lives in [context/sync.md](context/sync.md) and
+[context/stale-records-cache-content.md](context/stale-records-cache-content.md). The `Result:`
+verdict counts `Action needed` items only; a `remedy:` on another row still applies.
 
 Paste the render as printed. Do not restate a number, an id, a scope, or a count it already
-carries, and do not add rows: a row the render omitted is a row whose digest field was empty, which
-is not proof that nothing happened. The render lists only what the run's snapshots establish, so the
-initial report may add one caveat line when something in the run suggests more than it shows (a
-`Not verified:` row, or `Moved during this run:` ids with a cause the user may ask about): state
-what the report cannot establish, never a cause. Follow-up answers from the run directory stay
-allowed. Per
-marketplace in `all` mode the whole block repeats, because Steps 2 through 5 run once per
-marketplace; the trailing `Run journal:` and `Timing:` rows cover the invocation.
+carries, and do not add rows: an omitted row is an empty digest field, not proof that nothing
+happened. The initial report may add one caveat line when the run suggests more than the render
+shows (a `not verified:` row, or `moved during this run:` ids): state what the report cannot
+establish, never a cause. The render ends with the reload guidance whenever the run changed what
+this session loads; add no reload advice of your own
+([context/scope-semantics.md](context/scope-semantics.md) "`/reload-plugins`: bare by default,
+`--force` for the MCP-cache-invalidation case" holds why).
 
-**The one line the model owns is the reload guidance**, appended after the render as a two-step
-rather than as a prediction about which case will trigger it: recommend bare `/reload-plugins`,
-and `/reload-plugins --force` only when the bare command warns. Do not present any one cause as the
-sole trigger of that warning, and do not tell the user `--force` would be wrong when the bare
-command has already warned them. Never recommend `--force` pre-emptively alongside every reload: we
-treat it as opting into a real token cost the bare command declines to pay on its own.
-[context/scope-semantics.md](context/scope-semantics.md) "`/reload-plugins`: bare by default,
-`--force` for the MCP-cache-invalidation case" holds the pointers and dates. Monitors are already
-covered: the render's `Action needed` names each updated plugin whose installed build declares one.
-[context/sync.md](context/sync.md) "Name the monitors" holds what that bullet says and where it was
-read, so the reload line does not restate it. After the line, answer follow-up questions from the digest
-and the run directory it names; load [context/sync.md](context/sync.md) when a question is about
-why a step behaved the way it did.
+Answer follow-up questions from the digest (its `verdict` objects hold the report's status,
+pending, changed and `Action needed` facts) and the run directory it names; load
+[context/sync.md](context/sync.md) when a question is about why a step behaved the way it did.
 
 ## Stale project records and cache content
 
-Both are findings the render reports and this skill never fixes: a project/local record whose
-`projectPath` is not present on this machine is named in its own section, never counted as a
-divergence, never suppressed, and never reaped; a cache directory whose files disagree with the
-recorded commit is named with the proved remediation, never repaired. Read
-[context/stale-records-cache-content.md](context/stale-records-cache-content.md) when
-`stale_project_records.total > 0` or `cache_content.stale_content > 0`, or when the user asks why
-either section reads as it does.
+Both are findings the render reports and this skill never fixes: a record whose `projectPath` is
+not present is never counted as a divergence, suppressed or reaped, and a cache directory whose
+files disagree with the recorded commit is named with its proved remediation, never repaired
+([context/stale-records-cache-content.md](context/stale-records-cache-content.md)).
 
 ## userConfig: `install_new`
 
-Controls new-catalog-plugin install policy during `sync`. Ships as a `string` whose `options`
-picker lists the three values below, default `"ask"`. This skill still validates the value,
-because one set by hand in `settings.json` never passes through the picker ([context/scope-semantics.md](context/scope-semantics.md) holds the option-schema
-record; for option types and fixed options, see
-[User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration) and
-[Limit a field to fixed options](https://code.claude.com/docs/en/plugins/manifest-reference#limit-a-field-to-fixed-options)):
+New-catalog-plugin install policy during `sync`: a `string` whose `options` picker lists the three
+values below, default `"ask"`. The script still validates it, since a value set by hand in
+`settings.json` skips the picker
+([Limit a field to fixed options](https://code.claude.com/docs/en/plugins/manifest-reference#limit-a-field-to-fixed-options);
+[context/scope-semantics.md](context/scope-semantics.md) holds the option-schema record):
 
-- `ask` (default). Offer every not-yet-installed catalog plugin in `AskUserQuestion` chunks of at
-  most 4 options per question and at most 4 questions per call, with a further call past 16, each
-  chunk's question text distinct (answers are keyed by it). A chunk of 1, whether a gap of 1 or
-  the one left over from a gap of 5, 9, 13 and so on, is a single-select Install/Skip question
-  with no hand-added Other option. The limits are the tool's, per
-  [Handle approvals and user input: limitations](https://code.claude.com/docs/en/agent-sdk/user-input#limitations)
-  (as of 2026-11-10; recheck if that section changes them). Then install and enable each pick,
-  including one the CLI installs disabled by default. An unanswered or dismissed chunk counts as
-  declined
+- `ask` (default). Offer every not-yet-installed catalog plugin by asking the questions the
+  digest's `install_offer` lists, one `AskUserQuestion` call per entry
+  ([context/sync-install-enable.md](context/sync-install-enable.md) Step 4 holds how each question
+  reads). Then install and enable each pick, including one the CLI installs disabled by default.
+  An unanswered or dismissed question counts as declined
 - `all`. Install every not-yet-installed catalog plugin automatically; one the CLI installs
   disabled by default stays off and is reported
 - `none`. Report them in "Action needed" only, never install
 
-Any explicitly-set value other than these three is invalid; treat it as `ask` and note the invalid
-value in the report.
+Any other set value runs as `ask` and is named in the report. With the `all` target an `all`
+policy installs nothing on its own (see "Marketplace resolution";
+[context/gotchas.md](context/gotchas.md) has the incident).
 
-**`all` is scoped to the marketplace target, and the target is what makes it safe or catastrophic.**
-Against the default marketplace, the one whose fleet the operator curates, the gap is normally zero
-or a handful and `all` is the intended convenience. Against a multi-marketplace target (`all`, or a
-named third-party catalog) the same word means "install every plugin published in every catalog this
-machine knows about." One observed run installed 2,231 plugins before it was killed; see
-[context/gotchas.md](context/gotchas.md)'s "`--all` with `install_new: all` is a mass install of
-every catalog". **When the marketplace target is `all` and the rendered policy is `all`, do not
-proceed unattended:** resolve the total install gap first (one `/harness-ops:plugins-audit all`, or `fleet-state.sh
---marketplace <name> --ids missing-user-install` per marketplace, which is the selector
-`sync-run.sh` itself projects for Step 4), state the number, and get an explicit human yes. Treat the
-configured value as written with the operator's own marketplace in mind, and downgrade to `ask` when
-no human is present to receive the count.
-
-**Configured value: `${user_config.install_new}`**. We treat this line as rendering the configured
-word into the skill content before the model sees it, but **only when the key is explicitly set**
-in a scope Claude Code reads `pluginConfigs` from, read live from
-[settings reference: pluginConfigs](https://code.claude.com/docs/en/settings-reference#pluginconfigs)
-with the precedence
-[settings: settings precedence](https://code.claude.com/docs/en/settings#settings-precedence) gives. We treat a
-project's `.claude/settings.json` or `.claude/settings.local.json` entry as doing nothing, and declaring the option in `plugin.json` alone does not make its value readable
-here either. See [context/scope-semantics.md](context/scope-semantics.md) for the read path, its
-pointer, and why it differs from `enabledPlugins`, which this same skill reads from project and
-local scope.
-
-The manifest's `"default": "ask"` is **not** substituted for an unset key: our probe saw the render
-leave the placeholder token unchanged while a sibling key set in `~/.claude/settings.json` and
-`${CLAUDE_PLUGIN_ROOT}` both substituted in the same render. That is a probed claim, not a
-documented one, and it stays pointed at its dated record: the probe, its as-of date and CLI version,
-the docs pointer for the `default` field and the substitution surfaces, the recheck trigger, the
-`pluginConfigs` payload shape, and the probe recipe are in
+We treat each `${user_config.*}` token in step 1's command as rendering the configured word only
+when the key is set in a scope Claude Code reads `pluginConfigs` from
+([settings reference: pluginConfigs](https://code.claude.com/docs/en/settings-reference#pluginconfigs)),
+never a project's `.claude/settings.json` or `.claude/settings.local.json`; an unset key leaves the
+literal placeholder token, which `sync-run.sh` reads as the default.
 [context/scope-semantics.md](context/scope-semantics.md) "`userConfig`: an unset key renders the
-literal placeholder". Read it when the rendered value looks wrong or before re-running the probe.
-Substitution into content happens in what Claude Code renders, and never in a file a spoke read
-returns, which is why the **Configured value** line lives here and cannot move to a spoke. So for
-the common default-config user, with no `pluginConfigs` set anywhere, the **Configured value** line
-above still shows that literal placeholder token, not `ask`.
-
-Read that literal placeholder token as the **expected unset state → use the default `ask`**, and do not
-report it as an invalid value. Only a rendered value that is a real word other than
-`ask`/`all`/`none` (i.e. the key *was* set, to something unsupported) is the invalid-value case worth
-flagging. Sync's Step 4 branches on the **Configured value** line's rendered value, or on the `ask`
-default when that render is still the placeholder token, not on the option's name or description above.
+literal placeholder" holds the read path and the probe record: read it when a rendered value looks
+wrong.
 
 ## userConfig: `directory_source_pull`
 
@@ -416,28 +259,21 @@ What `sync` does with a `directory` marketplace whose git checkout is clean (no 
 files), on a branch with an upstream, not ahead of it and behind it. A `string` with the picker
 values below, default `"ask"`, read and rendered the same way as `install_new` above:
 
-- `ask` (default). Pass `--source-pull ask`; the digest marks such a checkout `offered`, and
-  step 3 of "Running `sync`" asks once per marketplace and reruns with
-  `--pull-source` on a yes. A dirty, ahead, diverged, detached or upstream-less checkout is never
-  offered, and the script refuses a `--pull-source` for one, so the pull cannot discard or tangle
-  local work.
-- `never`. Pass `--source-pull never`; nothing is offered or pulled, and the report keeps its
-  pull-and-rerun bullet.
+- `ask` (default). The digest marks such a checkout `offered`, and step 3 of "Running `sync`"
+  asks and reruns with `--pull-source` on a yes. Any other checkout is never offered, and the
+  script refuses a `--pull-source` for one, so the pull cannot discard or tangle local work.
+- `never`. Nothing is offered or pulled, and the report keeps its pull-and-rerun bullet.
 
-An autonomous or ambiguous session behaves as `never` whatever the value: no human can answer the
-offer there. The script applies the same rule on its own when `CLAUDE_CODE_REMOTE` is set. A word
-other than these two is treated as `ask` and named in the report.
-
-**Configured value: `${user_config.directory_source_pull}`**. The unset placeholder token here
-means the default, `ask`.
+A session that fails the autonomy test runs as `never` whatever the value. A word other than these
+two runs as `ask` and is named in the report.
 
 ## userConfig: `update_other_paths`
 
 Whether `sync` also updates the lagging project and local records of every other present path. A
 `boolean`, default `false`: off, the report counts them and names the remedy. Pass
-`--update-other-paths` when the **Configured value** line below reads `true`, or when the user gave
-that flag, which is position-independent like `--allow-downgrade`: remove it from `$ARGUMENTS` before
-parsing the action and target. [context/sync.md](context/sync.md) Step 3a says why it is off by default.
+`--update-other-paths` when the **Configured value** line below reads `true` or the user gave the
+flag, which is position-independent like `--allow-downgrade`. [context/sync.md](context/sync.md)
+Step 3a says why it is off by default.
 
 **Configured value: `${user_config.update_other_paths}`**. The unset placeholder token here means the
 default, `false`.
@@ -445,21 +281,17 @@ default, `false`.
 ## userConfig: `quiet_auto_update_marketplaces`
 
 Comma-separated marketplace names whose `Marketplace:` line shows `autoUpdate: off` without the
-suggestion to enable it, for a marketplace the user keeps off on purpose. A `string`, default
-empty, which keeps the suggestion everywhere. Pass the names as `--quiet-auto-update`.
-
-**Configured value: `${user_config.quiet_auto_update_marketplaces}`**. The unset placeholder token
-here, or nothing, means no names: leave the flag out.
+suggestion to enable it. A `string`, default empty; step 1 passes it as `--quiet-auto-update`.
 
 For the option fields, the picker and where a value is stored, see
 [User configuration](https://code.claude.com/docs/en/plugins/manifest-reference#user-configuration).
 
 ## Spoke paths
 
-The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`.
-Put that path in place of the placeholder before running a command or writing it into a brief. We
-never put a `${…}` token in those files: we do not rely on one being substituted in a file read
-through the Read tool, or on the Bash tool's environment carrying `CLAUDE_SKILL_DIR`.
+The `context/` files write this skill's directory as `<skill-dir>`, which is `${CLAUDE_SKILL_DIR}`:
+put that path in its place before running a command or writing it into a brief. Those files carry
+no `${…}` token, since we rely on neither substitution in a Read result nor `CLAUDE_SKILL_DIR` in
+the Bash tool's environment.
 
 - **Pointer**: for where each `${…}` reference resolves, see
   [Where each variable resolves](https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves).
@@ -477,11 +309,11 @@ through the Read tool, or on the Bash tool's environment carrying `CLAUDE_SKILL_
 
 | File | Load when |
 |---|---|
-| [context/sync.md](context/sync.md) | A `sync` digest meets a trigger under "Running `sync`", or the user asks why a step behaved as it did; it is the step sequence `sync` and `/harness-ops:plugins-audit` both execute, and the script is bound to it. |
-| [context/sync-install-enable.md](context/sync-install-enable.md) | A digest block has a non-empty `install_gap` or `enable_gap`, or `install_enable_deferred: true`. Both gaps are empty on a current fleet. |
-| [context/converge.md](context/converge.md) | Running `converge`, the only action that may rewrite a committed settings file. |
+| [context/sync.md](context/sync.md) | A `sync` digest meets a trigger under "Running `sync`", or the user asks why a step behaved as it did. |
+| [context/sync-install-enable.md](context/sync-install-enable.md) | A digest block has a non-empty `install_gap` or `enable_gap`, or `install_enable_deferred: true`. |
+| [context/converge.md](context/converge.md) | Running `converge`. |
 | [context/stale-records-cache-content.md](context/stale-records-cache-content.md) | The digest's `stale_project_records.total` or `cache_content.stale_content` is above 0, or the user asks why either section reads as it does. |
-| [context/script-contracts.md](context/script-contracts.md) | A step misbehaves, `converge` needs an id list, or a caller other than `sync-run.sh` is about to invoke `fleet-state.sh`, `cache-content-check.sh`, or `normalize-enabled-plugins.sh`. |
-| [context/scope-semantics.md](context/scope-semantics.md) | A scope, version, or reload claim needs its verified source before you act on it; also the dated `userConfig` unset-key probe record. |
-| [context/refresh.md](context/refresh.md) | The user asks to refresh, clean or re-fetch the plugin fleet with its configuration unchanged, or about `reset-refresh.sh`'s output. |
+| [context/script-contracts.md](context/script-contracts.md) | A step misbehaves, `converge` needs an id list, or a caller other than `sync-run.sh` is about to invoke a script. |
+| [context/scope-semantics.md](context/scope-semantics.md) | A scope, version, or reload claim needs its verified source before you act on it; also the `userConfig` unset-key probe record. |
+| [context/refresh.md](context/refresh.md) | The user asks about refresh or clean, or about `reset-refresh.sh`'s output. |
 | [context/gotchas.md](context/gotchas.md) | A run failed in a way the steps do not explain, or a safeguard looks removable. |

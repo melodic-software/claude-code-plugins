@@ -29,6 +29,15 @@ request.
   its output. A staged file since deleted from the work tree is analyzed from the index. Both
   entries replace the single `powershell-check` entry of earlier releases; a decline of it
   carries to both.
+- **One `pwsh` start per commit.** The `format` entry also lints the files it just formatted, in
+  the same `pwsh` start, and leaves the result under the repository's git directory for the
+  `lint` entry, keyed by each file's bytes and the settings file. The `lint` entry reports that
+  result exactly as its own run would, and starts `pwsh` itself when no matching result is
+  waiting: when `format` was skipped, or a file changed in between. A declined `lint` entry
+  (`checks.powershell-format.lint.declined`), or a `powershell-format-remote-lint` job skipped in
+  `lefthook-local.yml`, makes `format` lint nothing. So does a settings file that declares
+  `CustomRulePath`, or one staged in the commit: the trust gate signed those bytes before
+  `format` rewrote them, so the `lint` entry's own start signs them again.
 - **No per-edit hook.** Nothing runs when Claude edits a PowerShell file. A rewrite costs
   more than the 1 s per-batch ceiling (see [Hook budget](#hook-budget-accounting)), and a
   finding reported per edit costs the model attention without helping it finish. Findings

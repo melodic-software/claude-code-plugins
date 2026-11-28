@@ -5,6 +5,72 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [5.12.4] - 2026-11-28
+
+### Changed
+
+- Trimmed `harness-config` skill frontmatter descriptions (`audit` 474 -> 345 chars, `audit-automation-gaps` 457 -> 345 chars, `audit-instructions` 494 -> 344 chars, `audit-pass` 485 -> 346 chars, `audit-permission-grants` 498 -> 347 chars, `audit-permission-state` 497 -> 342 chars, `audit-prompting-postures` 495 -> 347 chars, `draft-auto-mode-rules` 489 -> 346 chars, `setup` 661 -> 141 chars, `unhobble` 497 -> 349 chars; total 5047 -> 3252 chars, -1795 chars) while preserving native-overlap `resolves in this session` clauses, report-only/confirmation postures, and all action modes.
+- The `audit-prompting-postures` description now names its neighbor as `/harness-config:audit-instructions`, with the plugin prefix.
+
+## [5.12.3] - 2026-11-27
+
+### Changed
+
+- Synced shared `reference/detector-findings.md` with `portability-ok` annotations from `docs/contracts/detector-findings/README.md` and annotated surviving ecosystem specifics under ADR 0101 (#17746); no behavior change.
+
+## [5.12.2] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [5.12.1] - 2026-11-26
+
+### Changed
+
+- Shared `enforcement-ladder.md` copy synced where this plugin carries it: citations of retired ADRs repointed or unlinked; no other change to this plugin.
+
+## [5.12.0] - 2026-11-26
+
+### Added
+
+- `/harness-config:audit-automation-gaps`'s rule inventory counts each statement of the files the org layer's printed index lists (`scripts/org-standards.sh index`) as an automated-review row, labeled by the file's path in the org checkout, and names any listed file it could not read. Personal subscriptions stay named as present, not counted.
+
+## [5.11.0] - 2026-11-26
+
+### Added
+
+- `audit-automation-gaps`' rule inventory names each personal standards subscription (`scripts/org-standards.sh subscriptions`, standards contract 1.3.0) as present, not counted: it is the user's, not the repository's.
+
+### Changed
+
+- `/harness-config:audit-permission-state` points at the permission modes page for what happens to dropped allow rules when a session leaves auto mode, and `/harness-config:audit-pass` points at the subagent docs for where the nesting depth limit comes from ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+### Fixed
+
+- `scripts/org-standards.sh` confines the org layer and every subscribed layer to its own checkout: a `standards_dir` or index `File` value that is absolute, has a `..` segment or resolves through a symbolic link outside the checkout is reported and dropped, and so are an org `REVIEW.md` or `.claude/standards.yaml` that resolves outside it and an org `REVIEW.md` line whose `<path>.md#<heading>` citation does. Every `.md` or `.markdown` citation on an org `REVIEW.md` line, a code span split across lines included, is checked as a reader would resolve it, and control characters, C1 included, in the printed criteria are escaped. A new `citations` command prints the citations a consumer may open, in every composition of the criteria: each single-backtick `<path>.md#<heading>` span that resolves to a regular file inside its own checkout, with its absolute path. `review` prints the criteria text alone, so no `REVIEW.md` text can add to them, and consumers open a `REVIEW.md` citation only from `citations`. Every org checkout writes a committed symbolic link as a plain file, so a path printed before a refresh never resolves outside the checkout afterwards, and an org cache that holds one or allows them is deleted without following a link and cloned again. `index` and `subscriptions` print a new index written under the reader's cache state, never inside a checkout, built only from the `standards-contract` version, the table header and each well-formed table row rebuilt from its cells, each `File` rewritten to the absolute path it resolves to inside the checkout; no prose or HTML is copied. Its clones, fetches, checkouts, `ls-remote` calls and lazy object fetches give up after `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60), and never prompt. Every git command it runs ignores the system and global git config except the user's proxy, CA, `core.sshCommand`, `url.<base>.insteadOf` and `credential.*` settings (their `include` and `includeIf` sections followed, a `gitdir:` condition matched against the `--root` repository), handed to git in environment variables rather than on a command line other users can list, so a private repository loads with the person's own credential helper or SSH key and no hook, fsmonitor, filter driver (git-lfs included) or template from that config runs, and a `trusted_owners` that is not a block list, however its key is quoted or spaced, trusts no owner and is reported, as is a repository layer's `trusted_owners` in any of those spellings and a `trusted_owners` or `standards_repositories` nested under another key. No redirect is followed, so credentials go only to the configured host; a repository that answers with one is reported with a pointer to name its new location. A git command that needs no repository runs in the cache directory, reading no config of the repository the reader runs from, and no transport but `https`, `ssh`, `git` and `file` runs; a symbolic link at an owner directory or an entry of the cache is removed before the entry is read or built; every value a report quotes, the printed criteria and each printed index cell show each control character and each byte outside valid UTF-8 as `\xNN`, so no control sequence reaches the terminal; a `STANDARDS_DIR` holding one is refused, and so is a cache directory holding one when an org layer or a subscription needs the cache. A user index with CRLF line endings is read like one with LF endings.
+
+## [5.10.6] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [5.10.5] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+- Shared detector-findings contract synced where this plugin carries it: it registers `code-tidying/remove-comments/rule-glossary-candidate`; no other change to this plugin.
+
+## [5.10.4] - 2026-11-25
+
+### Changed
+
+- `/harness-config:audit-automation-gaps` inventories the `REVIEW.md` in effect, the organization's criteria with the repository's appended, through a bundled `scripts/org-standards.sh review`.
+- The detector-findings reference links the organization's `REVIEW.md` on melodic-software/standards main as the live severity-crosswalk instance.
+
 ## [5.10.3] - 2026-11-24
 
 ### Changed

@@ -23,12 +23,6 @@ fresh_packet() {
   local p="$WORK/packet"
   rm -rf "$p"
   mkdir -p "$p"
-  # Stands in for a verbatim upstream citation — the content class the sibling
-  # formatters were observed to damage, and the one whose rewrite silently
-  # falsifies the finding it was cited to prove. The stand-in token is
-  # deliberately NOT a real dictionary typo: this repo's own spell-check hook
-  # would otherwise "correct" the fixture and defeat the test it anchors, which
-  # is the very failure mode under test one level up.
   printf 'upstream dictionary entry: "zzqx" maps to "zzqy"\n' >"$p/audit-notes.md"
   printf 'invocation record\n' >"$p/evidence.md"
   printf '%s' "$p"
@@ -99,13 +93,6 @@ printf 'tampered\n' >"$packet/raw/invocation.txt"
 run 1 "verify detects a rewritten nested artifact" verify "$packet"
 has "CHANGED raw/invocation.txt" "the nested rewrite is named"
 
-# --- altered and merely-unsealed are DIFFERENT answers ----------------------
-#
-# A packet legitimately gains files after its last seal (contract.md at step 4,
-# item.md at step 6). Collapsing "never sealed" into the altered-evidence exit
-# would make the ordinary interrupted-run packet — the exact case resume exists
-# for — report as tampered and get discarded.
-
 packet="$(fresh_packet)"
 run 0 "record for the unsealed-only case" record "$packet"
 printf 'locked scope\n' >"$packet/contract.md"
@@ -175,12 +162,6 @@ empty="$WORK/empty-packet"
 mkdir -p "$empty"
 run 2 "acknowledge without a manifest is a usage error" record --acknowledge-divergence "$empty"
 has "needs an existing packet.sha256" "acknowledge requires the original seal"
-
-# --- verify reads the latest generation --------------------------------------
-#
-# A generation must not read as `UNSEALED packet.sha256.N`, and a note sealed
-# into it must not stay UNSEALED forever. It is graded on top of packet.sha256,
-# never in place of it.
 
 make_acked_packet() {
   packet="$(fresh_packet)"
@@ -289,14 +270,6 @@ else
   fail "generation 3 still lists the deleted file"
 fi
 
-# --- the seal moment is recorded and printed --------------------------------
-#
-# The manifest's first line is `# sealed-at <UTC ISO-8601>`. The value is
-# self-attested (written by this script, unsigned, editable by whoever can write
-# the manifest), so these cases pin what the packet says, not that it is true.
-# A header is never a manifest entry: it must not be sealed, graded, or reported
-# as UNSEALED or MISSING, and a manifest written before it existed still verifies.
-
 iso_header='^# sealed-at [0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
 
 has_line() {
@@ -342,7 +315,6 @@ lacks "MISSING" "the header is not read as a missing entry"
 lacks "UNSEALED" "the header is not read as an unsealed file"
 has "matched=2 changed=0 missing=0 unsealed=0" "the header adds nothing to the summary"
 
-# A manifest written before the header existed still verifies, as unknown.
 packet="$(fresh_packet)"
 run 0 "record before stripping the header" record "$packet"
 sed 1d "$packet/packet.sha256" >"$WORK/old-format.sha256"
@@ -417,7 +389,6 @@ run 1 "verify against generation 3" verify "$packet"
 has_line "gen-sealed-at=2026-04-04T09:10:11Z" "verify prints the latest generation's seal moment"
 lacks "2026-03-03" "the earlier generation's seal moment is not printed"
 
-# Manifests from before the header still grade, each reporting unknown.
 sed 1d "$packet/packet.sha256.3" >"$WORK/old-generation"
 mv -f "$WORK/old-generation" "$packet/packet.sha256.3"
 sed 1d "$packet/packet.sha256" >"$WORK/old-format.sha256"
@@ -427,13 +398,6 @@ has_line "sealed-at=unknown" "a header-less original reports unknown"
 has_line "gen-sealed-at=unknown" "a header-less generation reports unknown"
 has "matched=1 changed=1 missing=0 unsealed=0 gen-matched=3 gen-changed=0 gen-missing=0" "header-less manifests keep the summary"
 real_clock
-
-# --- symlinks are visible, and escaping ones are refused --------------------
-#
-# `-type f` cannot see a symlink, so an all-symlink packet enumerated as EMPTY
-# and then verified "intact" — the worst answer an integrity tool can give.
-# Needs real symlinks (MSYS=winsymlinks:nativestrict on Git Bash); SKIP loudly
-# otherwise rather than passing vacuously.
 
 sym="$WORK/symlink-packet"
 rm -rf "$sym"
@@ -480,6 +444,8 @@ run 2 "an unknown action is refused" seal "$packet"
 run 2 "record without a packet is a usage error" record
 run 2 "an extra argument is refused" record "$packet" extra
 run 0 "--help exits clean" --help
+has "--acknowledge-divergence  write" "--help lists the flags"
+has "Exit 0 = recorded" "--help lists the exit codes"
 
 empty="$WORK/empty-packet"
 rm -rf "$empty"

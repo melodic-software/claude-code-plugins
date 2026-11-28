@@ -1,192 +1,4 @@
 #!/usr/bin/env bash
-# restart-consumer.sh — consume lane restart-requests and relaunch the lanes.
-#
-# A loop lane that hits its per-session cycle budget or the /loop expiry (30
-# days for a loop created on Claude Code 2.1.330 or later, 7 days for an older
-# one) writes a restart-request into the `restart_request` field of the
-# machine-readable durable-state block on its telemetry comment, then stops
-# cleanly — a running loop cannot relaunch itself. Nothing consumed that field,
-# so every budget or expiry hit was a terminal manual-restart state. This script
-# is that consumer: it reads each configured lane's telemetry and relaunches the
-# lanes that asked, through `lane-launcher.sh restart`.
-#
-# It is meant to run unattended on a schedule owned by the OPERATING SYSTEM
-# (Task Scheduler / launchd / systemd --user / cron) rather than by anything
-# inside the harness: a watchdog lane is itself a /loop bounded by the same
-# expiry it would remediate, and no in-harness surface survives a crashed lane,
-# a harness restart, or a reboot. The schedule survives those; a
-# crashed lane writes no restart_request, so this consumer does not relaunch it.
-# `print-schedule` emits the exact
-# registration commands; registering them is an operator action this script
-# never performs.
-#
-# Usage:
-#   restart-consumer.sh [check]           read-only: report what WOULD restart
-#   restart-consumer.sh run               relaunch the lanes that asked
-#   restart-consumer.sh print-schedule    print the OS scheduler registration
-#                                         and removal commands; mutate nothing
-# A leading `consume-restarts` token (the skill-level action name SKILL.md
-# forwards in $ARGUMENTS) is accepted and ignored.
-#
-# Options:
-#   --config FILE        lane config JSON (same resolution as lane-launcher.sh:
-#                        --config -> $HARNESS_OPS_LANES_CONFIG ->
-#                        <repo>/.work/lanes/lanes.json, with the same temporary
-#                        default-only fallback to the pre-move
-#                        <repo>/.work/lanes.json under a deprecation warning)
-#   --repo DIR           repo root (default: git toplevel of the cwd). Also the
-#                        default target repo for the telemetry lookups.
-#   --target-repo owner/name
-#                        GitHub repo holding the lane telemetry issues
-#                        (default: `gh repo view` for --repo). Validated as
-#                        owner/repo before any URL interpolation.
-#   --lane NAME          restrict to this lane (repeatable). Default: every lane
-#                        in the config.
-#   --data-dir DIR       base dir for the run ledger; default $CLAUDE_PLUGIN_DATA
-#                        env var if it names harness-ops, else
-#                        ~/.claude/plugins/data/harness-ops.
-#                        We do not rely on CLAUDE_PLUGIN_DATA reaching a script
-#                        a skill runs through the Bash tool, so SKILL.md passes
-#                        --data-dir explicitly with the substituted value. Which
-#                        processes receive the variable is read live from
-#                        https://code.claude.com/docs/en/plugins/manifest-reference#where-each-variable-resolves
-#   --max-restarts N     circuit breaker: at most N relaunch ATTEMPTS per lane
-#                        per window — a launch that failed or never came up
-#                        spends budget exactly as a successful one does
-#                        (default 3). 0 disables the breaker.
-#   --window-hours N     the breaker's rolling window in hours (default 24).
-#   --interval-minutes N poll interval baked into `print-schedule` (default 15;
-#                        1..999, Task Scheduler's MINUTE range).
-#   --telemetry-issue N  issue carrying THIS consumer's own status comment.
-#                        Default: the issue morning-brief.sh itself reads
-#                        (discovered with that reader's own title search), else
-#                        the open issue titled exactly
-#                        `Lane telemetry: restart-consumer` and opened by the
-#                        WRITE IDENTITY. Absent -> the run is
-#                        recorded in the local ledger only, with a warning.
-#   --no-telemetry       skip the consumer's own telemetry upsert entirely.
-#   --launcher PATH      lane-launcher.sh to relaunch through (default: the
-#                        sibling script next to this one).
-#   --agents-json FILE   read the session list from FILE instead of
-#                        `claude agents --json` (offline / test injection).
-#   --app-slug SLUG      the GitHub App whose installation token gh runs under;
-#                        lane comments are then read from SLUG[bot]. An empty
-#                        value or an unrendered `${user_config.*}` placeholder
-#                        means no slug. See WRITE IDENTITY below.
-#   --telemetry-json FILE
-#                        read lane telemetry from FILE instead of `gh`: a JSON
-#                        object mapping lane name -> that issue's comments array,
-#                        e.g. {"work":[{"body":"..."}]} (offline / test injection;
-#                        the operator's own file, so no author filter applies).
-#   --now EPOCH          treat EPOCH as the current time (deterministic tests).
-#   --dry-run            with `run`: decide and report, but neither relaunch nor
-#                        write the ledger or the telemetry comment.
-#   --help
-#
-# Telemetry binding (per lane, every field optional — full contract in
-# context/restart-consumer.md):
-#   { "name": "work", "prompt": "work.md",
-#     "telemetry": { "issue": 42, "marker": "work-items:work-loop",
-#                    "instance": "laptop-a", "repo": "owner/name" } }
-#   issue    default: the lowest-numbered open issue titled exactly
-#            `Lane telemetry: <name>` and opened by the WRITE IDENTITY (below)
-#            or by the lane's `telemetry.author` login, when set. A match by
-#            any other author is skipped and named in a warning.
-#   marker   default: any comment on that issue written by the WRITE IDENTITY
-#            (below) and carrying the shared sentinel
-#            `<!-- harness-ops:lane-telemetry marker=... -->` whose fenced JSON
-#            block has a `restart_request` key. A bound marker matches that lane
-#            type across EVERY writer instance (`<marker>@<instance>`, #1295) —
-#            an exact-equality match would go blind the moment lanes adopted the
-#            suffix. Bind `instance`, or write the suffix into `marker` itself,
-#            to pin one instance.
-#   instance default: unpinned. Only read when `marker` carries no `@`. Unpinned
-#            means suffixed writers are OBSERVED, not consumed: their requests
-#            report as `unbound-instance` and never relaunch anything — a
-#            sibling machine's ask must not start this machine's lane. Only the
-#            legacy un-suffixed comment is actionable without a pin.
-#   repo     default: --target-repo.
-#
-# WRITE IDENTITY. The sentinel is public, so anyone who can comment on a
-# telemetry issue can post a lookalike carrying `restart_request`. Only comments
-# whose author is the lanes' write identity are read; every other comment is
-# ignored, whatever it carries. The identity is resolved once per run, before any
-# lane is read, in this order:
-#   1. `gh api user` reports a User: that login (a personal or machine-user token).
-#   2. that call fails or reports a Bot: SLUG[bot] from --app-slug SLUG.
-#   3. a Bot report with no --app-slug: the reported login, plus `[bot]` when
-#      missing.
-# Anything else, or a login outside [A-Za-z0-9_-] plus an optional [bot], exits 4
-# before any lane is read: an unresolved identity acts on nothing rather than
-# falling back to any author. The consumer must therefore run under the same
-# account its lanes write telemetry as.
-#
-# THE SHAPE CONSUMED. The producers (work-loop, babysit-loop) document
-# `restart_request` only as the field "where a budget or expiry hit records the
-# relaunch ask", and emit it as `null` in every published example; no non-null
-# shape is specified anywhere. This consumer therefore treats ANY non-null value
-# as a request, and additionally reads an optional object form
-# {"requested_at":..., "reason":..., "cycle":...} for reporting when one is
-# present. It never requires that form.
-#
-# THE COMMENT IS A SIGNAL, NEVER A TARGET. Lane names, prompts, models, efforts
-# and settings come from the operator's LOCAL config; the telemetry comment only
-# ever answers "did this configured lane ask?". A comment body is agent- and
-# user-writable, so nothing in it is interpolated into a command, a path, or a
-# repo — an issue comment can never name a lane the operator has not configured,
-# and every value read out of one is parsed by jq, never evaluated.
-#
-# RELAUNCH PREDICATE — a lane is restarted iff ALL hold:
-#   1. it is named in the resolved lane config (and in --lane, if given);
-#   2. its telemetry state block parses and `restart_request` is non-null, in a
-#      comment this binding is entitled to consume: the pinned instance's
-#      comment, or the legacy un-suffixed one. An instance-suffixed comment
-#      under an unpinned binding is another machine's writer — report-only
-#      (`unbound-instance`), because relaunching the LOCAL lane off a sibling's
-#      ask would start unintended instances on every stopped consumer;
-#   3. it is NOT currently running (`claude agents --json`, name match plus
-#      kind == "background", exactly lane-launcher.sh's own liveness test);
-#   4. the circuit breaker has room for it in the rolling window (counted in
-#      relaunch attempts, so a lane that keeps failing to come up stops).
-# Condition 3 makes the predicate self-clearing: after a relaunch the lane is
-# running, so a `restart_request` the relaunched lane has not yet rewritten
-# cannot fire a second restart — and the consumer never has to PATCH a telemetry
-# comment whose marker another writer identity owns.
-#
-# The relaunch delegates to `lane-launcher.sh restart <lane>`, which already
-# carries that lane's prompt file, --model, --effort, --settings (the
-# session-only autonomy-tier override) and plugin profile from the same config, so the lane's
-# existing launch shape and autonomy tier are respected by construction rather
-# than re-implemented here. `claude respawn` is deliberately NOT used: it
-# restarts a background session with the conversation intact
-# (https://code.claude.com/docs/en/cli-reference), and a restart-request exists
-# precisely because a FRESH context is the only reset a lane gets.
-#
-# ONE MUTATING RUN AT A TIME. `print-schedule` emits TWO scheduled tasks (a
-# poll and an ONLOGON companion), so at logon both fire and Task Scheduler's
-# per-task instance policy cannot serialize them. Unsynchronized, two runs read
-# the same breaker count, both relaunch, and one lane name ends up with two
-# `claude --bg` sessions — lane-launcher.sh's own running-lane guard is
-# same-process, and a just-launched session does not appear in
-# `claude agents --json` instantly. A `run` therefore holds an O_EXCL
-# sentinel (`<data-dir>/lanes/<repo-key>/.restart-consumer-lock`, the same idiom
-# as the observability prune's `.prune-in-progress`) across the whole
-# read -> decide -> relaunch -> append span, released on an EXIT trap. A run that
-# cannot take it skips cleanly: exit 0, one `lock-held` flag, no relaunch and no
-# telemetry write (the holder owns both). `check` and `--dry-run` mutate nothing
-# and take no lock.
-#
-# OBSERVABILITY. A `run` appends one JSONL row to
-# <data-dir>/lanes/<repo-key>/restart-consumer.jsonl per lane whose decision is
-# `restarted`, `failed`, `error` or `api-error`; the routine `no-request` / `no-state` /
-# `skipped-running` / `breaker-open` ticks are reported but NOT ledgered, so the
-# file grows with incidents rather than with the polling interval. `check` is
-# read-only and writes nothing. Every `run` also upserts the consumer's own
-# sentinel-marked telemetry comment (marker `harness-ops:restart-consumer`)
-# carrying the `lane:` / `last-cycle:` / `flags:` fields `morning-brief.sh`
-# already parses — so a consumer that stops running surfaces as a STALE lane in
-# the morning brief instead of becoming a second silent gap.
-#
 # Exit codes:
 #   0  ok (including "nothing asked for a restart", and a skipped locked tick)
 #   3  invalid argument / malformed config
@@ -198,8 +10,6 @@
 
 set -uo pipefail
 
-# jq on Git Bash can hand back CRLF-tainted values; strip them once, centrally
-# (the same wrapper telemetry-upsert.sh and machine-behavior.sh use).
 jq() { command jq "$@" | tr -d '\r'; }
 
 ACTION="check"
@@ -225,16 +35,49 @@ CONSUMER_MARKER="harness-ops:restart-consumer"
 CONSUMER_LANE="restart-consumer"
 SENTINEL_PREFIX="<!-- harness-ops:lane-telemetry marker="
 TASK_NAME="HarnessOps Lane Restart Consumer"
-# Below this Claude Code version --permission-prompts is an unknown option;
-# the same floor as lane-launcher.sh. https://code.claude.com/docs/en/headless
-# As of 2026-10-26; recheck when that page changes the flag's version floor, and change both files together.
 PERMISSION_PROMPTS_MIN_VERSION="2.1.259"
 
 err() { printf 'ERROR: %s\n' "$*" >&2; }
 warn() { printf 'WARN: %s\n' "$*" >&2; }
 info() { printf '%s\n' "$*"; }
 
-usage() { awk 'NR==1{next} /^#/{sub(/^# ?/,""); print; next} {exit}' "${BASH_SOURCE[0]}"; }
+usage() {
+  cat <<'EOF'
+restart-consumer.sh: consume lane restart-requests and relaunch the lanes that asked.
+Contract (relaunch predicate, write identity, telemetry binding): context/restart-consumer.md.
+
+Usage:
+  restart-consumer.sh [check]           read-only: report what WOULD restart
+  restart-consumer.sh run               relaunch the lanes that asked
+  restart-consumer.sh print-schedule    print the OS scheduler registration and removal commands
+A leading `consume-restarts` token is accepted and ignored.
+
+  --config FILE           lane config JSON (same resolution as lane-launcher.sh)
+  --repo DIR              repo root (default: git toplevel of the cwd)
+  --target-repo owner/name  repo holding the lane telemetry issues (default: `gh repo view`)
+  --lane NAME             restrict to this lane; repeatable (default: every configured lane)
+  --data-dir DIR          base dir for the run ledger (default: harness-ops plugin data)
+  --max-restarts N        relaunch attempts per lane per window (default 3; 0 disables)
+  --window-hours N        the breaker's rolling window in hours (default 24)
+  --interval-minutes N    poll interval baked into `print-schedule` (default 15; 1..999)
+  --telemetry-issue N     issue carrying this consumer's own status comment
+  --no-telemetry          skip the consumer's own telemetry upsert
+  --launcher PATH         lane-launcher.sh to relaunch through (default: the sibling script)
+  --agents-json FILE      session list instead of `claude agents --json` (tests)
+  --app-slug SLUG         GitHub App whose installation token gh runs under
+  --telemetry-json FILE   lane telemetry instead of `gh` (tests)
+  --now EPOCH             treat EPOCH as the current time (tests)
+  --dry-run               with `run`: decide and report; relaunch and write nothing
+  --help
+
+Exit codes:
+  0  ok (including "nothing asked for a restart", and a skipped locked tick)
+  3  invalid argument / malformed config
+  4  prerequisite missing (jq, gh, claude), or repo / config / write identity
+     unresolved, or the lock store is unusable
+  5  at least one lane could not be evaluated or relaunched
+EOF
+}
 
 check_optarg() {
   [[ -n "${2:-}" && "$2" != -* ]] && return 0
@@ -248,8 +91,7 @@ check_uint() {
   return 1
 }
 
-# Stores one value-taking option; the integer options are validated first.
-set_opt() { # <flag> <value>
+set_opt() {
   case "$1" in
   --config) CONFIG="$2" ;;
   --repo) REPO="$2" ;;
@@ -278,9 +120,6 @@ parse_args() {
   while (($#)); do
     case "$1" in
     consume-restarts)
-      # The skill-level action token (`/harness-ops:lanes consume-restarts ...`):
-      # SKILL.md forwards $ARGUMENTS verbatim, so strip it and read the real
-      # action (check/run/print-schedule) from the tokens that follow.
       ;;
     check | run | print-schedule)
       ((seen_action)) && {
@@ -301,8 +140,6 @@ parse_args() {
       set_opt "${1%%=*}" "${1#*=}"
       ;;
     --app-slug)
-      # An empty value is allowed: the lanes skill always passes the rendered
-      # lane_app_slug option, which is empty when the operator left it unset.
       if (($# < 2)) || [[ "$2" == -* ]]; then
         err "option '$1' requires a non-option argument"
         exit 3
@@ -328,8 +165,6 @@ parse_args() {
     esac
     shift
   done
-  # An unrendered `${user_config.lane_app_slug}` placeholder means the option is
-  # unset; treat it, like an empty value, as no slug.
   [[ "$APP_SLUG" == "\${user_config."* ]] && APP_SLUG=""
   if [[ -n "$APP_SLUG" && ! "$APP_SLUG" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
     err "--app-slug must be a GitHub App slug, got: $APP_SLUG"
@@ -341,7 +176,6 @@ parse_args() {
   fi
 }
 
-# --- Prerequisites ------------------------------------------------------------
 require_jq() {
   command -v jq >/dev/null 2>&1 || {
     err "jq not found (required)"
@@ -349,12 +183,6 @@ require_jq() {
   }
 }
 
-# Does every telemetry read this run performs come from --telemetry-json? Then
-# nothing goes off the network: no gh binary is needed and no target repo has to
-# be resolved. A real `run` still upserts its OWN status comment over the
-# network, so the action and the two suppressors are part of the test. One
-# definition, because gh's prerequisite check and the target-repo resolution
-# must never disagree about whether this run touches the forge.
 telemetry_fully_fixtured() {
   [[ -n "$TELEMETRY_JSON_FILE" ]] || return 1
   [[ "$ACTION" != "run" ]] || ((NO_TELEMETRY)) || ((DRY_RUN))
@@ -368,8 +196,6 @@ require_gh() {
   }
 }
 
-# The login whose comments count as lane telemetry (WRITE IDENTITY in the
-# header). Returns 1 when none resolves; the caller acts on nothing.
 resolve_write_identity() {
   local who=""
   if who="$(gh api user --jq '.login + " " + .type' 2>/dev/null | tr -d '\r')" && [[ "$who" == *" User" ]]; then
@@ -400,7 +226,6 @@ require_claude() {
   }
 }
 
-# --- Resolution ---------------------------------------------------------------
 resolve_repo() {
   if [[ -n "$REPO" ]]; then
     [[ -d "$REPO" ]] || {
@@ -419,10 +244,6 @@ resolve_repo() {
 resolve_config() {
   if [[ -z "$CONFIG" ]]; then
     CONFIG="${HARNESS_OPS_LANES_CONFIG:-$REPO/.work/lanes/lanes.json}"
-    # Same default-only fallback lane-launcher.sh applies (see its header): a
-    # checkout that predates the `lanes/` concern home keeps working, loudly.
-    # This consumer runs unattended on an OS schedule, so a hard failure here
-    # would silently stop honoring restart requests until someone read a log.
     if [[ -z "${HARNESS_OPS_LANES_CONFIG:-}" && ! -f "$CONFIG" && -f "$REPO/.work/lanes.json" ]]; then
       warn "reading the pre-move lane config at $REPO/.work/lanes.json"
       warn "  move it (and the lane prompt files) to $REPO/.work/lanes/ — this fallback is temporary"
@@ -445,9 +266,6 @@ resolve_config() {
   }
 }
 
-# `owner/name`, nothing else — the value reaches a gh API path, so a traversal
-# or option-looking value must never get there. The character class admits `.`,
-# so dot-only segments (`../evil`) need their own rejection.
 valid_repo_slug() {
   [[ "$1" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || return 1
   local owner="${1%%/*}" name="${1#*/}"
@@ -457,9 +275,6 @@ valid_repo_slug() {
 resolve_target_repo() {
   if [[ -z "$TARGET_REPO" ]]; then
     telemetry_fully_fixtured && return 0
-    # `gh repo view` takes an [<owner>/]<repo> argument, never a path: given a
-    # directory it parses the leading path segment as a HOST and tries to reach
-    # it. The repo is selected by the working directory instead, so run it there.
     TARGET_REPO="$(cd "$REPO" && gh repo view --json nameWithOwner -q .nameWithOwner 2>/dev/null)" || TARGET_REPO=""
   fi
   [[ -n "$TARGET_REPO" ]] || {
@@ -472,9 +287,6 @@ resolve_target_repo() {
   }
 }
 
-# Base data dir: --data-dir, else $CLAUDE_PLUGIN_DATA when its last path segment
-# names this plugin (another plugin's SessionStart hook can export its own data
-# dir under that name), else ~/.claude/plugins/data/harness-ops.
 resolve_data_dir() {
   local base="$DATA_DIR_OVERRIDE" seg="${CLAUDE_PLUGIN_DATA:-}"
   if [[ -z "$base" ]]; then
@@ -489,14 +301,6 @@ resolve_data_dir() {
   printf '%s/lanes' "${base%/}"
 }
 
-# The same injective, canonical-path key lane-launcher.sh uses for its
-# launch-commit markers: the data dir is plugin-wide, but a lane name is only
-# unique within one repo, so `work` in two checkouts must not share one ledger.
-# `-C "$REPO"` for the same reason the launcher scopes it — an unscoped
-# `git hash-object` keys on the CALLER's object format, so a SHA-256 target read
-# from a SHA-1 cwd would file its ledger under a key nothing else derives. The
-# anchor is the existing $REPO directory rather than the hashed $top, which may
-# be a path that does not resolve.
 REPO_MARKER_KEY=""
 repo_marker_key() {
   if [[ -z "$REPO_MARKER_KEY" ]]; then
@@ -509,29 +313,14 @@ repo_marker_key() {
   printf '%s' "$REPO_MARKER_KEY"
 }
 
-# The data-dir-relative tail of `ledger_path`. The absolute form is machine-local
-# and belongs in this machine's own diagnostics; anything published to the forge
-# uses this instead.
 ledger_relpath() { printf '%s/restart-consumer.jsonl' "$(repo_marker_key)"; }
 
 ledger_path() { printf '%s/%s' "$(resolve_data_dir)" "$(ledger_relpath)"; }
 
-# --- Cross-process lock -------------------------------------------------------
 LOCK_DIR=""
 OWN_LOCK=0
-# A run hard-killed mid-flight (reboot, Task Scheduler kill) never reaches its
-# EXIT trap, so an abandoned lock must eventually be reclaimed — without that, a
-# 15-minute unattended schedule wedges silently forever, the exact failure mode
-# this consumer exists not to become. Age alone is the WRONG discriminator: a
-# legitimate run can outlive any bound, because `lane-launcher.sh` performs an
-# unbounded `git pull --ff-only` and `claude plugin marketplace update` before
-# launch. So age is necessary but not sufficient — the holder's liveness decides,
-# and the age bound only gates when we bother to ask.
 LOCK_STALE_SECONDS=3600
 
-# Best-effort teardown: every file a lock holder may have written, then the
-# directory itself. One definition, so a lock file added to the writer can never
-# be forgotten in one of the two removers (the EXIT release and the reclaim).
 remove_lock_dir() {
   rm -f "$LOCK_DIR/acquired-at" "$LOCK_DIR/owner-pid" "$LOCK_DIR/boot-id" 2>/dev/null || true
   rmdir "$LOCK_DIR" 2>/dev/null || true
@@ -544,9 +333,6 @@ release_lock() {
   remove_lock_dir
 }
 
-# A lock file holding a single non-negative integer. Missing, unreadable, or
-# holding anything else all read as 0, which the callers treat as "not recorded"
-# rather than as a value.
 lock_uint_file() {
   local value=""
   value="$(tr -d '\r\n' <"$1" 2>/dev/null)" || value=""
@@ -557,11 +343,6 @@ lock_uint_file() {
 lock_stamp() { lock_uint_file "$LOCK_DIR/acquired-at"; }
 lock_owner_pid() { lock_uint_file "$LOCK_DIR/owner-pid"; }
 
-# An identity for THIS boot of the machine, recorded beside the owner PID.
-# `kill -0` proves only that SOME process currently holds that number: after the
-# reboot this reclaim path exists to handle, the PID is very likely reused by an
-# unrelated long-lived process, and trusting it would wedge every later tick
-# exactly as before. A boot identity settles the reboot case outright.
 boot_identity() {
   [[ -n "${RESTART_CONSUMER_FAKE_BOOT_ID-}" ]] && {
     printf '%s' "$RESTART_CONSUMER_FAKE_BOOT_ID"
@@ -576,27 +357,16 @@ boot_identity() {
 
 lock_boot_id() { tr -d '\r\n' <"$LOCK_DIR/boot-id" 2>/dev/null || printf ''; }
 
-# The absolute ceiling. Reached only when boot identity is unavailable on this
-# platform, where a live PID cannot be distinguished from a reused one — so the
-# wedge is bounded rather than trusted away. Far beyond any real run.
 LOCK_HARD_STALE_SECONDS=86400
 
-# Is the recorded lock owner still the process that took the lock? Overridable
-# so the tests can drive every branch without spawning real processes: a SET
-# RESTART_CONSUMER_FAKE_ALIVE_PIDS is the whole live set, so set-but-empty means
-# no pid is alive and `kill -0` never consults the host's real process table.
 lock_owner_alive() {
   local pid="$1" age="$2" recorded_boot current_boot
   ((pid > 0)) || return 1
 
   recorded_boot="$(lock_boot_id)"
   if current_boot="$(boot_identity)" && [[ -n "$recorded_boot" ]]; then
-    # Booted since the lock was taken: the owner cannot have survived, whatever
-    # process wears its PID now.
     [[ "$recorded_boot" == "$current_boot" ]] || return 1
   else
-    # No boot identity to compare. A live PID is suggestive, not proof, so it
-    # only defers the reclaim — it can never defer it forever.
     ((age >= LOCK_HARD_STALE_SECONDS)) && return 1
   fi
 
@@ -607,46 +377,20 @@ lock_owner_alive() {
   kill -0 "$pid" 2>/dev/null
 }
 
-# Take the lock: the directory, then an owner-pid token created inside it with
-# noclobber (bash's own O_EXCL open). The directory alone is not an arbiter
-# everywhere: uutils mkdir (Ubuntu 25.10+) lets two racers both succeed, so the
-# token decides, the same way on GNU, uutils, macOS and Git Bash (which has no
-# flock). The subshell keeps noclobber off for every later write.
-#   Claim: two racing uutils `mkdir` calls on one path can both succeed; a noclobber `>` cannot.
-#   Basis: measured with `mkdir (uutils coreutils) 0.10.0` on Ubuntu 26.04 (both won 62 of 200
-#     races; GNU mkdir 0 of 200); bash's redir.c `noclobber_open` creates with O_EXCL.
-#   As of: 2026-09-28.
-#   Recheck: a uutils release that makes mkdir fail on an existing directory under a race.
 take_lock_dir() {
   mkdir "$LOCK_DIR" 2>/dev/null &&
     (set -o noclobber && printf '%s\n' "$$" >"$LOCK_DIR/owner-pid") 2>/dev/null
 }
 
-# take_lock_dir is the atomic arbiter: exactly one process wins it, so a loser
-# never mutates. The stamp file dates the lock for the abandonment check.
-# A loser that finds NO stamp adopts one at `now` rather than reclaiming: the
-# holder may have won the mkdir microseconds ago and not written its stamp yet,
-# and stealing that lock is the very duplication this guards. Stamping instead
-# ages the lock out on a later tick, so a hard-killed run bounds the wedge at
-# LOCK_STALE_SECONDS after it is first observed instead of wedging forever.
-# Returns 0 = acquired, 1 = another run holds it, 2 = the lock STORE is unusable.
-# Distinguishing 2 from 1 matters more than it looks: an unattended consumer whose
-# data dir is mistyped, unwritable, or on an unavailable volume would otherwise
-# report `lock-held` and exit 0 forever, so Task Scheduler records healthy ticks
-# while no lane is ever processed.
 acquire_lock() {
   local now="$1" stamp pid parent boot_now
   LOCK_DIR="$(dirname "$(ledger_path)")/.restart-consumer-lock"
   parent="$(dirname "$LOCK_DIR")"
-  # The data dir does not exist until the first ledger write, so materialize the
-  # parent — but a failure here is a storage fault, never contention.
   if ! mkdir -p "$parent" 2>/dev/null && [[ ! -d "$parent" ]]; then
     err "cannot create the lock directory's parent: $parent"
     return 2
   fi
   if ! take_lock_dir; then
-    # Not taken. Contention writes a stamp we can read; a storage fault does
-    # not even leave a directory behind.
     if [[ ! -d "$LOCK_DIR" ]]; then
       err "cannot create the lock directory: $LOCK_DIR"
       return 2
@@ -658,8 +402,6 @@ acquire_lock() {
       return 1
     fi
     ((now - stamp < LOCK_STALE_SECONDS)) && return 1
-    # Aged out — but age alone never reclaims. A recorded owner that is still
-    # running means a legitimately long run, not an abandoned lock.
     if lock_owner_alive "$pid" "$((now - stamp))"; then
       warn "lock held since epoch $stamp is past the stale bound but its owner (pid $pid) is alive on the same boot; leaving it held: $LOCK_DIR"
       return 1
@@ -672,16 +414,12 @@ acquire_lock() {
   trap release_lock EXIT
   write_lock_file "$LOCK_DIR/acquired-at" "$now" || return 2
   write_lock_file "$LOCK_DIR/owner-pid" "$$" || return 2
-  # Best-effort: absent on platforms without a boot identity, which the
-  # liveness check handles by bounding the wedge instead of trusting the PID.
   if boot_now="$(boot_identity)"; then
     write_lock_file "$LOCK_DIR/boot-id" "$boot_now" || return 2
   fi
   return 0
 }
 
-# A lock whose stamp cannot be persisted is not a lock — silently continuing
-# would let the next tick reclaim it as unstamped while this run is live.
 write_lock_file() {
   local path="$1" value="$2"
   printf '%s\n' "$value" >"$path" 2>/dev/null && return 0
@@ -723,14 +461,8 @@ iso_utc() {
   }'
 }
 
-# A value read out of an untrusted comment that ends up in a report row or a
-# public comment body: one line, no table-breaking pipes, bounded length.
 sanitize() { printf '%s' "$1" | tr -d '\r\n|`' | cut -c1-200; }
 
-# --- Session list -------------------------------------------------------------
-# Loaded once in the main shell so every lane sees one consistent snapshot, and
-# so a genuine live-list failure aborts instead of being coerced to an empty list
-# — which would make every lane look stopped and relaunch lanes that are alive.
 SESSIONS_JSON=""
 
 read_sessions() {
@@ -760,9 +492,6 @@ lane_is_running() {
   [[ -n "$id" ]]
 }
 
-# A just-launched background session does not appear in the list instantly, so
-# confirmation retries briefly. Tolerant: a failed re-read leaves the previous
-# snapshot in place rather than aborting a run that has already relaunched.
 confirm_running() {
   local lane="$1" i
   for i in 1 2 3 4 5; do
@@ -774,22 +503,9 @@ confirm_running() {
   return 1
 }
 
-# --- Config + telemetry reads -------------------------------------------------
 lane_field() { jq -r --argjson i "$1" --arg k "$2" '.lanes[$i][$k] // ""' "$CONFIG"; }
 lane_telemetry_field() { jq -r --argjson i "$1" --arg k "$2" '(.lanes[$i].telemetry // {})[$k] // ""' "$CONFIG"; }
 
-# Does this comment carry the marker this lane binds? A lane's marker names a
-# WRITER, not a lane type (#1295): concurrent instances of one lane write
-# `<marker>@<instance>`, so an exact-equality match on the bare marker would stop
-# seeing every comment the moment lanes adopted the suffix — a restart consumer
-# that silently never restarts. Matching rules, in order:
-#   - no bound marker      -> any sentinel comment (the documented default)
-#   - bound marker with @  -> that instance and only it
-#   - bound marker, no @   -> that lane type, any instance, unless `instance` is
-#                             also bound, which pins it to one
-# The trailing ` ` / `@` boundary is what keeps `work-items:work-loop` from
-# matching `work-items:work-loop-v2`, the same superstring rule the upsert's own
-# fallback lookarounds enforce.
 lane_comment_marker_matches() {
   local body="$1" marker="$2" instance="$3"
   [[ -n "$marker" ]] || return 0
@@ -805,21 +521,6 @@ lane_comment_marker_matches() {
   esac
 }
 
-# The issue search is a fuzzy full-text match, so the title is re-checked
-# EXACTLY here: a fuzzy hit on some other issue would point the consumer at an
-# unrelated comment stream. The search term deliberately omits the colon, which
-# GitHub search would read as a qualifier separator.
-# Returns 1 — never empty output — when the search failed or its answer is not
-# marked complete (`incomplete_results` other than false; REST search reports
-# it, `gh issue list --search` does not), for the same reason
-# `lane_comment_bodies` does: empty means "no issue carries this title", and
-# coercing a failed or partial read to it would report an unreachable forge as
-# a routine `no-telemetry` tick, leaving an unattended consumer apparently
-# healthy while it never observes that lane's request. The caller turns a
-# non-zero return into its own `api-error` decision.
-# Anyone can open an issue with a lane's title, so only one opened by the write
-# identity, or by the lane's `telemetry.author` ($3) when set, is selected; every
-# other exact-title match is skipped and named in a warning.
 resolve_issue_by_title() {
   local repo="$1" title="$2" author="${3:-}" raw foreign
   raw="$(gh api --method GET search/issues -f per_page=100 \
@@ -834,32 +535,18 @@ resolve_issue_by_title() {
      | sort_by(.number) | .[0].number // empty' <<<"$raw" 2>/dev/null || return 1
 }
 
-# Every comment body on one lane's telemetry issue, as a JSON array of strings.
-# Returns 1 — never an empty list — when the read itself failed: "[]" means "the
-# issue has no comments", and coercing an API failure to it would report a
-# transient `gh` blip as `no-state`, indistinguishable from "the lane did not
-# ask". The caller turns a non-zero return into its own `api-error` decision.
 lane_comment_bodies() {
   local lane="$1" repo="$2" issue="$3" raw
   if [[ -n "$TELEMETRY_JSON_FILE" ]]; then
-    # The fixture read gets the same contract as the network read: a missing,
-    # unreadable, malformed, or wrongly-shaped file is a FAILURE, not an empty
-    # comment list. An unconditional `return 0` here would report `no-state` —
-    # indistinguishable from "the lane did not ask".
     jq -c --arg l "$lane" '[ (.[$l] // [])[] | .body // "" ]' "$TELEMETRY_JSON_FILE" 2>/dev/null || return 1
     return 0
   fi
-  # Only the write identity's comments: a lookalike sentinel from any other
-  # author is never lane state.
   raw="$(gh api --paginate "repos/$repo/issues/$issue/comments?per_page=100" \
     -q '.[] | {body, login: .user.login}' 2>/dev/null)" || return 1
   printf '%s' "$raw" | jq -s -c --arg me "$WRITE_IDENTITY" \
     '[ .[] | select(.login == $me) | .body // "" ]' 2>/dev/null || return 1
 }
 
-# The first fenced code block that parses as a JSON object carrying a
-# `restart_request` key. The body is untrusted text: it is only ever parsed by
-# jq, never evaluated, and nothing from it becomes a command argument.
 extract_state_block() {
   local line block="" inblock=0
   while IFS= read -r line; do
@@ -882,16 +569,6 @@ extract_state_block() {
   return 1
 }
 
-# --- Circuit breaker + ledger -------------------------------------------------
-# Counts relaunch ATTEMPTS, not successes: both `restarted` and `failed` spend
-# breaker budget. A launcher that exits non-zero, or one that returns success
-# while the background lane never appears — the scheduler-spawned Windows hazard
-# this consumer confirms rather than trusts — writes `failed`, and counting only
-# `restarted` would leave the breaker permanently closed on exactly that failure,
-# re-attempting a pull, a marketplace refresh, and a launch on every tick
-# forever. `error` and `api-error` are deliberately NOT counted: they are read
-# failures that precede any launch, so a transient forge outage must not spend a
-# lane's restart budget.
 attempts_in_window() {
   local lane="$1" now="$2" ledger cutoff
   ledger="$(ledger_path)"
@@ -900,10 +577,6 @@ attempts_in_window() {
     return 0
   }
   cutoff=$((now - WINDOW_HOURS * 3600))
-  # FAIL CLOSED. A torn or truncated line makes the whole `jq -s` slurp fail, and
-  # returning 0 there would silently restore the full restart budget on exactly
-  # the ledger a crashed or racing writer left behind — turning a corrupt file
-  # into an unbounded restart loop. Report the budget as spent and say why.
   jq -s -r --arg l "$lane" --argjson c "$cutoff" \
     '[ .[] | select(.lane == $l and (.decision == "restarted" or .decision == "failed") and (.epoch // 0) >= $c) ] | length' \
     "$ledger" 2>/dev/null || {
@@ -912,19 +585,6 @@ attempts_in_window() {
   }
 }
 
-# Ledgered decisions. The routine ticks (`no-request`, `no-state`,
-# `skipped-running`, `breaker-open`, `no-telemetry`, `would-restart`) are the
-# overwhelming majority on a 15-minute schedule — ledgering them would add ~190
-# rows/day forever to a file the breaker re-slurps once per lane per tick. Only
-# the incidents are durable; the full per-tick picture is the report and the
-# telemetry comment. `restarted` and `failed` are load-bearing: together they ARE
-# the breaker's memory, since the breaker bounds attempts rather than successes.
-#
-# Deliberately filter-on-write rather than prune-on-write: the breaker's verdict
-# is a function of the ledger, so a bug in a rewrite-the-whole-file pruner erases
-# the record that a lane already burned its budget — the same fail-open the
-# corrupt-ledger guard above exists to prevent. Append-only keeps every write a
-# single atomic O_APPEND line, and incidents alone are self-limiting.
 ledger_decision() {
   case "$1" in
   restarted | failed | error | api-error) return 0 ;;
@@ -932,9 +592,6 @@ ledger_decision() {
   esac
 }
 
-# Can the ledger take an append right now? Probed before a relaunch so a lane
-# whose attempt could not be counted is never launched. `check` and dry runs
-# never append, so nothing is claimed about them.
 ledger_writable() {
   local ledger dir
   ((DRY_RUN)) && return 0
@@ -942,45 +599,25 @@ ledger_writable() {
   ledger="$(ledger_path)"
   dir="$(dirname "$ledger")"
   mkdir -p "$dir" 2>/dev/null || [[ -d "$dir" ]] || return 1
-  # O_APPEND of nothing: creates the file when absent, proves writability when
-  # present, and adds no row either way. The redirection runs in a subshell so
-  # that bash's OWN failure message — which `2>/dev/null` on the command cannot
-  # suppress, because the shell emits it before the command runs — stays out of
-  # the operator's report.
   (: >>"$ledger") 2>/dev/null || return 1
 }
 
-# Returns non-zero when the row could not be persisted. The breaker
-# (`--max-restarts`) is computed by querying this ledger, so an attempt that
-# never lands is an attempt the breaker cannot count: a launcher that keeps
-# failing would be retried on every polling tick, forever, without reaching the
-# cap. Persistence failure is therefore a run failure, not a warning.
 append_ledger() {
   local row="$1" ledger dir
   ((DRY_RUN)) && return 0
-  # `check` is documented read-only, and the Verify step in
-  # context/restart-consumer.md distinguishes a real `run` from a `check`-only
-  # schedule by whether anything was written — a ledger row from a `check` would
-  # satisfy that check on the exact failure it exists to catch.
   [[ "$ACTION" == "run" ]] || return 0
   ledger="$(ledger_path)"
   dir="$(dirname "$ledger")"
-  # Subshell for the same reason as ledger_writable: bash reports a failed
-  # redirection itself, before the command runs, so `2>/dev/null` on printf
-  # alone would still leak the message into the report.
   if ! mkdir -p "$dir" 2>/dev/null || ! (printf '%s\n' "$row" >>"$ledger") 2>/dev/null; then
     err "run ledger write failed: $ledger"
     return 1
   fi
 }
 
-# --- Report accumulation ------------------------------------------------------
 declare -a REPORT_ROWS=()
 declare -a FLAGS=()
 EXIT_STATUS=0
 
-# Propagates append_ledger's status so a caller that is about to mutate (relaunch)
-# can refuse when its attempt could not be recorded.
 record() {
   local lane="$1" decision="$2" detail="$3" request="$4" now="$5"
   REPORT_ROWS+=("| $lane | $decision | $detail |")
@@ -996,7 +633,6 @@ fail_lane() {
   EXIT_STATUS="$2"
 }
 
-# --- Per-lane evaluation ------------------------------------------------------
 lane_selected() {
   ((${#TARGET_LANES[@]})) || return 0
   local t
@@ -1027,8 +663,6 @@ process_lane() {
     return 0
   fi
   if [[ -z "$issue" && -z "$TELEMETRY_JSON_FILE" ]]; then
-    # The same check lane-launcher.sh applies to `telemetry.author`: a login,
-    # never a bot account, which names no single writer.
     author="$(lane_telemetry_field "$idx" author)"
     if [[ -n "$author" && ! "$author" =~ ^[A-Za-z0-9][A-Za-z0-9-]*$ ]]; then
       record "$lane" "error" "telemetry.author is not a GitHub user login: $(sanitize "$author")" null "$now"
@@ -1064,12 +698,6 @@ process_lane() {
     state="$(extract_state_block "$body")" || continue
     found=1
     req="$(jq -c '.restart_request' <<<"$state")"
-    # An instance-suffixed comment names ONE machine's writer. Unless this
-    # binding pins that instance (`instance` key, or the suffix written into
-    # `marker`), its request is a SIBLING's: relaunching the locally
-    # configured lane because another machine's writer asked would start
-    # unintended instances on every stopped consumer that shares the issue.
-    # Sibling requests are surfaced (`unbound-instance`), never acted on.
     comment_marker="${body#*"$SENTINEL_PREFIX"}"
     comment_marker="${comment_marker%%[[:space:]]*}"
     if [[ "$comment_marker" == *@* && "$marker" != *@* && -z "$instance" ]]; then
@@ -1079,10 +707,6 @@ process_lane() {
       fi
       continue
     fi
-    # A bound writer asking is a request: the predicate's not-running
-    # condition (3) is what keeps one relaunch from firing twice, and a lane
-    # whose only asking bound comment sits further down the issue — behind a
-    # quiet one — would otherwise never be restarted at all.
     request="$req"
     [[ "$request" != "null" ]] && break
   done
@@ -1100,8 +724,6 @@ process_lane() {
     return 0
   fi
 
-  # The optional object form is read for the REPORT only; the predicate stays
-  # "non-null", which is the shape the producers actually emit.
   reason="$(sanitize "$(jq -r '
     if type == "object"
     then (.reason // "unspecified" | tostring)
@@ -1125,15 +747,6 @@ process_lane() {
     return 0
   fi
 
-  # Recheck liveness against a FRESH list immediately before mutating. The
-  # snapshot above is loaded once per run, so a lane started since — by a
-  # concurrent operator invocation — still reads as stopped. `lane-launcher.sh
-  # restart` deliberately STOPS a running lane before relaunching it, so acting
-  # on the stale snapshot would interrupt a healthy session, which the documented
-  # "not currently running" predicate promises never to do.
-  # Fail CLOSED on a failed re-read. `read_sessions && lane_is_running` would
-  # fall through to the launcher on a transient read failure, still holding the
-  # stale snapshot — which is precisely the race this recheck exists to prevent.
   if ! read_sessions; then
     record "$lane" "error" "could not re-read the session list immediately before relaunching; not restarting on a stale snapshot" "$request" "$now" || true
     fail_lane "session-recheck-failed($lane)" 5
@@ -1144,11 +757,6 @@ process_lane() {
     return 0
   fi
 
-  # Prove the outcome row can land BEFORE mutating. The breaker counts attempts
-  # by querying the ledger, so a relaunch whose `restarted`/`failed` row cannot
-  # be written is invisible to `--max-restarts` — a launcher that keeps failing
-  # would be retried on every polling tick forever. Probing first keeps the
-  # breaker's memory intact without adding a second row per attempt.
   if ! ledger_writable; then
     record "$lane" "error" "run ledger is not writable; refusing to relaunch a lane whose attempt cannot be counted" "$request" "$now" || true
     fail_lane "ledger-unwritable($lane)" 5
@@ -1165,13 +773,6 @@ process_lane() {
     return 0
   fi
 
-  # Confirm rather than trust: whether a `claude --bg` session launched from a
-  # scheduler-spawned parent survives that parent is unverified on Windows, so a
-  # relaunch that does not come up must be loud here, not silent.
-  # The preflight probe cannot cover this: storage can go away DURING the
-  # launcher's unbounded work. A relaunch that happened but left no breaker row
-  # would let later ticks restart the lane again without spending budget, so a
-  # post-mutation append failure fails the lane even though the restart worked.
   if confirm_running "$lane"; then
     if ! record "$lane" "restarted" "$reason" "$request" "$now"; then
       err "lane '$lane' WAS relaunched but its breaker row could not be written; later ticks cannot count this attempt"
@@ -1184,31 +785,15 @@ process_lane() {
   fi
 }
 
-# --- The consumer's own telemetry --------------------------------------------
 upsert_own_telemetry() {
   local now="$1" issue body flagstr row upsert
   ((NO_TELEMETRY || DRY_RUN)) && return 0
   [[ "$ACTION" == "run" ]] || return 0
 
   issue="$TELEMETRY_ISSUE"
-  # Default: the issue morning-brief.sh itself reads, discovered with that
-  # reader's own title search — landing the comment there is what makes the
-  # consumer visible in the brief with no reader change. Fall back to an exact
-  # `Lane telemetry: restart-consumer` title (local convention; the brief only
-  # reads it when pinned to it via its own --telemetry-issue).
-  #
-  # The search term and the selector below must stay BYTE-IDENTICAL to
-  # morning-brief.sh's resolve_telemetry_issue, the --limit included (the
-  # brief's TELEMETRY_SEARCH_LIMIT): they are what make both tools
-  # resolve the SAME issue, and a silent divergence would post this consumer's
-  # status where the brief never looks. Not factored into a shared source (the
-  # two skills are independently installable), so restart-consumer.test.sh
-  # asserts the literal appears verbatim in both files.
   [[ -n "$issue" ]] || issue="$(gh issue list --repo "$TARGET_REPO" --state open \
     --search "loop-lane telemetry running per-lane status in:title" --limit 100 \
     --json number 2>/dev/null | jq -r 'sort_by(.number) | .[0].number // empty')"
-  # A --telemetry-json run skips the identity read, and the title fallback
-  # selects by it; an unresolved identity selects nothing.
   if [[ -z "$issue" && -z "$WRITE_IDENTITY" ]] && ! resolve_write_identity; then
     WRITE_IDENTITY=""
   fi
@@ -1232,11 +817,6 @@ flags: $flagstr
 |---|---|---|"
   for row in "${REPORT_ROWS[@]}"; do body+="
 $row"; done
-  # The ledger path is machine-local and this comment is as visible as the
-  # repository is: a default path carries the operator's home-directory user
-  # name, and a --data-dir override can carry internal host or organization
-  # names. Name the file relative to whatever data dir the reader's own machine
-  # resolves, never the absolute path this run used.
   body+="
 
 Run ledger: \`<data-dir>/$(ledger_relpath)\` on the machine running this consumer."
@@ -1252,54 +832,27 @@ Run ledger: \`<data-dir>/$(ledger_relpath)\` on the machine running this consume
     warn "the consumer's telemetry upsert failed (the restarts themselves are unaffected)"
 }
 
-# The run line an operator (or a log scraper) greps for, then the decision
-# table's head. A lock-skipped tick prints the same shape as a full run, so both
-# report as the same document rather than two dialects of one.
 print_report_header() {
   info "restart-consumer: $ACTION on ${TARGET_REPO:-<fixtures>} at $(iso_utc "$1")"
   info "| lane | decision | detail |"
   info "|---|---|---|"
 }
 
-# --- print-schedule -----------------------------------------------------------
 action_print_schedule() {
   local self claude_bin run_cmd win_repo win_claude data_dir opts opts_sq perm_flags cli_ver
   self="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SOURCE[0]}")"
-  # Behavior-affecting options must survive into every emitted command. This
-  # action runs BEFORE resolve_config/resolve_target_repo, so these hold exactly
-  # what the operator passed — empty means "defaulted", and a defaulted option is
-  # the one case it is safe to omit. Dropping a passed one would silently
-  # schedule a run against `<repo>/.work/lanes/lanes.json` and the checkout's own
-  # repository: a different lane configuration and a different telemetry
-  # repository than the command that generated it.
   opts=""
   [[ -n "$CONFIG" ]] && opts+=" --config $CONFIG"
   [[ -n "$TARGET_REPO" ]] && opts+=" --target-repo $TARGET_REPO"
   [[ -n "$APP_SLUG" ]] && opts+=" --app-slug $APP_SLUG"
-  # Single-quoted variant for the cron and offline forms, which quote their args.
   opts_sq=""
   [[ -n "$CONFIG" ]] && opts_sq+=" --config '$CONFIG'"
   [[ -n "$TARGET_REPO" ]] && opts_sq+=" --target-repo '$TARGET_REPO'"
   [[ -n "$APP_SLUG" ]] && opts_sq+=" --app-slug '$APP_SLUG'"
-  # The offline form's --data-dir must be COPY-PASTEABLE, because the warning
-  # under it is that a second data dir splits the breaker ledger. When the caller
-  # passed one, echo it back; otherwise keep the placeholder that says what to
-  # substitute.
   data_dir="${DATA_DIR_OVERRIDE:-<the CLAUDE_PLUGIN_DATA dir skill runs use>}"
   claude_bin="$(command -v claude 2>/dev/null)" || claude_bin="claude"
-  # Windows-form paths for the schtasks payload: cmd.exe cannot use the
-  # MSYS-form paths Git Bash resolves (`/c/...`), and cygpath -w also restores
-  # the real claude.exe name behind the extensionless shim `command -v` finds.
   win_repo="$(cygpath -w "$REPO" 2>/dev/null)" || win_repo="$REPO"
   win_claude="$(cygpath -w "$claude_bin" 2>/dev/null)" || win_claude="$claude_bin"
-  # `run` is load-bearing: the script's default action is the read-only
-  # `check`, so a schedule registered without `run` would report forever and
-  # never relaunch anything.
-  # The permission posture is stated in the command, as lane-launcher.sh's
-  # build_lane_flags states it, not inherited from whatever defaultMode the
-  # user's settings carry: explicit auto, never bypassPermissions, plus
-  # --permission-prompts none from the CLI version that accepts it (older
-  # CLIs reject it; an unreadable version omits it, as the launcher does).
   perm_flags="--permission-mode auto"
   cli_ver="$("$claude_bin" --version 2>/dev/null | tr -d '\r' | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)" || cli_ver=""
   if [[ -n "$cli_ver" ]] && awk -v a="$cli_ver" -v b="$PERMISSION_PROMPTS_MIN_VERSION" 'BEGIN {
@@ -1364,7 +917,6 @@ bash '$self' run --repo '$REPO' --data-dir '$data_dir'${opts_sq}
 EOF
 }
 
-# --- Main ---------------------------------------------------------------------
 main() {
   parse_args "$@"
   require_jq
@@ -1386,13 +938,8 @@ main() {
   local now n i lock_rc=0
   now="$(now_epoch)"
 
-  # Held across the whole read -> decide -> relaunch -> append span, and across
-  # the telemetry upsert, so a losing tick writes nothing at all. Only a real
-  # `run` mutates, so only a real `run` contends.
   if [[ "$ACTION" == "run" ]] && ((!DRY_RUN)); then
     acquire_lock "$now" || lock_rc=$?
-    # 2 = the lock store itself is unusable. Exiting 0 here would let an
-    # unattended schedule log healthy ticks forever while processing nothing.
     if ((lock_rc == 2)); then
       err "restart-consumer: the lock store is unusable — not a held lock; failing rather than reporting a skipped tick"
       exit 4
@@ -1419,7 +966,6 @@ main() {
   exit "$EXIT_STATUS"
 }
 
-# Sourceable, so the tests can race the lock arbiter directly.
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   main "$@"
 fi

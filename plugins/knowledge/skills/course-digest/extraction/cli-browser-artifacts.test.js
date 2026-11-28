@@ -36,7 +36,6 @@ const lesson = (position, title, lectureId, duration = "5m 0s") => ({
   status: "pending",
 });
 
-/** Run a CLI in a child whose `playwright` import is the scripted stub. */
 function runBrowserCli(script, args, evaluateRules) {
   const scratch = tempDir("cli-browser-");
   const fixture = path.join(scratch, "stub-fixture.json");

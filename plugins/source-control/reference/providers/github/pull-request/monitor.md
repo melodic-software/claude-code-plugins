@@ -60,8 +60,11 @@ because a changed query string gets a new ETag. Raise `--interval <seconds>` (de
 when the [API budget](../README.md#api-budget) arithmetic says so. `--once` exits 0 after the first poll that emits
 a line, for a background Bash run where the Monitor tool is unavailable. The first arming passes no `--baseline`; a re-arm
 passes `--baseline <file>`, the file this same script wrote in a snapshot run (`--snapshot <file>`:
-one state check and checks read, the `cur_checks` lines written under a marker line, then exit 0,
-or exit 1 with nothing written when the read failed). A baseline file without that marker line is
+one state check and checks read, the `cur_checks` lines and any `PR-VERIFY <verdict> <head-sha>`
+lines written under a marker line, then exit 0, or exit 1 with nothing written when the checks read
+failed). The pr-verify verdict reads use the artifacts endpoint's `name` filter, one exact name per
+call ([List artifacts for a repository](https://docs.github.com/en/rest/actions/artifacts#list-artifacts-for-a-repository)),
+because a paged listing can miss a verdict past its page size. A baseline file without that marker line is
 refused with `BASELINE-UNREADABLE`, so only this script's serializer produces a baseline. A usage
 error exits 3.
 

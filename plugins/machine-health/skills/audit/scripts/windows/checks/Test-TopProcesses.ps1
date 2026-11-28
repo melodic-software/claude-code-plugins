@@ -33,8 +33,6 @@ $commands = @(
     ("Get-Counter -Counter $(($counter.Paths.Values | ForEach-Object { "'$_'" }) -join ', ') " +
         "-SampleInterval $($counter.SampleInterval) -MaxSamples $SampleSeconds")
 )
-# The shortest window that grades disk latency (catalog section 26). The orchestrator's
-# -SampleSeconds maximum must reach it; Get-CheckArgument.Tests.ps1 checks that.
 $SustainedSeconds = 60
 
 $FailureSummary = 'Top-processes sample failed.'
@@ -117,8 +115,6 @@ $CheckBody = {
     $unread = $sample.ReadState -ne 'ok' ? 'system counters unreadable' : $null
     $top = @($byCpu | Select-Object -First 3 | ForEach-Object { "$($_.Name) $($_.CpuPct)%" }) -join ', '
     $flagged = @($signals | Where-Object severity -NE 'OK' | ForEach-Object text) -join '; '
-    # The bands label always survives the summary cap; the process list goes first, then the
-    # rest of the body is cut.
     $summaryMax = 240
     $label = "bands: $thresholdsLabel."
     $body = @($lead, $unread, ($top ? "top: $top" : $null), ($flagged ? $flagged : $null), $diskNote) |

@@ -1,4 +1,3 @@
-"""16-bit mono WAV read and write. Python standard library only."""
 import pathlib
 import struct
 import wave

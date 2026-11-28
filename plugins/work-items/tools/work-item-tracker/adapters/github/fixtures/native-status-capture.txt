@@ -1,0 +1,11 @@
+captured 2026-11-27 from gh v2.105.0 (cli/cli@v2.105.0) and live GitHub REST/GraphQL API:
+- gh-planning-statuses.json: verbatim response of
+    gh api repos/melodic-software/claude-code-plugins/planning-statuses
+    (HTTP 200 OK; 7 predefined statuses with integer id, string name, string category).
+- gh-issue-native-status-rest.json: REST Issue object shape captured from
+    gh api repos/melodic-software/claude-code-plugins/issues/19449 and
+    gh api "repos/melodic-software/claude-code-plugins/issues?state=open&per_page=3"
+    plus pre-Nov 23 open issue shape (status: null) verified on Track 3A.
+- REST write verified on Track 3A: PATCH repos/{o}/{r}/issues/{n} -f status="<Name>"
+    returns 200 OK with .status = {"id": ..., "name": "<Name>", "category": "..."};
+    integer status returns HTTP 422 ("For 'properties/status', 3 is not a string.").

@@ -19,10 +19,11 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
   the skill reads as license to end the turn once the file exists. Two rules exist against it, and
   they are the same rule from both ends: STOP ends the underlying task, never the response before
   the prompt is on screen (SKILL.md, "What STOP means"); and the rails block plus its below-rail
-  `/loop` re-arm notes are the response's final text (SKILL.md, "Output order is fixed"). Recovery
+  notes are the response's final text (SKILL.md, "Output order is fixed"). Recovery
   when it happens anyway: `/session-flow:find-handoff` rung 1 globs the handoffs dir and needs no
   transcript.
-- **The panel eating the prompt.** The position panel is emitted before the rails block, so it is
+- **The panel eating the prompt.** An [urgent handoff](../SKILL.md#urgent-path) skips the panel.
+  On the normal path the position panel is emitted before the rails block, so it is
   text standing between the start of the response and the one thing the operator has to have. Under
   the same heavy context that produces the failure above, a panel that grows, with every unit of a
   long rail spelled out, blocks wrapping into paragraphs, and a divergence explained rather than
@@ -72,24 +73,21 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
 - **Writing the save-point while work it describes is still running.** A subagent whose result
   the handoff depends on returns seconds after the file is written; its result lands in the old
   session, and the brief, criteria, Environment and `Next:` now describe settled work as in
-  flight. Inventorying it is not settling it: wait for dependent work before `new`, or record it
-  as in flight on the user's choice ("Settle in-flight work before writing" in `SKILL.md`). That
-  stays the first choice. When a result still lands after emit, repair the file with
+  flight. On the urgent path, record it in flight immediately. On the normal path, wait or record
+  it as directed by [Settle in-flight work before writing](../SKILL.md#settle-in-flight-work-before-writing).
+  When a result lands after emit, repair the file with
   `save_point.py amend`, never a hand edit or a second `new` ("Late events after emit" in
   `SKILL.md`).
 - **Saying nothing about the active `/loop`s on resume.** Never assume a `/loop` survived the
   clear or resume, and never assume it died: a resume prompt that reads only as a one-shot
   continuation silently drops a loop that did not come back, with no error to signal it, while
   re-arming a loop that did come back schedules it twice. Which tasks a resume restores, and
-  which it does not, is upstream behavior: read it live at the pointer below. So before the
-  re-arm messages are sent, the resumed session lists its scheduled tasks
-  and only the recorded loops missing from that list are re-armed. Each re-arm is a separate follow-up message carrying the original
-  loop prompt, one per missing loop, never the resume
-  directive wrapped in `/loop`. The engine's counted entry header labels each re-arm inside the
-  save-point's own output so a consumer can find its edges (engine doc, "Emit the copy/paste
-  resume prompt"); the header is not part of what gets sent, and the follow-up message itself
-  begins with `/loop`, because the Commands page recognizes a command only at the start of a
-  message (pointer below).
+  which it does not, is upstream behavior: read it live at the pointer below. So the handoff file
+  records each surviving loop as a `[loop]` entry under Environment to re-establish, and the
+  resumed session lists its scheduled tasks and re-arms only the recorded loops missing from that
+  list, passing each loop's original prompt, never the resume directive, to the `loop` skill
+  (`reference/resume.md`, which the resume-context hook injects). Older files and the prompt-only
+  path carry the re-arm in their own output (engine doc, "Where recurring items go").
   `/loop` re-runs the prompt it was given on every iteration, and a save-point is an immutable
   record of one moment, so wrapping the directive would have every later tick re-read that frozen
   file and replay a remainder already done, instead of doing the loop's actual recurring job.
@@ -97,6 +95,11 @@ Failure patterns from real sessions. Loaded on demand from the handoff SKILL.md.
     for which tasks a resume restores;
     [Commands § Commands across a typical workflow](https://code.claude.com/docs/en/commands#commands-across-a-typical-workflow),
     the introduction paragraph before that section that says where a command is recognized.
+- **A secret in a recurring command.** A `[monitor]` command or loop prompt that held a token loses
+  it to redaction, and re-arming the redacted text runs a broken command. End such an entry
+  `· restore: manual (held a secret; re-create from <source>)`; `validate` fails a `<REDACTED`
+  entry without it, and the resumed session prints it for the user instead of re-arming. Prefer an
+  environment-variable reference in the command so nothing needs redacting.
 - **A `/goal ...` first line inside the pasted block.** The Commands page recognizes a command
   only at the start of a message (pointer below), so a `/goal <condition>` line pasted inside a
   rails prompt sets nothing, while the handoff looks complete. The

@@ -1,40 +1,5 @@
 name: Intake Triage
 
-# Triages each newly opened issue with the org intake-triage lane: a read-only
-# Claude run proposes labels and a comment, and a step with no model applies
-# only allowlisted labels that exist here, or `needs-human` when the run
-# escalates. Advisory: never blocks a merge. See ci-workflows'
-# intake-triage.yml for the security model and inputs. The apply-verdict job
-# then writes the run's verdict as the lanes App (no model): the Size,
-# Complexity and Uncertainty fields, and `status: ready` or
-# `needs-owner-decision` (.github/scripts/intake-triage/apply-verdict.mjs),
-# and on `status: ready` adds `agent-ready` when the admission rules
-# (.github/actions/resolve-config/admission-rules.json) and the issue lane's
-# caps allow (.github/scripts/intake-triage/admit.mjs). A thin issue (no exact
-# outcome, or no task list) then gets one read-only refinement run, posted as
-# a separate lanes App comment; an issue admission parked for done-when items a
-# lane run cannot perform gets the same run, which may split those items out
-# of the done-when into its comment as checks a person runs
-# (.github/scripts/intake-triage/refine.mjs).
-#
-# The same run adds the bare floor label `needs-triage` to an issue opened or
-# reopened with no `priority:*` label, through the shared
-# intake-label-needs-triage reusable from ci-workflows (its mechanism,
-# loop-safety and fail-closed label-existence contract are there). The floor
-# is not a priority value. A reopened issue runs only the gate, the kill
-# switch and the floor label, so it re-acquires the floor if its tier was
-# cleared while closed; triage stays with an opened issue. Settled per #506.
-#
-# An issue carrying a routing label (a /planning:wayfind map or decision item,
-# or a decompose container: the work-items binding's container label or
-# wayfind prefix) gets none of this, on any event: that skill routes it, and
-# the gate's notice names the label (.github/actions/check-born-triaged).
-#
-# workflow_dispatch triages one issue by number: issues a job's GITHUB_TOKEN
-# creates (the lane sweep's) start no issues run, and intake-reenter.yml
-# sends back an answered needs-decision or needs-info issue. The reusable admits a
-# dispatch only from an actor whose id is in allowed-author-ids or
-# allowed-bot-sender-ids, and reads the issue from the API.
 on:
   issues:
     types: [opened, reopened]
@@ -47,51 +12,20 @@ on:
 
 permissions: {}
 
-# No top-level concurrency block: the standards `concurrency-policy` shape for
-# one requires `cancel-in-progress: true`, and canceling a triage run mid-way
-# could leave a comment without its labels. Per-issue serialization without
-# cancellation lives on the job, as in pr-review-security-hosted.yml.
-
 jobs:
-  # Skips intake for an issue carrying a routing label (the work-items
-  # binding's container label, or one starting with its wayfind prefix: a
-  # /planning:wayfind map or decision item, or a decompose container) on every
-  # event, and for an issue /work-items:decompose published already triaged
-  # on an opened issue only; see .github/actions/check-born-triaged. A failed
-  # gate leaves skip empty, so intake falls through to the reusable, which turns away
-  # every person when human-ids is empty too. A rate limit on the gate's read
-  # sets rate-limited, which stops intake and its GitHub calls. The job also
-  # resolves the lane's model, turns and effort from the triage-issue route of
-  # the default
-  # branch's models block; when that fails, claude-args is empty and intake
-  # does not run, so it never falls back to the CLI's own model and an
-  # unbounded turn budget. A dispatch runs only from main, so the trusted-actor
-  # list, the models block and the lane's AGENTS.md come from the default branch.
-  # A reopened issue or a dispatch skips on a routing label only, so a reopened
-  # born-triaged issue still re-acquires the floor label and a dispatch
-  # (intake-reenter.yml) still triages one. The gate reads before the model
-  # resolves, so a model config that fails still leaves the floor label its skip.
   check-born-triaged:
     name: Check Born Triaged
     if: github.event_name == 'issues' || (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: read # check out the default branch for the trusted-actor list and models block
-      issues: read # read the issue's current body, type and labels
+      contents: read
+      issues: read
     outputs:
       skip: ${{ steps.check.outputs.skip }}
       rate-limited: ${{ steps.check.outputs.rate-limited }}
-      # When this run started: apply-verdict acts only on a lane comment
-      # written at or after it.
       started-at: ${{ steps.started.outputs.at }}
-      # The trusted-actor list's human ids, for the reusable's author gate.
       human-ids: ${{ steps.check.outputs.human-ids }}
-      bot-ids: ${{ steps.bots.outputs.ids }}
-      # Empty when the profile sets a subagent model, which the reusable
-      # cannot apply; the refusal step below shows why.
-      claude-args: ${{ steps.models.outputs.settings-json == '' && steps.models.outputs.claude-args || '' }}
-      instructions: ${{ steps.rubric.outputs.instructions }}
       standards-sha: ${{ steps.standards.outputs.sha }}
     env:
       API_BUDGET_TOKEN: github-token
@@ -112,13 +46,10 @@ jobs:
             /.github/actions/log-api-budget/
             /.github/actions/resolve-config/
             /.github/CODEOWNERS
-            /.github/scripts/intake-triage/triage-rubric.txt
             /.github/scripts/lib/github-client.mjs
             /.github/scripts/lib/lane-vocabulary.mjs
             /.github/scripts/lib/trusted-actors.mjs
             /.github/scripts/pr-merge/merge-holds.mjs
-            /.github/standards/github-actions-conventions/vocabulary.json
-            /.github/standards/trusted-actors/
             /.node-version
             /docs/conventions/pr-pipeline.yaml
             /docs/conventions/pr-pipeline/
@@ -143,51 +74,6 @@ jobs:
           born-triaged: ${{ github.event.action == 'opened' }}
           standards-path: ${{ steps.standards.outputs.path }}
 
-      - name: Read the triage rubric
-        id: rubric
-        run: |
-          delimiter="RUBRIC_$(openssl rand -hex 16)"
-          {
-            echo "instructions<<$delimiter"
-            cat .base/.github/scripts/intake-triage/triage-rubric.txt
-            echo
-            echo "$delimiter"
-          } >>"$GITHUB_OUTPUT"
-
-      - name: Resolve the triage model
-        id: models
-        uses: ./.base/.github/actions/resolve-config # zizmor: ignore[self-repository]
-        with:
-          model-route: triage-issue
-          output-path: ${{ runner.temp }}/intake-models.json
-          standards-path: ${{ steps.standards.outputs.path }}
-
-      - name: Refuse a subagent model
-        env:
-          SETTINGS_JSON: ${{ steps.models.outputs.settings-json }}
-        run: |
-          if [ -n "$SETTINGS_JSON" ]; then
-            echo "::error::the triage-issue profile sets subagent-model, which intake-triage.yml does not support"
-            exit 1
-          fi
-
-      # Bots the reusable admits: github-actions[bot] (41898282), the actor of
-      # a dispatch sent with a GITHUB_TOKEN, and the lanes App when its id is
-      # set. An issue the GITHUB_TOKEN opens starts no issues run, so listing
-      # 41898282 starts runs only for its dispatches. The same list picks the
-      # comments the model reads, so any comment a GITHUB_TOKEN posts (other
-      # than the lane's own marker comment) reaches the model as trusted text.
-      - name: Compose the bot id list
-        id: bots
-        env:
-          LANES_APP_ID: ${{ vars.AUTOMATION_LANES_APP_SENDER_ID }}
-        run: |
-          ids=41898282
-          if printf '%s' "$LANES_APP_ID" | grep -Eq '^[1-9][0-9]*$'; then
-            ids="$ids,$LANES_APP_ID"
-          fi
-          echo "ids=$ids" >> "$GITHUB_OUTPUT"
-
       - name: Log the API budget at the end
         if: always()
         continue-on-error: true
@@ -196,21 +82,15 @@ jobs:
         with:
           tokens: github-token
 
-  # The reusables read no kill switch, so this caller does. Intake has
-  # no lane switch of its own; the org and repository switches fail closed
-  # (check-kill-switch), and a failed job leaves proceed empty, which also
-  # stops intake and the floor label. It runs on a reopened issue too, for the
-  # floor label.
   check-kill-switch:
     name: Check Kill Switch
     if: github.event_name == 'issues' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      contents: read # check out the default branch for the kill-switch action
+      contents: read
     outputs:
       proceed: ${{ steps.kill.outputs.proceed }}
-      # `true` stops triage, which spends tokens, but not the floor label.
       upstream-degraded: ${{ steps.upstream.outputs.degraded }}
     steps:
       - name: Resolve main's tip
@@ -245,8 +125,6 @@ jobs:
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
           budget: "true"
 
-      # Skips the run while Actions or npm installs report a degraded component,
-      # with a logged reason; fails open (.github/actions/check-upstream-status).
       - name: Check upstream status
         id: upstream
         if: steps.kill.outputs.proceed == 'true'
@@ -263,114 +141,543 @@ jobs:
         run: |
           echo "::notice::${WHY} this triage and the needs-triage label (reason: ${REASON:-unreadable}, cause ${CAUSE:-unreadable})"
 
-  # The floor label, on an issues event only: a dispatch asks for triage. A
-  # failed born-triaged gate leaves skip empty, so the label runs; a rate
-  # limit on its read stops the label and its calls with the same token.
   intake-label-needs-triage:
     name: Intake Label Needs Triage
     needs: [check-kill-switch, check-born-triaged]
     if: ${{ !cancelled() && github.event_name == 'issues' && needs.check-kill-switch.outputs.proceed == 'true' && needs.check-born-triaged.outputs.rate-limited != 'true' && needs.check-born-triaged.outputs.skip != 'true' }}
     permissions:
-      issues: write # passed to the reusable, which reads and adds issue labels
+      issues: write
     cache-mode: read
     uses: melodic-software/ci-workflows/.github/workflows/intake-label-needs-triage.yml@main
     with:
       runner: ubuntu-24.04
       label: needs-triage
 
-  # A dispatch asks for triage, so the gate applies the born-triaged rule to
-  # an opened issue only: intake-reenter.yml dispatches an answered issue that
-  # was born triaged and may still carry a status label. A routing label skips
-  # a dispatch too. A reopened issue gets no triage, only the floor label.
+  dispatch-triage:
+    name: Dispatch Triage
+    needs: [check-born-triaged, check-kill-switch]
+    if: >-
+      ${{ !cancelled()
+      && github.event_name == 'issues' && github.event.action == 'opened'
+      && needs.check-kill-switch.outputs.proceed == 'true'
+      && needs.check-kill-switch.outputs.upstream-degraded != 'true'
+      && needs.check-born-triaged.outputs.rate-limited != 'true'
+      && needs.check-born-triaged.outputs.skip != 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: write
+      contents: read
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
+        with:
+          branch: main
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+        with:
+          ref: ${{ needs.check-born-triaged.outputs.standards-sha }}
+
+      - name: Set up Node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Check the trigger
+        id: gate
+        uses: ./.base/.github/actions/check-trusted-trigger # zizmor: ignore[self-repository]
+        with:
+          standards-path: ${{ steps.standards.outputs.path }}
+          require-pr: "false"
+          require-kind: human
+          bot-sender-ids: ${{ format('41898282 {0}', vars.AUTOMATION_LANES_APP_SENDER_ID) }}
+          issue-author: "true"
+
+      - name: Dispatch intake triage for the issue
+        if: steps.gate.outputs.proceed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          if ! [[ $ISSUE_NUMBER =~ ^[1-9][0-9]{0,9}$ ]]; then
+            echo "::error::the issue number is not a number"
+            exit 1
+          fi
+          # shellcheck source=/dev/null
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/intake-triage.yml/dispatches" \
+            -f ref=main -f "inputs[issue-number]=$ISSUE_NUMBER"
+
+      - name: Report the gate's stop
+        if: steps.gate.outputs.proceed != 'true'
+        env:
+          REASON: ${{ steps.gate.outputs.reason }}
+        run: echo "::notice::intake triage not dispatched (${REASON:-no reason})"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   intake-triage:
     name: Intake Triage
     needs: [check-born-triaged, check-kill-switch]
     if: >-
       ${{ !cancelled()
-      && (github.event_name == 'workflow_dispatch' || github.event.action == 'opened')
+      && github.event_name == 'workflow_dispatch'
       && needs.check-kill-switch.outputs.proceed == 'true'
       && needs.check-kill-switch.outputs.upstream-degraded != 'true'
       && needs.check-born-triaged.outputs.rate-limited != 'true'
-      && needs.check-born-triaged.outputs.skip != 'true'
-      && needs.check-born-triaged.outputs.claude-args != '' }}
-    permissions:
-      actions: read # list this repository's credit-stop markers
-      contents: read # check out the default branch so the lane can read AGENTS.md
-      issues: write  # apply labels and post the triage comment
+      && needs.check-born-triaged.outputs.skip != 'true' }}
     concurrency:
       group: intake-triage-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+      checks: write
+      issues: write
+      id-token: write
     cache-mode: read
-    uses: melodic-software/ci-workflows/.github/workflows/intake-triage.yml@main
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
     with:
-      runner: ubuntu-24.04
+      lane: intake-triage
       role: intake
-      claude-args: ${{ needs.check-born-triaged.outputs.claude-args }}
-      lane-transcript-public-key: ${{ vars.LANE_TRANSCRIPT_PUBLIC_KEY }}
-      # The key's credit window every model lane reads (callers.test.mjs
-      # KEY_CREDIT_WINDOW); empty runs the reusable's 1-hour default.
-      key-credit-window-hours: ${{ vars.KEY_CREDIT_WINDOW_HOURS }}
-      key-credit-reset-at: ${{ vars.KEY_CREDIT_RESET_AT }}
-      issue-number: ${{ inputs.issue-number }}
-      allowed-author-ids: ${{ needs.check-born-triaged.outputs.human-ids }}
-      allowed-bot-sender-ids: ${{ needs.check-born-triaged.outputs.bot-ids }}
-      verdict-schema: '{"properties":{"size":{"type":"string","enum":["Small","Medium","Large"]},"complexity":{"type":"string","enum":["Low","Medium","High"]},"uncertainty":{"type":"string","enum":["Known","Knowable","Unknown"]},"flags":{"type":"array","maxItems":4,"uniqueItems":true,"items":{"type":"string","enum":["intent","security","cost","untrusted"]}},"blocked_by":{"type":"array","maxItems":20,"items":{"type":"integer","minimum":1,"maximum":999999999}}},"required":["size","complexity","uncertainty","flags","blocked_by"]}'
-      # Re-entry after a recorded decision (intake-reenter.yml). The marker is
-      # the first line isDecisionComment in select-trusted-text.mjs matches. An
-      # escalated run posts only the reusable's fixed note, so the quote and
-      # new questions survive only on a run that does not set needs_human, so
-      # allowed-labels lets the run apply `needs-human` as a plain label (the
-      # reusable's defaults plus that label).
-      allowed-labels: |
-        priority: critical
-        priority: high
-        priority: medium
-        priority: low
-        needs-reporter-info
-        needs-owner-decision
-        area: security
-        needs-human
-        duplicate
-      instructions: ${{ needs.check-born-triaged.outputs.instructions }}
-    # Named secrets only, never `secrets: inherit`. The central fallback token
-    # runs only after the subscription token hands off.
+      activity: triage-issue
+      key-credit-job: intake-triage
+      issue-number: ${{ format('{0}', github.event.issue.number || inputs.issue-number) }}
+      issue-verdict: true
+      trusted-base: default-tip
+      timeout-minutes: 30
     secrets:
-      CLAUDE_API_KEY: ${{ secrets.INTAKE_CLAUDE_API_KEY }}
-      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}
-      FALLBACK_CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+      claude-api-key: ${{ secrets.INTAKE_CLAUDE_API_KEY }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
 
-  # Writes the triage run's verdict on the issue as the lanes App, so the work
-  # lanes count it: the Size, Complexity and Uncertainty
-  # issue fields, and `status: ready` or `needs-owner-decision`. No model:
-  # .github/scripts/intake-triage/apply-verdict.mjs parses the lane comment
-  # against closed enums; on `status: ready`, admit.mjs adds agent-ready (or
-  # admission-deferred over a cap) when the admission rules hold. It runs only
-  # after a triage that ran and applied, and reads only a lane comment written
-  # since this run started. A deferred triage wrote no lane comment, so
-  # apply-verdict skips it.
+  intake-triage-handoff:
+    name: Intake Triage Handoff
+    needs: [intake-triage]
+    if: ${{ !cancelled() && needs.intake-triage.result == 'success' && needs.intake-triage.outputs.skip-reason == '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      fallback-ready: ${{ steps.fallback.outputs.ready }}
+      handed-off: ${{ steps.handoff.outputs.handed-off }}
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
+        with:
+          branch: main
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          sparse-checkout: |
+            .github/scripts/lib/handoff-evidence.sh
+            .github/actions/log-api-budget
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether intake-triage handed off
+        id: handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: intake-triage
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
+
+      - name: Check the fallback token
+        id: fallback
+        env:
+          PRESENT: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != '' }}
+        run: echo "ready=$PRESENT" >>"$GITHUB_OUTPUT"
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  upload-key-credit-markers:
+    name: Upload Key Credit Markers
+    needs: [intake-triage]
+    if: ${{ !cancelled() && needs.intake-triage.result != 'skipped' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      actions: read
+      contents: read
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
+        with:
+          branch: main
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          sparse-checkout: |
+            .github/scripts/lib/handoff-evidence.sh
+            .github/actions/log-api-budget
+            .node-version
+            lib/publish-gate.mjs
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Read whether intake-triage's key hit a credit stop
+        id: credit-stop-intake-triage
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: intake-triage
+          HANDOFF_EVIDENCE_LAG: notice
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh credit-stop
+
+      - name: Write intake-triage's credit-stop marker
+        id: credit-marker-intake-triage
+        if: steps.credit-stop-intake-triage.outputs.credit-stop == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        run: |
+          mkdir -p "$RUNNER_TEMP/key-credit-stop-intake-triage"
+          echo "$GITHUB_RUN_ID" >"$RUNNER_TEMP/key-credit-stop-intake-triage/run-id"
+
+      - name: Scan intake-triage's credit-stop marker for credentials
+        id: credit-marker-scan-intake-triage
+        if: steps.credit-marker-intake-triage.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/scan-upload@main
+        with:
+          gate-path: .base/lib/publish-gate.mjs
+          path: ${{ runner.temp }}/key-credit-stop-intake-triage/run-id
+
+      - name: Upload intake-triage's credit-stop marker
+        if: (steps.credit-marker-intake-triage.outcome == 'success') && steps.credit-marker-scan-intake-triage.outputs.clean == 'true'
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: actions/upload-artifact@v7
+        with:
+          name: key-credit-stop-INTAKE_CLAUDE_API_KEY
+          overwrite: true
+          path: ${{ runner.temp }}/key-credit-stop-intake-triage/run-id
+          if-no-files-found: error
+          retention-days: 1
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  intake-triage-subscription:
+    name: Intake Triage Subscription
+    needs: [intake-triage, intake-triage-handoff]
+    if: ${{ !cancelled() && needs.intake-triage-handoff.outputs.handed-off == 'true' }}
+    concurrency:
+      group: intake-triage-subscription-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+      checks: write
+      issues: write
+      id-token: write
+    cache-mode: read
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      lane: intake-triage
+      role: intake
+      activity: triage-issue
+      fallback: handoff
+      fallback-ready: ${{ needs.intake-triage-handoff.outputs.fallback-ready }}
+      issue-number: ${{ format('{0}', github.event.issue.number || inputs.issue-number) }}
+      issue-verdict: true
+      trusted-base: default-tip
+      timeout-minutes: 30
+    secrets:
+      claude-code-oauth-token: ${{ secrets.INTAKE_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  intake-triage-subscription-handoff:
+    name: Intake Triage Subscription Handoff
+    needs: [intake-triage-handoff, intake-triage-subscription]
+    if: ${{ !cancelled() && needs.intake-triage-subscription.result != 'skipped' && needs.intake-triage-handoff.outputs.fallback-ready == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      handed-off: ${{ steps.handoff.outputs.handed-off }}
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
+        with:
+          branch: main
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          sparse-checkout: |
+            .github/scripts/lib/handoff-evidence.sh
+            .github/actions/log-api-budget
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Read whether intake-triage-subscription handed off
+        id: handoff
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CALLS: intake-triage-subscription
+        run: bash .base/.github/scripts/lib/handoff-evidence.sh handed-off
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  intake-triage-fallback:
+    name: Intake Triage Fallback
+    needs: [intake-triage-handoff, intake-triage-subscription, intake-triage-subscription-handoff]
+    if: >-
+      ${{ !cancelled() && needs.intake-triage-handoff.outputs.fallback-ready == 'true'
+      && needs.intake-triage-subscription-handoff.outputs.handed-off == 'true' }}
+    concurrency:
+      group: intake-triage-fallback-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+      pull-requests: write
+      checks: write
+      issues: write
+      id-token: write
+    cache-mode: read
+    uses: ./.github/workflows/pr-run-activity-read.yml # zizmor: ignore[self-repository]
+    with:
+      lane: intake-triage
+      role: intake
+      activity: triage-issue
+      fallback: fallback
+      issue-number: ${{ format('{0}', github.event.issue.number || inputs.issue-number) }}
+      issue-verdict: true
+      trusted-base: default-tip
+      timeout-minutes: 30
+    secrets:
+      fallback-claude-code-oauth-token: ${{ secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN }}
+      scan-carrier-private-key: ${{ secrets.SCAN_CARRIER_PRIVATE_KEY }}
+
+  post-triage:
+    name: Post Triage
+    needs: [check-born-triaged, intake-triage, intake-triage-subscription, intake-triage-fallback]
+    if: >-
+      ${{ !cancelled() && needs.intake-triage.result != 'skipped'
+      && needs.intake-triage.outputs.skip-reason == ''
+      && needs.intake-triage-subscription.outputs.skip-reason == ''
+      && needs.intake-triage-fallback.outputs.skip-reason == '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: intake-post-triage-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
+      cancel-in-progress: false
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+    outputs:
+      verdict: ${{ steps.post.outputs.verdict }}
+      deferred: ${{ steps.post.outputs.deferred }}
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
+        with:
+          branch: main
+      - name: Check out the default branch tip
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/log-api-budget/
+            /.github/scripts/intake-triage/post-triage.mjs
+            /.github/scripts/lib/
+            /.node-version
+            /docs/conventions/pr-pipeline.yaml
+            /plugins/work-items/skills/triage/schemas/
+            /plugins/work-items/skills/triage/scripts/
+          sparse-checkout-cone-mode: false
+
+      - name: Set up Node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Pick the verdict
+        id: pick
+        env:
+          FB_ATTEMPT: ${{ needs.intake-triage-fallback.outputs.triage-verdict-attempt }}
+          FB_SHA256: ${{ needs.intake-triage-fallback.outputs.triage-verdict-sha256 }}
+          SUB_ATTEMPT: ${{ needs.intake-triage-subscription.outputs.triage-verdict-attempt }}
+          SUB_SHA256: ${{ needs.intake-triage-subscription.outputs.triage-verdict-sha256 }}
+          KEY_ATTEMPT: ${{ needs.intake-triage.outputs.triage-verdict-attempt }}
+          KEY_SHA256: ${{ needs.intake-triage.outputs.triage-verdict-sha256 }}
+        run: |
+          for leg in FB SUB KEY; do
+            attempt_var=${leg}_ATTEMPT sha_var=${leg}_SHA256
+            [ -n "${!sha_var}" ] || continue
+            if ! [[ ${!attempt_var} =~ ^[1-9][0-9]{0,3}$ && ${!sha_var} =~ ^[0-9a-f]{64}$ ]]; then
+              echo "::error::the $leg call's verdict attempt or SHA-256 is malformed; nothing applied"
+              exit 1
+            fi
+            echo "attempt=${!attempt_var}" >>"$GITHUB_OUTPUT"
+            echo "sha256=${!sha_var}" >>"$GITHUB_OUTPUT"
+            exit 0
+          done
+          echo "::error::no call returned a verdict (a failed run, a refused output or a scan stop); nothing applied, and the triage sweep runs the issue again"
+          exit 1
+
+      - name: Download the verdict
+        uses: actions/download-artifact@v8
+        with:
+          name: triage-verdict-${{ github.event.issue.number || inputs.issue-number }}-${{ steps.pick.outputs.attempt }}
+          path: ${{ runner.temp }}/triage-verdict
+
+      - name: Download the act-turns record
+        continue-on-error: true
+        uses: actions/download-artifact@v8
+        with:
+          name: skill-reply-intake-triage-triage-issue-${{ steps.pick.outputs.attempt }}
+          path: ${{ runner.temp }}/triage-reply
+
+      - name: Check the verdict
+        id: check
+        env:
+          DIR: ${{ runner.temp }}/triage-verdict
+          SHA256: ${{ steps.pick.outputs.sha256 }}
+        run: |
+          file=$DIR/dependency-verdict.json
+          if [ "$(find "$DIR" -mindepth 1 | wc -l)" != 1 ] || [ -L "$file" ] || [ ! -f "$file" ]; then
+            echo "::error::the verdict artifact is not exactly one regular verdict file; nothing applied"
+            exit 1
+          fi
+          sum=$(sha256sum <"$file")
+          if [ "${sum%% *}" != "$SHA256" ]; then
+            echo "::error::the verdict does not match the SHA-256 the scan job recorded; nothing applied"
+            exit 1
+          fi
+          node .base/plugins/work-items/skills/triage/scripts/check-ci-verdict.mjs --verdict "$file"
+          for dim in size complexity uncertainty; do
+            echo "$dim=$(jq -r --arg d "$dim" '.[$d]' "$file")" >>"$GITHUB_OUTPUT"
+          done
+          echo "file=$file" >>"$GITHUB_OUTPUT"
+
+      - name: Check the dimension keys
+        working-directory: .base
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
+          SIZE: ${{ steps.check.outputs.size }}
+          COMPLEXITY: ${{ steps.check.outputs.complexity }}
+          UNCERTAINTY: ${{ steps.check.outputs.uncertainty }}
+        run: >-
+          bash plugins/work-items/skills/triage/scripts/set-dimensions.sh --dry-run "$ISSUE_NUMBER"
+          "size=$SIZE" "complexity=$COMPLEXITY" "uncertainty=$UNCERTAINTY"
+
+      - name: Post the verdict
+        id: post
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
+          VERDICT_FILE: ${{ steps.check.outputs.file }}
+          ACT_TURNS_FILE: ${{ runner.temp }}/triage-reply/act-turns.json
+          ESCALATION_LABEL: needs-human
+          FLOOR_LABEL: needs-triage
+          PRIORITY_FIELD_ID: "49622037"
+          AUTHOR_IDS: ${{ needs.check-born-triaged.outputs.human-ids }}
+          ALLOWED_LABELS: |
+            priority: critical
+            priority: high
+            priority: medium
+            priority: low
+            needs-reporter-info
+            needs-owner-decision
+            area: security
+            needs-human
+            duplicate
+        run: node .base/.github/scripts/intake-triage/post-triage.mjs
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
   apply-verdict:
     name: Apply Verdict
-    needs: [check-born-triaged, intake-triage]
+    needs: [check-born-triaged, post-triage]
     if: >-
       ${{ !cancelled()
-      && needs.intake-triage.result == 'success'
-      && needs.intake-triage.outputs.triage-failed != 'true'
-      && needs.intake-triage.outputs.triage-deferred != 'true' }}
+      && needs.post-triage.result == 'success'
+      && needs.post-triage.outputs.deferred != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     concurrency:
       group: intake-apply-verdict-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
     permissions:
-      contents: read # check out main
-      id-token: write # prove to the token broker which workflow this is
+      contents: read
+      id-token: write
     outputs:
-      # `kill-switch` when the broker refused the token for a kill switch.
       stopped: ${{ steps.lane-token.outputs.skip-reason }}
-      # `true` when a GitHub fault held the verdict green (apply-verdict.mjs
-      # closing): its result is unknown, so refine-select does not run.
       held: ${{ steps.verdict.outputs.held }}
-      verdict: ${{ needs.intake-triage.outputs.verdict }}
+      verdict: ${{ needs.post-triage.outputs.verdict }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -402,13 +709,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # The broker mints only for a listed human, or github-actions[bot] on a
-      # dispatch (intake-reenter.yml, the triage sweep), and a re-run only for
-      # a listed human. Anything else stops here quietly, before the token
-      # request: an issue the lanes App or a listed bot opened gets triage but
-      # no written verdict. So does an issue that closed while triage ran:
-      # the job token reads it (a public repository's issue needs no issues
-      # scope), and the broker would refuse it.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true'
@@ -424,8 +724,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node .base/.github/scripts/intake-triage/apply-verdict.mjs --check
 
-      # Its reads go through the job token, counted under github-token for
-      # the job-end api-calls notice.
       - name: Resolve the config
         id: config
         if: steps.who.outputs.proceed == 'true'
@@ -445,13 +743,6 @@ jobs:
           REASON: ${{ steps.config.outputs.skip-reason }}
         run: echo "::notice::apply-verdict does not apply (${REASON:-no reason}); nothing written"
 
-      # Swaps this job's GitHub identity proof for a short-lived lanes App
-      # token for this repository only, with the resolved grant (issues:
-      # write, contents: read, pull-requests: read).
-      # A kill switch turned on after this run read its variables is refused
-      # `kill-switch`: the step ends green with a notice and no token, the
-      # write below skips, the voided step reports it, and refine-select
-      # skips on the `stopped` output.
       - name: Request the lane token
         id: lane-token
         if: steps.config.outcome == 'success' && steps.config.outputs.applies == 'true'
@@ -468,16 +759,6 @@ jobs:
           issues: ${{ steps.config.outputs.issues }}
           kill-switch-ok: true
 
-      # A verdict the kill switch voided stays green, as every lane's
-      # lane-token-stopped does, but never reads as applied: the triage sweep
-      # reads this step from the job listing, counts the run as a transient
-      # stop and, on an issue it has not handed off, dispatches intake again on
-      # a later pass (triage-sweep.mjs VOIDED_STEP). The sweep's gate reads the
-      # `vars` switches; the broker also refuses on a repository variable
-      # shadowing CLAUDE_LANES_DISABLED or an org switch it cannot see, so a
-      # pass can run while the broker still refuses: TRANSIENT_LIMIT bounds
-      # those re-dispatches. It runs only after the who-check passed, which
-      # validated the issue number.
       - name: Report the voided verdict
         id: voided
         if: steps.lane-token.outputs.skip-reason == 'kill-switch'
@@ -496,7 +777,7 @@ jobs:
           SCRIPT: ${{ steps.config.outputs.script }}
           ISSUE_NUMBER: ${{ github.event.issue.number || inputs.issue-number }}
           STARTED_AT: ${{ needs.check-born-triaged.outputs.started-at }}
-          VERDICT: ${{ needs.intake-triage.outputs.verdict }}
+          VERDICT: ${{ needs.post-triage.outputs.verdict }}
           KILL_SWITCH: ${{ steps.kill.outputs.proceed == 'true' && 'proceed' || '' }}
           TRUSTED_ACTORS_PATH: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
           BASE_PATH: .base
@@ -504,8 +785,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT"
 
-      # A held verdict, kept as the lane-hold-intake-triage artifact for
-      # monitor signal 13 (lane-hold-marker.mjs).
       - name: Mark the lane hold
         id: hold-marker
         if: steps.verdict.outputs.held == 'true'
@@ -522,8 +801,6 @@ jobs:
           overwrite: true
           if-no-files-found: ignore
 
-      # The token is cancelled as soon as the job is done; it would otherwise
-      # expire within the hour. This never fails the job.
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
         continue-on-error: true
@@ -539,18 +816,6 @@ jobs:
         with:
           tokens: lanes-app github-token
 
-  # Refines a thin issue (#9215): one whose verdict flags intent (no exact
-  # outcome) or whose body has no task list (no checkable criteria). It also
-  # takes an issue admission parked at `status: confirmed` for some, not all,
-  # of its done-when items being ones a lane run cannot perform: a
-  # sound split lists those items in the refinement comment as checks a
-  # person runs and leaves the issue body as written. Three
-  # jobs, as the reusable and apply-verdict split it: refine-select (no model,
-  # read token) picks the issue and writes the context; refine-issue (the
-  # model, contents: read only) explores the default branch, checks the
-  # duplicate candidates and reads the allowed docs hosts, and returns
-  # structured output; apply-refinement (no model) posts it as the lanes App
-  # in a separate marked comment. Rules: .github/scripts/intake-triage/refine.mjs.
   refine-select:
     name: Refine Select
     needs: [check-born-triaged, apply-verdict]
@@ -561,14 +826,11 @@ jobs:
       group: intake-refine-select-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
     permissions:
-      contents: read # check out main
-      issues: read # read the issue and its comments, search issues
-      pull-requests: read # search merged pull requests
+      contents: read
+      issues: read
+      pull-requests: read
     outputs:
       refine: ${{ steps.select.outputs.refine }}
-      # `size-split` for a Size Large issue to split into sub-issues,
-      # `size-decline` for one whose split is declined (no model runs;
-      # apply-refinement posts the reason), else `refine`.
       mode: ${{ steps.select.outputs.mode }}
       context-sha256: ${{ steps.hash.outputs.sha256 }}
       standards-sha: ${{ steps.standards.outputs.sha }}
@@ -611,8 +873,6 @@ jobs:
           budget: "true"
           wait-seconds: "1200"
 
-      # The same actors apply-verdict writes for, so a run whose verdict the
-      # broker would not write starts no model either.
       - name: Check who started the run
         id: who
         if: steps.kill.outputs.proceed == 'true'
@@ -680,13 +940,6 @@ jobs:
         with:
           tokens: github-token
 
-  # Whether the key is still out of credit, and so which leg runs first,
-  # before the key leg (ci-workflows select-model-credential, its start call:
-  # check-key-credit's one artifact-list call for the marker refine-issue
-  # uploads after a credit stop). A credit stop inside the window names the
-  # subscription leg, so refine-issue-subscription refines on the
-  # subscription token without a refused key attempt first. It holds no
-  # secret and runs no model; every failure runs the key. Probing is off.
   refine-key-credit:
     name: Refine Key Credit
     needs: [refine-select]
@@ -694,7 +947,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      actions: read # list this repository's credit-stop markers
+      actions: read
     outputs:
       next-leg: ${{ steps.credit.outputs.next-leg }}
       next-reason: ${{ steps.credit.outputs.next-reason }}
@@ -725,18 +978,6 @@ jobs:
           known-failure-class: credit-stop
           handoff: "true"
 
-  # The model, on ci-workflows' run-claude-cli as the intake role, one
-  # credential per job. Its job's only token is GITHUB_TOKEN with contents:
-  # read and the model gets none; it reads the context file and the default
-  # branch checkout (its working directory) and fetches only the hosts below.
-  # run-claude-cli runs the CLI with --restricted, so no user, project or
-  # local settings load. refine-issue holds only the API key. When its key
-  # leg hands off (a credit stop, or class auth with API status 401 or 402),
-  # the key is empty, or refine-key-credit named the subscription leg first,
-  # refine-issue-subscription runs the same steps on a new VM on the
-  # subscription token alone, and refine-issue-fallback on the central
-  # fallback token after that. Its structured output is the result; it posts
-  # nothing.
   refine-issue:
     name: Refine Issue
     needs: [refine-select, refine-key-credit]
@@ -750,7 +991,7 @@ jobs:
       group: intake-refine-issue-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
     permissions:
-      contents: read # check out main
+      contents: read
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
@@ -788,8 +1029,6 @@ jobs:
           value: ${{ vars.CLAUDE_LANES_DISABLED }}
           repo-value: ${{ vars.CLAUDE_LANES_REPO_DISABLED }}
 
-      # Under the workspace: --restricted confines the file tools to the
-      # working directory.
       - name: Download the context
         if: steps.kill.outputs.proceed == 'true'
         uses: actions/download-artifact@v8
@@ -809,9 +1048,6 @@ jobs:
             exit 1
           fi
 
-      # The triage-issue route of the default branch's models block, as for
-      # the triage run: the broker's pinned resolver refuses a config that
-      # names a route outside its fixed set.
       - name: Resolve the model
         id: models
         if: steps.context.outcome == 'success'
@@ -822,7 +1058,6 @@ jobs:
           output-path: ${{ runner.temp }}/refine-models.json
           standards-path: ${{ steps.standards.outputs.path }}
 
-      # Only whether the secret is set leaves this step, never its value.
       - name: Check the credential
         id: credential
         if: steps.models.outcome == 'success'
@@ -833,8 +1068,6 @@ jobs:
           credential-set: ${{ secrets.INTAKE_CLAUDE_API_KEY != '' }}
           key-off: ${{ vars.CLAUDE_API_KEYS_DISABLED == 'true' }}
 
-      # Files, not step outputs: run-claude-cli reads both. A `default` model
-      # resolves to an empty model, which the launcher cannot pass.
       - name: Write the prompt and schema
         id: prompt
         if: steps.credential.outputs.present == 'true'
@@ -866,27 +1099,16 @@ jobs:
           printf '%s\n' "$prompt" >"$PROMPT_FILE"
           printf '%s\n' "$schema" >"$SCHEMA_FILE"
 
-      # run-claude-cli refuses to run without these root-owned settings, which
-      # need sudo, so they are written before the runner is isolated.
       - name: Apply the Claude managed settings
         if: steps.prompt.outcome == 'success'
         uses: melodic-software/ci-workflows/.github/actions/apply-claude-managed-settings@main
 
-      # bwrap for the env scrub, then no sudo or docker. A failure here stops
-      # the job, so the model never runs without isolation.
       - name: Isolate the runner
         if: steps.prompt.outcome == 'success'
         uses: ./.base/.github/actions/setup-runner-isolation # zizmor: ignore[self-repository]
         with:
           install-subprocess-isolation: "true"
 
-      # Read under the data directory, plus the built-in reads in the working
-      # directory (the checkout), and WebFetch on the six official docs hosts
-      # the prompt step names; every other tool is denied, and dontAsk denies
-      # anything else that would prompt. continue-on-error keeps a launcher
-      # failure, a handoff included, from ending the job before "Fail without
-      # a refinement" decides. One leg and the CLI install fit in the step's
-      # timeout, and that fits in the job's 30.
       - name: Refine the issue
         id: run
         if: steps.prompt.outcome == 'success'
@@ -930,8 +1152,6 @@ jobs:
           json-schema-file: ${{ runner.temp }}/refine-schema.json
           leg-timeout-minutes: "20"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
         continue-on-error: true
@@ -955,12 +1175,6 @@ jobs:
           esac
           echo "::notice::refine-issue-subscription refines on the subscription token"
 
-      # Read by the next runs' credit gate (refine-key-credit): the artifact
-      # its start call's `marker` output names (check-key-credit gate.cjs
-      # markerName),
-      # uploaded only after the key leg's credit-stop handoff. The name is
-      # written out so its retention row (.github/artifact-retention.json)
-      # claims it; one day's retention covers windows up to 24 hours.
       - name: Write the key's credit-stop marker
         id: credit-marker
         if: always() && needs.refine-key-credit.outputs.marker == 'key-credit-stop-INTAKE_CLAUDE_API_KEY' && steps.run.outputs.handoff-reason == 'credit-stop'
@@ -1009,9 +1223,6 @@ jobs:
           max-turns: ${{ steps.models.outputs.max-turns }}
           fallback-reason: ""
 
-      # The model's structured output, read from the launcher's file only after
-      # the leg's init message reports dontAsk (null when it does not parse);
-      # apply-refinement validates it.
       - name: Collect the refinement
         id: collect
         if: steps.run.outcome == 'success' && steps.run.outputs.structured-output-file != ''
@@ -1047,19 +1258,12 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # A handoff or an empty key hands the refinement on; any other run that
-      # reached the model and uploaded nothing fails here.
       - name: Fail without a refinement
         if: always() && steps.prompt.outcome != 'skipped' && steps.upload.outcome != 'success' && steps.run.outputs.handoff != 'true'
         run: |
           echo "::error::the refinement left no output for this issue"
           exit 1
 
-      # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). always(), so a step
-      # that failed, or a job that hit its own timeout, after a handoff or an
-      # empty credential still hands on, as the job outputs did before; the
-      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -1079,18 +1283,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The subscription leg, as its own job on a new VM: refine-issue's
-  # processes, files and environment do not reach it. Its steps repeat
-  # refine-issue's from a fresh checkout, in the same order, but for the
-  # credential check, the launcher's credential and fallback-ready inputs,
-  # the handoff report, the key leg's credit-stop marker, the leg record's
-  # fallback reason and the last step's `if` (callers.test.mjs holds every
-  # other step and field equal). It runs after refine-issue handed off, found
-  # its key empty, or was skipped by the key-credit gate: when refine-issue's
-  # or refine-key-credit's next-leg names this leg, each compared to a fixed
-  # string in its `if`. Only this job references the subscription token.
-  # With FALLBACK_CLAUDE_CODE_OAUTH_TOKEN set, its leg hands off (a limit
-  # stop, a credit stop, or a 401 or 402) to refine-issue-fallback.
   refine-issue-subscription:
     name: Refine Issue Subscription
     needs: [refine-select, refine-key-credit, refine-issue]
@@ -1104,7 +1296,7 @@ jobs:
       group: intake-refine-issue-subscription-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
     permissions:
-      contents: read # check out main
+      contents: read
     outputs:
       next-leg: ${{ steps.next.outputs.next-leg }}
       next-reason: ${{ steps.next.outputs.next-reason }}
@@ -1267,8 +1459,6 @@ jobs:
           json-schema-file: ${{ runner.temp }}/refine-schema.json
           leg-timeout-minutes: "20"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
         continue-on-error: true
@@ -1344,10 +1534,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # A handoff hands the refinement on, and an empty token either hands it
-      # to the fallback leg or, with no fallback token, ends with the
-      # credential step's warning; any other run that passed the context
-      # check and uploaded nothing fails here.
       - name: Fail without a refinement
         if: >-
           always() && steps.context.outcome == 'success' && steps.upload.outcome != 'success' && steps.run.outputs.handoff != 'true'
@@ -1356,11 +1542,6 @@ jobs:
           echo "::error::the refinement left no output for this issue"
           exit 1
 
-      # The leg the next job runs, from this job's credential decision and
-      # the launcher's handoff (select-model-credential). always(), so a step
-      # that failed, or a job that hit its own timeout, after a handoff or an
-      # empty credential still hands on, as the job outputs did before; the
-      # next job's own !cancelled() still stops a cancelled run.
       - name: Pick the next leg
         id: next
         if: ${{ always() }}
@@ -1380,15 +1561,6 @@ jobs:
         with:
           tokens: github-token
 
-  # The fallback leg, on the central fallback subscription's token alone, as
-  # its own job on a new VM. It runs only after refine-issue-subscription's
-  # leg handed off (a limit stop, a credit stop, or a 401 or 402) or found
-  # its token empty with the fallback token set: when its next-leg names
-  # this leg, compared to a fixed string. Its steps repeat
-  # refine-issue-subscription's but for the credential check, the launcher's
-  # credential input, the handoff report, the leg record's fallback reason,
-  # the next-leg call and the last step's `if` (callers.test.mjs holds the
-  # rest equal). It is the last leg and never hands off.
   refine-issue-fallback:
     name: Refine Issue Fallback
     needs: [refine-select, refine-issue-subscription]
@@ -1402,7 +1574,7 @@ jobs:
       group: intake-refine-issue-fallback-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
     permissions:
-      contents: read # check out main
+      contents: read
     outputs:
       refined: ${{ steps.upload.outcome == 'success' }}
     env:
@@ -1561,8 +1733,6 @@ jobs:
           json-schema-file: ${{ runner.temp }}/refine-schema.json
           leg-timeout-minutes: "20"
 
-      # The leg's transcript, failed legs included, sealed to the transcript
-      # key and kept 7 days for the puller; a failed upload never fails the job.
       - name: Upload the sealed transcript
         if: always() && steps.run.outputs.execution-file != ''
         continue-on-error: true
@@ -1625,8 +1795,6 @@ jobs:
           retention-days: 1
           if-no-files-found: error
 
-      # The last leg: any run that passed the context check and uploaded
-      # nothing fails here, an empty token included.
       - name: Fail without a refinement
         if: always() && steps.context.outcome == 'success' && steps.upload.outcome != 'success'
         run: |
@@ -1641,11 +1809,6 @@ jobs:
         with:
           tokens: github-token
 
-  # Posts the refinement as the lanes App, with the grant apply-verdict gets
-  # (issues: write). No model: refine.mjs --apply validates the output
-  # against closed shapes and renders each field on one line. It never adds
-  # agent-ready or needs-human and files no issue; a split also rewrites the
-  # refined issue's done-when.
   apply-refinement:
     name: Apply Refinement
     needs: [check-born-triaged, refine-select, refine-issue, refine-issue-subscription, refine-issue-fallback]
@@ -1660,11 +1823,10 @@ jobs:
       group: intake-apply-refinement-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: false
     permissions:
-      contents: read # check out main
-      id-token: write # prove to the token broker which workflow this is
+      contents: read
+      id-token: write
     outputs:
       redispatch: ${{ steps.apply.outputs.redispatch }}
-      # The sub-issues a size split filed, space-separated.
       children: ${{ steps.apply.outputs.children }}
     steps:
       - name: Resolve main's tip
@@ -1788,8 +1950,6 @@ jobs:
           STANDARDS_DIR: ${{ steps.standards.outputs.path }}
         run: node ".base/$SCRIPT" --apply
 
-      # The token is cancelled as soon as the job is done; it would otherwise
-      # expire within the hour. This never fails the job.
       - name: Revoke the lane token
         if: always() && steps.lane-token.outputs.token != ''
         continue-on-error: true
@@ -1805,13 +1965,6 @@ jobs:
         with:
           tokens: lanes-app
 
-  # An exact refinement or a split lifted the lanes App's status: triage the
-  # issue once more, as intake-reenter.yml does, so apply-verdict and
-  # admission read it with the refinement. refine-select skips the next run
-  # (the body is refined), so this runs at most once per body version. An
-  # issue edited while the model ran is triaged again the same way, with
-  # nothing written. Its own job holds the dispatch grant, not the job with
-  # the App token.
   dispatch-refined-triage:
     name: Dispatch Refined Triage
     needs: [apply-refinement]
@@ -1819,7 +1972,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      actions: write # dispatch intake-triage.yml
+      actions: write
     steps:
       - name: Triage the refined issue again
         env:
@@ -1834,9 +1987,6 @@ jobs:
           gh api -X POST "repos/$GITHUB_REPOSITORY/actions/workflows/intake-triage.yml/dispatches" \
             -f ref=main -f "inputs[issue-number]=$ISSUE_NUMBER"
 
-      # The hub's api-calls notice, in log-api-budget's api_budget_emit_calls
-      # shape: this job has no checkout of that action, and its only call is
-      # the dispatch POST above, counted as it is sent.
       - name: Log the API calls at the end
         if: always()
         run: |
@@ -1845,10 +1995,6 @@ jobs:
           [[ $calls =~ ^[0-9]{1,6}$ ]] || calls=0
           echo "::notice title=api-calls::github-token=$calls not-modified=0 graphql=0"
 
-  # A size split filed sub-issues as the lanes App: their own opened runs
-  # triage them but write no verdict (apply-verdict writes only for a listed
-  # human or a dispatch), and the triage sweep reaches an issue only once it
-  # is an hour old, so each is dispatched here, as a refined issue is above.
   triage-split-children:
     name: Triage Split Children
     needs: [apply-refinement]
@@ -1856,7 +2002,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
-      actions: write # dispatch intake-triage.yml
+      actions: write
     steps:
       - name: Triage each sub-issue
         env:

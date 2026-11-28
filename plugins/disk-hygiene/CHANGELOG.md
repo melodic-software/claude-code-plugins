@@ -3,6 +3,73 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.4.1] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across 3 `disk-hygiene` skills (1,639 -> 825 chars, -814 / -49.7%): `audit` (604 -> 338), `clean` (662 -> 348), and `setup` (373 -> 139, `disable-model-invocation: true`), while preserving read-only defaults (`clean` says "read-only by default"), explicit per-tier approval posture, and sibling/OS-root exclusions.
+
+## [1.4.0] - 2026-11-28
+
+### Added
+
+- Baseline hints for the home-root leftovers a manual WSL2 cleanup removed: Claude Code sandbox 0-byte placeholders at write-denied names (shell startup and git files, package-manager files, `.env*`, an empty `node_modules` tree; Linux and WSL2), `.claude.json.pre-onboarding.bak`, the pytest, Ruff, Playwright CLI, Storybook, CUDA (`~/.nv` and `%APPDATA%\NVIDIA\ComputeCache`), `dotnet new`, Semgrep, n, legacy pip and Biome folders, the mcp-remote token store, the Ubuntu MOTD stamp and Landscape log, and the evals plugin's legacy docker link lock. Each names its owner and native command; `reference/home-leftover-hints.md` points at each owner's source.
+- A hint may set `requires` (`zero_bytes`, `absent_siblings`, `absent_children`, `unreferenced`), each failing closed. A hint whose condition fails is dropped and the entry records why in `unmet_hint_conditions`, so a non-empty `.npmrc`, a project `.storybook`, a `.semgrep` holding its API token or an `.mcp-auth` that a home MCP config still names stays out. Checking a condition lists no directory.
+- Owner-registry entries for the evals plugin's `~/.ev` run roots (`prune-run-roots.py`) and its docker link swap manifest (`docker-links.py restore`).
+
+## [1.3.0] - 2026-11-27
+
+### Added
+
+- Policy overlays take `additional_inventory_bounded_stores`, `{glob, reason}` entries appended to the baseline `inventory_bounded_stores` list of known-large tool stores. `inventory` takes the `--policy`, `--user-policy` and `--project-dir` flags `scan` takes, so every policy layer reaches it.
+
+### Fixed
+
+- `hygiene.py inventory` no longer walks known-large tool stores entry by entry. Each store the policy names (npm, NuGet, Cargo, Go, Gradle and Maven caches, XDG and macOS per-tool caches, Claude Code transcripts, plugin caches and logs by default) is one row with a `coverage` field, its size summed under a per-store and a per-run entry budget, so a home inventory finishes in bounded time. A store a classifier recognizes keeps its category and disposition. The summary lists the bounded rows, counts those whose size is a lower bound, and sets `fully_inventoried` false while any bounded or not-walked row exists. Without `--deep` the same holds below each immediate child: a store, mount or unreadable entry beneath it gets its own row instead of being summed in full or skipped silently.
+- `scan --root-children --root-child <file>` admits a regular file on a home or any other non-volume-root target instead of withholding it as `not-a-directory`, so folders and loose root files go into one snapshot and one plan. The file passes the same link, cloud-placeholder, virtual-disk, protected-name and mount checks as a directory, and other non-directory types are withheld as `not-regular-file-or-directory`.
+
+## [1.2.1] - 2026-11-27
+
+### Fixed
+
+- `hygiene.py apply` and `handoff-apply` probe open handles with one `lsof` run per approved candidate, read the mount table once per candidate and take each entry's tracked VCS verdict from the candidate's own check, instead of repeating each per captured entry. An entry lsof names, or a directory holding one, is skipped as `locked` while its siblings are removed; an lsof diagnostic or timeout still skips every entry as `handle-state-unverified`, and an open name that maps to no snapshot entry holds the whole candidate.
+- The handle probe reads an open file from lsof's named output whether lsof exits 0 or 1, since `lsof +D` exits 1 while listing a held file; exit 1 with no output and no diagnostics is still the only clear result.
+- `hygiene.py apply` reuses its approval-token preview instead of previewing twice, so one candidate costs two `lsof` runs in total, and resolves each removed entry's parent once per candidate.
+
+## [1.2.0] - 2026-11-26
+
+### Added
+
+- Standalone read-only JSONL CLI in `deep_inventory.py` (`TARGET [--deep|--shallow] [--out PATH] [--claude-dir PATH] [--no-claude] [--no-validate]`) requiring no `--data-root` and writing nothing to disk by default.
+- Injectable `EntryClassifierPort` adapters (`ClaudeHarnessClassifier`, `TmpProducerClassifier`, `SupersededVersionClassifier`, `DanglingSymlinkClassifier`, `DictClassifierAdapter`) and strictly read-only `VersionLivenessPort` (`/proc` + `/proc/locks` inode lock matching and `InMemoryLivenessAdapter`).
+
+- `plugins/disk-hygiene/lib/install_authority.py` owning explicit-input install-layout derivation, trusted OS-account config-dir lookup, and launch disclosure with zero ambient `sys.argv` or environment trust.
+- `plugins/disk-hygiene/lib/data_root_state.py` owning `DataRoot`, `CleanRunStore`, the complete 6-directory `ENGINE_OWNED_DIRS` set, strict ASCII `sanitize_session_id`, and cross-language parity tests against `hooks.json`, `resume-notice.mjs`, and `run-python-hook.sh`.
+- `plugins/disk-hygiene/lib/policy_cascade.py` owning immutable `BaselineSnapshot`, `snapshot_protected_exact_names`, ADR 0075 standing policy cascade, and YAML/JSON policy overlay validation.
+- `killswitch_config.probe_effective` sharing managed-over-user, `managed-settings.d/*.json`, and Linux root-ownership trust precedence with `resolve_effective`.
+
+### Changed
+
+- `deep_inventory.py` computes mount-safe and `st_dev`-safe sizes in a single pass, classifies subpath targets (`~/.claude/projects`, `~/.claude/plugins/cache`), honors `CLAUDE_CONFIG_DIR`, indexes `launcher_dirs` once per walk, separates depth-1 `plugins/cache/temp_git_*` directories from plugin versions, and resolves `projects/` slugs via the shared cached `lib/claude_projects.py` module.
+
+- Rewired `engine_context.py` and `kill_switch_probe.py` to consume `lib/install_authority.py` and `killswitch_config.probe_effective` directly with zero `destructive_guard` imports.
+- Rewired `policy_migration.py` to consume `lib/policy_cascade.py` and `lib/yaml_subset.py` directly with zero `hygiene` imports.
+- Cached `system_roots()` and pre-casefolded `exact_names` across `hygiene.py` scan and revalidation hot loops, and pre-indexed snapshot descendants (`O(N log N)`) in `investigated_catalog.py`.
+
+### Fixed
+
+- `hygiene.py inventory` no longer calls `close_clean_runs()`, keeping read-only inventory from mutating `clean-runs/` markers.
+
+- Added `clean-invoked` and `guard-no-interpreter` to `ENGINE_OWNED_DIRS` and aligned Python session-ID sanitization to strict ASCII (`[^A-Za-z0-9_-]`) matching Bash and Node hooks.
+- Fixed `apply_plan` inner per-entry revalidation dropping `snapshot["policy"]["protected_exact_names"]` and re-reading `baseline-policy.json` from disk on every entry.
+- Fixed `kill_switch_probe.py` missing managed-settings overrides and install-scoped `plugin_id` narrowing.
+
+## [1.1.4] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [1.1.3] - 2026-11-24
 
 ### Changed

@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# The harness runs on this host and refuses a Windows figure that was not measured there.
 set -uo pipefail
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -95,7 +94,8 @@ assert_exit "a failed hook row exits 3" 3 "$?"
 assert_contains "the failure names the probe" "$OUT" "parallel wall (log off) probe job exited non-zero"
 
 APPEND_COPY="$TEST_TMPDIR/append-fail"
-cp -r "${SCRIPT_DIR%/*}" "$APPEND_COPY"
+mkdir -p "$APPEND_COPY/hooks"
+cp "$SUT" "$SCRIPT_DIR/session-event-log.sh" "$SCRIPT_DIR/session-log-lib.sh" "$SCRIPT_DIR/exec-bash.mjs" "$APPEND_COPY/hooks/"
 mv "$APPEND_COPY/hooks/session-log-lib.sh" "$APPEND_COPY/hooks/session-log-lib.real.sh"
 cat >"$APPEND_COPY/hooks/session-log-lib.sh" <<'EOF'
 source "${BASH_SOURCE[0]%/*}/session-log-lib.real.sh"
@@ -105,7 +105,6 @@ OUT="$(bash "$APPEND_COPY/hooks/measure-hook-log-budget.sh" --samples 1 2>&1)"
 assert_exit "a failed append job exits 3" 3 "$?"
 assert_contains "the failure names the append probe" "$OUT" "4 KB append probe job exited non-zero"
 
-# A trailing option with no value is a usage error, not an endless loop.
 for flag in --samples --record --check-doc; do
   timeout 10 bash "$SUT" "$flag" >/dev/null 2>&1
   assert_exit "$flag without a value exits 2" 2 "$?"

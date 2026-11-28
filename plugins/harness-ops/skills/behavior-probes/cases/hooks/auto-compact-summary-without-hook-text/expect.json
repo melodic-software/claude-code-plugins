@@ -1,0 +1,24 @@
+{
+  "claim": "The same reads compact the conversation automatically, and with no PreCompact hook text the summary holds no marker.",
+  "tags": ["PostCompact", "auto-compact", "compact summary", "hook"],
+  "permission_mode": "default",
+  "model": "claude-haiku-5-5",
+  "max_turns": 12,
+  "max_budget_usd": 2.0,
+  "timeout": 600,
+  "cli_args": ["--autocompact", "100k"],
+  "target": {
+    "compaction": true,
+    "patterns": [
+      "\"isCompactSummary\":\\s*true",
+      "^(?=.*\"hook_event_name\":\\s*\"PostCompact\")(?=.*\"trigger\":\\s*\"auto\")"
+    ],
+    "absent": ["ZEBRA-7731"],
+    "example": [
+      "{\"type\":\"system\",\"subtype\":\"compact_boundary\",\"compactMetadata\":{\"trigger\":\"auto\"}}",
+      "{\"type\":\"user\",\"isCompactSummary\":true,\"message\":{\"role\":\"user\",\"content\":\"Summary.\"}}",
+      "{\"session_id\":\"s\",\"hook_event_name\":\"PostCompact\",\"trigger\":\"auto\",\"compact_summary\":\"Summary.\"}"
+    ]
+  },
+  "outcome": "transcript-grep"
+}

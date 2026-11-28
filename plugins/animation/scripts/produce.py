@@ -69,7 +69,7 @@ def digest(prod):
     for panel in panels if isinstance(panels, list) else []:
         png, _ = rel(prod, panel.get('png') if isinstance(panel, dict) else None, 'png')
         if png:
-            paths.append(png)   # a panel image outside boards/ is still part of what was approved
+            paths.append(png)
     for path in sorted({p.resolve() for p in paths if p.is_file()}):
         h.update(str(path.relative_to(prod)).encode())
         h.update(b'\0')
@@ -384,7 +384,7 @@ def render_problems(meta, data):
     duration = meta.get('duration')
     if not isinstance(duration, (int, float)) or abs(duration - last) > 1 / fps:
         problems.append(f'render.json duration {duration} does not cover the shot list through {last}')
-    elif meta.get('frames') != (need := int(last * fps + 0.5)):   # half up, as capture.mjs's Math.round
+    elif meta.get('frames') != (need := int(last * fps + 0.5)):
         problems.append(f'render.json has {meta.get("frames")} frames; the shot list through {last} s at {fps} fps '
                         f'needs {need}')
     return problems

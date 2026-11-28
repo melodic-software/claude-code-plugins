@@ -1,13 +1,3 @@
-"""pr-merge's skip of unchanged refusals: a candidate is set aside only when
-the last run that gated it refused it on the same key, and never allowed.
-
-Expected values come from the owner's design for this cut: the key covers the
-head, `updatedAt`, labels, the base the gate reads its config at, the check
-rollup, review and thread state, the verdict artifacts and the default
-branch's config and gate code; a skip repeats only an allow-listed refusal,
-inside a recheck limit, and any doubt gates the candidate.
-"""
-
 from __future__ import annotations
 
 import copy
@@ -27,9 +17,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 import babysit_merge_skip as skip
 import babysit_verify_evidence as verify_evidence
 
-# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
-# fixtures' identity writes into the caller's repository
-# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -420,7 +407,6 @@ class ASkipRepeatsOnlyAnUnchangedAllowedRefusal(unittest.TestCase):
                 self.assertEqual([r["pr"] for r in rows], [7])
 
     def test_a_forged_record_is_reported_as_a_refusal_only(self) -> None:
-        # The store comes from a cache entry any default-branch job can write.
         forged = _stored(_key())
         forged["value"]["row"] = {
             **_row(),
@@ -819,6 +805,7 @@ class FilterThenRecordEndToEnd(unittest.TestCase):
     def test_a_repository_or_unknown_source_keys_unread_or_raises(self) -> None:
         for team, expected in (
             ("trusted_actors_source: repository\n", "unread"),
+            ("standards_repository: example-org/standards\n", "unread"),
             ("trusted_actors_source: elsewhere\n", None),
             ("trusted_actors_source: [standards]\n", None),
         ):

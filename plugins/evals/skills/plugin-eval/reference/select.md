@@ -8,6 +8,52 @@ text runs nothing, and a case,
 grader, prompt, fixture or scaffold change runs its own case and the cases that call it. Where the
 repository records its own eval run policy, that policy decides what each line obliges.
 
+An edit inside a SKILL.md `## Next`, `## Related` or `## See also` section runs nothing: those
+sections name other skills for the person and change no tool call. Neither does renaming a routing
+heading (Boundaries, Scope boundary, Siblings, Routing, Handoff, Composition, Integration, Workflow
+position, What this skill does not do) to another of those names or to Next or Related.
+
+A decided-term swap or a comment-line deletion runs nothing anywhere: a hunk, frontmatter value,
+eval case file or renamed path whose only difference swaps a term for the word the repository
+glossary's "Rejected terms" table decided (`docs/glossary.md`, else `GLOSSARY.md`), or that word's
+last word (`--lane` to `--area` for `focus area`), singular or plural, leaving old and new
+byte-identical once each swap is replaced, or deletes lines a comment fills in a code, YAML or
+shell file (`#` in YAML, shell, Python, TOML and PowerShell; `//` and `/* */` in JS, TS, JSONC,
+Go and C#; `#` or `;` opening a line of `.editorconfig`, where a later `#` is part of the value;
+with no code before or after it; never markdown, whose HTML
+comments a model can read, nor a line inside a shell heredoc or multi-line quoted string (`$'...'` included; a shell file whose quoting does not read cleanly gets no exemption), PowerShell here-string, YAML
+block scalar, or triple-quoted or backtick string). Decided terms come from the glossary at the merge base; a
+directive comment (`//go:build`, `/// <reference`, `# shellcheck`, `# coding:` and the like), a
+comment in a cgo file, a `/*` opener deleted without its `*/` and a PowerShell `#>` closer are
+never deletable comments; a swap in a skill's `name` or a skill or agent rename always runs; a script gets no swap exemption; a change with no hunks is never exempt; a
+plugin-wide file is always listed. A comment deletion under `evals/` runs its case, since the
+model running the case may read it, except in an `.editorconfig` (editor settings, which cannot
+change what the agent does) and unless the agent under test cannot see the file: the case's
+`case.yaml` when no file of a case reaching it names its case folder, the evals folder or a folder
+above, and no script under the evals folder that names `case.yaml` holds the deleted comment's text
+or a quoted pattern matching it; or a `.sh` or `.bash` script a case's scaffold runs (`bash`, `sh`, `source` or `.`
+with the script's path, optionally after `(cd <dir> &&`, or its `context.scaffold_script`) that no file of a case reaching it names,
+or names any folder holding it (the evals folder and those above included) or a glob or unresolved path that could match it, in any other form, and that never reads its own source (`$0`, `BASH_SOURCE`
+outside `$(dirname ...)` and outside an `awk`, `sed`, `grep` or `jq` program in single quotes, or its own name). Only these
+forms are set aside: a top-level `plugins: [...]` entry
+of `case.yaml` or `prompt.md` naming the suite's own plugin, a `(cd <dir> && bash <script> <args>)` run whose `<dir>` names nothing in or above the
+suite, and `$0` inside a single-quoted `awk`, `sed`, `grep` or `jq` program. A line that prints the script's name or path still names it. A file that pipes into a shell,
+runs a string (`eval`, `bash -c`, `trap`, `alias`) or sources a stream (`/dev/stdin`, `<(...)`, a here-string) gets no single-quote
+reading. A case file that `cd`s or `pushd`es into the suite, or finds its own folder any other way than `$(dirname ...)` (`${0%/*}`,
+`realpath "$0"`, `__file__`), makes the script visible, and a case script naming `case.yaml` makes `case.yaml`
+visible. A trailing comment (a `#` comment
+after code, the code left byte for byte) counts as a comment deletion in a shell file and in a `case.yaml`, there
+only when the file parses the same without it; a `case.yaml` edit that drops one is never a description-only edit.
+A `plugins/*/skills/*/evals/` file is not in the plugin's eval directory, so the agent can read it with the skill
+and its comments get no hidden exemption. A heredoc or quoted-string line stays content. A swap under `evals/`
+stays exempt. A hunk with any other change keeps the rules above.
+
+A `description` or `when_to_use` edit runs nothing when the old and new text are equal after three
+removals: each routing clause (a `Not for`, `Skip` or `prefer` clause that names a `plugin:skill`),
+a skill token's change of form (`plugin:skill` against `/plugin:skill`; a token is a skill when it
+has the slash or its plugin part names a repository plugin, so a different skill still counts),
+and each decided-term swap. Any other wording change keeps the rule above.
+
 ## Run it
 
 ```bash
@@ -27,15 +73,17 @@ A diff that affects nothing prints `no affected cases`. Otherwise one block per 
 | Line | Meaning | What to do |
 |---|---|---|
 | `cases:` | Cases with at least one deterministic grader that this change must run | Pass the list as the run's case filter (an eval workflow with a `cases` input takes it as is) |
+| `suite-only:` | Deterministic run-requiring cases of a plugin with no changed file under its `skills/`, `agents/`, `context/` or `evals/` (a case whose grader reads another plugin's changed skill, or a change to only the plugin's `reference/`), then the reason; a compare run refuses such a plugin; printed only where the repository's `.github/scripts/plugin-eval/compare-arms.sh` exists | Dispatch no compare run for them; merge first, then run them in a suite run on the default branch |
 | `judged:` | Run-requiring cases whose graders are all judged | Run them where a judge grades them, and check that judge against labeled samples first |
 | `run-after-merge:` | Triggering and no-fire cases of an additive-only `description` or `when_to_use` edit | Merge first, then run them on the default branch |
 | `affected-no-run:` | Cases the change touches that the policy runs nothing for (added body text, scripts, samples) | Nothing; they are listed so the author sees them |
+| `no-run-exempt:` | Skills whose `description` or `when_to_use` edit is routing-only or a decided-term swap, then the reason; their triggering and no-fire cases are in `affected-no-run:` | Nothing |
 | `uncovered:` | A changed skill or agent with no affected case | Add a case with `/evals:design` |
 | `plugin-wide:` | Hooks, `.mcp.json`, `plugin.json` or settings changed | No automatic run; judge whether a case should run |
 | `unmapped:` | A changed file no rule maps to a case | Judge it by hand |
 | `unread-graders:` | A Skill or Agent grader whose `input_match` names no skill the shared rule can read | Rewrite the grader so it names its skill, or check it by hand |
 | `compare-refused:` | Each changed path of the plugin that the repository's `.github/scripts/plugin-eval/select-plugins.mjs` refuses, with its reason; printed only where that script exists and Node runs it | Dispatch no compare run; merge first, then run the cases in a suite run on the default branch |
-| `agent-runs:` | Each run-requiring case's runs times two arms, summed | State it with the case list before dispatch |
+| `agent-runs:` | Each run-requiring case's runs times two arms, summed, `suite-only:` and `run-after-merge:` cases included | State it with the case list before dispatch |
 
 A triggering or no-fire case is one that leaves the choice of skill to the model (its prompt does
 not open with a `/plugin:skill` command) and checks a Skill call, or one tagged `triggering`,

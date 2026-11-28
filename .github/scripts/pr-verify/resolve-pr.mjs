@@ -1,59 +1,3 @@
-// Resolves the pull request a pr-require-checks run passed, for pr-verify.yml.
-// The only event field it takes is the upstream run id; every other fact is
-// read back from the API. It proceeds only when all of these hold, and
-// otherwise writes proceed=false with a reason:
-// - the run is a completed pull_request run of pr-require-checks.yml, by
-//   exact path, in this repository on a head of this repository, that
-//   succeeded or failed only on holds an approving review of the head lifts
-//   or the `do-not-merge` label (heldOnly), so a person approves, and a
-//   session holding the pull request reads, a head pr-verify has judged;
-// - exactly one open PR into main has that run's head SHA as its current head
-//   and its head in this repository;
-// - the PR is not a draft and not a dependency manager's (a Bot account with
-//   one of DEPENDENCY_MANAGERS' logins), and the run did not start while it
-//   was a draft (draftRun), whose suites all skipped;
-// - it is not the lanes App's pull request changing only main's
-//   merge.baseline-file (merge-holds.mjs baselineOnly, reason
-//   `native-baseline`), which merges with no verdict
-//   (https://github.com/melodic-software/architecture/pull/197);
-// - under merge.verify-authors `lane` (the default) the lanes App opened it:
-//   a Bot account whose login is merge.agent-identity, compared as the
-//   pr-merge lane does (babysit_merge_policy._lane_authored); under
-//   `lane-or-owner` that App or a User or Bot whose id is on the trusted
-//   list (never matched by login), whose PRs the pr-merge lane adopts
-//   (babysit_merge_policy.adoption_refusal); under `any` anyone may
-//   have; any other value judges nothing;
-// - the head has no counted verdict yet: a FAIL at it under this PR's number
-//   or another the commit's pull requests carry, or a PASS or PASS-NOTES for
-//   this PR, each looked up by exact artifact name, uploaded by a completed
-//   run that the pr-merge lane's reader would count (countedBy, the same checks as
-//   babysit_verify_evidence.py). A run still going or one that uploaded
-//   nothing does not stop a new judgment, nor does a FAIL judged from a run
-//   that started on the draft (draftJudgments), and neither do passes that all
-//   started before the spec last changed (`specChanged`): the head is judged
-//   again, with reason `spec-changed`.
-// The babysit-prs test test_verify_rules_sync.py runs this file to keep
-// DEPENDENCY_MANAGERS, isDependencyManager and countedBy in step with the gate.
-// It also writes the PR's closing issues, or, when it closes none, the one
-// issue its body's `Refs:` lines name (refsIssue), with their authors and last
-// body editors to SPEC_FILE, and the spec text trusted humans wrote, with
-// intake's refinement on their issues, to SPEC_TEXT_FILE (linkedIssues).
-// The head SHA is the run's, never the PR's live head.
-// This PR's own plain-named FAIL at the head (written when it linked no issue,
-// or more than a name carries) stops a new judgment unless the PR now links
-// issues a FAIL name can carry and, since that FAIL's run was created, only
-// trusted people edited its body or connected or disconnected an issue, at
-// least once (relinkedByPeople): reason `relinked`. This PR's own FAIL at the
-// head, plain or named with its issues, also stops a new judgment unless,
-// since its last such FAIL's run was created, a trusted person edited the
-// body and only trusted people edited it or changed its links
-// (editedByPeople): reason `body-edited`. A body edit re-runs
-// pr-require-checks (`edited`), whose completion starts this run. The gate
-// weighs the pass either judgment writes by the same rules
-// (babysit_verify_evidence `_superseded`).
-// A judgment also reports relink-since-head: whether the PR's body or links
-// changed since the head commit (relinkedSince), which sets how long its pass
-// lasts (write-verdict.mjs retentionDays).
 
 import { appendFileSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import process from "node:process";
@@ -71,45 +15,51 @@ import {
   responseDetail,
 } from "../lib/github-client.mjs";
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
+import { listChangedAt } from "../lib/trusted-actors.mjs";
 import { countRequests } from "../../actions/log-api-budget/rate-guard.mjs";
-import { titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
+import { PR_READS, prReads, titleRenamers } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { issuesSuffix, isVerdictName, NAME } from "./write-verdict.mjs";
 import { specSource } from "./spec-source.mjs";
-import { baselineOnly, refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
+import { authorSkip, baselineOnly, DEPENDENCY_MANAGERS, isDependencyManager, loginKey, refsIssue, visibleLines } from "../pr-merge/merge-holds.mjs";
 import { GATE_ALIAS, gateEntries } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { ACTIONS_BOT_ID, briefedIssue, carriesSplit, ownAgentIds, readSchedule, SOURCE_LABEL, sourceLabels, webHostsFrom } from "../intake-triage/admit.mjs";
 import { actionsBotOnly, baseAdmissionRules, DRIFT_TITLE, driftIssue, loadRules, ownAgentText, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec, vendoredRows } from "../intake-triage/issue-spec.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/issues.mjs";
 
-export { refsIssue, vendoredRows };
+export { DEPENDENCY_MANAGERS, isDependencyManager, refsIssue, vendoredRows };
 
 export { isVerdictName, NAME, NAME_MAX } from "./write-verdict.mjs";
 
 export const UPSTREAM_PATH = ".github/workflows/pr-require-checks.yml";
 export const VERIFY_PATH = ".github/workflows/pr-verify.yml";
-// babysit_classify.DEPENDENCY_MANAGER_LOGINS: the pr-merge lane refuses these
-// Bot accounts' pull requests before reading a verdict.
-export const DEPENDENCY_MANAGERS = Object.freeze(["dependabot", "dependabot-preview", "renovate", "renovate-bot"]);
-const VERIFY_AUTHORS = Object.freeze(["lane", "lane-or-owner", "any"]);
 
-// The jobs as JOBS_FILE lists them, each with the job page the verifier cites.
 export const shapeJobs = (runId, jobs) => ({
   run_id: Number(runId),
   jobs: jobs.map((job) => ({ name: String(job?.name ?? ""), conclusion: job?.conclusion ?? null, url: typeof job?.html_url === "string" ? job.html_url : null })),
 });
 
-// The file this script writes the jobs it read whole into, in RUNNER_TEMP
-// (outside the workspace the model reads); null when RUNNER_TEMP is unset.
 export const KEPT_JOBS = "pr-verify-upstream-jobs.json";
 export const keptJobsPath = (env) => (env.RUNNER_TEMP ? path.join(env.RUNNER_TEMP, KEPT_JOBS) : null);
 
 const SHA = /^[0-9a-f]{40}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
+
+export function readUpstreamRun(eventText) {
+  const run = JSON.parse(eventText)?.workflow_run;
+  if (run === null || typeof run !== "object" || Array.isArray(run)) {
+    throw new Error("the event payload holds no workflow_run");
+  }
+  return run;
+}
+
+// The jobs of `run`'s own attempt, which a later attempt does not change
+// (https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run-attempt).
+export const attemptJobsPath = (repository, run, page) =>
+  `/repos/${repository}/actions/runs/${run.id}/attempts/${run.run_attempt}/jobs?per_page=100${page === undefined ? "" : `&page=${page}`}`;
+const isAttempt = (value) => Number.isSafeInteger(value) && value >= 1;
 const MAX_PAGES = 100;
 
-// A 200 whose completeness check failed: a list shorter than its count, or a
-// field the answer lacks. The verdict is unknown, so closing holds on it.
 const incomplete = (message) => Object.assign(new Error(message), { incomplete: true });
 const shortList = (message, count, cap) => (Number.isSafeInteger(count) && count > cap ? new Error(message) : incomplete(message));
 
@@ -124,9 +74,6 @@ const COMMENT_PAGE_QUERY = `query($owner: String!, $name: String!, $number: Int!
   }
 }
 ${ACTOR}`;
-// The most comment pages one issue's read takes. Every trusted comment is
-// spec and the merge gate compares that set whole, so no page may be skipped;
-// past the cap the read stays red and says so.
 export const COMMENT_PAGES = 10;
 const RELINK_FIELDS = `userContentEdits(first: 100) { totalCount nodes { editedAt editor { ...actor } } }
       links: timelineItems(first: 100, itemTypes: [CONNECTED_EVENT, DISCONNECTED_EVENT]) {
@@ -178,9 +125,6 @@ const PARENT_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
 }
 ${ACTOR}`;
 
-// The pull request's body edits and issue connect and disconnect events, the
-// ways its linked issues change at one head, read whole in one query;
-// babysit_verify_evidence.RELINK_QUERY is the same text.
 export const RELINK_QUERY =
   "query($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){" +
   "pullRequest(number:$n){userContentEdits(first:100){totalCount " +
@@ -201,8 +145,6 @@ async function actedByPeople(github, repository, number, humans, since, bodyEdit
 
 export const relinkedByPeople = (github, repository, number, humans, since, read) => actedByPeople(github, repository, number, humans, since, false, read);
 
-// The body-edit rule: a trusted person edited the body from `since`, this pull
-// request's last FAIL at the head, on, and every act there was such a person's.
 export const editedByPeople = (github, repository, number, humans, since, read) => actedByPeople(github, repository, number, humans, since, true, read);
 
 async function relinkActs(github, repository, number) {
@@ -217,7 +159,6 @@ async function relinkActs(github, repository, number) {
 }
 
 function actsOf(edits, events) {
-  // totalCount counts every timeline item; filteredCount the kinds asked.
   if (!Array.isArray(edits?.nodes) || edits.totalCount !== edits.nodes.length || !Array.isArray(events?.nodes) || events.filteredCount !== events.nodes.length) {
     return null;
   }
@@ -228,22 +169,12 @@ function actsOf(edits, events) {
 const actsFrom = async (github, repository, number, start, read) =>
   Number.isNaN(start) ? null : (read ?? (() => relinkActs(github, repository, number)))();
 
-// Whether anyone edited the pull request's body or connected or disconnected
-// an issue from `since`, the head commit's time, on. Only then can a pass
-// judged at the head supersede a FAIL there (babysit_verify_evidence
-// `_superseded` needs such an act after the FAIL, which comes after the
-// commit), so write-verdict.mjs keeps such a pass as long as a FAIL. A time
-// or read that fails answers true.
 export async function relinkedSince(github, repository, number, since, read) {
   const start = Date.parse(since ?? "");
   const acts = await actsFrom(github, repository, number, start, read);
   return acts === null || acts.some(([at]) => Date.parse(at) >= start);
 }
 
-// babysit_merge_policy.names_nothing: whether a GraphQL answer says only that
-// `repository.<field>` names nothing, null there with every error a NOT_FOUND
-// at that path, as GitHub answers a `Refs: #<n>` whose number is no issue or
-// pull request.
 export function namesNothing(answer, field) {
   const repository = answer?.data?.repository;
   const errors = answer?.errors;
@@ -264,21 +195,6 @@ const actorFields = (actor, role) => ({
   [`${role}_type`]: typeof actor?.__typename === "string" ? actor.__typename : null,
 });
 
-// A Bot account with a dependency manager's login; a User named like one is not.
-export const isDependencyManager = (user) =>
-  user?.type === "Bot" &&
-  DEPENDENCY_MANAGERS.includes(String(user.login ?? "").toLowerCase().replace(/^app\//, "").replace(/\[bot\]$/, ""));
-
-// babysit_merge_policy._login_key: REST spells an App `app[bot]`, GraphQL `app`.
-const loginKey = (login) => String(login ?? "").trim().toLowerCase().replace(/\[bot\]$/, "");
-const laneAuthored = (user, laneIdentity) =>
-  loginKey(laneIdentity) !== "" && user?.type === "Bot" && loginKey(user.login) === loginKey(laneIdentity);
-const ownerAuthored = (user, ids) => (user?.type === "User" || user?.type === "Bot") && ids.includes(user.id);
-
-// pr-require-checks.yml's ci-status step that runs merge-holds.mjs on a lanes
-// App pull request, and the step after it that aggregates the lanes. A run
-// reports its own commit's step names, on a re-run too, so a held head whose
-// newest run predates the current name still reports OLD_HOLD_STEP.
 export const HOLD_STEP = "Fail a lanes App pull request on kill switch, hold path, verifier or veto";
 const OLD_HOLD_STEP = "Fail a lanes App pull request its body or a member holds";
 const HOLD_STEPS = [HOLD_STEP, OLD_HOLD_STEP];
@@ -298,44 +214,20 @@ export const CONTRACT_LINE = "ci-status: the pull-request contract or the draft 
 const OLD_CONTRACT_STEP = "Check the pull-request contract";
 const CONTRACT_STEPS = [CONTRACT_STEP, OLD_CONTRACT_STEP];
 export const DO_NOT_MERGE_LINE = "check-contract: this PR carries the 'do-not-merge' label; remove it to merge.";
-// What merge-holds.mjs `holds` writes after each hold an approving review of
-// the head lifts, and the line the runner adds for the step's failing exit.
 export const PERSON_LIFT = "; an approving review of this head by a person on the trusted-actor list lifts it";
 const STEP_EXIT = "Process completed with exit code 1.";
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-// One such hold's whole log line, `#<n>: <reason>.`: a hold path or a
-// trusted-actor list widening, then PERSON_LIFT and its carry-over clause,
-// in today's wording and the earlier one, to the end of the line. A changed
-// path is author text, so only the full shape counts, never a substring.
 export const personHoldLine = (line, number) =>
   !line.includes("a cost path") &&
   new RegExp(
-    `^#${number}: (?:it changes .+, a hold path|it widens the trusted-actor list \\(.+\\))${escapeRegExp(PERSON_LIFT)}, and the approval carries over later merges (?:that bring only the base's changes|of the base that leave its net change the same); then re-run ci-status\\.$`,
+    `^#${number}: it changes .+, a hold path${escapeRegExp(PERSON_LIFT)}, and the approval carries over later merges (?:that bring only the base's changes|of the base that leave its net change the same); then re-run ci-status\\.$`,
   ).test(line);
 
-// The `##[error]` lines of a job log, without the runner's timestamp.
 export const errorLines = (log) =>
   String(log)
     .split(/\r?\n/)
     .flatMap((line) => /^﻿?(?:\S+ )?##\[error\](.*)$/.exec(line)?.slice(1) ?? []);
 
-// Whether failed run `runId` failed only because a person has not yet approved
-// pull request `number`'s head or holds it with `do-not-merge`: of its latest
-// jobs only ci-status failed, its failed steps are HOLD_STEP, CONTRACT_STEP or
-// both, the lanes aggregate succeeded, and every error that job logged is one
-// of `number`'s holds an approval lifts (at least one when HOLD_STEP failed),
-// DO_NOT_MERGE_LINE (exactly once when CONTRACT_STEP failed, never otherwise)
-// or a failed step's exit; CONTRACT_STEP adds CONTRACT_LINE and check-contract's
-// exit inside the composite, once each, as a held run logs them
-// (https://github.com/melodic-software/ci-workflows/actions/runs/44383672751). ci-status still fails, so such a head never merges
-// unapproved or labeled; the verdict a judgment writes lifts no hold path and
-// no label. A read that fails, a job or step list cut short, or any other
-// error is false.
-// The check is two halves: heldShape reads only the run's jobs, so it runs
-// before the commit's pull requests are read, and heldOnly reads the
-// ci-status log against the pull request's number.
-// `read` is the resolution's one jobs read (latestJobs). Returns the ci-status
-// job's id and its failed step names, or null.
 async function heldShape(read) {
   try {
     const listed = await read();
@@ -391,20 +283,8 @@ async function heldOnly(readLog, { ciId, names }, number) {
 
 const latestJobs = (github, repository, runId) => github("GET", `/repos/${repository}/actions/runs/${runId}/jobs?filter=latest&per_page=100`);
 
-// pr-require-checks.yml's ci-status step that runs only when the run's event
-// is a draft's (`if: github.event.pull_request.draft == true`); every suite
-// skips on such a run.
 export const DRAFT_STEP = "Note a draft";
 
-// Whether checks run `runId` started while its pull request was a draft: its
-// latest ci-status job lists DRAFT_STEP as `success`; `skipped` is a ready
-// pull request's run. The step reads the run's own event, which a re-run
-// keeps, so marking the pull request ready since changes nothing. The jobs API
-// can list a finished job's steps empty or cut short (pr-require-checks.yml's
-// ci-status notes), so anything else (a read that fails, a job list cut short,
-// no one ci-status job, the step not listed once, or no such conclusion)
-// throws: no state is read from a missing step.
-// `read` as heldShape's.
 export async function draftRun(github, repository, runId, read) {
   const listed = await (read ?? (() => latestJobs(github, repository, runId)))();
   const jobs = listed?.jobs;
@@ -421,13 +301,6 @@ export async function draftRun(github, repository, runId, read) {
   throw ci.length === 1 && steps.length === 0 ? incomplete(message) : new Error(message);
 }
 
-// For a counted FAIL's pr-verify run, whether it judged a checks run that
-// started on the draft: every pr-require-checks pull_request run at the head
-// created before it ran DRAFT_STEP. pr-verify starts when a checks run
-// completes, so the run it judged is among them. Such a FAIL judged suites
-// that never ran, which resolvePull no longer does. A read that fails, a list
-// cut short, a time that cannot be read, or no run before it answers false, so
-// the FAIL counts. babysit_verify_evidence `_draft_judged` is the same rule.
 export function draftJudgments(github, repository, head) {
   let listing;
   const drafts = new Map();
@@ -459,20 +332,8 @@ export function draftJudgments(github, repository, head) {
   };
 }
 
-// Most names answer empty. The ETag of the first exactly empty first page a
-// client reads is sent as If-None-Match on a later first page whose caller
-// passes `emptyIsSafe`, and a 304, which does not count against the primary
-// rate limit, reads as no artifacts. On 2026-11-12, with a user token, two
-// different unused names returned the identical weak ETag, and a conditional
-// read of one with the other's ETag answered 304. GitHub documents ETags per
-// URL only, and a name that holds an artifact was not tested, so only names
-// where a false empty costs one more judgment or rating (pass, pass-notes,
-// the rated name) opt in; every FAIL name is read unconditionally.
-//   Pointer: <https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api>,
-//   "Use conditional requests".
-//   As-of: 2026-11-12.
-//   Recheck trigger: the not-modified count on the pr-verify check intent
-//   jobs' api-calls notices falls to 0.
+// A 304 to an authorized If-None-Match is not counted against the primary rate limit
+// (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests).
 const emptyListingTags = new WeakMap();
 const ETAG_FORM = /^(W\/)?"[!#-~]{1,200}"$/;
 
@@ -509,18 +370,10 @@ async function artifactsNamed(github, repository, name, { emptyIsSafe = false } 
   throw new Error(`the ${name} artifacts have more than ${MAX_PAGES} pages`);
 }
 
-// Whether the pr-merge lane would count this artifact's run, and the run is
-// complete: of verifier origin (path, event, branch, repository, head
-// repository, a head SHA on the branch), completed, and for a pass concluded
-// success. A read that fails counts nothing.
 export async function countedBy(options) {
   return (await countedRun(options)) !== null;
 }
 
-// Whether a workflow run is of `path`'s origin: that file on `base`, started
-// by workflow_run, in this repository, with a full head SHA. Only steps of
-// such a run can upload its artifacts, so an artifact name alone proves
-// nothing until its run passes this.
 export const ofOrigin = (run, { path, repository, base = "main" }) =>
   run?.path === path &&
   run.event === "workflow_run" &&
@@ -570,32 +423,6 @@ async function pullsOfCommit(github, repository, head) {
   return commitPulls({ repository, sha: head, readRest, readGraphQL: graphQLReader(github) });
 }
 
-// The names that hold a counted verdict at the head: this PR's PASS,
-// PASS-NOTES and FAIL, and a FAIL under each other number the commit's pull
-// requests carry, each in the form write-verdict.mjs artifactName writes.
-// It writes no head-ref digest, so no digest name is looked up; the change
-// that moves the writer to digest names adds their lookups beside these
-// until the last plain-named artifact expires. Given `issues`, this PR's linked issue
-// numbers, it looks up only this PR's FAIL names with `-i` and those issues
-// (write-verdict.mjs artifactName), so the caller reads the issues only for a
-// head the names without them leave unjudged; issues no name carries (over
-// the cap, or a number the pattern refuses) are never looked up, since the
-// writer names that FAIL plainly. A FAIL another PR left at the
-// head names issues this run never reads, so its suffixed name is missed and
-// the head is judged again; so is a head whose linked issues changed since
-// this PR's FAIL there. Each costs a run, and the earlier FAIL stays tied and
-// refuses the head unless the gate finds it superseded (`_superseded`: only
-// trusted people changed the link before the new pass started).
-// A counted FAIL answers `fail`; this PR's counted passes answer only their
-// runs' start times (`passes`), which `specChanged` weighs against the spec.
-// The FAIL names come first: a counted FAIL alone decides, so the passes are
-// looked up only when none is found. This PR's own FAIL (plain, or named
-// with its issues) answers instead `ownFail` and `ownLast`, the earliest and
-// latest creation times of its counted runs, so the caller can weigh a
-// relink (`relinkedByPeople`) or a body edit (`editedByPeople`) and then look
-// up the rest with `afterOwn`.
-// A FAIL whose run judged a checks run that started on the draft counts as
-// none (`draftJudged`, draftJudgments).
 async function judged({ github, repository, number, head, base, prs, issues, afterOwn = false, draftJudged }) {
   const named = (pr, verdict) => `pr-verify-${pr}-${head}-${verdict}`;
   const own = named(number, "fail");
@@ -641,26 +468,16 @@ async function judged({ github, repository, number, head, base, prs, issues, aft
   return { fail: false, passes };
 }
 
-// Whether every counted pass at the head started before the live spec last
-// changed (babysit_verify_evidence `_pass_refusal`, which refuses such a pass
-// `verify:spec-changed`): a linked issue's body edit, a spec comment added or
-// edited, or, for a pull request that is its own spec, a body edit. A pass
-// with no readable start time is stale. The gate also refuses a changed
-// closing set and a removed spec comment, which leave no time here; those
-// heads stay judged, as before.
-export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEditedAt }) {
+export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEditedAt, listChangedAt }) {
   const times = [
     ...issues.flatMap((issue) => [issue.last_edited_at, ...issue.spec_comments.map((comment) => comment.updated_at)]),
     ...(specKind === "pull-request" ? [bodyEditedAt] : []),
+    listChangedAt,
   ].map((time) => Date.parse(time ?? ""));
   const changed = Math.max(-Infinity, ...times.filter((time) => !Number.isNaN(time)));
   return !passStarts.some((start) => Date.parse(start ?? "") > changed);
 }
 
-// The pull requests the visible `Siblings: #<a>, #<b>` lines of a pull request
-// body name, read from its visible lines (merge-holds.mjs visibleLines, which
-// refsIssue reads) from the first column. A `Siblings:` line in any other form,
-// or more than SIBLINGS_MAX numbers, names none.
 export const SIBLINGS_MAX = 10;
 const SIBLINGS_LINE = /^siblings:/i;
 const SIBLINGS_PLAIN = /^Siblings:[ \t]*(#[1-9][0-9]{0,8}(?:[ \t]*,[ \t]*#[1-9][0-9]{0,8})*)[ \t]*$/;
@@ -688,8 +505,6 @@ async function creditedSiblings(readRefs, repository, number, body, base, humans
   for (const sibling of siblingNumbers(body).filter((n) => n !== number)) {
     const answer = await readRefs("POST", "/graphql", { query: SIBLING_QUERY, variables: { owner, name, number: sibling } });
     const node = answer?.data?.repository?.issueOrPullRequest;
-    // A GraphQL error other than NOT_FOUND stays red, as the client's own
-    // GraphQL errors do; an answer with no node holds (incomplete).
     if (answer?.errors ? !namesNothing(answer, "issueOrPullRequest") : node === null || typeof node !== "object") {
       const message = `#${number}: sibling #${sibling} could not be read`;
       throw answer?.errors ? new Error(message) : incomplete(message);
@@ -705,12 +520,6 @@ async function creditedSiblings(readRefs, repository, number, body, base, humans
   return credited;
 }
 
-// The spec of an issue the recurring filer opened, or null: the title and body
-// file-due.mjs builds from the one schedule row its one marker line names, in
-// the schedule this script's checkout holds (main's, in pr-verify.yml). The
-// issue's own text is never read as spec, so an edit by anyone cannot change
-// this text; it can only point the marker at another reviewed row of that
-// schedule (hardening candidate: also require an unedited issue).
 export function recurringSpec(issue, schedule) {
   const marks = [...String(issue?.body ?? "").matchAll(SCHEDULE_MARKER)];
   if (issue?.author?.__typename !== "Bot" || issue.author.databaseId !== ACTIONS_BOT_ID || marks.length !== 1) {
@@ -720,17 +529,10 @@ export function recurringSpec(issue, schedule) {
   return rows.length === 1 && typeof rows[0].title === "string" && rows[0].title !== "" ? `# ${issueTitle(rows[0])}\n\n${issueBody(rows[0])}` : null;
 }
 
-// check-upstream-drift.sh's git pin marker: the first line holding its prefix
-// counts only when it opens the line in the strict form (MARKER_PREFIX,
-// STRICT_RE).
 const PIN_PREFIX = "**Last audited upstream state:**";
 const PIN_MARKER = /^\*\*Last audited upstream state:\*\* `([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)@[0-9a-f]{40}`/;
-// GitHub's compare lists at most this many files; a list that long may be cut.
 const COMPARE_FILES_CAP = 300;
 
-// Each docs/upstream page under `dir` with a git pin marker, as `<prefix>/<path>`
-// to the upstream id it pins, read from this script's own checkout (main's, in
-// pr-verify.yml) by default.
 export function upstreamPages(dir = fileURLToPath(new URL("../../../docs/upstream/", import.meta.url)), prefix = "docs/upstream") {
   const pages = new Map();
   let names;
@@ -756,13 +558,6 @@ export function upstreamPages(dir = fileURLToPath(new URL("../../../docs/upstrea
 
 const VENDORED_UNSAFE = new Set(["scripts", "hooks", "lib", ".claude-plugin", ".mcp.json", "evals", "..", "."]);
 const VENDOR_INERT = /(?:\.md|\.jsonc|^LICENSE)$/;
-// Whether `name` is a path a vendored sync of `plugin` may write: a
-// changelog fragment directly under `.changes/<plugin>/`, or, under
-// `plugins/<plugin>/skills/`, a markdown file, or in a `vendor/` baseline a
-// markdown, `.jsonc` or `LICENSE` file, with no segment of VENDORED_UNSAFE,
-// and never the update procedure the vendored spec names: a skill's
-// `actions/update.md` or, outside `vendor/`, the plugin's `update` skill
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues). Pure.
 export function vendoredPath(plugin, name) {
   if (typeof plugin !== "string" || typeof name !== "string") {
     return false;
@@ -783,9 +578,6 @@ export function vendoredPath(plugin, name) {
   );
 }
 
-// A SKILL.md Claude Code loads, whose frontmatter, `` !` `` lines and ```!
-// blocks run or grant on a user's machine (https://code.claude.com/docs/en/skills).
-// Matched in any case, as a case-insensitive filesystem would load it.
 export const skillFile = (name) => typeof name === "string" && /^plugins\/[^/]+\/skills\/(?:[^/]+\/)+SKILL\.md$/i.test(name) &&!name.split("/").slice(4, -1).includes("vendor");
 
 const SYNC_STAMP = /^ {2}(upstream-version|upstream-sha|synced): ("?)[\w.\/@:+-]+\2$/;
@@ -803,9 +595,6 @@ function skillSurface(text) {
   };
 }
 
-// Whether a vendored sync changes a SKILL.md's frontmatter only in its sync
-// stamp values and leaves its `` !` `` lines as they were, with no ```! block
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues).
 export function skillTextSafe(base, head) {
   const before = skillSurface(base);
   const after = skillSurface(head);
@@ -819,14 +608,6 @@ function vendoredSkillSafe(file) {
   return !skillFile(file?.filename) || (file.status === "modified" && skillTextSafe(file.texts?.base, file.texts?.head));
 }
 
-// The spec of an issue the upstream-drift workflow filed, or null. The issue
-// counts when it is a trusted drift issue (admit.mjs driftIssue) and `files`,
-// the pull request's changed files, stay inside its kind's scope: for the
-// hex-pin kind, only modifications of the `pages` (this checkout's) that pin
-// its upstream id; for the vendored kind, only vendoredPath files of the
-// plugin `rows` (vendoredRows) maps the id to, any status. The spec is admit.mjs trustedDriftSpec, so a string
-// an upstream put in the issue's rows never becomes spec
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md).
 export function driftSpec(issue, pages, files, rows = vendoredRows()) {
   const drift = driftIssue(issue, rows);
   if (drift === null || !Array.isArray(files) || files.length === 0 || files.length >= COMPARE_FILES_CAP) {
@@ -844,16 +625,10 @@ export function driftSpec(issue, pages, files, rows = vendoredRows()) {
   return trustedDriftSpec(drift, own);
 }
 
-// The monitoring lane's main-red incident (maintenance-monitor-signals
-// issues.mjs): the title it files the signal under and its marker's key.
 const MAIN_RED = "1 main red";
 export const MAIN_RED_TITLE = FILING[MAIN_RED].title;
 const MAIN_RED_KEY = incidentKey(MAIN_RED);
 
-// The fixed spec of a main-red incident, the same for every one, so no text
-// of the issue, which carries run and job output, ever becomes spec. The lane
-// closes the incident itself once the checks stay green, so a fix that links
-// it with `Refs:` delivers all a pull request can.
 export const MAIN_RED_SPEC = [
   `# ${MAIN_RED_TITLE}`,
   "",
@@ -865,11 +640,6 @@ export const MAIN_RED_SPEC = [
   "- [ ] The change does not widen beyond that fix.",
 ].join("\n");
 
-// Whether `issue` (as GraphQL answers it) is a main-red incident the
-// monitoring lane filed: github-actions[bot] wrote it and nobody else last
-// edited it (admit.mjs actionsBotOnly), under the lane's exact title, with
-// its marker line for the main-red key first. Nothing else of the body is
-// read. Pure.
 export const mainRedIncident = (issue) => actionsBotOnly(issue) && issue.title === MAIN_RED_TITLE && readMarker(issue.body)?.key === MAIN_RED_KEY;
 
 const SKILL_READS_MAX = 10;
@@ -882,8 +652,6 @@ async function fileText(github, repository, name, ref) {
   return Buffer.from(file.content, "base64").toString("utf8");
 }
 
-// The files a pull request changes from `base` to `head` (GET compare, three
-// dots, as the pull request's diff). A failed read throws.
 async function compareFiles(github, repository, base, head) {
   const answer = await github("GET", `/repos/${repository}/compare/${base}...${head}`);
   if (!Array.isArray(answer?.files)) {
@@ -903,49 +671,6 @@ async function compareFiles(github, repository, base, head) {
 
 export const PERSON_CHECK = "Person check:";
 
-// The closing issues in this repository, or, when the pull request closes
-// none, the one issue its `Refs:` lines name (refsIssue), with their authors
-// and last body editors (`linkedIssues`), and the spec text: each body and comment written,
-// and last edited if ever, by a User on the trusted list's humans, the PR
-// author included, and, on an issue whose body is such text, intake's
-// refinement comment by the lanes App (`laneAppId`), the newest and only
-// while unedited (admit.mjs refinementSpec) and created before the pull
-// request, so nothing the App posts once a lane run has the issue becomes
-// spec (`specText`), with the body's done-when items that refinement lists
-// as checks a person runs (`person_checks`, admit.mjs personChecks under the
-// issue lane's `webHosts`) and those the body marks with PERSON_CHECK; a
-// split refinement whose record does not stand is left out. Other Bot and
-// App text is left out even where select-trusted-text keeps it, except the body of a sub-issue the lanes App
-// filed in a size split, under the split-child trust rule, `taskList` being
-// admission's `task-list` (size-split.mjs splitChildBody, its one home), and the
-// body of an own-agent filing no other account edited that carries exactly
-// one `source:` label, as admission requires (admit.mjs ownAgentText, under
-// main's `own-agents`; ADR 0111,
-// https://github.com/melodic-software/claude-code-plugins/blob/main/docs/adr/0111-admit-own-agent-filings-sized-small-or-medium-under-a-per-producer-cap.md),
-// and the body of a lanes App filing whose newest admission record names it
-// as it is and that no one holds (admit.mjs briefedIssue). Given the
-// `base` branch, a closing issue also carries the siblings that delivered part
-// of it (`credited_siblings`, creditedSiblings), so its diff is judged for the
-// rest. An issue the recurring filer opened takes its body from its row of
-// `schedule` (recurringSpec), marked `source` `recurring-schedule`; it
-// defaults to this checkout's schedule, so every caller (the pr-unblock lanes
-// too) gets the same spec. A closing issue the upstream-drift workflow filed
-// takes its spec from its upstream id, `drift.pages` and `drift.rows`
-// (driftSpec, by default this checkout's docs/upstream pages and vendored
-// rows), marked `source`
-// `upstream-drift`, only when `drift.changedFiles` reads the pull request's
-// changed files; a caller that passes none (the pr-unblock lanes) gets none.
-// A closing or `Refs:` issue the monitoring lane filed for a red main
-// (mainRedIncident) takes MAIN_RED_SPEC, marked `source` `main-red-incident`.
-// The merge gate cannot see the refinement: an edit, a hide (isMinimized)
-// or a newer one after a pass leaves that pass standing. An edit only takes
-// the refinement out of spec, so no one gains a spec by it; a person's
-// correction made after a pass waits for the next head. `read` posts the
-// spec query for the variables it is given (resolvePull's folded one).
-// Issue `number`'s comments whole, from `first`, the first page an issue
-// read returned, and up to COMMENT_PAGES - 1 more. `subject` names the issue
-// in the error: "#<label>: <subject>'s comments could not be read" holds
-// (incomplete), as a re-read can return them whole; over the cap stays red.
 async function wholeComments(github, repository, number, first, label, subject) {
   const unread = () => incomplete(`#${label}: ${subject}'s comments could not be read`);
   if (!Array.isArray(first?.nodes) || !Number.isSafeInteger(first.totalCount)) {
@@ -991,7 +716,6 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   const named = refs.totalCount === 0 ? refsIssue(data.data.repository.pullRequest.body) : null;
   if (named !== null) {
     const answer = await readRefs("POST", "/graphql", { query: REFS_QUERY, variables: { owner, name, number: named } });
-    // Only an exact NOT_FOUND names nothing; a null without it is no answer.
     const node = answer?.data?.repository?.issueOrPullRequest;
     if (answer?.errors ? !namesNothing(answer, "issueOrPullRequest") : node === null || typeof node !== "object") {
       const message = `#${number}: the Refs issue could not be read`;
@@ -1084,14 +808,14 @@ export async function linkedIssues(github, readRefs, repository, number, humans,
   };
 }
 
-export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRunId, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, baselineFile, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, rated, schedule = readSchedule(), upstreamPages: pages }) {
+export async function resolvePull({ github, readRefs = github, readLog, repository, upstreamRun: run, humans, base = "main", verifyAuthors = "lane", laneIdentity, laneAppId, baselineFile, taskList, webHosts, ownerIds: owners = [], specFromBodyApps = [], keepJobs, keepReads, rated, schedule = readSchedule(), upstreamPages: pages, trustedListChangedAt }) {
   const skip = (reason) => ({ proceed: false, reason });
-  if (!RUN_ID.test(String(upstreamRunId))) {
+  if (!RUN_ID.test(String(run?.id))) {
     throw new Error("the upstream run id is not a run id");
   }
-  const run = await github("GET", `/repos/${repository}/actions/runs/${upstreamRunId}`);
+  const upstreamRunId = run.id;
   if (
-    String(run?.id) !== String(upstreamRunId) ||
+    !isAttempt(run.run_attempt) ||
     run.path !== UPSTREAM_PATH ||
     run.event !== "pull_request" ||
     run.status !== "completed" ||
@@ -1103,7 +827,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     return skip("not-a-passing-run");
   }
   let jobs;
-  const readJobs = () => (jobs ??= latestJobs(github, repository, upstreamRunId));
+  const readJobs = () => (jobs ??= github("GET", attemptJobsPath(repository, run)));
   const shape = run.conclusion === "failure" && typeof readLog === "function" ? await heldShape(readJobs) : null;
   if (run.conclusion === "failure" && shape === null) {
     return skip("not-a-passing-run");
@@ -1127,17 +851,9 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   if (pull.draft !== false) {
     return skip("draft");
   }
-  if (isDependencyManager(pull.user)) {
-    return skip("dependency-manager");
-  }
-  if (!VERIFY_AUTHORS.includes(verifyAuthors)) {
-    return skip("verify-authors-invalid");
-  }
-  if (verifyAuthors === "lane" && !laneAuthored(pull.user, laneIdentity)) {
-    return skip("author-not-lane");
-  }
-  if (verifyAuthors === "lane-or-owner" && !laneAuthored(pull.user, laneIdentity) && !ownerAuthored(pull.user, owners)) {
-    return skip("author-not-lane-or-owner");
+  const unjudged = authorSkip(pull.user, verifyAuthors, laneIdentity, owners);
+  if (unjudged !== null) {
+    return skip(unjudged);
   }
   if (run.conclusion === "failure" && !(await heldOnly(readLog, shape, pull.number))) {
     return skip("not-a-passing-run");
@@ -1215,7 +931,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     spec.specKind = "pull-request";
     spec.specText = [{ number: pull.number, source: "pull-request", spec_kind: "pull-request", body, comments: [] }];
   }
-  if (passes.length > 0 && !specChanged(passes, { ...spec, bodyEditedAt })) {
+  if (passes.length > 0 && !specChanged(passes, { ...spec, bodyEditedAt, listChangedAt: await trustedListChangedAt?.() })) {
     return skip("already-judged");
   }
   const issues = spec.linkedIssues.map((issue) => issue.number);
@@ -1234,6 +950,7 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   if (!(await notDraftRun())) {
     return skip("draft-run");
   }
+  keepReads?.(prReads(pull.number, pull, specPull));
   return {
     proceed: true,
     reason: reopened ?? (passes.length > 0 ? "spec-changed" : "ok"),
@@ -1246,18 +963,11 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   };
 }
 
-// adoption.spec-from-body-apps as yq prints it, one id per line; anything but
-// an id leaves every App needing an issue.
 export function specFromBodyApps(text) {
   const ids = String(text ?? "").split(/\s+/).filter(Boolean);
   return ids.every((id) => /^[1-9][0-9]*$/.test(id)) ? ids.map(Number) : [];
 }
 
-// check-intent's reads, handed to check-intent-subscription in one job output
-// so a handoff does not repeat them: written by `carry` from the files and
-// outputs of the base-side steps, before the model runs, as base64 JSON. A
-// bundle over CARRY_MAX characters is not handed on, so the job output and the
-// env var that takes it stay small; the subscription job then reads again.
 export const CARRY_MAX = 96_000;
 const HEAD_REF = /^[A-Za-z0-9._/-]+$/;
 const ATTEMPT = /^[1-9][0-9]{0,4}$/;
@@ -1269,10 +979,6 @@ export function packReads({ attempt, prNumber, headSha, baseSha, headRef, relink
   return packed.length <= CARRY_MAX ? packed : "";
 }
 
-// The carried reads when they hold for this run attempt: a re-run of the
-// subscription job alone is a new attempt that keeps check-intent's outputs,
-// and what was judged may have changed since, so it reads again. Anything
-// malformed is null, never a partial bundle.
 export function takeReads(carried, attempt) {
   if (String(carried ?? "").length > CARRY_MAX) {
     return null;
@@ -1303,8 +1009,6 @@ export function takeReads(carried, attempt) {
     : null;
 }
 
-// `carry`: the reads output, from the resolver's outputs and the data files
-// it and select-trusted-text wrote; empty when anything is missing.
 export function carryMain(env = process.env) {
   let packed = "";
   try {
@@ -1329,11 +1033,6 @@ export function carryMain(env = process.env) {
   console.log(packed === "" ? "resolve-pr: no reads handed on; a handoff reads again" : `resolve-pr: handed on ${packed.length} characters of reads`);
 }
 
-// For a workflow other than pr-verify.yml that reads the same pull request
-// (RATED_WORKFLOW_PATH, RATED_ARTIFACT_PREFIX): whether an unexpired
-// `<prefix>-<pr>-<head>` artifact of a run of that file's origin (ofOrigin)
-// already stands, so the head is not paid for twice. Undefined when neither is
-// set, which leaves the verifier's rules; a malformed value throws.
 export function ratedBy(env) {
   if (!env.RATED_WORKFLOW_PATH && !env.RATED_ARTIFACT_PREFIX) {
     return undefined;
@@ -1389,8 +1088,8 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
   for (const key of [
     "GITHUB_TOKEN",
     "GITHUB_REPOSITORY",
+    "GITHUB_EVENT_PATH",
     "GITHUB_OUTPUT",
-    "UPSTREAM_RUN_ID",
     "SPEC_FILE",
     "SPEC_TEXT_FILE",
     "TRUSTED_ACTORS_PATH",
@@ -1399,13 +1098,10 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
       throw new Error(`${key} is not set`);
     }
   }
+  const upstreamRun = readUpstreamRun(readFileSync(env.GITHUB_EVENT_PATH, "utf8"));
   const trusted = loadTrustedList(env.TRUSTED_ACTORS_PATH);
   const api = (keepGraphQLErrors) => createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL, fetchImpl, keepGraphQLErrors, latch });
-  // A job's log: GitHub answers with a redirect to storage, which is read
-  // without the token.
   const send = fetchImpl ?? fetch;
-  // The API request is counted for the job-end api-calls notice; the storage
-  // read it redirects to is not a GitHub API request.
   const counted = countRequests(send);
   const readLog = async (jobId) => {
     let response = await counted(`${env.GITHUB_API_URL ?? "https://api.github.com"}/repos/${env.GITHUB_REPOSITORY}/actions/jobs/${jobId}/logs`, {
@@ -1422,12 +1118,14 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     return response.text();
   };
   let jobs;
+  let reads;
+  const client = github ?? api(false);
   const result = await resolvePull({
-    github: github ?? api(false),
+    github: client,
     readRefs: github ?? api(true),
     readLog,
     repository: env.GITHUB_REPOSITORY,
-    upstreamRunId: env.UPSTREAM_RUN_ID,
+    upstreamRun,
     humans: trusted.humans,
     verifyAuthors: env.VERIFY_AUTHORS ?? "lane",
     laneIdentity: env.LANE_IDENTITY,
@@ -1440,7 +1138,11 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     keepJobs: (list) => {
       jobs = list;
     },
+    keepReads: (kept) => {
+      reads = kept;
+    },
     rated: ratedBy(env),
+    trustedListChangedAt: env.STANDARDS_SHA ? () => listChangedAt(client, env.STANDARDS_SHA) : undefined,
   });
   if (result.proceed && !/^[A-Za-z0-9._/-]+$/.test(result.headRef)) {
     throw new Error("the head branch has a name the outputs cannot carry");
@@ -1450,7 +1152,10 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     writeJson(env.SPEC_TEXT_FILE, result.specText);
     const keptFile = jobs !== undefined && keptJobsPath(env);
     if (keptFile) {
-      writeFileSync(keptFile, `${JSON.stringify(shapeJobs(env.UPSTREAM_RUN_ID, jobs))}\n`);
+      writeFileSync(keptFile, `${JSON.stringify(shapeJobs(upstreamRun.id, jobs))}\n`);
+    }
+    if (reads && env.RUNNER_TEMP) {
+      writeFileSync(path.join(env.RUNNER_TEMP, PR_READS), `${JSON.stringify(reads)}\n`);
     }
   }
   const lines = [
@@ -1474,22 +1179,11 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
   console.log(`resolve-pr: proceed=${result.proceed} reason=${result.reason}${result.proceed ? ` pr=${result.prNumber} head=${result.headSha}` : ""}`);
 }
 
-// The step's error annotation for a failed run, with the refused answer's
-// detail when a GitHub call failed.
 export const failureAnnotation = (error, env = process.env) => `::error::${laneOf(env)} could not resolve the pull request: ${error.message}${detailSuffix(error)}`;
 
-// The reason a GitHub fault writes, which pr-verify.yml's HELD_STEP runs on.
 export const HELD_REASON = "held";
-// pr-verify.yml's step that runs only on a held run, so the lost-run reconciler
-// reads its annotations only for such a run (reconcile.mjs faultHeld).
 export const HELD_STEP = "Note the hold";
 
-// The step's closing for the error main threw: a GitHub fault (isFault: a 5xx,
-// a 429, a rate-guard stop under API_BUDGET_HOLD, or no answer) or a 200 whose
-// completeness check failed (`incomplete`) holds green with a `held: ` notice
-// and proceed=false, so nothing is judged and the lost-run reconciler re-runs
-// the run once on its next pass (outage posture element 2); any other error
-// fails the step with failureAnnotation.
 export function closing(error, env = process.env) {
   if (!isFault(error) && error?.incomplete !== true) {
     return { lines: [failureAnnotation(error, env)], outputs: null, code: 1 };

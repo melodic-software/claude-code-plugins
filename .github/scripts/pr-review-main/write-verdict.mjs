@@ -1,20 +1,3 @@
-// Checks each chunk's main-run review structured output, the last result
-// message of that chunk's run-claude-cli execution file, and writes the one
-// verdict file that
-// pr-review-main.yml uploads as pr-review-main-<lane>-<pr>-<tree>
-// (babysit_review_evidence.main_review_name). The gate counts only its
-// numbers: `findings`, every finding the model returned, summed over the
-// chunks, and `critical`, the CRITICAL ones, the most in any one chunk
-// (`items` lists them all, each chunked one with its `chunk`). The
-// pull request, head, base and tree come from the job's own reads, never from
-// the model. A run with any permission denial, output
-// that is not {findings, summary}, a finding that is not
-// {severity, path, line, title, body}, or model text a credential pattern
-// matches (lib/publish-gate.mjs findSecret) writes nothing and throws, so the
-// job fails and uploads no verdict; so does any one chunk that ran no review,
-// left no result or did not read its own parts whole. Model text is cut to fixed lengths and
-// never reaches a shell.
-
 import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -22,7 +5,6 @@ import { pathToFileURL } from "node:url";
 
 import { findSecret } from "../../../lib/publish-gate.mjs";
 
-// babysit_review_evidence MAIN_REVIEW_SCHEMA and LANES.
 export const SCHEMA = 1;
 export const LANES = Object.freeze(["claude-review", "claude-security-review"]);
 export const SEVERITIES = Object.freeze(["CRITICAL", "IMPORTANT", "SUGGESTION"]);
@@ -30,13 +12,11 @@ export const LONG_LINE_BYTES = 1800;
 const FINDINGS_MAX = 200;
 const TEXT_MAX = 2000;
 const SUMMARY_MAX = 4000;
+export const MERGED_SUMMARY_MAX = 4 * SUMMARY_MAX;
 const SHA = /^[0-9a-f]{40}$/;
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const RUN_ID = /^[1-9][0-9]{0,19}$/;
 const FINDING_KEYS = "body,line,path,severity,title";
-// The diff step's fold, which a quoted line carries through the middle of a
-// token (pr-verify/write-verdict.mjs FOLD): the scan reads each text with its
-// folds rejoined too.
 const FOLD = /(?<!\s)(?:\s*\\ continued: ?)+/g;
 
 const isObject = (value) => typeof value === "object" && value !== null && !Array.isArray(value);
@@ -45,8 +25,6 @@ export function artifactName(lane, pr, tree) {
   return `pr-review-main-${lane}-${pr}-${tree}`;
 }
 
-// The structured output of the last result message; a denied call means the
-// model reached past its data files, so the review is void.
 export function structuredOutput(messages) {
   const result = Array.isArray(messages) ? messages.findLast((message) => message?.type === "result") : undefined;
   if (result?.structured_output === undefined) {
@@ -59,9 +37,6 @@ export function structuredOutput(messages) {
   return result.structured_output;
 }
 
-// Whether the run read each diff part whole: one Read of its exact path, with
-// no offset or limit, whose result is not an error. A part read in pieces or
-// not at all leaves part of the diff unreviewed, so the review is void.
 export function readCoverage(messages, parts) {
   if (!Array.isArray(messages) || !Array.isArray(parts) || parts.length === 0) {
     throw new Error("the diff parts or the run's messages are unreadable");
@@ -88,8 +63,6 @@ export function readCoverage(messages, parts) {
   }
 }
 
-// The longest line's text in the diff parts, past its +, - or space, in
-// bytes; more than LONG_LINE_BYTES and there is no verdict.
 export function longestLine(texts) {
   let longest = 0;
   for (const text of texts) {
@@ -103,7 +76,7 @@ export function longestLine(texts) {
   return longest;
 }
 
-export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId, maxLineBytes }) {
+export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, standardsSha, runId, maxLineBytes }) {
   if (!LANES.includes(lane)) {
     throw new Error("unknown lane");
   }
@@ -113,9 +86,9 @@ export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId, 
   if (!NUMBER.test(String(pr)) || !RUN_ID.test(String(runId))) {
     throw new Error("the pull request number or run id is malformed");
   }
-  for (const sha of [headSha, baseSha, tree]) {
+  for (const sha of [headSha, baseSha, tree, standardsSha]) {
     if (!SHA.test(String(sha))) {
-      throw new Error("a head, base or tree SHA is malformed");
+      throw new Error("a head, base, tree or standards SHA is malformed");
     }
   }
   if (!isObject(output) || Object.keys(output).sort().join() !== "findings,summary") {
@@ -158,6 +131,7 @@ export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId, 
     head_sha: headSha,
     base_sha: baseSha,
     tree,
+    standards_sha: standardsSha,
     run_id: Number(runId),
     findings: findings.length,
     critical: findings.filter((f) => f.severity === "CRITICAL").length,
@@ -167,12 +141,6 @@ export function buildVerdict({ output, lane, pr, headSha, baseSha, tree, runId, 
   };
 }
 
-// One verdict over the chunks a diff over one review's size cap was split
-// into, in chunk order: each chunk's output is checked as a whole review's;
-// `findings` is the sum and `critical` the most any one chunk found. `items`
-// lists every chunk's findings, each with its 1-based `chunk`, so it can hold
-// more CRITICAL items than `critical`; the gate reads only the counts.
-// One chunk is the single-pass verdict.
 export function buildChunkedVerdict({ outputs, ...rest }) {
   if (!Array.isArray(outputs) || outputs.length === 0) {
     throw new Error("there is no chunk output");
@@ -187,19 +155,22 @@ export function buildChunkedVerdict({ outputs, ...rest }) {
   if (chunks.length === 1) {
     return chunks[0];
   }
+  const room = Math.min(SUMMARY_MAX, Math.floor(MERGED_SUMMARY_MAX / chunks.length));
   return {
     ...chunks[0],
     findings: chunks.reduce((sum, c) => sum + c.findings, 0),
     critical: Math.max(...chunks.map((c) => c.critical)),
-    summary: chunks.map((c, i) => `Chunk ${i + 1} of ${chunks.length}: ${c.summary}`).join("\n\n"),
+    summary: chunks.map((c, i) => `Chunk ${i + 1} of ${chunks.length}: ${c.summary.slice(0, room)}`).join("\n\n"),
     items: chunks.flatMap((c, i) => c.items.map((item) => ({ ...item, chunk: i + 1 }))),
   };
 }
 
-// The diff is DIFF_DIR/chunk-<k>/part-<n>.patch; EXECUTION_FILES names each
-// chunk's execution file, one per line in chunk order.
+export function executionFiles(env, count) {
+  return Array.from({ length: count }, (_, i) => (i === 0 ? env.EXECUTION_FILE : env.CHUNKS_DIR && path.join(env.CHUNKS_DIR, `chunk-${i + 1}`, "execution.json")));
+}
+
 export function main(env = process.env) {
-  for (const key of ["EXECUTION_FILES", "CHUNKS", "LANE", "PR_NUMBER", "HEAD_SHA", "BASE_SHA", "TREE_SHA", "GITHUB_RUN_ID", "VERDICT_DIR", "DIFF_DIR", "GITHUB_OUTPUT"]) {
+  for (const key of ["EXECUTION_FILE", "CHUNKS", "LANE", "PR_NUMBER", "HEAD_SHA", "BASE_SHA", "TREE_SHA", "STANDARDS_SHA", "GITHUB_RUN_ID", "VERDICT_DIR", "DIFF_DIR", "GITHUB_OUTPUT"]) {
     if (!env[key]) {
       throw new Error(`${key} is not set`);
     }
@@ -218,7 +189,7 @@ export function main(env = process.env) {
   if (dirs.length !== count || !want.every((name) => dirs.includes(name))) {
     throw new Error(`the diff holds ${dirs.length} chunk directories, not the ${count} the diff step wrote`);
   }
-  const files = env.EXECUTION_FILES.split("\n");
+  const files = executionFiles(env, count);
   const chunks = want.map((name, i) => {
     const label = `chunk ${i + 1} of ${count}`;
     let parts;
@@ -254,13 +225,13 @@ export function main(env = process.env) {
     headSha: env.HEAD_SHA,
     baseSha: env.BASE_SHA,
     tree: env.TREE_SHA,
+    standardsSha: env.STANDARDS_SHA,
     runId: env.GITHUB_RUN_ID,
   });
   mkdirSync(env.VERDICT_DIR, { recursive: true });
   writeFileSync(path.join(env.VERDICT_DIR, "verdict.json"), `${JSON.stringify(verdict, null, 2)}\n`);
   const name = artifactName(verdict.lane, verdict.pr, verdict.tree);
   appendFileSync(env.GITHUB_OUTPUT, `name=${name}\nfindings=${verdict.findings}\ncritical=${verdict.critical}\n`);
-  // buildChunkedVerdict has validated each output, so its counts need no second pass.
   chunks.forEach((c, i) => {
     const critical = c.output.findings.filter((f) => f.severity === "CRITICAL").length;
     console.log(`::notice title=pr-review-main chunk::lane=${verdict.lane} chunk=${i + 1}/${count} bytes=${c.bytes} findings=${c.output.findings.length} critical=${critical}`);

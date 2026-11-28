@@ -20,7 +20,6 @@ import { binary, lockOf, npmTarball, tarballUrl } from "../../../lib/cdn-pins/fi
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 
-// The registry as committed: the rows these tests hold apply-patch to.
 const REPO_ROOT = join(import.meta.dirname, "../../..");
 const RULES = loadRules(REPO_ROOT);
 const row = (name, change = {}) => ({ ...rowFor(RULES, { prepare: name === "default" ? "" : name }), ...change });
@@ -28,12 +27,8 @@ const row = (name, change = {}) => ({ ...rowFor(RULES, { prepare: name === "defa
 const sha256 = (text) => createHash("sha256").update(text).digest("hex");
 const entry = (path, oldMode = "100644", newMode = "100644") => ({ path, oldMode, newMode, newSha: "1".repeat(40) });
 
-// Credential shapes built at run time, so no literal token sits in this file.
 const ANTHROPIC_KEY = ["sk", "ant", "api03", "A1b2".repeat(20)].join("-");
 const OAUTH_TOKEN = ["sk", "ant", "oat01", "Z9y8".repeat(20)].join("-");
-// The stateless installation token is ghs_ then a JWT of about 520 characters: three
-// base64url segments joined by '.', each segment obviously fake. The first carries an
-// app-id-like prefix; the second has none, so no numeric app id is assumed.
 const JWT = Array(3).fill("FAKE-not_a_token".repeat(10)).join(".");
 const STATELESS_TOKEN = `${"ghs"}_123456_${JWT}`;
 const GITHUB_TOKENS = [`${"ghp"}_${"a1".repeat(18)}`, `${"ghs"}_${"B2".repeat(18)}`, `${"github"}_pat_${"c3".repeat(41)}`, STATELESS_TOKEN, `${"ghs"}_${JWT}`];
@@ -44,11 +39,6 @@ function scratch(t) {
   return dir;
 }
 
-// --- the REST client ---
-
-// A read, and a write that repeats to the same state, survives one dropped
-// socket; createRef is sent once, since a resend after a create that landed
-// answers 422.
 test("createGitHubApi sends a read and each repeatable write again after a dropped socket, and createRef once", async () => {
   const dropped = () => Object.assign(new TypeError("fetch failed"), { cause: { code: "UND_ERR_SOCKET" } });
   const script = [dropped(), { number: 7 }, dropped(), { sha: "b" }, dropped(), { sha: "t" }, dropped(), { sha: "c" }, dropped(), {}, dropped()];
@@ -78,8 +68,6 @@ test("createGitHubApi sends a read and each repeatable write again after a dropp
     "POST https://api/repos/o/r/git/refs",
   ]);
 });
-
-// --- the refusal table: each refused path or mode, one case each ---
 
 test("refuses .github/workflows/x.yml", () => {
   assert.deepEqual(refusalsOf(entry(".github/workflows/x.yml")), ["github-workflows"]);
@@ -152,8 +140,6 @@ test("admits plugin hooks, .claude-plugin, .claude, lib, scripts, CLAUDE.md and 
   }
 });
 
-// --- push, against a real repository and a fake of the GitHub API ---
-
 const git = (cwd, args, input) => execFileSync("git", args, { cwd, input, encoding: "utf8" }).trim();
 
 function commitAll(repo, message) {
@@ -162,8 +148,6 @@ function commitAll(repo, message) {
   return git(repo, ["rev-parse", "HEAD"]);
 }
 
-// A repository at a head commit, and a patch the model's edits make against it;
-// `renames: "exact"` writes renames as collect-patch.sh does.
 function repoWithPatch(t, edit, { renames = false, head: seed = () => {} } = {}) {
   const repo = scratch(t);
   git(repo, ["init", "-q", "-b", "main"]);
@@ -184,7 +168,6 @@ function repoWithPatch(t, edit, { renames = false, head: seed = () => {} } = {})
   return { repo, head, patchFile, sum: sha256(text) };
 }
 
-// Every call is recorded by name; trees are built with git, as GitHub would.
 function fakeApi(repo, head, overrides = {}) {
   const calls = [];
   const record = (name, value) => {
@@ -329,8 +312,6 @@ test("a chunked tree build that ends on another tree throws and commits nothing"
   assert.equal(api.calls.some((call) => call.createCommit || call.updateRef || call.createRef), false);
 });
 
-// A fix that makes two 100644 scripts executable and edits a test fixture,
-// with no path under .github/.
 test("under the ci-context row a fix that sets script exec bits and edits a fixture pushes, escalating nothing", async (t) => {
   const fix = repoWithPatch(
     t,
@@ -368,8 +349,6 @@ test("refuses a rename from an allowed path into .github/workflows/", async (t) 
   assert.deepEqual(api.calls, []);
 });
 
-// ADR 0085 Decision 6: the central grant file and the trusted-actor list
-// decide every admitted repository's lane tokens, so no lane patch may change them.
 test("every row refuses the central lane grant file and the trusted-actor list, in any case and through any .. segment, and nothing beside them", () => {
   for (const name of Object.keys(RULES)) {
     const universal = RULES[name].refuse.filter((refusal) => !REFUSALS[refusal].optional);
@@ -450,8 +429,6 @@ test("a patch that touches .github/ is refused end to end before any API call", 
   assert.deepEqual(api.calls, []);
 });
 
-// --- row lookup and the row contract ---
-
 test("row lookup picks the producer's prepare-mode row", () => {
   const picked = rowFor(RULES, { prepare: "review-threads" });
   assert.equal(picked.name, "review-threads");
@@ -491,9 +468,6 @@ test("a patch over max-files is refused", async (t) => {
   assert.deepEqual(api.calls, []);
 });
 
-// Agent instructions, plugin hooks and manifests, MCP config and .claude
-// reach review on every row past its optional refusals; settings files,
-// submodules and code owners stay refused on every row.
 const INSTRUCTION_PATHS = [
   ["CLAUDE.md", []],
   ["AGENTS.md", []],
@@ -522,8 +496,6 @@ test("every row refuses the same instruction paths: settings, submodules and cod
     }
   }
 });
-
-// --- the docs row: markdown only, nothing under skills/ and no SKILL.md ---
 
 test("refuses a path under a skills/ directory at any depth, in any case, and a SKILL.md anywhere, only where a row names them", () => {
   for (const [path, refusals] of [
@@ -632,9 +604,6 @@ test("under the docs row deleting a SKILL.md is refused patch-protected-path bef
   assert.deepEqual(api.calls, []);
 });
 
-// fix-docs's patch takes the docs row: an edit to an agent instruction
-// outside skills/ pushes, and one to a code owners file is refused whole
-// before any API call.
 for (const [path, edit] of [
   ["CLAUDE.md", (repo) => writeFileSync(join(repo, "CLAUDE.md"), "Follow the rules.\n")],
   [".claude/rules/r.md", (repo) => (mkdirSync(join(repo, ".claude/rules"), { recursive: true }), writeFileSync(join(repo, ".claude/rules/r.md"), "x\n"))],
@@ -679,8 +648,6 @@ test("a fix-docs patch of 300 files pushes, and one of 301 escalates patch-inval
   assert.deepEqual(refused.calls, []);
 });
 
-// --- the docs row's protected-content rule ---
-
 test("the docs row alone names the protected-content content rule, which checkRow knows", () => {
   for (const name of Object.keys(RULES)) {
     assert.equal(RULES[name]["content-rule"] === "protected-content", name === "docs", name);
@@ -688,9 +655,6 @@ test("the docs row alone names the protected-content content rule, which checkRo
   assert.doesNotThrow(() => checkRow(row("default", { "content-rule": "protected-content" })));
 });
 
-// The `tiers:` block of a docs-naming.yaml, read as this repository writes it;
-// any other non-blank line inside the block throws, so a path written another
-// way cannot slip past the comparison below.
 function tierPaths(text) {
   const tiers = {};
   let inside = false;
@@ -767,8 +731,6 @@ const seedCatalog = (repo) => {
 };
 const pushedBlob = (fix, api, path) => git(fix.repo, ["cat-file", "blob", `${api.calls.find((call) => call.createCommit).createCommit.tree}:${path}`]);
 
-// fe5c2b8809 on #15783 rewrote the autonomy line inside docs/catalog.md's
-// generated block; 7f3c22f5f7 on #15807 made the cloud-sessions edit.
 test("a fix-docs patch drops its hunk inside a generated region with one warning naming the file and generator, and pushes its other hunks", async (t) => {
   const fix = repoWithPatch(
     t,
@@ -808,8 +770,6 @@ test("a fix-docs patch that deletes the BEGIN marker to edit the region drops th
   assert.deepEqual(api.calls, []);
 });
 
-// The BEGIN deletion is one hunk on a marker line; the autonomy edit and the
-// END deletion are one hunk on lines 9 and 10.
 test("a fix-docs patch that deletes both markers to edit the region drops each hunk that touches the region, one warning per hunk", async (t) => {
   const unmarked = catalog({ autonomy: AUTONOMY("interface") }).replace(`<!-- BEGIN GENERATED: ${GENERATOR} -->\n`, "").replace("<!-- END GENERATED: catalog -->\n", "");
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "docs/catalog.md"), unmarked), { head: seedCatalog });
@@ -925,10 +885,6 @@ for (const [what, head, patched, kept] of [
   });
 }
 
-// A head commit and a patch whose blobs hold exactly the given bytes, built
-// with plumbing that runs no filter (hash-object --no-filters, update-index
-// --cacheinfo), in a repository whose own core.autocrlf and .gitattributes
-// (committed and in the work tree) are set as given for apply-patch to meet.
 function filteredFixture(t, head, patched, { autocrlf, attributes }) {
   const repo = scratch(t);
   git(repo, ["init", "-q", "-b", "main"]);
@@ -1052,9 +1008,6 @@ test("a fix-docs patch that deletes a file holding a generated region leaves the
   assert.equal(git(fix.repo, ["rev-parse", `${pushedTree(api)}:docs/x.md`]), git(fix.repo, ["rev-parse", `${fix.head}:docs/x.md`]));
 });
 
-// Under --no-renames a rename is a deletion and an addition: the deletion is
-// dropped, and the addition, whose hunk writes marker lines, is dropped too,
-// so the file stays at its old path alone.
 test("a fix-docs patch that renames a file holding a generated region leaves it at its old path, byte for byte, and adds nothing", async (t) => {
   const fix = repoWithPatch(
     t,
@@ -1177,8 +1130,6 @@ for (const [what, head, patched] of [
   });
 }
 
-// 7f3c22f5f7 on #15807 edited released entries in two plugin changelogs and a
-// dated research record under docs/upstream/.
 for (const [path, tier] of [
   ["plugins/p/CHANGELOG.md", "a released changelog (docs/conventions/docs-naming.yaml tier released) the release tooling writes"],
   ["docs/contracts/c/CHANGELOG.md", "a released changelog (docs/conventions/docs-naming.yaml tier released) the release tooling writes"],
@@ -1280,10 +1231,6 @@ test("a fix-ci patch of 300 files pushes with 309 API calls, and one of 301 is r
   assert.deepEqual(refused.calls, []);
 });
 
-// --- the dependency-review row: a fix to manifests a Dependabot PR already has ---
-
-// A plain version bump of x from 1.0.0 to 2.0.0 and of numpy, as
-// dependency-classify.mjs's fixRefusal admits one (its own tests hold the rule).
 const PKG = (range, extra = {}) => `${JSON.stringify({ name: "p", scripts: { test: "node t.js" }, dependencies: { x: range }, ...extra }, null, 2)}\n`;
 const LOCK = (version, resolved = `https://registry.npmjs.org/x/-/x-${version}.tgz`) =>
   `${JSON.stringify(
@@ -1294,7 +1241,6 @@ const LOCK = (version, resolved = `https://registry.npmjs.org/x/-/x-${version}.t
 const REQS = (version, hash) => `numpy==${version} \\\n    --hash=sha256:${hash.repeat(64)}\n    # via onnxruntime\n`;
 const PAIRS = [["npm", "/"], ["pip", "/"]];
 
-// A head that holds the manifests at the old versions, and a patch of `edit`.
 function dependencyPatch(t, edit) {
   return repoWithPatch(t, (repo) => edit(repo), {
     head: (repo) => {
@@ -1336,16 +1282,12 @@ test("dependency-manifests admits npm and pip manifests and lock files and refus
   const refused = fakeApi(code.repo, code.head);
   assert.deepEqual(await dependencyPush(code, refused), { outcome: "escalate", escalationReason: "patch-protected-path" });
   assert.deepEqual(refused.calls, []);
-  // Without the base config's pairs the predicate cannot run: it throws before any call.
   const manifests = dependencyPatch(t, bump);
   const noConfig = fakeApi(manifests.repo, manifests.head);
   await assert.rejects(dependencyPush(manifests, noConfig, { context: { dependencyVerdict: "fix" } }), /dependabot\.yml/);
   assert.deepEqual(noConfig.calls, []);
 });
 
-// Gap 4: the content rule refuses, before any API call, a change that is in
-// scope by path but is more than a version: a script, a new file, a rename,
-// a lock resolved to another host.
 test("the dependency-version-change rule refuses a manifest change that is more than a version, before any API call", async (t) => {
   for (const [why, edit] of [
     ["a package.json scripts edit", (repo) => writeFileSync(join(repo, "package.json"), PKG("^2.0.0", { scripts: { test: "node t.js", postinstall: "curl x | sh" } }))],
@@ -1363,14 +1305,10 @@ test("the dependency-version-change rule refuses a manifest change that is more 
     assert.deepEqual(await dependencyPush(fix, api), { outcome: "escalate", escalationReason: "patch-protected-path" }, why);
     assert.deepEqual(api.calls, [], why);
   }
-  // The same paths with only versions changed push.
   const fix = dependencyPatch(t, bump);
   assert.equal((await dependencyPush(fix, fakeApi(fix.repo, fix.head))).outcome, "pushed");
 });
 
-// The write runner's promote step held a dependency fix to these paths
-// before apply-patch did; its cases, ported: each path outside fix scope
-// refuses the patch beside an in-scope lock bump, before any API call.
 const SCOPE_PAIRS = [["github-actions", "/"], ["npm", "/"], ["npm", "/plugins/miro/server"], ["npm", "/.github/actions/resolve-config"], ["pip", "/plugins/animation"], ["pip", "/.github"]];
 test("dependency-manifests refuses a path outside fix scope, whatever the base config lists", async (t) => {
   for (const path of [
@@ -1392,13 +1330,11 @@ test("dependency-manifests refuses a path outside fix scope, whatever the base c
     assert.deepEqual(await dependencyPush(fix, api, { context: { dependencyVerdict: "fix", dependabotConfig: SCOPE_PAIRS } }), { outcome: "escalate", escalationReason: "patch-protected-path" }, path);
     assert.deepEqual(api.calls, [], path);
   }
-  // The npm manifests at the listed root push.
   const listed = dependencyPatch(t, (repo) => {
     writeFileSync(join(repo, "package.json"), PKG("^2.0.0"));
     writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0"));
   });
   assert.equal((await dependencyPush(listed, fakeApi(listed.repo, listed.head), { context: { dependencyVerdict: "fix", dependabotConfig: SCOPE_PAIRS } })).outcome, "pushed");
-  // An empty config admits nothing.
   const fix = dependencyPatch(t, bump);
   await assert.rejects(dependencyPush(fix, fakeApi(fix.repo, fix.head), { context: { dependencyVerdict: "fix", dependabotConfig: [] } }), /dependabot\.yml/);
 });
@@ -1414,8 +1350,6 @@ test("the dependency-version-change rule refuses a lock repointed at another pac
     assert.deepEqual(api.calls, [], why);
   }
 });
-
-// --- the install-script-pin row: review-dependency select's pin patch, no verdict ---
 
 const CLI = "@anthropic-ai/claude-code";
 const PIN_PKG = (pin, extra = {}) => `${JSON.stringify({ name: "p", devDependencies: { [CLI]: "2.1.317" }, allowScripts: { [`${CLI}@${pin}`]: true, "e@1.0.0": true }, ...extra }, null, 2)}\n`;
@@ -1442,7 +1376,6 @@ test("the install-script-pin row refuses any other change before any API call", 
     ["a pin to another version", (repo) => writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.318"))],
     ["a name-only approval", (repo) => writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.317").replace(`"${CLI}@2.1.317"`, `"${CLI}"`))],
     ["the pin and a script", (repo) => writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.317", { scripts: { postinstall: "curl x | sh" } }))],
-    // Past max-files 1: refused as invalid.
     ["the pin and the lock", (repo) => {
       writeFileSync(join(repo, "package.json"), PIN_PKG("2.1.317"));
       writeFileSync(join(repo, "package-lock.json"), LOCK("2.0.0"));
@@ -1510,13 +1443,11 @@ test("checkRow names an unknown content rule", () => {
   assert.equal(RULES["dependency-review"]["content-rule"], "dependency-version-change");
 });
 
-// Gap 3: the pairs come from BASE_DIR's dependabot.yml, never the checkout's.
 test("main reads the dependency-manifests pairs from the base dependabot.yml", async (t) => {
   const fix = dependencyPatch(t, bump);
   const base = scratch(t);
   mkdirSync(join(base, dirname(RULES_PATH)), { recursive: true });
   cpSync(join(REPO_ROOT, RULES_PATH), join(base, RULES_PATH));
-  // The checkout's copy would admit the root; the base's admits it too only once written.
   mkdirSync(join(fix.repo, ".github"), { recursive: true });
   writeFileSync(join(fix.repo, ".github/dependabot.yml"), "updates:\n  - package-ecosystem: npm\n    directory: /\n  - package-ecosystem: pip\n    directory: /\n");
   const out = scratch(t);
@@ -1570,7 +1501,6 @@ test("a pushed patch commits the row's message and trailer on the gated head and
   assert.deepEqual(api.calls.at(-2), { updateRef: { ref: "heads/feat/x", sha: "c".repeat(40), force: false } });
 });
 
-// The kept threads as keptThreadsFrom reads them from a threads.json.
 const keptOf = (threads) => ({ paths: new Set(threads.map((thread) => thread.path)), threads });
 
 test("kept-threads admits a kept thread's path and refuses one outside every thread's scope", async (t) => {
@@ -1587,9 +1517,6 @@ test("kept-threads admits a kept thread's path and refuses one outside every thr
   await assert.rejects(pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads"), context: { keptThreads: new Set(["README.md"]), fixedThreads: [] } }), /kept thread paths/);
 });
 
-// The review-threads row's scope, as the write runner's promote step held a
-// lane branch to it: each case patches the files named, onto a head holding
-// them, under kept threads on plugins/p/evals/c/case.yaml and src/round.py.
 const SCOPE_THREADS = [{ path: "plugins/p/evals/c/case.yaml" }, { path: "src/round.py" }];
 const threadPatch = (t, paths) =>
   repoWithPatch(t, (repo) => {
@@ -1620,8 +1547,6 @@ for (const path of ["plugins/q/README.md", "src/lib/test_round.py", "src/run.js"
   });
 }
 
-// #8116: a write-access fix request named a same-plugin code file, which the
-// thread file carries as named_paths; the plugin-wide scope now holds it too.
 test("review-threads: a same-plugin code file pushes, named or not; a named instruction path is refused", async (t) => {
   const named = [{ path: "plugins/p/evals/c/case.yaml", named_paths: ["plugins/p/lib/run.js"] }];
   assert.equal((await threadPush(threadPatch(t, ["plugins/p/lib/run.js"]), named)).outcome, "pushed");
@@ -1633,8 +1558,6 @@ test("review-threads: a same-plugin code file pushes, named or not; a named inst
   });
 });
 
-// A finding on a doc fixed in a script the pull request also changes: the
-// thread file's pr_paths carry the PR's files into every thread's scope.
 const docThread = (prPaths) => ({ ...keptOf([{ path: "README.md" }]), prPaths: new Set(prPaths) });
 const docPush = (fix, prPaths) => pushWith(fix, fakeApi(fix.repo, fix.head), { row: row("review-threads"), context: { keptThreads: docThread(prPaths), fixedThreads: [] } });
 
@@ -1653,8 +1576,6 @@ test("review-threads: a new file stays refused even when pr_paths lists it", asy
   assert.deepEqual(await docPush(fix, ["README.md", "scripts/new.sh"]), { outcome: "escalate", escalationReason: "patch-protected-path" });
 });
 
-// #12346: the fix to lib/hook-utils.sh had to regenerate its copies in other
-// plugins, which the thread file's copy_paths carry into scope.
 test("review-threads: a shared copy of a canonical the PR changes pushes, and a file beside it stays refused", async (t) => {
   const COPY = "plugins/q/hooks/hook-utils.sh";
   const seed = { head: (repo) => (mkdirSync(join(repo, "plugins/q/hooks"), { recursive: true }), writeFileSync(join(repo, COPY), "head\n"), writeFileSync(join(repo, "plugins/q/README.md"), "head\n")) };
@@ -1684,10 +1605,6 @@ test("review-threads: a protected path the PR changes is still refused", async (
   }
 });
 
-// --- git hook and attribute files: fix-ci (ci-context) and address-feedback
-// (review-threads) may not change what git, or a hook it runs, does on the
-// next checkout or commit ---
-
 const HOOK_PATHS = [
   [".gitattributes", "gitattributes"],
   ["sub/dir/.gitattributes", "gitattributes"],
@@ -1708,8 +1625,6 @@ test("the ci-context and review-threads rows refuse .gitattributes at any depth,
   }
 });
 
-// The issue row refuses .husky/ and lefthook.yml at any depth as Claude Code
-// protected paths instead, and leaves .gitattributes, which Claude Code does not protect.
 test("docs/husky.md, docs/lefthook.md and sub/lefthook.yml are not hook refusals, and the issue row refuses only the Claude Code protected ones", () => {
   for (const path of ["docs/husky.md", "docs/lefthook.md", "sub/lefthook.yml"]) {
     for (const name of Object.keys(RULES)) {
@@ -1722,8 +1637,6 @@ test("docs/husky.md, docs/lefthook.md and sub/lefthook.yml are not hook refusals
   }
 });
 
-// Every other file lefthook reads its config or hook scripts from; lefthook.yml
-// is in HOOK_PATHS.
 const LEFTHOOK_PATHS = [
   "lefthook.yaml", "lefthook.toml", "lefthook.json", "lefthook.jsonc",
   ".lefthook.yml", ".lefthook.yaml", ".lefthook.toml", ".lefthook.json", ".lefthook.jsonc",
@@ -1736,9 +1649,6 @@ const LEFTHOOK_PATHS = [
 ];
 const LEFTHOOK_LOOKALIKES = ["docs/lefthook-local.md", "sub/.lefthook-notes", "sub/lefthook.yaml", "sub/.lefthook/x", "sub/.config/lefthook.yml", ".lefthook-notes", "lefthook-local.md", "lefthook.yml.bak", ".config/sub/lefthook.yml"];
 
-// The lefthook file names Claude Code protects at any depth
-// (https://code.claude.com/docs/en/permission-modes#protected-paths), which the
-// issue row refuses as claude-protected.
 const CLAUDE_LEFTHOOK = new Set(["lefthook.yml", "lefthook.yaml", ".lefthook.yml", ".lefthook.yaml"]);
 const issueRefusal = (path) => (CLAUDE_LEFTHOOK.has(path.split("/").at(-1).toLowerCase()) ? ["claude-protected"] : []);
 
@@ -1856,9 +1766,6 @@ test("keptThreadsFrom keeps each thread id of the select job's shape, in the fil
   assert.deepEqual(keptThreadsFrom(file).ids, ["PRRT_2", "PRRT_1"]);
 });
 
-// #12809: an earlier-fail round keeps no thread, only the FAIL's notes, each a
-// path and a VNOTE_ id: the fix's scope and its Lane-Thread trailer take them
-// as threads.
 test("keptThreadsFrom takes an earlier FAIL's notes as threads on their paths, by note id", (t) => {
   const file = join(scratch(t), "threads.json");
   writeFileSync(file, JSON.stringify({ threads: [], verify_notes: [{ id: "VNOTE_1", head: "b".repeat(40), path: "src/a.js", body: "x" }, { id: "VNOTE_2", head: "b".repeat(40), path: "docs/b.md", body: "y" }], pr_paths: ["src/a.js"] }));
@@ -1874,7 +1781,6 @@ test("keptThreadsFrom takes an earlier FAIL's notes as threads on their paths, b
   }
 });
 
-// replies.jsonl as the model job's scan job uploads it, one reply per line.
 const replyLine = (thread, disposition) => JSON.stringify({ thread, disposition, evidence: ["a:1"], fix_sha: "", note: "n" });
 
 test("fixedThreadsFrom names each kept thread a VALID reply names, in the kept order, and nothing else", (t) => {
@@ -1885,7 +1791,6 @@ test("fixedThreadsFrom names each kept thread a VALID reply names, in the kept o
     [
       replyLine("PRRT_3", "VALID"),
       replyLine("PRRT_2", "INCORRECT"),
-      // A thread the select job did not keep adds no line.
       replyLine("PRRT_9", "VALID"),
       replyLine("PRRT_1", "VALID"),
       replyLine("PRRT_1", "VALID"),
@@ -1916,7 +1821,6 @@ test("review-threads: the commit names each fixed thread in a Lane-Thread line a
     const { createCommit } = api.calls.find((call) => call.createCommit);
     assert.equal(createCommit.message, `Address review feedback on feat/x\n\nLane-Activity: some-lane/some-activity\n${trailer}`);
   }
-  // With no replies read, the row writes nothing rather than a commit no thread can claim.
   const none = fakeApi(fix.repo, fix.head);
   await assert.rejects(pushWith(fix, none, { row: row("review-threads"), context: { keptThreads } }), /replies/);
   assert.deepEqual(none.calls, []);
@@ -1988,37 +1892,22 @@ test("a hold label set while the model worked drops the patch uncommitted", asyn
   assert.deepEqual(writes(api), []);
 });
 
-// #8998: a `Hold:` line opening a body line, in any case, after any
-// whitespace (NBSP included), with a bare CR ending a line, holds a PR the
-// lanes App did not open; on the lanes App's own PR it holds the merge only.
 const OWNER = { login: "maintainer", type: "User" };
 const LANES_BOT = { login: "melodic-automation-lanes[bot]", type: "Bot" };
 const bodyPull = (user, body) => ({ draft: false, head: { repo: { full_name: "o/r" } }, user, body });
 
-test("a Hold: line in an owner PR's body drops the patch uncommitted", async (t) => {
-  for (const body of ["Fixes it.\n\nHold: until the release", "hold: wait", "Fixes it.\n Hold: wait", "Fixes it.\rHold: wait", "Fixes it.\r\n  HOLD: wait"]) {
+test("body hold phrases in an owner or lanes App PR hold nothing; the do-not-merge label holds", async (t) => {
+  for (const pull of [bodyPull(OWNER, "Fixes it.\n\nHold: until the release"), bodyPull(OWNER, "Please do not merge."), bodyPull(LANES_BOT, "Closes #1\n\nHold: a human merges this")]) {
     const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
-    const api = fakeApi(fix.repo, fix.head, { pull: bodyPull(OWNER, body) });
-    assert.deepEqual(await pushWith(fix, api), { outcome: "held" }, JSON.stringify(body));
-    assert.deepEqual(writes(api), [], JSON.stringify(body));
+    const api = fakeApi(fix.repo, fix.head, { pull });
+    assert.notDeepEqual(await pushWith(fix, api), { outcome: "held" }, pull.body);
+    assert.ok(callNames(api).includes("updateRef"), `the branch moves: ${pull.body}`);
   }
-});
-
-test("a Hold: line in the lanes App's own PR body does not hold the patch", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
-  const api = fakeApi(fix.repo, fix.head, { pull: bodyPull(LANES_BOT, "Closes #1\n\nHold: a human merges this") });
-  assert.notDeepEqual(await pushWith(fix, api), { outcome: "held" });
-  assert.ok(callNames(api).includes("updateRef"), "the branch moves");
+  const api = fakeApi(fix.repo, fix.head, { pull: bodyPull(OWNER, "Fixes it."), labels: [{ name: "do-not-merge" }] });
+  assert.deepEqual(await pushWith(fix, api), { outcome: "held" });
+  assert.deepEqual(writes(api), []);
 });
-
-test("an owner PR body that only mentions Hold: mid-line pushes", async (t) => {
-  const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
-  const api = fakeApi(fix.repo, fix.head, { pull: bodyPull(OWNER, "Fixes the Hold: parser.") });
-  assert.notDeepEqual(await pushWith(fix, api), { outcome: "held" });
-  assert.ok(callNames(api).includes("updateRef"), "the branch moves");
-});
-
-// --- the credential scan: any shape refuses the whole patch ---
 
 async function assertCredentialRefused(t, token) {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), `# changed\ntoken=${token}\n`));
@@ -2058,10 +1947,6 @@ test("a credential inside a binary patch is caught in the patched blob", async (
   assert.deepEqual(api.calls, []);
 });
 
-// The issue row names a credential shape apart from any other invalid patch
-// (owner decision on #11021): a credential is a token-leak path the owner keeps
-// a hold on, patch-credential; any other invalid patch is patch-invalid, which
-// the issue lane retries. Rows without patch-credential keep patch-invalid.
 test("issue target: a credential shape in the patch or a patched blob escalates patch-credential", async (t) => {
   const text = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), `# changed\ntoken=${GITHUB_TOKENS[0]}\n`));
   const api = fakeApi(text.repo, text.head, { labels: READY });
@@ -2073,8 +1958,6 @@ test("issue target: a credential shape in the patch or a patched blob escalates 
   assert.deepEqual(await pushIssue(binary, fakeApi(binary.repo, binary.head, { labels: READY })), { outcome: "escalate", escalationReason: "patch-credential" });
 });
 
-// A patch whose bytes carry a credential holds whatever else is wrong with it,
-// so a SHA-256 mismatch cannot turn the hold into a retry.
 test("issue target: a credential shape outranks a SHA-256 mismatch, and a mismatch alone is patch-invalid", (t) => {
   const leaky = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), `# changed\ntoken=${GITHUB_TOKENS[0]}\n`));
   const clean = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
@@ -2084,9 +1967,6 @@ test("issue target: a credential shape outranks a SHA-256 mismatch, and a mismat
   assert.equal(select({ ...at(leaky), row: row("default") }).escalationReason, "patch-invalid", "a row without patch-credential");
 });
 
-// The credential scan runs before every patch-invalid refusal, so a fault
-// beside a credential cannot turn the hold into a retry: here a credential
-// seen only in a binary hunk's blob, in a patch over max-files.
 test("issue target: a blob-only credential in a patch over max-files escalates patch-credential", async (t) => {
   const fix = repoWithPatch(t, (repo) => {
     writeFileSync(join(repo, "blob.bin"), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])]));
@@ -2114,8 +1994,6 @@ test("issue target: a blob-only credential in a patch over the row's real file c
   assert.deepEqual(api.calls, []);
 });
 
-// The count is refused after every blob was read, so a clean binary hunk there
-// is proven clear and retries.
 test("issue target: the same patch over the file cap with a clean blob escalates patch-invalid", async (t) => {
   const cap = issueRow()["max-files"];
   assert.equal(typeof cap, "number");
@@ -2132,8 +2010,6 @@ test("issue target: the same patch over the file cap with a clean blob escalates
   assert.deepEqual(api.calls, []);
 });
 
-// A binary hunk's bytes are compressed in the patch text, so a patch refused
-// or unapplied before its blob exists is not proven clear.
 const BINARY_BLOB = Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])]);
 const binaryFix = (t) => repoWithPatch(t, (repo) => writeFileSync(join(repo, "blob.bin"), BINARY_BLOB));
 const textFix = (t) => repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
@@ -2189,8 +2065,6 @@ test("a row with no credential reason keeps its not-applied reason for a binary 
   assert.deepEqual(await ciPush(fix, fakeApi(fix.repo, moved), { headSha: moved, patchHeadSha: moved }), { outcome: "escalate", escalationReason: "ci-fix-not-applied" });
 });
 
-// A blob over MAX_BLOB_BYTES is read whole before its size is refused, so the
-// size fault does not hide a credential anywhere in it, past the cap included.
 test("issue target: a credential in a patched blob over the size cap escalates patch-credential", async (t) => {
   const big = Buffer.alloc(6 * 1024 * 1024, 7);
   big[0] = 0;
@@ -2204,9 +2078,6 @@ test("issue target: a credential in a patched blob over the size cap escalates p
   assert.deepEqual(await pushIssue(fix, api), { outcome: "escalate", escalationReason: "patch-credential" });
 });
 
-// The two scanners share one list (lib/publish-gate.mjs CREDENTIAL_SHAPES):
-// the read runner's scan job and apply-patch catch a key glued to a word and
-// a 40-character fine-grained token alike, which they once disagreed on.
 test("the publish gate and apply-patch catch the same shared credential shapes", () => {
   const glued = `X${"sk-ant"}-api03-${"k".repeat(40)}`;
   const pat = `${"github"}_pat_${"A1".repeat(20)}`;
@@ -2218,8 +2089,6 @@ test("the publish gate and apply-patch catch the same shared credential shapes",
   }
 });
 
-// apply-patch keeps its own copy of the shapes (it runs from a staged copy that
-// cannot reach root lib/), so this test is what keeps the two lists one.
 test("apply-patch's CREDENTIAL_SHAPES equals lib/publish-gate.mjs's, in order", () => {
   const shape = (list) => list.map(([name, pattern]) => [name, pattern.source, pattern.flags]);
   assert.deepEqual(shape(CREDENTIAL_SHAPES), shape(GATE_SHAPES));
@@ -2237,8 +2106,6 @@ test("apply-patch loads from the staged layout its script activity runs in", asy
   }
 });
 
-// A blob too large for the runner's buffer cannot be cleared, so it counts as
-// leaked and holds rather than throwing out of push as a retry.
 test("leakedBlob counts a blob the runner cannot read whole as leaked", (t) => {
   const fix = repoWithPatch(t, () => {});
   writeFileSync(join(fix.repo, "big.txt"), "x".repeat(4096));
@@ -2251,8 +2118,6 @@ test("leakedBlob counts a blob the runner cannot read whole as leaked", (t) => {
   assert.equal(leakedBlob(roomy, [entry]), undefined, "the same clean blob read whole is not leaked");
 });
 
-// A patch made on another commit is refused, but its blobs on that commit are
-// scanned first, so a credential there holds rather than retries.
 test("issue target: a blob-only credential in a patch made on another commit escalates patch-credential", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "blob.bin"), Buffer.concat([Buffer.from([0, 1, 2, 0]), Buffer.from(GITHUB_TOKENS[0])])));
   writeFileSync(join(fix.repo, "notes.md"), "moved\n");
@@ -2265,7 +2130,6 @@ test("issue target: a blob-only credential in a patch made on another commit esc
   assert.deepEqual(await pushIssue(clean, fakeApi(clean.repo, cleanMoved, { labels: READY }), { headSha: cleanMoved }), { outcome: "escalate", escalationReason: "patch-invalid" });
 });
 
-// select scans patch.diff for a credential even when another file sits beside it.
 test("select: a credential in patch.diff outranks an extra file beside it", (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), `# changed\ntoken=${GITHUB_TOKENS[0]}\n`));
   writeFileSync(join(dirname(fix.patchFile), "extra.txt"), "x\n");
@@ -2275,8 +2139,6 @@ test("select: a credential in patch.diff outranks an extra file beside it", (t) 
   writeFileSync(fix.patchFile, "diff --git a/x b/x\n");
   assert.equal(select(at).escalationReason, "patch-invalid", "no credential, an extra file is invalid");
 });
-
-// --- a head that moved since the model job ---
 
 test("a moved tip takes the patch with --3way when the moved commits touch no patched path", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\necho ok\n"));
@@ -2309,7 +2171,6 @@ test("under the ci-context row a head that moved since the model job skips super
     skipReason: "superseded-sha",
     escalationReason: "",
   });
-  // The push refuses it too, though the moved commits touch no patched path.
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "scripts/x.sh"), "#!/bin/sh\necho ok\n"));
   writeFileSync(join(fix.repo, "README.md"), "# moved\n");
   const moved = commitAll(fix.repo, "moved");
@@ -2318,10 +2179,6 @@ test("under the ci-context row a head that moved since the model job skips super
   assert.deepEqual(api.calls, []);
 });
 
-// The docs row keeps the moved-head path on purpose: fix-docs runs once per
-// pull request, so a skipped fix-docs patch would never run again. The
-// review-threads row skips, as the write runner's promote step refused a
-// branch that moved during the run: the replies judged the gated head.
 test("the ci-context, review-threads and dependency-review rows skip a moved head; the other PR rows keep the moved-head path", (t) => {
   const dir = scratch(t);
   writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");
@@ -2336,7 +2193,6 @@ test("the ci-context, review-threads and dependency-review rows skip a moved hea
   }
 });
 
-// A Dependabot rebase between the select job and the push supersedes the fix.
 test("under the dependency-review row a head that moved since the select job skips superseded-sha before any API call", async (t) => {
   const fix = dependencyPatch(t, bump);
   const api = fakeApi(fix.repo, fix.head);
@@ -2351,8 +2207,6 @@ test("under the review-threads row a head that moved since the model job skips s
   assert.deepEqual(result, { outcome: "superseded" });
   assert.deepEqual(api.calls, []);
 });
-
-// --- fix-ci's refusals, one test each ---
 
 const ciPush = (fix, api, extra = {}) => pushWith(fix, api, { row: row("ci-context"), ...extra });
 const patchDirOf = (t, text) => {
@@ -2381,8 +2235,6 @@ test("a PR branch that moved before the write is superseded, with nothing writte
   assert.deepEqual(lines, [`the PR branch moved from ${fix.head} to ${"e".repeat(40)}; the patch is superseded`]);
 });
 
-// A PR branch whose ref update GitHub answers with `status`, through the real
-// request path, and whose reads answer `tips` in turn; the last repeats.
 function refusedWrite(fix, tips, status = 422, message = "Update is not a fast forward") {
   const api = fakeApi(fix.repo, fix.head);
   const reads = [...tips];
@@ -2438,7 +2290,6 @@ test("a ref update answered 422 on a branch that did not move fails with GitHub'
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
   const refusal = { message: 'PATCH git/refs/heads/feat/x returned 422: {"message":"Validation Failed"}' };
   await assert.rejects(ciPush(fix, refusedWrite(fix, [fix.head], 422, "Validation Failed")), refusal);
-  // The commit the write was to set proves no one else moved the branch.
   await assert.rejects(ciPush(fix, refusedWrite(fix, [fix.head, "c".repeat(40)], 422, "Validation Failed")), refusal);
 });
 
@@ -2520,9 +2371,6 @@ test("a patch over 1 MiB is invalid in select and in the push", async (t) => {
   assert.deepEqual(api.calls, []);
 });
 
-// The credential scan reads the whole patch, past the size cap, so an
-// oversized patch holds for a token anywhere in it, one across a scan chunk's
-// edge included, and stays invalid without one.
 test("issue target: an oversized patch escalates patch-credential for a token past 1 MiB, else patch-invalid", async (t) => {
   const MiB = 1024 * 1024;
   const cases = [
@@ -2541,9 +2389,6 @@ test("issue target: an oversized patch escalates patch-credential for a token pa
   }
 });
 
-// A patch made on another commit whose binary hunk cannot be read there, the
-// commit missing or the patch not applying to it, holds as an unread blob does;
-// a text-only one was scanned whole, so it is the invalid refusal.
 test("issue target: a moved head whose producer commit is missing or rejects the patch escalates patch-credential with a binary hunk, else patch-invalid", async (t) => {
   const text = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# changed\n"));
   writeFileSync(join(text.repo, "README.md"), "# moved\n");
@@ -2593,9 +2438,6 @@ test("an empty patch file is invalid in select and in the push", async (t) => {
   assert.deepEqual(api.calls, []);
 });
 
-// A patch that changes README.md and changes it back applies and leaves the
-// head's tree. The producer said it wrote a change, so fix-ci calls it
-// invalid, as apply-ci-fix.mjs did (origin/main:.github/scripts/pr-unblock/apply-ci-fix.mjs:148-149).
 test("a patch that applies but changes nothing escalates ci-fix-invalid", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "# s\n"));
   const forward = readFileSync(fix.patchFile, "utf8");
@@ -2622,8 +2464,6 @@ test("a branch that does not read back as the new commit after the write fails t
   assert.ok(api.calls.some((call) => call.updateRef));
 });
 
-// The script step in pr-run-activity-write.yml fails on a reason outside its
-// case list, so every reason the push can write for fix-ci is in it.
 test("every reason the push writes for the ci-context row is one the write runner's script step accepts", () => {
   const source = readFileSync(join(REPO_ROOT, ".github/scripts/apply-patch/apply-patch.mjs"), "utf8");
   const pushBody = source.slice(source.indexOf("export async function push("), source.indexOf("\nexport", source.indexOf("export async function push(") + 1));
@@ -2637,9 +2477,6 @@ test("every reason the push writes for the ci-context row is one the write runne
   assert.deepEqual([...reasons].sort(), [...accepted].sort());
 });
 
-// The same for fix-docs's docs row and the default row: a patch that applies
-// but changes nothing escalates patch-empty, and every reason the push writes
-// is in the write runner's case list.
 for (const name of ["docs", "default"]) {
   test(`every reason the push writes for the ${name} row is one the write runner's script step accepts, an empty diff patch-empty`, () => {
     const source = readFileSync(join(REPO_ROOT, ".github/scripts/apply-patch/apply-patch.mjs"), "utf8");
@@ -2664,18 +2501,10 @@ test("an empty patch-state whose report escalated a check names ci-fix-escalated
   assert.equal(select({ ...base, reportDir: scratch(t) }).escalationReason, "ci-fix-empty");
 });
 
-// A fix-ci run that changed nothing and escalated only
-// unfixed or not-reproducible checks retries once, one model rung up, instead
-// of stopping; flaky ends in a failing status (the dispatcher retries the
-// head), protected-path and weaken-required go to the session-builder queue (a
-// failing status, needs-session), and a rung-1
-// run never retries again in the same run.
 for (const [why, reply, rung, want] of [
   ["unfixed at rung 0", "test-node: escalated unfixed three fixes failed\n", 0, { proceed: false, skipReason: "rung-up", escalationReason: "" }],
   ["unfixed and not-reproducible at rung 0", "a: escalated unfixed x\nb: escalated not-reproducible y\nc: fixed\n", 0, { proceed: false, skipReason: "rung-up", escalationReason: "" }],
   ["unfixed at rung 1", "test-node: escalated unfixed three fixes failed\n", 1, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-escalated" }],
-  // A fix that needs a path the lane token may not push, or one that weakens
-  // a required check, goes to the session-builder queue.
   ["protected-path at rung 0", "lint: escalated protected-path edits .github\n", 0, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-protected-path" }],
   ["weaken-required beside unfixed at rung 0", "a: escalated unfixed x\nb: escalated weaken-required y\n", 0, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-required" }],
   ["protected-path beside weaken-required at rung 1", "a: escalated weaken-required x\nb: escalated protected-path y\n", 1, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-protected-path" }],
@@ -2690,9 +2519,6 @@ for (const [why, reply, rung, want] of [
   });
 }
 
-// fix-docs's push takes the default row, which reads no report, so even a
-// reply that would rung-up fix-ci never selects rung-up there: an empty patch
-// escalates patch-empty and a written one pushes.
 test("the default row (fix-docs) never selects rung-up, for an empty or a written patch", (t) => {
   const reportDir = scratch(t);
   writeFileSync(join(reportDir, "reply.txt"), "test-node: escalated unfixed three fixes failed\n");
@@ -2708,9 +2534,6 @@ test("the default row (fix-docs) never selects rung-up, for an empty or a writte
   }
 });
 
-// A written fix pushes a new head whose own CI has not run yet: escalating
-// then would hand a PR to a person on the old head's checks. The new head's
-// CI decides, and a later fix-ci run on it escalates or meets the round cap.
 for (const [why, reply] of [
   ["a fixed check beside a flaky one", "check-skills: fixed\ntest-bash (2): escalated flaky passes on the unchanged head\n"],
   ["an unfixed check", "test-node: escalated unfixed x\n"],
@@ -2765,11 +2588,6 @@ test("select reads the rung from MODEL_RUNG and refuses any other value", async 
   await assert.rejects(() => outputFor("2"), /MODEL_RUNG/);
 });
 
-// The first weaken-required stop on a head (no lane stop there yet, so
-// fix-ci-context passes weakenRetry) stops for one fresh fixer round: a
-// fail-routed reason the dispatcher retries. Without weakenRetry (the fresh
-// round ran, or an earlier stop spent the head's retry) it goes to the
-// session-builder queue, and a protected-path escalation beside it always does.
 for (const [why, reply, rung, weakenRetry, want] of [
   ["weaken-required, first on the head", "a: escalated weaken-required y\n", 0, true, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-retry" }],
   ["weaken-required beside unfixed, first on the head", "a: escalated unfixed x\nb: escalated weaken-required y\n", 0, true, { proceed: false, skipReason: "lane-stopped", escalationReason: "ci-fix-weaken-retry" }],
@@ -2808,8 +2626,6 @@ test("select reads weakenRetry from WEAKEN_RETRY and refuses any other value", a
   await assert.rejects(() => outputFor("yes"), /WEAKEN_RETRY/);
 });
 
-// --- select and main ---
-
 test("select proceeds on a good artifact, reads the row's report, and names the row's empty reason", (t) => {
   const dir = scratch(t);
   writeFileSync(join(dir, "patch.diff"), "diff --git a/x b/x\n");
@@ -2840,8 +2656,6 @@ test("patch-rules.json is read from the trusted base checkout, and a head copy i
   assert.match(readFileSync(output, "utf8"), /^escalation-reason=patch-invalid$/m);
   await assert.rejects(main(["select"], { ...env, BASE_DIR: "" }, { cwd: head, log: () => {} }), /BASE_DIR/);
 });
-
-// --- the issue target: a new lane branch with one commit ---
 
 const LANE = "work-resolve-issue";
 const ISSUE_BRANCH = `${LANE}/issue-7-123-1`;
@@ -2969,8 +2783,6 @@ test("issue target: the issue row refuses the universal set and Claude Code's pr
   }
 });
 
-// collect-patch.sh writes an exact move as a rename header; the refusals read
-// the tree the patch builds, so the old and the new path each face them.
 test("issue target: an exact move pushes, the old path gone and the new one in place", async (t) => {
   const fix = repoWithPatch(
     t,
@@ -3153,7 +2965,6 @@ test("issue target: main reads ISSUE_NUMBER and REQUIRED_LABELS and writes the c
   assert.deepEqual(idle.calls, [], "a missing base fails closed before any API call");
 });
 
-// A resume tip of the patch's own, made after the default-branch commit.
 function resumeWith(t, earlier) {
   const fix = repoWithPatch(t, () => {});
   earlier(fix.repo);
@@ -3188,7 +2999,6 @@ test("issue target: a default-branch commit not in the checkout refuses the patc
   assert.deepEqual(api.calls, []);
 });
 
-// Zeros compress, so a patch well under 1 MiB carries blobs of many MiB.
 test("a patched blob over 5 MiB is refused before any API call", async (t) => {
   const fix = repoWithPatch(t, (repo) => writeFileSync(join(repo, "big.bin"), Buffer.alloc(5 * 1024 * 1024 + 1)));
   assert.ok(readFileSync(fix.patchFile).length < 1024 * 1024);
@@ -3212,8 +3022,6 @@ test("patched blobs over 20 MiB in total are refused, each one under the per-blo
   assert.equal((await pushIssue(under, fakeApi(under.repo, under.head, { labels: READY }))).outcome, "pushed", "exactly 5 MiB passes");
 });
 
-// --- the merge-base row: resolve-conflicts's patch on the conflict tree ---
-
 const PREPARE = join(REPO_ROOT, ".github/scripts/merge-base/prepare.sh");
 const COLLECT = join(REPO_ROOT, ".github/scripts/read-patch/collect-patch.sh");
 const TREE_ENTRIES = join(REPO_ROOT, ".github/scripts/merge-base/tree-entries.sh");
@@ -3236,9 +3044,6 @@ const write = (repo, files) => {
   }
 };
 
-// A base commit, a PR side and a main side, the base merged into the PR head
-// by the real prepare.sh, and `resolve`'s edits collected from the conflict
-// tree by the real collect-patch.sh, as the read runner does.
 function mergeFixture(t, { base = {}, pr = {}, main: mainSide = {}, resolve = () => {} }) {
   const repo = scratch(t);
   git(repo, ["init", "-q", "-b", "main"]);
@@ -3315,7 +3120,6 @@ test("a clean merge commits with no patch, the head and the pinned base as paren
   });
   assert.equal(git(fix.repo, ["rev-parse", `${fix.tree}:m.txt`]), git(fix.repo, ["rev-parse", `${fix.base}:m.txt`]));
   assert.equal(git(fix.repo, ["rev-parse", `${fix.tree}:p.txt`]), git(fix.repo, ["rev-parse", `${fix.head}:p.txt`]));
-  // A patch beside a clean merge is refused.
   const extra = repoWithPatch(t, (repo) => writeFileSync(join(repo, "README.md"), "x\n"));
   assert.deepEqual(await mergePush(fix, fakeApi(fix.repo, fix.head), { patchFile: extra.patchFile, patchSha256: extra.sum }), {
     outcome: "escalate",
@@ -3326,7 +3130,6 @@ test("a clean merge commits with no patch, the head and the pinned base as paren
 test("a resolved conflict pushes the resolution on the conflict tree as a merge commit", async (t) => {
   const fix = mergeFixture(t, { ...CONFLICT, resolve: (repo) => writeFileSync(join(repo, "a.txt"), "pr and main\n") });
   assert.deepEqual([fix.state, fix.patchState], ["conflicted", "written"]);
-  // The patch holds the resolution alone.
   const text = readFileSync(fix.patchFile, "utf8");
   assert.deepEqual([...text.matchAll(/^diff --git a\/(\S+) /gm)].map((m) => m[1]), ["a.txt"]);
   const api = fakeApi(fix.repo, fix.head);
@@ -3347,14 +3150,10 @@ test("a conflicted path left with markers escalates unresolved-conflict before a
   const api = fakeApi(fix.repo, fix.head);
   assert.deepEqual(await mergePush(fix, api), { outcome: "escalate", escalationReason: "unresolved-conflict" });
   assert.deepEqual(api.calls, []);
-  // A resolution that writes new marker lines is no resolution either.
   const marked = mergeFixture(t, { ...CONFLICT, resolve: (repo) => writeFileSync(join(repo, "a.txt"), "<<<<<<< x\npr\n=======\nmain\n>>>>>>> y\n") });
   assert.deepEqual(await mergePush(marked, fakeApi(marked.repo, marked.head)), { outcome: "escalate", escalationReason: "unresolved-conflict" });
 });
 
-// Under the merge row a credential beside a refused symlink is named as the
-// credential: the scan runs before the refusals (the row folds both into
-// conflict-patch-invalid, so the log names which).
 test("a merge resolution with a blob-only credential beside a symlink escalates for the credential", async (t) => {
   const fix = mergeFixture(t, {
     ...CONFLICT,
@@ -3400,7 +3199,6 @@ test("a model-authored workflow or code-owners edit is refused conflict-patch-pr
 test("a base-side workflow change is admitted only when the merged workflows are exactly the base's", async (t) => {
   const own = mergeFixture(t, { base: { ".github/workflows/a.yml": "on: push\n" }, pr: { "p.txt": "pr\n" }, main: { ".github/workflows/a.yml": "on: pull_request\n" } });
   assert.equal((await mergePush(own, fakeApi(own.repo, own.head), NO_PATCH)).outcome, "pushed");
-  // The PR's own diff touches a workflow too: the merged set is not the base's alone.
   const both = mergeFixture(t, {
     base: { ".github/workflows/a.yml": "on: push\n", ".github/workflows/b.yml": "on: push\n" },
     pr: { ".github/workflows/b.yml": "on: workflow_dispatch\n" },
@@ -3409,7 +3207,6 @@ test("a base-side workflow change is admitted only when the merged workflows are
   const api = fakeApi(both.repo, both.head);
   assert.deepEqual(await mergePush(both, api, NO_PATCH), { outcome: "escalate", escalationReason: "workflow-staged" });
   assert.deepEqual(api.calls, []);
-  // A workflow the head adds would be pushed beside the base's change.
   const added = mergeFixture(t, {
     base: { ".github/workflows/a.yml": "on: push\n" },
     pr: { ".github/workflows/new.yml": "on: push\n" },
@@ -3450,7 +3247,6 @@ test("a merge row with no pinned base, conflict tree, state or base tree-entries
     await assert.rejects(mergePush(fix, api, { env }), /merge row needs|not in the checkout/, JSON.stringify(env));
     assert.deepEqual(api.calls, [], JSON.stringify(env));
   }
-  // A tree-entries.sh copy that is not the base's never runs.
   const api = fakeApi(fix.repo, fix.head);
   await assert.rejects(mergePush(fix, api, { env: { TREE_ENTRIES_SHA256: "0".repeat(64) } }), /tree-entries\.sh does not match/);
   assert.deepEqual(api.calls, []);
@@ -3501,10 +3297,6 @@ test("select under the merge-base row: a clean merge proceeds with no patch, an 
   assert.deepEqual(at("conflicted", "written", { headSha: "b".repeat(40) }), { proceed: false, skipReason: "superseded-sha", escalationReason: "" });
 });
 
-// The Git Data API calls of one merge: 400 base-side files the base already
-// holds upload nothing, two files both sides changed that merged cleanly and
-// the one resolved conflict upload one blob each; the patch is the
-// resolution alone, so max-files counts one path.
 test("a merge with 400 base-side files, 2 clean two-sided merges and 1 resolution makes exactly 3 blobs, 5 chained trees, 1 commit and 1 ref update", async (t) => {
   const many = Object.fromEntries(Array.from({ length: 400 }, (_, i) => [`gen/f${i}.txt`, `${i} from main\n`]));
   const fix = mergeFixture(t, {
@@ -3520,7 +3312,6 @@ test("a merge with 400 base-side files, 2 clean two-sided merges and 1 resolutio
   assert.deepEqual(createCommit.parents, [fix.head, fix.base]);
   assert.equal(git(fix.repo, ["rev-parse", `${createCommit.tree}:gen/f399.txt`]), git(fix.repo, ["rev-parse", `${fix.base}:gen/f399.txt`]));
   assert.equal(git(fix.repo, ["cat-file", "-p", `${createCommit.tree}:two/x.txt`]), "1 pr\n2\n3\n4\n5 main");
-  // Patch paths over max-files, or new blobs over max-blobs: nothing is written.
   const twoConflicts = mergeFixture(t, {
     base: { "a.txt": "one\n", "b.txt": "one\n" },
     pr: { "a.txt": "pr\n", "b.txt": "pr\n" },
@@ -3588,9 +3379,6 @@ test("main reads the merge's conflicted paths from the checkout and takes no pat
   assert.match(readFileSync(cleanEnv.GITHUB_OUTPUT, "utf8"), /^commit=c{40}$/m);
 });
 
-// --- review-threads file modes (#10080): no new executable bit, and a mode
-// change only back to the merge base's ---
-
 test("new-exec-bit is optional: it refuses a mode that gains the executable bit only where a row names it", () => {
   const names = ["new-exec-bit"];
   assert.deepEqual(refusalsOf(entry("scripts/x.sh", "100644", "100755"), names), ["new-exec-bit"]);
@@ -3602,10 +3390,6 @@ test("new-exec-bit is optional: it refuses a mode that gains the executable bit 
   assert.deepEqual(Object.keys(RULES).filter((name) => RULES[name].refuse.includes("new-exec-bit")), ["review-threads"]);
 });
 
-// A PR whose merge base holds `path` at `baseMode`, whose head holds it at
-// `headMode`, and a model patch that leaves it at `patchMode`; the fake API
-// reads the merge base's trees from the repository, as GitHub would.
-// `newInHead` leaves `path` out of the merge base, so the PR adds it.
 function modeFix(t, { path = "plugins/p/scripts/lib.sh", baseMode, headMode, patchMode, newInHead = false, edit = () => {} }) {
   const repo = scratch(t);
   git(repo, ["init", "-q", "-b", "main"]);
@@ -3708,9 +3492,6 @@ test("review-threads: a content-only fix reads no merge base", async (t) => {
   assert.deepEqual(api.compares, []);
 });
 
-// #11840's ref updates failed with only "returned 422" (runs 41308756974,
-// 41312571464): the error now carries what GitHub answered, safe for one
-// ::error:: line.
 test("createGitHubApi's failed ref update names GitHub's answer, with the token and credentials redacted and no line break", async () => {
   const token = "ghs_" + "T".repeat(36);
   const answers = [
@@ -3770,8 +3551,6 @@ test("createGitHubApi over the rate guard's fetch, as its checkout importers bui
   }
 });
 
-// The shared-copies row: a clean merge of the pinned base that takes the base
-// sync script's patch, of copies the base-tip registry lists only.
 const COPY = "plugins/p/lib/shared.sh";
 const copyPush = (fix, api, sharedCopies, extra = {}) =>
   pushWith(fix, api, {
@@ -3805,7 +3584,6 @@ test("shared-copies: a path the base registry does not list, the registry itself
   const api = fakeApi(stray.repo, stray.head);
   assert.deepEqual(await copyPush(stray, api, new Set([COPY])), { outcome: "escalate", escalationReason: "shared-copy-unexpected-path-staged" });
   assert.equal(api.calls.some((call) => call.createCommit), false);
-  // A head-side registry edit carried in the patch is not a registered copy.
   const registry = copyFixture(t, (repo) => {
     mkdirSync(join(repo, "scripts"), { recursive: true });
     writeFileSync(join(repo, "scripts/shared-copies.txt"), `lib/shared.sh ${COPY}\nlib/shared.sh notes.md\n`);
@@ -3829,16 +3607,11 @@ test("shared-copies: select takes a written patch or an empty run on a clean mer
   assert.equal(sel("conflicted", "empty").escalationReason, "shared-copy-patch-invalid");
   assert.equal(sel("clean", "").escalationReason, "shared-copy-patch-invalid");
   assert.equal(sel("clean", "Empty").escalationReason, "shared-copy-patch-invalid");
-  // The copies already current on the merge: the merge alone goes on.
   assert.deepEqual(sel("clean", "empty"), { proceed: true, skipReason: "", escalationReason: "" });
   assert.throws(() => checkRow({ ...row("shared-copies"), allow: ["merge-result"] }), /shared-copies alone/);
   assert.throws(() => checkRow({ ...row("default"), "clean-patch": true }), /does not commit a merge/);
 });
 
-// The PR and main each edit their own end of one canonical and regenerate its
-// copy: git merges both cleanly, so regeneration is empty, yet pr-merge still
-// refuses the head (the carried canonical changed on main). The merge alone
-// must push, or the head stays held.
 const disjointFixture = (t) =>
   mergeFixture(t, {
     base: { "lib/shared.sh": "1\n2\n3\n4\n5\n", [COPY]: "1\n2\n3\n4\n5\n" },
@@ -3855,14 +3628,11 @@ test("shared-copies: an empty regeneration on a refused head pushes the clean me
   assert.deepEqual(createCommit.parents, [fix.head, fix.base]);
   assert.equal(createCommit.tree, fix.tree);
   assert.equal(git(fix.repo, ["cat-file", "-p", `${fix.tree}:${COPY}`]), "1 pr\n2\n3\n4\n5 main");
-  // A SHA-256 with no patch file is a patch that must apply, not an empty run.
   const missing = fakeApi(fix.repo, fix.head);
   assert.deepEqual(await copyPush(fix, missing, new Set([COPY]), { patchFile: "", patchSha256: "a".repeat(64) }), { outcome: "escalate", escalationReason: "shared-copy-patch-invalid" });
   assert.equal(missing.calls.some((call) => call.createCommit), false);
 });
 
-// main() as the write runner calls it: PATCH_FILE is always a path, and the
-// select job's SHA-256 (empty for an empty run) says whether a patch rides.
 test("shared-copies: main pushes the written patch on a clean merge, and the merge alone for an empty run", async (t) => {
   const base = scratch(t);
   mkdirSync(join(base, dirname(RULES_PATH)), { recursive: true });

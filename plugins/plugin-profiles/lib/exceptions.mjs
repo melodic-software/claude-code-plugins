@@ -76,7 +76,6 @@ const readLog = (file) => {
   }
 };
 
-/** The records of the log's text still within retention, and the text that keeps only their lines. */
 function retainedOf(original, now) {
   const records = [];
   let text = "";

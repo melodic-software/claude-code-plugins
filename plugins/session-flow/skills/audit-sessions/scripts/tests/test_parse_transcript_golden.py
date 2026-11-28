@@ -23,10 +23,6 @@ PARSER = SCRIPTS.parents[2] / "scripts" / "parse_transcript.py"
 GOLDEN = FIXTURES / "golden"
 CASES = sorted(p.stem for p in (GOLDEN / "expected").glob("*.json"))
 
-# gold-0001: msg_01 streams three records (input 10, output 5/30/60, cache 100 + 1000 each; the
-# last wins) and msg_02 one (4, 8, 0 + 2000). Typed turns: "Please fix the login bug" and "Looks
-# good, carry on"; the command, task notification, peer message, interrupt and meta caveat are not.
-# gold-0002: msg_10 streams two records (3, 2/9, 0 + 50); one typed turn.
 DEDUPED = {
     "gold-0001": {"human_messages": 2, "tokens": (14, 68, 100, 3000)},
     "gold-0002": {"human_messages": 1, "tokens": (3, 9, 0, 50)},
@@ -34,7 +30,6 @@ DEDUPED = {
 
 
 def _apply_dedup(data: dict) -> int:
-    """Rewrite one session's `data` block to the deduped values; return its old human count."""
     fixed = DEDUPED[data["session"]["id"]]
     total_input, total_output, creation, read = fixed["tokens"]
     data["tokens"] = {

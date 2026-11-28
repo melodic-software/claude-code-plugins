@@ -3,6 +3,66 @@
 All notable changes to the `powershell-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.3.11] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [2.3.10] - 2026-11-28
+
+### Changed
+
+- Trimmed `/powershell-format:setup` user-invoked frontmatter description (534 -> 143 chars) to a one-line summary without trigger phrasing.
+
+## [2.3.9] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [2.3.8] - 2026-11-27
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_files` leaves out an exact rename (the same blob and mode under a new path), so a pure move is no longer formatted or linted as a changed file. `checks_files --include-exact-renames` keeps the full list for checks whose verdict depends on a file's name or location: the guardrails content scan and reference verify, and the spelling lint. A rename with an edit or a mode change is still listed and judged on its added lines only; a copy, an add and a modify are listed as before.
+
+## [2.3.7] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [2.3.6] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [2.3.5] - 2026-11-25
+
+### Changed
+
+- Shared `resolve-tool.sh` synced where this plugin carries it (https://github.com/melodic-software/claude-code-plugins/pull/18972); no other change to this plugin.
+
+## [2.3.4] - 2026-11-25
+
+### Changed
+
+- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
+
+## [2.3.3] - 2026-11-24
+
+### Changed
+
+- At pre-commit, PowerShell starts once per commit instead of twice: the `format` entry also lints the files it just formatted and leaves the result for the `lint` entry, keyed by each file's bytes and the settings file. The `lint` entry reports it with the same exit codes and messages, and starts `pwsh` itself when no matching result is waiting. A declined `lint` entry, or a `powershell-format-remote-lint` job skipped in `lefthook-local.yml`, makes `format` lint nothing. Format then lint on a 120-line file went from 0.759 s to 0.465 s (median of 5, one Linux host).
+
+## [2.3.2] - 2026-11-24
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_changed_lines` and `checks_added_ranges` take an opt-in `--skip-reindent`, which leaves out an added line equal, leading and trailing whitespace aside, to a line the same file's diff removes (a reindent, or a move within the file). Without it, every added line still counts, so this plugin's checks judge the same lines as before.
+
 ## [2.3.1] - 2026-11-24
 
 ### Changed

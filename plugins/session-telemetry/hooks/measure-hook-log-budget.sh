@@ -1,24 +1,4 @@
 #!/usr/bin/env bash
-# Measure the four hook-log rows #3757 names.
-#
-# Prints a capture for the host it is actually running on. A Linux run is
-# labeled host: linux. It does not write a Windows Git Bash figure. Paste a
-# capture whose first host line is `windows-git-bash` into
-# reference/hook-log-budget.md to replace `windows-git-bash: unmeasured`.
-#
-# Every hook run goes through the launcher, `node exec-bash.mjs --require-true
-# SESSION_EVENT_LOG_ENABLED session-event-log.sh`: disabled, node and the closed
-# gate; enabled, node, then bash, then the script. The hooks module (register.ts)
-# runs `node exec-bash.mjs session-event-log.sh` only while the log is on, so the
-# enabled figures are its per-event cost, and the disabled figures describe the
-# settings rows it replaced: with the log off it starts no process.
-#
-#   measure-hook-log-budget.sh [--samples N] [--record <file>]
-#   measure-hook-log-budget.sh --check-doc <file>
-#
-# Exit: 0 capture or a doc that still owes Windows or carries a stamped
-# Windows capture; 1 the doc claims a Windows figure without that stamp;
-# 2 usage.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -172,16 +152,12 @@ STOP_PAYLOAD="$WORK/stop.json"
 printf '%s' '{"session_id":"budget","cwd":"/x","hook_event_name":"Stop"}' >"$STOP_PAYLOAD"
 samples_file="$WORK/samples.txt"
 
-# One registered hook row: $1 the payload file, $2 the option value (true opens the gate).
 run_row() {
   env -u HOOK_TELEMETRY_SINK CLAUDE_PLUGIN_OPTION_SESSION_EVENT_LOG_ENABLED="$2" \
     CLAUDE_PROJECT_DIR="$PROJ" \
     node "$LAUNCHER" --require-true SESSION_EVENT_LOG_ENABLED "$HOOK" <"$1"
 }
 
-# The bash the launcher spawns: on Windows that is Git\bin\bash.exe, a wrapper that starts
-# Git\usr\bin\bash.exe, not the `bash` on PATH. S is timed on the launcher's bash so it is the
-# unit the hook rows pay; the PATH bash is timed once beside it for comparison.
 launcher_bash="$(cd "$SCRIPT_DIR" && node --input-type=module -e '
 import { statSync } from "node:fs";
 const { resolveBash } = await import("./exec-bash.mjs");
@@ -225,11 +201,6 @@ wall_ms() {
 wall_off="$(wall_ms false)" || probe_failed "parallel wall (log off)"
 wall_on="$(wall_ms true)" || probe_failed "parallel wall (log on)"
 
-# The enabled row on a 60 KB tool_input payload that carries none of the
-# allowlisted metadata keys, minus the same row on a small payload, sample by
-# sample: the cost of reading the top-level members out of a payload at the
-# read cap. S (`bash -c :`, the hook-budget convention's unit) is timed in the
-# same loop so the two figures share the host's conditions.
 WIDE_PAYLOAD="$WORK/wide.json"
 SMALL_PAYLOAD="$WORK/small.json"
 printf '{"session_id":"budget","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"%s"}}' \
@@ -262,7 +233,6 @@ append_probe() {
   local pad i pids=()
   : >"$file"
   pad="$(head -c "$bytes" /dev/zero | tr '\0' 'a')"
-  # Each append goes through slog_append, the hook's own write path.
   for ((i = 1; i <= 33; i++)); do
     (
       # shellcheck source=session-log-lib.sh

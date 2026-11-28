@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# change-link — CONTRACT.md "Change links". Offline: Gitea's closing-keyword text for an
-# item, and the issue number a branch name carries.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"

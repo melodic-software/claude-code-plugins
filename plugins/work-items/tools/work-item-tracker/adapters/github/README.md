@@ -14,6 +14,9 @@
 - [Edit title / body](#edit-title--body)
 - [List labels](#list-labels)
 - [Comment on item / edit a comment](#comment-on-item--edit-a-comment)
+- [Issue artifacts](#issue-artifacts)
+- [Related items ("Relates to")](#related-items-relates-to)
+- [Native issue statuses](#native-issue-statuses)
 - [PR closing-keyword mechanics](#pr-closing-keyword-mechanics)
 - [Open linked PRs](#open-linked-prs)
 - [Label-removal provenance](#label-removal-provenance)
@@ -246,7 +249,9 @@ gh issue close <N> --repo <owner>/<repo> --reason completed
 
 The `done` action closes with `--reason completed`, and with `--reason "not planned"` for
 `--not-planned`. The accepted reasons are read at
-[gh issue close § Options](https://cli.github.com/manual/gh_issue_close#options).
+[gh issue close § Options](https://cli.github.com/manual/gh_issue_close#options). After closing,
+dual-write the native lifecycle status via the seam (`set-native-status <id> --status Done`,
+`"Not planned"`, or `"Duplicate"`), ignoring exit `6` when the repository is not enrolled.
 
 **Post the note as its own comment, never through `--comment`.** On an issue that is already
 closed, `gh issue close` prints `is already closed`, exits 0, and posts neither its `--comment` nor
@@ -384,9 +389,61 @@ gh issue comment <N> --repo <owner>/<repo> --body-file <path>   # the form `/wor
 gh api --method PATCH "repos/{owner}/{repo}/issues/comments/<CID>" -f body="<text>"
 ```
 
+## Issue artifacts
+
+Rich Markdown documents, plans, responsive HTML reports (`embedded_html`), and reference links
+belong in GitHub Issue Artifacts via the seam verbs `put-artifact`, `list-artifacts`, and
+`get-artifact` (`../../CONTRACT.md` "Verbs"). All three feature-detect `gh issue artifact` at
+runtime and exit `6` with `{available: false, fallback: "comment"}` when the CLI subcommand or
+repository endpoint (`403`/`404` on an existing issue) is unavailable, so callers fall back to an
+issue comment without failing on older `gh` installs.
+
+- **Quirk handled by `get-artifact`:** `gh issue artifact view` rejects combining `--version` and
+  `--json`. `get-artifact --version <n>` reads metadata via `view --json ...` (without `--version`)
+  and streams the revision's raw body via `gh issue artifact download <n> <art> --version <v>
+  --output -`.
+- **Upsert & non-destructive history:** `put-artifact` matches an existing artifact by exact name
+  and calls `gh issue artifact edit` to append a new revision rather than creating duplicates.
+- **Responsive HTML:** Keep `embedded_html` reports responsive for narrow side-panel viewers.
+- **Pointer**: [GitHub CLI manual](https://cli.github.com/manual) (`gh issue artifact --help`).
+
+## Related items ("Relates to")
+
+Non-blocking cross-references use the seam verbs `link-relates`, `unlink-relates`, and
+`list-relates` (`../../CONTRACT.md` "Verbs") instead of `link-blocks`. Writes invoke GraphQL
+`addRelatesTo` / `removeRelatesTo` (symmetric: both issues reflect the edge immediately), and
+`list-relates` paginates REST `GET /repos/{owner}/{repo}/issues/{number}/relates_to` (so listing
+also runs in GraphQL-refusing cloud sessions). When unavailable (cloud GraphQL refusal on writes,
+missing mutation, or HTTP `403`/`404` on an existing issue), each verb exits `6` with
+`{available: false, fallback: "refs-comment"}` so callers fall back to a `Refs` mention.
+
+## Native issue statuses
+
+Native GitHub Issue Statuses (`Backlog`, `Todo`, `In progress`, `In review`, `Done`,
+`Not planned`, `Duplicate`) track the universal lifecycle axis and power Repository Boards. They
+stay strictly separate from the `Work status` organization issue field: native status transitions
+emit no persisted actor timeline events, so `Work status` (and `config.github.status_trust`)
+remains the sole authority for trusted admission and holds.
+
+- **REST write:** `set-native-status` sends `PATCH /repos/{owner}/{repo}/issues/{number}` with
+  `-f status="<Name>"` (string name only; numeric ids fail with HTTP `422`). It runs in both
+  standard and cloud sessions and exits `6` (`{available: false, updated: false, fallback: "none"}`)
+  when the repository is un-enrolled (`422`/`403`/`404` on an existing issue, or a `200` response
+  without a `status` object).
+- **Best-effort dual-write:** `create-item` writes `--native-status <name>` when passed, writes
+  `Todo` for items carrying the resolved autonomous-eligible or session-owned role label or
+  `status: ready`, and leaves other new issues in GitHub's default `Backlog`. `claim` writes
+  `In progress` after winning an implementation claim (skipped for `--phase triage` and
+  `--phase discovery`). Neither fails the primary operation if native statuses are unavailable.
+- **Dual-read:** `get-item` and `list-items` surface `native_status` (string name or `null` for
+  pre-preview open issues or un-enrolled repositories) from the REST issue payload without touching
+  the `status` field attached by `list-frontier --autonomous` for `Work status`.
+- **Discovery:** `GET /repos/{owner}/{repo}/planning-statuses` lists the repository's enabled
+  native statuses (`404`/`403` when not enrolled).
+
 ## PR closing-keyword mechanics
 
-For the `done` action's belt-and-suspenders keyword check. Read the PR body (bare `gh`); the
+For the `done` action's backup keyword check. Read the PR body (bare `gh`); the
 read-modify-write body edit uses `--body-file`, which REPLACES the body (WRITE, see the identity
 note above):
 

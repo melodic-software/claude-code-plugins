@@ -487,6 +487,19 @@ test("the session-start notice prints nothing in a folder with no applied profil
   assert.match(JSON.parse(sessionStart(w)).systemMessage, /Profile build applies here/);
 });
 
+test("session_start_profile_enabled: a user false wins over the repository, and an unset user layer takes the repository value", () => {
+  const w = world();
+  installOnDisk(w);
+  assert.equal(w.run(["apply", "build", "--for", "folder", "--yes"]).status, 0);
+  const at = (repo, user) => {
+    writeTree(w.project, { "docs/conventions/plugin-profiles.yaml": `session_start_profile_enabled: ${repo}\n` });
+    return sessionStart(w, { CLAUDE_PROJECT_DIR: w.project, ...(user === undefined ? {} : { CLAUDE_PLUGIN_OPTION_SESSION_START_PROFILE_ENABLED: user }) });
+  };
+  assert.equal(at("true", "false"), "", "user false, repository true");
+  assert.equal(at("false", undefined), "", "user unset, repository false");
+  assert.match(JSON.parse(at("true", undefined)).systemMessage, /Profile build applies here/, "user unset, repository true");
+});
+
 test("Q69: in cloud sessions the session-start notice prints nothing and writes nothing, even where a profile is applied", () => {
   const w = world();
   installOnDisk(w);
@@ -530,8 +543,8 @@ test("a session started from a one-session file is named by status, with the fla
   assert.doesNotMatch(message, /Surface:/);
 });
 
-function installedCopy(w, options) {
-  const root = join(w.home, ".claude", "plugins", "cache", M, "plugin-profiles", "0.0.0");
+function installedCopy(w, options, version = "0.0.0") {
+  const root = join(w.home, ".claude", "plugins", "cache", M, "plugin-profiles", version);
   cpSync(join(HERE, ".."), root, { recursive: true });
   const userFile = join(w.home, ".claude", "settings.json");
   const doc = JSON.parse(readFileSync(userFile, "utf8"));
@@ -2190,7 +2203,8 @@ test("#16893 the session-start hook of an installed copy writes its root for the
   hookStart(w, { session_id: "abc-1", source: "startup" });
   assert.equal(existsSync(pointer), false, "a worktree or --plugin-dir copy writes no pointer");
   const cli = installedCopy(w, {});
-  const hook = () => spawnSync(process.execPath, [cli, "status", "--session-start"], { cwd: w.project, env: { ...w.env, CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PROJECT_DIR: w.project }, input: JSON.stringify({ session_id: "abc-1", source: "startup" }), encoding: "utf8" });
+  recordUserInstall(w, cli);
+  const hook = () => pointerHook(w, cli);
   assert.equal(hook().status, 0);
   assert.equal(readFileSync(pointer, "utf8"), `${realpathSync(dirname(dirname(cli)))}\n`);
   const old = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -2201,6 +2215,33 @@ test("#16893 the session-start hook of an installed copy writes its root for the
   writeFileSync(pointer, "/somewhere/else\n");
   assert.equal(hook().status, 0);
   assert.equal(readFileSync(pointer, "utf8"), `${realpathSync(dirname(dirname(cli)))}\n`);
+});
+
+const pointerHook = (w, cli) => spawnSync(process.execPath, [cli, "status", "--session-start"], { cwd: w.project, env: { ...w.env, CLAUDECODE: "1", CLAUDE_CODE_ENTRYPOINT: "cli", CLAUDE_PROJECT_DIR: w.project }, input: JSON.stringify({ session_id: "abc-1", source: "startup" }), encoding: "utf8" });
+const recordUserInstall = (w, cli) => {
+  const doc = JSON.parse(readFileSync(join(HERE, "fixtures", "installed_plugins.sample.json"), "utf8"));
+  const user = doc.plugins[`plugin-profiles@${M}`].find((e) => e.scope === "user");
+  Object.assign(user, { installPath: dirname(dirname(cli)), version: basename(dirname(dirname(cli))) });
+  writeTree(w.home, { ".claude/plugins/installed_plugins.json": doc });
+};
+
+test("the session-start hook of an older cached version leaves the root pointer alone; the recorded user-scope install writes it", () => {
+  const w = world();
+  const pointer = join(w.home, ".claude", "plugin-profiles-state", "root");
+  const older = installedCopy(w, {}, "0.12.0");
+  const current = installedCopy(w, {}, "0.13.2");
+  recordUserInstall(w, current);
+  mkdirSync(dirname(pointer), { recursive: true });
+  writeFileSync(pointer, "/kept\n");
+  assert.equal(pointerHook(w, older).status, 0);
+  assert.equal(readFileSync(pointer, "utf8"), "/kept\n", "an older cached copy does not repoint the claude function");
+  assert.equal(pointerHook(w, current).status, 0);
+  assert.equal(readFileSync(pointer, "utf8"), `${realpathSync(dirname(dirname(current)))}\n`);
+  writeFileSync(join(w.home, ".claude", "plugins", "installed_plugins.json"), "not json");
+  writeFileSync(pointer, "/kept\n");
+  const unreadable = pointerHook(w, current);
+  assert.equal(unreadable.status, 0, unreadable.stderr);
+  assert.equal(readFileSync(pointer, "utf8"), "/kept\n", "an unreadable record writes nothing");
 });
 
 const pointersDir = (w) => join(w.home, ".claude", "plugin-profiles-state", "repositories");
@@ -3597,10 +3638,6 @@ test("#17354: the one question counts a worktree copy adopted from the root's re
   assert.equal(preview.question, "Reset the 2 files above that a profile record covers?");
 });
 
-/**
- * Each reset row kind on one machine: its files by key, named states a cell's content refers to, the file its own question
- * is about (or the main file, whose own flag reset refuses), and the files a result line has to name.
- */
 const KINDS = {
   restore: () => {
     const w = world();
@@ -3700,7 +3737,6 @@ const KINDS = {
 };
 const ASK_FLAGS = { unrecorded: ["--remove-unrecorded", "--keep-unrecorded"], cutOff: ["--finish-cut-off", "--keep-cut-off"], moved: ["--put-back-moved", "--keep-moved"] };
 
-/** How a cell answers: at a terminal (y or n to the one question, then to each file's own), by flags, or with nobody there. */
 const MODES = {
   "t:yy": { terminal: ["y", "y"] },
   "t:yn": { terminal: ["y", "n"] },
@@ -3720,11 +3756,6 @@ const NOTHING = [];
 const ANSWERED_NO = "Skipped {F}: you answered no, so it is left as it is, and its record is kept.";
 const WAITS = WAITS_DONE("{O}");
 
-/**
- * One row per cell: row kind, way of answering, each file's content after the run (same: as before the run; before: as before
- * any profile; gone; noEntries: no plugin or skill entries left; left: what the older profiles left), records left on the
- * machine, the result lines, and the exit status. A cell with exit 1 wrote nothing and prints no result line.
- */
 const CELLS = [
   ["restore", "t:yy", "F=before", 0, [RESTORED], 0],
   ["restore", "t:yn", "F=before", 0, [RESTORED], 0],

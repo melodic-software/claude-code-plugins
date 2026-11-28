@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Time test-scan.sh end to end and resolve-config.sh --quick alone for each
-# team-layer configuration: none, .claude/testing.yaml only, the docs block
-# only, and both. One sample of every arm per iteration, in interleaved order,
-# after a warm-up pass; p50 and p95 in milliseconds.
-#
-# Usage: time-config.sh [samples]     default 50
 set -uo pipefail
 
 N="${1:-50}"
@@ -18,7 +12,6 @@ trap 'rm -rf "$W"' EXIT
 export CLAUDE_PLUGIN_DATA="$W/data" CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true HOME="$W/home"
 mkdir -p "$HOME"
 
-# The same team config in both locations: two excludes, a rule level, an extend list.
 BODY="paths:
   exclude:
     - 'vendor/**'
@@ -55,7 +48,6 @@ payload() {
 hook_arm() { payload "$1" "$2" | CLAUDE_PROJECT_DIR="$W/$1" bash "$HOOK" >/dev/null 2>&1; }
 resolver_arm() { bash "$RESOLVER" --quick --root "$W/$1" >/dev/null 2>&1; }
 
-# us <command...>: wall time of the command in microseconds.
 us() {
   local t0=$EPOCHREALTIME
   "$@"

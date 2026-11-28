@@ -1,52 +1,4 @@
 #!/usr/bin/env node
-// verdict-carry.mjs: the reads of a work-unblock sweep that never change,
-// carried to the next sweep so it does not read them again. A sweep reads,
-// for each agent-ready issue, the latest-attempt job listing of each of its
-// completed work-resolve-issue runs and the log of a refused job
-// (label-unblocked.mjs jobLister and refusalReader); on 2026-11-10 that was
-// about 44 job listings and 31 logs a sweep, every sweep, for the same runs.
-//
-//   jobs      a completed run's latest-attempt jobs, by `<run id>|<attempt>`,
-//             each job kept as the fields the sweep reads; used only while
-//             this sweep's run listing shows the run completed with the same
-//             attempt and updated_at (a re-run starts a new attempt)
-//   refusals  the refusal reason read from a completed job's log, by
-//             `<job id>|<mode>` (a job log never changes once it ends); only
-//             a log that was read is kept, never a failed read
-//   decided   when the sweep last started deciding each agent-ready issue, by
-//             issue number, so the next sweep decides the least recent first
-//             (label-unblocked.mjs restartLimited's time budget); with `wait`
-//             when that decision was a refusal with an end (`due`, ms): its
-//             `reason`, the issue's listed `updated` time and the lane
-//             workflow files' `key`, which the next sweep reuses instead of
-//             reading the issue again while all three still hold. A wait only
-//             keeps an issue waiting; one of the wrong shape, or ending more
-//             than WAIT_MAX_HOURS after the file is read, is dropped
-//
-// `read` takes the file from the newest successful sweep of main's
-// work-unblock.yml (a scheduled run, a hand-started one, or one a finished
-// work-resolve-issue run started), this run aside, holding the work-unblock-verdicts artifact. Only
-// that run's own steps could upload it, and every work-unblock event runs
-// main's copy of the workflow; it never goes through actions/cache, which any
-// job in main's cache scope can write (pr-merge/carry-run-cache.mjs). `read`
-// first removes any file at VERDICTS_IN, so a file left there is never read.
-//
-// The file records `code`, the codeDigest of the modules that worked out its
-// values (label-unblocked.mjs's refusalIn and this file's slimJob among them);
-// a file of other code carries nothing, so a change to how a refusal is read
-// or which job fields are kept takes effect at the next sweep.
-//
-// Any failure, or an entry of the wrong shape, carries nothing for it and the
-// sweep reads GitHub as before. An entry unused for CARRY_DAYS is dropped, and
-// at most JOBS_MAX and REFUSALS_MAX entries are kept, the newest used first.
-//
-// Environment (`read`):
-//   VERDICTS_IN         the file to write
-//   ACTIONS_TOKEN       the job's GITHUB_TOKEN (actions: read)
-//   GITHUB_REPOSITORY   owner/repo
-//   GITHUB_RUN_ID       this run, which has no file yet
-//   RUNNER_TEMP         where the artifact is downloaded
-//   GITHUB_API_URL
 import { createHash } from "node:crypto";
 import { appendFileSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -63,15 +15,11 @@ export const CARRY_DAYS = 14;
 export const JOBS_MAX = 300;
 export const REFUSALS_MAX = 2000;
 export const DECIDED_MAX = 1000;
-// The longest wait the sweep sets (limits.mjs STRANDED_BACKOFF_MAX).
 export const WAIT_MAX_HOURS = 24;
 const WAIT_KEY = /^[0-9a-f]{40}-[0-9a-f]{40}$/;
 const RUN_KEY = /^[1-9][0-9]{0,14}\|[1-9][0-9]{0,3}$/;
 const REFUSAL_KEY = /^[1-9][0-9]{0,14}\|(?:check|token|stop|limit|floor)$/;
 const ISSUE_KEY = /^[1-9][0-9]{0,9}$/;
-// A refusal reason as label-unblocked.mjs reads it (DENIAL, BREAKER), or the
-// reset a rate-limit stop names (RATE_LIMITED), with ` server-<5xx>` after it
-// for a server error hold, or null.
 const REASON = /^(?:[a-z]+(?:-[a-z]+)*|\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ(?: server-5\d\d)?)$/;
 const ZONED = /(Z|[+-]\d\d:\d\d)$/;
 const REPO = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
@@ -107,8 +55,6 @@ function slimJob(job) {
 const runKey = (run) => (RUN_KEY.test(`${run?.id}|${run?.run_attempt}`) ? `${run.id}|${run.run_attempt}` : null);
 const refusalKey = (jobId, mode) => (REFUSAL_KEY.test(`${jobId}|${mode}`) ? `${jobId}|${mode}` : null);
 
-// The sweep's code, as this run checked it out: every module beside this one
-// (tests aside). A deploy that changes any of them drops every carried entry.
 export function codeDigest(dir = dirname(fileURLToPath(import.meta.url))) {
   const digest = createHash("sha256");
   for (const name of readdirSync(dir).filter((file) => file.endsWith(".mjs") && !file.endsWith(".test.mjs")).sort()) {
@@ -117,9 +63,6 @@ export function codeDigest(dir = dirname(fileURLToPath(import.meta.url))) {
   return digest.digest("hex");
 }
 
-// The carry from the file at `path` (missing, unreadable or of other `code`:
-// empty), with the lookups and records label-unblocked.mjs makes and the file
-// the next sweep reads. `now` dates each entry used or added.
 export function loadCarry(path, now = Date.now(), code = codeDigest()) {
   const section = (data, name, keyPattern, valid) => {
     const out = new Map();
@@ -211,9 +154,6 @@ export function loadCarry(path, now = Date.now(), code = codeDigest()) {
   };
 }
 
-// A sweep of main's work-unblock.yml, whatever it concluded: only a sweep
-// uploads the file. A dispatched run sweeps exactly as a scheduled one and
-// runs main's copy.
 const SWEEP_EVENTS = new Set(["schedule", "workflow_dispatch", "workflow_run"]);
 export const anySweepRun = (repo) => (run) =>
   run?.path === WORKFLOW_PATH &&
@@ -221,13 +161,11 @@ export const anySweepRun = (repo) => (run) =>
   run.head_branch === "main" &&
   run.head_repository?.full_name === repo;
 
-// A successful sweep, the only one whose file is carried.
 export const sweepRun = (repo) => {
   const sweep = anySweepRun(repo);
   return (run) => sweep(run) && run.conclusion === "success";
 };
 
-// `read`: the newest successful sweep's file, written to VERDICTS_IN.
 export async function read({ env = process.env, actions, download } = {}) {
   const { VERDICTS_IN: to, GITHUB_REPOSITORY: repo = "" } = env;
   try {
@@ -249,7 +187,6 @@ export async function read({ env = process.env, actions, download } = {}) {
   }
 }
 
-// Sets `verdicts=true` for the upload steps once the file is written.
 export function markSaved(env = process.env) {
   if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, "verdicts=true\n");
 }

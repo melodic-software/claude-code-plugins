@@ -1,6 +1,3 @@
-// Unit tests for dimensions.mjs: one reader of an issue's Size, Complexity and
-// Uncertainty fields, and the run budget they set. Field and option ids are
-// the org's live ones (gh api orgs/melodic-software/issue-fields, 2026-10-18).
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -31,7 +28,6 @@ const CONFIG = {
   uncertainty: { known: "run", knowable: "research-first", unknown: "probe-first" },
 };
 
-// The REST issue-field-values rows and the GraphQL setter per field id.
 const facts = ({ size = 27053568, complexity = 85127651, uncertainty = 85127654, setter = HUMAN, setters = {} } = {}) => {
   const rows = [
     [15462270, size],
@@ -73,7 +69,7 @@ for (const [who, id] of [
 }
 
 test("a Size github-actions[bot] or a melodic- App set reads as unset", () => {
-  const live = JSON.parse(readFileSync(new URL("../../standards/trusted-actors/trusted-actors.json", import.meta.url), "utf8"));
+  const live = JSON.parse(readFileSync(new URL("../../scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json", import.meta.url), "utf8"));
   for (const setter of [41898282, 288071998]) {
     assert.equal(issueDimensions(facts({ size: 27053567, setters: { 15462270: setter } }), CONFIG, live).size, "small", setter);
   }

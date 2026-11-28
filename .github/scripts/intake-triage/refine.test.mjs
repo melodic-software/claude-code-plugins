@@ -1,4 +1,4 @@
-// test-scope: .github/actions/resolve-config/package.json
+// test-scope: .github/actions/resolve-config/package.json .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 import assert from "node:assert/strict";
 import { STATUS_CONFIG, withFields } from "../../actions/resolve-config/read-status.fixtures.mjs";
 import { statusReader } from "../../actions/resolve-config/read-status.mjs";
@@ -13,7 +13,10 @@ import { GitHubError } from "../lib/github-client.mjs";
 
 import { ADMIT_MARKER, heldRefusalText, refinementExact, refusalText, splitItemsLine, unrunnableCriteria, unrunnableReason, withoutItems } from "./admit.mjs";
 import { MARKER, UNRECORDED, VERDICT_MARKER } from "./apply-verdict.mjs";
-import { DECISION_REPLY, REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitOf, titleLine, validateOutput } from "./refine.mjs";
+import { agentAnswered, decide, loadRules } from "./admit.mjs";
+import { agentSettled, DECISION_REPLY, REFINE_MARKER, applyRefinement, bodyVersion, isThin, movedTexts, render, searchTerms, selectRefinement, splitOf, titleLine, validateOutput } from "./refine.mjs";
+import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
+import { STOP_REASONS } from "../lib/stop-reason.mjs";
 
 const HUMAN = 153232337;
 const OUTSIDER = 4242;
@@ -296,7 +299,7 @@ const INEXACT = {
   criteria: [],
   dependencies: [],
   related: [{ number: 3, relation: "duplicate", note: "same count fix" }],
-  questions: [{ question: "Is this a duplicate of #3?", recommended: "Close it as a duplicate.", basis: "#3 fixed the same line." }],
+  questions: [{ question: "Is this a duplicate of #3?", recommended: "Close it as a duplicate.", basis: "#3 fixed the same line.", stop_reason: "intent" }],
   sources: [],
   split: [],
   external: { state: "none", repo: "", class: "", what: "" },
@@ -312,7 +315,9 @@ describe("validateOutput", () => {
     ["exact with no criteria", { ...EXACT, criteria: [] }],
     ["exact with questions", { ...EXACT, questions: INEXACT.questions }],
     ["inexact with no question", { ...INEXACT, questions: [] }],
-    ["a question with no recommendation", { ...INEXACT, questions: [{ question: "q", recommended: "", basis: "b" }] }],
+    ["a question with no recommendation", { ...INEXACT, questions: [{ question: "q", recommended: "", basis: "b", stop_reason: "intent" }] }],
+    ["a question with no stop reason", { ...INEXACT, questions: [{ question: "q", recommended: "r", basis: "b" }] }],
+    ["a question whose stop reason is not a stop-reason code", { ...INEXACT, questions: [{ question: "q", recommended: "r", basis: "b", stop_reason: "owner" }] }],
     ["an unknown relation", { ...INEXACT, related: [{ number: 3, relation: "parent", note: "" }] }],
     ["an extra key", { ...EXACT, label: "agent-ready" }],
     ["too many criteria", { ...EXACT, criteria: Array.from({ length: 30 }, () => "c") }],
@@ -330,7 +335,8 @@ describe("validateOutput", () => {
       assert.equal(output.questions.length, 1);
       assert.ok(output.questions[0].question.includes(`#3 (${relation})`));
       assert.ok([output.questions[0].recommended, output.questions[0].basis].every((text) => text.trim() !== ""));
-      assert.match(render(output), /RECOMMENDED:/);
+      assert.equal(output.questions[0].stop_reason, "intent", "whether to close the issue is the owner's intent call");
+      assert.match(render(output), /RECOMMENDED:.*\n {3}Reason: `intent`\n/);
     }
     const bare = validateOutput({ ...EXACT, criteria: [], outcome: "", related: [{ number: 3, relation: "duplicate", note: "" }] }, new Set([3]));
     assert.equal(bare.exact, false, "an exact output with nothing but the duplicate still becomes a question");
@@ -339,6 +345,26 @@ describe("validateOutput", () => {
     const split = validateOutput({ ...EXACT, criteria: [], split: [2], related: [{ number: 3, relation: "duplicate", note: "same" }] }, new Set([3]), held);
     assert.equal(split.exact, false);
     assert.deepEqual(split.split, [], "a closing question moves no items");
+  });
+
+  test("the schema requires each question's stop reason from the stop-reason codes the validator accepts", () => {
+    const question = JSON.parse(readFileSync(new URL("refine-schema.json", import.meta.url), "utf8")).properties.questions.items;
+    assert.deepEqual(question.required, ["question", "recommended", "basis", "stop_reason"]);
+    assert.deepEqual(question.properties.stop_reason.enum, [...STOP_REASONS]);
+    for (const stop_reason of STOP_REASONS) {
+      assert.equal(validateOutput({ ...INEXACT, questions: [{ ...INEXACT.questions[0], stop_reason }] }, new Set([3])).questions[0].stop_reason, stop_reason);
+    }
+  });
+
+  test("a refinement whose every question needs no person still asks the owner and is not exact", () => {
+    const settled = { ...INEXACT, criteria: [], questions: [{ ...INEXACT.questions[0], stop_reason: "none" }] };
+    const output = validateOutput(settled, new Set([3]));
+    assert.equal(output.exact, false);
+    assert.deepEqual(output.criteria, []);
+    const body = render(output);
+    assert.ok(body.includes(DECISION_REPLY), "the owner is still asked to answer");
+    assert.equal(refinementExact(body), false);
+    assert.throws(() => validateOutput({ ...EXACT, questions: settled.questions }, new Set([3])), /asks nothing/, "an exact refinement still asks nothing");
   });
 
   test("drops related work that is not one of the fetched candidates", () => {
@@ -379,31 +405,25 @@ describe("render", () => {
 
   test("an inexact refinement has numbered questions with RECOMMENDED lines and no task list", () => {
     const body = render(validateOutput(INEXACT, new Set([3])));
-    assert.match(body, /\n1\. Is this a duplicate of #​3\?\n {3}RECOMMENDED: Close it as a duplicate\. Basis: #​3 fixed the same line\.\n/);
+    assert.match(body, /\n1\. Is this a duplicate of #​3\?\n {3}RECOMMENDED: Close it as a duplicate\. Basis: #​3 fixed the same line\.\n {3}Reason: `intent`\n/);
     assert.ok(body.includes("- #3 (duplicate): same count fix"));
     assert.ok(!body.split("\n").some((line) => line.trimStart().startsWith("- [ ] ")));
   });
 
-  // Only a comment whose first line is `**Decision recorded.**` answers, so
-  // the questions close with that reply in a block the owner can copy (#7916).
+  test("each open question shows its own stop reason under its recommendation", () => {
+    const questions = [
+      { question: "Which format?", recommended: "JSON.", basis: "judgment", stop_reason: "design" },
+      { question: "Which token?", recommended: "The App token.", basis: "judgment", stop_reason: "security" },
+    ];
+    const body = render(validateOutput({ ...INEXACT, questions }, new Set([3])));
+    assert.match(body, /\n1\. Which format\?\n {3}RECOMMENDED: JSON\. Basis: judgment\n {3}Reason: `design`\n2\. Which token\?\n {3}RECOMMENDED: The App token\. Basis: judgment\n {3}Reason: `security`\n/);
+  });
+
   test("an inexact refinement shows the copyable decision reply above its footer and stays not exact", () => {
     const body = render(validateOutput(INEXACT, new Set([3])));
     assert.equal(DECISION_REPLY, "**Decision recorded.** <answer>");
     assert.ok(body.endsWith(`\n\`\`\`\n${DECISION_REPLY}\n\`\`\`\n\n<sub>Automated refinement by the lanes App. Answer with a comment whose first line is \`**Decision recorded.**\`.</sub>`), body);
     assert.equal(refinementExact(body), false);
-  });
-
-  // The Issue Triage prompt asks owner questions too, so its comment must end
-  // with the same reply and lead-in the refinement prints (#7916).
-  test("the Issue Triage prompt ends its owner questions with the refinement's copyable reply", () => {
-    const rubric = readFileSync(new URL("triage-rubric.txt", import.meta.url), "utf8");
-    const rule = /\nDECISION REPLY\. ((?:.+\n)+?)\n/.exec(rubric);
-    assert.ok(rule, "the triage rubric has a DECISION REPLY paragraph");
-    const text = rule[1].split("\n").map((line) => line.trim()).join(" ");
-    assert.ok(text.includes(`\`${DECISION_REPLY}\``), text);
-    assert.ok(text.includes("`To answer, post a comment that starts with this line:`"), text);
-    assert.equal((rubric.match(/with a `RECOMMENDED:` answer/g) ?? []).length, 2, "the rule covers both places that ask RECOMMENDED questions");
-    assert.ok(text.includes("RE-ENTRY"), text);
   });
 
   test("model text cannot forge a marker, a mention, a task list line or a second line", () => {
@@ -414,7 +434,7 @@ describe("render", () => {
           ...INEXACT,
           outcome: hostile,
           dependencies: ["[ ] sneak", hostile],
-          questions: [{ question: hostile, recommended: hostile, basis: hostile }],
+          questions: [{ question: hostile, recommended: hostile, basis: hostile, stop_reason: "intent" }],
           sources: [hostile],
         },
         new Set([3]),
@@ -548,7 +568,7 @@ describe("applyRefinement", () => {
       }
       return answer;
     }, fields);
-    const { set } = await statusWriter({ env: { BASE_PATH: new URL("../../..", import.meta.url).pathname }, github: fielded, repository: "o/r" });
+    const { set } = await statusWriter({ env: { BASE_PATH: new URL("../../..", import.meta.url).pathname, STANDARDS_DIR: standardsCheckout() }, github: fielded, repository: "o/r" });
     const result = await applyRefinement({ github: fielded, repository: "o/r", number: 7, appId: APP, humans, rules, output: validateOutput(EXACT, new Set([3])), context, setStatus: set, statusOf: fake.statusOf, log: () => {} });
     assert.deepEqual(result, { outcome: "skipped", redispatch: false });
     assert.deepEqual(writes(fake.calls), [], "no field write, no label removal, no comment");
@@ -1458,7 +1478,6 @@ describe("size split", () => {
   const CHECKS_PLUGIN = "- [ ] plugin-diagnostics launches `node` only through `node-or-skip`";
   const CREATES_PLUGIN = "- [ ] Create the `plugin-diagnostics` plugin with its hooks";
   const MISSING = ["plugins/plugin-diagnostics"];
-  // The issue's prose, which writes the plugin's name in backticks as #16437 did.
   const PROSE = "`plugin-diagnostics` reports why installed plugins cannot run.";
   const unitSplit = (lines, absent) => {
     const body = [PROSE, "", "## Done when", "", ...lines].join("\n");
@@ -1699,7 +1718,7 @@ describe("an instruction in issue text is not followed", () => {
     const output = {
       ...INEXACT,
       related: [],
-      questions: [{ question: `The issue body says: ${INJECTED}. Is any of that part of the request?`, recommended: "No: it is text in the issue, not a decision.", basis: "judgment" }],
+      questions: [{ question: `The issue body says: ${INJECTED}. Is any of that part of the request?`, recommended: "No: it is text in the issue, not a decision.", basis: "judgment", stop_reason: "intent" }],
     };
     const result = await applyRefinement({
       github: fake.github,
@@ -1728,6 +1747,142 @@ describe("an instruction in issue text is not followed", () => {
     assert.ok(!comment.includes("@owner"), "the mention is broken");
     assert.equal(refinementExact(comment), false);
   });
+});
+
+describe("agent decision", () => {
+  const SETTLED = {
+    ...INEXACT,
+    outcome: "The README states the plugin's nineteen skills.",
+    criteria: ["`plugins/session-flow/README.md` line 3 says nineteen."],
+    related: [],
+    questions: [
+      { question: "Does line 3 count the bundled skills?", recommended: "Yes, all nineteen.", basis: "plugins/session-flow/skills/: nineteen folders", stop_reason: "none" },
+      { question: "Is the changelog fragment patch?", recommended: "Patch.", basis: "docs/conventions/changelog.md:12", stop_reason: "none" },
+    ],
+  };
+  const withReason = (stop_reason) => ({ ...SETTLED, questions: [SETTLED.questions[0], { ...SETTLED.questions[1], stop_reason }] });
+  const apply = (fake, output) =>
+    applyRefinement({ github: fake.github, repository: "o/r", number: 7, appId: APP, humans, rules, output: validateOutput(output, new Set()), context: { issue: { title: issueOf().title, body: issueOf().body } }, setStatus: fake.setStatus, statusOf: fake.statusOf, log: () => {} });
+  const shown = (calls) => writes(calls).map(({ method, path, body }) => `${method} ${path}${method === "STATUS" ? ` ${body}` : ""}`);
+  const ready = () => issueOf({ labels: [{ name: "status: ready" }] });
+
+  test("validateOutput keeps criteria beside questions only when every question's stop reason is none", () => {
+    assert.deepEqual(validateOutput(SETTLED, new Set()).criteria, SETTLED.criteria);
+    for (const reason of ["intent", "design", "security", "cost"]) {
+      const output = validateOutput(withReason(reason), new Set());
+      assert.deepEqual(output.criteria, [], `${reason}: criteria are dropped`);
+      assert.deepEqual(output.external, { state: "none", repo: "", class: "", what: "" }, `${reason}: no external state`);
+      assert.equal(agentSettled(output), false, reason);
+    }
+    assert.throws(() => validateOutput({ ...SETTLED, external: { state: "manual", repo: "", class: "nope", what: "x" } }, new Set()), /attended classes/, "a settled refinement's external state is checked like an exact one's");
+  });
+
+  test("render prints a settled refinement's criteria and the override footer, and no owner reply", () => {
+    const body = render(validateOutput(SETTLED, new Set()), { body: issueOf().body, agent: true });
+    assert.ok(body.includes("\n- [ ] `plugins/session-flow/README.md` line 3 says nineteen.\n"), body);
+    assert.ok(body.includes("\nExternal state: none\n"), body);
+    assert.ok(!body.includes(DECISION_REPLY), "no copyable owner reply");
+    assert.ok(body.trimEnd().split("\n").at(-1).includes("To override it, post a comment whose first line is `**Decision recorded.**`"), body);
+    assert.equal(agentAnswered(body), true);
+    assert.equal(refinementExact(body), false);
+    const held = render(validateOutput(withReason("design"), new Set()), { body: issueOf().body });
+    assert.ok(held.includes(DECISION_REPLY) && !held.includes("- [ ] "), "one design question asks the owner and lists no criteria");
+    assert.equal(agentAnswered(held), false);
+  });
+
+  test("an all-none refinement posts the App opener, then the refinement, and sets no needs-owner-decision", async () => {
+    const fake = fakeGitHub({ issue: ready(), comments: [laneComment()], events: [] });
+    assert.deepEqual(await apply(fake, SETTLED), { outcome: "agent-decided", redispatch: true });
+    assert.deepEqual(shown(fake.calls), ["STATUS #7 needs-triage", "POST /repos/o/r/issues/7/comments", "POST /repos/o/r/issues/7/comments"]);
+    const [opener, refinement] = writes(fake.calls).slice(1).map((call) => call.body.body.split("\n"));
+    assert.equal(opener[0], "**Agent decision recorded.**");
+    assert.equal(opener[1], bodyVersion(issueOf().body));
+    assert.deepEqual(
+      opener.filter((row) => /^\d+\. /.test(row)),
+      ["1. Does line 3 count the bundled skills?", "2. Is the changelog fragment patch?"],
+      "one answer per question",
+    );
+    assert.ok(opener.includes("   ANSWER: Yes, all nineteen. Basis: plugins/session-flow/skills/: nineteen folders"), opener.join("\n"));
+    assert.equal(refinement[0], REFINE_MARKER);
+    assert.ok(refinement.includes("- [ ] `plugins/session-flow/README.md` line 3 says nineteen."));
+  });
+
+  test("an all-none refinement lifts the App's needs-owner-decision instead of keeping it", async () => {
+    const fake = fakeGitHub({ issue: issueOf(), comments: [laneComment()], events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: APP } }] });
+    assert.deepEqual(await apply(fake, SETTLED), { outcome: "agent-decided", redispatch: true });
+    assert.deepEqual(shown(fake.calls), ["STATUS #7 needs-triage", "DELETE /repos/o/r/issues/7/labels/needs-owner-decision", "POST /repos/o/r/issues/7/comments", "POST /repos/o/r/issues/7/comments"]);
+  });
+
+  const opener = { id: 20, user: { id: APP, type: "Bot" }, body: `**Agent decision recorded.**\n${bodyVersion(issueOf().body)}\n1. Yes.` };
+  const agentRefined = { id: 21, user: { id: APP, type: "Bot" }, body: render(validateOutput(SETTLED, new Set()), { body: issueOf().body, agent: true }) };
+  const override = { id: 22, node_id: "C22", user: { id: HUMAN, type: "User" }, performed_via_github_app: null, body: "**Decision recorded.** Eighteen, not nineteen." };
+  const select = (comments) => selectRefinement({ github: fakeGitHub({ issue: ready(), comments }).github, repository: "o/r", number: 7, humans, appId: APP, startedAt: Date.parse(STARTED), splitConfig: () => ({ rules, webHosts }) });
+
+  test("the triage run an owner override re-enters is refined again, and one without an override is not", async () => {
+    assert.equal((await select([opener, agentRefined, override, laneComment()])).refine, true, "the override is the newest decision");
+    assert.deepEqual(await select([opener, agentRefined, laneComment()]), { refine: false, reason: "the lanes App already refined this body" });
+    const stranger = { ...override, user: { id: OUTSIDER, type: "User" } };
+    assert.equal((await select([opener, agentRefined, stranger, laneComment()])).refine, false, "only a listed human overrides");
+    assert.equal((await select([opener, agentRefined, override, { ...agentRefined, id: 23 }, laneComment()])).refine, false, "a refinement after the override counts");
+  });
+
+  test("a person-held all-none refinement posts the needs-decision text, and the owner's Decision then admits it", async () => {
+    const fake = fakeGitHub({
+      issue: issueOf({ labels: [{ name: "status: ready" }, { name: "needs-reporter-info" }] }),
+      comments: [laneComment()],
+      events: [{ event: "labeled", label: { name: "needs-reporter-info" }, actor: { id: HUMAN } }],
+    });
+    assert.equal((await apply(fake, SETTLED)).outcome, "needs-decision");
+    const posted = writes(fake.calls).at(-1).body.body;
+    assert.ok(posted.includes(DECISION_REPLY), "the owner is asked to answer");
+    assert.ok(!posted.split("\n").some((row) => row.startsWith("- [ ] ")), "no agent criteria without an opener");
+    assert.equal(agentAnswered(posted), false);
+    const node = (id, body) => ({ body, author: actor(id), editor: null, lastEditedAt: null });
+    const spec = { body: issueOf().body, author: actor(HUMAN), editor: null, lastEditedAt: null, commentCount: 2, comments: [node(APP, posted), node(HUMAN, "**Decision recorded.** Nineteen.\n\n- [ ] `plugins/session-flow/README.md` line 3 says nineteen.")] };
+    const decision = decide({
+      issue: { number: 7, state: "open", title: issueOf().title, body: issueOf().body, user: { id: HUMAN }, type: { name: "Task" }, labels: [{ name: "status: ready" }], sub_issues_summary: { total: 0 } },
+      verdict: { dimensions: { size: "small", complexity: "low", uncertainty: "known" } },
+      rules: loadRules(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url).pathname),
+      parent: null,
+      blockers: [],
+      trustedCloses: new Set(),
+      events: [],
+      humans,
+      appId: APP,
+      webHosts,
+      repository: "o/r",
+      spec,
+    });
+    assert.deepEqual(decision, { verdict: "admit", reasons: [] });
+  });
+
+  test("after an owner override an all-none refinement waits for the owner instead of posting a new opener", async () => {
+    const fake = fakeGitHub({ issue: ready(), comments: [opener, agentRefined, override, laneComment()], events: [] });
+    assert.deepEqual(await apply(fake, SETTLED), { outcome: "needs-decision", redispatch: false });
+    assert.ok(!writes(fake.calls).some((call) => String(call.body?.body ?? "").startsWith("**Agent decision recorded.**")));
+  });
+
+  for (const reason of ["intent", "design", "security", "cost"]) {
+    test(`one ${reason} question gives today's needs-decision outcome and no opener`, async () => {
+      const fake = fakeGitHub({ issue: ready(), comments: [laneComment()], events: [] });
+      assert.deepEqual(await apply(fake, withReason(reason)), { outcome: "needs-decision", redispatch: false });
+      assert.deepEqual(shown(fake.calls), ["STATUS #7 needs-owner-decision", "POST /repos/o/r/issues/7/comments"]);
+      assert.ok(!writes(fake.calls)[1].body.body.includes("**Agent decision recorded.**"));
+    });
+  }
+
+  for (const [name, setup] of [
+    ["a person's needs-reporter-info", { issue: issueOf({ labels: [{ name: "status: ready" }, { name: "needs-reporter-info" }] }), events: [{ event: "labeled", label: { name: "needs-reporter-info" }, actor: { id: HUMAN } }] }],
+    ["a person's needs-owner-decision", { issue: issueOf(), events: [{ event: "labeled", label: { name: NEEDS_DECISION }, actor: { id: HUMAN } }] }],
+    ["an issue the App filed, whose refinement admission never counts", { issue: ready(), events: [], spec: { ...specOf(), author: actor(APP) } }],
+    ["an issue at the spec comment cap", { issue: ready(), events: [], spec: { ...specOf(), comments: { totalCount: 99, nodes: [] } } }],
+  ]) {
+    test(`an all-none refinement of ${name} posts no opener and waits for the owner`, async () => {
+      const fake = fakeGitHub({ ...setup, comments: [laneComment()] });
+      assert.equal((await apply(fake, SETTLED)).outcome, "needs-decision");
+      assert.ok(!writes(fake.calls).some((call) => String(call.body?.body ?? "").startsWith("**Agent decision recorded.**")), JSON.stringify(writes(fake.calls)));
+    });
+  }
 });
 
 test("a split child's title keeps a Conventional Commits scope unescaped and still breaks mentions and links", () => {

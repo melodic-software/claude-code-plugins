@@ -1,5 +1,5 @@
 ---
-description: "Re-runs overengineering:audit and reports only what changed in the enforcement surface since the last run: new findings, verdicts that moved, closed findings, status changes. Read-only; never invokes realign. Use when the user asks what changed since the last enforcement audit, whether any verdict moved, or wants the audit on a recurring schedule."
+description: "Re-runs /overengineering:audit and reports only what changed in the enforcement surface since the last run: new findings, verdicts that moved, closed findings, status changes. Read-only; never invokes realign. Use when the user asks what changed since the last enforcement audit, whether any verdict moved, or wants the audit on a recurring schedule."
 argument-hint: "[--unattended] [layer ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -186,7 +186,7 @@ are covered.
 
 Each class is **listed** (rows), **counted** (a number in the counts table) or **omitted**. Keys are
 read from `${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md` under `delta_noise_budget`, never
-redefined here, through that page's layers and dual-read window, warning on each old file it reads.
+redefined here, through that page's layers.
 
 **Always listed, whatever the budget:** a verdict moved under a carried-forward judgment (rule 5) and
 a status change. They are not configurable keys.

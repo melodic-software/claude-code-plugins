@@ -1,32 +1,4 @@
 #!/usr/bin/env bash
-# Parity gate: every reader of `metadata.summary` must return the same verdict,
-# and the verdict they share must be the correct one.
-#
-# Three pieces of code in this repository read skill frontmatter, and they used
-# to disagree. A malformed summary reached CI twice, failing in opposite
-# directions, each time after clearing the local check meant to catch it
-# (#3189). Making them merely agree was not enough: agreement on a wrong rule is
-# still wrong, so this gate pins the verdicts to an oracle rather than to each
-# other.
-#
-#   Reader A  plugins/skill-quality/scripts/skill-frontmatter.sh
-#             (bash; ships inside the installable plugin, no Node available)
-#   Reader C  scripts/cheatsheet-config.mjs, summaryError
-#             (JavaScript; repo-internal, drives the cheat-sheet generator)
-#   Oracle    a real YAML parser (PyYAML), the same reader
-#             scripts/check-hook-exec-form.sh already relies on
-#
-# The contract is a FIXED POINT: the literal text after `summary:` must be the
-# value every reader recovers. Readers A and C are fast, single-line
-# approximations of that. The oracle is the definition, so it also catches the
-# classes no character-level rule can reach: values a resolver reads as a
-# non-string (`true`, `12:34`, `2026-08-23`) and multi-line plain scalars whose
-# continuation lines a line-oriented reader never sees.
-#
-# Two sweeps:
-#   1. the shared case table, proving the RULE SET
-#   2. every SKILL.md in the tree, proving the TREE
-#
 # Exit 0 = parity holds; 1 = a reader diverged; 2 = the gate could not run.
 # test-scope: plugins/*/skills/*/SKILL.md
 set -uo pipefail
@@ -57,11 +29,6 @@ command -v node >/dev/null 2>&1 || {
   exit 2
 }
 
-# --- PyYAML resolution -------------------------------------------------------
-# Same ladder scripts/lib/hook-configs.sh uses. This gate does NOT skip when
-# PyYAML is unavailable: the oracle is the only thing here that proves the
-# shared verdict is correct rather than merely shared, so clearing without it
-# would report green while proving the weaker half of the claim.
 pyyaml_pin="$(awk '/^pyyaml==/ {
   sub(/^pyyaml==/, "")
   sub(/[[:space:];].*$/, "")
@@ -90,10 +57,6 @@ fi
 
 # shellcheck source=../plugins/skill-quality/scripts/skill-frontmatter.sh
 source "$LIB"
-
-# --- Reader C and the oracle, driven in one batch each -----------------------
-# Both are process-expensive, so each runs once over the whole table rather than
-# once per case.
 
 js_verdicts() {
   # The single-quoted payload is a Node program; nothing in it should expand.
@@ -152,15 +115,7 @@ while IFS=$'\t' read -r id verdict; do
   [[ -n "$id" ]] && YAML_VERDICT["$id"]="$verdict"
 done < <(yaml_verdicts)
 
-# --- Sweep 1: the shared case table ------------------------------------------
-
 case_count=0
-# The VALUE travels base64-encoded, deliberately. A bare @tsv field escapes an
-# embedded tab into a literal backslash-t, so the bash reader would judge a
-# different string than the other two readers judge and the gate would report a
-# divergence it manufactured itself. Encoding also survives jq's CRLF output on
-# Windows, which otherwise rides along on the final field and silently adds a
-# codepoint to every value.
 while IFS=$'\t' read -r id expect expect_yaml value_b64; do
   [[ -n "$id" ]] || continue
   value_b64="${value_b64%$'\r'}"
@@ -183,14 +138,9 @@ while IFS=$'\t' read -r id expect expect_yaml value_b64; do
     ok "$id: both readers agree ($expect)"
   fi
 
-  # The oracle. A value both readers ACCEPT must round-trip through a real
-  # parser as the identical string; that is the safety-critical direction and it
-  # is asserted for every accepted case, whatever the table claims.
   if [[ "$expect" == valid && "$yaml_verdict" != roundtrip ]]; then
     fail "$id: accepted by both readers but a real YAML parser says $yaml_verdict — the readers agree on a value the parser does not produce"
   fi
-  # Where the table records what the parser does, hold it to that, so a rule
-  # cannot outlive the parser behavior that justified it.
   if [[ -n "$expect_yaml" && "$expect_yaml" != null && "$yaml_verdict" != "$expect_yaml" ]]; then
     fail "$id: table records YAML behavior '$expect_yaml' but the parser gave '$yaml_verdict'"
   fi
@@ -201,11 +151,6 @@ if ((case_count == 0)); then
 else
   ok "shared case table: $case_count cases exercised against both readers and the YAML oracle"
 fi
-
-# --- Sweep 2: every SKILL.md in the tree -------------------------------------
-# The case table proves the rule set; this proves the tree. Three-way value
-# agreement, not just verdict agreement: the readers must extract the SAME TEXT
-# from real files, which is where a scoping divergence shows up.
 
 tree_report="$(
   "${reader_cmd[@]}" - "$REPO_ROOT" <<'PY'
@@ -261,9 +206,6 @@ while IFS=$'\t' read -r rel parsed regex_read; do
   [[ -n "$rel" ]] || continue
   tree_count=$((tree_count + 1))
 
-  # Frontmatter only. Feeding the whole file would let a `metadata:` line in the
-  # BODY answer for the frontmatter, which is the same class of mistake this
-  # gate exists to catch.
   bash_read="$(skill_frontmatter::extract <"$REPO_ROOT/$rel" |
     skill_frontmatter::metadata_field summary --raw)"
 

@@ -9,9 +9,6 @@ const root = process.cwd();
 const failures = [];
 const warnings = [];
 
-// Org-agnosticism tokens live in scripts/org-agnosticism-tokens.txt: one
-// data file, every site either reads it or is a documented extension (#3136).
-// The class set is closed: a typo (`fleet-keey`) must fail, not drop tokens.
 const ORG_AGNOSTICISM_CLASSES = Object.freeze([
   "fleet-id",
   "fleet-key",
@@ -68,10 +65,10 @@ const orgTokens = {
 function filesUnder(directory) {
   if (!existsSync(directory)) return [];
   const files = [];
-  for (const entry of readdirSync(directory)) {
-    if (entry === "node_modules" || entry === ".git") continue;
-    const path = join(directory, entry);
-    if (statSync(path).isDirectory()) files.push(...filesUnder(path));
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    if (entry.name === "node_modules" || entry.name === ".git") continue;
+    const path = join(directory, entry.name);
+    if (entry.isSymbolicLink() ? statSync(path).isDirectory() : entry.isDirectory()) files.push(...filesUnder(path));
     else files.push(path);
   }
   return files;
@@ -89,12 +86,10 @@ function warn(path, message) {
   warnings.push(`${relative(root, path)}: ${message}`);
 }
 
-// The frontmatter's inner text, or undefined when the file opens with none.
 function frontmatterOf(content) {
   return content.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
 }
 
-// The text after the frontmatter's closing `---`.
 function afterFrontmatter(content) {
   return content.slice(content.indexOf("---", 3) + 3);
 }
@@ -102,16 +97,15 @@ function afterFrontmatter(content) {
 const pluginRoot = join(root, "plugins");
 const pluginFiles = filesUnder(pluginRoot);
 
-// Every plugin file under `directory`, taken from the single plugins/ walk
-// above rather than walking the subtree again: same set, same order, one
-// traversal instead of one per checked subtree.
 function filesIn(directory) {
   return pluginFiles.filter((path) => path.startsWith(directory + sep));
 }
 
-// A plugin file's path segments below plugins/: [0] is the plugin directory.
+const pathParts = new Map();
 function pluginPathParts(path) {
-  return relative(pluginRoot, path).split(sep);
+  let parts = pathParts.get(path);
+  if (!parts) pathParts.set(path, (parts = relative(pluginRoot, path).split(sep)));
+  return parts;
 }
 
 const setupSkills = pluginFiles.filter((path) =>
@@ -121,25 +115,11 @@ const pluginManifests = pluginFiles.filter((path) =>
   path.endsWith(`${sep}.claude-plugin${sep}plugin.json`),
 );
 
-// plugin-philosophy's check-only carve-out is a consequence of a plugin's
-// surface, not a claim it may assert: "A plugin with even one writable owned
-// artifact takes the narrow-write shape instead." Tracked consumer config is
-// the writable artifact class this repo already registers, in the Implementers
-// table of docs/contracts/config-cascade/README.md, a signal that lives
-// OUTSIDE the setup skill whose claim is being checked, which is the whole
-// point. Reading ownership out of the declaring skill's own prose would let a
-// plugin certify itself, and would misread the carve-out's own second surface,
-// whose conforming `check` prints the exact settings edit it may not write.
-// The contract moved from docs/conventions/, which keeps a stub; the old path
-// is read only when the new one is absent.
 const configCascadeRegistry = [
   join(root, "docs", "contracts", "config-cascade", "README.md"),
   join(root, "docs", "conventions", "config-cascade", "README.md"),
 ].find((path) => existsSync(path)) ?? join(root, "docs", "contracts", "config-cascade", "README.md");
 
-// The plugin names in that table's first column, or null when the table cannot
-// be read. Null is a recorded failure, never a quiet pass: a check that
-// degrades to a no-op when its input moves is worse than no check at all.
 function readTrackedConfigOwners() {
   if (!existsSync(configCascadeRegistry)) {
     fail(
@@ -161,10 +141,6 @@ function readTrackedConfigOwners() {
   for (const line of lines.slice(heading + 1)) {
     if (/^#{1,6}\s/.test(line)) break;
     if (!line.startsWith("|")) continue;
-    // Column 1 names the surface, and where the surface name is not itself the
-    // owning plugin it names the plugins alongside it ("`standards`
-    // (`planning`, `review`)"), so every backticked token in the cell is taken
-    // as an owner. Tokens naming no plugin directory are inert.
     for (const [, name] of (line.split("|")[1] ?? "").matchAll(/`([^`]+)`/g)) {
       owners.add(name);
     }
@@ -200,11 +176,6 @@ function declaresUserConfig(plugin) {
   );
 }
 
-// True when the frontmatter's disable-model-invocation reads as a true boolean in
-// any spelling check-skill.sh accepts (true, yes, on, 1, any letter case, with an
-// optional trailing comment). A quoted value is a YAML string, never true.
-// Pointer: https://code.claude.com/docs/en/skills#frontmatter-reference, as of
-// 2026-11-04; recheck when that section changes its accepted spellings.
 function disablesModelInvocation(frontmatter) {
   const raw = frontmatter.match(/^disable-model-invocation:(.*)$/m)?.[1];
   if (raw === undefined) return false;
@@ -218,14 +189,6 @@ for (const path of setupSkills) {
   if (!disablesModelInvocation(frontmatter)) {
     fail(path, "setup skills must set disable-model-invocation: true");
   }
-  // Uniform contract shape (plugin-philosophy "Setup is explicit and repeatable"):
-  // check is the default read-only action; apply exists unless the skill declares the
-  // check-only carve-out the doctrine sanctions. The registry check below is the
-  // writable-artifact exclusion (tracked consumer config). Native userConfig is
-  // the one carve-out surface with a manifest-side counterpart; the other two
-  // doctrine surfaces (settings this contract forbids setup to mutate; external
-  // prerequisites) have no such signal and are covered by the check-only
-  // declaration plus the registry exclusion, not by a second existence probe.
   if (!/^argument-hint:\s*"[[<]check[|\]>]/m.test(frontmatter)) {
     fail(path, 'setup skills must declare check as the leading action in argument-hint ("[check|apply] ...", "<check|apply> ...", or "[check] ...") (docs/contracts/argument-hint/README.md)');
   }
@@ -237,11 +200,6 @@ for (const path of setupSkills) {
     fail(path, "setup skills must document apply, or declare the check-only carve-out and the surface qualifying it");
   }
 
-  // Which shape a setup skill takes is declared where a reader and a gate can
-  // both see it: the action list in argument-hint, already constrained above to
-  // lead with check. A skill offering no apply is taking the carve-out, whatever
-  // its prose says, so the carve-out's preconditions are checked there rather
-  // than on the presence of the words "check-only" anywhere in the body.
   const offersApply = /^argument-hint:\s*"[^"]*\bapply\b/m.test(frontmatter);
   if (offersApply && !/`apply`/.test(body)) {
     fail(
@@ -260,11 +218,6 @@ for (const path of setupSkills) {
         "the check-only carve-out is unavailable here: this plugin owns the tracked consumer config registered in docs/contracts/config-cascade/README.md, and \"A plugin with even one writable owned artifact takes the narrow-write shape instead\"",
       );
     }
-    // The one carve-out surface with a manifest-side counterpart. Any claim
-    // that names that surface, the doctrine's "native userConfig surface"
-    // wording included, requires the manifest to declare it. Matching only
-    // the phrase "userConfig-only carve-out" would let a different spelling
-    // of the same claim pass.
     if (claimsUserConfigSurface(body) && !declaresUserConfig(plugin)) {
       fail(path, "a check-only skill that names the userConfig surface requires the plugin manifest to declare userConfig, and this one declares none");
     }
@@ -352,14 +305,7 @@ for (const path of lifecycleProtocolCopies) {
 }
 
 const aiBriefingRoot = join(pluginRoot, "ai-briefing");
-// skills/generate/scripts once held the automated-X collectors and stays
-// tombstoned, with one carve-out: run-tests.sh, the skill's public test entry
-// facade over the private output/build package (encapsulation contract, #2701).
-// The automatedXTokens content scan below covers the carved-out file too, so a
-// collector cannot return under the allowed name.
 const legacyScriptsPath = join(aiBriefingRoot, "skills", "generate", "scripts");
-// filesUnder, not filesIn: this probes paths that must NOT exist, so it has
-// to look at the filesystem rather than at a walk that already excluded them.
 const legacyScriptsExtras = filesUnder(legacyScriptsPath).filter(
   (path) => relative(legacyScriptsPath, path) !== "run-tests.sh",
 );
@@ -435,9 +381,6 @@ if (existsSync(aiBriefingBrandOverlay)) {
   if (!content.includes('"brand.json"') || !content.includes("realpathSync") || !content.includes(".strict()")) {
     fail(aiBriefingBrandOverlay, "must load schema-validated brand.json and confine logo real paths");
   }
-  // A brand.js literal is allowed only for passive legacy-profile detection
-  // and migration errors. Keep rejecting the executable overlay paths used by
-  // earlier runtimes, including direct imports of profile-controlled files.
   if (
     /data:text\/javascript|import\s*\(\s*(?:dataUrl|overlayPath|legacyOverlayPath)\s*\)/.test(
       content,
@@ -447,12 +390,6 @@ if (existsSync(aiBriefingBrandOverlay)) {
   }
 }
 
-// The autonomy plugin's contract text is tool- and fleet-agnostic: the org
-// token and bare fleet repo names may not appear anywhere under it. Author
-// metadata in plugin.json is the single allowed occurrence. The normative
-// reference/ docs additionally ban vendor names outright: surface classes
-// replace them; tool-specific detail lives in SKILL.md/README. Its changelog
-// fragments are gated too: release copies them into the plugin's CHANGELOG.md.
 const autonomyRoot = join(pluginRoot, "autonomy");
 if (existsSync(autonomyRoot)) {
   const fleetTokens = orgTokens.autonomy;
@@ -475,12 +412,6 @@ if (existsSync(autonomyRoot)) {
   }
 }
 
-// A manifest component field names hook files, skill directories, and the rest
-// at NON-default paths. Pointing one at the path Claude Code already discovers
-// re-registers a component the harness has loaded: for `hooks` that is a
-// duplicate-file load error that takes the whole hook file down with it, and it
-// is redundant for every other field. The failure is silent at load time, so a
-// gate catches it and a reviewer does not.
 const defaultComponentPaths = {
   agents: ["agents", "agents/"],
   commands: ["commands", "commands/"],
@@ -503,14 +434,6 @@ for (const path of pluginManifests) {
   }
 }
 
-// An `archive` catalog entry installs a plugin from a zip fetched over HTTPS
-// (Claude Code v2.1.224+). The platform's floor is transport-level only: HTTPS,
-// no loopback/link-local/cloud-metadata hosts, same rules on every redirect hop,
-// and the `sha256` digest that pins the bytes is documented as optional. Unpinned,
-// the same URL can serve different content on every install with nothing to detect
-// it, which is the mutable-remote-artifact surface the plugin-acceptance security
-// review (docs/migration-playbook.md, criterion 6) denies by default. The pin is
-// required here so review never has to catch it by eye.
 const marketplacePath = join(root, ".claude-plugin", "marketplace.json");
 const catalogEntries = existsSync(marketplacePath)
   ? [JSON.parse(read(marketplacePath)).plugins ?? []].flat()
@@ -519,7 +442,6 @@ if (catalogEntries !== null) {
   for (const entry of catalogEntries) {
     if (!entry || typeof entry !== "object") continue;
     const source = entry.source;
-    // Documented entry shape: "source": { "source": "archive", "url": ..., "sha256"? : ... }.
     if (typeof source !== "object" || source === null || source.source !== "archive") continue;
     if (!/^[0-9a-fA-F]{64}$/.test(String(source.sha256 ?? ""))) {
       fail(
@@ -530,10 +452,6 @@ if (catalogEntries !== null) {
   }
 }
 
-// github.test.sh's agnostic-conformance regex is a documented extension of
-// this file's `github` class: same tokens, plugin-local reach. Drift here
-// would recreate the two-set problem #3136 closed. If the plugin exists, the
-// test file is required; a missing file must not skip the alignment check.
 {
   const githubPlugin = join(pluginRoot, "github");
   const githubTest = join(githubPlugin, "github.test.sh");
@@ -558,19 +476,6 @@ if (catalogEntries !== null) {
     }
   }
 }
-
-// ---------------------------------------------------------------------------
-// Retired conventions: plugins/<plugin>/retirements.yaml
-// (docs/migration-playbook.md § Retired conventions; owner doc
-// docs/contracts/retired-conventions/README.md).
-//
-// A manifest is the append-only record of consumer-facing artifacts a plugin
-// has retired; the shared helper lib/check-retirements.sh (canonical in
-// harness-config, synced byte-identical) evaluates it in setup `check`. The
-// gate covers four things: the manifest parses and every record is
-// well-formed; records are never deleted or rewritten once merged; the helper
-// and the setup skill are wired both ways; and every record has an eval.
-// ---------------------------------------------------------------------------
 
 const RETIREMENTS_FILE = "retirements.yaml";
 const RETIREMENTS_HELPER = "check-retirements.sh";
@@ -608,24 +513,10 @@ const RETIREMENT_ENUMS = Object.freeze({
   action: ["delete", "remove-line", "migrate"],
   status: ["active", "report-only"],
 });
-// Fields an already-merged record may still change: a demotion, or a defect
-// fix to the prose. Everything else is frozen once the record ships.
 const RETIREMENT_MUTABLE_KEYS = Object.freeze(["status", "note", "successor"]);
-// semver.org's documented regex, without the leading anchors' `v` allowance.
 const SEMVER =
   /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-((?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+([0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?$/;
 
-// The accepted grammar is a deliberately small subset of YAML, so the parser
-// is hand-written rather than a dependency. Records are separated by a line
-// that is exactly `---` (no trailing whitespace: the runtime helper is the
-// same); a record with no keys, such as the one before a leading `---`, is
-// skipped. Inside a record every line is either blank, a comment (first
-// non-blank character `#`), or `key: value` with the key at column 0. Values
-// are the rest of the line, trimmed; matching outer quotes are stripped and
-// nothing inside is escaped, matching the helper's `strip_quotes`. There are
-// no inline comments after a value, no multi-line values, no nesting, and no
-// lists. Anything else is a parse error so an author never ships a record the
-// helper reads differently.
 function parseRetirementsManifest(text) {
   const records = [];
   const errors = [];
@@ -686,11 +577,6 @@ function parseRetirementsManifest(text) {
   return { records, errors };
 }
 
-// A conservative usability check, not an ERE validator: it rejects an empty
-// pattern, an unterminated bracket expression, and unbalanced parentheses
-// outside bracket expressions. It does NOT check interval syntax, character
-// classes, anchors, or anything else grep -E would still reject; the helper's
-// own test suite is where a pattern's behavior is proven.
 function ereProblem(pattern) {
   if (pattern.length === 0) return "empty pattern";
   let depth = 0;
@@ -701,12 +587,10 @@ function ereProblem(pattern) {
       continue;
     }
     if (ch === "[") {
-      // `]` right after `[` or `[^` is a literal member, not the terminator.
       let j = i + 1;
       if (pattern[j] === "^") j += 1;
       if (pattern[j] === "]") j += 1;
       while (j < pattern.length && pattern[j] !== "]") {
-        // POSIX classes such as [:alpha:] carry their own `]`.
         if (pattern[j] === "[" && /[:.=]/.test(pattern[j + 1] ?? "")) {
           const close = pattern.indexOf(`${pattern[j + 1]}]`, j + 2);
           if (close === -1) return "unterminated bracket expression";
@@ -762,14 +646,6 @@ function textCoversRetirementId(text, id) {
   return new RegExp(`(?:^|[^A-Za-z0-9-])${escapeRegExp(id)}(?:[^A-Za-z0-9-]|$)`).test(text);
 }
 
-// The probe text of a case.yaml: only the values of the keys that state what
-// a run is asked or graded on, at the place the suite schema puts each one
-// (PROBE_KEYS: parent key, or <root>, to probe keys), written in block style.
-// Selecting what counts, rather than stripping descriptions, means no YAML
-// spelling of a description can count: a key under a description, or text
-// inside any other key's block or quoted scalar, is never a probe value. It
-// fails closed: a flow-style value, or a plain scalar wrapped past its first
-// line, counts only its first line or nothing.
 const PROBE_KEYS = {
   "<root>": ["expected_outcome"],
   execution: ["prompt"],
@@ -794,8 +670,6 @@ function caseYamlProbeText(text) {
     }
     const key = /^(\s*(?:-\s+)?)([A-Za-z_][\w-]*)\s*:(?:\s+(.*))?$/.exec(line);
     if (!key) {
-      // A line this selector cannot read (a quoted, spaced or explicit key, a
-      // bare `-`): whatever sits under it is non-probe text, failing closed.
       scalar = { column: indent, probe: false };
       continue;
     }
@@ -815,15 +689,10 @@ function caseYamlProbeText(text) {
   return kept.join("\n");
 }
 
-// Markdown text without a leading BOM or frontmatter.
 function markdownBody(text) {
   return text.replace(/^﻿/, "").replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, "");
 }
 
-// One haystack per plugin suite case (evals/<case>/): the prompt.md body,
-// case.yaml's probe values (caseYamlProbeText), and graders/*.md bodies.
-// Frontmatter, samples/, scaffolds, and the results/ and mocks/ trees are not
-// the probe, so they never count; neither does the directory name.
 function suiteCaseHaystacks(suiteRoot) {
   const cases = new Map();
   for (const path of filesIn(suiteRoot)) {
@@ -840,8 +709,6 @@ function suiteCaseHaystacks(suiteRoot) {
   return [...cases.values()].map((texts) => texts.join("\n"));
 }
 
-// Validates one manifest's records; returns the ids it found so the
-// append-only and eval-coverage checks below can key on them.
 function validateRetirementRecords(manifestPath, plugin, records) {
   const ids = [];
   const seen = new Set();
@@ -930,11 +797,8 @@ function gitText(args) {
   return execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
 }
 
-// Append-only enforcement compares against the PR base. CI passes the base
-// ref in VALIDATE_CONTRACTS_BASE_REF; a local run without it says so on
-// stdout rather than silently passing a deletion.
 const retirementsBaseRef = process.env.VALIDATE_CONTRACTS_BASE_REF?.trim() || null;
-let retirementsAtBase = null; // Map<repo-relative manifest path, records[]>
+let retirementsAtBase = null;
 if (retirementsBaseRef === null) {
   console.log(
     `validate-plugin-contracts: VALIDATE_CONTRACTS_BASE_REF unset; retirements append-only check skipped`,
@@ -1022,8 +886,6 @@ for (const manifestPath of retirementManifests) {
     }
   }
 
-  // Wiring, forward direction: the synced helper and the setup skill that
-  // runs it must both be present.
   const helperCopy = join(pluginRoot, plugin, "lib", RETIREMENTS_HELPER);
   if (!existsSync(helperCopy)) {
     fail(helperCopy, "missing; a plugin shipping retirements.yaml must carry the synced helper");
@@ -1035,11 +897,6 @@ for (const manifestPath of retirementManifests) {
     fail(setupSkill, "must reference check-retirements.sh when the plugin ships retirements.yaml");
   }
 
-  // Every record is a behavior the setup skill now has (detect-hit and clean
-  // path), so every id needs an eval naming it (mechanism-validation, hybrid
-  // item 1). A legacy setup evals.json case covers it through its name,
-  // prompt, expected_output or expectations; a plugin suite case through its
-  // prompt.md body, case.yaml's probe values, or its graders/*.md bodies.
   const evalsPath = join(pluginRoot, plugin, "skills", "setup", "evals", "evals.json");
   const suiteRoot = join(pluginRoot, plugin, "evals");
   const haystacks = [];
@@ -1067,7 +924,6 @@ for (const manifestPath of retirementManifests) {
   }
 }
 
-// A manifest deleted outright is every one of its records deleted.
 if (retirementsAtBase !== null) {
   for (const manifestKey of retirementsAtBase.keys()) {
     if (!existsSync(join(root, ...manifestKey.split("/")))) {
@@ -1078,9 +934,6 @@ if (retirementsAtBase !== null) {
   }
 }
 
-// Wiring, inverse direction: a helper copy or a setup reference with no
-// manifest behind it is dead surface. harness-config is the canonical home of
-// the helper, so its copy and its setup reference stand without a manifest.
 for (const path of pluginFiles) {
   const parts = pluginPathParts(path);
   const plugin = parts[0];
@@ -1093,20 +946,6 @@ for (const path of pluginFiles) {
   }
 }
 
-// An agent's `skills:` entry that does not resolve is skipped SILENTLY: the
-// harness logs a debug-line warning and starts the agent anyway, so an agent
-// that was supposed to carry a discipline runs without it and still returns a
-// well-formed artifact. Nothing downstream can tell that run from a good one,
-// which is why a typo here needs a gate rather than a reviewer.
-//
-// What this check does NOT cover: a skill that is missing or disabled at
-// RUNTIME, for example by an organization's policy (sub-agents.md:585). This
-// resolves names against the tree as committed only. The runtime case is
-// covered by each agent's disk-fallback rung and the parent-side warning on
-// `preload: fallback`, not here.
-//
-// Entry forms: the namespaced `<plugin>:<skill>` resolves to that plugin's
-// skills dir; a bare `<skill>` resolves inside the agent's own plugin.
 const SKILLS_ENTRY_MALFORMED = "`skills:` must be a YAML list of skill names";
 for (const path of pluginFiles) {
   const parts = pluginPathParts(path);
@@ -1128,8 +967,6 @@ for (const path of pluginFiles) {
       .map((value) => value.trim())
       .filter((value) => value.length > 0);
   } else if (/^skills:/m.test(body)) {
-    // A `skills:` key in any other shape is a failure, never a skip: a check
-    // that degrades to a no-op when its input moves is worse than no check.
     fail(path, SKILLS_ENTRY_MALFORMED);
     continue;
   }
@@ -1156,10 +993,6 @@ for (const path of pluginFiles) {
   }
 }
 
-// The return contract is authored once and shipped as a byte-identical copy in
-// every plugin whose agents preload it. Same idiom as lifecycleProtocolCopies
-// above: one canonical file, the rest compared to it, drift is a failure rather
-// than something a reviewer has to diff by eye.
 const RETURN_CONTRACT_LEAF = "report";
 const returnContractFiles = ["SKILL.md", join("evals", "evals.json")];
 const returnContractCopies = ["implementation", "plugin-quality"];
@@ -1183,17 +1016,6 @@ for (const file of returnContractFiles) {
   }
 }
 
-// Every agent definition names its model. A subagent's model resolves as the
-// per-call `model`, then the definition's `model`, then CLAUDE_CODE_SUBAGENT_MODEL,
-// then the main conversation's model, so an omitted field lands on the
-// orchestrator's model wherever the variable is unset. `inherit` picks that
-// model on purpose and outranks the variable, so it must carry a stated reason
-// on the same line. Basis: https://code.claude.com/docs/en/sub-agents#choose-a-model
-// Scope: every .md under plugins/<plugin>/agents/, nested directories included,
-// because plugin agents/ directories are scanned recursively. No plugin declares
-// a custom `agents` path in plugin.json, so that tree is every agent definition.
-// The value must be one plain single-line scalar: a YAML null, a block scalar,
-// a duplicate key, or a comment not set off by whitespace could hide `inherit`.
 const agentDefinitions = pluginFiles.filter((path) => {
   const parts = pluginPathParts(path);
   return parts.length >= 3 && parts[1] === "agents" && path.endsWith(".md");
@@ -1227,10 +1049,6 @@ for (const path of agentDefinitions) {
   }
 }
 
-// Unescaped $N in a skill that admits arguments. Official substitution expands
-// $0/$1 even inside fences on the 2.1.251 probe; a single preceding backslash
-// is the only escape, and a doubled backslash still expands. The message
-// points at the playbook section that records the rule.
 const ARGUMENTS_DOC =
   "plugins/playbooks/skills/skill-authoring/SKILL.md (Arguments)";
 
@@ -1276,18 +1094,11 @@ for (const path of argumentSkills) {
   }
 }
 
-// argument-hint house style. The owner doc decides; this gate points at it.
-// Empty fails (omit the key instead). Over budget and malformed warn, so a
-// drifting hint does not turn the fleet red on its own; the contract test
-// asserts the shipping tree draws zero warnings.
 const ARGUMENT_HINT_DOC = "docs/contracts/argument-hint/README.md";
 const ARGUMENT_HINT_BUDGET = 100;
 
-// A slot that names a closed set instead of writing it out. A literal flag such
-// as `--mode` is not a slot name; `--<mode>` is.
 const PLACEHOLDER_SLOTS = new Set(["action", "actions", "mode", "modes", "option", "options"]);
 
-// Every shape the hint breaks, so each reason warns on its own line.
 function argumentHintProblems(value) {
   const problems = [];
   if (/^[|>]/.test(value)) problems.push("block scalar");
@@ -1297,7 +1108,6 @@ function argumentHintProblems(value) {
   if (/…(?![\]>])/.test(value)) problems.push("… not closing a shortened set");
   let depth = 0;
   let outside = "";
-  // Top-level tokens, each bracket group standing as one NUL token.
   let topLevel = "";
   for (const c of value) {
     if (c === "[" || c === "<") {
@@ -1318,8 +1128,6 @@ function argumentHintProblems(value) {
     problems.push("placeholder slot instead of the written-out set");
   }
   const bare = outside.replace(/\.\.\.|…/g, "");
-  // A literal word may lead (`check`) or follow a flag (`--from main`); one that
-  // follows a slot or another word is prose (`<path> defaults to cwd`).
   const tokens = topLevel.replace(/\.\.\.|…/g, " ").split(/\s+/).filter(Boolean);
   const wordAfterSlotOrWord = tokens.some(
     (token, i) => i > 0 && token !== "\u0000" && !token.startsWith("-") && !tokens[i - 1].startsWith("-"),
@@ -1335,9 +1143,6 @@ function argumentHintProblems(value) {
   return problems;
 }
 
-// The first inline span of the body's **Arguments.** line: null when the line
-// is absent, "" when it is present without a span. Fences follow CommonMark:
-// a closer matches the opener's character and is at least as long.
 function argumentsLineSpan(text) {
   let fence = null;
   for (const line of text.split(/\r?\n/)) {
@@ -1357,7 +1162,6 @@ for (const path of argumentSkills) {
   const frontmatter = frontmatterOf(content) ?? "";
   const hint = /^argument-hint:[ \t]*(.*)$/m.exec(frontmatter);
   if (!hint) continue;
-  // A trailing YAML comment is not part of the value: `"" # none` is empty.
   const raw = hint[1].trim();
   const quoted = /^(["'])(.*?)\1\s*(?:#.*)?$/.exec(raw);
   const value = quoted ? quoted[2] : raw.replace(/(?:^|\s+)#.*$/, "");
@@ -1384,22 +1188,16 @@ for (const path of argumentSkills) {
   }
 }
 
-// Plugin names and option text, per docs/contracts/plugin-option-naming. A
-// displayName fails; every title and description shape warns on its own line.
 const OPTION_NAMING_DOC = "docs/contracts/plugin-option-naming/README.md";
 const DESCRIPTION_BUDGET = 300;
 const optionWarn = (path, message) => warn(path, `${message} (${OPTION_NAMING_DOC})`);
 const spacedLower = (text) => text.toLowerCase().replace(/[-\s]+/g, " ").trim();
-// Capitalized words that are proper nouns, so they may follow the first word.
 const TITLE_PROPER_NOUNS = new Set(["Windows", "Linux", "Claude", "Python", "Playwright", "Go"]);
-// Emphasis such as *strict*, but not a literal wildcard such as ps-unparsable-*.
 const SINGLE_ASTERISK_EMPHASIS = /(?:^|[\s(])\*(?=\S)[^*\n]*\S\*(?=$|[\s.,;:!?)])/;
 
 function optionTitleProblems(plugin, option) {
   const { title, type } = option;
   const problems = [];
-  // Judged word by word: an acronym of five letters or fewer ("API URL", "CI ID") passes, a
-  // longer all-caps word does not, and a later word may be capitalized only as a proper noun.
   const words = title.split(/[\s-]+/).map((word) => word.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, ""));
   const shouting = words.some((word) => /^[A-Z]{6,}$/.test(word));
   const titleCased = words
@@ -1470,19 +1268,9 @@ for (const entry of catalogEntries ?? []) {
   }
 }
 
-// claude.ai marketplace sync limits. plugin.json: description at most 500
-// characters; `$schema` and `defaultEnabled` are stripped with a warning (the
-// marketplace entry carries defaultEnabled). Skills follow the Agent Skills spec
-// (https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview):
-// claude.ai reads every file named SKILL.md in any case, at any depth, as a
-// skill, so each must open with frontmatter whose description is 1-1024
-// characters with no XML tags and whose name, if set, is at most 64 lowercase
-// letters, digits and hyphens.
 const PLUGIN_DESCRIPTION_MAX = 500;
 const SKILL_DESCRIPTION_MAX = 1024;
 
-// Line number of each key of the top-level object in a JSON text, read off the
-// raw text because a parsed object no longer knows where its keys sat.
 function topLevelKeyLines(text) {
   const lines = new Map();
   const colon = /\s*:/y;
@@ -1516,9 +1304,6 @@ for (const path of pluginManifests) {
   if (length > PLUGIN_DESCRIPTION_MAX) {
     fail(path, `description is ${length} characters, over claude.ai's ${PLUGIN_DESCRIPTION_MAX}`);
   }
-  // Git merges edits on touching lines as one conflict, so a release's version
-  // bump would conflict with any open pull request that edits the description.
-  // A nested manifest (an eval fixture) is never released.
   if (pluginPathParts(path).length !== 3) continue;
   const keyLines = topLevelKeyLines(text);
   const versionLine = keyLines.get("version");
@@ -1531,13 +1316,11 @@ for (const path of pluginManifests) {
   }
 }
 
-// Top-level frontmatter scalar: plain, quoted, or a | / > block scalar.
 function frontmatterScalar(frontmatter, key) {
   const lines = frontmatter.split(/\r?\n/);
   const start = lines.findIndex((line) => line.startsWith(`${key}:`));
   if (start === -1) return undefined;
   const raw = lines[start].slice(key.length + 1).trim();
-  // A comment starts at a # preceded by whitespace, outside a quoted scalar.
   const quoted = raw.match(/^("(?:[^"\\]|\\.)*"|'(?:[^']|'')*')(?:\s+#.*)?$/);
   const head = quoted ? quoted[1] : /^["']/.test(raw) ? raw : raw.replace(/(^|\s)#.*$/, "").trim();
   const rest = [];
@@ -1545,7 +1328,6 @@ function frontmatterScalar(frontmatter, key) {
     if (line !== "" && !/^\s/.test(line)) break;
     rest.push(line.trim());
   }
-  // Block scalar header: indicator, then an optional indentation digit and chomping sign in either order.
   if (/^[|>](?:[1-9][+-]?|[+-][1-9]?)?$/.test(head)) return rest.join(head[0] === ">" ? " " : "\n").trim();
   const value = [head, ...rest].filter(Boolean).join(" ");
   if (/^".*"$/.test(value)) return JSON.parse(value);
@@ -1574,18 +1356,6 @@ for (const path of pluginFiles) {
   }
 }
 
-// A docs-page pointer in a skill or agent file links the section it rests on;
-// an upstream issue or a probe needs no anchor (DOCS_ANCHOR_RULE). A docs page
-// is a docs.* host, or a host whose path opens with /docs/. A Google Docs
-// document or a PDF has no section to link, a URL that opens a code span is a
-// command or fetch target, not a pointer, and files under evals/, fixtures/ or
-// vendor/ are test data or upstream text, so none of them counts. Trailing
-// sentence punctuation is not part of the URL. Advisory: a hit prints an
-// `advisory:` line, which
-// scripts/validate-plugins.sh does not fail on as it does a warning. The
-// baseline holds each file's count of lines with such a link; a file over its
-// row prints every link it has, and a row above the file's count fails as
-// stale, so the baseline only shrinks.
 const DOCS_ANCHOR_RULE = ".claude/rules/skill-bodies-state-current-rules.md";
 const DOCS_ANCHOR_BASELINE = "scripts/docs-anchor-baseline.txt";
 const DOCS_ANCHOR_SKIPPED_DIRS = new Set(["evals", "fixtures", "vendor"]);

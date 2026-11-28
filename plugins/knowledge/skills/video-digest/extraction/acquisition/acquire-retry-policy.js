@@ -1,7 +1,3 @@
-/**
- * Retry policy for yt-dlp acquisition — HTTP 429 and transient failures.
- */
-
 export const DEFAULT_MAX_ACQUIRE_ATTEMPTS = 5;
 export const DEFAULT_BACKOFF_BASE_MS = 2000;
 export const DEFAULT_BACKOFF_MAX_MS = 60_000;

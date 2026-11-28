@@ -1,7 +1,3 @@
-/**
- * yt-dlp spawn wrapper with exponential backoff on rate-limit errors.
- */
-
 import {
   computeAcquireBackoffMs,
   DEFAULT_MAX_ACQUIRE_ATTEMPTS,

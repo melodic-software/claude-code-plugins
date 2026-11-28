@@ -18,16 +18,24 @@ code-tidying comment-lint: fail a comment a change adds outside the comment post
   comment-lint.sh --worktree    the uncommitted changes against HEAD, untracked files included
 
 Reads the team file <home>/code-tidying.yaml: comment_lint (off, the default, report or
-block), comment_lint_allow (extended regular expressions a comment may match) and
+block), comment_lint_allow (extended regular expressions a comment may match),
+comment_lint_exclude (path globs of files the lint skips, each skip named on stderr:
+* and ? stay within one path segment, ** spans segments), comment_lint_keep_opening
+(path globs, same syntax, of files whose opening comment block passes: the contiguous
+comment lines after an optional shebang and any blank or set - lines) and
 comment_adr_dir (the decision-record folder, default docs/adr).
-comment_posture comes from the team file and the personal override; a userConfig
-posture never reaches a git hook. explanatory (and strict, balanced, conservative)
+comment_posture and class_c_max_lines (the most lines a linked comment paragraph may
+run, default 2) come from the team file and the personal override; a userConfig value
+never reaches a git hook. explanatory (and strict, balanced, conservative)
 runs nothing; auto and aggressive read as necessary.
 
-Judges the files whose extension code-extensions.txt lists, except one whose first 10
-lines match a generated-marker.ere line (sync-managed, @generated, or a whole-file
+Judges the files whose extension code-extensions.txt lists (in any letter case), and
+extensionless files whose first line is a code-shebang.ere line (an sh, bash, dash,
+zsh, node or python3 shebang), except one whose first 10 lines hold a comment or docstring line
+matching a generated-marker.ere line (sync-managed, @generated, or a whole-file
 "do not edit" notice; each skip is named on stderr), through the pygments lexer for
-the file's name, or POSIX and Bash token rules for a shell script. Findings print as
+the file's name or shebang (.jsonc read as JSON, .psd1 as PowerShell), or POSIX and
+Bash token rules for a shell script. Findings print as
 <path>:<line>: <message> on stderr; block exits 1, report exits 0. A file the comment
 reader fails on is named on stderr while the other files are still judged, and blocks
 like any tool failure. An ADR pointer's record is looked up in comment_adr_dir where
@@ -49,6 +57,7 @@ asset() {
 judge="$(asset comment-lint.py git-hooks)"
 settings="$(asset comment-settings.sh scripts)"
 extensions="$(asset code-extensions.txt scripts)"
+shebang="$(asset code-shebang.ere scripts)"
 marker="$(asset generated-marker.ere scripts)"
 
 checks_init pre-commit "$@" || exit 0
@@ -101,19 +110,77 @@ code_ext() {
   shopt -u nocasematch
   return "$rc"
 }
+script() {
+  [[ "${1##*/}" != *.* ]] && grep -qE -f "$shebang" < <(head -n 1 "$texts/$1")
+}
+glob_ere() {
+  local g="$1" out="" c i
+  for ((i = 0; i < ${#g}; i++)); do
+    c="${g:i:1}"
+    if [[ "${g:i:3}" == '**/' ]]; then
+      out+='(.*/)?'
+      i=$((i + 2))
+    elif [[ "${g:i:2}" == '**' ]]; then
+      out+='.*'
+      i=$((i + 1))
+    elif [[ "$c" == '*' ]]; then
+      out+='[^/]*'
+    elif [[ "$c" == '?' ]]; then
+      out+='[^/]'
+    elif [[ "$c" == [[:alnum:]/_-] ]]; then
+      out+="$c"
+    elif [[ "$c" == [\\^] ]]; then
+      out+="\\$c"
+    else
+      out+="[$c]"
+    fi
+  done
+  printf '^%s$' "$out"
+}
+excludes=()
+exclude_res=()
+while IFS= read -r g; do
+  excludes+=("$g")
+  exclude_res+=("$(glob_ere "$g")")
+done < <(checks_bash_run "$settings" --list comment_lint_exclude .)
+excluded_by() {
+  local i
+  for i in "${!exclude_res[@]}"; do
+    [[ "$1" =~ ${exclude_res[i]} ]] && printf '%s' "${excludes[i]}" && return 0
+  done
+  return 1
+}
+keep_res=()
+while IFS= read -r g; do
+  keep_res+=("$(glob_ere "$g")")
+done < <(checks_bash_run "$settings" --list comment_lint_keep_opening .)
+keeps_opening() {
+  local re
+  for re in ${keep_res[@]+"${keep_res[@]}"}; do
+    [[ "$1" =~ $re ]] && return 0
+  done
+  return 1
+}
+: >"$CHECKS_TMP/keep-opening"
 made=""
 while IFS= read -r -d '' f; do
-  code_ext "${f##*/}" || continue
+  code_ext "${f##*/}" || [[ "${f##*/}" != *.* ]] || continue
   dir="$texts/${f%/*}"
   [[ "$f" == */* ]] || dir="$texts"
   [[ "$dir" == "$made" ]] || mkdir -p "$dir"
   made="$dir"
   checks_file_text "$f" >"$texts/$f" || continue
+  code_ext "${f##*/}" || script "$f" || continue
+  if glob="$(excluded_by "$f")"; then
+    printf 'code-tidying: comment lint skipped %s (comment_lint_exclude: %s)\n' "$f" "$glob" >&2
+    continue
+  fi
   if generated "$texts/$f"; then
     printf 'code-tidying: comment lint skipped %s (a generated or sync-managed marker in its first 10 lines)\n' "$f" >&2
     continue
   fi
   printf '%s\0' "$f" >>"$CHECKS_TMP/paths"
+  keeps_opening "$f" && printf '%s\0' "$f" >>"$CHECKS_TMP/keep-opening"
 done < <(checks_files)
 [[ -s "$CHECKS_TMP/paths" ]] || exit 0
 
@@ -137,9 +204,15 @@ while IFS= read -r -d '' f; do
   mkdir -p "$records/${f%/*}" && : >"$records/$f"
 done < <(adr_records)
 
-checks_changed_lines
+budget=()
+max_lines="$(setting class_c_max_lines)"
+[[ "$max_lines" =~ ^[0-9]+$ ]] && budget=(--class-c-max-lines "$max_lines")
+
+checks_changed_lines --skip-reindent
+checks_diff -U0 --text --diff-filter=ACMR --src-prefix=a/ --dst-prefix=b/ --inter-hunk-context=0 >"$CHECKS_TMP/diff" 2>/dev/null ||
+  : >"$CHECKS_TMP/diff"
 checks_bash_run "$settings" --list comment_lint_allow . >"$CHECKS_TMP/allow"
-python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" --ranges "$CHECKS_TMP/ranges" --allow "$CHECKS_TMP/allow" \
+python3 "$judge" --posture "$posture" --root "$texts" --records "$records" --adr-dir "$adr_dir" ${budget[@]+"${budget[@]}"} --ranges "$CHECKS_TMP/ranges" --diff "$CHECKS_TMP/diff" --allow "$CHECKS_TMP/allow" --keep-opening "$CHECKS_TMP/keep-opening" \
   <"$CHECKS_TMP/paths" >"$CHECKS_TMP/findings" 2>"$CHECKS_TMP/judge.err"
 rc=$?
 ((rc == 3)) && pygments_missing

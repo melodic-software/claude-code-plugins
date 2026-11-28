@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Standards-alignment collector for one audited component.
-#
-# Resolves the consumer convention home with resolve-convention-home.sh.
-# Exit 1 from that resolver is the unresolved-home fallback: this script
-# names the five topics and infers nothing. Exit 3 is forwarded. A resolved
-# home runs a closed probe set and cites the convention line plus the
-# component line when a probe disagrees. invocation-mode, untrusted-content and
-# windows-path-emit report `finding`. seam-phrasing grades prose (the gate
-# belongs where an invocation is instructed, not where one is described), so
-# it reports `candidate` leads that do not change the exit; the auditor reads
-# each against the convention before recording a finding.
-#
-# Exit: 0 no disagreement (including unresolved-home), 1 one or more
-# findings or a missing citation basis, 2 usage, 3 the resolver FAILed.
-#
-#   collect-standards.sh --component <file> --root <repo>
 set -uo pipefail
 
 usage() {
@@ -86,14 +70,11 @@ fi
 resolver_err="$(mktemp)"
 home_out="$(bash "$RESOLVER" --root "$ROOT" 2>"$resolver_err")"
 home_rc=$?
-# The resolver writes duplicate: notices to stderr. Keep them off this
-# script's stdout so the report stays one record per line.
 if [[ -s "$resolver_err" ]]; then
   cat "$resolver_err" >&2
 fi
 rm -f "$resolver_err"
 
-# 1 no pointer, 4 declined, 5 not applicable (home, ancestor of home, or outside git): no home binds, so grade from the topic docs.
 if [[ "$home_rc" -eq 1 || "$home_rc" -eq 4 || "$home_rc" -eq 5 ]]; then
   echo "convention-home: unresolved"
   echo "fallback: convention home unresolved; grade invocation-mode, seam-phrasing, untrusted-content, windows-path-emit, and hook-budget from those topic docs once a home is configured. Nothing was inferred."
@@ -127,9 +108,6 @@ emit_probe() {
   fi
 }
 
-# topic_rel <topic> - the topic's contract, relative to the root: the
-# marketplace contract folder docs/contracts/<topic>/README.md when present,
-# else <home>/<topic>/README.md (a convention home that still holds the topic).
 topic_rel() {
   if [[ -f "$ROOT/docs/contracts/$1/README.md" ]]; then
     printf 'docs/contracts/%s/README.md' "$1"
@@ -164,9 +142,6 @@ if topic_ready invocation-mode "The key is written"; then
   fi
 fi
 
-# --- seam-phrasing ---------------------------------------------------------
-# Only an optional cross-plugin reference needs the gate; a sibling skill in
-# the owning plugin or a declared dependency does not.
 exempt_plugins() {
   local dir
   dir="$(cd "$(dirname "$COMPONENT")" && pwd)"
@@ -234,9 +209,6 @@ if topic_ready seam-phrasing "$seam_needle"; then
   fi
 fi
 
-# --- untrusted-content -----------------------------------------------------
-# The convention grades file for file on `never instructions to you`. An ingest
-# signal in the frontmatter (a `tools:` list) declares a capability, not a read.
 if topic_ready untrusted-content "DATA, never instructions"; then
   ingest_line="$(awk '
     NR == 1 && /^---[[:space:]]*$/ { fm = 1; next }

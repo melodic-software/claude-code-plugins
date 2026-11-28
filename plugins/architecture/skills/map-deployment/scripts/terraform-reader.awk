@@ -1,27 +1,3 @@
-# Terraform reader for collect-deployment.sh. Prepend redact-connection.awk and
-# deployment-diff.awk. Arguments are repo-relative .tf, .tf.json, .tfvars and
-# .tfvars.json paths prefixed with "./". Set places, params, nodes, envs, diffs
-# and flag to output files.
-#
-# One tokenizer reads native HCL and the JSON syntax alike into flat rows of
-# path, kind, value. Kinds: s a string (it may hold ${} interpolations), l a
-# number or bool, x a traversal such as var.name, u anything else, b a resource
-# block's own header, so a resource with an empty body is still found. A string that
-# is one whole interpolation, and a heredoc or container_definitions string
-# holding JSON, is read as the expression inside it. jsonencode() is read
-# through; every other function, operator, for-expression, conditional, local
-# and dynamic block is recorded as unresolved:<text>, never evaluated. A mapped
-# resource with no plain container block, or a dynamic one beside them, still
-# places one container named for the resource, its image unresolved.
-#
-# A root is a directory of configuration that no local module source names.
-# Its environments are the <env> of an envs/<env>/ or environments/<env>/ path,
-# else one per <env>.tfvars beside or above it, else the directory name
-# (default at the repository root). var.X resolves from a module call argument,
-# then the root's tfvars files, then the variable default. A remote module
-# source, or a local one with no configuration, refuses the record as
-# terraform-module-unread:<file>:module.<name>; the source is never printed.
-
 function trim(s) { gsub(/^[ \t\r\n]+|[ \t\r\n]+$/, "", s); return s }
 function jesc(s) { if (redact_secret_value(s)) s = "[redacted]"; gsub(/\\/, "\\\\", s); gsub(/"/, "\\\"", s); return s }
 function dirof(p) { if (sub(/\/[^\/]*$/, "", p)) return p; return "." }
@@ -30,7 +6,6 @@ function fail(reason) { print reason > flag; failed = 1; exit 0 }
 
 function tok(t, v) { NT++; T[NT] = t; V[NT] = v }
 
-# Tokens: s string, n identifier or number or traversal, p punctuation, nl newline.
 function tokenize(f, s,    L, i, c, c2, j, out, depth, ch, nx, inner, tag, body, m, e, line, pk) {
   NT = 0
   L = length(s)
@@ -133,9 +108,6 @@ function row(path, kind, value) {
   RF[NR_] = FILE_; RP[NR_] = blockpath(path); RK[NR_] = kind; RV[NR_] = value
 }
 
-# .tf.json may write a block type, or a block's labels, as an array of objects
-# ("resource": [{...}]). Drop those indices so resource.<type>.<name> and
-# module.<name> read the same as the object form; argument lists keep theirs.
 function blockpath(p,    s, n, i, lim, out) {
   if (FILE_ !~ /\.tf\.json$/) return p
   n = split(p, s, ".")
@@ -168,7 +140,6 @@ function parse_body(prefix, closer,    key, path, k) {
   }
 }
 
-# The expression runs to a newline, comma, or unmatched closer at depth 0.
 function parse_expr(path,    E, d, first, k, raw, t, n) {
   d = 0; first = 0; E = P
   while (T[E] != "EOF") {
@@ -242,7 +213,6 @@ BEGIN { NR_ = 0; nfiles = 0 }
   src[f] = src[f] $0 "\n"
 }
 
-# Lookups over the rows of one directory.
 function field(d, pre, name,    k, r, rest) {
   for (k = 1; k <= DN[d]; k++) {
     r = DR[d, k]
@@ -261,7 +231,6 @@ function has_under(d, pre, re,    k, r) {
   }
   return 0
 }
-# Distinct group prefixes under pre whose remainder starts with re, in file order.
 function groups(d, pre, re, out,    k, r, rest, g, n, seen) {
   n = 0
   for (k = 1; k <= DN[d]; k++) {
@@ -277,7 +246,6 @@ function groups(d, pre, re, out,    k, r, rest, g, n, seen) {
 
 function unresolved(raw) { RES_OK = 0; return "unresolved:" raw }
 
-# Resolve one value in scope sc. Sets RES_OK and RES_SEC.
 function resolve(sc, kind, v, depth,    out, rest, p, q, inner, r, sec) {
   RES_SEC = 0
   RES_OK = 1
@@ -325,7 +293,6 @@ function resolve_var(sc, name, depth,    d, cd, i, f, r, sec) {
   return r
 }
 
-# The name of the <rtype> resource a value references, or "".
 function ref(kind, v, rtype) {
   if (kind == "s" && v ~ /^\$\{[^}]*\}$/) { v = trim(substr(v, 3, length(v) - 3)); kind = "x" }
   if (kind != "x" || index(v, rtype ".") != 1) return ""
@@ -334,7 +301,6 @@ function ref(kind, v, rtype) {
   return v
 }
 
-# get() for a field printed as is: a value from a sensitive variable prints as [redacted].
 function show(sc, pre, name, dflt,    v) {
   v = get(sc, pre, name, dflt)
   return RES_SEC ? "[redacted]" : v
@@ -372,9 +338,6 @@ function place(sc, c, img, reps, ports, compute, ev,    e) {
   if (ports != "") portjoin[e SUBSEP c] = ports
 }
 
-# One container block: name, image, ports, and env entries. An env entry that
-# holds a secret reference instead of a value is a redacted parameter. sfx is
-# appended to the container name.
 function container(sc, g, dflt, reps, compute, ports, envre, secre, portre, portkey, ev, sfx,    d, c, img, n, i, pg, eg, k, v, pv) {
   d = S_dir[sc]
   c = show(sc, g, "name", dflt) sfx
@@ -392,9 +355,6 @@ function container(sc, g, dflt, reps, compute, ports, envre, secre, portre, port
   }
 }
 
-# A resource with no plain container block, or a dynamic one beside them, places one
-# container named for the resource, its image unresolved, so the record never omits it.
-# n is how many plain blocks were placed.
 function unread_container(sc, pre, lbl, n, name, reps, ports, compute, ev,    dyn) {
   dyn = has_under(S_dir[sc], pre, "(^|\\.)dynamic\\." lbl "(\\[[0-9]+\\])?\\.")
   if (n > 0 && !dyn) return
@@ -415,7 +375,6 @@ function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, j, m, gs, c
     res_list[sc, ++res_n[sc]] = key
     res_file[sc, key] = RF[r]
   }
-  # Services name the task definition and cluster an ECS container runs with.
   for (i = 1; i <= res_n[sc]; i++) {
     split(res_list[sc, i], parts, ".")
     if (parts[1] != "aws_ecs_service") continue
@@ -442,8 +401,6 @@ function map_scope(sc,    d, k, r, parts, type, name, pre, id, n, i, j, m, gs, c
     } else if (type == "aws_ecs_task_definition") {
       n = groups(d, pre, "^container_definitions\\[[0-9]+\\]\\.", gs)
       m = ((sc SUBSEP name) in svc_n) ? svc_n[sc, name] : 0
-      # Each service runs the task definition on its own cluster with its own count; with two
-      # or more, its resource label keeps their placements of one container apart.
       for (j = 1; j <= (m > 0 ? m : 1); j++) {
         reps = m > 0 ? svc_reps[sc, name, j] : "undeclared"
         cl = m > 0 ? svc_cl[sc, name, j] : ""
@@ -501,8 +458,6 @@ function add_env(e, ev) {
   else if (index(", " env_ev[e] ", ", ", " ev ", ") == 0) env_ev[e] = env_ev[e] ", " ev
 }
 
-# Lowest precedence first: terraform.tfvars, terraform.tfvars.json, *.auto.tfvars in
-# lexical order, then the environment's own file.
 function root_scope(r, env, named,    sc, i, n, pass, b) {
   sc = new_scope(r, env, "", "", "")
   n = 0
@@ -539,7 +494,6 @@ END {
     d = dirof(f)
     if (!(d in cfg)) { cfg[d] = 1; dirs[++ndirs] = d; RFILES[d] = f } else RFILES[d] = RFILES[d] ", " f
   }
-  # Module calls: a local source joins its directory to the caller; anything else is unread.
   for (i = 1; i <= ndirs; i++) {
     d = dirs[i]
     for (k = 1; k <= DN[d]; k++) {
@@ -566,7 +520,6 @@ END {
       is_mod[out] = 1
     }
   }
-  # Each tfvars file belongs to the nearest root at or above it.
   for (i = 1; i <= nfiles; i++) {
     f = files[i]
     if (f !~ /\.tfvars(\.json)?$/) continue

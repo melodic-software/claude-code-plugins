@@ -1,127 +1,8 @@
 #!/usr/bin/env bash
-# Keep each plugin's CHANGELOG.md honest against its manifest version.
-#
-#   scripts/check-changelog-parity.sh --check             fail if a versioned
-#                                                         plugin has no sibling
-#                                                         CHANGELOG.md, or that
-#                                                         CHANGELOG's newest
-#                                                         version heading is
-#                                                         ABOVE the manifest
-#                                                         `version`
-#   scripts/check-changelog-parity.sh --check-bump <ref>  fail if a plugin's
-#                                                         manifest version
-#                                                         changed vs <ref> but
-#                                                         its CHANGELOG.md does
-#                                                         not ADD a `## [<v>]`
-#                                                         entry for the new
-#                                                         version (present at
-#                                                         head, absent at <ref>),
-#                                                         or the new version is
-#                                                         not strictly greater
-#                                                         than the one at <ref>;
-#                                                         also fail if an ADDED
-#                                                         entry's body repeats
-#                                                         another entry's body
-#                                                         in the same changelog
-#   scripts/check-changelog-parity.sh --check-preserved <ref>
-#                                                         fail if a changelog
-#                                                         this change set touched
-#                                                         DROPS a `## [<v>]`
-#                                                         entry it carried at the
-#                                                         fork point
-#
-# Released-entry body edits (--check-preserved watches headings only):
-#   Declared in-place corrections inside an already-released `## [<v>]` section
-#   are sanctioned when the correcting PR names each edit in its body AND in the
-#   new release entry (#2388). Heading preservation stays mechanical via
-#   --check-preserved; body fidelity is review discipline, not an automated gate.
-#
-# Three complementary gaps the same audit surfaced:
-#   * --check is the static repo-wide invariant: a plugins/<name>/.claude-plugin/
-#     plugin.json carrying a `version` must ship a plugins/<name>/CHANGELOG.md.
-#     It catches a plugin that has bumped versions but never kept a changelog at
-#     all. It also owns the REVERSE
-#     direction of the parity pair: the changelog's newest version heading must
-#     not exceed the manifest `version`. Nothing else covers that direction —
-#     --check-bump fires only when the manifest version CHANGED, and
-#     --check-order is satisfied by a correctly ordered heading list — so a
-#     release note written ahead of its bump would reach main unseen. A
-#     manifest ABOVE the newest heading stays legal: a bump with no consumer-visible change need not write
-#     a release note.
-#   * --check-bump is the go-forward PR discipline: a version change must ADD a
-#     `## [<version>]` entry for the new version — present in the plugin's
-#     CHANGELOG.md at head AND absent from it at <ref>. Two failure classes the
-#     gate must not conflate: (a) checking for the version's own entry, not
-#     merely that the file was touched, so an unrelated edit — whitespace, the
-#     title, an old release — cannot satisfy the gate; (b) requiring the entry
-#     to be newly added, so reusing a heading that already existed at <ref>
-#     (a bump with no fresh release note) cannot satisfy it either. An entry
-#     documented as `## <version>` (no brackets) is a separate FORMAT failure,
-#     reported as such rather than as undocumented. It applies to EVERY plugin.
-#     A bump must also be MONOTONIC: strictly greater than
-#     the version at <ref>, so a branch briefed against a stale base can neither
-#     regress a version main has already moved past nor collide on a number
-#     another change set claimed first (see the VERSION REGRESSION / VERSION
-#     COLLISION checks below). CHANGELOG_PARITY_COLLISIONS=advisory reports
-#     those two findings without failing; the pull_request lane sets it, since
-#     a branch only behind main hits them and the merge queue enforces them.
-#   * --check-preserved is the other half of that PR discipline: the bump gate
-#     polices what a change set ADDS and never what it REMOVES, so a released
-#     section could be deleted — its notes absorbed into the new release — with
-#     all three other modes green. --check-bump asks
-#     only about the bumped version, --check-order reads a gap in the sequence as
-#     correctly ordered, and --check compares the manifest against the changelog
-#     MAXIMUM. The live producer is a concurrent bump: when two change sets bump
-#     one plugin, git's conflict region tends to open BELOW the newest heading,
-#     so a plausible merge-forward resolution writes both releases under a single
-#     heading — or RELABELS the older heading to the new version — and leaves no
-#     conflict marker behind to catch it. Deletion is never the correct treatment
-#     of a yanked release either: Keep a Changelog keeps the heading and marks it
-#     `## [0.0.5] - 2014-12-13 [YANKED]`, which this gate reads as preserved.
-#     There is deliberately no exemption list. Both removals an author might
-#     reach for have a legal non-deleting form: mark a yanked release [YANKED],
-#     and ANNOTATE a note written against a version the manifest then skipped
-#     rather than folding it into the release that shipped — the manifest cannot
-#     be bumped back down onto the skipped number, which --check-bump would read
-#     as a VERSION REGRESSION. In a diff that second shape is indistinguishable
-#     from the absorption this gate exists to catch.
-#   * --check-bump also rejects a REPEATED BODY: the body of an entry ADDED by
-#     this change set (heading absent at the fork point) must not be
-#     byte-identical, after trimming, to the body of any other entry in the same
-#     changelog. A body shorter than MIN_REPEATED_BODY characters is exempt, so
-#     the deliberate one-line "Shared launcher/library sync" entries stay legal.
-#     Repeats already on the base are not this change set's to fix.
-#   * --check-bump also rejects a BUMP WITHOUT CHANGE: a bumped plugin must have
-#     a changed file under plugins/<name>/ (or a plugin.json edit beyond `version`) other than its root
-#     CHANGELOG.md. A deliberate re-release is named as `<plugin>@<version>` in
-#     scripts/changelog-no-op-bumps.txt (CHANGELOG_NO_OP_BUMPS overrides it). A
-#     fragment under .changes/<name>/ that the change set deletes also counts:
-#     that is the release pull request consuming it (ADR 0048).
-#   * A plugin in fragment mode (scripts/fragment-plugins.txt) is versioned only
-#     by the release pull request, which changelog_fragments::is_release_pr
-#     recognizes by its head branch. On any other change set, --check-bump fails
-#     a version change or an added CHANGELOG heading for it (FRAGMENT-MODE
-#     RELEASE) and skips the per-PR rules above, PUBLISHED VERSION REUSE
-#     included: such a change set changes shipped files and leaves the version
-#     alone, and check-changelog-fragments.sh --check-required asks it for a
-#     fragment instead. This repository lists every plugin, so the per-PR rules
-#     run only on the release pull request; an unlisted plugin falls back to
-#     them. A listed convention (docs/contracts/<name>/ or docs/conventions/<name>/) gets the same
-#     added-heading check.
-#
-# Fail-closed: a versioned plugin with no CHANGELOG.md fails.
-#
-# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
-# the whole family's contract, stated once in scripts/README.md, "The check-script
-# contract", and held by scripts/check-script-contract.test.sh. The 128 and 141
-# below are git's and SIGPIPE's, never this script's: each is a failure mode the
-# code converts into an exit 2 or reads correctly, which is why they are
-# discussed here and never emitted.
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
-# CHANGELOG_PARITY_ROOT checks another tree with this copy's code: the
-# Dependabot bump runs main's scripts against the pull request's checkout.
 cd "${CHANGELOG_PARITY_ROOT:-${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}}" || exit 2
 # shellcheck source=lib/read-list.sh
 . "$SCRIPT_DIR/lib/read-list.sh" || exit 2
@@ -132,7 +13,6 @@ cd "${CHANGELOG_PARITY_ROOT:-${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}}" || exit 2
 # shellcheck source=lib/changelog-fragments.sh
 . "$SCRIPT_DIR/lib/changelog-fragments.sh" || exit 2
 
-# Bodies shorter than this many characters may repeat (see --check-bump).
 MIN_REPEATED_BODY=120
 
 NO_OP_BUMPS="${CHANGELOG_NO_OP_BUMPS:-scripts/changelog-no-op-bumps.txt}"
@@ -153,12 +33,9 @@ if ! gate_entry::classify "$@"; then
 fi
 mode="$GE_MODE"
 
-# Sanctioned no-op re-releases (--check-bump), one `<plugin>@<version>` per line.
 declare -A no_op_bump
 no_op_rows=()
 if [[ -f "$NO_OP_BUMPS" ]]; then
-  # `inline`: entries are literal names, never regexes (scripts/lib/read-list.sh
-  # owns the two comment families and why they must stay distinct).
   read_list::into no_op_rows "$NO_OP_BUMPS" --comments inline || exit 2
   for row in ${no_op_rows[@]+"${no_op_rows[@]}"}; do
     no_op_bump["$row"]=1
@@ -172,48 +49,15 @@ if [[ ! -e "${manifests[0]}" ]]; then
 fi
 
 version_of() { jq -r '.version // empty' "$1" 2>/dev/null; }
-# version_at <rev> <manifest>: the manifest's `version` at <rev>, empty when unreadable.
 version_at() { git show "$1:$2" 2>/dev/null | jq -r '.version // empty' 2>/dev/null || true; }
-# sans_version_at <rev> <manifest>: the manifest at <rev> without `version`, keys sorted.
 sans_version_at() { git show "$1:$2" 2>/dev/null | jq -cS 'del(.version)' 2>/dev/null; }
 
-# require_semver <name> <version>: exit 2 unless the version is comparable.
 require_semver() {
   [[ "$2" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-].*)?$ ]] && return
   echo "check-changelog-parity: $1 carries a non-SemVer manifest version '$2'; refusing to pass without a comparable version." >&2
   exit 2
 }
 
-# --check-order: every changelog reads newest-first, with no version repeated.
-#
-# --check and --check-bump both reason about ONE version at a time, and neither
-# reads the sequence. Any two branches that stage the same next version, or one
-# that sits on a stale base, produce a misordered list, and the reviewer sees
-# only their own diff hunk, never the resulting order.
-#
-# Convention changelogs are in scope: they are unversioned by any manifest, so
-# --check and --check-bump never look at them at all.
-
-# A fixed-width key so a lexical comparison orders versions NUMERICALLY. Five
-# digits per field is far beyond any version this repo will reach. Every caller —
-# the shared heading extractor and both manifest-version paths — may carry a
-# SemVer `+build`/`-prerelease` tail, which is stripped before the split to keep
-# every field numeric. Stripping build metadata is SemVer-exact (it carries no
-# precedence); pre-release ORDERING is deliberately not modeled — no manifest in
-# this repo uses it — so an equal-core pre-release keys equal to its release.
-#
-# Writes the key into the variable NAMED by $1 (`printf -v`) rather than to
-# stdout: --check-order keys every heading of every changelog (thousands), and a
-# `$(...)` per heading is one fork each, which costs minutes on Windows Git Bash
-# (#4608). Usage: version_sort_key <out-var> <version>.
-#
-# Every field must be digits (an empty or missing one keys as 0), and anything
-# else exits 2 before the arithmetic runs: bash arithmetic evaluates array
-# subscripts, so a field shaped `1 * a[$(cmd)]` would run cmd. Each caller
-# validates its version first; this keeps the function safe without them, since
-# the gate reads pull request content. The check runs on the whole stripped core,
-# before the split, so it also keeps a glob character out of the unquoted
-# expansion below.
 version_sort_key() {
   local _vsk_out="$1" IFS='.'
   if [[ ! "${2%%[+-]*}" =~ ^[0-9.]*$ ]]; then
@@ -225,24 +69,6 @@ version_sort_key() {
   printf -v "$_vsk_out" '%05d.%05d.%05d' "$((10#${1:-0}))" "$((10#${2:-0}))" "$((10#${3:-0}))"
 }
 
-# The lines of a markdown file that RENDER as markdown — everything outside
-# fenced code blocks and multi-line HTML comments. Every mode reads a changelog
-# through this, so a `## [1.2.3]` shown as an EXAMPLE can neither satisfy
-# --check-bump's release-entry requirement nor masquerade as a real heading to
-# --check and --check-order. One tracker, not three, so the modes cannot drift.
-#
-# Fence tracking follows CommonMark: a fence line is a run of >=3 backticks or
-# tildes indented at most three SPACES (four-plus, or a tab, is indented code);
-# an opening backtick fence rejects an info string containing a backtick; a CLOSE
-# requires the same delimiter char, a run at least as long as the opener, and
-# nothing but whitespace after it — so a ~~~ line, a ```not-a-close line, or an
-# indented would-be closer inside a ``` block never prematurely re-opens the
-# content. Comment markers inside fenced code are content; fence markers inside a
-# comment are suppressed. A line that BEGINS inside a comment is suppressed whole
-# even when the comment closes on it: what follows `-->` can never be a
-# column-one heading anyway. Reads $1, or stdin when $1 is `-`. A non-empty $2
-# also emits the fence lines and fenced content, each prefixed with a control
-# character so none of it can read as a heading.
 rendered_lines() {
   awk -v keep="${2:-}" '
     {
@@ -291,17 +117,6 @@ rendered_lines() {
   ' "$1"
 }
 
-# The version headings a changelog declares, in file order. Every heading form
-# this repo actually uses: `## [1.2.3]` (plugins, Keep a Changelog),
-# `## 1.2.3 — date` (conventions), and the two-component `## 1.2` several
-# convention changelogs use. Requiring a patch component would make the gates
-# built on this silently check NOTHING in those files — worse than not covering
-# them, because the pass would be indistinguishable. The optional
-# `+build`/`-prerelease` tail is admitted for the same reason: manifests and
-# --check-bump both accept those forms, so dropping such a heading would leave
-# exactly that class unchecked. version_sort_key strips the tail before
-# comparing. Shared by --check-order and --check so the two directions of the
-# parity pair cannot read a changelog differently.
 changelog_versions() {
   rendered_lines "$1" |
     grep -oE '^##[[:space:]]+\[?[0-9]+\.[0-9]+(\.[0-9]+)?([+-][0-9A-Za-z][0-9A-Za-z.-]*)?\]?(\(|$|[[:space:]])' |
@@ -315,12 +130,6 @@ changelog_versions_batch() {
   awk -v mode="$batch_mode" -f "$SCRIPT_DIR/lib/changelog-versions-batch.awk" "$@"
 }
 
-# Version headings present at the fork point but absent from $3, the head body. Uses
-# changelog_versions on both sides so plugin, convention, and two-component
-# heading forms share one reader. Reads the base blob with command substitution
-# (never process substitution) so a git failure fails closed. A changelog that
-# is new at the fork point is a legitimate pass — probe with git cat-file -e
-# first so "absent" is not conflated with "git failed".
 missing_preserved_headings() {
   local merge_base="$1" changelog="$2" head_body="$3"
   local base_body missing v
@@ -351,9 +160,6 @@ missing_preserved_headings() {
   return 0
 }
 
-# "<added> <copied>" per line: an entry of $1 (a file, or - for stdin) whose version is in $2 (space
-# separated added versions) and whose trimmed body, at least MIN_REPEATED_BODY
-# characters, equals another entry's body, fenced code included.
 repeated_added_bodies() {
   local changelog="$1" added="$2"
   rendered_lines "$changelog" fenced | awk -v added="$added" -v min="$MIN_REPEATED_BODY" '
@@ -450,16 +256,7 @@ if [[ "$mode" == "--check" ]]; then
     version="${manifest_ver[$manifest]:-}"
     [[ -n "$version" ]] || continue
     if [[ -f "$plugin_dir/CHANGELOG.md" ]]; then
-      # Validated for EVERY plugin that keeps a changelog, not only one with a
-      # heading to compare against: an uncomparable manifest version is a defect
-      # in its own right, and --check-bump refuses it unconditionally for every
-      # plugin in its scope. Gating it on an unrelated precondition would let a
-      # malformed version ride through behind a not-yet-written release note.
       require_semver "$name" "$version"
-      # Reverse parity: the newest heading must not outrun the manifest. Only the
-      # NEWEST is compared — an older heading naming a version the manifest never
-      # took is invisible from the tree alone, but it can only get there by first
-      # being the newest, which this catches in the change set that writes it.
       newest="${newest_ver["$plugin_dir/CHANGELOG.md"]:-}"
       if [[ -n "$newest" ]]; then
         newest_key=""
@@ -486,55 +283,15 @@ if [[ "$mode" == "--check" ]]; then
   gate_entry::finish 0
 fi
 
-# ===================== the two diff modes: shared prologue ==================
-# --check-bump and --check-preserved both reason about what THIS change set did
-# to a file, so both need the same three things resolved the same way: the base
-# ref, the fork point, and the change set's own touched paths. Resolved once so
-# the two modes cannot drift into reading the diff differently.
 base="$GE_REF"
 
-# Scope the bump check to plugins THIS change set actually touched. A stale
-# branch whose base ref (main) has advanced an UNTOUCHED plugin's version must
-# not red-line on it and force a merge-from-main — the untouched plugin is not in
-# the PR's own diff. Diffing fork point to branch tip (resolved below) covers
-# only the commits unique to this branch, so a version main advanced after the
-# branch forked is excluded whether CI checks out the PR head or the
-# auto-merge commit. The filter keys on the MANIFEST path, not the plugin root:
-# the gate compares .version in exactly plugins/<name>/.claude-plugin/plugin.json,
-# so a version bump is definitionally a change to that file — manifest-scoping is
-# precisely "plugins whose version this change set could have changed," and (unlike
-# plugin-root scoping) a cosmetic touch elsewhere under the plugin dir cannot pull
-# a main-only advance back into scope.
 declare -A bumped_candidate
 declare -A shipped_changed
 declare -A manifest_edited
 declare -A consumed_fragment
-# The version headings this change set added to each plugin's CHANGELOG.md.
 declare -A added_headings
-# The changelogs this change set touched, in `git diff` order, for
-# --check-preserved. Same two roots --check-order sweeps.
 touched_changelogs=()
 declare -A seen_changelog
-# The change set's touched paths are read through scripts/lib/changed-files.sh,
-# whose whole reason for existing is that a git failure here must fail loud and
-# never silently pass: a diff that genuinely cannot be computed (e.g. no common
-# ancestor between "$base" and HEAD -> "fatal: no merge base", exit 128) would
-# otherwise yield an empty result, skip every plugin's bumped_candidate guard
-# below, and let the gate exit 0 having checked nothing. The library returns
-# non-zero there, and the guard fires. A legitimate empty diff ("zero files
-# changed") succeeds with no paths and correctly leaves bumped_candidate empty.
-#
-# `--include-deleted` is deliberate: this is a CLASSIFIER, not a scanner. A
-# deleted plugin file is still a change to that plugin, and a deleted CHANGELOG
-# is exactly what --check-preserved has to see; dropping either would make the
-# gate pass over the change it exists to catch.
-# The change set is THIS BRANCH's own commits: fork point to branch tip. On a
-# pull_request checkout HEAD is the event's synthetic merge commit (parent 1 =
-# base tip, parent 2 = the branch's own tip); diffing or merge-basing against
-# that commit degenerates to the base tip, which hides a same-number collision
-# twice over — the manifest byte-matches the base tip (so it never becomes a
-# candidate) and fork_version equals head_version (so it reads as not-bumped).
-# When HEAD has that shape, use the branch's own tip.
 head_commit=HEAD
 if git rev-parse -q --verify 'HEAD^2' >/dev/null 2>&1 && git merge-base --is-ancestor 'HEAD^1' "$base" 2>/dev/null; then
   head_commit='HEAD^2'
@@ -549,11 +306,6 @@ if ! changed_files::into diff_paths "$merge_base..$head_commit" --include-delete
   exit 2
 fi
 
-# The branch's own files are read at $head_commit, never from the working tree:
-# on a pull_request checkout the tree is the synthetic merge, which carries every
-# release the base made after the fork point. Read through it, a fragment-mode
-# plugin main released reads as a version move or heading this branch made.
-# head_has <path>: 0 when the path (file or directory) exists at $head_commit.
 head_has() {
   local listing
   if ! listing="$(git ls-tree --name-only "$head_commit" -- "$1")"; then
@@ -562,7 +314,6 @@ head_has() {
   fi
   [[ -n "$listing" ]]
 }
-# head_show <path> <out-var>: the file's content at $head_commit.
 head_show() {
   local -n head_show_out="$2"
   # shellcheck disable=SC2034  # a nameref: this assignment writes the caller's variable
@@ -576,16 +327,12 @@ for path in ${diff_paths[@]+"${diff_paths[@]}"}; do
   plugins/*/.claude-plugin/plugin.json)
     rest="${path#plugins/}"
     bumped_candidate["${rest%%/*}"]=1
-    # A manifest edit other than `version` (description, userConfig, ...) is a
-    # shipped change; only a version-only edit is the bump itself.
     if [[ "$(sans_version_at "$merge_base" "$path")" != "$(sans_version_at "$head_commit" "$path")" ]]; then
       manifest_edited["${rest%%/*}"]=1
     fi
     ;;
   plugins/*/CHANGELOG.md)
     rest="${path#plugins/}"
-    # A `case` glob's `*` spans `/`, so re-check depth: only the plugin-root
-    # changelog is in scope, never one nested deeper (e.g. plugins/alpha/docs/…).
     if [[ "$rest" == "${rest%%/*}/CHANGELOG.md" && -z "${seen_changelog[$path]:-}" ]]; then
       seen_changelog["$path"]=1
       touched_changelogs+=("$path")
@@ -596,17 +343,12 @@ for path in ${diff_paths[@]+"${diff_paths[@]}"}; do
     shipped_changed["${rest%%/*}"]=1
     ;;
   .changes/*/*)
-    # A fragment gone at head is one the release consumed; it is the release's
-    # change for BUMP WITHOUT CHANGE.
     if ! head_has "$path"; then
       rest="${path#.changes/}"
       consumed_fragment["${rest%%/*}"]=1
     fi
     ;;
   docs/conventions/*/CHANGELOG.md | docs/contracts/*/CHANGELOG.md)
-    # A `case` glob's `*` spans `/`, so the depth is re-checked explicitly: only
-    # a changelog exactly one directory below a root is in scope, never one
-    # nested deeper inside a plugin.
     rest="${path#docs/*/}"
     if [[ "$rest" == "${rest%%/*}/CHANGELOG.md" && -z "${seen_changelog[$path]:-}" ]]; then
       seen_changelog["$path"]=1
@@ -617,39 +359,11 @@ for path in ${diff_paths[@]+"${diff_paths[@]}"}; do
   esac
 done
 
-# ============================ --check-preserved =============================
-# Every version heading a touched changelog carried at the FORK POINT must still
-# be there at head. Compared against the fork point, never the base TIP: a branch
-# that has not integrated main would read every heading main added after the fork
-# as "deleted" — a false positive on a required gate. The two semantics coincide
-# in the scenario this catches, because absorbing a section requires having
-# merged main forward in the first place (that is what opens the conflict
-# region), and once the base is an ancestor of head the fork point IS the base
-# tip.
-#
-# Matching is on the VERSION the heading names, via the shared extractor, so a
-# heading reformatted between the `## [1.2.3]` and `## 1.2.3 — date` forms still
-# reads as preserved (that is --check-bump's FORMAT concern, not a deletion), and
-# a yanked release marked `## [0.0.5] - 2014-12-13 [YANKED]` keeps its version in
-# the list exactly as Keep a Changelog intends.
-#
-# Reading discipline: a git read is COMMAND substitution with its status checked
-# (a failed git read must never read as "nothing to preserve" and pass), while
-# the heading extraction's status is deliberately ignored — `grep -oE` exits 1 on
-# a changelog with no version headings at all, which is not an error. No reader
-# in this path exits early on its input, so no writer can take SIGPIPE under
-# pipefail (see the has_heading note in --check-bump).
 if [[ "$mode" == "--check-preserved" ]]; then
   deleted=0
   compared=0
   declare -A head_seen
   for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
-    # Absent at the fork point => added by this change set; nothing to preserve.
-    # `git ls-tree` is the probe that separates that from a git invocation which
-    # genuinely FAILED: a path missing from the tree is exit 0 with EMPTY output,
-    # an unusable rev is a non-zero exit. (`git cat-file -e` cannot make that
-    # distinction — it exits 128 for both, so a change set ADDING a changelog
-    # would fail the gate.) A failure must never read as "nothing to preserve".
     if ! base_listing="$(git ls-tree -r --name-only "$merge_base" -- "$changelog")"; then
       echo "check-changelog-parity: 'git ls-tree -r --name-only $merge_base -- $changelog' failed; refusing to pass without checking." >&2
       exit 2
@@ -669,14 +383,6 @@ if [[ "$mode" == "--check-preserved" ]]; then
       head_show "$changelog" head_body
       mapfile -t head_versions < <(printf '%s\n' "$head_body" | changelog_versions -)
     elif ! head_has "${changelog%/CHANGELOG.md}"; then
-      # The whole plugin/convention directory went with it — a removal, not an
-      # absorbed section. A rename lands here too: the old path's directory is
-      # gone, and the new path is new at the fork point (skipped above). A
-      # directory rename can therefore carry an absorption past this gate — a
-      # known boundary, not an oversight: renaming a plugin is a reviewed
-      # identity change, and --check-bump's manifest scoping has the same
-      # property. `--no-renames` would not close it, since the old path would
-      # still land in this branch.
       continue
     fi
 
@@ -685,17 +391,13 @@ if [[ "$mode" == "--check-preserved" ]]; then
     missing=""
     for v in ${base_versions[@]+"${base_versions[@]}"}; do
       [[ -n "${head_seen[$v]:-}" ]] && continue
-      head_seen["$v"]=1 # a version repeated at base is reported once
+      head_seen["$v"]=1
       missing="${missing}${missing:+ }$v"
     done
     compared=$((compared + ${#base_versions[@]}))
 
     if [[ -n "$missing" ]]; then
       echo "DELETED CHANGELOG ENTRY: $changelog documented $missing at the fork point but no longer does." >&2
-      # Two different failures reach one counter, and they need different
-      # remediation: telling an author whose whole file is gone to restore a
-      # heading "above the entry that replaced it" names an entry that does not
-      # exist.
       if [[ -n "$changelog_at_head" ]]; then
         echo "  A released section's heading vanished. The usual cause is a CHANGELOG merge-forward resolved by writing the new release under the PREVIOUS release's heading — absorbing it — or by RELABELING that heading to the new version; git leaves no conflict marker behind for either. Restore the heading with its own notes above the entry that replaced it." >&2
       else
@@ -714,7 +416,6 @@ if [[ "$mode" == "--check-preserved" ]]; then
   gate_entry::finish 0
 fi
 
-# ============================== --check-bump ================================
 undocumented=0
 malformed=0
 preexisting=0
@@ -730,8 +431,6 @@ if changelog_fragments::is_release_pr; then
   release_pr=1
 fi
 
-# New path -> old path for each changelog this change set renamed (a plugin
-# directory rename), read once for the whole diff.
 declare -A rename_source=()
 if ! rename_listing="$(git diff --name-status -M --diff-filter=R "$merge_base" "$head_commit" -- '*CHANGELOG.md')"; then
   echo "check-changelog-parity: the rename diff from $merge_base to $head_commit failed; refusing to pass without checking." >&2
@@ -741,8 +440,6 @@ while IFS=$'\t' read -r _ old new; do
   [[ -n "${new:-}" ]] && rename_source["$new"]="$old"
 done <<<"$rename_listing"
 
-# touched_changelogs is already unique (the seen_changelog guard where it is
-# built), so each changelog is inspected exactly once.
 for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
   head_has "$changelog" || continue
   head_show "$changelog" head_body
@@ -759,8 +456,6 @@ for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
 
   base_body=""
   base_path="$changelog"
-  # A changelog moved with its renamed plugin directory is compared with the
-  # file it was renamed from, so only headings the move itself adds count.
   git cat-file -e "$merge_base:$changelog" 2>/dev/null || base_path="${rename_source[$changelog]:-}"
   if [[ -n "$base_path" ]] && git cat-file -e "$merge_base:$base_path" 2>/dev/null; then
     if ! base_body="$(git show "$merge_base:$base_path")"; then
@@ -778,8 +473,6 @@ for changelog in ${touched_changelogs[@]+"${touched_changelogs[@]}"}; do
     rest="${changelog#plugins/}"
     added_headings["${rest%%/*}"]="$added_versions"
   fi
-  # A listed convention has no manifest, so its heading is its version: only
-  # the release pull request may add one.
   if [[ -n "$added_versions" && -z "$release_pr" ]] && name="$(changelog_fragments::convention_of "$changelog")"; then
     changelog_fragments::in_mode "$name"
     case $? in
@@ -805,8 +498,6 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
   name="${plugin_dir##*/}"
   changelog="$plugin_dir/CHANGELOG.md"
 
-  # A fragment-mode plugin outside the release pull request: the change set may
-  # not version it, and the per-PR rules below do not apply.
   if [[ -z "$release_pr" ]]; then
     changelog_fragments::in_mode "$name"
     case $? in
@@ -830,24 +521,13 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
     esac
   fi
 
-  # Both checks below need this change set to have touched the plugin (a shipped
-  # file, or its manifest), so an untouched plugin is skipped before its two
-  # `git show | jq` reads: the mode's cost follows the diff, not the fleet.
   [[ -n "${shipped_changed[$name]:-}" || -n "${bumped_candidate[$name]:-}" ]] || continue
 
   base_version="$(version_at "$base" "$manifest")"
-  # Absent at base => new plugin in this change set; the static --check owns
-  # whether its initial CHANGELOG.md exists, not the bump gate.
   [[ -n "$base_version" ]] || continue
   head_version="$(version_at "$head_commit" "$manifest")"
   fork_version="$(version_at "$merge_base" "$manifest")"
 
-  # A branch that changes shipped plugin files but leaves the manifest version
-  # unchanged vs the fork point reuses a published version number. Two
-  # cases: (1) manifest untouched and head still matches the base tip: reuse;
-  # (2) manifest touched cosmetically (path in diff, .version unchanged) while
-  # shipped files also changed. A stale branch whose base advanced without integrating stays out
-  # of scope when the manifest was never touched (manifest-scoping).
   if [[ -n "${shipped_changed[$name]:-}" && "$head_version" == "$fork_version" ]]; then
     if [[ -n "${bumped_candidate[$name]:-}" || "$head_version" == "$base_version" ]]; then
       echo "PUBLISHED VERSION REUSE: $name still carries $head_version while this change set modifies files under plugins/$name/ — bump the manifest and add a new '## [$head_version]' release entry instead of editing in place." >&2
@@ -856,25 +536,10 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
     fi
   fi
 
-  # Only plugins whose manifest this change set touched are in scope (see the
-  # bumped_candidate note above); a plugin main advanced but this branch never
-  # touched is not the PR's to document.
   [[ -n "${bumped_candidate[$name]:-}" ]] || continue
 
-  # "Did this branch bump?" is head vs the FORK POINT, never vs the base tip:
-  # once the base ref advances past the fork, the tip comparison misreads both
-  # directions — head==tip despite a real bump (two branches claimed the same
-  # number: a collision that must FAIL, not read as not-bumped), and head!=tip
-  # despite no bump at all (a cosmetic manifest edit on a stale branch, which
-  # must stay out of scope rather than red-line as a regression).
   [[ "$head_version" != "$fork_version" ]] || continue
 
-  # Monotonicity: the bumped version must land strictly ABOVE what the base ref
-  # carries NOW, not merely differ from it. A brief written against a stale base
-  # otherwise ships a silent downgrade (0.21.x onto a 0.25.0 main reads as a
-  # valid parity pair), and concurrent branches staging one number merge as an
-  # equal-version collision. Compare on the zero-padded key (see
-  # version_sort_key) so 0.10.0 outranks 0.9.0 numerically, not lexically.
   require_semver "$name" "$head_version"
   require_semver "$name" "$base_version"
   head_key=""
@@ -882,8 +547,6 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
   version_sort_key head_key "$head_version"
   version_sort_key base_key "$base_version"
   if [[ ! "$head_key" > "$base_key" ]]; then
-    # Advisory mode reports the finding without failing: the pull request is
-    # only behind a base that moved, and the merge queue enforces it (#7871).
     prefix=""
     [[ "${CHANGELOG_PARITY_COLLISIONS:-}" == advisory ]] && prefix="ADVISORY (the merge queue enforces this): "
     if [[ "$head_key" == "$base_key" ]]; then
@@ -895,29 +558,11 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
     continue
   fi
 
-  # A release must ship something: a bump whose only plugin changes are the
-  # manifest and the changelog is a re-release of the previous version.
   if [[ -z "${shipped_changed[$name]:-}" && -z "${manifest_edited[$name]:-}" && -z "${consumed_fragment[$name]:-}" && -z "${no_op_bump["$name@$head_version"]:-}" ]]; then
     echo "BUMP WITHOUT CHANGE: $name went $base_version -> $head_version but this change set touches nothing under plugins/$name/ besides plugin.json and CHANGELOG.md; ship the change with the bump, or name '$name@$head_version' in $NO_OP_BUMPS if the re-release is deliberate." >&2
     empty_bump=$((empty_bump + 1))
   fi
 
-  # Require the bumped version's own entry at head, not merely that the file
-  # changed: an unrelated edit (whitespace, title, an old release) must not
-  # satisfy the gate. The match is a FIXED-STRING heading anchored to line start
-  # (awk index()==1) over rendered_lines only, so the version string appearing in
-  # prose, an indented line, a fenced example, or an HTML comment never satisfies
-  # — or falsely pre-exists — the release entry, and SemVer metacharacters
-  # (1.0.1+build.1) never leak into a regex. A same-line "<!-- ## [x] -->" can
-  # never match anyway (the heading is not at column one).
-  #
-  # The reader must consume ALL of its input, never exit on first match: this
-  # script runs under pipefail, and a reader that exits while rendered_lines is
-  # still writing kills the writer with SIGPIPE (exit 141), which pipefail then
-  # reports as the pipeline's failure — a FOUND heading misread as missing. A
-  # real changelog puts the newest heading near the top of a file larger than
-  # one stdio buffer, exactly the shape that loses the race; the small fixtures
-  # in the test suite fit in one buffer and can never trip it.
   heading="## [${head_version}]"
   has_heading() {
     rendered_lines - | awk -v h="$heading" '
@@ -932,12 +577,6 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
     head_show "$changelog" head_body
   fi
   if [[ -n "$changelog_at_head" ]] && has_heading <<<"$head_body"; then
-    # The release entry must be ADDED by this change set, not merely present:
-    # a heading that already existed in the changelog at $base means the bump
-    # reused a pre-existing entry and shipped no new release note. Require it
-    # absent from the base changelog. (git show fails for a changelog that is
-    # new at $base -> empty -> counts as absent, which is correct: it was added
-    # here.)
     if git show "$base:$changelog" 2>/dev/null | has_heading; then
       echo "PRE-EXISTING CHANGELOG ENTRY: $name bumped $base_version -> $head_version but '## [$head_version]' already existed in $changelog at $base; add the release entry in this change set." >&2
       preexisting=$((preexisting + 1))
@@ -945,10 +584,6 @@ for manifest in ${manifests[@]+"${manifests[@]}"}; do
     continue
   fi
 
-  # Split the failure: a heading that names the version but omits the brackets
-  # (## <version>) is a FORMAT error the author can fix in place, not a missing
-  # release. Escape ALL ERE metacharacters (SemVer allows + in build metadata),
-  # not just dots.
   # shellcheck disable=SC2016  # single quotes are deliberate: $ is an ERE metachar being escaped, not a shell expansion
   esc="$(printf '%s' "$head_version" | sed -E 's/[][\\.|$(){}?+*^]/\\&/g')"
   if found="$([[ -n "$changelog_at_head" ]] && grep -m1 -E "^##[[:space:]]+${esc}([[:space:]]|\$)" <<<"$head_body")"; then

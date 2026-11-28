@@ -3,6 +3,53 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.3] - 2026-11-28
+
+### Changed
+
+- Trim skill frontmatter descriptions across `explore-directions` (1,011 -> 343 chars) and `pressure-test` (841 -> 348 chars), reducing changed description length from 1,852 to 691 characters (-1,161 chars; plugin total 1,977 -> 816 chars with `build-generator` unchanged at 125 chars).
+
+## [1.0.2] - 2026-11-28
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
+## [1.0.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [1.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+## [0.47.9] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [0.47.8] - 2026-11-25
+
+### Changed
+
+- Shared `host.html` synced (comment-only removal).
+- The variant switcher's page-authoring rules moved from the asset's header comment to `reference/switcher.md`.
+
+## [0.47.7] - 2026-11-25
+
+### Changed
+
+- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
+
 ## [0.47.6] - 2026-11-24
 
 ### Changed

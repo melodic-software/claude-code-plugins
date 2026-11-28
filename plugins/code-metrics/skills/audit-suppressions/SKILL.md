@@ -1,4 +1,5 @@
 ---
+# portability-ok: R6 kept-adapter operation - audit-suppressions.sh C# patterns
 description: "List every lint and type-checker suppression in a change, a path, or the tree (`--all`): eslint-disable, @ts-expect-error, noqa, type: ignore, pylint, pyright, shellcheck disable, C# pragmas and SuppressMessage, nolint, PowerShell SuppressMessageAttribute, markdownlint, rubocop, @SuppressWarnings; and the directives that switch off the evidence a quality bar relies on: coverage exclusions (istanbul, c8, coverage.py), mutation-testing exclusions (Stryker), security-scanner suppressions (bandit nosec, nosemgrep, gitleaks allow). Each row names its rule ids, its reason, and whether it is justified; listed correctness rules are marked. Reports, never gates. Use when: 'how many suppressions', 'find eslint-disable comments', 'which noqa have no reason', 'suppressions added in this change', 'audit lint suppressions', 'count suppressions to ratchet'. Complexity: /code-metrics:audit complexity."
 argument-hint: "[--json|--findings [--memory-dir <dir>]] [--all] [--base <ref>] [<path>...] [--repo <repo> ...]"
 user-invocable: true
@@ -27,7 +28,7 @@ carries the tier its rule's row sets, below). Whether a suppression should go is
 A suppression is **justified** when its line carries a reason and, for a tool whose syntax can name
 a rule, at least one rule id. TypeScript's `@ts-ignore`, `@ts-expect-error` and `@ts-nocheck`
 cannot name an error, so a reason alone justifies them. Where a tool has a reason slot of its own,
-the text there is the reason (ESLint and RuboCop after `--`, a `Justification` argument in C# and
+the text there is the reason (ESLint and RuboCop after `--`, a `Justification` argument in C# and <!-- portability-ok: R6 kept-adapter operation - audit-suppressions.sh C# patterns -->
 PowerShell); otherwise a further comment on the same line is (a TypeScript directive's trailing
 text, a second `<!-- -->` after a markdownlint directive, a `//` comment after `@SuppressWarnings`,
 a second `#` comment after a Python or shell pragma).
@@ -51,7 +52,7 @@ it names the file holding your userConfig layer, and an empty or unsubstituted v
 (`${CLAUDE_PLUGIN_ROOT}/reference/config.md`).
 
 The change scope reads committed lines only: a suppression in an uncommitted edit is not in it until
-it is committed, so name the file or use `--all` to see the working tree. `scope.exclude` and lane
+it is committed, so name the file or use `--all` to see the working tree. `scope.exclude` and language
 opt-outs apply as in the other audits.
 
 A target form (`--repo <repo>` and the others) runs the script once per repository, as
@@ -60,7 +61,7 @@ script. Each repository's `suppressions.correctness_rules` marks its own rows, a
 run writes one findings file per repository, under that repository's memory root and branch; a
 `--memory-dir` given with a target form must be relative, and is read from each root.
 
-Present the markdown report as printed: the scope, the counts, the correctness list with the layer
+Present the markdown report as printed, whole, with your notes after it: the scope, the counts, the correctness list with the layer
 that set it, then one row per suppression (correctness rules first, then lines without a reason),
 capped at 200 rows with the kept document named for the rest, then a `Not read` line naming each
 text file in scope whose language the scanner has no kind for. The `--json` document
@@ -127,6 +128,9 @@ python3 "${CLAUDE_SKILL_DIR}/scripts/suppression-scan.py" --count
 vendors a copy of the scanner into the repository and ratchets the `suppressions` or `unjustified`
 field. Without it, keep the `--json` document and compare counts by hand.
 
+When you report the count, quote both lines as printed and the exact command that printed them,
+so the user can run it again as the counter.
+
 The scanner reads no configuration: with no path it scans every tracked and untracked,
 not-ignored file in the repository, and `suppressions.correctness_rules` marks nothing. The caller
 passes the audit's resolved scope, so the frozen count and the report count the same files: name
@@ -153,8 +157,8 @@ The marker catalog follows each tool's own directive syntax, read from these pag
   [pylint, message control](https://pylint.readthedocs.io/en/stable/user_guide/messages/message_control.html);
   [Pyright, comments](https://github.com/microsoft/pyright/blob/main/docs/comments.md);
   [ShellCheck, directives](https://www.shellcheck.net/wiki/Directive);
-  [C# `#pragma warning`](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/preprocessor-directives);
-  [.NET, suppressing code analysis warnings](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/suppress-warnings);
+  [C# `#pragma warning`](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/preprocessor-directives); <!-- portability-ok: R6 kept-adapter operation - audit-suppressions.sh C# patterns -->
+  [.NET, suppressing code analysis warnings](https://learn.microsoft.com/en-us/dotnet/fundamentals/code-analysis/suppress-warnings); <!-- portability-ok: R6 kept-adapter operation - audit-suppressions.sh C# patterns -->
   [golangci-lint, false positives](https://golangci-lint.run/docs/linters/false-positives/);
   [PSScriptAnalyzer, suppressing rules](https://learn.microsoft.com/en-us/powershell/utility-modules/psscriptanalyzer/using-scriptanalyzer);
   [markdownlint, configuration](https://github.com/DavidAnson/markdownlint#configuration);
@@ -189,7 +193,7 @@ The marker catalog follows each tool's own directive syntax, read from these pag
 
 - The change scope needs a merge-base with the default branch; outside a git repository, or with no
   default-branch ancestor, pass paths or `--all` (the usage error says which).
-- A multi-line C#, PowerShell or Java attribute is read up to ten lines past its opening line; a
+- A multi-line C#, PowerShell or Java attribute is read up to ten lines past its opening line; a <!-- portability-ok: R6 kept-adapter operation - audit-suppressions.sh C# patterns -->
   longer one is reported with the rule ids and reason it showed in that span.
 - A coverage, Stryker or Gitleaks directive is read only in the comment forms of the languages the
   scanner knows; a coverage exclusion kept in a tool's configuration file (a path list, an exclusion

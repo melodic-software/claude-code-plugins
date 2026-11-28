@@ -4,6 +4,62 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.36.24] - 2026-11-28
+
+### Changed
+
+- Backfilled 20-query invocation probes for `playbooks:{boris,fable-5,repo-sweep,skill-authoring}` and trimmed frontmatter descriptions across all five `playbooks` skills (`boris` 519 -> 349 chars, `fable-5` 984 -> 343 chars, `repo-sweep` 559 -> 320 chars, `skill-authoring` 606 -> 347 chars, `update` 315 -> 148 chars; total 2983 -> 1507 chars, -1476 chars) while preserving all modes, `claude-api` overlap routing, model-adaptation coverage, and maintainer-only `update` posture.
+
+## [0.36.23] - 2026-11-28
+
+### Changed
+
+- Removed unregistered metadata keys (`author`, `source`, `compiled-by`) with no consumer from `/playbooks:boris` frontmatter.
+
+## [0.36.22] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.36.21] - 2026-11-26
+
+### Changed
+
+- `/playbooks:boris` points the fork-session, auto-compact-window and agent-view tips at the CLI reference and model configuration sections that own those flags and values, and `/playbooks:skill-authoring` states its one-call-per-skill rule as our own rule rather than as Skill tool behavior ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [0.36.20] - 2026-11-26
+
+### Changed
+
+- The repo-sweep hygiene catalog names coupling's route-step findings by that word.
+
+## [0.36.19] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [0.36.18] - 2026-11-26
+
+### Changed
+
+- **The repo-sweep hygiene catalog's tidy step names focus areas.** Its `args` and notes follow
+  `/code-tidying:tidy`'s rename: one focus area per call, read from `.claude/tidy-areas/*.md` and
+  the bundled focus areas.
+
+## [0.36.17] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+## [0.36.16] - 2026-11-25
+
+### Changed
+
+- The issue house style also reads `issue-tracker.md` from the org layer, the standards repository `standards_repository` names, when the repository has none of its own.
+
 ## [0.36.15] - 2026-11-24
 
 ### Changed
@@ -2720,7 +2776,7 @@ This release changed no plugin content. Its entries repeat 0.13.19 and 0.13.21, 
   public. The shape is precedented in-repo by `plugins/autonomy/reference/` and
   `plugins/architecture/reference/`, and mints no new skill, so the shared skill-listing budget is
   unaffected. Recorded as
-  [ADR-0007](../../docs/adr/0007-host-per-model-doctrine-outside-skill-private-surfaces.md),
+  ADR-0007,
   superseding ADR-0006 **on the per-version doctrine's address and nothing else**. ADR-0006's decision (model-scoped
   by default, fleet-wide only through the promotion gate, routing by version and never by family) is
   preserved verbatim. ADR-0007 cures **one of ADR-0006's three** live private-surface cites; the two

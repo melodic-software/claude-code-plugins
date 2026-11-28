@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for compare-records.sh.
-#
-# Self-contained and cwd-independent; mutates only its own mktemp dir. Every
-# expected line below is written from the record format in
-# skills/audit/context/mutant-record.md, not from running the script.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -127,9 +122,6 @@ expect "killed then invalid is a loss" 1 "newly-surviving app.py:7 comparison-in
 cmp "$(rec n1 "$SHA" "$M1")" "$(rec n2 "$SHA" "$NOC")"
 expect "killed then no-coverage is a loss" 1 "newly-surviving app.py:7 comparison-inversion"
 
-# A multi-line statement removal fits one row through its escapes, and the
-# escapes are part of the key: an escaped newline and an escaped backslash
-# followed by n are different replacements.
 ML="$(row app.py 4 6 block-removal 'if x:\n\treturn "a\\z"\nelse:' pass killed)"
 cmp "$(rec ml1 "$SHA" "$ML")" "$(rec ml2 "$SHA" "$ML")"
 expect "a multi-line original round-trips" 0 "K0 1 K1 1"

@@ -1,4 +1,3 @@
-# Project personal layer: mode is valid in the team layer and invalid here.
 routing:
   - id: personal
 widget:

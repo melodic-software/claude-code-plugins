@@ -148,8 +148,8 @@ option (set it in `/config`), then the team file
 (`docs/conventions/multi-agent.yaml`), then a gitignored personal override
 (`docs/conventions/multi-agent.local.yaml`). Each overrides the bundled defaults
 per key, for both role mappings and the `vendors` routing settings (`routing`,
-`trials`, `auto_delegation`, `tiebreak`, `trials_prove`, `trials_fail`,
-`promotion_audits`, `promotion_days`, per-vendor `in_use`/`rank`, and `sources.<id>.enabled`).
+`trials`, `auto_delegation`, `trials_prove`, `trials_fail`,
+per-vendor `in_use`/`rank`, and `sources.<id>.enabled`).
 `/multi-agent:setup` writes any of the three. A repository can also append team
 benchmark rows in `docs/conventions/multi-agent/benchmarks.json` (same closed
 schema as `reference/benchmarks.json`; team row ids matching a shipped id are
@@ -157,9 +157,7 @@ refused). Keys, values, team rows and layering:
 [`reference/config.md`](reference/config.md); where each file lives:
 [config locations](reference/config-locations.md).
 
-An old `~/.claude/multi-agent.yaml` or `.claude/multi-agent.local.yaml` is still read while its new
-file is absent, and each run warns about it; `/multi-agent:setup apply --migrate` moves it and
-deletes the old file.
+Old `~/.claude/multi-agent.yaml` and `.claude/multi-agent.local.yaml` files are not read.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -170,7 +168,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `role_map_file` | file | *(none)* | Path to your own role map file, the layer that applies in every repository, under the team file and your personal override. Same keys as the team file. Unset: no user layer. /multi-agent:setup apply --layer user writes it; apply --migrate moves an old ~/.claude/multi-agent.yaml into it. |
+| `role_map_file` | file | *(none)* | Path to your own role map file, the layer that applies in every repository, under the team file and your personal override. Same keys as the team file. Unset: no user layer. /multi-agent:setup apply --layer user writes it. |
 
 ### How to set these
 

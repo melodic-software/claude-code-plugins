@@ -18,7 +18,7 @@ from pathlib import Path
 
 import census
 import pytest
-from conftest import FIXTURES, envelope, run_cli
+from conftest import FIXTURES, collect_cli, envelope, run_cli
 
 DRIFT_STORE = FIXTURES / "drift" / "store"
 TOKENS = {"key": "usage_key:input_tokens", "record_type": "assistant", "feeds": ["tokens.main"]}
@@ -27,7 +27,7 @@ REGRESS = {"key": "invariant:usage_regress", "record_type": "assistant", "expect
 
 def rec(session_id: str, buckets: dict, unknown: dict | None = None) -> dict:
     return {
-        "schema": "session-record/v1",
+        "schema": "session-record/v2",
         "session_id": session_id,
         "census": buckets,
         "unknown": {"record_types": unknown or {}, "system_subtypes": {}},
@@ -105,7 +105,6 @@ def test_vanished_needs_absence_in_every_recent_qualifying_version():
 
 
 def test_vanish_window_skips_versions_below_min_count():
-    # 1.0.3 has too few records to count, so the last two versions are 1.0.2 and 1.0.4.
     records = [
         rec("a", {"1.0.1|*": {"record_type:user": 30, "key_path:user:k": 30}}),
         rec("b", {"1.0.2|*": {"record_type:user": 30}}),
@@ -134,8 +133,6 @@ def test_key_still_seen_in_a_thin_recent_version_has_not_vanished():
     ids=["one-m-version-without-k", "three-m-versions-without-k"],
 )
 def test_vanish_window_counts_only_versions_where_the_model_has_min_count_records(later_m_versions, vanished):
-    # Other models fill 1.0.2 and 1.0.3, but m has no records there, so with only 1.0.4 after it
-    # m's last three qualifying versions are 1.0.1 and 1.0.4, and k is present in 1.0.1.
     records = [
         rec("a", {"1.0.1|m": {"record_type:assistant": 30, "key_path:assistant:k": 30}}),
         rec("b", {"1.0.2|*": {"record_type:user": 30}}),
@@ -147,7 +144,6 @@ def test_vanish_window_counts_only_versions_where_the_model_has_min_count_record
 
 
 def test_unknown_version_bucket_is_outside_every_window():
-    # Were `unknown` a version, it would sort oldest and make `ghost` a vanished baseline key.
     records = [
         rec("u", {"unknown|*": {"record_type:user": 500, "key_path:user:ghost": 500}}),
         rec("a", {"1.0.1|*": {"record_type:user": 30}}),
@@ -204,7 +200,7 @@ def test_session_floor_counts_only_sessions_holding_the_population():
 def test_malformed_store_values_are_ignored():
     records = [
         rec("a", {"1.0.2|*": {"record_type:user": 30, "key_path:user:flag": True}}),
-        {"schema": "session-record/v1", "session_id": "b", "census": ["not", "a", "map"], "unknown": {"record_types": ["mode"]}},
+        {"schema": "session-record/v2", "session_id": "b", "census": ["not", "a", "map"], "unknown": {"record_types": ["mode"]}},
     ]
     result = drift(records)
     assert census.aggregate(records)["1.0.2|*"]["keys"] == {"record_type:user": 30}
@@ -212,8 +208,6 @@ def test_malformed_store_values_are_ignored():
 
 
 def test_canary_population_narrows_to_its_subtype():
-    # Stop-hook timing is checked only where stop_hook_summary records exist: a machine without
-    # stop hooks never loses the canary.
     hooks = {
         "key": "key_path:system:hookInfos[].durationMs",
         "record_type": "system",
@@ -278,12 +272,10 @@ def test_unknown_record_types_surface_with_counts():
 
 def test_collector_counts_only_a_last_record_below_an_earlier_one(data_dir, copy_fixture):
     root = copy_fixture("drift/usage")
-    collected = run_cli("collect.py", "collect", "--data-dir", str(data_dir), "--projects-root", str(root))
+    collected = collect_cli(data_dir, root)
     assert collected.returncode == 0, collected.stderr
-    (stored,) = (data_dir / "audit-sessions" / "store" / "v1" / "sessions").glob("p-*/usage-0001.json")
+    (stored,) = census.store_dir(data_dir).glob("local/p-*/usage-0001.json")
     record = json.loads(stored.read_text(encoding="utf-8"))
-    # msg_M's merged usage raises input and cache counts, and msg_D's last record recovers its
-    # dip: neither counts. Only msg_R does.
     assert record["census"]["2.0.9|model-s"]["invariant:usage_regress"] == 1
     tokens = record["tokens"]["main"]
     assert (tokens["input"], tokens["cache_read"], tokens["cache_creation"]) == (8 + 5 + 4, 1500 * 3, 350)
@@ -313,9 +305,9 @@ def agent_result(is_error: bool) -> dict:
 
 
 def collect(data_dir: Path, root: Path) -> dict[str, dict]:
-    collected = run_cli("collect.py", "collect", "--data-dir", str(data_dir), "--projects-root", str(root))
+    collected = collect_cli(data_dir, root)
     assert collected.returncode == 0, collected.stderr
-    stored = census.store_dir(data_dir).glob("p-*/*.json")
+    stored = census.store_dir(data_dir).glob("local/p-*/*.json")
     return {path.stem: json.loads(path.read_text(encoding="utf-8")) for path in stored}
 
 
@@ -339,7 +331,6 @@ def test_collector_counts_a_returned_agent_call_without_a_subagent_file(tmp_path
     write_transcript(root / "proj-g" / "gap-0001.jsonl", "2.0.9", [agent_call(tool), agent_result(False)])
     write_transcript(root / "proj-g" / "kept-0001.jsonl", "2.0.9", [agent_call(tool), agent_result(False)])
     write_transcript(root / "proj-g" / "kept-0001" / "subagents" / "agent-a1.jsonl", "2.0.9", [denied(1, "rule")])
-    # A rejected or failed call and one with no result yet leave no subagent file by design.
     write_transcript(root / "proj-g" / "failed-0001.jsonl", "2.0.9", [agent_call(tool), agent_result(True)])
     write_transcript(root / "proj-g" / "open-0001.jsonl", "2.0.9", [agent_call(tool)])
     write_transcript(root / "proj-g" / "solo-0001.jsonl", "2.0.9", [denied(1, "rule")])
@@ -386,10 +377,10 @@ def test_drift_cli_reports_each_class_and_exits_1(canaries_file):
 
 
 def test_drift_cli_passes_when_nothing_moved(tmp_path, canaries_file):
-    sessions = tmp_path / "audit-sessions" / "store" / "v1" / "sessions" / "p-0000000000aa"
+    sessions = tmp_path / "audit-sessions" / "store" / "v2" / "local" / "p-0000000000aa"
     sessions.mkdir(parents=True)
     for name in ("drift-s1.json", "drift-s2.json"):
-        source = DRIFT_STORE / "audit-sessions" / "store" / "v1" / "sessions" / "p-0000000000aa" / name
+        source = DRIFT_STORE / "audit-sessions" / "store" / "v2" / "local" / "p-0000000000aa" / name
         (sessions / name).write_text(source.read_text(encoding="utf-8"), encoding="utf-8")
     result = run_cli("collect.py", "drift", "--data-dir", str(tmp_path), "--canaries", str(canaries_file))
     assert result.returncode == 0, result.stdout

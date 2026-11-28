@@ -45,7 +45,6 @@ def summary(body: str, at: str = "2026-01-01T00:30:00Z") -> dict[str, Any]:
 
 class EvidenceTests(Base):
     def test_a_bound_finding_counts_only_when_accepted_and_reads_its_severity(self) -> None:
-        # The `severity:` line sits directly above the binding.
         body = binding("finding\nseverity: IMPORTANT")
         runs = [whole("claude-review", S), whole(SEC, S, n=1, k=1)]
         for value, blocking in ((True, 0), (False, 1), (None, 1)):
@@ -70,7 +69,6 @@ class EvidenceTests(Base):
                 self.assertEqual(self.bind(runs, comments=comments)[SEC].blocking_findings, blocking)
 
     def test_a_claude_app_comment_is_unchanged(self) -> None:
-        # The App's own comments never carry a verdict and need none.
         runs = [whole("claude-review", S), whole(SEC, S, n=1, k=1)]
         item = thread(f"finding\nseverity: IMPORTANT\n\nclaude-lane: {SEC}")
         self.assertEqual(self.bind(runs, threads=[item])[SEC].blocking_findings, 0)

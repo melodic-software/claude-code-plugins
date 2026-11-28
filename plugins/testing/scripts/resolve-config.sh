@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# tcfg_norm <path or glob>: set TCFG_NORM to it normalized.
 tcfg_norm() {
   local p="${1//\\//}"
   if [[ "$p" =~ ^([A-Za-z]):/(.*)$ ]]; then
@@ -9,7 +8,6 @@ tcfg_norm() {
   TCFG_NORM="$p"
 }
 
-# tcfg_glob_re <normalized glob>: set TCFG_RE to the anchored ERE it means.
 tcfg_glob_re() {
   local g="$1" re="" c i
   for ((i = 0; i < ${#g}; i++)); do
@@ -221,7 +219,6 @@ LOADER="$PLUGIN/../skills/audit/scripts/adapter-load.awk"
 PCV="$PLUGIN/parse-concern-value.sh"
 PLUGIN="$PLUGIN/.."
 
-# A warning can quote a layer's text: strip non-printing bytes, keeping \t and \n.
 warn() { printf 'resolve-config: warning: %s\n' "$1" | LC_ALL=C tr -d '\000-\010\013-\037\177' >&2; }
 
 CONV_HOME=""
@@ -263,8 +260,6 @@ if [[ "$MODE" != write && -f "$USER_OLD" ]]; then
   warn "$USER_OLD is an old location, still read for now: there is no user-global file layer; move each setting to its testing userConfig option, else to $NEW_LOC/testing.local.yaml"
 fi
 
-# under_link <file>: true when <file>, or a directory above it inside <root>,
-# is a symlink. A repository could point such a layer at any file.
 under_link() {
   local d="$1"
   [[ -n "$ROOT" ]] || return 1
@@ -275,7 +270,6 @@ under_link() {
   return 1
 }
 
-# in_list <value> <allowed>...: true when <value> is one of <allowed>.
 in_list() {
   local v="$1" a
   shift
@@ -283,8 +277,6 @@ in_list() {
   return 1
 }
 
-# mode_keys <key>...: print each key's value and source (header, E2E, MAP and
-# WRITE). Exit 0.
 mode_keys() {
   local key val src def f u raw lines allowed repo_only files=()
   local -A user_val=()
@@ -324,9 +316,6 @@ mode_keys() {
     val="" src="" raw="" u="${user_val[$key]:-}"
     for f in ${files[@]+"${files[@]}"}; do
       [[ "$f" != "$USER_OLD" || -z "$u" || "$u" == "$def" ]] || break
-      # The first layer with the key's top-level line sets it; only that line
-      # reaches the parser, so a nested, non-scalar or unparsable value reads
-      # as empty and is reported below.
       lines="$(LC_ALL=C sed -e $'1s/^\xef\xbb\xbf//' -e 's/\r$//' "$f" | grep -E "^${key}[[:space:]]*:")" || continue
       if [[ -n "$repo_only" && "$f" == "$USER_OLD" ]]; then
         warn "$f: $key is a repository $repo_only; the user-global layer is not read for it"
@@ -366,8 +355,6 @@ elif [[ "$MODE" == write ]]; then
   exit 0
 fi
 
-# gather <team file>: set layers to the user-global layer, that team layer and
-# the personal override, as present.
 layers=()
 declare -A layer_seen=()
 gather() {
@@ -383,8 +370,6 @@ gather() {
   done
 }
 
-# The docs file is the team layer when it holds a config block; else the
-# loader's `block` record is absent and .claude/testing.yaml is read instead.
 load() {
   ((${#layers[@]})) || return 0
   awk -v MODE=config -f "$LOADER" "${layers[@]}"
@@ -451,7 +436,6 @@ while IFS=$'\t' read -r key val; do
   out+=("$key"$'\t'"$val")
 done <<<"$records"
 
-# Adapter ids come from the id: lines, so --quick checks them without a load.
 extra=()
 for d in ${dirs[@]+"${dirs[@]}"}; do
   for f in "$d"/*.yaml; do [[ -f "$f" ]] && extra+=("$f"); done
@@ -464,7 +448,6 @@ for id in ${ids[@]+"${ids[@]}"}; do
   [[ -z "${shipped[$id]:-}${consumer[$id]:-}" ]] || continue
   loc="${layers[*]}"
   for f in "${layers[@]}"; do
-    # In the docs file only the config block's lines count.
     from=1 to='$'
     [[ "$f" == "$TEAM_DOCS" ]] && from="$blk_from" to="$blk_to"
     if n="$(grep -nwF -m1 -- "$id" < <(sed -n "${from},${to}p" "$f"))"; then
@@ -479,8 +462,6 @@ if ((QUICK)); then
   exit 0
 fi
 
-# Load every adapter once with the extensions applied, so a bad extension
-# fails here, where the layer is named, not mid-scan.
 W="$(mktemp -d)"
 trap 'rm -rf "$W"' EXIT
 printf '%s' "$ext" >"$W/extend"
@@ -490,8 +471,6 @@ while IFS=$'\t' read -r id key val; do
   [[ "$key" == files && -z "${shipped[$id]:-}" ]] && consumer_globs+=("$val")
 done <<<"$table"
 
-# A consumer glob is covered when a shipped hook row names it, or when it is a
-# literal name a shipped row's glob matches.
 mapfile -t hook_globs < <(sed -n 's/^ *"if": "Write(\(.*\))",*$/\1/p' "$PLUGIN/hooks/hooks.json")
 declare -A reported=()
 for g in ${consumer_globs[@]+"${consumer_globs[@]}"}; do

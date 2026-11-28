@@ -1,63 +1,4 @@
 #!/usr/bin/env node
-// refire-refused.mjs: gives a pull request a new head when a pr-unblock run
-// on its current head failed at "Request the lane token" because the token
-// broker refused it as workflow-modified. A rerun keeps its first event's
-// workflow files, so no rerun can pass; after the new head, the next
-// pr-unblock run uses main's files. No model. An address-feedback run refused
-// that way is left to the feedback sweep, which dispatches it again on main's
-// files at the same head (the lane's `dispatcherRefires`).
-//
-// The new head is an empty commit: the head's own tree, the head as its only
-// parent, made with the lanes App token through the Git Data API and moved
-// onto the branch as a fast-forward only. update-branch would merge main in,
-// which here always brings a .github/workflows/ change, and the lane token
-// cannot write one (docs/conventions/pr-pipeline/pr-run-activity.md,
-// `workflow-staged`).
-//
-// Only an open, non-draft pull request into main qualifies whose head
-// check-trusted-trigger would trust: a branch of this repository, a well-formed
-// head ref and SHA, and an author on the trusted-actor list. Dependabot's are
-// left alone: a commit on its branch stops its own rebases, and pr-merge merges
-// a Dependabot PR only while every commit is Dependabot's.
-// The refused run counts only when a listed account other than the lanes App
-// started it and any rerun (a dispatch: github-actions[bot] on its first
-// attempt, its commit on main), and only when the PR changes none of the files
-// the broker compares for that lane: a run then took them from main, so the
-// refusal it reports came from main's code, and an empty commit can help.
-//
-// Each pull request is re-fired at most once per version (blob SHA on main) of
-// the workflow file the broker named, recorded in a marker comment the App
-// posts before the push. A marker whose head is the current head means the push
-// did not land, so only the push is retried; any other marker for that version
-// stops it, so a run that keeps failing the same way waits for a person or a
-// new workflow version.
-//
-// A run of an activity no dispatcher tick re-dispatches (the lane's
-// `transientActivities`; the pr-unblock-dispatch tick dispatches the others,
-// so no head gets two retry paths) also gets the empty commit
-// when its token step failed transiently: `broker-unreachable`,
-// `lane-token-denied` with a 5xx status, or an OIDC token request still
-// failing with a 5xx or a curl network error. No 403 reason is transient, so a 403
-// other than workflow-modified is never re-fired. The new head starts the
-// review lanes, whose completion is the activity's own fresh event. Such a
-// re-fire is recorded per run in a `transient` marker, and is capped at one
-// per failed run and `TRANSIENT_PER_HEAD` per head tree (an empty commit keeps
-// the tree, so a broker outage cannot chain re-fires on one change).
-//
-// Environment:
-//   GH_TOKEN             the lane App token (contents and pull-requests write)
-//   ACTIONS_TOKEN        the job's GITHUB_TOKEN (actions: read, checks: read)
-//   GITHUB_REPOSITORY    owner/repo
-//   KILL_SWITCH          `proceed` from the kill-switch step; anything else stops
-//   TRUSTED_ACTORS_PATH  trusted-actors.json from the default branch tip
-//   LANES_BOT_LOGIN      the lanes App bot login, the only marker author this
-//                        trusts (default melodic-automation-lanes[bot])
-//   LANES_APP_SENDER_ID  the lanes App sender id; a run it started never counts
-//   RESOLVED_CONFIG_PATH resolve-config's output; its merge.refire-skip-branches
-//                        lists the branches a workflow owns and rebuilds, whose
-//                        PRs this never comments on or pushes to
-//   GITHUB_STEP_SUMMARY  each push and the outcome are listed there when set
-//   GITHUB_API_URL
 import { appendFileSync, readFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -67,6 +8,7 @@ import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trust
 import { budgetLatch, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { callers, listedJob } from "../lib/lane-registry.mjs";
+import { changedPaths } from "./merge-holds.mjs";
 import { PR_UNBLOCK_TITLE } from "../lib/run-title.mjs";
 import { ACTIONS_BOT_ID, LANES_APP_LOGIN as DEFAULT_BOT } from "../lib/lane-vocabulary.mjs";
 
@@ -75,10 +17,6 @@ const RETRY_MS = 60 * 60_000;
 const STEP = "Request the lane token";
 const WRITE_RUNNER = ".github/workflows/pr-run-activity-write.yml";
 const LANES = Object.freeze({
-  // GitHub runs no pull_request workflow on a conflicting PR, and
-  // pr-unblock-dispatch runs only on a push to main, its half-hourly tick or a
-  // listed person's dispatch, so the empty commit starts no conflict-resolution
-  // run itself.
   "pr-unblock.yml": {
     events: ["workflow_dispatch"],
     after: "pr-merge pushes an empty commit so the next pr-unblock run uses main's files.",
@@ -99,15 +37,8 @@ const LANES = Object.freeze({
 });
 const REFUSED =
   /^lane-token-denied: the broker answered 403 with reason workflow-modified: (\.github\/workflows\/[A-Za-z0-9._-]+\.yml) differs from refs\/heads\/main$/;
-// A token step that failed for a reason the broker or the network may not
-// give next time (request-lane-token/action.yml): no response at all, a 5xx
-// after the action's own retries, or an OIDC token request still failing with
-// a 5xx or a curl network error after them (a 429 is a rate limit, not
-// re-fired). Group 1 or 4 is the label a marker records.
 const TRANSIENT =
   /^(broker-unreachable): the lanes token broker gave no response|^lane-token-denied: the broker answered (5[0-9]{2}) with reason ([a-z]+(?:-[a-z]+)*)|^(the OIDC token request failed: (?:HTTP 5[0-9]{2}|curl exit [0-9]{1,2})) on attempt /;
-// At most this many transient re-fires per head tree (judgment, owner decision
-// on #8446: two per head).
 export const TRANSIENT_PER_HEAD = 2;
 const TRANSIENT_MARKER = /^<!-- pr-lane-refire transient run ([1-9][0-9]{0,19}) tree ([0-9a-f]{40}) head ([0-9a-f]{40}) -->/;
 const MARKER = /^<!-- pr-lane-refire (\.github\/workflows\/[A-Za-z0-9._-]+\.yml)@([0-9a-f]{40}) head ([0-9a-f]{40}) -->/;
@@ -120,13 +51,6 @@ export const REFIRES_PER_RUN = 5;
 const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (what, error) =>
   console.log(`::error title=refire-refused::${what}: ${escapeCommand(error?.message ?? error)}`);
-// A failure that concerns one PR alone warns and leaves the others to go on:
-// the PR changed since the listing, or its branch moved or went away under
-// the push (a 409 or 422 on the ref update with the branch since read at
-// another SHA or gone; run 41065454536's 422 on release/plugins). Any other
-// failure would hit every PR the same way (an auth refusal, a 5xx after
-// retries, any error on the commit write), so it stops the run and fails the
-// step.
 const reportWarning = (what, error) =>
   console.log(`::warning title=refire-refused::${what}: ${escapeCommand(error?.message ?? error)}`);
 class PullFailure extends Error {}
@@ -203,8 +127,6 @@ async function pullOfRun({ actions, repo, run, lane, byNumber, ids, appId, mainS
   if (pull === undefined || !SHA.test(String(run.head_sha))) {
     return undefined;
   }
-  // A run on a tag named main also reports head_branch main: its commit must
-  // be on the branch.
   const compare = await actions("GET", `/repos/${repo}/compare/${run.head_sha}...${mainSha}`);
   if (compare?.status !== "ahead" && compare?.status !== "identical") {
     return undefined;
@@ -229,9 +151,6 @@ export async function tokenRefusal({ jobs, readAnnotations, lane = LANES["pr-unb
   const transientOk = (lane.transientActivities ?? []).includes(activity);
   let transient = null;
   for (const job of jobs) {
-    // Only a write runner job requests the token. The jobs API can list a
-    // completed job's steps empty or cut short: such a job whose list lacks
-    // the token step is judged by its annotations.
     const writer = lane.writeCallers.some(({ id, name }) => job.name === name || job.name === id);
     const token = (Array.isArray(job.steps) ? job.steps : []).find((step) => step.name === STEP);
     const failedAtToken = writer && job.conclusion === "failure" && (token === undefined || token.conclusion === "failure");
@@ -258,16 +177,11 @@ export async function tokenRefusal({ jobs, readAnnotations, lane = LANES["pr-unb
 }
 
 async function refusal({ github, repo, pull, refused, run, blob, bot, lane, now, mainSha }) {
-  // A run on a head that changes a file the broker compares came from that
-  // file, not main's: no empty commit can make it pass, and its refusal could
-  // have been printed by the edited file itself.
-  // The three-dot compare lists what the PR changes since its merge base; it
-  // lists at most 300 files, so a longer list is not read as complete.
-  const changed = (await github("GET", `/repos/${repo}/compare/${mainSha}...${pull.head.sha}`))?.files;
-  if (!Array.isArray(changed) || changed.length >= 300) {
+  const changed = await changedPaths(github, repo, await github("GET", `/repos/${repo}/compare/${mainSha}...${pull.head.sha}`), pull.head.sha, lane.files);
+  if (changed === null) {
     return { reason: "its changed files cannot be listed in full" };
   }
-  const touched = lane.files.find((file) => changed.some((entry) => entry.filename === file || entry.previous_filename === file));
+  const touched = changed[0];
   if (touched !== undefined) {
     return { reason: `it changes ${touched}` };
   }
@@ -383,9 +297,6 @@ export async function main({ env = process.env, github, actions, now = Date.now(
     github ??= createGitHub({ token: env.GH_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     actions ??= actionsClient(env);
 
-    // Main's tip, read once, so every compare and blob read in this run sees
-    // one commit. A tag named main would make `main` ambiguous, so one must not
-    // exist; only a 404 proves that (as check-trusted-trigger checks).
     let tagAbsent = false;
     try {
       await github("GET", `/repos/${repo}/git/ref/tags/main`);

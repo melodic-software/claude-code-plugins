@@ -107,10 +107,6 @@ class PathAndShapeTests(unittest.TestCase):
         self.assertEqual(sorted(document), ["src/a.ts", "src/b.ts"])
 
     def test_repeated_sections_for_one_file_fold_their_functions(self) -> None:
-        # A tracefile that concatenates two suites' runs carries the same file
-        # twice. The line counts already merge with max; the function records
-        # must too, or the second block's FNDA:0 erases the first block's hit
-        # and the function reports 0 percent inside a covered file.
         with tempfile.TemporaryDirectory() as tmp:
             artifact = Path(tmp) / "repeated.info"
             artifact.write_text(
@@ -129,12 +125,6 @@ class PathAndShapeTests(unittest.TestCase):
         self.assertEqual(document["src/a.ts"]["lines"], {"1": 1, "2": 1})
 
     def test_two_functions_of_one_name_in_one_section_stay_separate(self) -> None:
-        # One file, two `render` methods in two classes, so one SF section
-        # declares the name twice at two lines. Accumulated by name alone the
-        # two collapse into a single record before the section is even
-        # finished: the uncovered one survives at line 10 wearing the covered
-        # one's count of 5, so a function that never ran reports as covered
-        # and the one that did ran vanishes from the report.
         with tempfile.TemporaryDirectory() as tmp:
             artifact = Path(tmp) / "same-name.info"
             artifact.write_text(

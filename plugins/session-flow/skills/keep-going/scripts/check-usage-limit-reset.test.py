@@ -57,7 +57,6 @@ class CheckUsageLimitResetTests(unittest.TestCase):
         self.assertIn("lifted", result.stdout)
 
     def test_timezone_less_uses_local_offset_from_now(self) -> None:
-        # 3:45pm local when --now carries -04:00 should block before that wall time.
         msg = "You've hit your session limit · resets 3:45pm"
         result = self.invoke(msg, "--now", "2026-07-25T14:00:00-04:00")
         self.assertEqual(result.returncode, 1, result.stderr)
@@ -156,7 +155,6 @@ class CheckUsageLimitResetTests(unittest.TestCase):
         )
         self.assertEqual(reset_at.date().isoformat(), "2027-03-14")
         self.assertGreater(reset_at, received)
-        # 02:30 does not exist that night; the result must round-trip as a real instant.
         round_trip = reset_at.astimezone(ZoneInfo("UTC")).astimezone(reset_at.tzinfo)
         self.assertEqual(round_trip, reset_at)
         self.assertEqual(round_trip.utcoffset(), reset_at.utcoffset())
@@ -179,7 +177,6 @@ class CheckUsageLimitResetTests(unittest.TestCase):
             VENDOR_ZIP.is_file(),
             "expected vendored tzdata zip next to the script",
         )
-        # Empty PYTHONTZPATH hides the system zoneinfo tree (Windows-like).
         result = self.invoke(
             "You've hit your session limit - resets 7:10pm (America/New_York)",
             "--now",
@@ -291,6 +288,14 @@ class BundledTzdataDegradationTests(unittest.TestCase):
         mod = _load_module()
         with tempfile.TemporaryDirectory() as tmp:
             self.assertTrue(mod._cache_is_trusted(Path(tmp)))
+
+    @unittest.skipUnless(hasattr(os, "getuid"), "uid ownership is POSIX-only")
+    def test_directory_owned_by_another_user_is_not_trusted(self) -> None:
+        mod = _load_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            owner = os.stat(tmp).st_uid
+            with mock.patch.object(mod.os, "getuid", return_value=owner + 1):
+                self.assertFalse(mod._cache_is_trusted(Path(tmp)))
 
 
 if __name__ == "__main__":

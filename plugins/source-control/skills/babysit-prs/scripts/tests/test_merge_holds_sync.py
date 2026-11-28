@@ -1,6 +1,6 @@
-# test-scope: scripts/sync-hold-floor.py docs/conventions/pr-pipeline.yaml .github/actions/* .github/scripts/* .github/workflows/* .github/recurring-schedule.json .github/standards/trusted-actors/*
+# test-scope: scripts/sync-hold-floor.py docs/conventions/pr-pipeline.yaml .github/actions/* .github/scripts/* .github/workflows/* .github/recurring-schedule.json
 # test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_*.py plugins/source-control/skills/babysit-prs/scripts/diff_risk.py lib/prerequisites.mjs lib/publish-gate.mjs plugins/evals/skills/plugin-eval/scripts/noise-report.py plugins/evals/skills/plugin-eval/scripts/run-validity.py plugins/evals/skills/plugin-eval/scripts/win-test.py plugins/evals/skills/validate/scripts/validate-cases.py plugins/harness-ops/skills/inventory/scripts/parser_reader.py plugins/performance/scripts/ratchet.py plugins/work-items/scripts/charge-words.json scripts/check-declared-prerequisites.mjs scripts/validate-plugin-contracts.mjs
-# test-scope: plugins/source-control/.claude-plugin/plugin.json lib/cli-version-check.mjs plugins/formal-verification/lib/config-cascade.mjs plugins/formal-verification/lib/yaml-subset.mjs plugins/formal-verification/scripts/check.mjs plugins/formal-verification/scripts/settings.mjs scripts/check-read-caller-keys.mjs scripts/credential-legs/*.mjs scripts/sync-credential-legs.mjs
+# test-scope: lib/merge-hold-labels.json plugins/source-control/.claude-plugin/plugin.json lib/cli-version-check.mjs plugins/formal-verification/lib/config-cascade.mjs plugins/formal-verification/lib/yaml-subset.mjs plugins/formal-verification/scripts/check.mjs plugins/formal-verification/scripts/settings.mjs scripts/check-read-caller-keys.mjs scripts/credential-legs/*.mjs scripts/sync-credential-legs.mjs plugins/work-items/skills/triage/schemas/ci-verdict.schema.json plugins/work-items/skills/triage/scripts/check-ci-verdict.mjs
 """The native auto-merge holds (`.github/scripts/pr-merge/merge-holds.mjs`,
 run here under node) cover the merge gate's cost paths, so a lane pull
 request native auto-merge merges cannot skip them. The gate's other cost
@@ -64,22 +64,20 @@ from unittest import mock
 os.environ.setdefault("GIT_CONFIG_GLOBAL", os.devnull)
 os.environ["GIT_CONFIG_NOSYSTEM"] = "1"
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_merge_policy as policy
 import diff_risk as risk
+from capped_compare import docs_diff, modified_as
 
 BASH = policy.resolve_bash(os.environ, sys.platform, os.path.isfile)
 ROOT = pathlib.Path(__file__).resolve().parents[6]
-# This repository's effective floor: the built-in rows joined to its config.
 ROWS = policy.floor_paths_in(
     (ROOT / "docs/conventions/pr-pipeline.yaml").read_text(encoding="utf-8")
 )
 FLOOR = risk.floor_for(ROWS)
 MODULE = ROOT / ".github/scripts/pr-merge/merge-holds.mjs"
-# The floor actions' entry points and the floored scripts that enforce the
-# floor (owner decision Q-ENFORCE (A)): every module they load is code main
-# runs with their verdict, so the floor holds it too.
 FLOOR_ENTRIES = (
     ".github/actions/check-trusted-trigger/check-trusted-trigger.mjs",
     ".github/actions/resolve-config/resolve-config.mjs",
@@ -89,13 +87,6 @@ FLOOR_ENTRIES = (
     ".github/scripts/pr-merge/clear-escalations.mjs",
     ".github/scripts/pr-merge/refire-refused.mjs",
 )
-# The scripts that act on a pr-unblock stop's route: report-escalation.sh adds
-# `needs-human` for a held reason, adjudicate-feedback.mjs decides which threads
-# a model verdict may settle, publish-feedback.mjs resolves threads, and
-# apply-patch.mjs decides which fix-ci escalations hold. fix-ci-context.mjs,
-# feedback-dispatch.mjs and limit-stop.mjs decide `stop-resolved`, which
-# clears a failing pr-unblock/* status that ci-status enforces. Flooring the
-# routing table alone would let an edit to one of them drop a hold.
 ROUTE_ENTRIES = (
     ".github/scripts/pr-unblock/report-escalation.sh",
     ".github/scripts/pr-unblock/adjudicate-feedback.mjs",
@@ -105,20 +96,13 @@ ROUTE_ENTRIES = (
     ".github/scripts/pr-unblock/feedback-dispatch.mjs",
     ".github/scripts/pr-unblock/limit-stop.mjs",
 )
-# A relative import, or a module-relative file a module reads at load
-# (`new URL("./x.json", import.meta.url)`): data such as a routing table
-# decides as much as the code that reads it.
 IMPORT = re.compile(
     r"""(?:(?:from|import)\s*\(?|new\s+URL\()\s*["'](\.{1,2}/[^"']+)["']"""
 )
 
 
-# The trusted-actor list is held outside the floor table: the trust gate
-# rates it HIGH, and every review caller's hold-paths lists it first.
-def floor_or_trust_gate(path: str) -> bool:
-    return path == risk.TRUSTED_ACTORS_PATH or any(
-        risk.glob_match(g, path) for g in FLOOR.all
-    )
+def in_floor(path: str) -> bool:
+    return any(risk.glob_match(g, path) for g in FLOOR.all)
 
 
 def import_closure(entries: tuple[str, ...]) -> list[str]:
@@ -139,14 +123,10 @@ def import_closure(entries: tuple[str, ...]) -> list[str]:
 
 
 SCRIPTS = pathlib.Path(risk.__file__).resolve().parent
-# A script path in a quoted string, or a bare one a `python`/`python3` command
-# runs, with or without a `.base/` checkout prefix.
 PY_RUN = re.compile(
     r"""["'`][^"'`\s]*?(plugins/[^"'`\s]+\.py)["'`]"""
     r"""|\bpython3?\s+(?:-\S+\s+)*(?:\.base/)?(plugins/[^"'`\s;)]+\.py)"""
 )
-# A script a shell step names through a variable (`scripts=<dir>` then
-# `"$scripts/<name>.py"`), resolved from the same file's assignments.
 PY_VAR = re.compile(r"""\$\{?([A-Za-z_]\w*)\}?/([A-Za-z0-9_.-]+\.py)""")
 PY_DIR = re.compile(r"""^\s*([A-Za-z_]\w*)=["']?(?:\.base/)?(plugins/[^"'\s]+)""", re.M)
 
@@ -161,10 +141,8 @@ def py_runs(text: str) -> list[str]:
 
 def python_closure(js_files: list[str]) -> list[str]:
     todo = [SCRIPTS / "diff_risk.py"]
-    # A floor entry for a script not in this tree yet runs nothing here.
     floored = {g for g in FLOOR.all if g.endswith(".mjs") and (ROOT / g).is_file()}
     for name in sorted(floored | {n for n in js_files if (ROOT / n).is_file()}):
-        # Quoted paths only: a floored module's strings, not its prose.
         for path, _ in PY_RUN.findall((ROOT / name).read_text(encoding="utf-8")):
             if path:
                 todo.append(ROOT / path)
@@ -197,7 +175,6 @@ console.log(JSON.stringify({
   configured: paths.map((path) => pathHold([path], globs) !== null),
 }));
 """
-# A configured denied-paths list, for the presence case.
 CONFIGURED = ["Docs/Conventions/PR-Pipeline.yaml", ".github/workflows/**"]
 PATHS = [
     "plugins/multi-agent/reference/defaults.yaml",
@@ -254,8 +231,6 @@ FLOOR_PATHS = [
     "docs/CodeOwners",
     ".gitmodules",
     "vendor/.GitModules",
-    ".github/standards/trusted-actors/trusted-actors.json",
-    ".github/Standards/trusted-actors/trusted-actors.json",
     ".github/actions/check-trusted-trigger/action.yml",
     ".github/actions/Check-Trusted-Trigger/action.yml",
     ".github/scripts/pr-merge/rotation.mjs",
@@ -282,20 +257,11 @@ def module(paths: list[str]) -> dict[str, Any]:
     return json.loads(proc.stdout)
 
 
-# What ci-status's hold_patterns add beside the floor (sync-hold-floor.py).
-TRUSTED_ACTORS_GLOB = ".github/standards/trusted-actors/**"
-
-
 def _glob_samples(glob: str) -> list[str]:
-    """Paths a floor glob should and should not match: its literal core at
-    the root and nested under it, deeper below a trailing `**`, and near
-    misses that share its prefix or suffix."""
     core = glob.removeprefix("**/").removesuffix("/**")
     found = [core, f"{core}x", f"x{core}", f"{core}/a", f"{core}/a/b/c.md"]
     if glob.startswith("**/"):
         found += [f"a/{core}", f"a/b/{core}/c", f"a{core}"]
-    # A sibling and a deeper file in its directory, with its extension: where
-    # a `*` that crosses `/` would reach and one that does not would not.
     parent, _, name = core.rpartition("/")
     ext = name[name.rfind(".") :] if "." in name.lstrip(".") else ""
     if parent:
@@ -313,7 +279,7 @@ class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
     so the merge gate is the widest of the three, never the narrowest."""
 
     def test_each_sample_path_is_held_by_all_three_or_none(self) -> None:
-        globs = [TRUSTED_ACTORS_GLOB, *FLOOR.all]
+        globs = list(FLOOR.all)
         paths = sorted({p for g in globs for p in _glob_samples(g)})
         python = [any(risk.glob_match(g, p) for g in globs) for p in paths]
         node = subprocess.run(
@@ -328,7 +294,7 @@ class TheThreeMatchersHoldTheSamePaths(unittest.TestCase):
                 " console.log(JSON.stringify(paths.map((p) => globs.some((g) => matchesHoldPath(p, g)))));"
                 % json.dumps(MODULE.as_uri()),
             ],
-            input=json.dumps([paths, [TRUSTED_ACTORS_GLOB]]),
+            input=json.dumps([paths, []]),
             capture_output=True,
             text=True,
             check=True,
@@ -392,14 +358,6 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
     def test_the_author_lift_is_the_gate_class_and_the_lanes_app_never_gets_it(
         self,
     ) -> None:
-        # Owner direction 2026-10-27: the Python gate lets a trusted person's
-        # own gate-path lines clear on a clean security review
-        # (FLOOR.author_review). The native holds judge only the lanes
-        # App's pull requests (ci-status skips every other author), so they
-        # keep holding every one of those globs for a person.
-        # Owner decision Q11 (A) keeps the review's own surface (the gated
-        # workflows, the main-run review's scripts, the agent settings and
-        # instruction files) out of the lift.
         gate = [g for g, kind in FLOOR.classes if kind == "gate"]
         surface = {
             ".github/scripts/pr-review-main/**",
@@ -416,11 +374,12 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             "REVIEW.md",
             "docs/standards/**",
             "docs/review/**",
-            ".github/scripts/intake-triage/triage-rubric.txt",
+            "docs/conventions/work-items.md",
             ".github/scripts/intake-triage/refine-schema.json",
             ".github/scripts/plugin-eval/policy-probe-prompt.txt",
             ".github/scripts/pr-unblock/test-scope.mjs",
             ".github/scripts/pr-unblock/declare-test-scope.mjs",
+            "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
         }
         self.assertEqual(
             list(FLOOR.author_review),
@@ -430,7 +389,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
                 if g not in surface and not g.startswith(".github/workflows/")
             ],
         )
-        self.assertEqual(len(FLOOR.author_review), 24)
+        self.assertEqual(len(FLOOR.author_review), 25)
         samples = [g.removeprefix("**/").replace("**", "x.mjs") for g in gate]
         self.assertEqual(module(samples)["held"], [True] * len(samples))
         step = (ROOT / ".github/workflows/pr-require-checks.yml").read_text(
@@ -450,7 +409,7 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
             check=True,
         )
         self.assertEqual(tuple(json.loads(proc.stdout)), FLOOR.high)
-        self.assertEqual(len(FLOOR.high), 99)
+        self.assertEqual(len(FLOOR.high), 104)
 
     def test_the_floor_holds_what_its_actions_load(self) -> None:
         files = import_closure(FLOOR_ENTRIES)
@@ -458,16 +417,12 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         self.assertIn(".github/actions/log-api-budget/rate-guard.mjs", files)
         self.assertIn(".github/scripts/lib/github-client.mjs", files)
         self.assertIn(".github/scripts/lib/trusted-actors.mjs", files)
-        # The rate-limit defaults rate-guard.mjs reads decide when the lanes
-        # stop short of GitHub's limits, so they are held like the module.
         self.assertIn(".github/actions/log-api-budget/rate-limits.json", files)
-        # The routing table escalation-routes.mjs reads decides hold or fail
-        # per stop reason, so it is held like the module.
         self.assertIn(".github/scripts/pr-unblock/escalation-routes.json", files)
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
-                self.assertTrue(floor_or_trust_gate(path))
+                self.assertTrue(in_floor(path))
                 self.assertEqual(
                     held, any(risk.glob_match(g, path) for g in FLOOR.high)
                 )
@@ -475,20 +430,16 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
     def test_the_floor_holds_the_code_that_acts_on_a_stop_route(self) -> None:
         files = import_closure(ROUTE_ENTRIES)
         self.assertIn(".github/scripts/apply-patch/protected-paths.mjs", files)
-        # report-stop-status, the job that posts the clear, lives in pr-unblock.yml.
         files = sorted({*files, ".github/workflows/pr-unblock.yml"})
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
-                self.assertTrue(floor_or_trust_gate(path))
+                self.assertTrue(in_floor(path))
                 self.assertEqual(
                     held, any(risk.glob_match(g, path) for g in FLOOR.high)
                 )
 
     def test_every_pr_merge_script_is_held_for_a_person(self) -> None:
-        # Owner decision Q26 option B: the merge gate's own code stays a
-        # person's, every script pr-merge.yml runs from that directory
-        # (`gate`, or `trust` for merge-holds.mjs, which applies the holds).
         folder = ROOT / ".github/scripts/pr-merge"
         scripts = sorted(
             f".github/scripts/pr-merge/{f.name}"
@@ -509,22 +460,19 @@ class TheNativeHoldsCoverTheGate(unittest.TestCase):
         scripts = SCRIPTS.relative_to(ROOT).as_posix()
         self.assertIn(f"{scripts}/babysit_verify_evidence.py", files)
         self.assertIn(f"{scripts}/babysit_merge.py", files)
+        raised = {g for g, kind, _ in ROWS if kind in risk.PERSON_CLASSES}
+        self.assertIn(f"{scripts}/babysit_verify_evidence.py", raised)
         answer = module(files)
         for path, held in zip(files, answer["held"], strict=True):
             with self.subTest(path):
                 self.assertTrue(any(risk.glob_match(g, path) for g in FLOOR.all))
-                # babysit_merge*, and the scorer and binder that compute the
-                # security review's clear condition, are the gate's own code,
-                # a person's; the rest is enforcement, which a clean security
-                # review clears.
                 name = pathlib.PurePosixPath(path).name
-                gate = name.startswith("babysit_merge") or name in {
+                gate = path in raised or name.startswith("babysit_merge") or name in {
                     "diff_risk.py",
                     "babysit_review_evidence.py",
                 }
                 self.assertEqual(held, gate)
-                self.assertEqual(path in FLOOR.review, not gate)
-        # Nothing else of that directory: the floor tracks the closure.
+                self.assertEqual(path in FLOOR.review, not gate or path in raised)
         self.assertEqual(
             sorted(g for g in FLOOR.all if g.startswith(f"{scripts}/")), files
         )
@@ -586,15 +534,14 @@ class TheScrutinyListsNameTheFloor(unittest.TestCase):
     every floor entry."""
 
     def test_the_workflow_list_follows_the_path_holds_switch(self) -> None:
-        # Owner decisions Q21 and Q24 (2026-10-29): with
-        # merge.diff-check.path-holds false a guard empties the list for every
-        # author but Dependabot, whose action-pin bumps bring in third-party
-        # code; true holds every exempt author.
         sync = _sync_hold_floor()
+        listed = (
+            ROOT
+            / ".github/scripts/lib/fixtures/standards/components"
+            / "trusted-actors"
+        )
         actors = json.loads(
-            (ROOT / ".github/standards/trusted-actors/trusted-actors.json").read_text(
-                encoding="utf-8"
-            )
+            (listed / "trusted-actors.json").read_text(encoding="utf-8")
         )["actors"]
         dependabot = [str(a["id"]) for a in actors if a["login"] == "dependabot[bot]"]
         self.assertEqual(dependabot, [sync.DEPENDABOT_ID])
@@ -638,42 +585,6 @@ class TheScrutinyListsNameTheFloor(unittest.TestCase):
                     self.assertTrue(any(match(p, entry) for p in patterns))
 
 
-NODE_ACTORS = """
-import { actorsWidened } from %s;
-const cases = JSON.parse(process.argv[1]);
-console.log(JSON.stringify(cases.map(([status, previous, contents]) => actorsWidened({ status, previous, contents }))));
-"""
-_KYLE = {"id": 1, "login": "kyle", "kind": "human"}
-_BOT = {"id": 2, "login": "lanes[bot]", "kind": "bot"}
-
-
-def _list(*actors: Any, version: Any = 1) -> str:
-    return json.dumps({"version": version, "actors": list(actors)}, indent=2)
-
-
-_BASE_LIST = _list(_KYLE, _BOT)
-# Each case: status, renamed-from path, then [base text, head text] or None.
-ACTOR_CASES = {
-    "an entry added": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, {"id": 3})]),
-    "an entry's kind changed": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT | {"kind": "human"})]),
-    "a removal beside an addition": ("modified", None, [_BASE_LIST, _list(_KYLE, {"id": 5})]),
-    "an entry repeated": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, _BOT)]),
-    "another key changed": ("modified", None, [_BASE_LIST, _list(_KYLE, _BOT, version=2)]),
-    "unparsable head": ("modified", None, [_BASE_LIST, "{"]),
-    "a repeated key": ("modified", None, [_BASE_LIST, _BASE_LIST.replace('"version": 1', '"version": 1, "version": 1')]),
-    "actors not a list": ("modified", None, [_BASE_LIST, '{"version": 1, "actors": {}}']),
-    "an array at the root": ("modified", None, [_BASE_LIST, "[]"]),
-    "contents unread": ("modified", None, None),
-    "added": ("added", None, [None, _BASE_LIST]),
-    "removed": ("removed", None, [_BASE_LIST, None]),
-    "renamed": ("renamed", "a.json", [_BASE_LIST, _BASE_LIST]),
-    "an entry removed": ("modified", None, [_BASE_LIST, _list(_KYLE)]),
-    "every entry removed": ("modified", None, [_BASE_LIST, _list()]),
-    "reformatted and reordered": ("modified", None, [_BASE_LIST, json.dumps({"actors": [_BOT, _KYLE], "version": 1})]),
-    "keys reordered in an entry": ("modified", None, [_BASE_LIST, _list({"kind": "human", "login": "kyle", "id": 1}, _BOT)]),
-}  # fmt: skip
-
-
 @unittest.skipUnless(shutil.which("node"), "node not installed")
 class TheHoldLabelsAreTheGates(unittest.TestCase):
     def test_both_hold_the_same_labels(self) -> None:
@@ -689,6 +600,10 @@ class TheHoldLabelsAreTheGates(unittest.TestCase):
             check=True,
         )
         self.assertEqual(json.loads(proc.stdout), list(policy.MERGE_HOLD_LABELS))
+
+    def test_the_merge_guard_holds_the_same_labels(self) -> None:
+        shared = json.loads((ROOT / "lib/merge-hold-labels.json").read_text(encoding="utf-8"))
+        self.assertEqual(shared, list(policy.MERGE_HOLD_LABELS))
 
 
 @unittest.skipUnless(shutil.which("node"), "node not installed")
@@ -735,40 +650,6 @@ class TheNativeBaselineIsTheGates(unittest.TestCase):
         self.assertEqual(answers.count(True), 1)
 
 
-@unittest.skipUnless(shutil.which("node"), "node not installed")
-class TheWideningHoldIsTheGates(unittest.TestCase):
-    def test_both_hold_the_same_trusted_actor_list_changes(self) -> None:
-        cases = list(ACTOR_CASES.values())
-        script = NODE_ACTORS % json.dumps(MODULE.as_uri())
-        proc = subprocess.run(
-            ["node", "--input-type=module", "-e", script, json.dumps(cases)],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        answers = json.loads(proc.stdout)
-        for (name, (status, previous, contents)), js in zip(
-            ACTOR_CASES.items(), answers, strict=True
-        ):
-            changed = risk.ChangedFile(
-                path=risk.TRUSTED_ACTORS_PATH,
-                previous_path=previous,
-                status=status,
-                additions=1,
-                deletions=1,
-                has_patch=True,
-                mode="100644",
-                previous_mode=None if status == "added" else "100644",
-                contents=None if contents is None else tuple(contents),
-            )
-            py = risk._actors_widened(risk._check_file(changed), changed)
-            with self.subTest(name):
-                self.assertEqual(js is None, py is None, (js, py))
-        held = [js is not None for js in answers]
-        self.assertIn(True, held)
-        self.assertIn(False, held)
-
-
 NODE_LIFTERS = """
 import { fromRest, pathLifters } from %s;
 const [cases, humans, head] = JSON.parse(process.argv[1]);
@@ -793,7 +674,6 @@ def _review(
 
 
 _LATER = "2026-10-26T17:20:00Z"
-# REST review lists, kyle (id 1) and id 3 trusted, at head _HEAD.
 LIFTER_CASES = {
     "approved at the head": [_review("APPROVED")],
     "approved at another head": [_review("APPROVED", sha="b" * 40)],
@@ -846,10 +726,9 @@ PR = {
 ISSUE = 5
 OWNER = {"login": "owner", "id": 1, "type": "User"}
 OTHER = {"login": "other", "id": 2, "type": "User"}
-ROW = "https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10"
 QUOTE = 'Owner, verbatim: "Approve it."'
 LINE = "**Decision recorded.** Cost: approved"
-DECISION = f"{LINE}\n{ROW}\n{QUOTE}"
+DECISION = f"{LINE}\n{QUOTE}"
 
 
 def _comment(target: int, **fields: Any) -> dict[str, Any]:
@@ -868,7 +747,6 @@ def _link(target: int, kind: str = "pull", repo: str = REPO) -> str:
     return f"https://github.com/{repo}/{kind}/{target}#issuecomment-11"
 
 
-# Each case: the body, then the comment its link names.
 DECISIONS = {
     "on the pull request": (_link(7), _comment(7)),
     "on the closing issue after the pull request, naming it": (
@@ -918,49 +796,24 @@ DECISIONS = {
     "edited": (_link(7), _comment(7, edited="2026-01-04T00:00:00Z")),
     "another decision": (_link(7), _comment(7, body="**Decision recorded.** Ship")),
     "indented": (_link(7), _comment(7, body=f"  {DECISION}")),
-    "no record row": (_link(7), _comment(7, body=f"{LINE}\n{QUOTE}")),
-    "no owner quote": (_link(7), _comment(7, body=f"{LINE}\n{ROW}")),
-    "neither row nor quote": (_link(7), _comment(7, body=LINE)),
-    "a row at a commit, a line range": (
-        _link(7),
-        _comment(
-            7,
-            body=f"{LINE}\n{ROW.replace('main', '0' * 40)}-L12\n{QUOTE}",
-        ),
-    ),
-    "a row with no line": (
-        _link(7),
-        _comment(7, body=f"{LINE}\n{ROW.replace('#L10', '')}\n{QUOTE}"),
-    ),
-    "a row on another branch": (
-        _link(7),
-        _comment(7, body=f"{LINE}\n{ROW.replace('main', 'feature')}\n{QUOTE}"),
-    ),
-    "a row in another repository": (
-        _link(7),
-        _comment(7, body=f"{LINE}\n{ROW.replace('architecture', 'x')}\n{QUOTE}"),
-    ),
-    "a row inside an HTML comment": (
-        _link(7),
-        _comment(7, body=f"{LINE}\n<!-- {ROW} -->\n{QUOTE}"),
-    ),
+    "no owner quote": (_link(7), _comment(7, body=LINE)),
     "a quote inside an HTML comment": (
         _link(7),
-        _comment(7, body=f"{LINE}\n{ROW}\n<!-- {QUOTE} -->"),
+        _comment(7, body=f"{LINE}\n<!-- {QUOTE} -->"),
     ),
     "an empty quote": (
         _link(7),
-        _comment(7, body=f'{LINE}\n{ROW}\nOwner, verbatim: " "'),
+        _comment(7, body=f'{LINE}\nOwner, verbatim: " "'),
     ),
     "a quote run into a word": (
         _link(7),
-        _comment(7, body=f'{LINE}\n{ROW}\nOwner, xverbatim: "yes"'),
+        _comment(7, body=f'{LINE}\nOwner, xverbatim: "yes"'),
     ),
-    "both, through an App": (
+    "through an App with quote": (
         _link(7),
         _comment(7, performed_via_github_app={"id": 1}),
     ),
-    "both, edited": (_link(7), _comment(7, edited="2026-01-04T00:00:00Z")),
+    "edited with quote": (_link(7), _comment(7, edited="2026-01-04T00:00:00Z")),
 }
 CHECKS = {
     "pr-review-hosted.yml": "PR Review / review-status",
@@ -979,9 +832,6 @@ def _run(
     created: str = "2026-01-02T11:00:00Z",
     repo: str | None = "o/r",
 ) -> dict[str, Any]:
-    """A review lane's run on `sha` with its head in `repo`, started at
-    `created`, whose status job (or `job`) finished at `at` with a hold notice
-    naming `notice`."""
     message = f"claude-lane-hold lane=claude-review sha={notice or sha} criteria={criteria} label=needs-human"
     return {
         "lane": lane,
@@ -998,29 +848,18 @@ def _push(after: str, timestamp: str) -> dict[str, Any]:
     return {"after": after, "timestamp": timestamp, "activity_type": "push"}
 
 
-# The head reads: the review lanes' runs on the head branch (a cost notice at
-# the head before the decision by default), their jobs and annotations, a
-# compare per head (a run's head answers {"files": [TF]} unless `compares`
-# names it), and the head branch's push history, newest first (`activity`,
-# by default each run's head pushed five minutes before its first status job
-# finished).
 DEFAULT_HEADS = {"runs": [_run(HEAD)], "compares": {}}
 TF = {"filename": "a.tf", "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 MORE = {"filename": "b.sh", "status": "added", "patch": "+c"}
 LATE = "2026-01-02T18:00:00Z"
 NEW = "1" * 40
-# A base commit a merge of the base names as its second parent.
 MAIN = "5" * 40
-# The base branch's tip commit, which its full ref resolves to.
 _TIP = "3" * 40
-# The decided head OLD, then NEW pushed before the decision; HEAD carries
-# OLD's net change.
 SINCE = [_push(NEW, "2026-01-02T13:00:00Z"), _push(OLD, "2026-01-02T10:00:00Z")]
 SAME = {OLD: {"files": [TF]}, HEAD: {"files": [TF]}}
 
 
 def _plain(lane: str) -> dict[str, Any]:
-    """A run on NEW before the decision whose status job noticed no cost."""
     return _run(
         NEW,
         "2026-01-02T13:10:00Z",
@@ -1030,7 +869,19 @@ def _plain(lane: str) -> dict[str, Any]:
     )
 
 
-# Each case: the heads world for a decision on the pull request (_link(7)).
+LISTING = json.loads(
+    (ROOT / ".github/scripts/pr-merge/fixtures/contents-listing.json").read_text(encoding="utf-8")
+)["workflows"]
+
+
+def _relisted(changes: dict[str, str]) -> list[dict[str, Any]]:
+    return [entry | {"sha": changes[entry["name"]]} if entry["name"] in changes else entry for entry in LISTING]
+
+
+def _many_at(base: str) -> dict[str, Any]:
+    return {"files": [TF, *({"filename": f"f{i}"} for i in range(299))], "merge_base_commit": {"sha": base}}
+
+
 CARRIES = {
     "a notice at the head": DEFAULT_HEADS,
     "a base merge since the decided head": {
@@ -1054,6 +905,29 @@ CARRIES = {
             sha: {"files": [TF | {"filename": f"f{i}"} for i in range(300)]}
             for sha in (OLD, HEAD)
         },
+    },
+    "a notice at a 300-file head whose lane workflows match its merge base": {
+        "compares": {HEAD: _many_at(MAIN)},
+        "workflows": {MAIN: LISTING, HEAD: _relisted({"pr-merge.yml": "d" * 40})},
+    },
+    "a notice at a 300-file head that changes a lane workflow since its merge base": {
+        "compares": {HEAD: _many_at(MAIN)},
+        "workflows": {MAIN: LISTING, HEAD: _relisted({"pr-review-hosted.yml": "e" * 40})},
+    },
+    "a notice at a 300-file head whose own lane workflows cannot be listed": {
+        "compares": {HEAD: _many_at(MAIN)},
+        "workflows": {MAIN: [e for e in LISTING if not e["name"].startswith("pr-review-")]},
+    },
+    "a notice at a 300-file head whose lane workflows listing is at the 1000-entry cap": {
+        "compares": {HEAD: _many_at(MAIN)},
+        "workflows": {
+            MAIN: LISTING,
+            HEAD: [*LISTING, *({"name": f"w{i}.yml", "sha": "c" * 40} for i in range(1000 - len(LISTING)))],
+        },
+    },
+    "a notice at a 300-file head with no merge base": {
+        "compares": {HEAD: {"files": _many_at(MAIN)["files"]}},
+        "workflows": {MAIN: LISTING, HEAD: LISTING},
     },
     "a file with no patch": {
         "runs": [_run(OLD)],
@@ -1299,6 +1173,11 @@ const github = async (method, path, data) => {
     if (!(sha in answers)) throw new Error("no such commit");
     return answers[sha];
   }
+  const listed = /^\\/repos\\/o\\/r\\/contents\\/\\.github\\/workflows\\?ref=([0-9a-f]{40})$/.exec(path);
+  if (method === "GET" && listed) {
+    if (!heads.workflows || !(listed[1] in heads.workflows)) throw new Error("no such listing");
+    return heads.workflows[listed[1]];
+  }
   const runs = /\\/actions\\/workflows\\/([a-z-]+\\.yml)\\/runs\\?event=pull_request&branch=b&per_page=100&page=1$/.exec(path);
   if (method === "GET" && runs) {
     return { workflow_runs: heads.runs.flatMap((r, i) => (r.lane === runs[1] ? [{ id: i + 1, head_sha: r.sha, created_at: r.created, head_repository: r.repo && { full_name: r.repo } }] : [])) };
@@ -1362,6 +1241,10 @@ def py_decision(
         if "/compare/" in endpoint:
             sha = endpoint.rsplit("...", 1)[1]
             return (200, answers[sha]) if sha in answers else (404, None)
+        if "/contents/.github/workflows?ref=" in endpoint:
+            ref = endpoint.rsplit("=", 1)[1]
+            listing = heads.get("workflows", {})
+            return (200, listing[ref]) if ref in listing else (404, None)
         return 200, comment
 
     def get_pages(endpoint: str, env: Any = None) -> tuple[int | None, Any]:
@@ -1426,20 +1309,13 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
         self.assertIsNone(answers["on the closing issue, naming it only as an entity"])
         self.assertIsNone(answers["on the closing issue, naming it only after a #"])
         self.assertIsNone(answers["edited"])
-        self.assertIsNotNone(answers["a row at a commit, a line range"])
         for case in (
-            "no record row",
             "no owner quote",
-            "neither row nor quote",
-            "a row with no line",
-            "a row on another branch",
-            "a row in another repository",
-            "a row inside an HTML comment",
             "a quote inside an HTML comment",
             "an empty quote",
             "a quote run into a word",
-            "both, through an App",
-            "both, edited",
+            "through an App with quote",
+            "edited with quote",
         ):
             self.assertIsNone(answers[case], case)
 
@@ -1453,6 +1329,7 @@ class TheCostDecisionIsTheGates(unittest.TestCase):
                 )
         carried = {
             "a notice at the head",
+            "a notice at a 300-file head whose lane workflows match its merge base",
             "a base merge since the decided head",
             "a notice from the security lane",
             "a newer head pushed before it with a run of every lane",
@@ -1491,7 +1368,6 @@ _HELD = ".github/actions/resolve-config/live-config.test.mjs"
 _PATCH = {"filename": _HELD, "status": "modified", "patch": "@@ -1 +1 @@\n-a\n+b"}
 _DOC = {"filename": "docs/a.md", "status": "modified", "patch": "+x"}
 _LIFTED = "2026-10-27T23:26:14Z"
-# The merge bases of the approved head and of the head with the base's tip.
 _MB_OLD = "1" * 40
 _MB_HEAD = "2" * 40
 
@@ -1540,8 +1416,6 @@ def _dismissed(sha: str = _OLD, user: int = 1, review: int = 41) -> dict[str, An
     return _review("DISMISSED", user, sha, _LIFTED) | {"id": review}
 
 
-# (REST reviews, timeline events): whose approval stands, as (login, sha,
-# dismissal commit or None).
 LIFT_CASES = {
     "an approval of an earlier head": ([_review("APPROVED", sha=_OLD, at=_LIFTED)], []),
     "an approval by an untrusted account": ([_review("APPROVED", 2, _OLD, _LIFTED)], []),
@@ -1557,7 +1431,6 @@ LIFT_CASES = {
     ], []),
     "a comment after an approval": ([_review("APPROVED", sha=_OLD, at=_LIFTED), _review("COMMENTED", sha=_HEAD, at="2026-10-27T23:40:00Z")], []),
     "two people": ([_review("APPROVED", 1, _OLD, _LIFTED), _review("APPROVED", 3, _HEAD, _LIFTED)], []),
-    # The owner's decision of 2026-10-28 (part a).
     "an approval GitHub dismissed as stale": ([_dismissed()], [_dismissal()]),
     "a review id read as a string": ([_dismissed()], [_dismissal("41")]),
     "a dismissal with a message": ([_dismissed()], [_dismissal(dismissal_message="stale")]),
@@ -1578,15 +1451,11 @@ _HELPER = {
     "status": "modified",
     "patch": "@@ -1 +1 @@\n-x\n+y",
 }
-# What the merges brought into the approved head (compare _OLD..._HEAD) and
-# what the base changed between the merge bases (_MB_OLD..._MB_HEAD).
 _BASE_DOC = {
     "filename": "docs/base.md",
     "status": "modified",
     "patch": "@@ -1 +1 @@\n-p\n+q",
 }
-# #10224's shape: the base changed a file the pull request also changes, so
-# its net change moved by hunk headers, while the base's hunk applies the same.
 _SHARED = ".github/actions/collect-base-activity/collect-base-activity.test.mjs"
 _SHARED_OLD = {
     "filename": _SHARED,
@@ -1632,7 +1501,6 @@ def _tree(*entries: tuple[str, str], truncated: Any = False) -> dict[str, Any]:
 
 _PATHS = [_HELD, _SHARED, "docs/base.md", "docs/a.md", "scripts/helper.sh"]
 _ALL = _tree(*((p, "100644") for p in _PATHS))
-# The trees of the head and of its merge base with the tip.
 _TREES = [_ALL, _ALL]
 _GONE = {"filename": "docs/gone.md", "status": "removed", "patch": "-x"}
 _REPLAY_THEN = _THEN | {"files": [_PATCH, _SHARED_OLD]}
@@ -1642,8 +1510,6 @@ _MANY = [
     {"filename": f"docs/{i}.md", "status": "modified", "patch": "+x"}
     for i in range(300)
 ]
-# (then, now, in_base, merges, based, dismissal): whether the approval at _OLD
-# carries to _HEAD, by base_merge_carry (the cost carry) and approval_carry.
 CARRY_CASES = {
     "a base merge": (_THEN, {"files": [_PATCH], **_MERGED}, _IN_BASE, *_CLEAN, None, _TREES),
     "a base merge with a non-hold file unchanged": ({"files": [_PATCH, _HELPER], **_moved((_OLD, [_BASE_SHA]))}, {"files": [_HELPER, _PATCH], **_MERGED}, _IN_BASE, *_CLEAN, None, _TREES),
@@ -1668,7 +1534,6 @@ CARRY_CASES = {
     "a force push": (_THEN, {"files": [_PATCH], **_moved((_REWRITTEN, [_BASE_SHA]), (_HEAD, [_REWRITTEN, _BASE_SHA]))}, _IN_BASE, *_CLEAN, None, _TREES),
     "a cut commit list": (_THEN, {"files": [_PATCH], **_MERGED, "total_commits": 251}, _IN_BASE, *_CLEAN, None, _TREES),
     "a hold-path file with no patch": (_THEN, {"files": [{"filename": _HELD, "status": "modified"}], **_MERGED}, _IN_BASE, _brought([_BASE_DOC, {"filename": _HELD, "status": "modified"}]), _based([_BASE_DOC]), None, _TREES),
-    # The owner's decision of 2026-10-28 (part b): the exact carry.
     "#10224's shape": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None, _TREES),
     "#10224's shape, dismissed as stale on the merge's push": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, _HEAD, _TREES),
     "#10224's shape, dismissed by a commit the merges did not push": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, _OTHER, _TREES),
@@ -1687,7 +1552,6 @@ CARRY_CASES = {
     "a base range listed ahead and behind": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE | {"behind_by": 1}, None, _TREES),
     "a base range with no behind count": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), {k: v for k, v in _REPLAY_BASE.items() if k != "behind_by"}, None, _TREES),
     "a base that did not move": (_THEN, {"files": [_PATCH], **_MERGED}, _IN_BASE, _brought([]), {"status": "identical", "behind_by": 0, "files": [], "commits": [], "total_commits": 0}, None, _TREES),
-    # The independent security review of #10671: the trees decide modes.
     "a merge that also flips a base file's mode": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None, [_tree(*((p, "100755" if p == "docs/base.md" else "100644") for p in _PATHS)), _ALL]),
     "a brought file missing from the head's tree": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None, [_tree(*((p, "100644") for p in _PATHS if p != "docs/base.md")), _ALL]),
     "a truncated tree": (_REPLAY_THEN, _REPLAY_NOW, _IN_BASE, _brought([_BASE_DOC, _SHARED_BASE]), _REPLAY_BASE, None, [_ALL, _ALL | {"truncated": True}]),
@@ -1750,12 +1614,6 @@ class TheCarriedLiftIsTheGates(unittest.TestCase):
                     ],
                     js,
                 )
-        # The rule's answers: a trusted person's newest review approves a
-        # commit, or is an approval GitHub dismissed as stale (with its
-        # dismissal commit); it carries over merges of base commits alone that
-        # leave the whole net change the same (both carries), or that brought
-        # exactly the base's changes (the approval carry alone), and a stale
-        # dismissal must be by a commit the merges pushed.
         self.assertEqual(
             dict(zip(LIFT_CASES, lifts, strict=True)),
             dict.fromkeys(LIFT_CASES, [])
@@ -1793,16 +1651,12 @@ if __name__ == "__main__":
     unittest.main()
 
 
-# The owner's decision Q10 of 2026-10-28 ("go w/ recommendations"): an
-# approval of H0 carries to H1 when the diff H0...H1 touches no hold path and
-# no file a hold path loads. Each case: (changed files, configured hold paths,
-# compare overrides).
 NODE_Q10 = """
 import { CARRY_REFUSES, ungatedSince } from %s;
 let text = "";
 for await (const chunk of process.stdin) text += chunk;
 const cases = JSON.parse(text);
-console.log(JSON.stringify([CARRY_REFUSES, cases.map(([merges, holdPaths]) => ungatedSince(merges, holdPaths))]));
+console.log(JSON.stringify([CARRY_REFUSES, cases.map(([merges, holdPaths, diff]) => ungatedSince(merges, holdPaths, diff ?? null))]));
 """
 _H1 = "b" * 40
 
@@ -1817,6 +1671,8 @@ def _pushed(files: list[str], **extra: Any) -> dict[str, Any]:
     } | extra
 
 
+_docs_diff = docs_diff
+_WORKFLOW_DIFF = modified_as([".github/workflows/x.yml"])
 _SCRIPTS_DIR = "plugins/source-control/skills/babysit-prs/scripts"
 Q10_CASES = {
     "a docs-only push": ([_pushed(["docs/a.md", "plugins/work-items/README.md"]), []], True),
@@ -1831,6 +1687,11 @@ Q10_CASES = {
     "a configured hold path": ([_pushed(["docs/conventions/held.md"]), ["docs/conventions/**"]], False),
     "a rename off a gated file": ([_pushed(["docs/moved.md"]) | {"files": [{"filename": "docs/moved.md", "status": "renamed", "previous_filename": ".github/actions/request-lane-token/action.yml"}]}, []], False),
     "300 files": ([_pushed([f"docs/{i}.md" for i in range(300)]), []], False),
+    "300 files judged on a covering diff": ([_pushed([f"docs/{i}.md" for i in range(300)]), [], _docs_diff(301)], True),
+    "300 files and a diff naming fewer": ([_pushed([f"docs/{i}.md" for i in range(300)]), [], _docs_diff(299)], False),
+    "300 files and a diff that does not parse": ([_pushed([f"docs/{i}.md" for i in range(300)]), [], "not a diff"], False),
+    "a workflow the listing hides past 300": ([_pushed([f"docs/{i}.md" for i in range(300)]), [], _docs_diff(300) + _WORKFLOW_DIFF], False),
+    "a held path inside the diff past 300": ([_pushed([f"docs/{i}.md" for i in range(300)]), ["docs/7.md"], _docs_diff(301)], False),
     "a cut commit list": ([_pushed(["docs/a.md"], total_commits=251), []], False),
     "a diverged head": ([_pushed(["docs/a.md"], status="diverged", behind_by=1), []], False),
     "an unread compare": ([None, []], False),
@@ -1855,18 +1716,21 @@ class TheUngatedCarryIsTheGates(unittest.TestCase):
         )
         refuses, answers = json.loads(proc.stdout)
         self.assertEqual(tuple(refuses), policy.CARRY_REFUSES)
-        for (name, ((merges, hold_paths), expected)), js in zip(
+        for (name, ((merges, hold_paths, *diff), expected)), js in zip(
             Q10_CASES.items(), answers, strict=True
         ):
+            diff = diff[0] if diff else None
             with self.subTest(name):
                 self.assertEqual(js, expected)
-                self.assertEqual(policy.ungated_since(merges, hold_paths, floor=FLOOR), expected)
+                self.assertEqual(
+                    policy.ungated_since(merges, hold_paths, floor=FLOOR, diff=diff), expected
+                )
                 self.assertEqual(
                     policy.approval_carry(
-                        None, None, _OLD, set(), merges, None, None, None, hold_paths, floor=FLOOR),
+                        None, None, _OLD, set(), merges, None, None, None, hold_paths, floor=FLOOR,
+                        merge_diffs=[diff, None] if diff else None),
                     expected,
                 )
-        # A stale dismissal must be by a commit the push made.
         docs = _pushed(["docs/a.md"])
         self.assertTrue(
             policy.approval_carry(None, None, _OLD, set(), docs, None, _H1, None, [], floor=FLOOR)
@@ -1875,16 +1739,10 @@ class TheUngatedCarryIsTheGates(unittest.TestCase):
             policy.approval_carry(
                 None, None, _OLD, set(), docs, None, "c" * 40, None, [], floor=FLOOR)
         )
-        # No hold paths read: only the base-merge path decides.
         self.assertFalse(policy.approval_carry(None, None, _OLD, set(), docs, None, floor=FLOOR))
 
 
-# Every local file a hold-path file loads: the floor entries' JS closure and
-# the Python it runs, and each hold-path workflow's local actions (every
-# file of the action) and the scripts its steps name, with their closures.
 USES = re.compile(r"uses:\s*\./(?:\.base/)?(\.github/actions/[A-Za-z0-9_.-]+)")
-# Any repository path to a script a workflow names, from the head checkout or
-# `.base/`, whatever its directory: only a tracked file counts.
 RUNS = re.compile(
     r"(?<![\w./-])(?:\./)?(?:\.base/)?((?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)+[A-Za-z0-9_.-]+\.(?:mjs|js|sh|bash|py))"
 )
@@ -1909,8 +1767,6 @@ def loaded_closure() -> list[str]:
     for workflow in workflows:
         text = (ROOT / workflow).read_text(encoding="utf-8")
         for action in USES.findall(text):
-            # The action's own files; its tests and fixtures run in CI, not
-            # when a workflow uses it.
             for f in (ROOT / action).iterdir():
                 if f.is_file() and ".test." not in f.name:
                     name = f.relative_to(ROOT).as_posix()
@@ -1922,14 +1778,10 @@ def loaded_closure() -> list[str]:
                 files.add(script)
                 if script.endswith(".mjs"):
                     entries.add(script)
-    # import_closure's walk, where a module that reads a whole directory
-    # (`new URL("../../workflows/", import.meta.url)`) stands for a file in it.
     js: set[str] = set()
     todo = [ROOT / e for e in entries if e.endswith(".mjs")]
     while todo:
         file = todo.pop().resolve()
-        # A spec that names no file beside the module (a repository-root
-        # path in a string) loads nothing from here.
         if not file.exists():
             continue
         name = file.relative_to(ROOT).as_posix()
@@ -1943,9 +1795,6 @@ def loaded_closure() -> list[str]:
             file.parent / spec
             for spec in IMPORT.findall(file.read_text(encoding="utf-8"))
         )
-    # The Python those modules and the workflows run, as python_closure
-    # walks it, from the scripts that exist (a module's string can name an
-    # example path).
     run = [
         ROOT / p
         for n in sorted(files | js)
@@ -1980,7 +1829,6 @@ def loaded_closure() -> list[str]:
 class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
     def test_every_file_a_hold_path_loads_stops_the_carry(self) -> None:
         files = loaded_closure()
-        # The peer review's own example: babysit_postmerge.py's imports.
         for name in ("babysit_merge_policy.py", "babysit_gh.py", "babysit_util.py"):
             self.assertIn(f"{_SCRIPTS_DIR}/{name}", files)
         self.assertIn(".github/workflows/pr-require-checks.yml", files)
@@ -1996,10 +1844,127 @@ class TheCarryRefusesWhatHoldPathsLoad(unittest.TestCase):
                 self.assertFalse(policy.ungated_since(_pushed([path]), [], floor=FLOOR), path)
 
     def test_the_carry_reads_the_config_rows_from_its_floor(self) -> None:
-        # The caller's hold paths are empty, and CARRY_REFUSES does not cover
-        # this path: only `floor` holds a config row.
         path = "docs/standards/REVIEW.md"
         self.assertFalse(policy.ungated_since(_pushed([path]), [], floor=FLOOR))
         self.assertTrue(
             policy.ungated_since(_pushed([path]), [], floor=risk.floor_for())
         )
+
+
+def _capped() -> tuple[dict, str]:
+    """The listing of 300 files and diff of 301 sections that
+    `.github/scripts/pr-merge/capped-compare.fixture.mjs` builds from the
+    captured sample."""
+    fixtures = ROOT / ".github/scripts/pr-merge/fixtures"
+    sample = json.loads((fixtures / "compare-sample.json").read_text(encoding="utf-8"))
+    with (fixtures / "compare-sample.diff").open(encoding="utf-8", newline="") as text:
+        sections = re.split(r"(?m)^(?=diff --git )", text.read())[1:]
+    files, diff = [], []
+    for copy in range(300 // len(sample["files"])):
+        for entry, section in zip(sample["files"], sections, strict=False):
+            keys = [k for k in ("filename", "previous_filename") if k in entry]
+            copied = {k: entry[k] if copy == 0 else f"n{copy}/{entry[k]}" for k in keys}
+            files.append(entry | copied)
+            for k in keys:
+                section = section.replace(entry[k], copied[k])
+            diff.append(section)
+    return {"files": files}, "".join(diff) + sections[-1]
+
+
+_LISTED, _DIFF = _capped()
+_CR = _DIFF.replace("+bump: patch\n", "+bump: patch\r\n", 1)
+_CUT = "".join(re.split(r"(?m)^(?=diff --git )", _DIFF)[:-2])
+_MODE_ONLY = "diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n"
+_BINARY = "diff --git a/logo.png b/logo.png\nindex 1..2 100644\nBinary files a/logo.png and b/logo.png differ\n"
+DIFF_CASES = {
+    "the same diffs": [_DIFF, _DIFF],
+    "one changed line": [_DIFF, _DIFF.replace("+bump: patch\n", "+bump: minor\n", 1)],
+    "diffs missing a file the listing names": [_CUT, _CUT],
+    "diffs that differ by a trailing carriage return": [_DIFF, _CR],
+    "a mode change more": [_DIFF, _DIFF + _MODE_ONLY],
+    "a binary file in both": [_DIFF + _BINARY, _DIFF + _BINARY],
+    "a quoted path": [_DIFF, _DIFF + 'diff --git "a/\\303\\251" "b/\\303\\251"\n'],
+    "text before the first section": [_DIFF, "index 1..2\n" + _DIFF],
+}
+NODE_DIFF = """
+import { diffFiles, needsDiff, sameNetChange } from %s;
+let text = "";
+for await (const chunk of process.stdin) text += chunk;
+const [listed, cases] = JSON.parse(text);
+console.log(JSON.stringify(cases.map((diffs) => [diffFiles(diffs[1]), needsDiff(listed), sameNetChange(listed, listed, diffs)])));
+"""
+NODE_DIFF_CARRY = """
+import { baseMergeCarry } from %s;
+let text = "";
+for await (const chunk of process.stdin) text += chunk;
+const [[then, now, start, inBase], cases] = JSON.parse(text);
+console.log(JSON.stringify(cases.map(([diff, changed]) => baseMergeCarry(then, now, start, inBase, [diff, diff], changed ?? undefined))));
+"""
+
+
+@unittest.skipUnless(shutil.which("node"), "node not installed")
+class TheDiffNetChangeIsTheGates(unittest.TestCase):
+    def test_both_read_the_same_files_and_net_change_from_the_diffs(self) -> None:
+        proc = subprocess.run(
+            ["node", "--input-type=module", "-e", NODE_DIFF % json.dumps(MODULE.as_uri())],
+            input=json.dumps([_LISTED, list(DIFF_CASES.values())]),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        answers = json.loads(proc.stdout)
+        for (name, diffs), js in zip(DIFF_CASES.items(), answers, strict=True):
+            with self.subTest(name):
+                self.assertEqual(
+                    [
+                        policy.diff_files(diffs[1]),
+                        policy.needs_diff(_LISTED),
+                        policy.same_net_change(_LISTED, _LISTED, diffs),
+                    ],
+                    js,
+                )
+        self.assertEqual(
+            {name for name, (_, _, same) in zip(DIFF_CASES, answers, strict=True) if same},
+            {"the same diffs"},
+        )
+        self.assertFalse(policy.same_net_change(_LISTED, _LISTED), "the listing alone")
+        self.assertEqual(len(policy.diff_files(_DIFF) or []), 301)
+        one = "".join(re.split(r"(?m)^(?=diff --git )", _DIFF)[:-1])
+        files = _LISTED["files"]
+        args = (_THEN | {"files": files}, {"files": files, **_MERGED}, _OLD, set(_IN_BASE))
+        js = subprocess.run(
+            ["node", "--input-type=module", "-e", NODE_DIFF_CARRY % json.dumps(MODULE.as_uri())],
+            input=json.dumps([[args[0], args[1], _OLD, list(_IN_BASE)], [[_DIFF, 301], [one, 301], [_DIFF, None]]]),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(
+            [
+                policy.base_merge_carry(*args, [_DIFF, _DIFF], 301),
+                policy.base_merge_carry(*args, [one, one], 301),
+                policy.base_merge_carry(*args, [_DIFF, _DIFF], None),
+            ],
+            json.loads(js.stdout),
+        )
+        self.assertEqual(json.loads(js.stdout), [True, False, False])
+
+    def test_the_diff_read_keeps_carriage_returns_as_the_js_gate_does(self) -> None:
+        answers = {"T...O": _DIFF.encode(), "T...H": _CR.encode()}
+
+        def gh(args: list[str], *, binary: bool = False, **_: Any) -> Any:
+            raw = answers[args[1].rsplit("/", 1)[1]]
+            universal_newlines = raw.decode().replace("\r\n", "\n").replace("\r", "\n")
+            out = raw if binary else universal_newlines
+            return subprocess.CompletedProcess(args, 0, out, b"" if binary else "")
+
+        with mock.patch.object(policy, "gh_capture", side_effect=gh):
+            diffs = policy._cap_diffs("o", "r", ["T...O", "T...H"], [_LISTED, _LISTED])
+        self.assertEqual(diffs, [_DIFF, _CR])
+        self.assertFalse(policy.same_net_change(_LISTED, _LISTED, diffs))
+        answers["T...H"] = b"\xff"
+        with (
+            mock.patch.object(policy, "gh_capture", side_effect=gh),
+            self.assertRaises(policy.PolicyReadError),
+        ):
+            policy._cap_diffs("o", "r", ["T...O", "T...H"], [_LISTED, _LISTED])

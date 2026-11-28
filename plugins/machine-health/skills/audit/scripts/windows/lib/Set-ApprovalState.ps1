@@ -230,7 +230,6 @@ function Set-ApprovalState {
             Validate = $assertCheckIdShape
             Apply    = {
                 param($Doc)
-                # Assign inside the branch: an if expression would enumerate a JsonObject.
                 $entry = $null
                 if ($null -ne $Doc['reviewed_checks']) { $entry = $Doc['reviewed_checks'][$request.CheckId] }
                 if ($null -eq $entry) { throw "Set-ApprovalState: '$($request.CheckId)' has no review recorded in reviewed_checks." }
@@ -291,7 +290,6 @@ function Set-ApprovalState {
         throw "Set-ApprovalState: '$(Join-Path $stateDir 'approvals.lock')' is held by another writer; gave up after $LockTimeoutSeconds s."
     }
     try {
-        # Stamped once the lock is held, so a writer that waited records when its change landed.
         $now = (Get-Date).ToString('o')
         $schemaPath = Join-Path $catalogRoot "schemas\$($spec.File.Schema)"
         $jsonOptions = [System.Text.Json.JsonSerializerOptions]@{

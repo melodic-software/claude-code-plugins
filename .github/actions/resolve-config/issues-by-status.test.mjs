@@ -51,11 +51,7 @@ test("issuesByStatus reads every page, passing the cursor and since on", async (
   assert.match(calls[0].query, /issues\(states: OPEN, first: \d+, after: \$cursor, filterBy: \{ since: \$since \}\)/);
 });
 
-// Pages of 50 and 100 answered stale nested field events; pages of 25 and 30
-// did not.
 const STALE_FREE_PAGE = 30;
-// The open issues a listing must reach: 210 were open when the page size was
-// measured, so this leaves room to more than double.
 const OPEN_ISSUES_FLOOR = 500;
 
 test("a listing page holds at most the measured stale-free size, and the page cap still reaches every open issue", async () => {
@@ -105,7 +101,6 @@ test("a listing past the page cap throws rather than stopping short", async () =
   assert.equal(calls, MAX_ISSUE_PAGES);
 });
 
-// Other fields' events, newest last, as GraphQL's `last:` window keeps them.
 const sizeEvents = (count) =>
   Array.from({ length: count }, () => ({ __typename: "IssueFieldChangedEvent", createdAt: "2026-11-09T00:00:00Z", newValue: "Small", actor: { __typename: "User", login: "someone", databaseId: HUMAN_ID }, issueField: { fullDatabaseId: "15462270" } }));
 

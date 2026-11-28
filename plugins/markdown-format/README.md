@@ -12,6 +12,13 @@ It uses **your repository's own markdownlint configuration**. It ships none and 
 no rules of its own. A repository with no discoverable markdownlint config has chosen no
 Markdown style, so nothing runs there. Carrying a config **is** the opt-in.
 
+A repository whose `docs/conventions/source-control.yaml` names a `standards_repository`
+(`<owner>/<repo>`) uses that repository's `.markdownlint-cli2.jsonc`, read from a local checkout: `STANDARDS_DIR`
+when set, else `<ghq root>/github.com/<owner>/<repo>` (`git config ghq.root`, default `~/ghq`).
+It is the `--config` base, an opt-in too, and the repository's own configs merge over it
+rule by rule, so they extend or partly override it. A standards config that could run code
+(`customRules`, `markdownItPlugins`, `outputFormatters`) is never used. With no such checkout or file, only the repository's own config counts.
+
 The hooks run only this plugin's markdownlint-cli2 adapter (`git-hooks/adapters.sh`). They
 never run a command from the repository's markdown record (`docs/conventions/ecosystems/markdown.yaml`):
 `/toolchain:lint` and `/toolchain:check` run that on request, and `/markdown-format:setup check`
@@ -102,8 +109,10 @@ Two entries, each resolved per file to the adapter where a markdownlint config g
 
 - **`format`** (`git-hooks/format.sh`) refuses a partly staged Markdown file untouched, with
   `<path>: partly staged; format it or stage it fully, then commit`, then runs
-  `markdownlint-cli2 --fix` over the staged `.md` and `.mdc` files and re-stages the files it
-  rewrote. It reports no finding.
+  `markdownlint-cli2 --fix` over a copy of the staged `.md` and `.mdc` files, applies only the
+  diff hunks whose lines overlap the staged changes, and re-stages the files it rewrote. Untouched
+  lines stay byte-identical; when `--fix` would have rewritten untouched lines, it notes the
+  skipped drift on stderr and exits 0. It reports no lint finding.
 - **`lint`** (`git-hooks/lint.sh`) runs `markdownlint-cli2` without `--fix` over a copy of the
   staged content, beside links to the repository's markdownlint configs, so a config whose
   `fix` property is true cannot make it rewrite your files, and a partly staged file is checked

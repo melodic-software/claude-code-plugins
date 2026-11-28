@@ -1,5 +1,5 @@
 ---
-description: "Read-only sweep for instruction content on the wrong surface: demote always-loaded conventions that belong on one file type or subtree; promote stranded docs conventions. Safety rails are hard-denied from demotion. Use when: 'my CLAUDE.md is too long', 'convert this to rules', 'what should be a path-scoped rule', 'move conventions to .claude/rules', 'find conventions in our docs', 'nested CLAUDE.md candidates', 'audit instruction placement'. Sibling realign applies accepted findings."
+description: "Read-only sweep for misplaced instruction content: demote always-loaded conventions to file-type/subtree rules; promote stranded docs conventions (safety rails hard-denied). Use when: 'audit instruction placement', 'move conventions to .claude/rules', 'find conventions in our docs'. Not for applying findings: /instruction-placement:realign."
 argument-hint: "[core|expanded] [path ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -91,7 +91,7 @@ each with the Read tool, one file per call, never through Bash `cat`.
 
 | Read | For |
 |---|---|
-| [`../../context/routing-rubric.md`](../../context/routing-rubric.md) | The hard-deny gate, the decision ladder, glob derivation, the promote lane |
+| [`../../context/routing-rubric.md`](../../context/routing-rubric.md) | The hard-deny gate, the decision ladder, glob derivation, the promote direction |
 | [`../../context/corpus.md`](../../context/corpus.md) | What is swept, in what order, and what is never touched |
 | [`../../context/verified-mechanics.md`](../../context/verified-mechanics.md) | When each surface loads, and the three gaps that constrain every proposal |
 | [`../../context/findings-artifact.md`](../../context/findings-artifact.md) | The artifact's shape, location, and re-run merge semantics |
@@ -130,7 +130,7 @@ results into the artifact and the summary:
   `unverified` line printed, or for a drifted record its `as_of` in the list. The label changes no
   rank; it shows the operator which proposals rest on a stored quote alone.
 
-## The two lanes
+## The two directions
 
 **Demote**. Content already in the instruction layer, sitting higher than its scope warrants. The
 saving is real but so is the trade: what defers is absent until a read matches it, absent again
@@ -156,7 +156,7 @@ It emits deterministic TSV and adjudicates nothing:
 |---|---|---|
 | `FILE` | path, corpus tier, line count | Corpus accounting, and the coverage report |
 | `SECTION` | path, **start**, **end**, level, heading | Candidate boundaries and their line ranges |
-| `SIGNAL` | path, section start, normative hit count, markers | The promote lane's normative bar |
+| `SIGNAL` | path, section start, normative hit count, markers | The promote direction's normative bar |
 | `HINT` | path, section start, `ext`/`dir`/`lang`, value | Raw material for glob derivation |
 | `RULE` | path, `scoped`/`unscoped`, globs | Existing rule inventory, and re-scope candidates |
 | `SKIP` | path, reason | The honest coverage report |
@@ -192,7 +192,7 @@ validate it. An unvalidated hint is not a proposal.
 6. **Price each proposal**: what leaves the always-loaded budget, that the content is not inherited
    by a subagent and announces itself nowhere, and post-compaction behavior for that specific
    destination.
-7. **Rank**, highest value first: always-loaded lines released × confidence, with promote-lane
+7. **Rank**, highest value first: always-loaded lines released × confidence, with promote-direction
    findings ranked on value alone since they carry no downside.
 8. **Write the artifact**, then summarize inline. The artifact is the record; the summary is a view
    of it.
@@ -210,7 +210,7 @@ operator's `declined` decision must survive a re-audit.
 Before ranking, resolve the tracked suppression file `<home>/instruction-placement.yaml` across
 its layers (`<home>` is the convention home that the marked pointer region in the root `AGENTS.md`
 or `CLAUDE.md` binds, `docs/conventions` when no region binds one, not the memory-tier home the
-artifact above is written under), old paths included while they exist, and print the old-path warning for each one found
+artifact above is written under)
 ([`${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`](../../reference/consumer-config.md)
 "Layers and merge semantics"). Suppress every candidate whose `finding_id` it carries. That file is
 how a decline reaches a checkout the findings artifact never does, so a sweep that ignores it
@@ -221,20 +221,20 @@ Derive a candidate's `anchor/v1` and `finding_id` by running `detect.sh identity
 
 ```bash
 "${CLAUDE_PLUGIN_ROOT}/scripts/detect.sh" identity --file <path> --start <n> \
-  --lane demote|promote --destination <rung>
+  --direction demote|promote --destination <rung>
 ```
 
 Three obligations, none optional. **Read, never write**: `realign` composes an entry behind its
 per-item gate and nothing here does. **Report the suppressions**, each with its reason, date, and
 contributing layer, and every entry that did *not* suppress: personal-only, malformed, or outside
-this run's scope. **Exclude the surface, its layers and its old-path files**, because auditing the
+this run's scope. **Exclude the surface and its layers**, because auditing the
 file that records the decisions would make recording one perturb the next run. That exclusion is applied to the candidate
 set after the detector has run, not to the corpus: the corpus document above stays the one owner of
 what is swept, and the detector's coverage numbers keep counting every file it read.
 
 ## The content-home advisory
 
-The two lanes judge sections. One question is about a whole file: whether a `CLAUDE.md` should be
+The two directions judge sections. One question is about a whole file: whether a `CLAUDE.md` should be
 the content home at all. For each `FILE` record of a tracked file named `CLAUDE.md` in a directory
 migrate's plan covers (outside the trees `IP_EXCLUDED_TREES` in `${CLAUDE_PLUGIN_ROOT}/scripts/lib/discover.sh` names,
 `.claude/` among them), whose content is anything other than the single line `@AGENTS.md`, report
@@ -286,7 +286,7 @@ table and the two rules that keep routing from becoming silent dropping.
 - **Never move content across the user/project boundary.** User-scope surfaces are read for
   duplicate detection only.
 - **Never edit another tool's instruction files.** Cursor, Copilot, Windsurf, and Cline configs are
-  read-only sources for the promote lane.
+  read-only sources for the promote direction.
 - **Deterministic output.** Files sort lexically, findings sort by rank then identifier, no
   timestamps outside frontmatter.
 

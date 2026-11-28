@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for judge-check.sh, the judge pass's shape key and comment-only check,
-# and the judge-lib.sh functions it runs (judge::rkey, judge::comment_only).
-# Every expected value is written by hand from the rule the script states.
 # test-scope: plugins/testing/hooks/test-judge-prompt.md
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
@@ -20,14 +17,11 @@ differ() { if [[ -n "$2" && -n "$3" && "$2" != "$3" ]]; then pass "$1"; else fai
 
 TMP="$(mktemp -d)"
 trap 'rm -rf -- "$TMP"' EXIT
-# A TMPDIR inside a work tree would put the no-repository fixture in one.
 export GIT_CEILING_DIRECTORIES="$TMP"
 REPO="$TMP/repo"
 mkdir -p "$REPO/a" "$REPO/b" "$REPO/c" "$TMP/norepo"
 git -C "$REPO" init -q
 
-# cs_test <path> <test name> [extra first line]: an xUnit file whose one test
-# spans lines 4-7, or 5-8 with the extra first line.
 cs_test() {
   {
     [[ -z "${3:-}" ]] || printf '%s\n' "$3"
@@ -64,8 +58,6 @@ same "a range past the end of the file has no key" "$(bash "$CHECK" shape sonnet
 cs_test "$TMP/norepo/CalcTests.cs" Adds_one
 same "a file in no repository has no key" "$(bash "$CHECK" shape sonnet medium "$TMP/norepo/CalcTests.cs" 1 4-7 Adds_one)" ""
 
-# --- comment-only ------------------------------------------------------------
-# diff_of <file> <changed copy>: a unified diff with a/ and b/ labels.
 diff_of() { diff -u --label "a/${1#"$REPO"/}" --label "b/${1#"$REPO"/}" "$1" "$2" >"$TMP/d.diff"; }
 F="$REPO/a/CalcTests.cs"
 awk 'NR == 6 { print "        // the expected value is from the spec" } { print }' "$F" >"$TMP/mod"

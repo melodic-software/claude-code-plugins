@@ -11,7 +11,6 @@ const REVIEW = join(TESTS, "../skills/write-css/scripts/review.mjs");
 const FIX = join(TESTS, "fixtures/review");
 const at = (name) => join(FIX, name);
 
-/** Runs review.mjs; returns exit status, stdout split into its `## ` sections, and stderr. */
 function review(args) {
   const r = spawnSync(process.execPath, [REVIEW, ...args], { encoding: "utf8" });
   const sections = {};
@@ -22,7 +21,6 @@ function review(args) {
   }
   return { status: r.status, stdout: r.stdout, stderr: r.stderr, sections };
 }
-/** `line [rule]` pairs from a section's `path:line [rule] message` entries for one file. */
 const hits = (entries, file) =>
   entries
     .filter((entry) => entry.startsWith(`${file}:`))

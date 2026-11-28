@@ -1,4 +1,4 @@
-# Every hygiene gate the CI jobs lint-repo, lint-shell, check-plugins and
+# Every hygiene gate the CI jobs lint-repo, lint-repo-tree, lint-shell, check-plugins and
 # check-skills feed to the aggregator, and how scripts/check-affected.sh covers it.
 #
 #   <gate> run <runner check>     the runner runs it, under that check name
@@ -56,6 +56,7 @@ changelog-fragments-release ci-only release pull request only, scripts/check-cha
 vendor-version-bump ci-only scripts/check-vendor-version-bump.sh --check-bump <base>
 portability-lint ci-only scripts/check-skill-portability.sh <base>
 cant-fail-scan ci-only scripts/check-cant-fail-scan.sh <base>
+git-hook-time-budget ci-only scripts/check-git-hook-time-budget.sh --base <base>
 evals-quality ci-only bash plugins/skill-quality/scripts/check-evals-quality.sh <eval sets>
 eval-cases ci-only python3 plugins/evals/skills/validate/scripts/validate-cases.py <plugin eval dir>
 listing-budget-configured ci-only whole-repo scanner, bash plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills
@@ -75,6 +76,7 @@ detector-findings-crosswalk ci-only whole-repo scanner, scripts/check-detector-f
 discriminating-test-skips ci-only whole-repo scanner, scripts/check-discriminating-test-skips.sh
 docs-naming ci-only whole-repo scanner, scripts/check-docs-naming.sh --check
 docs-only-contract ci-only whole-repo scanner, scripts/check-docs-only-gate.sh --check
+engineering-concepts ci-only whole-repo scanner, scripts/check-engineering-concepts.sh --check
 exec-form-windows-probe ci-only whole-repo scanner, scripts/check-exec-form-windows-probe.sh
 fixture-git-isolation ci-only whole-repo scanner, scripts/check-fixture-git-isolation.sh --check
 fleet-audit-doc-grammar ci-only whole-repo scanner, scripts/check-fleet-audit-doc-grammar.sh --check
@@ -85,6 +87,7 @@ hook-wiring-liveness ci-only whole-repo scanner, scripts/check-hook-wiring-liven
 hooks-description ci-only whole-repo scanner, scripts/check-hooks-description.sh
 killswitch-hoist ci-only whole-repo scanner, scripts/check-killswitch-hoist.sh
 lane-coverage ci-only whole-repo scanner, scripts/check-lane-coverage.sh --check
+lifecycle-map ci-only whole-repo scanner, scripts/check-lifecycle-map.sh --check
 line-citations ci-only whole-repo scanner, python3 scripts/check-line-citations.py
 loop-lane-floor-drift ci-only whole-repo scanner, scripts/check-loop-lane-floor-drift.sh --check
 manifest-duplicate-keys ci-only whole-repo scanner, python3 scripts/check-manifest-duplicate-keys.py

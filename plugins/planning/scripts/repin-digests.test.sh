@@ -1,16 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/planning/skills/*
-# repin-digests.sh computes the digest pins of interview-defenses.test.sh from the files alone
-# and runs nothing from the test file's checkout:
-#   - on a copy of the plugin, every real pin already matches what it computes, so it agrees
-#     with the test on all five pin kinds;
-#   - after a guarded section and a fixture change in that copy, it re-pins both and the
-#     copy's own test passes;
-#   - a planted test file that writes a marker file when run is never run, an argument that
-#     would run a command is refused, and so is a pin that reads a file outside the plugin.
-#
 # test-scope: plugins/planning/scripts/repin-digests.sh
-# test-scope: plugins/planning/scripts/lib/pin-digests.sh
+# test-scope: plugins/planning/scripts/lib/pin-digests.sh plugins/planning/scripts/lib/check-sweep.sh
 # test-scope: plugins/planning/tests/interview-defenses.test.sh
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,19 +19,17 @@ sha_of() {
 }
 STALE="$(printf '%064d' 7)"
 
-# No terminal on stdin, as a lane runs it, from a checkout: here, the work directory.
 run_sut() { (cd "$WORK" && bash "$SUT" "$@" </dev/null 2>&1); }
 
-# --- a copy of the plugin: every real pin already matches --------------------------------
 copy="$WORK/plugin"
 mkdir -p "$copy/scripts" "$copy/tests"
 cp -R "$PLUGIN/skills" "$copy/skills"
 cp -R "$PLUGIN/scripts/lib" "$copy/scripts/lib"
+cp "$PLUGIN/scripts/check-round-codes.sh" "$copy/scripts/"
 cp "$PLUGIN/tests/interview-defenses.test.sh" "$copy/tests/"
 real="$copy/tests/interview-defenses.test.sh"
 cp "$real" "$WORK/real.before"
 
-# Each pin's call line, backslashes and the trailing continuation dropped, names it alone.
 pins=()
 while IFS= read -r line; do
   pins+=("$line")
@@ -61,7 +50,6 @@ else
 fi
 if cmp -s "$WORK/real.before" "$real"; then ok "every real pin: file unchanged"; else fail "the real test copy changed on a no-op"; fi
 
-# --- a changed section and fixture in the copy: re-pinned, and the copy's test passes ------
 skill="$copy/skills/interview/SKILL.md"
 awk '{ print } $0 == "## Gates" { print "An added line inside the Gates section." }' "$skill" >"$WORK/skill.md" && cat "$WORK/skill.md" >"$skill"
 fixture="$copy/skills/interview/evals/fixtures/lock-stop-on-gap/task-context.md"
@@ -77,7 +65,6 @@ else
 fi
 if bash "$real" >/dev/null 2>&1; then ok "the copy's test passes after the re-pin"; else fail "the copy's test still fails after the re-pin"; fi
 
-# --- a planted test file is read, never run ------------------------------------------------
 fake="$WORK/fake"
 mkdir -p "$fake/tests" "$fake/data"
 printf 'alpha\n' >"$fake/data/alpha.txt"
@@ -117,7 +104,6 @@ for label in 'behind a command substitution' 'behind a backtick' 'a file outside
   if [[ $rc -eq 4 ]]; then ok "$label: refused with exit 4"; else fail "$label: expected exit 4, got $rc: $out"; fi
 done
 if cmp -s "$WORK/fake.before" "$t"; then ok "refused pins changed nothing"; else fail "the planted file changed on a refusal"; fi
-# A test file whose plugin directory is above the checkout is refused before any pin is read.
 cp "$t" "$WORK/top.test.sh"
 out="$(run_sut --test-file "$WORK/top.test.sh" 'through a variable' 'unused')"
 rc=$?

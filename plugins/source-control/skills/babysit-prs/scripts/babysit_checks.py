@@ -30,9 +30,6 @@ CHECK_FAILURE_STATES = {
     "TIMED_OUT",
 }
 CHECK_SUCCESS_STATES = {"NEUTRAL", "SKIPPED", "SUCCESS"}
-# Documentation of GitHub's pending vocabulary rather than a lookup table:
-# `check_category` treats every state that is neither failing nor success as
-# pending, so adding a value here does not change any classification.
 CHECK_PENDING_STATES = {
     "EXPECTED",
     "IN_PROGRESS",
@@ -48,8 +45,6 @@ def check_category(state: str) -> str:
         return "failing"
     if state in CHECK_SUCCESS_STATES:
         return "success"
-    # Pending, empty, and any state GitHub adds later all land here: an
-    # unrecognized state must never read as success or failure.
     return "pending"
 
 
@@ -78,18 +73,12 @@ def normalize_check(check: dict[str, Any]) -> dict[str, Any]:
         or check.get("createdAt")
         or ""
     )
-    # Inception timestamp for stuck-check aging -- distinct from `_sort_key`,
-    # which prefers `completedAt` for latest-wins dedupe. Here we want when the
-    # check began, so a still-running/queued check can be aged against the
-    # snapshot's `generated_at`. gh's `statusCheckRollup` exposes `startedAt`
-    # on a CheckRun (no `createdAt`) and `createdAt` on a StatusContext:
+    # statusCheckRollup gives a CheckRun `startedAt` (no `createdAt`) and a StatusContext `createdAt`:
     # https://docs.github.com/en/graphql/reference/checks#checkrun
     created_at = str(check.get("startedAt") or check.get("createdAt") or "")
 
     return {
         "name": name,
-        # The check run's own id: GraphQL `databaseId`, which `rest_check_rollup`
-        # fills from REST; `gh pr view --json statusCheckRollup` omits it.
         "id": str(check.get("databaseId") or ""),
         "type": typename,
         "category": check_category(effective_state),
@@ -202,9 +191,6 @@ def classify_checks(status_rollup: Any) -> dict[str, Any]:
             if is_json_object(check)
         ]
     )
-    # The name list and the identity list of each bucket are two views of the
-    # SAME filtered checks; deriving both from one filter keeps them from
-    # drifting out of index-for-index correspondence.
     failing_checks = [check for check in checks if check["category"] == "failing"]
     pending_checks = [check for check in checks if check["category"] == "pending"]
 
@@ -223,10 +209,6 @@ def classify_checks(status_rollup: Any) -> dict[str, Any]:
 
 
 APPROVAL_HELD = "awaiting_approval"
-# The conclusion GitHub gives a run or check that needs a person to act before
-# it proceeds: a workflow run held for maintainer approval (a first-time or
-# outside contributor's fork PR, or a run GitHub flagged as potentially
-# malicious) or a check run requesting a manual action.
 APPROVAL_HELD_STATES = frozenset({"ACTION_REQUIRED"})
 
 
@@ -256,7 +238,6 @@ STUCK_NEVER_SETTLING = "never_settling"
 
 
 def _check_age_seconds(check: dict[str, Any], observed: Any) -> float | None:
-    """Age of one normalized check at snapshot time, or None if unknowable."""
     if observed is None:
         return None
     created = parse_timestamp(check.get("created_at"))
@@ -311,10 +292,7 @@ def classify_stuck_checks(
             continue
         age = _check_age_seconds(check, observed)
         aged_out = age is not None and age >= age_threshold_seconds
-        if (
-            check.get("type") == "StatusContext"
-            and not check.get("target_url")
-        ):
+        if check.get("type") == "StatusContext" and not check.get("target_url"):
             stuck_class = STUCK_ORPHANED_STATUS
         elif (
             check.get("type") == "CheckRun"

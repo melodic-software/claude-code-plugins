@@ -22,7 +22,6 @@ function loadEmbeddedAssets(buildDir) {
       const raw = fsSync.readFileSync(path.resolve(buildDir, logoPath), "utf-8");
       providerLogoSvg[slug] = raw.replace(/<title>[^<]*<\/title>/, "");
     } catch {
-      /* missing logo — render text-only header */
     }
   }
 

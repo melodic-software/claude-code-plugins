@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "13.14.0",
+  "version": "16.0.1",
   "license": "MIT",
   "keywords": [
     "git",
@@ -292,7 +292,7 @@
     "owner_decisions_record": {
       "type": "string",
       "title": "Owner decisions record",
-      "description": "The record whose line links clear a cost hold, as <owner>/<repo>/<path>. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: no decision clears a cost hold."
+      "description": "Optional record whose line links must accompany a cost decision, as <owner>/<repo>/<path>. User or managed settings only; nothing in a repository supplies it, so a pull request cannot widen it. Absent: no row link is required; only the verbatim owner quote is checked."
     },
     "free_runner_labels": {
       "type": "string",

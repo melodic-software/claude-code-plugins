@@ -1,12 +1,5 @@
 #!/usr/bin/env bash
-# Regression tests for glob-tools.sh (self-contained — no external test lib).
-#
-# Every case runs against a deterministic throwaway git fixture under mktemp, so
-# the tracked-file universe is known exactly and match counts are assertable.
-#
 # fixture-isolation-scope: this suite builds git fixtures and clears the
-# inherited git environment itself rather than sourcing a harness, so the plugin
-# stays self-contained and portable outside this marketplace.
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -41,15 +34,11 @@ fixture_repo() {
 
 run() { bash "$SCRIPT" "$@" 2>&1; }
 
-# The pattern travels through ENVIRON, not `awk -v`: a -v assignment processes
-# escapes, so gawk rewrites `\[` and the match silently returns nothing.
 row_field() {
   IP_ROW_PAT="$2" awk -F'\t' -v f="$3" \
     '$1=="PATTERN" && $3==ENVIRON["IP_ROW_PAT"] {print $f}' <<<"$1"
 }
 
-# Asserted as a COUNT: which of a rule's globs trips a shared budget is not part
-# of the contract, only that the rule trips it and a separate rule does not.
 over_budget_rows() {
   printf '%s\n' "$1" | awk -F'\t' '$1=="PATTERN" && $6=="over-budget"' | grep -c . || true
 }
@@ -119,7 +108,6 @@ out="$(run validate --root "$repo_nested" --glob '{a,b}/{c,d}/*.ts')"
 assert_eq "nested brace groups multiply to four patterns" "4" "$(row_field "$out" '{a,b}/{c,d}/*.ts' 4)"
 assert_eq "nested brace groups match only their cartesian product" "4" "$(row_field "$out" '{a,b}/{c,d}/*.ts' 5)"
 
-# 2^10 = 1024 expansions, past the documented 1,000-pattern budget.
 bomb='{a,b}/{c,d}/{e,f}/{g,h}/{i,j}/{k,l}/{m,n}/{o,p}/{q,r}/{s,t}/*.ts'
 out="$(run validate --root "$repo" --glob "$bomb")"
 assert_eq "a pattern past the brace budget is over-budget" "over-budget" "$(row_field "$out" "$bomb" 6)"
@@ -211,7 +199,6 @@ EOF
 commit_all "$rules_repo" rules
 
 out="$(run rules --root "$rules_repo")"
-# `*.ts` must not match `b.tsx` — the extension boundary is anchored.
 assert_eq "block-sequence paths are extracted" "1" "$(row_field "$out" 'src/**/*.ts' 5)"
 assert_eq "quoted single-quote entries are extracted" "1" "$(row_field "$out" 'src/**/*.tsx' 5)"
 assert_eq "inline flow-sequence paths are extracted" "1" "$(row_field "$out" 'docs/**/*.md' 5)"

@@ -1,6 +1,6 @@
 ---
-description: "Mid-session retro checkpoint: a subagent files findings from the transcript so far into a running ledger, never applied; `arm` runs it after the session ends. Use when: 'running retro', 'watch this session in the background', or on a /loop."
-argument-hint: "[topic|arm]"
+description: "Mid-session retro checkpoint: a subagent files findings from the transcript so far into a running ledger, never applied. Use when: 'running retro', 'checkpoint this session', or on a /loop."
+argument-hint: "[topic]"
 user-invocable: true
 disable-model-invocation: false
 ---

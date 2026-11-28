@@ -289,6 +289,8 @@ class AuditSuiteTests(unittest.TestCase):
                 report["no_deterministic_trigger"][0]["route"], "/evals:design"
             )
 
+            self.assertEqual(report["counts"]["multi_skill_trigger_only"], 0)
+
             self.assertEqual(report["counts"]["judged_without_samples"], 3)
             self.assertEqual(
                 [(i["case"], i["grader"], i["type"]) for i in report["judged_without_samples"]],
@@ -333,6 +335,7 @@ class AuditSuiteTests(unittest.TestCase):
                 for key in (
                     "no_case",
                     "no_deterministic_trigger",
+                    "multi_skill_trigger_only",
                     "legacy_only",
                     "no_should_not_fire",
                 )
@@ -470,8 +473,74 @@ class AuditSuiteTests(unittest.TestCase):
                 ["alpha:two"],
             )
             self.assertEqual(
+                [item["skill"] for item in report["multi_skill_trigger_only"]],
+                ["alpha:one"],
+            )
+            self.assertEqual(
                 [item["skill"] for item in report["no_should_not_fire"]],
                 ["alpha:one", "alpha:two"],
+            )
+
+    def test_alternation_grader_is_not_single_skill_coverage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            plugin = Path(tmp) / "multi"
+            write_file(
+                plugin / ".claude-plugin" / "plugin.json",
+                json.dumps({"name": "multi"}) + "\n",
+            )
+            for skill in ("pinned", "both", "only-alt", "mixed", "other"):
+                write_file(
+                    plugin / "skills" / skill / "SKILL.md",
+                    f"---\ndescription: {skill}\n---\n",
+                )
+
+            def write_case(name, skill, patterns):
+                write_file(
+                    plugin / "evals" / name / "prompt.md",
+                    f"---\ntags: [{skill}]\n---\n\nRun {skill}.\n",
+                )
+                for index, pattern in enumerate(patterns):
+                    write_file(
+                        plugin / "evals" / name / "graders" / f"fired-{index}.md",
+                        f"---\ntype: tool_used\ntool: Skill\ninput_match: '{pattern}'\n---\n",
+                    )
+
+            single = '"skill"\\s*:\\s*"(?:multi:)?%s"'
+            alternation = '"skill"\\s*:\\s*"(?:multi:)?(?:%s|other)"'
+            write_case("pinned-fire", "pinned", [single % "pinned"])
+            write_case("both-fire", "both", [alternation % "both", single % "both"])
+            write_case("alt-fire", "only-alt", [alternation % "only-alt"])
+            write_case(
+                "mixed-fire",
+                "mixed",
+                ['"skill":"multi:mixed"|' + alternation % "pinned"],
+            )
+
+            run = run_audit(str(plugin), "--json")
+            self.assertEqual(run.returncode, 0, run.stderr)
+            report = json.loads(run.stdout)
+            self.assertEqual(
+                [item["skill"] for item in report["no_case"]], ["multi:other"]
+            )
+            self.assertEqual(report["counts"]["no_deterministic_trigger"], 0)
+            self.assertEqual(report["no_deterministic_trigger"], [])
+            self.assertEqual(report["counts"]["multi_skill_trigger_only"], 2)
+            self.assertEqual(
+                report["multi_skill_trigger_only"],
+                [
+                    {"skill": "multi:mixed", "route": "/evals:design"},
+                    {"skill": "multi:only-alt", "route": "/evals:design"},
+                ],
+            )
+
+            text_run = run_audit(str(plugin))
+            self.assertEqual(text_run.returncode, 0, text_run.stderr)
+            self.assertIn(
+                "skills with no deterministic triggering case: 0\n"
+                "skills covered only by a multi-skill grader: 2\n"
+                "  multi:mixed [/evals:design]\n"
+                "  multi:only-alt [/evals:design]\n",
+                text_run.stdout,
             )
 
     def test_unconstrained_skill_grader_is_not_trigger_coverage(self):

@@ -5,9 +5,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/audit-fleet.sh"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-mkdir "$TMP/plan-tmp" && export TMPDIR="$TMP/plan-tmp" # default plan files (mktemp) land inside the cleaned dir
-# A case naming no --config reads $HOME/.claude/repo-fleet-hygiene.conf, so the operator's own fleet
-# config would add its roots to that run: assertions then read its findings and discovery walks them.
+mkdir "$TMP/plan-tmp" && export TMPDIR="$TMP/plan-tmp"
 mkdir "$TMP/suite-home" && export HOME="$TMP/suite-home"
 unset CLAUDE_CONFIG_DIR CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT CLAUDE_PROJECT_DIR
 
@@ -31,32 +29,13 @@ mkdir -p "$MOCK_BIN" "$TMP/config" "$TMP/discovered-a" "$TMP/canonical-a" "$TMP/
   "$TMP/prefix-fail" "$TMP/prefix-auth/.git" \
   "$TMP/bare-live/.git" "$TMP/bare-live-link" \
   "$TMP/bare-pure/objects" "$TMP/bare-pure/refs"
-# skip-root/keep/visible-repo/.git/modules/nested-decoy/.git: a repo-shaped decoy buried in a
-# discovered repository's .git tree. Two independent mechanisms keep it out of the report — the
-# nested-repository early return, and should_skip_dir_name's unconditional .git arm — so no case
-# here can isolate either one (#2844). It is not inert coverage — drop the early return and skip
-# cases go red, in two variants. Drop it together with .git from BOTH the unconditional arm and the
-# default list: the three replace-semantics cases go red, the default-list case still passes.
-# Drop it with .git removed from the arm ONLY: those three plus the default-list case go red, since
-# the shipped default (node_modules vendor .venv) carries no .git of its own. That is what defense
-# in depth buys.
-# bare-live: core.bare=true with checkout debris (and a linked worktree). Not a work tree, but an
-# administrative anomaly the collector must classify rather than reject (#2602 / #2656).
 : >"$TMP/bare-live/README"
 : >"$TMP/bare-live/.gitignore"
-# bare-pure: conventional `git init --bare` shape (HEAD/config/objects/refs at the repository
-# root, no in-tree .git). Administrative entries must not count as working-tree content (#2602).
 : >"$TMP/bare-pure/HEAD"
 : >"$TMP/bare-pure/config"
 : >"$TMP/bare-pure/description"
-# Canonical-selection fixture: a LINKED worktree whose directory name sorts before its own main
-# worktree under LC_ALL=C, so bounded discovery reaches it first. A linked worktree carries .git as
-# a FILE, the main worktree as a DIRECTORY; both resolve to the same --git-common-dir, so whichever
-# the glob reaches first wins the dedup. The canonical checkout must not be decided by that order.
 : >"$TMP/wt-root/aaa-linked/.git"
 : >"$TMP/wt-root/bbb-linked/.git"
-# Admin-directory shapes. A submodule and a --separate-git-dir checkout both carry a .git FILE, so
-# both reach the retarget path, which must refuse to adopt an administrative directory as canonical.
 : >"$TMP/wt-admin/sub-wt/.git"
 : >"$TMP/wt-admin/sep-wt/.git"
 : >"$TMP/calls.log"
@@ -785,12 +764,6 @@ EOF
 
 output="$TMP/output.txt"
 PLAN_FILE="$TMP/action-plan.json"
-# This run asserts the UNCONFIGURED worktree-root path, so it must not see the operator's own
-# source-control worktree_root. The collector reads that key from
-# $CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT, then $CLAUDE_CONFIG_DIR/settings.json, then
-# $HOME/.claude/settings.json; on a machine that has it set the run reports a configured root and
-# the unconfigured placement and header cases fail against a real user setting rather than a defect.
-# The conformance fixtures below already isolate HOME for the same reason.
 mkdir -p "$TMP/unconfigured-home"
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 HOME="$TMP/unconfigured-home" \
   env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
@@ -798,8 +771,6 @@ REPO_FLEET_TEST_FAST_TIMEOUTS=1 HOME="$TMP/unconfigured-home" \
 
 failures=0
 
-# The file-taking forms are the general ones. The two-argument forms are the
-# common case, asserting against the main report captured in $output.
 assert_contains_file() {
   local label="$1" pattern="$2" file="$3"
   if ! grep -Fq -- "$pattern" "$file"; then
@@ -823,9 +794,6 @@ assert_not_contains_file() {
 assert_contains() { assert_contains_file "$1" "$2" "$output"; }
 assert_not_contains() { assert_not_contains_file "$1" "$2" "$output"; }
 
-# Host capability probes. Under MSYS without winsymlinks `ln -s` COPIES its target instead of
-# linking it, so a case that needs a real symlink asserts against an ordinary directory and
-# reports a product defect that does not exist. Probe the round trip rather than the OS name.
 host_makes_symlinks() {
   local dir rc=1
   dir="$TMP/symlink-capability-probe"
@@ -840,8 +808,6 @@ host_makes_symlinks() {
   return "$rc"
 }
 
-# Same shape for the permission bits: uid 0 traverses a `chmod a-rx` directory regardless, and
-# MSYS maps chmod onto the Windows read-only attribute, which never denies the owner either.
 host_denies_owner_traversal() {
   local dir rc=1
   dir="$TMP/permission-capability-probe"
@@ -865,13 +831,6 @@ assert_contains "linked worktrees hand off to source-control status" "Finding: w
 assert_not_contains "retired porcelain reclaimable-worktree" "Finding: reclaimable-worktree"
 assert_not_contains "retired disposability-unverifiable" "Finding: worktree-disposability-unverifiable"
 assert_contains "worktree nested in its own repository is reported" "Finding: worktree-nested-in-repository"
-# The `--porcelain -z` stream separates registrations with an empty field AND ends on one, and the
-# collector appends its own status sentinel behind a further separator, so the parse loop reaches
-# its flush point with no `worktree ` line pending more than once per repository. A flush that does
-# not require a path turns each of those into a registration whose path is the empty string, which
-# the classifier then reports as a missing-worktree finding against an empty target and promotes
-# into the action plan. Nothing else in this suite observes that: every other worktree assertion
-# names a path, so a phantom with no path satisfies all of them.
 if grep -q '^Target: *$' "$output"; then
   printf 'FAIL: a porcelain record separator became a worktree registration with an empty target\n' >&2
   failures=$((failures + 1))
@@ -892,15 +851,9 @@ assert_contains "and it says root-ness is unproven rather than disproven" \
   "git rev-parse --show-prefix failed at the registered path"
 assert_contains "not-a-root finding says why the probe reads clean" \
   "probing it reports the containing repository's state at exit 0"
-# The two are distinct conditions, not one collapsed into the other: the nested worktree IS a real
-# work-tree root, so it must not also be reported as not-a-root, and the husk stops before the
-# placement test because a path that is not a worktree has no placement to judge. Asserted on the
-# Target lines WITHIN each finding block — a whole-file match would be satisfied by the other
-# finding's block and prove nothing.
 assert_kind_targets() {
   local label="$1" kind="$2" wanted="$3" forbidden="$4" targets
   targets="$(grep -A2 -F "Finding: $kind" "$output" | grep -F "Target: " || true)"
-  # Detail layout prints Target before Finding; also accept Target on preceding lines.
   if [[ -z "$targets" ]]; then
     targets="$(grep -B3 -F "Finding: $kind" "$output" | grep -F "Target: " || true)"
   fi
@@ -915,8 +868,6 @@ assert_kind_targets "not-a-root names the husk and not the nested worktree" \
   worktree-not-a-root "canonical-a/husk" "worktrees/nested"
 assert_kind_targets "nested names the nested worktree and not the husk" \
   worktree-nested-in-repository "worktrees/nested" "canonical-a/husk"
-# Status handoff names reliable-admin linked paths (including a former status-fail sibling) and
-# excludes the admin-mismatched registration — disposability is delegated, not porcelain-gated.
 status_handoff_evidence="$(grep -B2 -A8 -F "Finding: worktree-status-handoff" "$output" | grep -F 'Evidence:')"
 if [[ "$status_handoff_evidence" == *"$TMP/wt-a"* &&
   "$status_handoff_evidence" == *"$TMP/wt-status-fail"* &&
@@ -930,24 +881,15 @@ fi
 assert_contains "moved repository detected" "Target: origin (old/repo -> new/repo)"
 assert_contains "moved-remote finding states analysis continues" \
   "branch and worktree analysis continues against that resolved identity"
-# #2600: github-remote-moved must not silent-skip local classification. The resolved identity
-# (new/repo) supplies merge evidence for both an attached worktree branch and an unattached local.
 assert_kind_targets "moved-remote still emits merged-worktree on resolved identity" \
   merged-worktree "old-repo :: feature/moved-merged" "new-clone"
 assert_kind_targets "moved-remote still emits merged-local-branch on resolved identity" \
   merged-local-branch "old-repo :: feature/moved-local" "new-clone"
 
-# F2: exact-OID merged evidence on a PROTECTED branch must be reported, not discarded.
-# Neither the merged-worktree arm (needs a non-main worktree) nor the
-# merged-local-branch arm (needs protected=false) accepts a main-worktree-attached
-# branch, so before the else arm existed the collector's strongest evidence produced
-# no finding at all -- while the weaker merged-pr-tip-drift, which carries no
-# protection guard, still emitted. Silence read as "nothing merged".
 assert_contains "protected branch with exact-OID merge evidence is reported" \
   "Finding: merged-protected-branch"
 assert_contains "merged-protected-branch names the protection reason" \
   "attached to the main worktree"
-# The protection rule is unchanged: it must never become a cleanup candidate.
 if grep -Fq "Run /repo-hygiene:clean git" < <(grep -A6 -F "Finding: merged-protected-branch" "$output"); then
   printf 'FAIL: merged-protected-branch must not route to branch cleanup\n' >&2
   failures=$((failures + 1))
@@ -955,7 +897,6 @@ else
   printf 'PASS: merged-protected-branch does not route to branch cleanup\n'
 fi
 
-# #2607: remote heads that still exist after a MERGED PR are a distinct finding from local cleanup.
 assert_contains "merged remote-tracking head is reported" "Finding: merged-remote-branch"
 assert_kind_targets "remote-only merged head is reported without a local branch" \
   merged-remote-branch "canonical-a :: origin/feature/remote-only" "stale/changed"
@@ -969,7 +910,6 @@ assert_contains "merged-remote-branch names delete_branch_on_merge as complement
   "Enabling GitHub delete_branch_on_merge is complementary"
 assert_kind_targets "moved-remote still emits merged-remote-branch on resolved identity" \
   merged-remote-branch "old-repo :: origin/feature/moved-local" "new-clone"
-# ls-remote proof → HIGH; empty ls-remote (auto-deleted upstream) → no finding; probe fail → MEDIUM.
 if grep -Fq "Confidence: HIGH" < <(grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/remote-only" "$output"); then
   printf 'PASS: ls-remote-confirmed merged-remote-branch is HIGH\n'
 else
@@ -987,7 +927,6 @@ else
 fi
 assert_contains "MEDIUM evidence names unverified remote existence" \
   "current remote existence could not be verified (ls-remote failed)"
-# #5220: remote branch families are reported from the last-fetched inventory; no deletion preview.
 assert_kind_targets "remote-only pre-wipe branch gets a family row" \
   remote-branch-family "canonical-a :: origin/pre-wipe/x" "scratch/other"
 assert_kind_targets "agent-hex remote branch gets a family row" \
@@ -1008,7 +947,6 @@ else
 fi
 assert_kind_targets "a merged-remote-branch finding does not also get a family row" \
   remote-branch-family "canonical-a :: origin/agent-1a2b3c" "origin/feature/remote-only"
-# #5220: tip differs from headRefOid but is an ancestor of it and the head object is local.
 if grep -Fq "Confidence: MEDIUM" < <(grep -A6 -F "Target: $TMP/canonical-a :: origin/feature/ancestor-ok" "$output"); then
   printf 'PASS: ancestor-of-merged-head tip is merged-remote-branch MEDIUM\n'
 else
@@ -1019,7 +957,6 @@ assert_contains "ancestor finding states its reason" "tip is an ancestor of the 
 assert_not_contains "missing head object gives no ancestor finding" "origin/feature/ancestor-missing"
 assert_not_contains "mixed ls-remote results do not emit fleet unavailable" \
   "Finding: ls-remote-fleet-unavailable"
-# #4211: when every live probe fails, only the fleet-level UNKNOWN remains; per-repo MEDIUM rows are withheld.
 all_fail_out="$TMP/ls-remote-all-fail.txt"
 FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
   HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
@@ -1043,10 +980,6 @@ fi
 all_fail_medium_rows="$(grep -c -F 'Confidence: MEDIUM' "$all_fail_out")"
 assert_contains_file "all-fail tally drops the withheld MEDIUM rows" \
   " medium=$all_fail_medium_rows " "$all_fail_out"
-# #4211: the live probe keeps global transport config, so a global url.*.insteadOf that only
-# rewrites the transport for the same repository still confirms HIGH; one that points the remote
-# at another repository cannot stand in for the pinned remote, so every probe counts as a failure
-# and only the fleet finding remains.
 instead_of_out="$TMP/instead-of.txt"
 for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewhere.git|withheld'; do
   FAKE_GLOBAL_INSTEADOF="${rewrite%|*}" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
@@ -1069,8 +1002,6 @@ for rewrite in 'git@github.com:acme/repo-a.git|HIGH' 'git@github.com:evil/elsewh
   fi
 done
 
-# Remote heads with no merged PR: never-pr and closed-unmerged are gated deletion candidates at the
-# live tip; drifted, open, merged, truncated, unverifiable, gone, protected, and gap heads are not.
 unmerged_out="$TMP/unmerged-remote.txt"
 unmerged_plan="$TMP/unmerged-plan.json"
 MOCK_UNMERGED_REMOTE=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
@@ -1117,8 +1048,6 @@ assert_contains_file "null any-state payload is an evidence gap, never never-pr"
   "returned no PR count for one or more remote heads" "$unmerged_out"
 assert_contains_file "remote-branch handoff names the gated apply path" \
   "apply-plan.sh gets --apply --remote-branches in an interactive terminal, one confirmation per branch" "$unmerged_out"
-# MSYS_NO_PATHCONV keeps Git Bash from rewriting the expected canonical path, which the plan holds as
-# bash sees it, so a native python on Windows is handed the plan file in native form instead.
 unmerged_plan_arg="$unmerged_plan"
 if [[ "$(uname -s)" =~ ^(MINGW|MSYS|CYGWIN) ]]; then unmerged_plan_arg="$(cygpath -m -- "$unmerged_plan")"; fi
 if MSYS_NO_PATHCONV=1 python3 - "$unmerged_plan_arg" "$TMP/canonical-a" <<'PY'; then
@@ -1149,7 +1078,6 @@ else
   printf 'FAIL: apply-plan preview renders each remote branch with its class and expected tip\n' >&2
   failures=$((failures + 1))
 fi
-# The apply verb accepts the plan this audit wrote and, without its opt-in flag, skips every remote row.
 apply_remote_out="$TMP/apply-remote-rows.txt"
 apply_remote_rc=0
 bash "$SCRIPT_DIR/../../apply/scripts/apply-plan.sh" --plan-file "$unmerged_plan" >"$apply_remote_out" 2>&1 ||
@@ -1163,7 +1091,6 @@ else
   cat "$apply_remote_out" >&2
   failures=$((failures + 1))
 fi
-# Every ls-remote failing leaves no remote candidate and no per-repository unverified row.
 unmerged_fail_out="$TMP/unmerged-all-fail.txt"
 MOCK_UNMERGED_REMOTE=1 FAKE_LS_REMOTE_ALWAYS_FAIL=1 REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
   HOME="$TMP/unconfigured-home" env -u CLAUDE_CONFIG_DIR -u CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT \
@@ -1179,7 +1106,6 @@ fi
 if [[ "$status_handoff_evidence" == *"$TMP/wt-old"* ]]; then
   printf 'PASS: moved-remote worktree still named for status handoff\n'
 else
-  # wt-old may appear in a separate status-handoff block; re-scan all evidence lines.
   if grep -Fq "$TMP/wt-old" < <(grep -A5 -F "Finding: worktree-status-handoff" "$output" | grep -F 'Evidence:'); then
     printf 'PASS: moved-remote worktree still named for status handoff\n'
   else
@@ -1199,8 +1125,6 @@ assert_not_contains "failed worktree inventory suppressed branch candidate" "Tar
 assert_not_contains "partial branch inventory suppressed branch candidate" "Target: $TMP/ref-fail :: feature/partial"
 assert_contains "failed repositories not counted successful" "Summary: repositories_audited=12"
 
-# Duplicate detection keys on the CANONICALIZED identity: old-repo (remote still says old/repo,
-# resolved to new/repo) must pair with new-clone (cloned from new/repo directly).
 if grep -Fq "$TMP/old-repo" < <(grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:") &&
   grep -Fq "$TMP/new-clone" < <(grep -A6 -F "Finding: duplicate-checkout" "$output" | grep -F "Evidence:"); then
   printf 'PASS: moved-remote checkout pairs with fresh clone via canonical identity\n'
@@ -1209,17 +1133,11 @@ else
   failures=$((failures + 1))
 fi
 
-# Stale CONFIG-sourced entries degrade per-entry (deleted-repo, gone-root) and the run continues;
-# a CLI-supplied bad path must still hard-fail (checked in a separate run below).
 assert_contains "stale config repo degrades per-entry" "Finding: stale-config-entry"
-# The script may canonicalize CONFIG_DIR (e.g. /tmp -> its symlink target on Git Bash), so match
-# the stable config-relative suffix rather than the $TMP prefix.
 assert_contains "stale config repo names the path" "config/../deleted-repo"
 assert_contains "stale config root names the path" "config/../gone-root"
 assert_contains "stale root reason names fleet.root" "configured fleet.root path is not a directory"
 
-# Duplicate checkouts of one identity (repo-b + dup-a) get ONE LOW informational finding listing
-# both paths; a single-checkout identity gets none.
 if grep -Fq "Confidence: LOW" < <(grep -A3 -F "Finding: duplicate-checkout" "$output"); then
   printf 'PASS: duplicate-checkout stays LOW\n'
 else
@@ -1242,23 +1160,17 @@ fi
 assert_contains "per-root discovered count for a contributing root" "../root: 1 repositories"
 assert_contains "zero-contribution root stays visible in the header" "../emptyroot: 0 repositories"
 
-# GraphQL merge evidence (#2604) queries every non-default local branch by exact headRefName,
-# including branches absent from remote-tracking inventory. The retired privacy-gate and REST
-# window findings must not appear. Empty remote inventory (repo-b) and failed remote inventory
-# (rref-fail) still must not abort the fleet under set -u.
 assert_not_contains "retired merge-evidence-privacy-gated is not emitted" \
   "Finding: merge-evidence-privacy-gated"
 assert_not_contains "retired merged-pr-window-truncated is not emitted" \
   "Finding: merged-pr-window-truncated"
 assert_contains "failed remote-ref scan reported repo-wide" "Finding: remote-branch-inventory-unavailable"
-# Local-only branch still reaches GraphQL (name appears in an aliased query).
 if grep -E "gh api graphql .*feature/mismatch" "$CALL_LOG" >/dev/null; then
   printf 'PASS: local-only branch queried via GraphQL headRefName\n'
 else
   printf 'FAIL: local-only branch queried via GraphQL headRefName\n' >&2
   failures=$((failures + 1))
 fi
-# Exactness: feature/auth must not inherit feature/auth-v2's merged PR.
 if grep -Fq "Finding: merged-local-branch" < <(grep -B2 -A6 -Fx "Target: $TMP/prefix-auth :: feature/auth-v2" "$output"); then
   printf 'PASS: exact headRefName merge for feature/auth-v2\n'
 else
@@ -1272,9 +1184,6 @@ else
   printf 'PASS: feature/auth does not inherit feature/auth-v2 merge evidence\n'
 fi
 
-# Drift push-state evidence: stale/changed has a same-named remote-tracking ref at the SAME OID
-# (pushed as of last fetch); stale/gone has a drift-batch row but NO remote-tracking ref — that
-# absence must not be framed as "never pushed" (#2603).
 assert_contains "pushed drift named in evidence" \
   "current local tip is drift-tip; local tip matches the last-fetched remote-tracking ref (pushed as of the last fetch; verify current remote state before relying on recoverability)"
 assert_contains "absent remote-tracking tip named without unpushed claim" \
@@ -1282,10 +1191,8 @@ assert_contains "absent remote-tracking tip named without unpushed claim" \
 assert_not_contains "tip-drift evidence never claims unpushed without proof" \
   "may never have been pushed"
 
-# Header names the authenticated gh account; a failed login probe degrades to the plain line.
 assert_contains "header names gh account" "GitHub evidence: available (account: test-login)"
 
-# Clean repos say so explicitly instead of ending the section without a marker.
 if grep -Fq "Findings: none" < <(grep -A30 -F "Repo: $TMP/root/acme/root-repo" "$output"); then
   printf 'PASS: clean repo emits explicit Findings: none marker\n'
 else
@@ -1299,9 +1206,6 @@ else
   printf 'PASS: finding-bearing repo does not emit Findings: none\n'
 fi
 
-# fleet.ackUnavailable: 404 on an acked identity (mixed-case config entry) is
-# demoted to ACKNOWLEDGED; an unacked 404 stays UNKNOWN; a non-404 failure on
-# an acked identity stays UNKNOWN with its real reason.
 if grep -Fq "Confidence: ACKNOWLEDGED" < <(grep -A5 -F "Target: github.com/gone/away" "$output"); then
   printf 'PASS: acked 404 demoted to ACKNOWLEDGED\n'
 else
@@ -1349,10 +1253,6 @@ else
   printf 'PASS: control-bearing path stayed within one encoded field\n'
 fi
 
-# display_value renders raw only well-formed printable UTF-8 (#4208). The invalid --canonical error
-# echoes its operand through display_value before any Git probe, so each case pins the exact line.
-# Every rendering is checked under C and, when the host has one, a UTF-8 operator locale: the
-# verdict must not follow the caller's locale.
 display_locales=(C)
 display_utf8_locale="$(grep -Ei -m1 '^(C|en_US)\.utf-?8$' < <(locale -a 2>/dev/null) || true)"
 [[ -n "$display_utf8_locale" ]] && display_locales+=("$display_utf8_locale")
@@ -1373,8 +1273,6 @@ assert_display_value() {
 assert_display_value "em dash renders raw" $'em\xe2\x80\x94dash' \
   $'invalid --canonical value: em\xe2\x80\x94dash'
 # spellchecker:off
-# café (U+00E9) and U+1F600 stay $'...' byte escapes so the fixture stays ASCII.
-# typos splits on the backslash and would read the ASCII prefix as "calf".
 assert_display_value "accented text and a 4-byte character render raw" $'caf\xc3\xa9 \xf0\x9f\x98\x80' \
   $'invalid --canonical value: caf\xc3\xa9 \xf0\x9f\x98\x80'
 # spellchecker:on
@@ -1401,8 +1299,6 @@ assert_display_value "LRM U+200E is escaped" $'lrm\xe2\x80\x8ex' \
 assert_display_value "ALM U+061C is escaped" $'alm\xd8\x9cx' \
   "\$'invalid --canonical value: alm\\330\\234x'"
 
-# Config resolution ladder: explicit --config > project-scoped > user-global > none,
-# with the consumed source named in the report header.
 assert_contains "explicit config named in header" "(explicit --config)"
 
 mkdir -p "$TMP/proj/.claude" "$TMP/iso/1/2/3/noconf" "$TMP/homeg/.claude" "$TMP/nohome"
@@ -1431,8 +1327,6 @@ else
   failures=$((failures + 1))
 fi
 
-# No-config no-CLI run: project directory is NOT an implicit --repo (#2599). State none consumed
-# via an explicit one-repo scope so the header path still exercises Config: none.
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
   bash "$SCRIPT" --repo "$TMP/discovered-a" >"$ladder_out"
 if grep -Fq -- "Config: none" "$ladder_out"; then
@@ -1442,8 +1336,6 @@ else
   failures=$((failures + 1))
 fi
 
-# An ALL-stale config must still complete and render its stale-config-entry findings -- the
-# remediation detail matters most exactly when every entry is gone.
 cat >"$TMP/stale-only.conf" <<'STALEONLY'
 [fleet]
     repo = ./no-such-dir-anywhere
@@ -1458,8 +1350,6 @@ else
   failures=$((failures + 1))
 fi
 
-# No CLI scope and no config: stop with scope remedies. Do not treat the project directory as an
-# exact --repo (the old default that made a fleet tool audit one incidental checkout) (#2599).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
   CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
   bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/iso/1/2/3/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
@@ -1472,7 +1362,6 @@ else
   failures=$((failures + 1))
 fi
 
-# ...and it must name the remedy, including the bare-path form.
 if grep -Fq -- "--root <dir>" "$ladder_out" && grep -Fq -- "--repo <dir>" "$ladder_out" &&
   grep -Fq -- "--config <file>" "$ladder_out" && grep -Fq "bare path" "$ladder_out" &&
   grep -Fq "repo-fleet-hygiene:setup apply" "$ladder_out"; then
@@ -1482,7 +1371,6 @@ else
   failures=$((failures + 1))
 fi
 
-# A Git project directory still does not become scope without config or CLI paths (#2599).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 REPO_FLEET_GHQ_BIN=/nonexistent \
   CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
   bash -c 'cd "$1" && exec bash "$2"' _ "$TMP/iso/1/2/3/noconf" "$SCRIPT" >"$ladder_out" 2>&1; then
@@ -1505,8 +1393,6 @@ else
   failures=$((failures + 1))
 fi
 
-# A consumed config without any fleet.root/fleet.repo (e.g. only maxDepth) does not fall back to
-# the project directory; the remedy names the consumed config and directs scope INTO it.
 cat >"$TMP/scopeless.conf" <<'SCOPELESS'
 [fleet]
     maxDepth = 5
@@ -1528,8 +1414,6 @@ else
   failures=$((failures + 1))
 fi
 
-# The guidance belongs to the unresolved no-scope case only: an explicitly supplied bad path is a
-# typo, and the operator already knows how to pass a scope -- they just did.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/iso/1/2/3/noconf" >"$ladder_out" 2>&1; then
   printf 'FAIL: explicit --repo on a non-Git dir did not hard-fail\n' >&2
   failures=$((failures + 1))
@@ -1540,10 +1424,6 @@ else
   failures=$((failures + 1))
 fi
 
-# core.bare=true with working-tree content / linked worktrees is an administrative anomaly, not a
-# silent omission and not a run abort (#2602 / #2656). Explicit --repo must emit the finding and
-# continue so a companion repository is still audited. --detail surfaces Finding:/Handoff lines
-# (default output is rollup kind counts only).
 bare_out="$TMP/bare-live-out.txt"
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/bare-live" --repo "$TMP/repo-b" \
   --detail >"$bare_out" 2>&1; then
@@ -1562,7 +1442,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Discovery under --root must classify the same anomaly rather than aborting before the report.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/bare-live" --repo "$TMP/repo-b" \
   --detail >"$bare_out" 2>&1 &&
   grep -Fq "Finding: bare-repo-with-working-tree" "$bare_out" &&
@@ -1573,8 +1452,6 @@ else
   failures=$((failures + 1))
 fi
 
-# A .git marker that is not a working tree under --root is a discovery-skip, not a run abort
-# (#4207). uv writes a zero-byte .git into its sdists cache; git answers "invalid gitfile format".
 mkdir -p "$TMP/husk-root/packages/uv/sdists-v9" "$TMP/husk-root/repo-b/.git"
 : >"$TMP/husk-root/packages/uv/sdists-v9/.git"
 husk_out="$TMP/husk-root-out.txt"
@@ -1600,7 +1477,6 @@ else
   printf 'FAIL: a discovery-skip alone does not block the fleet\n%s\n' "$(cat "$husk_out")" >&2
   failures=$((failures + 1))
 fi
-# The operator named this path directly, so the typo-stops-the-run rule still holds.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/husk-root/packages/uv/sdists-v9" \
   >"$husk_out" 2>&1; then
   printf 'FAIL: explicit --repo on a non-working-tree .git marker did not hard-fail\n' >&2
@@ -1612,7 +1488,6 @@ else
   failures=$((failures + 1))
 fi
 
-# A pure bare hub (no checkout debris, no linked worktrees) is still not this finding.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/bare-pure" >"$bare_out" 2>&1; then
   printf 'FAIL: pure bare hub unexpectedly succeeded\n' >&2
   failures=$((failures + 1))
@@ -1625,7 +1500,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Bare path ≡ --root (#2599). Scope attributes bare paths to the root count (#2710).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" "$TMP/root" >"$ladder_out" 2>&1 &&
   grep -Fq "Repo: $TMP/root/acme/root-repo" "$ladder_out" &&
   grep -Fq "Scope: command line (1 --root/bare-path)" "$ladder_out"; then
@@ -1635,7 +1509,6 @@ else
   failures=$((failures + 1))
 fi
 
-# A discovery root with no repositories reports zero found rather than erroring (#2599).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" "$TMP/emptyroot" >"$ladder_out" 2>&1 &&
   grep -Fq "Repositories discovered (audit targets after deduplication): 0" "$ladder_out" &&
   grep -Fq "Root $TMP/emptyroot: 0 repositories" "$ladder_out"; then
@@ -1645,7 +1518,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Drive-letter shorthand normalizes to drive-root form before the missing-root check.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" "Z:" >"$ladder_out" 2>&1; then
   printf 'FAIL: bare drive letter unexpectedly succeeded\n' >&2
   failures=$((failures + 1))
@@ -1656,7 +1528,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Dashed unknowns stay rejected; bare paths are the only new positional form.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --bogus-flag >"$ladder_out" 2>&1; then
   printf 'FAIL: unknown dashed argument did not hard-fail\n' >&2
   failures=$((failures + 1))
@@ -1667,7 +1538,6 @@ else
   failures=$((failures + 1))
 fi
 
-# A CLI-supplied bad path is a typo, not config drift: the run must still hard-fail.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/never-existed" >"$ladder_out" 2>&1; then
   printf 'FAIL: CLI-supplied missing repo did not hard-fail\n' >&2
   failures=$((failures + 1))
@@ -1678,7 +1548,6 @@ else
   failures=$((failures + 1))
 fi
 
-# A failed authenticated-login probe must degrade the header to the plain line, never block.
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 MOCK_GH_USER_FAIL=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
   bash "$SCRIPT" --repo "$TMP/discovered-a" >"$ladder_out"
 if grep -Fq -- "GitHub evidence: available" "$ladder_out" && ! grep -Fq -- "(account:" "$ladder_out"; then
@@ -1688,11 +1557,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Canonical selection must not be decided by discovery order. wt-root holds a linked worktree
-# (aaa-linked) that sorts before its own main worktree (zzz-canonical) under LC_ALL=C, so the glob
-# reaches the linked one first and both map to the same --git-common-dir dedup key. Every emitted
-# handoff carries the canonical path, so picking the worktree would aim per-repository cleanup at a
-# checkout that is not the repository of record.
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
   bash "$SCRIPT" --root "$TMP/wt-root" --detail >"$ladder_out" 2>&1
 if grep -Fq "Canonical: $TMP/wt-root/zzz-canonical" "$ladder_out"; then
@@ -1707,25 +1571,18 @@ if grep -Fq "Canonical: $TMP/wt-root/aaa-linked" "$ladder_out"; then
 else
   printf 'PASS: no linked worktree reported as a canonical checkout\n'
 fi
-# The two directories are one repository: dedup by common dir must still collapse them to a single
-# discovered target, so the fix cannot be a duplicate-target regression in disguise.
 if grep -Fq "Repositories discovered (audit targets after deduplication): 1" "$ladder_out"; then
   printf 'PASS: linked worktree and main worktree collapse to one discovered repository\n'
 else
   printf 'FAIL: linked worktree and main worktree collapse to one discovered repository\n' >&2
   failures=$((failures + 1))
 fi
-# Scope provenance is computed, not asserted: this run's scope came from a CLI --root, so the header
-# must say so rather than printing the old fixed "current-project scope" literal that contradicted
-# the run's own inputs two lines later. --root and --repo counts stay distinct (#2710).
 if grep -Fq "Scope: command line (1 --root/bare-path)" "$ladder_out"; then
   printf 'PASS: header attributes scope to the command line when --root supplied it\n'
 else
   printf 'FAIL: header attributes scope to the command line when --root supplied it\n' >&2
   failures=$((failures + 1))
 fi
-# --repo-only and mixed CLI scope must not collapse into one ambiguous --root/--repo total (#2710).
-# Use a separate capture file so later assertions against the wt-root ladder_out stay intact.
 scope_out="$TMP/scope-provenance.out"
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
   bash "$SCRIPT" --repo "$TMP/discovered-a" >"$scope_out" 2>&1
@@ -1744,10 +1601,6 @@ else
   failures=$((failures + 1))
 fi
 assert_not_contains_file "no false current-project scope claim" "current-project scope" "$ladder_out"
-# Retargeting a supplied/discovered path to the repository of record is a substitution the operator
-# did not ask for, so it must be stated rather than silently applied. wt-root holds TWO linked
-# worktrees of one repository: the disclosure must be ONE line naming both sources, because a line
-# per retargeted path would read as two repositories against the "discovered: 1" count above.
 if grep -Fq "Resolved to main worktree: $TMP/wt-root/zzz-canonical (reached via $TMP/wt-root/aaa-linked, $TMP/wt-root/bbb-linked)" "$ladder_out"; then
   printf 'PASS: retarget is disclosed once per repository, naming every source path\n'
 else
@@ -1761,11 +1614,6 @@ else
   failures=$((failures + 1))
 fi
 
-# The porcelain's first record is NOT always a checkout. A submodule reports the superproject's
-# .git/modules/<name>, and --separate-git-dir reports the detached git directory; both carry a .git
-# FILE, so both reach the retarget. Adopting either would aim every handoff INSIDE another
-# repository's administrative directory -- the harm the retarget exists to prevent, reintroduced by
-# the retarget itself. Each must keep its own working tree and emit no retarget line.
 admin_out="$TMP/wt-admin-out.txt"
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
   bash "$SCRIPT" --root "$TMP/wt-admin" >"$admin_out" 2>&1
@@ -1780,10 +1628,6 @@ for admin_case in "sub-wt:sub-admin:submodule" "sep-wt:sep-gitdir:separate-git-d
     printf 'FAIL: %s keeps its own working tree as the audited repository\n' "$admin_label" >&2
     failures=$((failures + 1))
   fi
-  # The administrative directory legitimately appears as a registered-worktree FINDING -- the
-  # porcelain really does register it, and reporting registrations is the collector's job. What must
-  # never happen is it becoming the audited repository or a handoff destination, because that is what
-  # sends a cleanup tool inside another repository's .git.
   if grep -Eq "^(Repo|Canonical): $(printf '%s' "$TMP/wt-admin/$admin_dir" | sed 's/[][\\.*^$/]/\\&/g')$" "$admin_out" ||
     grep -Fq "in $TMP/wt-admin/$admin_dir" "$admin_out"; then
     printf 'FAIL: %s administrative directory became a canonical path or handoff target\n' "$admin_label" >&2
@@ -1795,9 +1639,6 @@ done
 assert_not_contains_file "no retarget claimed for an administrative directory" \
   "Resolved to main worktree:" "$admin_out"
 
-# --project-dir is the primary #1798 fix path: CLAUDE_PROJECT_DIR is NOT in the Bash tool's
-# environment, so the argument is the only rung that works in the real invocation. Every other
-# ladder assertion supplies it as an env var, which would stay green if the argument were deleted.
 projarg_out="$TMP/projarg.txt"
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 HOME="$TMP/nohome" \
   env -u CLAUDE_PROJECT_DIR bash "$SCRIPT" --project-dir "$TMP/proj" >"$projarg_out" 2>&1
@@ -1807,7 +1648,6 @@ else
   printf 'FAIL: --project-dir argument reaches the project config rung with no env var set\n' >&2
   failures=$((failures + 1))
 fi
-# The argument is what the skill body substitutes, so it must win over a stale inherited env value.
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/iso/1/2/3/noconf" HOME="$TMP/nohome" \
   bash "$SCRIPT" --project-dir "$TMP/proj" >"$projarg_out" 2>&1
 if grep -Fq -- "repo-fleet-hygiene.conf (project)" "$projarg_out"; then
@@ -1817,10 +1657,6 @@ else
   failures=$((failures + 1))
 fi
 
-# An empty CLI scope value is skipped by the discovery loops, so accepting it would let the header's
-# computed scope count claim an argument that contributed nothing. It must stop the run instead.
-# Its own output file: the surrounding assertions all read $ladder_out from the wt-root run above,
-# and reusing it here would silently invalidate whichever of them follows.
 scope_out="$TMP/scope-arg.txt"
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "" --root "$TMP/wt-root" >"$scope_out" 2>&1; then
   printf 'FAIL: an empty --root value did not hard-fail\n' >&2
@@ -1831,9 +1667,6 @@ else
   printf 'FAIL: an empty --root value hard-fails (wrong error)\n' >&2
   failures=$((failures + 1))
 fi
-# GraphQL answers per-branch by exact headRefName, so a repository with deep merged history still
-# surfaces an old merge for a local branch (wt-canon feature/linked) without a truncation finding.
-# Dedicated capture: later auth-fail reuse of $ladder_out must not erase this evidence.
 deep_out="$TMP/deep-history.txt"
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
   bash "$SCRIPT" --root "$TMP/wt-root" --detail >"$deep_out" 2>&1
@@ -1848,9 +1681,6 @@ else
   failures=$((failures + 1))
 fi
 
-# gh unavailable/unauthenticated: the skill promises the audit continues with GitHub evidence marked
-# UNKNOWN rather than aborting or inferring a negative. Never exercised before, though it is the
-# degradation a machine without gh hits on its very first run.
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 MOCK_GH_AUTH_FAIL=1 CLAUDE_PROJECT_DIR="$TMP/discovered-a" HOME="$TMP/nohome" \
   bash "$SCRIPT" --root "$TMP/wt-root" --detail >"$ladder_out" 2>&1
 if grep -Fq "GitHub evidence: unavailable" "$ladder_out" &&
@@ -1863,10 +1693,6 @@ fi
 assert_not_contains_file "no merged claim without GitHub evidence" "Finding: merged-local-branch" "$ladder_out"
 assert_not_contains_file "no merged-remote claim without GitHub evidence" "Finding: merged-remote-branch" "$ladder_out"
 
-# --- #2606 worktree-root conformance ------------------------------------------
-# Separate fixture so the main fleet run stays on the unset-root path. Configured
-# root comes from the legacy alias (mocked); linked worktrees cover conforming,
-# outside-root, wrong-layout, rename-after-create (still conforming), and Codex tool-owned.
 mkdir -p "$TMP/conform-root" \
   "$TMP/conform-canon/.git" \
   "$TMP/conform-root/acme-conform-feature-ok/.git" \
@@ -1920,7 +1746,6 @@ assert_contains_file "fleet conformance summary" \
   "Finding: worktree-root-conformance-summary" "$conform_out"
 assert_contains_file "fleet summary counts outside/wrong-layout" \
   "2 of 5 linked worktrees are outside the configured root or wrong layout" "$conform_out"
-# Conforming path must not be flagged outside or wrong-layout.
 conform_outside_targets="$(grep -A2 -F 'Finding: worktree-outside-configured-root' "$conform_out" | grep -F 'Target: ' || true)"
 if [[ "$conform_outside_targets" == *acme-conform-feature-ok* ]]; then
   printf 'FAIL: conforming worktree incorrectly flagged outside-root\n' >&2
@@ -1928,7 +1753,6 @@ if [[ "$conform_outside_targets" == *acme-conform-feature-ok* ]]; then
 else
   printf 'PASS: conforming worktree is not flagged outside-root\n'
 fi
-# CONFORM_RENAME: create-shaped dirname with a renamed branch must stay conforming.
 conform_wrong_targets="$(grep -A2 -F 'Finding: worktree-wrong-layout' "$conform_out" | grep -F 'Target: ' || true)"
 if [[ "$conform_wrong_targets" == *acme-conform-feature-old* ]]; then
   printf 'FAIL: renamed-branch create-shaped path incorrectly flagged wrong-layout\n' >&2
@@ -1941,8 +1765,6 @@ assert_contains_file "renamed-branch path counted conforming" \
 assert_not_contains_file "configured-root run does not claim unconfigured" \
   "Finding: worktree-root-unconfigured" "$conform_out"
 
-# CONFORM_NO_ORIGIN: sole non-origin GitHub remote must not invent <owner>-<repo>- layout;
-# worktree-create uses <checkout-basename>-<slug> when origin is absent.
 mkdir -p "$TMP/no-origin-canon/.git" \
   "$TMP/conform-root/no-origin-canon-feature-ok/.git"
 no_origin_out="$TMP/no-origin-conform-output.txt"
@@ -1961,9 +1783,6 @@ assert_not_contains_file "no-origin layout does not expect upstream owner/repo p
 assert_contains_file "no-origin path counted conforming" \
   "1 conforming, 0 outside/wrong-layout, 0 tool-owned of 1 linked" "$no_origin_out"
 
-# #4212: a repository whose includeIf sets its own root is classified against that root, not the
-# fleet default taken from the first target. conform-canon resolves $TMP/other-root first, so the
-# pre-fix collector judged no-origin-canon's correctly placed worktree against it.
 per_repo_out="$TMP/per-repo-root-output.txt"
 MOCK_WORKTREEROOT_PATH="$TMP/other-root" MOCK_WORKTREEROOT_PATH_FOR="no-origin-canon=$TMP/conform-root" \
   REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
@@ -1986,12 +1805,6 @@ assert_contains_file "fleet summary lists the repository that used its own root"
 assert_not_contains_file "a repository on the fleet default root is not listed as an override" \
   "$TMP/conform-canon uses" "$per_repo_out"
 
-# This fixture is the only one that puts TWO findings on a single target, so it
-# is the only place the detail and JSON emitters' dedupe is exercised at all. A
-# dedupe that stops suppressing duplicates emits the target's whole block twice;
-# nothing else in this suite notices, because every other count still matches.
-# The match must be whole-line: the roll-up prints the same path with a
-# " (N linked)" suffix, which a substring match would count as a second block.
 no_origin_target_blocks=$(grep -cxF "Target: $TMP/no-origin-canon" "$no_origin_out" || true)
 if [[ "$no_origin_target_blocks" == "1" ]]; then
   printf 'PASS: a target carrying two findings is emitted once, not once per finding\n'
@@ -2001,9 +1814,6 @@ else
   failures=$((failures + 1))
 fi
 
-# #4212: each canonical checkout is classified against its own worktreeroot.path. conform-canon
-# resolves conform-root; no-origin-canon resolves split-root (an includeIf override) and its one
-# worktree sits there. Before the fix the first target's root classified both repositories.
 mkdir -p "$TMP/split-root/no-origin-canon-feature-ok/.git"
 split_out="$TMP/split-root-output.txt"
 MOCK_WORKTREEROOT_BY_REPO="conform-canon=$TMP/conform-root no-origin-canon=$TMP/split-root" \
@@ -2024,7 +1834,6 @@ assert_contains_file "fleet summary counts both repositories against their own r
 assert_contains_file "fleet summary groups by resolved root" \
   "$TMP/conform-root (1 repository), $TMP/split-root (1 repository)" "$split_out"
 
-# The remedy for a genuinely misplaced worktree names that repository's root, not the fleet's.
 split_misplaced_out="$TMP/split-root-misplaced-output.txt"
 MOCK_WORKTREEROOT_BY_REPO="conform-canon=$TMP/conform-root no-origin-canon=$TMP/split-root" \
   REPO_FLEET_TEST_FAST_TIMEOUTS=1 CLAUDE_PROJECT_DIR="$TMP/conform-canon" HOME="$TMP/fake-home" \
@@ -2034,8 +1843,6 @@ assert_contains_file "misplaced worktree remedy names its own repository root" \
 assert_not_contains_file "misplaced worktree remedy does not borrow the first target's root" \
   "Recreate at $TMP/conform-root/no-origin-canon-feature-ok" "$split_misplaced_out"
 
-# A repository with no key of its own falls back to source-control worktree_root, never to a
-# root another target resolved through its own includeIf.
 split_fallback_out="$TMP/split-root-fallback-output.txt"
 MOCK_WORKTREEROOT_BY_REPO="conform-canon=$TMP/split-root" \
   CLAUDE_PLUGIN_OPTION_WORKTREE_ROOT="$TMP/conform-root" \
@@ -2046,7 +1853,6 @@ assert_contains_file "repository without its own key uses the fallback root" \
 assert_not_contains_file "repository without its own key does not borrow another target's root" \
   "Recreate at $TMP/split-root/no-origin-canon-feature-ok" "$split_fallback_out"
 
-# Fallback to source-control pluginConfigs when melodic key is absent.
 mkdir -p "$TMP/settings-home/.claude"
 cat >"$TMP/settings-home/.claude/settings.json" <<EOF
 {
@@ -2069,7 +1875,6 @@ assert_contains_file "pluginConfigs worktree_root is used when git key unset" \
 assert_contains_file "pluginConfigs origin names settings.json" \
   "settings.json" "$plugin_out"
 
-# Convention-git allowlist: only the fixed worktree-root shapes are admitted.
 # shellcheck source=audit-fleet.sh
 source "$SCRIPT"
 conv_ok=true
@@ -2098,26 +1903,16 @@ else
   failures=$((failures + 1))
 fi
 
-# The tier table is the contract a consumer tiers decisions on, and it silently fell to covering
-# half the emitted kinds. Assert set equality in BOTH directions instead: a registered kind with no
-# documented disposition fails here, and so does a table row for a kind the collector no longer
-# registers. The collector side comes from its own registry (--print-finding-registry), never from
-# a regex over this file's source -- comparing two hand-maintained lists would reproduce the drift
-# this replaces, and a scrape goes quietly empty when the emitter's argument shape changes.
 MODEL_DOC="$SCRIPT_DIR/../reference/confidence-model.md"
 registry_rows="$TMP/finding-registry.tsv"
 emitted_kinds="$TMP/emitted-kinds.txt"
 documented_kinds="$TMP/documented-kinds.txt"
 bash "$SCRIPT" --print-finding-registry >"$registry_rows" 2>/dev/null
 awk -F'\t' 'NF > 0 && $1 != "" {print $1}' "$registry_rows" | sort -u >"$emitted_kinds"
-# Table rows only: a kind is the first backticked cell of a row, so prose mentions elsewhere in the
-# document cannot satisfy the contract. The delimiter is built with printf rather than written
-# literally, so no quoting style has to carry a bare backtick through grep and sed.
 bt="$(printf '\140')"
 grep -E "^\| ${bt}[a-z-]+${bt} \|" "$MODEL_DOC" | sed -e "s/^| ${bt}//" -e "s/${bt} |.*//" | sort -u >"$documented_kinds"
 emitted_count="$(grep -c . "$emitted_kinds" || true)"
 documented_count="$(grep -c . "$documented_kinds" || true)"
-# Guard against an extraction that silently matches nothing and compares two empty sets.
 if [[ "$emitted_count" -lt 20 || "$documented_count" -lt 20 ]]; then
   printf 'FAIL: finding-kind extraction returned too few kinds (registered=%s documented=%s); the extraction, not the docs, is broken\n' \
     "$emitted_count" "$documented_count" >&2
@@ -2130,12 +1925,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Row-for-row confidence parity. Set equality above proves every kind has a row; this proves the
-# row says the same tier the collector will actually stamp on the finding. The doc's Confidence
-# cell is prose (a kind whose tier depends on the evidence names both tiers and says when each
-# applies), so compare the SET of tier tokens in that cell against the set the registry declares.
-# Only real tier tokens count: the same cell also backticks non-tier names such as
-# fleet.ackUnavailable.
 conf_mismatches=0
 conf_compared=0
 while IFS=$'\t' read -r reg_kind reg_conf _rest; do
@@ -2172,17 +1961,6 @@ else
   failures=$((failures + 1))
 fi
 
-# --- In-process classifier cases ----------------------------------------------
-# classify_worktrees and classify_branches read the collector's evidence arrays and emit findings;
-# every Git and gh call sits in the collection phase ahead of them. A finding kind they own is
-# therefore reachable from a case that assigns those arrays, and needs no fixture in the mock fleet
-# above. Both probe wrappers are replaced with loud stubs AFTER sourcing, so a classifier that
-# reached for git prints PROBE LEAK instead of quietly working.
-#
-# Sourcing stops at the collector's source guard, which is why the classifiers and the pure path
-# helpers they use sit above it. The report renderer is past the guard, so it is extracted the same
-# way repo_verdict is below: the assertions then read the report lines the audit itself prints,
-# rather than a second rendering written for the test.
 classifier_probe() {
   bash -c '
     . "$1" || exit 1
@@ -2235,7 +2013,6 @@ assert_contains_file "common-dir-unavailable does not claim an administrative mi
   "Disposition: Do not infer an administrative mismatch" "$wt_classify_out"
 assert_contains_file "a healthy linked registration hands off to source-control status" \
   "Finding: worktree-status-handoff" "$wt_classify_out"
-# A locked worktree is manual review, never a disposability handoff: the lock is the operator's.
 assert_not_contains_file "the locked registration is not named for status handoff" \
   "/wt/acme-repo-locked (feature/locked); this collector" "$wt_classify_out"
 
@@ -2267,20 +2044,15 @@ assert_contains_file "a failed ancestry probe is local-ancestry-unavailable" \
   "Finding: local-ancestry-unavailable" "$branch_classify_out"
 assert_contains_file "the failed-probe evidence carries the status git returned" \
   "git merge-base --is-ancestor failed with status 128" "$branch_classify_out"
-# Exit 1 is a definite "not an ancestor": evidence, and no finding to draw from it.
 assert_not_contains_file "a diverged branch yields no ancestry finding" \
   "Target: /fleet/repo :: feature/diverged" "$branch_classify_out"
-# An unprobed branch (protected, attached, or already carrying merge evidence) has an empty
-# ancestry slot, and an empty slot must never read as exit 0.
 assert_not_contains_file "an unprobed branch yields no ancestry finding" \
   "Target: /fleet/repo :: main" "$branch_classify_out"
 
-# --- #2608 / #2609 rollup + fleet action plan ---------------------------------
 assert_contains "rollup section present" "Repository rollup"
 assert_contains "fleet action plan present" "Fleet action plan"
 assert_contains "one-gate confirmation model" "ONE gate for this entire plan"
 assert_contains "branch-before-worktree order rule" "delete/clean branches before pruning worktrees"
-# A Windows host prints the plan path in native form (to_native_file_path); elsewhere it is unchanged.
 plan_file_shown="$PLAN_FILE"
 if [[ "$(uname -s)" =~ ^(MINGW|MSYS|CYGWIN) ]]; then plan_file_shown="$(cygpath -m -- "$PLAN_FILE")"; fi
 assert_contains "action plan path named" "Action plan: $plan_file_shown"
@@ -2317,7 +2089,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Default (no --detail) fits the rollup contract: no per-finding enumeration, but verdicts present.
 rollup_out="$TMP/rollup-only.txt"
 rollup_plan="$TMP/rollup-plan.json"
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --repo "$TMP/repo-b" --plan-file "$rollup_plan" >"$rollup_out" 2>&1 || true
@@ -2329,7 +2100,6 @@ else
   failures=$((failures + 1))
 fi
 
-# --apply-plan dry-run: one ordered approval artifact, no mutation verbs beyond the plan text.
 apply_out="$TMP/apply-plan-out.txt"
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --apply-plan "$PLAN_FILE" >"$apply_out" 2>&1 || true
 if grep -Fq "apply-plan dry-run (no mutations)" "$apply_out" &&
@@ -2341,7 +2111,6 @@ else
   failures=$((failures + 1))
 fi
 
-# UTF-8 paths must survive json_escape intact (not byte-wise \u00XX mojibake).
 utf8_sample=$'répô'
 utf8_escaped="$(
   bash -c '
@@ -2356,7 +2125,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Newline-bearing actionable worktree paths must stay ONE plan target (NUL-delimited packing).
 if PLAN_FILE="$PLAN_FILE" EVIL_PATH="$EVIL_PATH" python3 - <<'PY'; then
 import json, os, sys
 plan = json.load(open(os.environ["PLAN_FILE"], encoding="utf-8"))
@@ -2384,7 +2152,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Unwritable --plan-file must fail closed (nonzero), not claim success.
 missing_plan_dir="$TMP/missing-plan-dir"
 missing_plan="$missing_plan_dir/nope.json"
 plan_fail_out="$TMP/plan-fail-out.txt"
@@ -2400,10 +2167,6 @@ else
   failures=$((failures + 1))
 fi
 
-# On Git Bash the default plan lands under the MSYS /tmp mount, which only the mount table maps to
-# a native directory; PowerShell and editors cannot open /tmp/... (#4209). A shimmed uname makes
-# this a Windows host and a shimmed cygpath stands in for the mount table. The shim's username is
-# the <user> placeholder, which the machine-specific-paths gate treats as portable.
 WIN_BIN="$TMP/win-bin"
 WIN_TMP="$TMP/wintmp"
 mkdir -p "$WIN_BIN" "$WIN_TMP"
@@ -2444,7 +2207,6 @@ else
   printf 'FAIL: Windows explicit --plan-file path handling\n' >&2
   failures=$((failures + 1))
 fi
-# Without cygpath the audit still reports, with the path as bash sees it.
 rm -f "$WIN_BIN/cygpath"
 win_nocyg_out="$TMP/win-nocygpath-out.txt"
 PATH="$WIN_BIN:$PATH" REPO_FLEET_TEST_FAST_TIMEOUTS=1 \
@@ -2458,8 +2220,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Printable UTF-8 renders as itself; controls, C1 controls, line separators, bidi overrides, and
-# malformed bytes are still one %q field (#4208). The caller's locale must not change the answer.
 display_probe_script="$TMP/display-probe.sh"
 cat >"$display_probe_script" <<'EOF'
 . "$1"
@@ -2490,9 +2250,6 @@ for display_locale in C C.UTF-8; do
   fi
 done
 
-# Candidate verdicts follow actionable kinds, not mere HIGH/MEDIUM confidence. Sourcing brings the
-# finding registry and both action predicates in; repo_verdict itself sits past the source guard,
-# so it is still extracted.
 verdict_probe="$(
   bash -c '
     . "$1"
@@ -2528,9 +2285,6 @@ else
   failures=$((failures + 1))
 fi
 
-# directory_has_non_git_entries lives after the source-early-return guard, so extract it the same
-# way as the rollup helpers above. bare-live (nested .git + debris) must be true; bare-pure
-# (ordinary git init --bare admin files, no nested .git) must be false (#2602 / #2656).
 dh_probe="$(
   SCRIPT="$SCRIPT" BARE_LIVE="$TMP/bare-live" BARE_PURE="$TMP/bare-pure" bash -c '
     eval "$(sed -n "/^directory_has_non_git_entries()/,/^}/p" "$SCRIPT")"
@@ -2554,8 +2308,6 @@ else
   failures=$((failures + 1))
 fi
 
-# record_bare_live_tree dedups BARE_LIVE_TREE_* by common-dir key so linked worktrees of the same
-# misconfigured main do not double-emit bare-repo-with-working-tree (#2602 / #2656).
 bare_record_probe="$(
   SCRIPT="$SCRIPT" bash -c '
     eval "$(sed -n "/^record_bare_live_tree()/,/^}/p" "$SCRIPT")"
@@ -2580,8 +2332,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Exercise the collector's own fail-closed command gate, rather than relying on a denylist that can
-# miss a new mutation spelling. None of these forbidden vectors may reach the fake executables.
 calls_before="$(wc -l <"$CALL_LOG")"
 # shellcheck source=audit-fleet.sh
 source "$SCRIPT"
@@ -2647,9 +2397,6 @@ else
   printf 'PASS: run_ls_remote_probe rejects a non-allowlisted remote or ref\n'
 fi
 
-# The any-state GraphQL shape is admitted only with its own jq, and the widening keeps rejecting
-# mutations, a missing exact headRefName, and the search API's prefix-matching head: qualifier. Each
-# negative carries every other required substring, so only the named rule can reject it.
 any_q() {
   printf 'query{h0:repository(owner:"acme",name:"repo-a"){pullRequests(%s){totalCount nodes{number state headRefOid url}}}%s}' "$1" "${2:-}"
 }
@@ -2674,7 +2421,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Symlink roots are skipped by discovery; accepting them would report a false empty fleet (#2599).
 if ! host_makes_symlinks; then
   printf 'SKIP: symlink discovery root — ln -s copies here, so the fixture would be an ordinary directory the collector is right to accept\n'
 else
@@ -2694,9 +2440,6 @@ else
   fi
 fi
 
-# Intermediate symlink/junction dirs under --root are skipped without descending, but must be
-# disclosed (#2711). Linux symlinks are the portable fixture; Windows junctions take the same
-# -d/-L arm under Git Bash.
 if ! host_makes_symlinks; then
   printf 'SKIP: intermediate symlink under --root — ln -s copies here, so the fixture would be an ordinary directory discovery is right to descend into\n'
 else
@@ -2723,8 +2466,6 @@ else
     failures=$((failures + 1))
   fi
 
-  # A disclosed skip alone does not BLOCK the fleet next to a clean repo; a genuine evidence gap
-  # still does.
   mkdir -p "$sym_mid_root/repo-b/.git"
   sym_gap_out="$TMP/sym-gap-out.txt"
   REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$sym_mid_root" --detail >"$sym_mid_out" 2>&1
@@ -2748,14 +2489,6 @@ else
     failures=$((failures + 1))
   fi
 fi
-# Unreadable/non-executable roots are the same false-empty class.
-# Two hosts bypass the permission bits this case depends on: `chmod a-rx` does not stop uid 0 from
-# traversing the directory, and MSYS maps chmod onto the Windows read-only attribute, which never
-# denies the owner. Either way the discovery root stays readable, the run legitimately succeeds, and
-# the assertion reports a product defect that does not exist. Containers and CI images commonly run
-# as root, so the case is SKIPPED there with its reason named rather than emitting a false FAIL —
-# a check that silently reports the wrong verdict is what the liveness-assertion convention forbids.
-# The probe asks the filesystem instead of naming a uid or an OS, so both hosts take one arm.
 if ! host_denies_owner_traversal; then
   printf 'SKIP: unreadable discovery root — this host still traverses a chmod a-rx directory as its owner (uid 0, or MSYS chmod mapping onto the read-only attribute)\n'
 else
@@ -2777,7 +2510,6 @@ else
   fi
 fi
 
-# Force the portable watchdog and prove a TERM-ignoring gh cannot outlive the finite KILL grace.
 HANG_BIN="$TMP/hang-bin"
 mkdir -p "$HANG_BIN"
 cat >"$HANG_BIN/gh" <<'EOF'
@@ -2799,8 +2531,6 @@ else
   printf 'PASS: portable watchdog killed a TERM-ignoring gh within the finite bound\n'
 fi
 
-# Configurable discovery skip list (#2712): defaults skip vendor/; --skip replaces (shrink/extend);
-# fleet.skip composes additively with CLI; invalid values hard-fail.
 skip_out="$TMP/skip-out.txt"
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/skip-root" >"$skip_out" 2>&1; then
   if grep -Fq "Repo: $TMP/skip-root/keep/visible-repo" "$skip_out" &&
@@ -2817,9 +2547,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Shrink: omit vendor from an explicit list so a repo under vendor/ is discovered.
-# The `.git` skip is NOT what this case observes — see the should_skip_dir_name contract assertion
-# below for why no discovery-level case can (#2844).
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/skip-root" \
   --skip node_modules --skip .venv >"$skip_out" 2>&1; then
   if grep -Fq "Repo: $TMP/skip-root/vendor/under-vendor" "$skip_out" &&
@@ -2834,13 +2561,6 @@ else
   failures=$((failures + 1))
 fi
 
-# #2826/#2844: should_skip_dir_name's unconditional .git arm, asserted as a FUNCTION CONTRACT.
-# This deliberately does NOT claim to protect discovery, and no discovery-level test can stand in
-# for it: the result is never consumed for `.git`, because the nested-repository early return fires
-# first on the identical path and predicate, so the child loop that calls this never runs for a
-# directory holding a .git marker. Driving the collector instead would be green with or without the
-# arm. SKIP_NAMES is shrunk to prove `.git` survives a replace list that
-# omits it, while node_modules/vendor prove the configurable half still decides everything else.
 skip_name_probe="$(
   DISCOVERY="$SCRIPT_DIR/../../../scripts/fleet-discovery.sh" bash -c '
     source "$DISCOVERY"
@@ -2858,7 +2578,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Extend: pass the three replaceable defaults plus third_party so that tree is skipped.
 if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --root "$TMP/skip-root" \
   --skip node_modules --skip vendor --skip .venv \
   --skip third_party >"$skip_out" 2>&1; then
@@ -2876,7 +2595,6 @@ else
   failures=$((failures + 1))
 fi
 
-# Config fleet.skip composes with CLI --skip (both replace defaults together).
 cat >"$TMP/config/skip-fleet.conf" <<EOF
 [fleet]
     root = ../skip-root
@@ -2898,10 +2616,6 @@ else
   failures=$((failures + 1))
 fi
 
-# #4220: package-manager cache trees are default skips; --extend-skip / fleet.skipAppend add to
-# whichever list is in effect instead of replacing it.
-# The kept repos reuse mocked basenames (so they report their skip-root toplevel); the cache-tree
-# repos have basenames the git mock rejects, so walking into any of them surfaces its path.
 cache_root="$TMP/cache-root"
 for cache_repo in .pnpm-store/v3/cached-pnpm .cargo/git/checkouts/cached-cargo \
   .nuget/packages/cached-nuget .tox/cached-tox __pycache__/cached-pyc keep/visible-repo \
@@ -2945,8 +2659,6 @@ cat >"$TMP/config/skip-append-fleet.conf" <<EOF
     skip = keep
     skipAppend = third_party
 EOF
-# An explicit fleet.skip replaces the defaults, so the cache trees are walked again and their
-# (mock-rejected) repos surface; the run may exit nonzero on those rejections.
 REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/skip-append-fleet.conf" \
   --detail >"$skip_out" 2>&1
 if ! grep -Fq "visible-repo" "$skip_out" &&
@@ -2971,8 +2683,6 @@ else
   failures=$((failures + 1))
 fi
 
-# A pnpm-store junction is never reached under the default skip list, so it cannot BLOCK the
-# fleet. A link the operator walks into explicitly stays UNKNOWN (intermediate-symlink case above).
 if ! host_makes_symlinks; then
   printf 'SKIP: symlink inside a package-cache tree — ln -s copies here\n'
 else
@@ -3047,6 +2757,41 @@ elif grep -Fq "invalid fleet.skip value (expected a bare directory name): (empty
 else
   printf 'FAIL: empty fleet.skip hard-fails with a named error\n%s\n' "$(cat "$skip_err" "$skip_out")" >&2
   failures=$((failures + 1))
+fi
+
+eval "$(sed -n '/^graphql_string_escape() {/,/^}/p' "$SCRIPT")"
+gql_escaped="$(graphql_string_escape $'feat"}){x}\\')"
+if [[ "$gql_escaped" == $'feat\\"}){x}\\\\' ]]; then
+  printf 'PASS: a quote or backslash in a GraphQL string value cannot close the literal\n'
+else
+  printf 'FAIL: graphql_string_escape left a quote or backslash unescaped: %s\n' "$gql_escaped" >&2
+  failures=$((failures + 1))
+fi
+
+mkdir -p "$TMP/winhome/.claude"
+cp "$TMP/homeg/.claude/repo-fleet-hygiene.conf" "$TMP/winhome/.claude/repo-fleet-hygiene.conf"
+# shellcheck disable=SC2016
+REPO_FLEET_TEST_FAST_TIMEOUTS=1 env -u HOME USERPROFILE="$TMP/winhome" \
+  CLAUDE_PROJECT_DIR='${CLAUDE_PROJECT_DIR}' bash "$SCRIPT" >"$ladder_out" 2>"$TMP/winhome.err"
+if grep -Fq -- "repo-fleet-hygiene.conf (user-global)" "$ladder_out"; then
+  printf 'PASS: audit USERPROFILE fallback and literal placeholder defense work via fleet_resolve_config\n'
+else
+  printf 'FAIL: audit USERPROFILE fallback and literal placeholder defense\n%s\n%s\n' "$(cat "$TMP/winhome.err")" "$(cat "$ladder_out")" >&2
+  failures=$((failures + 1))
+fi
+
+printf '[fleet\n\trepo = ../../discovered-a\n' >"$TMP/config/malformed-h7.conf"
+if REPO_FLEET_TEST_FAST_TIMEOUTS=1 bash "$SCRIPT" --config "$TMP/config/malformed-h7.conf" >"$TMP/mal-h7.out" 2>"$TMP/mal-h7.err"; then
+  printf 'FAIL: audit malformed config unexpectedly succeeded\n' >&2
+  failures=$((failures + 1))
+else
+  mal_code=$?
+  if [[ "$mal_code" -eq 2 ]] && grep -Fq "invalid Git config:" "$TMP/mal-h7.err"; then
+    printf 'PASS: audit malformed config fails closed with exit 2\n'
+  else
+    printf 'FAIL: audit malformed config exit=%s err=%s\n' "$mal_code" "$(cat "$TMP/mal-h7.err")" >&2
+    failures=$((failures + 1))
+  fi
 fi
 
 if [[ "$failures" -ne 0 ]]; then

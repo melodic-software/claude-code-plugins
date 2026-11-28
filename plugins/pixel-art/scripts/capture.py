@@ -34,10 +34,6 @@ import media_encode
 UNREVIEWED = (
     "visually unreviewed: no browser tool is present, so the scene was not captured"
 )
-# The bound on each wait for the browser, and the slack on top of a recording's own length. A
-# browser that exits fails at once; this is only for one that is alive but slow. On busy CI
-# runners a cold launch has passed 20 s and opening the page 10 s, and on one contended core a
-# 4 s recording has taken 30 s.
 BROWSER_WAIT_SECONDS = 60
 SCENE_RELOADS = 2
 SCENE_PROBE = (
@@ -343,11 +339,8 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
     scene = Path(scene).resolve()
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
-    # A previous run's shots, video, or manifest would read as this run's result.
     for stale in [*out_dir.glob("shot-*.png"), out_dir / "scene.webm", out_dir / "manifest.json"]:
         stale.unlink(missing_ok=True)
-    # Serve a copy of the scene alone: scenes are self-contained, and serving scene.parent would
-    # give the page same-origin read access to every sibling file.
     served = Path(tempfile.mkdtemp(prefix="pixel-capture-"))
     profile = out_dir / ".chrome-profile"
     log_path = out_dir / "browser.log"
@@ -456,7 +449,6 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
         (out_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
         return manifest
     except TimeoutError as exc:
-        # A socket timeout says only "timed out"; name the wait that ran out.
         raise TimeoutError(f"{step}: {exc}") from exc
     finally:
         if devtools is not None:
@@ -467,7 +459,8 @@ def capture_scene(scene, times, out_dir, record, scale, browser):
             server.shutdown()
             server.server_close()
         if proc and proc.poll() is None:
-            # os.killpg is POSIX only; Windows has no process group to signal here.
+            # os.killpg is Unix-only; Windows has no process group to signal, so it falls back to terminate:
+            # https://docs.python.org/3/library/os.html#os.killpg
             if hasattr(os, "killpg"):
                 os.killpg(proc.pid, signal.SIGTERM)
             else:

@@ -14,7 +14,6 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 
 YAML_PATH = "docs/conventions/work-items.yaml"
-# Each file that can bind the tracker.
 PATHS = (YAML_PATH,)
 
 

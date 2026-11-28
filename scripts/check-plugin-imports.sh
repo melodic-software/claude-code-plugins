@@ -1,32 +1,4 @@
 #!/usr/bin/env bash
-# Enforces the boundary rule "a plugin's code never loads a file from a sibling
-# plugin", recorded under `## Boundary rules` in
-# docs/conventions/architecture/README.md.
-#
-#   scripts/check-plugin-imports.sh
-#
-# Every tracked shell, Node, Python and PowerShell file under plugins/<a>/, and
-# every tracked extensionless file starting with `#!`, is read for relative paths in a load position. Each is resolved against the
-# file's own directory, and one that lands in plugins/<b>/, b != a, is a crossing:
-#   - a path after a variable or this-file anchor: $SCRIPT_DIR/../x,
-#     ${HERE}/../x, $(dirname "$0")/../x, ${BASH_SOURCE%/*}/../x,
-#     $PSScriptRoot/../x, __dirname/../x, import.meta.dirname/../x;
-#   - a JS or TS module specifier: from "../x", import("../x"), require("../x");
-#   - literal arguments after an anchor in join, resolve or Join-Path:
-#     join(here, "..", "x"), os.path.join(HERE, "../x"), Join-Path $PSScriptRoot '..\x';
-#   - pathlib: Path(__file__).parents[2] / "x", HERE.parent / "x".
-# A shell variable assigned from this file's location, alone or plus a path, or from
-# another such variable holds the directory that names; otherwise one named
-# *PLUGIN_ROOT or *PLUGIN_DIR holds the plugin's root, and any other the file's
-# directory. One assignment the check cannot resolve leaves a variable untraced.
-# Comment lines and path strings with no anchor are not crossings. Accepted limits:
-# https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/architecture/README.md#boundary-rules
-#
-# scripts/plugin-imports-exceptions.txt lists accepted crossings, one line per
-# file and sibling plugin: `<path> <sibling> <YYYY-MM-DD> <reason>`. A crossing it
-# does not list fails, and so does a listed one that no longer crosses.
-#
-# Exit codes and streams follow the check-script contract in scripts/README.md.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -50,7 +22,6 @@ fi
 RULE="a plugin's code never loads a file from a sibling plugin"
 exceptions=scripts/plugin-imports-exceptions.txt
 
-# norm <dir> <rel>: sets REPLY to <dir>/<rel> with `.` and `..` segments folded.
 norm() {
   local rest="$1/$2/" p k=0
   local -a out=()
@@ -77,14 +48,12 @@ norm() {
   for ((p = 0; p < k; p++)); do REPLY+="${REPLY:+/}${out[p]}"; done
 }
 
-# up <n>: sets REPLY to n `..` segments joined by `/`.
 up() {
   local i
   REPLY=.
   for ((i = 0; i < $1; i++)); do REPLY+=/..; done
 }
 
-# The token after an anchor ends at whitespace, a quote, or a shell or code delimiter.
 path_chars='[^][:space:]"'"'"'`;)|&<>,}$]*'
 re_anchor='(\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|\$\{[A-Za-z_][A-Za-z0-9_]*%/\*\}|\$\(dirname[^)]*\)|__dirname|import\.meta\.dirname)(/'"$path_chars"')'
 re_spec='(from|require\(|import\(|import)[[:space:]]*["'"'"'`](\.\.?/[^"'"'"'`]*)["'"'"'`]'
@@ -186,8 +155,6 @@ for _pd in plugins/*/; do
   plugin_dirs["${_pd%/}"]=1
 done
 
-# consider <file> <line no> <rel> [<base>]: records a crossing when <rel>, resolved
-# against <base> (default <file>'s directory), lands in another plugin's directory.
 consider() {
   local file="$1" n="$2" rel="$3" own sib
   [[ "$rel" == *..* || $# -gt 3 ]] || return 0
@@ -202,7 +169,6 @@ consider() {
   crossing_keys["$file $sib"]=1
 }
 
-# literals <text>: sets REPLY to the quoted literals in <text> joined by `/`.
 literals() {
   local text="$1"
   REPLY=.
@@ -226,7 +192,6 @@ scan_line() {
   *) [[ "$s" == \#* ]] && return 0 ;;
   esac
 
-  # Each form is tried only on a line holding its keyword: a regex match costs far more.
   rest="$line"
   while [[ "$rest" == */* && ("$rest" == *'$'* || "$rest" == *__dirname* || "$rest" == *import.meta.dirname*) ]] && [[ "$rest" =~ $re_anchor ]]; do
     whole="${BASH_REMATCH[0]}" rel="${BASH_REMATCH[2]}" name="${BASH_REMATCH[1]#\$}"
@@ -260,7 +225,6 @@ scan_line() {
     whole="${BASH_REMATCH[0]}"
     base="${BASH_REMATCH[1]}"
     if [[ -n "$index" ]]; then ups=$((10#$index + 1)); else ups=$((${#chain} / 7)); fi
-    # Path(__file__) is the file, one level below the directory the rest resolves against.
     [[ "$base" == Path\(__file__\)* ]] && ups=$((ups - 1))
     up "$ups"
     base="$REPLY"

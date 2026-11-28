@@ -1,5 +1,5 @@
 ---
-description: "Looks up current library documentation, API references and code examples through Context7 (ctx7 CLI or the Context7 MCP server). Use when: 'look up the docs for X', 'how do I migrate to X v2', or whenever a question names a library, framework, SDK, CLI tool, or cloud service, including API syntax, configuration, setup, and version-migration questions. The update action checks the CLI and upstream skill content for drift. For CLI/MCP setup, auth, and Windows gotchas, run /context7:setup."
+description: "Look up current library documentation, API references, and code examples via Context7 (ctx7 CLI or MCP server); update checks CLI/upstream drift. Use when: 'look up the docs for X', 'how do I migrate to X v2', or asking about library, framework, SDK, CLI, or cloud API syntax, config, or migration. Not for ctx7/MCP setup or auth: /context7:setup."
 argument-hint: "[lookup <library> <query>|update]"
 user-invocable: true
 disable-model-invocation: false
@@ -8,8 +8,8 @@ allowed-tools:
   - 'Bash(node "${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs" latest "${CLAUDE_PLUGIN_ROOT}" --for skill:lookup --data-dir "${CLAUDE_PLUGIN_DATA}")'
   - 'Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs latest ${CLAUDE_PLUGIN_ROOT} --for skill:lookup --data-dir ${CLAUDE_PLUGIN_DATA})'
 metadata:
-  upstream-version: upstash/context7@4087030ad2dc16578130e2dab1e48ba735f8ea38
-  synced: 2026-11-16
+  upstream-version: upstash/context7@17839096a0efe61b4b8a88cc20a8147784234cfa
+  synced: 2026-11-27
   workflow-stage: research
   summary: Look up current library docs, API references, and examples via Context7
 shell: bash
@@ -31,7 +31,7 @@ MCP availability: if `mcp__context7__resolve-library-id` and `mcp__context7__que
 
 | Action | When | Loads |
 |---|---|---|
-| `lookup <library> <query>` (default) | A question about a library | [context/lookup.md](context/lookup.md): query writing, result selection, version-specific IDs, common mistakes |
+| `lookup <library> <query>` (default) | A question about a library | [context/lookup.md](context/lookup.md): query writing, result selection, versioned lookups, common mistakes |
 | `update` | CLI upgrade and upstream drift check | [context/update.md](context/update.md): merge strategy, what to preserve, baseline refresh |
 
 Verify library behavior against Context7 before stating it; training data lags library releases. CLI install, `CONTEXT7_API_KEY` auth and MCP wiring belong to `/context7:setup`.

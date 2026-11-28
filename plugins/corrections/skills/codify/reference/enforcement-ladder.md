@@ -179,10 +179,9 @@ This section is the one place the readers point to for the question.
    or sends data outside the repository is policy-class: git can revert code, tests and docs, so
    those can stay with the model, but not these.
 3. A blocking check has no effective false positives; an advisory check stays under 10%. The 10% is
-   a corpus-precision proxy, read off the corpus sweep, not a measured per-check rate. The record
-   is `0003-verification-guards-earn-default-on-by-measured-precision.md` and
-   `0080-set-check-precision-defaults-at-zero-false-positives-blocking-and-under-10-percent-advisory.md`
-   under `docs/adr/`.
+   a corpus-precision proxy, read off the corpus sweep, not a measured per-check rate. The bar is
+   Google's published one for static analysis:
+   [Sadowski et al., "Tricorder: Building a Program Analysis Ecosystem", ICSE 2015](https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/43322.pdf).
 4. Its message names the owner or the API to use instead, so the person or agent who trips it knows
    the fix.
 5. It fails on a planted or past violation and passes after the revert, and is recorded only with

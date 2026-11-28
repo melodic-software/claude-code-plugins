@@ -1,46 +1,4 @@
 #!/usr/bin/env bash
-# Pixel comparison for /testing:check-visual-parity, and the reader of its
-# pixel_tolerance setting.
-#
-# Usage:
-#   visual-compare.sh install [--deps-dir <base>] [--dry-run]
-#   visual-compare.sh config --repo <dir> [--user pixel_tolerance=<value>]
-#   visual-compare.sh manifest --dir <d> --browser <name and version> --viewport <W>x<H> --scale <n>
-#   visual-compare.sh compare --baseline <d> --after <d> --tolerance <n> [--reason <text>]
-#                             --diff-dir <d> [--deps-dir <base>] [--dry-run]
-#   visual-compare.sh --help
-#
-# install   Installs pixelmatch and pngjs from the committed lockfile with
-#           `npm ci --ignore-scripts --no-audit --no-fund` into
-#           <base>/visual-compare/<first 12 hex of the lockfile's sha256>/,
-#           through a sibling directory and a rename. The base is --deps-dir,
-#           else $CLAUDE_PLUGIN_DATA when its last segment names testing, else
-#           .work/testing in a marketplace checkout, else
-#           <config dir>/plugins/data/<plugin data id> (https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data).
-#           compare installs the same way on first use.
-# config    Prints `pixel_tolerance=<n> source=<layer> reason=<text>`. Layers:
-#           the team docs/conventions/testing.yaml read from origin's default
-#           branch (the working tree only when there is no origin),
-#           <repo>/docs/conventions/testing.local.yaml and the --user option.
-#           Old locations, read with a warning: ~/.claude/testing.yaml, and
-#           <repo>/.claude/testing.local.yaml when the new personal file is
-#           absent. The lowest valid value wins, so a personal layer can
-#           lower the team value and never raise it. An invalid layer is named
-#           on stderr and dropped; a config value never makes this exit 2.
-# manifest  Writes <d>/manifest.json: the sha256 of every PNG in <d>, the OS,
-#           browser, viewport, scale and `git rev-parse HEAD`. Refuses when the
-#           file exists, so a baseline is never rewritten.
-# compare   Checks every image against its manifest and the two manifests'
-#           host fields, then prints per image
-#           `differing=<n> tolerance=<t> verdict=<pass|fail> name=<image>`.
-#           Diff images go under --diff-dir only. A tolerance above 0 needs
-#           --reason.
-# --dry-run Prints the install directory and the npm ci line, and installs,
-#           writes and compares nothing.
-#
-# Exit: 0 done (compare: every image passed), 1 compare found a failing image,
-# 2 usage error, a missing or broken install (with one repair line on stderr),
-# or a manifest, hash or host mismatch.
 set -uo pipefail
 
 case "${BASH_SOURCE[0]}" in
@@ -66,10 +24,7 @@ err() {
 warn() { printf 'visual-compare: warning: %s\n' "$1" >&2; }
 usage() { err "$1"$'\n'"$USAGE"; }
 
-# need_value <flag> <argc>: the flag must be followed by a value.
 need_value() { (($2 >= 2)) || usage "$1 needs a value"; }
-
-# --- install ------------------------------------------------------------------
 
 sq() { printf "'%s'" "${1//\'/\'\\\'\'}"; }
 psq() {
@@ -100,10 +55,6 @@ lock_hash() {
   printf '%s' "$h"
 }
 
-# plugin_data_id: the data directory name Claude Code gives this plugin, its id
-# testing@<marketplace> (testing@inline outside <config>/plugins/cache/) with
-# characters outside A-Za-z0-9_- replaced by -:
-# https://code.claude.com/docs/en/plugins/components#path-variables-and-persistent-data
 plugin_data_id() {
   local root market=inline m n v extra id
   root="$(cd "$SCRIPT_DIR/../../.." && pwd)" || root=""
@@ -115,8 +66,6 @@ plugin_data_id() {
   printf '%s' "${id//[^A-Za-z0-9_-]/-}"
 }
 
-# checkout_root: the marketplace checkout this script runs from, when its .work/
-# is gitignored.
 checkout_root() {
   local root line
   root="$(cd "$SCRIPT_DIR/../../../../.." && pwd)" || return 1
@@ -131,7 +80,6 @@ checkout_root() {
   return 1
 }
 
-# resolve_base <explicit>: sets BASE and RULE.
 resolve_base() {
   local root data="${CLAUDE_PLUGIN_DATA:-}" name
   if [[ -n "$1" ]]; then
@@ -149,7 +97,6 @@ resolve_base() {
   fi
 }
 
-# wq <path>: a Windows path, PowerShell-quoted.
 wq() {
   if command -v cygpath >/dev/null 2>&1; then psq "$(cygpath -w "$1")"; else psq "$1"; fi
 }
@@ -175,19 +122,13 @@ need_node() {
     err "node is not on PATH; install Node.js (https://nodejs.org/en/download) and rerun. Reinstalling the packages would not help."
 }
 
-# Every option reaches the .mjs as --name=value: its strict parseArgs refuses a
-# separate value that starts with '-', such as --reason "-3px shift".
 probe() { [[ -d "$1" ]] && node "$MJS" probe --deps="$1" >/dev/null 2>&1; }
 
-# ensure_installed <target>: install the locked packages into <target> unless
-# they already load there.
 ensure_installed() {
   local target="$1" partial rc
   need_node
   probe "$target" && return 0
   command -v npm >/dev/null 2>&1 || broken "npm is not on PATH, so pixelmatch and pngjs cannot be installed (install Node.js, which ships npm)" "$target"
-  # A killed install leaves a .partial- sibling; one older than 20 minutes is
-  # no live npm ci.
   find "${target%/*}" -maxdepth 1 -name "${target##*/}.partial-*" -mmin +20 -exec rm -rf -- {} + 2>/dev/null
   partial="$target.partial-$$"
   rm -rf -- "$partial"
@@ -206,13 +147,11 @@ ensure_installed() {
   fi
   [[ ! -e "$target" ]] || probe "$target" || rm -rf -- "$target"
   if [[ -e "$target" ]] || ! mv -- "$partial" "$target"; then
-    # Another run finished first; its copy is accepted when it loads.
     rm -rf -- "$partial"
     probe "$target" || broken "cannot move the install into $target" "$target"
   fi
 }
 
-# install_target <explicit base>: sets TARGET.
 install_target() {
   resolve_base "$1"
   TARGET="${BASE%/}/visual-compare/$(lock_hash)"
@@ -246,13 +185,8 @@ cmd_install() {
   printf 'install_dir=%s\nchosen_by=%s\ninstalled=yes\n' "$TARGET" "$RULE"
 }
 
-# --- config -------------------------------------------------------------------
-
-# Each valid layer that sets pixel_tolerance.pixels lands in these arrays.
 L_NAME=() L_LABEL=() L_PIXELS=() L_REASON=()
 
-# under_link <file> <root>: true when <file>, or a directory above it inside
-# <root>, is a symlink.
 under_link() {
   local d="$1" root="$2"
   while [[ "$d" == "$root"/* ]]; do
@@ -262,16 +196,12 @@ under_link() {
   return 1
 }
 
-# pcv <where> <args...>: the shared reader, run in <where>.
 pcv() {
   local where="$1"
   shift
   (cd -- "$where" && bash "$PCV" --strict "$@")
 }
 
-# has_children <where> <file> [--ref <ref>]: true when the layer holds any
-# record under pixel_tolerance.pixels (a list or a map). The shared reader
-# only answers exact keys, so this runs its parser on the same text.
 has_children() {
   local where="$1" file="$2" text
   if (($# > 2)); then
@@ -283,8 +213,6 @@ has_children() {
     LC_ALL=C awk -F '\t' 'index($1, "pixel_tolerance.pixels.") == 1 { found = 1 } END { exit !found }'
 }
 
-# read_layer <name> <label> <where> <file> [--ref <ref>]: validate one layer
-# and record it when it sets pixels.
 read_layer() {
   local name="$1" label="$2" where="$3" file="$4" scalar items pixels reason
   shift 4
@@ -315,8 +243,6 @@ read_layer() {
   add_layer "$name" "$label" "pixel_tolerance.pixels" "$pixels" "$reason"
 }
 
-# read_tree_layer <name> <file> <repo>: read_layer for a working-tree file,
-# skipped when it, or a directory above it inside <repo>, is a symlink.
 read_tree_layer() {
   if under_link "$2" "$3"; then
     warn "skipping a layer that is a symlink or under a symlinked directory: $2"
@@ -325,7 +251,6 @@ read_tree_layer() {
   fi
 }
 
-# add_layer <name> <label> <key> <pixels> <reason>
 add_layer() {
   local name="$1" label="$2" key="$3" pixels="$4" reason="$5"
   if [[ ! "$pixels" =~ ^[0-9]{1,9}$ ]]; then
@@ -340,7 +265,6 @@ add_layer() {
   L_NAME+=("$name") L_LABEL+=("$label") L_PIXELS+=("$pixels") L_REASON+=("$reason")
 }
 
-# default_ref <repo>: origin's default branch as origin/<name>, or nothing.
 default_ref() {
   local ref
   ref="$(git -C "$1" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)" || ref=""
@@ -409,8 +333,6 @@ cmd_config() {
     add_layer user-option "userConfig option" "--user pixel_tolerance" "$user" ""
   fi
 
-  # The team value, or the default 0 when the team sets none, is the ceiling.
-  # On a tie the team is named first, then the personal override, user-global, the option.
   local cap=0 cap_name=default
   for i in "${!L_NAME[@]}"; do
     if [[ "${L_NAME[i]}" == team ]]; then
@@ -435,8 +357,6 @@ cmd_config() {
   ((v > 0)) || reason=""
   printf 'pixel_tolerance=%s source=%s reason=%s\n' "$v" "$n" "$reason"
 }
-
-# --- manifest -----------------------------------------------------------------
 
 cmd_manifest() {
   local dir="" browser="" viewport="" scale="" head
@@ -468,8 +388,6 @@ cmd_manifest() {
   [[ "$head" =~ ^[0-9a-f]{40}$ ]] || head=""
   node "$MJS" manifest --dir="$dir" --browser="$browser" --viewport="$viewport" --scale="$scale" --head="$head"
 }
-
-# --- compare ------------------------------------------------------------------
 
 cmd_compare() {
   local baseline="" after="" tolerance="" reason="" have_reason=0 diff="" deps="" dry=0 rc
@@ -511,8 +429,6 @@ cmd_compare() {
   ((rc <= 2)) || rc=2
   return "$rc"
 }
-
-# --- main ---------------------------------------------------------------------
 
 (($#)) || usage "no subcommand"
 sub="$1"

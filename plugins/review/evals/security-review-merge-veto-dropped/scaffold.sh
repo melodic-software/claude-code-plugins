@@ -4,8 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# veto.py is the only place the merge lane honors a CHANGES_REQUESTED review.
-# The branch drops that check; gate.py has no other review-state check.
 mkdir -p scripts/merge
 
 cat >scripts/merge/veto.py <<'PY'

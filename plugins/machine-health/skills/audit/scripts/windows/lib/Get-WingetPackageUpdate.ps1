@@ -116,8 +116,6 @@ function Get-WingetPackageUpdate {
     if ($module) {
         try {
             Import-Module Microsoft.WinGet.Client -ErrorAction Stop
-            # IsUpdateAvailable gates "upgrade is pending"; AvailableVersions is
-            # ordered newest-first.
             $mapped = @(Get-WinGetPackage -ErrorAction Stop |
                     Where-Object { $_.IsUpdateAvailable } |
                     ForEach-Object {
@@ -132,8 +130,6 @@ function Get-WingetPackageUpdate {
             return (New-WingetUpgradeResult -Upgrades $mapped -ErrorMessage $null)
         } catch {
             Write-Verbose "Get-WingetPackageUpdate: Microsoft.WinGet.Client module path failed: $($_.Exception.Message)"
-            # Fall through to text-parse fallback; the error is only surfaced
-            # if the fallback also fails.
         }
     }
 

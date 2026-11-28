@@ -1,5 +1,5 @@
 ---
-description: "Verify the guardrails hooks' runtime prerequisites, per-guard toggle state and git-hook entries for this machine, and register those entries. Use when: 'set up guardrails', 'configure guardrails', 'is guardrails working', 'which guards are on', a guard failed open with a jq notice, after tuning guard toggles, a hook reported a drifted git hook, or 'install the guardrails git hooks' / 'enforce the commit convention for every committer' / 'check secrets and hardcoded paths on every commit'. Actions: check (read-only, default) | check inspect (read-only) | apply (resolve what check found) | apply install-git-hooks [scope=local|shared|user] (register the commit-msg convention, pre-commit and pre-push content entries with the repository's hook manager; user: the commit-msg entry as a git config hook under an includeIf) | apply read-deny (opt-in: print Read() deny rules for .env, with user also ~/.ssh and ~/.aws, and add or remove them in the chosen settings file). Re-runnable."
+description: "Verify guardrails prerequisites, toggles, and hooks (check [inspect]), or apply fixes, git hooks, read-deny rules, and identity-domains."
 argument-hint: "[check|apply] [inspect|install-git-hooks [scope]|read-deny [scope user remove]|identity-domains]"
 user-invocable: true
 disable-model-invocation: true
@@ -72,7 +72,8 @@ no toggle.
 
 1. **Bash 5.0+.** The guards' documented runtime floor (Git Bash on native Windows).
    Probe the bash the hooks run: the one `${CLAUDE_PLUGIN_ROOT}/hooks/exec-bash.mjs` resolves
-   (its header lists the candidate order), which can differ from the Bash tool's own bash.
+   in the order its `resolveBash` sets per platform (read it; do not recite it), which can differ
+   from the Bash tool's own bash.
    FAIL below the floor with the README Requirements remediation.
 2. **`jq`.** The pre-computed `jq` row. FAIL if absent: per the README, the blocking guards
    then deny every Bash and PowerShell call and the others skip their work after one notice
@@ -293,8 +294,8 @@ Never runs from bare `apply`.
 
 Writes `block-cross-domain`'s map, `${CLAUDE_PLUGIN_DATA}/identity-domains.json`, from the
 identity domains `/harness-ops:machine-profile` (if enabled) recorded. `<script>` is
-`bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/identity-domains.sh"`; its header has the
-full rules. Never runs from bare `apply`.
+`bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/identity-domains.sh"` (`--help` lists its
+flags). Never runs from bare `apply`.
 
 1. **Profile.** The stored profile is `machine-profile/profile.json` in the harness-ops
    plugin's data directory. A saved `/harness-ops:machine-profile` (if enabled) discover output works
@@ -302,8 +303,8 @@ full rules. Never runs from bare `apply`.
    `/harness-ops:machine-profile` (if enabled) and stop.
 2. **Preview.** Run `<script> --profile <file> --data-dir "${CLAUDE_PLUGIN_DATA}"`, which
    writes nothing and also says whether a map is already there. Each domain with an absolute tree and no
-   wildcard becomes one map domain, named after the tree's last segment: the tree is its
-   root, and a `gh` directory the profile records `set` is its `gh_config_dir`. Show the map
+   wildcard becomes one map domain, named after the tree's last segment (`-2`, `-3` added on a
+   clash): the tree is its root under the profile's own OS key, and a `gh` directory the profile records `set` is its `gh_config_dir`. Show the map
    and every `note:` line, since those name the skipped trees and the values left out.
 3. **Values the profile lacks.** Owners, identity markers, `az_config_dir` and shared
    exceptions are not discovered. In an attended run, ask for them once, by domain name, and
@@ -311,13 +312,15 @@ full rules. Never runs from bare `apply`.
    `--shared-exception FROM[,FROM...]:TO=PATH`. When the machine keeps repositories outside
    `~/src/github.com` and `~/worktrees/github.com`, also pass `--owner-root DIR`, repeatable,
    for each directory that holds one directory per owner, such as `"$(ghq root)/github.com"`,
-   or flat `<owner>-<repo>-<slug>` trees, such as `"$(git config worktreeroot.path)"`. A
+   or flat `<owner>-<repo>-<slug>` trees, such as `"$(git config worktreeroot.path)"`; given,
+   they replace those two defaults as the map's `owner_roots` for the profile's OS. A
    flat tree whose name does not start with its owner stays unguarded, and a name that does
    also names any other domain's root above it, so a session in either domain is denied it.
    A shared exception
    opens PATH, a directory of domain TO, to sessions in the FROM domains, one way; the script
    refuses a PATH that is
-   not TO's tree or below it or one of TO's owner directories, and a FROM that lists TO. A
+   not TO's tree or below it or one of TO's owner directories, or that sits below another
+   domain's path nested there, and a FROM that lists TO. A
    value nobody gives is left out of the map. A map that still holds a plain-path
    `shared_exceptions` entry from the earlier shape grants nothing for it: re-run this action
    with `--replace` to rewrite it.

@@ -1,0 +1,44 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "loop",
+            "args": "10m Check inbox/ once and append its file count to QUEUE.md; do not schedule anything."
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": []
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "loop",
+            "args": "10m Check inbox/ and update QUEUE.md"
+          }
+        }
+      ],
+      "why": "prompt rewritten"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Skill",
+          "input": {
+            "skill": "loop",
+            "args": "10m Read @.work/handoffs/20261124T100000Z-handoff-queue-watch.md"
+          }
+        }
+      ],
+      "why": "wraps the directive"
+    }
+  ]
+}

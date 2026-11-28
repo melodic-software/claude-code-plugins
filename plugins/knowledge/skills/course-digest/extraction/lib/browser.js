@@ -1,8 +1,3 @@
-/**
- * Shared browser infrastructure for course-extraction scripts: browser
- * launch, cookie injection, and auth age checking.
- */
-
 import { existsSync, statSync } from "node:fs";
 
 import { writeStdout } from "@melodic/video-digestion/shared/terminal";
@@ -41,8 +36,6 @@ export function checkAuthAge(storageStatePath, platformCfg) {
  * @returns {Promise<{browser: import('playwright').Browser, context: import('playwright').BrowserContext, page: import('playwright').Page, cookieCount: number}>}
  */
 export async function launchBrowser({ headless = true, storageStatePath } = {}) {
-  // Not launchPersistentContext: persistent contexts may not fire
-  // page.on("request"/"response") for cross-origin iframe sub-resources.
   const browser = await chromium.launch({
     headless,
     timeout: 60000,

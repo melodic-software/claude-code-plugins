@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Cross-platform wrapper for probe.py's unittest suite, so the repo's
-# `run-plugin-tests.sh` discovery (plugins/**/*.test.sh) runs it. Nothing in the
-# suite starts `claude`: every run is --dry-run or a stub runner.
-#
-# Exit: 0 all tests passed; 1 a test failed; 2 no usable interpreter (a named
-# environment error, never a silent skip).
-#
-# The dry-run test runs every case's scaffold and parses every case file:
 # test-scope: plugins/harness-ops/skills/behavior-probes/cases/* plugins/harness-ops/scripts/changelog-releases.sh
 set -uo pipefail
 
@@ -23,8 +15,6 @@ if [[ -z "$FLOOR" ]]; then
   exit 2
 fi
 
-# A zero-length candidate under a WindowsApps path component is the Store's App
-# Execution Alias stub, which opens the Store instead of running Python.
 PYTHON=""
 FLOOR_MET=""
 for candidate in python3 python; do

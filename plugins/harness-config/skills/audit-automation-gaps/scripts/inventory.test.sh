@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# The behavior under test: a location the script could not read must report
-# WHY, never 0. A silent zero is indistinguishable from a real absence.
-#
-# WHY THIS SUITE PINS EXACT NUMBERS. A suite asserting only status words and
-# banner text stays green when jq_num is pinned to 7, every counting helper finds
-# nothing, plugin_roots is empty, hook_scripts is 999 or skills_total is 0. A suite that cannot fail on a wrong number does not protect
-# the one property this script exists for. Every count below is therefore
-# asserted against a fixture built to a known size, as an exact value and never
-# as "more than zero", and each hook-location row is pinned across all five of
-# its fixed columns at once by row6.
 # test-scope: plugins/*/.mcp.json plugins/harness-config/skills/*/SKILL.md .claude/settings.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
@@ -29,9 +19,6 @@ assert_not_contains() {
   *) pass "$1" ;;
   esac
 }
-# Asserts one line of output verbatim, which pins the numbers inside it. A
-# here-string, not a pipe: grep -q exits on its first match, and under pipefail
-# the writer's SIGPIPE would fail the assertion.
 assert_line() {
   if grep -Fxq -- "$3" <<<"$2"; then
     pass "$1"
@@ -420,8 +407,6 @@ assert_line "a newline in a path does not double the components count" "$nl_out"
   "  skills               1 SKILL.md"
 
 
-# A path that exists but is not a regular file: deterministic on every uid,
-# unlike chmod 000, which root reads anyway.
 FIX="$WORK/fixture"
 mkdir -p "$FIX/.claude"
 mkdir -p "$FIX/user-settings.json"
@@ -481,8 +466,6 @@ if command -v git >/dev/null 2>&1 && command -v jq >/dev/null 2>&1; then
     "$(row_for local-settings "$wt_out")" "$main_real/.claude/settings.local.json"
   assert_eq "linked worktree at its root: project-settings is the worktree's own, absent" \
     "project-settings absent standing 1 - -" "$(row6 project-settings "$wt_out")"
-  # On Windows the local file stays beside the shared one, so a linked worktree
-  # reads its own file. bash keeps an OSTYPE it inherits, so this runs on any host.
   win_out="$(cd "$WORK/git-linked" && env -u INVENTORY_PROJECT_DIR -u CLAUDE_PROJECT_DIR \
     INVENTORY_USER_SETTINGS="$WORK/none.json" OSTYPE=msys bash "$INVENTORY" 2>/dev/null)"
   assert_eq "linked worktree on Windows: local-settings is the worktree's own, absent" \

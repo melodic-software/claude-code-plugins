@@ -155,9 +155,6 @@ AGENTS="$ROOT/AGENTS.md"
 CLAUDE="$ROOT/CLAUDE.md"
 DOT_CLAUDE="$ROOT/.claude/CLAUDE.md"
 
-# BINMODE=3 stops gawk on Windows from stripping and re-adding carriage returns,
-# so a CRLF file stays CRLF; a POSIX awk reads it as an ordinary variable.
-
 analyze() {
   awk -v BINMODE=3 -v B="$BEGIN_MARKER" -v E="$END_MARKER" -v D="$DRAFT_MARKER" \
     -v P="$DX_PREFIX" -v W="$DX_LINE" '

@@ -66,9 +66,6 @@ import pathfix
 
 LABEL_WIDTH = 28
 DEFAULT_MIN_PAIRS = 20
-# Two ratios of the same two arms disagreeing by this much means one of them is
-# drift rather than signal. A house threshold, not a derived one, and it is
-# stated as such in the output it produces.
 DISAGREEMENT_FACTOR = 2.0
 
 
@@ -89,9 +86,6 @@ def env(name: str) -> str:
 
 
 def load(path: str) -> list[int]:
-    # Resolved rather than opened literally, for the reason summarize.py records:
-    # whether MSYS converts a POSIX path carried in an environment variable is a
-    # heuristic, not a guarantee.
     resolved, note = pathfix.resolve_existing(path)
     if note:
         print(f"NOTE: {note}", file=sys.stderr)
@@ -104,11 +98,6 @@ def load(path: str) -> list[int]:
     for number, line in enumerate(raw.splitlines(), start=1):
         if not line.strip():
             continue
-        # The SAME row shape summarize.py enforces, deliberately duplicated rather
-        # than relaxed. This file documents that a caller invoking it directly
-        # cannot lose the concurrency suppression; a row guard that only
-        # summarize.py applied would be a hole in exactly that promise, and a
-        # spliced row from concurrent appends parses as a plausible number.
         fields = line.split()
         if len(fields) != 2:
             fail(
@@ -140,24 +129,6 @@ def percentile(values: list[int], p: float) -> float:
 def ratio_of_percentile(
     old: list[int], new: list[int], p: float, pairs_count: int, minimum: int
 ) -> tuple[str, float | None]:
-    """Return (cell, value). `value` is None whenever the ratio was refused.
-
-    THREE gates, and every one of them was a way to print a number the data does
-    not support:
-
-    1. The MINIMUM PAIR COUNT, the same gate the headline ratio carries. A ratio
-       of two per-arm percentiles compounds the drift in both, so it is if
-       anything less stable than the paired median, and gating only the headline
-       left two quotable numbers beside an honest one. Measured here, two
-       IDENTICAL `true` arms at twenty iterations reported ratio_of_p50=12.08x.
-    2. The percentile ARITHMETIC floor, 1/(1-p).
-    3. A ZERO DENOMINATOR. This is where that 12.08x actually came from: the
-       previous code divided by `max(percentile(new, p), 1.0)`, so an arm whose
-       percentile was 0ms silently became 1ms and manufactured a ratio out of a
-       clamp. A sub-millisecond denominator does not mean "one millisecond", it
-       means the clock cannot resolve this arm, and the honest output is a
-       refusal naming that.
-    """
     label = f"ratio_of_p{p:.0f}"
     if pairs_count < minimum:
         return f"{label}=REFUSED(pairs={pairs_count}<{minimum})", None
@@ -212,26 +183,14 @@ def main() -> int:
     except ValueError:
         fail(f"BENCH_MIN_PAIRS must be an integer, got {minimum_raw!r}")
 
-    # A LOWERED floor records itself on the reported line. A gate that can be
-    # quietly relaxed is not a gate: without this, BENCH_MIN_PAIRS=1 prints a
-    # headline ratio indistinguishable from one drawn from a full sample set, and
-    # the reader has no way to know the floor moved.
     override = ""
     if minimum < DEFAULT_MIN_PAIRS:
         override = f"  OVERRIDE: min_pairs={minimum} (default {DEFAULT_MIN_PAIRS})"
 
     p50_cell, p50_value = ratio_of_percentile(old, new, 50.0, len(pairs), minimum)
-    # Capture the p95 VALUE too, not just its rendered cell. Discarding it would
-    # leave the disagreement check blind to that statistic, so a quotable
-    # ratio_of_p95=5.95x could sit beside median_paired_ratio=1.00x and
-    # ratio_of_p50=1.00x with nothing on the line saying they disagree.
     p95_cell, p95_value = ratio_of_percentile(old, new, 95.0, len(pairs), minimum)
 
     if len(pairs) < minimum:
-        # EVERY ratio on the line is refused below the floor, not just the
-        # headline. A reader quotes whichever number is printed, so leaving the
-        # subordinate two ungated beside a refused headline is the same defect
-        # wearing a smaller label.
         print(
             f"{'SPEEDUP':<{LABEL_WIDTH}} "
             f"median_paired_ratio=REFUSED(pairs={len(pairs)}<{minimum})  "
@@ -250,14 +209,6 @@ def main() -> int:
 
     median_paired = statistics.median(ratios)
 
-    # The docstring predicts that a drift spike moves the ratio of medians and
-    # not the paired median. Predicting it is not enough: when the two disagree
-    # this far, one of them is noise, and the reader has no way to tell which
-    # unless the line says so.
-    # Every printed ratio is checked, not only ratio-of-p50. A reader quotes
-    # whichever number is on the line, so a statistic excluded from the check is
-    # a statistic that can be quoted while the other two silently disagree with
-    # it. Take the widest spread across all three.
     disagreement = ""
     candidates = {"ratio-of-p50": p50_value, "ratio-of-p95": p95_value}
     worst_spread = 0.0

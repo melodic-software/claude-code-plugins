@@ -62,7 +62,7 @@ permissions, and passes no App key.
 | `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-dispatch-feedback.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
-| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, or `outside-author`, the check-admission job's stop on an issue neither a listed human nor the lanes App wrote; any other value, or one outside issue mode, fails step 1 |
+| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, `outside-author`, the check-admission job's stop on an issue neither a listed human nor the lanes App wrote, `workflow-stale`, or `closed-by-open-pr`, the read run's `issue-prior` stop on a trusted open closing PR; any other value, or one outside issue mode, fails step 1 |
 | `collect-refused` | `''` | Write file, issue mode, `report-outcome`: the model run's `scan-collect-refused`; only `true` counts, and stops the issue on the `collect-refused` route, which holds it for a person |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
@@ -332,7 +332,9 @@ the broker request, and no other permission; it never holds `checks: write` or `
    that closes an issue may fail the step red.
 8. `collect-base-activity` copies what the activity runs from the base out of `.base`: the files in
    a script's own directory and every file it loads, transitively, each on its own, to
-   `$RUNNER_TEMP/base-script` at their repository paths, where the runner runs it as `$RUNNER_TEMP/base-script/<script>`, or
+   `$RUNNER_TEMP/base-script` at their repository paths, where the runner runs it at the path the
+   action's `script-path` output names (the action loads from the base tip at job time, which can be
+   newer than the runner workflow a dispatched run keeps), or
    for a skill the base `plugins/` and
    `.claude-plugin/` to `$RUNNER_TEMP/base-marketplace`. For
    [`prepare: merge-base`](#prepare-merge-base) the read file, and the write file under the
@@ -1975,8 +1977,11 @@ in the map fails too. It also fails when any file of such a run sets
 `permissions: write-all`, and, in the read file, when the top level is not `permissions: {}`, a
 job has no permissions map, `id-token` is named anywhere outside the `check-broker` job, that job
 is a reusable-workflow call or has no `steps`, or one of its `actions/checkout` steps has a `ref`
-other than `${{ github.event.repository.default_branch }}` or a `with` key other than `ref`,
-`path` and `persist-credentials`. One exception, the scan-carrier key: the read file declares
+other than `${{ github.event.repository.default_branch }}` (or `${{ steps.tip.outputs.sha }}` after
+an earlier `id: tip` step that is the SHA-pinned ci-workflows `resolve-branch-tip` action with only
+`branch: main` or the default branch), a `with` key other than `ref`, `path` and
+`persist-credentials`, or an `if` or `continue-on-error`, since an empty ref checks out the
+event's ref. One exception, the scan-carrier key: the read file declares
 `scan-carrier-private-key` (required) and its `scan` job may hold one step that uses
 `./.base/.github/actions/open-lane-output` with `private-key: ${{ secrets.scan-carrier-private-key }}`
 exactly; a job that calls the read file passes it by name only,
@@ -2042,7 +2047,7 @@ broker sees neither its branch nor the draft flag, so `hill-climb-publish.mjs` h
 `chore/hill-climb-*` and a draft pull request. An `issues` request, allowed from `work-resolve-issue.yml`, `work-unblock.yml`
 and `intake-triage.yml`, sends `issue_number` (the `issue-number` input) instead, and neither of the
 other two. From `work-resolve-issue.yml` its actor, the labeler, must be a listed human, or the
-lanes App; from the other two a listed human. `work-unblock.yml` (also on its hourly `schedule`)
+lanes App; from the other two a listed human. `work-unblock.yml` (also on its `schedule`, every 15 minutes)
 and `intake-triage.yml` (also on a `workflow_dispatch` that sends `issue_number`) run their minting
 job in the caller file itself, get an issues-write grant only, and a re-run must be started by a
 listed human. The one exception is `work-unblock.yml`'s `publish-lane-level` (owner decision Q113
@@ -2182,7 +2187,11 @@ file the compare does not list, and a compare that cannot be read stay red.
 
 The read file's `check-broker` job sends `POST` to `LANES_BROKER_URL` with its final `/token`
 replaced by `/check`, with `Authorization: Bearer <OIDC token>` and the body
-`{"lane": "<lane>", "activity": "<activity>"}`; any other body field is a 400. The broker runs the
+`{"lane": "<lane>", "activity": "<activity>"}`. A check from `intake-triage.yml`, which the broker
+admits only on `workflow_dispatch` from `refs/heads/main`, also carries `"issue_number": <n>`, the
+dispatched issue as a JSON integer; `request-lane-token` sends it from that caller alone, and the
+broker answers 400 to an intake check without it and to any other caller's check with it, and to
+any other body field. The broker runs the
 same token, claim, repository and kill-switch checks as a mint, with `pr-run-activity-read.yml` as
 the job's workflow, and mints and reserves nothing, so re-running all jobs asks again. It answers 200
 `{"decision": "allow", "lane", "activity"}`; the client fails red with `lane-check-denied` unless
@@ -2190,8 +2199,11 @@ the job's workflow, and mints and reserves nothing, so re-running all jobs asks 
 [above](#the-check-broker-job). Any other status fails red with
 `lane-check-denied`, the status and the broker's reason, from the table above minus the
 mint-only rows; no response is `broker-unreachable`. The lanes bot is refused only on a mint, so
-a `workflow_run` read lane still runs after a bot push. It checks no actor either, so a
-`github-actions[bot]` dispatch is allowed here and judged by the run job's trigger gate (step 3).
+a `workflow_run` read lane still runs after a bot push. Other callers' checks test no actor, so a
+`github-actions[bot]` dispatch is allowed there and judged by the run job's trigger gate (step 3).
+An intake check runs the actor gate: a `github-actions[bot]` dispatch must name an open issue whose
+author is a listed human or the lanes App, any other actor must be a listed human, and only a
+listed human may re-run it.
 The endpoint is served from
 `melodic-software/azure-iac`; a read lane fails red until it is deployed.
 
@@ -2245,7 +2257,7 @@ run's commit still differ from main's, that the issue is open with `agent-ready`
 posts work-unblock's re-fire record and removes and re-adds `agent-ready` as the App. It stops
 after `limits.limit-stops-per-issue` such records since a listed human last added
 `agent-ready` or a run last reported, so a main that moves faster than the slots drain backs off
-to work-unblock's hourly sweep, which finds the stop step in the job listing (a refused report
+to work-unblock's sweep, which finds the stop step in the job listing (a refused report
 mint included) and re-fires the issue once per version of the two files. A stale stop is no
 outcome marker, so it never counts against `limits.stop-retries`. An issue that
 `pick-slot`'s resolve skips on its dimensions (`split-required`, `research-first` or
@@ -2293,9 +2305,19 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `GITHUB_TOKEN`, and reads the issue's lane branches (`git/matching-refs` on
   `work-resolve-issue/issue-<n>-`), their PRs, their tip commits, their commits ahead of the
   default branch, the issue's open closing PRs and the lanes App's outcome markers on it. It skips
-  the run `not-applicable`, with no model and no comment, when a lanes-App PR from a
-  lane branch is open, or when an open PR in this repository closes the issue and the lanes App or
-  a listed human (`trusted-actors.json`) opened it; anyone's other closing PR is ignored. It also
+  the run, with no model and no comment, `not-applicable` when a lanes-App PR from a lane branch
+  is open, and `closed-by-open-pr` when an open PR in this repository closes the issue and the
+  lanes App or a listed human (`trusted-actors.json`) opened it; anyone's other closing PR is
+  ignored. The run job's `skip-reason` output carries that reason, and once the scan job's decode
+  step has checked it against the closed-name shape, so does the read file's `scan-skip-reason`
+  output; no PR number crosses. `work-resolve-issue.yml` then runs its `report-outcome` job with
+  `dimension-skip: closed-by-open-pr` (`workflow-stale` wins when both apply) and no lease to end,
+  since the read file's report job already ended it. `report-outcome` reads the issue's open
+  closing PRs itself, with the same trust rule, and stops `closed-by-open-pr` on the `wait` route
+  naming the one it finds (below), in a comment in the
+  [lane output format](../../contracts/loop-lane/lane-output-format.md) under the outcome marker, or
+  posts nothing when none closes the issue now; a failed read
+  fails the job and posts nothing. It also
   skips `not-applicable` and sets the `reuse-branch` output to the first lane branch, newest run
   and attempt first, that has commits ahead, a tip commit GitHub verified whose author is the
   lanes App bot and whose committer is `web-flow`, as the App's API commits are (a branch name
@@ -2396,17 +2418,16 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   body starts `Closes #<n>` (or `Refs: #<n>`, with a `## Remaining work` section listing them,
   when the outcome's `remaining` names parts of the issue the PR leaves for later work; a
   `remaining` that is not 1 to 20 strings with text counts as none, and the run's `link` field
-  decides nothing), and adds
-  `Hold: a human merges this` for untrusted-provenance work, for a diff that
+  decides nothing), and holds it with the `do-not-merge` label for untrusted-provenance work, for a diff that
   touches a path the merge lane refuses (`merge.diff-check.denied-paths`, read from the run's
   resolved config; unreadable holds every PR), or, while some path is denied, for one too large
-  for the compare listing to show whole. It adds the same line when the issue carries `merge: human` whose newest `labeled`
+  for the compare listing to show whole. It holds it the same way when the issue carries `merge: human` whose newest `labeled`
   event is a listed human's or the lanes App's, or when the trusted list that judges it cannot be
   read, and never for anyone else's. When the issue's events cannot be read, a run that would open
   a PR opens none, posts nothing and ends green with a notice: the branch stays unreported, and
   the next run work-unblock's sweep starts opens the PR from it.
-  A PR with that line also gets the `do-not-merge` label right after it opens, or when the run
-  reuses its open PR; the work class stays on the issue. A PR the label cannot reach is closed
+  The label goes on right after the PR opens, or when the run reuses its open PR; the work class
+  stays on the issue. A PR the label cannot reach is closed
   and the issue retried (`hold-label-failed`).
   The run's own summary is quoted with issue references broken, so squash-merging the PR closes only `#<n>`. Every stop takes the route its reason has in
   `.github/scripts/work-resolve-issue/stop-routes.json`, one row per reason with a `why`; a
@@ -2482,10 +2503,11 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   It holds: it ends green with a notice, keeps `agent-ready` and posts no marker, and the
   work-unblock sweep re-fires it on the stranded backoff (`limits.stranded-backoff-hours`), at most
   24 hours between re-fires. A fault hold has no hard count, only that backoff, and a re-fire can
-  spend a model run each time. `wait` (`blocked-by-pr`) keeps `agent-ready` with
-  `outcome=wait pr=<n>`, naming the first `#<n>` in the reason: the work-unblock sweep restarts the
-  issue once that pull request merges or closes, its waits counted against `limits.stop-retries`
-  apart from its retries; a pull request that is not open, or none named, retries instead.
+  spend a model run each time. `wait` (`blocked-by-pr`, `closed-by-open-pr`) keeps `agent-ready`
+  with `outcome=wait pr=<n>`, naming the first `#<n>` in the reason: the work-unblock sweep
+  restarts the issue once that pull request merges or closes, its waits counted against
+  `limits.stop-retries` apart from its retries; a pull request that is not open, or none named,
+  retries instead.
   `intake` removes `agent-ready`, `status: ready` and `admission-deferred`, so the triage sweep,
   which counts `outcome=intake` as a hand-back, sends the issue back through intake. On
   `blocked-by-issue` (`retries: 1`) the comment also names, outside the quoted run words, the
@@ -2495,10 +2517,14 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   cited merged pull request (the first three `#<n>` are tried) or commit is on the default branch
   and its commit message closes the issue, and `report-delivered` only on an
   issue the run committed nothing for and resumed no branch on, whatever its work class, with the
-  run's `summary` as the report; either retries otherwise. Dependents and split parents count the lanes App's
-  `already-done` close as trusted only while that evidence re-checks true when they read it
-  (`isTrustedClose` in check-trusted-trigger, through `.github/scripts/lib/done-evidence.mjs`); a
-  `report-delivered` close, or any read that fails, counts for nothing. `fail` removes `agent-ready`, adds no label and comments
+  run's `summary` as the report; either retries otherwise. Dependents and split parents count a
+  lanes App `already-done` or `verified-done` close as trusted only while its evidence re-checks
+  true when they read it (`isTrustedClose` in check-trusted-trigger, owner Q9, through
+  `.github/scripts/lib/done-evidence.mjs`). Blocker resolution alone (admission, Check Admission
+  and the work-unblock sweep) also counts any other App close, `report-delivered` included, when
+  the App wrote that close comment after the issue's last reopen (owner Q300); a sub-issue or
+  parent rule does not. An App close without that comment, a close comment someone else wrote,
+  or any read that fails, counts for nothing. `fail` removes `agent-ready`, adds no label and comments
   with `outcome=failed`, which the maintenance monitor's signal 9 reports. Every comment that adds the human-gated label opens with the attended
   queue's escalation marker `<!-- work-items:escalation lane=work-resolve-issue kind=escalated -->`,
   so `/work-items:attend-queue` lists the issue, and then the outcome marker
@@ -2537,11 +2563,11 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   model text. Otherwise the PR has fixed text naming the earlier run and none of the model's text.
   Either way its Fix section lists the files `GET /compare` names, those on a
   `merge.diff-check.denied-paths` glob marked and listed first; a failed compare says the list is
-  unavailable and still opens the PR. The PR carries the hold line on the same conditions as a
+  unavailable and still opens the PR. The PR carries the hold label on the same conditions as a
   `done` run's (one check, `mustHold` in `report-outcome.mjs`), `merge: human` included, plus
   two of its own: the compare failed, or the leak scan `run-checks` ran on the branch (its
   `scan` word in the checks record) is missing or not `clean`, since `lint-repo`'s gitleaks scan
-  does not cover what that scan flags. Runner checks add no hold line of their own, failed or not
+  does not cover what that scan flags. Runner checks add no hold of their own, failed or not
   reported (missing or another tip): the Verification section lists each result, and `ci-status`
   reruns them on the head. The summary never decides the hold or reaches a status:
   `report-statuses` then posts only `pipeline/report-outcome` on that branch, so any statuses the
@@ -2550,8 +2576,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   open from the branch, `report-outcome` reads the issue's open closing PRs again, with the same
   trust rule as `issue-prior`: a closing keyword can land on another PR while the model runs. When
   one closes the issue, it opens no PR, logs that PR's number and stops `closed-by-open-pr`, which
-  routes to `retry`, so the next run stops in `issue-prior` while that PR stays open. A failed read
-  fails the job and opens no PR.
+  routes to `wait` on that PR: work-unblock starts the issue again only once the PR merges or
+  closes, within `limits.stop-retries`, and a run started meanwhile stops in `issue-prior`. A
+  failed read fails the job and opens no PR.
 - A stopped run's leftover branch is deleted on the issue's next run (owner decision on #7948).
   With the model running or a branch reused, `issue-prior` names, as `prune-branches`, every lane
   branch of the issue whose run posted a lanes-App outcome marker, whose commits ahead of the
@@ -2573,6 +2600,42 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `pipeline/*` success, and no required check names one, but a `failure` or `error` status
   counts as a failing check, so it holds the pr-merge gate (fail closed). Descriptions are fixed text.
 
+### Verdict mode
+
+`issue-verdict: true`, with `issue-number`, runs an intake activity whose `applied-by` names
+`triage-verdict`. Its one caller is [`intake-triage.yml`](../../../.github/workflows/intake-triage.yml),
+whose `triage-issue` runs `/work-items:triage --issue <n> --ci` in three calls, one credential each
+([Two calls on one credential each](#two-calls-on-one-credential-each)). It differs from issue mode
+here:
+
+- **Run sources.** Verdict mode runs only on a `workflow_dispatch` naming the issue: the run
+  job's assert step refuses an `issues` event, so no read check is sent on one. On `issues: opened`,
+  the caller's `dispatch-triage` job, with no model and `actions: write` alone, runs
+  `check-trusted-trigger` with `require-pr: false`, `require-kind: human`, `issue-author: true` and
+  `bot-sender-ids` set to `github-actions[bot]` (41898282) and the lanes App, so the sender must be
+  the issue's author and a listed human or one of those bots, then dispatches the workflow with
+  `issue-number`. The dispatched run's trigger gate admits a listed human or those bot senders, and
+  a re-run needs a listed human; its check carries `issue_number`, and the broker re-checks the
+  issue ([The check endpoint](#the-check-endpoint)). `check-trusted-base` takes `no-pr` and trusts
+  the default branch tip.
+- **No lease and no prior work.** check-broker claims no lease, and the run job skips the stale
+  workflow-file check and the earlier-work check; the report job, which only ends a lease in issue
+  mode, does not run.
+- **The read tools.** `collect-base-activity` keeps the read skill set (Read, Glob, Grep, Skill)
+  and adds no rule. It writes the skill's own `schemas/ci-verdict.schema.json` to
+  `$RUNNER_TEMP/lane-verdict-schema` with `size`, `complexity` and `uncertainty` narrowed to the
+  base's `models.issue-dimensions.fields` option keys, and the launcher's `json-schema-file` names it.
+- **The issue file.** `write-intake-issue.mjs` writes `issue.json` with the job's read-only token:
+  title, body and labels as written, the comments of a listed human or a bot sender less the lane's
+  own marker comment, the newest 200 open issues and the latest 100 merged pull requests; it narrows
+  the schema's `type` to the repository's enabled Issue Types, or drops it.
+- **The verdict.** The last result's `structured_output` takes the structured-output carry slot
+  (`dependency-verdict.json`). The scan job refuses a verdict-mode run that carries a patch, replies
+  or an outcome, and uploads the verdict as `triage-verdict-<issue>-<attempt>`; its
+  `triage-verdict-attempt` and `triage-verdict-sha256` outputs, the scan job's, name it. The caller's
+  `post-triage` job checks the file against that SHA-256, `check-ci-verdict.mjs` and
+  `set-dimensions.sh --dry-run` before it writes anything.
+
 ## Runs that post no check
 
 - An issue-mode run (above): the report job's `if:` skips it.
@@ -2586,8 +2649,11 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   run ran differs from the tip's, which the broker would refuse as `workflow-modified`. That commit
   is the run's head, or for a `pull_request_target` run the one its
   `pr-unblock-target-dispatched-<commit>-<run id>` record names, never its head, which is the PR's.
-  The caller's `check-dispatcher-current` job (`dispatcher-current.sh`; in `pr-refine.yml`, a step of
-  `select-passes`) compares the two before any select job or step, so nothing runs and the run ends green with no check and no stop, and the next
+  A step of the caller's first job (`dispatcher-current.sh`: in `pr-unblock.yml`, each activity's
+  select job or `fix-ci-context`; in `pr-refine.yml`, `select-passes`) compares the two before the
+  job reads the PR. `review-dependency-select` holds no `actions: read`, which the compare's run
+  read needs, so for that activity the `check-dispatcher-current` job compares first and the
+  select job does not start. Either way nothing runs and the run ends green with no check and no stop, and the next
   dispatcher finds the head unhandled. When that commit is the tip itself, the file is the tip's
   and no contents read is made. A read it cannot make, or a record not yet uploaded, leaves the
   run to the broker.

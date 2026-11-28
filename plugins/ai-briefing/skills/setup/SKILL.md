@@ -1,5 +1,5 @@
 ---
-description: "Verify or configure an ai-briefing profile and, only when explicitly requested, install the deterministic HTML/PDF/PPTX build toolchain. Use when: 'set up ai-briefing', 'configure ai-briefing', 'add an ai-briefing profile', 'is ai-briefing working', or 'ai-briefing setup'. Actions: check (read-only verification, default) | apply (scaffold the profile) | apply install-build-deps (also install the build toolchain). Idempotent, safe to re-run."
+description: "Verify (check) or scaffold (apply) an ai-briefing profile, and optionally install the HTML/PDF/PPTX build toolchain (apply install-build-deps)."
 argument-hint: "[check|apply] [install-build-deps] [--profile <name>]"
 user-invocable: true
 disable-model-invocation: true
@@ -135,8 +135,13 @@ nothing and reports "already configured".
    skip this step and change no existing runtime. With it, build and validate a temporary
    locked runtime first, then replace the current runtime with same-filesystem renames. A
    dependency, browser-install, or launch failure must leave the working runtime untouched.
-   The plugin cache is read-only, and Node ESM does not use `NODE_PATH` for bare-package
-   resolution.
+   Install nothing into the plugin's installed directory, and resolve bare packages without
+   `NODE_PATH`. Where an installed plugin lives:
+   [find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk);
+   what an update does to it:
+   [cleanup of previous versions](https://code.claude.com/docs/en/plugins/loading#cleanup-of-previous-versions).
+   How ESM resolves bare specifiers:
+   [Node.js ESM: no `NODE_PATH`](https://nodejs.org/api/esm.html#no-node_path).
 
    ```bash
    command -v node >/dev/null 2>&1 || {

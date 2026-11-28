@@ -1,22 +1,11 @@
-// Runs every call on SQL Server through tedious, per ADR 0086 sections 1 and 4
-// and its write-tier amendment. The plugin owns the pool, so the guards and
-// the discard rule live here: a call takes a connection, runs the guard batch, runs its statements
-// (a read in autocommit, a write in its own one-batch transaction), checks
-// @@TRANCOUNT, and hands the connection back only when all of that ended
-// cleanly. A timeout, a cancel, an error or an open transaction closes it.
-
 export const APP_NAME = 'sql-server-plugin (agent session)';
 
-// The row chosen in reference/read-safety-measurement.md; test/defaults.test.mjs
-// holds them to it.
 export const DEFAULT_LIMITS = Object.freeze({ requestTimeoutMs: 30_000, lockTimeoutMs: 5_000, rowCap: 1_000 });
 export const POOL_MAX = 2;
 export const IDLE_TIMEOUT_MS = 30_000;
 
 export const TRANCOUNT_CHECK = 'SELECT @@TRANCOUNT AS trancount;';
 
-// Runs through execSqlBatch, not execSql: a SET inside sp_executesql reverts
-// when that batch returns, so the settings would not reach the statement.
 export function guardBatch(lockTimeoutMs) {
   if (!Number.isInteger(lockTimeoutMs) || lockTimeoutMs < -1) throw new Error(`lockTimeoutMs must be an integer, not ${lockTimeoutMs}`);
   return [
@@ -61,9 +50,6 @@ JOIN sys.columns AS c ON c.object_id = ic.object_id AND c.column_id = ic.column_
 WHERE i.object_id = OBJECT_ID(QUOTENAME(${OBJECT_SCHEMA}) + N'.' + QUOTENAME(@name))
 ORDER BY i.name, ic.is_included_column, ic.key_ordinal, ic.index_column_id;`;
 
-// The tables a write to the target reaches: the target at depth 0, then each
-// table whose foreign key has a cascading action into one already reached.
-// SQL Server refuses a cascade cycle, and the depth bound keeps this finite anyway.
 const CASCADE_REACH = `WITH reached AS (
   SELECT t.object_id AS object_id, CAST(NULL AS int) AS fk_id, 0 AS depth
   FROM sys.tables AS t
@@ -83,7 +69,6 @@ FROM reached AS r
 LEFT JOIN sys.foreign_keys AS fk ON fk.object_id = r.fk_id
 ORDER BY r.depth, [table], [foreignKey];`;
 
-// One row per trigger and event it fires on.
 const PREVIEW_TRIGGERS = `${CASCADE_REACH}
 SELECT OBJECT_SCHEMA_NAME(tr.parent_id) + N'.' + OBJECT_NAME(tr.parent_id) AS [table], tr.name AS [name],
   te.type_desc AS [event], tr.is_instead_of_trigger AS [insteadOf], tr.is_disabled AS [disabled]
@@ -92,13 +77,8 @@ JOIN sys.trigger_events AS te ON te.object_id = tr.object_id
 WHERE tr.parent_id IN (SELECT object_id FROM reached)
 ORDER BY [table], [name], [event];`;
 
-// @@ROWCOUNT is an int.
 const MAX_INT = 2_147_483_647;
 
-// One batch holds the transaction from BEGIN to COMMIT or ROLLBACK, so no
-// transaction stays open between calls or across the person's approval.
-// BEGIN and COMMIT reset @@ROWCOUNT, so it is read straight after the
-// statement. statement must already end in a semicolon.
 export function writeBatch(statement, expectedRows) {
   if (!Number.isInteger(expectedRows) || expectedRows < 0 || expectedRows > MAX_INT) {
     throw new Error(`expectedRows must be a non-negative integer no larger than ${MAX_INT}, not ${expectedRows}`);
@@ -140,7 +120,6 @@ async function defaultAzureCredential(clientId) {
   return new identity.DefaultAzureCredential(clientId === undefined ? undefined : { managedIdentityClientId: clientId });
 }
 
-// tedious returns binary columns as Buffers; hex keeps them readable in JSON.
 const toJson = (value) => {
   if (Buffer.isBuffer(value)) return `0x${value.toString('hex')}`;
   if (typeof value === 'bigint') return value.toString();
@@ -149,7 +128,6 @@ const toJson = (value) => {
 
 const toObjects = ({ columns, rows }) => rows.map((row) => Object.fromEntries(columns.map((column, i) => [column, row[i]])));
 
-// run stops at a capped result set, so the sets after it are missing; they read as empty.
 const NO_ROWS = Object.freeze({ columns: [], rows: [], truncated: false });
 const padSets = (sets, count) => Array.from({ length: count }, (_, i) => sets[i] ?? NO_ROWS);
 const anyTruncated = (sets) => sets.some((set) => set.truncated);
@@ -176,8 +154,6 @@ export function createTediousExecutor(
   let open = 0;
   let closed = false;
 
-  // A failed load is not kept, so installing the dependencies or a credential
-  // that comes back later takes effect on the next call.
   const getDriver = () => {
     driverReady ??= loadTedious().catch((error) => {
       driverReady = undefined;
@@ -200,8 +176,6 @@ export function createTediousExecutor(
     return { type: 'token-credential', options: { credential: await credential } };
   }
 
-  // tedious takes a named instance (host\INSTANCE) as instanceName, which
-  // excludes a port.
   const [host, instanceName] = registration.server.split('\\');
   const endpoint =
     instanceName === undefined ? (registration.port === undefined ? {} : { port: registration.port }) : { instanceName };
@@ -215,7 +189,6 @@ export function createTediousExecutor(
         database,
         appName: APP_NAME,
         encrypt: true,
-        // The executor's own timer cancels a call; see run().
         requestTimeout: 0,
         enableImplicitTransactions: false,
         abortTransactionOnError: true,
@@ -264,7 +237,6 @@ export function createTediousExecutor(
   async function acquire(database) {
     for (;;) {
       if (closed) throw new Error('the executor is closed');
-      // The server can end an idle session; such a connection is never handed out.
       idle.filter((entry) => broken.has(entry.connection)).forEach(discardIdle);
       const reusable = idle.findIndex((entry) => entry.database === database);
       if (reusable >= 0) {
@@ -272,7 +244,6 @@ export function createTediousExecutor(
         clearTimeout(entry.timer);
         return entry;
       }
-      // A full pool with an idle connection to another database gives up that one.
       if (open >= maxConnections && idle.length > 0) discard(idle.shift());
       if (open < maxConnections) {
         open += 1;
@@ -299,9 +270,6 @@ export function createTediousExecutor(
     });
   }
 
-  // Runs statements one after another on one connection between the guard
-  // batch and the transaction check, all under one request timeout. Each
-  // result set stops at the row cap: the row past it cancels the request.
   async function run(database, statements) {
     const tedious = await getDriver();
     const entry = await acquire(database);
@@ -310,7 +278,6 @@ export function createTediousExecutor(
     let capped = false;
     let reusable = false;
     const timer = setTimeout(() => {
-      // A cancel the row cap sent is already on its way.
       if (capped) return;
       timedOut = true;
       connection.cancel();
@@ -350,7 +317,6 @@ export function createTediousExecutor(
           trancount = row[0]?.value;
         },
       });
-      // A cancel sent as the request finished can still reach the next one.
       reusable = trancount === 0 && !timedOut;
       return results;
     } catch (error) {
@@ -424,18 +390,15 @@ export function createTediousExecutor(
       };
     },
 
-    // Throws when the batch rolled back, so a mismatch reaches the agent as a tool error.
     async write({ database, sql, expectedRows }) {
       const unknown = 'whether it committed is not known; read the table before trying again';
       let result;
       try {
         [result] = await run(database, [{ sql: writeBatch(sql, expectedRows) }]);
       } catch (error) {
-        // The cancel can land after COMMIT, while the verdict is on its way.
         if (error.timedOut) throw new Error(`${error.message}, so ${unknown}`);
         throw error;
       }
-      // A trigger can return rows of its own before the verdict; the verdict is the last row.
       const verdict = result.truncated ? undefined : result.rows.at(-1);
       if (verdict === undefined || verdict.length !== 2) throw new Error(`the write batch returned no verdict, so ${unknown}`);
       const [committed, affected] = verdict;

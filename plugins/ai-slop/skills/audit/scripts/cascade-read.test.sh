@@ -25,7 +25,6 @@ write_layer() {
   printf '%s\n' "$2" >"$1"
 }
 
-# --- scalar -----------------------------------------------------------------
 A="$TEST_TMPDIR/a.json"
 B="$TEST_TMPDIR/b.json"
 write_layer "$A" '{ "n": "1" }'
@@ -41,7 +40,6 @@ write_layer "$B" '{ "n": "9" } trailing'
 cascade::scalar got '.n' "$A" "$B"
 assert_eq "scalar: a truncated layer is refused whole" "$got" "1"
 
-# --- list -------------------------------------------------------------------
 items=()
 write_layer "$A" '{ "items": ["one", "two words"] }'
 write_layer "$B" '{ "items": ["later"] }'
@@ -69,7 +67,6 @@ write_layer "$B" '{ "items": ["dropped"] } trailing'
 cascade::list items items "$A" "$B"
 assert_eq "list: a truncated layer is refused whole" "${items[*]}" "kept"
 
-# --- per-slug map -----------------------------------------------------------
 declare -A slugs=()
 write_layer "$A" '{ "paths": { "rule-a": ["keep/**"], "rule-b": ["old/**"] } }'
 write_layer "$B" '{ "paths": { "rule-b": ["new/**"] } }'
@@ -109,9 +106,6 @@ else
 fi
 assert_eq "slug map: a hostile slug leaves other slugs alone" "${slugs["rule-a"]}" "keep/**"
 
-# --- encoding, once, across every shape ------------------------------------
-# A jq that terminates lines with CR (the Windows build) must yield the same
-# effective value as LF jq. The shim is the reader's input, not the JSON file.
 REAL_JQ="$(command -v jq)"
 SHIM="$TEST_TMPDIR/bin"
 mkdir -p "$SHIM"

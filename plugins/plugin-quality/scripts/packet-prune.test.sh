@@ -29,17 +29,6 @@ fresh_tree() {
   printf '%s' "$root"
 }
 
-# verdict_is <nonce> <expected-verdict> <label> — assert the verdict reported for
-# ONE named packet. `has` cannot do this: a run reporting several packets would
-# let a verdict belonging to a different directory satisfy the match. Keyed on the
-# nonce BASENAME rather than the full path, because the script prints the
-# canonicalized path (`pwd -P`) and mktemp's `/tmp/...` is a different spelling of
-# the same directory on Git Bash — comparing whole paths fails for a reason that
-# has nothing to do with the behavior under test.
-#
-# Split on the FIRST space only, never on the last whitespace field: a path is not
-# a whitespace-free token, and a TMPDIR containing a space would otherwise make
-# every assertion compare against a path fragment and quietly stop testing.
 verdict_is() {
   local nonce="$1" expected="$2" label="$3" line actual=""
   while IFS= read -r line; do
@@ -90,15 +79,6 @@ else
 fi
 has "UNPARSABLE" "an ungradable directory is reported, not silently kept"
 
-# --- a nonce's SHAPE is not a date ------------------------------------------
-#
-# The character-shape regex is not a calendar check. `00000000T000000Z` has a
-# nonce's exact shape, names no instant that exists, and sorts below every real
-# cutoff — so a shape-only test grades it DELETE and `--apply` destroys a packet
-# the fail-closed rule promises to keep. `20260231T000000Z` is the subtler one: a
-# naive range check (month<=12, day<=31) passes Feb 31, which BSD `date` silently
-# normalizes to Mar 3. Both must report UNPARSABLE and survive.
-
 shaped="$WORK/shaped-not-real/evidence"
 rm -rf "$WORK/shaped-not-real"
 mkdir -p "$shaped/s/g/00000000T000000Z" "$shaped/s/g/20260231T000000Z" "$shaped/s/g/$OLD"
@@ -120,9 +100,6 @@ verdict_is "00000000T000000Z" UNPARSABLE "the all-zero nonce is reported UNPARSA
 verdict_is "20260231T000000Z" UNPARSABLE "the Feb-31 nonce is reported UNPARSABLE, not DELETE"
 verdict_is "$OLD" DELETE "a real expired nonce is still reported DELETE"
 
-# A dry run must reach the same verdicts — the calendar check belongs to grading,
-# not to `--apply`, and an operator previewing the tree must see UNPARSABLE there
-# rather than a WOULD-DELETE that never materializes.
 shaped_dry="$WORK/shaped-dry/evidence"
 rm -rf "$WORK/shaped-dry"
 mkdir -p "$shaped_dry/s/g/00000000T000000Z"
@@ -137,16 +114,6 @@ run 0 "dry run over legitimate calendar values" --root "$real"
 verdict_is "20240229T000000Z" WOULD-DELETE "a leap day is graded as a real nonce"
 verdict_is "19700101T000000Z" WOULD-DELETE "the epoch is graded as a real nonce"
 verdict_is "20991231T235959Z" KEEP "a far-future nonce is graded as a real nonce"
-
-# --- a broken date round-trip refuses LOUDLY, never silently ----------------
-#
-# Fail-closed is right, but silence is not: a `date` that exists yet cannot
-# round-trip would grade EVERY packet UNPARSABLE, stopping retention forever
-# while still printing a summary and exiting 0. The startup self-check runs the
-# already-validated cutoff through the same path, so a broken userland is
-# refused the way a missing `date` already is. Simulated with a stub `date`
-# earlier on PATH that satisfies the dialect probe and the cutoff computation
-# but fails every round-trip parse.
 
 stubdir="$WORK/stub-bin"
 rm -rf "$stubdir"
@@ -182,25 +149,11 @@ if [[ -e "$stub_root/s/g/$OLD/audit-notes.md" ]]; then
 else
   fail "a packet was deleted despite an ungradable date implementation"
 fi
-# The regression guard: a round-trip strict enough to reject the two above must
-# still grade a REAL old nonce as expired. Without this, a validator that
-# refuses everything would pass both checks above and silently end retention.
 if [[ ! -e "$shaped/s/g/$OLD" ]]; then
   pass "a genuinely old nonce is still deleted under --apply"
 else
   fail "the calendar check broke retention — a real expired packet was not deleted"
 fi
-
-# --- containment holds per candidate, not just for the root -----------------
-#
-# Checking only the root is not containment: a symlink ANYWHERE on the way down
-# yields a path whose real location is elsewhere, and rm -rf follows the real
-# location. An independent review reproduced a delete outside the evidence root
-# through a symlinked session directory.
-#
-# Needs real symlinks; on Git Bash that means MSYS=winsymlinks:nativestrict.
-# Where they cannot be created, SKIP loudly rather than passing vacuously — a
-# containment test that silently no-ops is worse than no test.
 
 sym_root="$WORK/symlink-case"
 rm -rf "$sym_root"
@@ -273,6 +226,8 @@ run 2 "--root is required" --days 5
 run 2 "a non-numeric --days is refused" --root "$(fresh_tree)" --days thirty
 run 2 "an unknown argument is refused" --root "$(fresh_tree)" --wipe
 run 0 "--help exits clean" --help
+has "--apply       delete" "--help lists the flags"
+has "Exit 0 = ran" "--help lists the exit codes"
 
 root="$(fresh_tree)"
 run 0 "--days 0 runs" --root "$root" --days 0 --apply

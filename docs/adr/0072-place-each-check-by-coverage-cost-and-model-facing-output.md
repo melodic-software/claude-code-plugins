@@ -2,8 +2,8 @@
 
 - Status: accepted
 - Date: 2026-10-15
-- Related: [ADR 0003](0003-verification-guards-earn-default-on-by-measured-precision.md) (guard
-  defaults by measured precision), [ADR 0019](0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)
+- Related: [guard defaults by measured precision](../plugin-philosophy.md#classifying-a-hook),
+  [ADR 0019](0019-share-code-across-plugins-by-vendoring-with-a-sync-gate.md)
   (vendored shared code), [ADR 0048](0048-release-plugins-from-changelog-fragments-through-a-bot-maintained-release-pr.md) (changelog
   fragments). The rubric, the registration contract and the duration budgets are in
   [`docs/contracts/check-placement/README.md`](../contracts/check-placement/README.md).
@@ -140,3 +140,60 @@ Owner decision. This replaces Decision item 1's "`pre-push` up to 60 s":
   test suites, plus guardrails `reference-verify` and bash-format `lint-full` where the
   repository has them. Both left `pre-push` for it and also run in CI over the whole pull
   request. CI runs the test suites.
+
+## Addendum (2026-11-24): a changelog-fragment entry in pre-push
+
+Owner decision
+([owner-decisions row](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L412)).
+This replaces the 2026-11-22 addendum's "Pre-push keeps one entry":
+
+- **Second entry.** This repository's `lefthook.yml` adds `branch-checks`
+  (`scripts/pre-push-branch-checks.sh`): `check-changelog-fragments.sh --check` and
+  `--check-required` against the remote's default branch, for a pushed branch whose tip is HEAD.
+  On 2026-11-24 missing or malformed fragments caused 406 of the 962 PR-minutes that Check Plugins
+  and Check Catalog spent red, all on causes these two gates catch.
+- **Budget unchanged.** The entry stays under the 3 s `pre-push` budget; its time is checked by
+  the hook budget gate (`scripts/check-git-hook-time-budget.sh`).
+  The rest of the affected-files check (about 7.6 s plus 0.25 s per changed file, measured on 29
+  red heads) stays in the pre-PR check and CI. A further gate joins `pre-push` only when it runs
+  in 3 s.
+- **Over budget: optimize first, then move**
+  ([owner-decisions row](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L413)).
+  When the hook budget gate trips, the first response is an optimization item for the slow check.
+  The check leaves the hook for CI only when it cannot be brought under 3 s. One over-run on an
+  unusually large change is a signal to look at, not by itself a removal. The check that grows
+  with the repository is `validate-plugin-contracts.mjs`.
+- **Seven whole-branch checks**
+  ([owner-decisions row](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L413)).
+  After the fragment checks the same job runs, in parallel against the same base, the four
+  changelog-parity modes, `sync-plugin-options-docs.py --check`, `validate-plugin-contracts.mjs`
+  (a warning fails), and the marketplace, catalog and cheat-sheet generators in `--check` mode.
+  They read the working tree, so a dirty tree leaves them to CI. On native Windows (MINGW, MSYS,
+  Cygwin) only the fragment checks run until the job is timed there.
+
+## Addendum (2026-11-24): CI times the git hooks
+
+Owner decision. For git hooks only, this amends Decision item 3's "CI enforces counts, not
+durations": CI installs every hook tool and times every shipped `pre-commit` entry on a
+10-file staged fixture and every `pre-push` entry on a shared clone of the real checkout, one
+fixture commit past HEAD pushed as a new branch: pre-push cost grows with the repository, which
+the clone keeps, and the fixed one-commit range keeps a large pull request's own diff out of the
+timing (`scripts/check-git-hook-time-budget.sh`).
+A piped group counts as one unit. It runs when a change touches a hook config or a script an
+entry calls, or adds or removes a plugin, and on the scheduled full run of main, so growth
+alone can trip it. Each run times four reference parts that run no hook code and do not
+grow with the repository: a pwsh start compiling a one-line type with Add-Type, bare starts
+of python3, node, bash and git, a fixed git and node file part, and one short process
+spawn. Each hook's budget is 3 s x its reference ratio: each part's time / its time on the
+desk that set the budget (Linux on WSL2, 2026-11-24), weighted by the share of that hook's
+time the same kind of work takes. pre-commit is about a quarter pwsh; pre-push runs none
+and is mostly short process spawns, so one reference cannot track both. A slower runner therefore does not flake; each run also prints the hooks'
+own ratio to that desk, and CI warns when the two ratios differ by more than 30%. It fails a
+hook over that budget, an entry whose tool is missing, and a pre-push entry that skips a check
+or exits non-zero. A local run skips a missing tool (item 4's skip). Nothing kills a hook at
+run time.
+
+**Over or near budget** (near: within 10% of it, a judgment threshold). In order: measure it on
+the fixture; confirm every entry reads only the staged files (`pre-commit`) or the pushed range
+(`pre-push`), never the whole tree; optimize it (fewer process starts, one tool run instead of
+two); only if it still risks the budget, move the check to CI and remove it from the hook.

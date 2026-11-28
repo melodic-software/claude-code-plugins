@@ -8,10 +8,12 @@ folder passed as a literal argument. Subcommands:
     add --run <run-dir> [--json <text>] append the finding(s) passed in --json, else on stdin;
                                         refuse any that break a rule, including a citation whose
                                         as_of is not the run's date
-    finish --run <run-dir>              validate the whole run, write report.md, print its path
+    finish --run <run-dir> [--sources-file F] [--redact-identifiers LIST]
+                                        validate the whole run, write report.md, print its path
     validate <findings.json>            exit 1 naming each rule a finding breaks
     rank <findings.json>                one `<section>\t<id>` line per finding, in report order
-    render <findings.json>              the markdown report
+    render <findings.json> [--sources-file F] [--redact-identifiers LIST]
+                                        the markdown report
     lint-catalog <dir|file>...          exit 1 naming each catalog row that breaks the grammar
     lock acquire|heartbeat|release|status --data <dir> --session <id>
     adopt --data <dir> --session <id> --findings <findings.json> --id <id> --route-taken <route>
@@ -31,6 +33,10 @@ folder passed as a literal argument. Subcommands:
     permission-counts --file <path>...  per settings file: status (read, missing, invalid or
                                         unreadable) and, when read, its ask and deny rule counts;
                                         nothing else from the file is printed
+
+The report render prints and finish writes is published output: it passes through the publish
+redactor (`lib/publish.py` over `--sources-file` and `--redact-identifiers`), and when that fails
+closed nothing is printed or written and the exit is 2.
 
 A run's date is the UTC date of the started_at that run-start writes: a citation is outside advice
 re-read in this run, so add, finish, validate and adopt refuse one with any other as_of. A findings
@@ -166,7 +172,6 @@ EFFECTS = (
     "batching",
 )
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-# An id reaches a shell line in the main session (adopt --id), so it holds no shell syntax.
 ID_RE = re.compile(r"[a-z0-9][a-z0-9-]{0,63}")
 OVERENGINEERING = "/overengineering:audit"
 
@@ -187,7 +192,6 @@ def load(path: str) -> dict:
 
 
 def run_date(doc: dict) -> str | None:
-    """The UTC date run-start stamped on the header; None for a findings file with no header."""
     date = str(doc.get("started_at") or "")[:10]
     return date if DATE_RE.match(date) else None
 
@@ -323,8 +327,6 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 1 if errors else 0
 
 
-# Report order (Brief Q23, Q28). Elapsed and wait time are both wall-clock milliseconds, so they
-# share the headline band; every other unit keeps a band of its own and is never converted.
 OTHER_UNITS = tuple(u for u in UNITS if u not in ("elapsed-ms", "wait-ms"))
 
 
@@ -438,8 +440,21 @@ def render(doc: dict) -> str:
     return "\n".join(out) + "\n"
 
 
+def publisher(args: argparse.Namespace) -> Callable[[str], str]:
+    """The publish redactor (the generated shared copy in ../lib); exits 2 when it fails closed."""
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
+    sys.dont_write_bytecode = True
+    import publish
+
+    try:
+        return publish.publisher(args.sources_file, args.redact_identifiers).redact
+    except publish.PublishError as exc:
+        die(str(exc))
+
+
 def cmd_render(args: argparse.Namespace) -> int:
-    sys.stdout.write(render(load(args.file)))
+    md_out = publisher(args)
+    sys.stdout.write(md_out(render(load(args.file))))
     return 0
 
 
@@ -513,7 +528,6 @@ def cmd_lock(args: argparse.Namespace) -> int:
     t = now()
     held: dict | None = read_json(path)
     if held is None and path.exists():
-        # An unreadable lock cannot be live, so it reads stale.
         held = {"session_id": "unknown"}
     try:
         age = t - float(held["heartbeat"]) if held else None
@@ -735,8 +749,6 @@ def cmd_compare(args: argparse.Namespace) -> int:
         c for c in CONDITION_FIELDS if not after.get(c) or before.get(c) != after.get(c)
     ]
     if differs:
-        # The new conditions become the baseline, so the next run under them can compare;
-        # a measurement with an unrecorded condition cannot anchor anything and is not kept.
         complete = all(after.get(c) for c in CONDITION_FIELDS)
         if complete:
             current["recorded_at"] = iso(now())
@@ -752,10 +764,7 @@ def cmd_compare(args: argparse.Namespace) -> int:
 
 
 INVOKED = "<command-name>/performance:go-faster"
-# A background task's output file grows while the task runs, so reading it again is never a repeat.
 TASK_OUTPUT = re.compile(r"(?:^|[/\\\s'\"=])tasks[/\\][^/\\\s'\"]+\.output(?![\w.])")
-# A Read of a file unchanged since its last Read returns a stub instead of the file; the stub
-# vouches for the earlier result, so it counts as that result.
 UNCHANGED = "file_unchanged"
 
 
@@ -770,7 +779,6 @@ def read_key(args: dict) -> str:
 
 
 def shown_reads(counts: dict[str, int]) -> dict[str, int]:
-    """Repeated reads keyed as shown; two reads that show alike get distinct labels, never a sum."""
     out: dict[str, int] = {}
     for key, n in counts.items():
         if n > 1:
@@ -787,12 +795,6 @@ def shown_reads(counts: dict[str, int]) -> dict[str, int]:
 def repeats(
     results: dict[str, list[str | None]],
 ) -> tuple[dict[str, int], dict[str, int]]:
-    """Split identical calls into repeats whose results matched and ones that cannot be told.
-
-    A call whose result differs from an earlier one's read changed input, so it repeats nothing.
-    Where any of a key's results is missing, a change cannot be ruled out: those calls go to the
-    second map, all of them, for a reader to record as later.
-    """
     same: dict[str, int] = {}
     unknown: dict[str, int] = {}
     for key, digests in results.items():
@@ -821,7 +823,6 @@ def parse_ts(value: object) -> float | None:
 SHOWN_MAX = 60
 VALUE = r"""("[^"]*"|'[^']*'|\S+)"""
 SECRET_WORD = r"(?:key|token|secret|passw(?:or)?d|cookie|auth\w{0,16}|credential)"
-# Every quantifier ahead of a match is bounded, so a long word cannot make a pattern quadratic.
 SECRETS = (
     (
         re.compile(rf"(?i)\b([\w-]{{0,32}}{SECRET_WORD}[\w-]{{0,32}}:\s*)[^\"'\n]*"),
@@ -840,7 +841,6 @@ SECRETS = (
         r"\1***",
     ),
     (re.compile(r"(?<!\S)(-p)(?=\S)\S+"), r"\1***"),
-    # A standalone -p before a value is often a password; `mkdir -p dir` over-redacts, accepted.
     (re.compile(r"(?<!\S)(-p\s{1,16})(?!-)" + VALUE), r"\1***"),
     (re.compile(r"(?i)(\blogin\b[^|;&\n]{0,100}?\s-p\s+)" + VALUE), r"\1***"),
     (
@@ -892,7 +892,6 @@ def shown_command(command: str) -> str:
 
 
 def merged(counts: dict[str, int], show: Callable[[str], str]) -> dict[str, int]:
-    """Repeats (count above one) keyed as shown; two that show alike add up."""
     out: dict[str, int] = {}
     for text, n in counts.items():
         if n > 1:
@@ -907,7 +906,6 @@ def code_span(name: object) -> str:
 
 
 def union_seconds(spans: list[tuple[float, float]]) -> float:
-    """Length of the union of [start, end] spans: parallel calls wait on one wall clock."""
     total, reach = 0.0, float("-inf")
     for start, end in sorted(spans):
         if end > (low := max(start, reach)):
@@ -917,10 +915,6 @@ def union_seconds(spans: list[tuple[float, float]]) -> float:
 
 
 def peak_overlap(spans: list[tuple[float, float]]) -> int:
-    """Most spans open at one instant; a span ending as another starts does not overlap it.
-
-    A zero-length span is still one open run, so any span makes the peak at least 1.
-    """
     events = sorted([(start, 1) for start, _ in spans] + [(end, -1) for _, end in spans])
     peak = depth = 0
     for _, step in events:
@@ -930,7 +924,6 @@ def peak_overlap(spans: list[tuple[float, float]]) -> int:
 
 
 def slowest_first(rows: list[dict]) -> None:
-    """Sort in place: the expressible tail, then the median, then the single worst sample."""
     rows.sort(
         key=lambda r: tuple(-1 if r[k] is None else r[k] for k in ("p95_ms", "p50_ms", "max_ms")),
         reverse=True,
@@ -938,7 +931,6 @@ def slowest_first(rows: list[dict]) -> None:
 
 
 def agent_calls(records: list[dict]) -> list[dict]:
-    """One agent transcript's tool calls: name, args, error, and at/until when both are stamped."""
     calls: dict[str, dict] = {}
     for record in records:
         stamp = parse_ts(record.get("timestamp"))
@@ -969,7 +961,7 @@ def workflow_counts(tr, path: Path, cut_at: float | None) -> dict | None:
     runs: dict[str, dict] = {}
     tools: dict[str, dict[str, int]] = {}
     waits: dict[str, list[tuple[float, float]]] = {}
-    commands: dict[str, dict] = {}  # full command text -> runs and timed spans
+    commands: dict[str, dict] = {}
     for agent in tr.iter_workflow_agents(path):
         records = list(tr.iter_records(agent.path))
         stamps = [s for r in records if (s := parse_ts(r.get("timestamp"))) is not None]
@@ -981,7 +973,6 @@ def workflow_counts(tr, path: Path, cut_at: float | None) -> dict | None:
         run["agents"] += 1
         run["stamps"] += [min(stamps), max(stamps)] if stamps else []
         for call in agent_calls(records):
-            # As in the main session, a call made after the invocation belongs to the sweep.
             if cut_at is not None and call["at"] is not None and call["at"] >= cut_at:
                 continue
             name, command = call["name"], call["args"].get("command")
@@ -999,7 +990,6 @@ def workflow_counts(tr, path: Path, cut_at: float | None) -> dict | None:
         return None
     for name, spans in waits.items():
         tools[name]["wait_ms"] = round(union_seconds(spans) * 1000)
-    # Repeats are keyed by full text, then shown; repeats that show alike add up, as merged() does.
     shown_repeats: dict[str, dict] = {}
     for command, entry in commands.items():
         if entry["runs"] > 1:
@@ -1046,7 +1036,7 @@ def workflow_counts(tr, path: Path, cut_at: float | None) -> dict | None:
 
 def load_transcript_reader() -> ModuleType:
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
-    sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+    sys.dont_write_bytecode = True
     import transcript_reader as tr  # noqa: PLC0415  (the generated shared copy in ../lib)
 
     return tr
@@ -1056,12 +1046,9 @@ def transcript_counts(path: Path) -> dict:
     tr = load_transcript_reader()
     stats: dict[str, int] = {}
     records = list(tr.iter_records(path, stats))
-    # The latest go-faster invocation, slash or model-invoked, cuts the transcript: what comes
-    # before it is the session's own work, what follows is the sweep's setup. cut_record is the
-    # invoking record, cut_call the number of tool calls made before it.
     cut_record: int | None = None
     cut_call: int | None = None
-    calls: dict[str, dict] = {}  # tool_use id -> the call, in first-seen order
+    calls: dict[str, dict] = {}
     for i, record in enumerate(records):
         stamp = parse_ts(record.get("timestamp"))
         if record.get("type") == "user" and INVOKED in (tr.user_text(record) or ""):
@@ -1094,7 +1081,7 @@ def transcript_counts(path: Path) -> dict:
     prior_calls = list(calls.values())[:cut_call]
     prior = records[:cut_record]
     tools: dict[str, dict[str, int]] = {}
-    reads: dict[str, list[str | None]] = {}  # read key -> each call's result digest
+    reads: dict[str, list[str | None]] = {}
     commands: dict[str, list[str | None]] = {}
     skills: dict[str, int] = {}
     waits: dict[str, list[tuple[float, float]]] = {}
@@ -1177,10 +1164,7 @@ def cmd_transcript_counts(args: argparse.Namespace) -> int:
 
 
 STOP_SUMMARY = "stop_hook_summary"
-# A percentile p is expressible only from n >= 1/(1-p) samples (summarize.py's floor).
 P50_FLOOR, P95_FLOOR = 2, 20
-# Notification hooks carry their secret in the URL path (webhook ids, topics), so a hook label
-# keeps only the host. The cap bounds redaction time; labels are cut far shorter anyway.
 URL_PATH = re.compile(r"\b(\w{1,32}://[^/\s\"']{1,253})/[^\s\"']*")
 HOOK_INPUT_MAX = 4096
 
@@ -1191,7 +1175,6 @@ def hook_label(command: str) -> str:
 
 
 def percentile(ordered: list[float], p: float) -> float:
-    """Linear interpolation between the two nearest ranks of a sorted list."""
     k = (len(ordered) - 1) * p / 100
     low = int(k)
     high = min(low + 1, len(ordered) - 1)
@@ -1203,7 +1186,6 @@ def stop_hook_timing(path: Path) -> dict:
     records = 0
     timed: dict[str, list[float]] = {}
     untimed: dict[str, int] = {}
-    # Keyed by the raw command, so two hooks that redact alike stay apart; labeled on output.
     for record in tr.iter_records(path):
         if record.get("subtype") != STOP_SUMMARY:
             continue
@@ -1232,7 +1214,6 @@ def stop_hook_timing(path: Path) -> dict:
             }
         )
     slowest_first(hooks)
-    # A hook with any recorded duration is ranked, never also reported as background.
     shown_untimed: dict[str, int] = {}
     for hook, n in untimed.items():
         if hook not in timed:
@@ -1300,8 +1281,9 @@ def cmd_finish(args: argparse.Namespace) -> int:
         print("\n".join(errors))
         return 1
     report = run / "report.md"
+    text = publisher(args)(render(doc))
     with writing(report):
-        report.write_text(render(doc), encoding="utf-8", newline="\n")
+        report.write_text(text, encoding="utf-8", newline="\n")
     print(report.as_posix())
     return 0
 
@@ -1317,7 +1299,6 @@ def cmd_status_timing(args: argparse.Namespace) -> int:
     with writing(trace):
         trace.parent.mkdir(parents=True, exist_ok=True)
         trace.unlink(missing_ok=True)
-    # The column layout parsed below is the non-brief form; a caller's BRIEF setting would drop it.
     env = {**os.environ, "GIT_TRACE2_PERF": str(trace), "GIT_TRACE2_PERF_BRIEF": "0"}
     for _ in range(args.runs):
         result = subprocess.run(
@@ -1422,7 +1403,6 @@ def span_ms(start: object, end: object) -> int | None:
 
 
 def stat(samples: Sequence[float], unit: str, command: str, excluded: int = 0) -> dict:
-    """One number to record; excluded counts items whose timestamps were missing or unparsable."""
     return {
         "value": median(samples),
         "unit": unit,
@@ -1437,11 +1417,6 @@ def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
         ["run", "list", "--repo", repo, "--limit", str(runs), "--status", "completed"]
         + ["--json", RUN_FIELDS]
     )
-    # Each workflow is its own pipeline, and a failed or cancelled run stops early, so a median
-    # over every run listed describes whichever workflows and failures finished last. Runs are
-    # grouped by workflow, and only successful ones are timed.
-    # A ruleset workflow's run has no workflowName, so runs group on the workflow's id, then its
-    # name, then the run itself; the name is only the label.
     groups: dict[str, tuple[str, list[dict]]] = {}
     for run in listed:
         wf_id, wf_name = run.get("workflowDatabaseId"), run.get("workflowName")
@@ -1468,12 +1443,10 @@ def ci_timing(repo: str, runs: int, job_runs: int) -> dict:
 def workflow_timing(
     repo: str, name: str, listed: list[dict], job_runs: int, list_line: str
 ) -> dict:
-    """One workflow's numbers, timed from its newest successful runs only."""
     outcomes: dict[str, int] = {}
     for run in listed:
         outcome = inert(str(run.get("conclusion") or "unknown"))
         outcomes[outcome] = outcomes.get(outcome, 0) + 1
-    # A run with no parseable createdAt cannot be ordered, so it is never timed.
     succeeded = [r for r in listed if r.get("conclusion") == "success"]
     dated = [(t, r) for r in succeeded if (t := parse_ts(r.get("createdAt"))) is not None]
     dated.sort(key=lambda tr: tr[0], reverse=True)
@@ -1490,7 +1463,6 @@ def workflow_timing(
         job_lines.append(line)
         starts = [parse_ts(j.get("started_at")) for j in jobs]
         ends = [parse_ts(j.get("completed_at")) for j in jobs]
-        # One ran job with an unknown start or end makes the whole run's length unknown.
         unknown = any(
             None in (s, e)
             for j, s, e in zip(jobs, starts, ends)
@@ -1583,8 +1555,6 @@ def pr_timing(limit: int) -> dict:
         if created is None:
             no_first += 1
             continue
-        # A pending review has no submittedAt; one stamped before the PR opened is not a wait.
-        # An unparsable stamp could be the earliest review, so the PR is left out.
         stamps = [
             r.get("submittedAt")
             for r in pr.get("reviews") or []
@@ -1696,12 +1666,14 @@ def main() -> int:
     p.set_defaults(fn=cmd_run_start)
     p = sub.add_parser("add")
     p.add_argument("--run", required=True)
-    # An argument, so a sweeper under worktree isolation needs no heredoc to pass findings.
     p.add_argument("--json")
     p.set_defaults(fn=cmd_add)
     p = sub.add_parser("finish")
     p.add_argument("--run", required=True)
     p.set_defaults(fn=cmd_finish)
+    for command in (p, sub.choices["render"]):
+        command.add_argument("--sources-file", default="", help="the transcript_sources_file option, whose identifiers the report redacts")
+        command.add_argument("--redact-identifiers", default="", help="the redact_identifiers option: more names and paths the report redacts")
     p = sub.add_parser("status-timing")
     p.add_argument("--data", required=True)
     p.add_argument("--runs", type=int, default=5)

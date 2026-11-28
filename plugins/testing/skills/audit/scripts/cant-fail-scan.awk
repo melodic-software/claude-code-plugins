@@ -1,57 +1,3 @@
-# cant-fail-scan.awk — per-file rule engine for cant-fail-scan.sh. Not a
-# standalone entry point: the driver resolves the scan root, walks the tree,
-# picks the adapter for each file, and aggregates; this program judges ONE test
-# file per invocation.
-#
-# Invocation: awk -v ADAPTER=<id> -v ADAPTER_TABLE=<path> [-v SCOPE=<n[-m],...>] -f mask-js.awk -f cant-fail-scan.awk <file>
-#
-# ADAPTER_TABLE is adapter-load.awk's output over the adapters/ directory. All
-# framework vocabulary (test starts, skips, assertion tokens, mocks, equality
-# helpers) comes from the named adapter. This file holds only what no adapter
-# can supply: the rules, one lexer per language (js, cs, python, bash, pwsh,
-# go), and the block models the adapter picks (brace, indent for python, file
-# for a harness with no per-case marker).
-# Language syntax stays with its lexer: C# attributes and method signatures,
-# and Python's assert statement.
-#
-# Twin-file load: the JavaScript masker lives in mask-js.awk beside this file,
-# because runner-config-scan.awk masks the same language and one copy cannot
-# drift from itself. The driver passes both -f flags; this program calls
-# mask_js() and never defines it.
-#
-# Output, tab-separated, one record per line:
-#   F <tab> <rule-slug> <tab> <line> <tab> <detail>   a finding
-#   X <tab> <rule-slug> <tab> <line> <tab> <detail>   a finding exempted by a cant-fail-ok: annotation
-#   S <tab> <F|X> <tab> <line> <tab> <path>           a source-text-read candidate: a static path a
-#                                                      test reads; the driver keeps it only when git
-#                                                      tracks it as a non-test source file
-#   B <tab> <count>                                    test blocks parsed (emitted once, at END)
-#   L <tab> 1                                          the lexer ended inside a string, heredoc or comment; the open block is not judged
-#   K <tab> <start>-<end> <tab> <ordinal> <tab> <name> an examined test block in SCOPE (-v BLOCKS=1 only); the
-#                                                      ordinal counts same-named blocks through the whole file
-#
-# -v INVENTORY=<n> replaces all of the above with an inventory of the text,
-# counted per masked line whatever the block model sees, so a fragment with no
-# test start still counts (the test-weaken hook compares two of these):
-#   <n> <tab> test|assertion|skip <tab> <count> <tab> <line>   test_start, assertion
-#                                                      (calls, snapshot, mock.verify) and
-#                                                      test_skip/body_skip/suite_skip matches on a line
-#   <n> <tab> expect <tab> <actual> <tab> <literal>    an equality with one literal side
-#   <n> <tab> unjudged                                 the lexer ended inside a string or comment
-#
-# Rule slugs: zero-assertion | recomputed-expectation | mock-only-oracle |
-# inert-assertion | constant-restatement | conditional-assertion |
-# recomputed-derived | snapshot-only | weak-oracle | throw-only-oracle
-# (source-text-read comes from S).
-# The driver owns the qualified rule-id form and the thresholds' prose.
-#
-# Design bias, load-bearing: every heuristic errs toward NOT firing. Assertion
-# tokens are matched generously (a helper named checkInvariant counts), string
-# and comment text is masked before any token match, skipped tests are not
-# judged, and a mock-assertion chain the stripper cannot parse is treated as a
-# value assertion. A missed defect costs one finding; a false positive costs
-# the detector its audience.
-
 BEGIN {
   blocks = 0
   in_test = 0
@@ -63,7 +9,7 @@ BEGIN {
   FATAL = 0
   sr = 0        # inside a skipped suite (describe.skip / xdescribe) or C# class  # spellchecker:disable-line
   sr_depth = 0
-  last_sig = "" # last significant code char emitted by mask_js — regex-vs-division context
+  last_sig = ""
   NS = split(SCOPE, scope_parts, ",")
   for (i = 1; i <= NS; i++) {
     S_LO[i] = S_HI[i] = scope_parts[i] + 0
@@ -72,11 +18,6 @@ BEGIN {
   load_adapter()
 }
 
-# ---------------------------------------------------------------------------
-# Adapter. Each list field joins into one alternation; an empty list becomes
-# "", which has() treats as never matching. The R_* names are the parity
-# check's contract (parity-check.sh dumps them).
-# ---------------------------------------------------------------------------
 
 function load_adapter(    line, f, key, n, i, w, nw, wi) {
   while ((getline line < ADAPTER_TABLE) > 0) {
@@ -85,7 +26,6 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
     key = f[2]
     if (key == "language") LEXER = f[3]
     else if (key == "suppress_marker") R_EXEMPT = f[3]
-    # Two statements: mawk creates V[key] before evaluating the right side.
     else if (key in V) V[key] = V[key] "|" f[3]
     else V[key] = f[3]
   }
@@ -99,10 +39,8 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
   MODEL = V["block_model"]
   if (MODEL == "") MODEL = LEXER == "python" ? "indent" : "brace"
   R_ANY = alt(V["assertion.calls"], V["snapshot"])
-  # Matched against raw text over a three-line window (append_block).
   R_RAW = alt(V["assertion.idioms"], V["delegation"])
   R_BODY_SKIP = V["body_skip"]
-  # The pipeline matcher's regex, built once: dots literal, spaces any run.
   N_PIPE = split(V["equality.pipeline"], PIPE, "|")
   for (i = 1; i <= N_PIPE; i++) {
     PIPE_RE[i] = PIPE[i]
@@ -116,7 +54,6 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
   R_SKIP = V["test_skip"]
   R_SUITE_SKIP = V["suite_skip"]
   if (R_EXEMPT == "") R_EXEMPT = "cant-fail-ok:"
-  # Statement-initial forms: anchored here, so an adapter lists bare starts.
   R_ASYNC = V["assertion.async"] == "" ? "" : "^(" V["assertion.async"] ")"
   R_INERT = V["assertion.inert"] == "" ? "" : "^(" V["assertion.inert"] ")"
   R_WEAK = V["assertion.weak"]
@@ -125,12 +62,7 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
   R_COUNT = V["assertion.count"]
   R_FAILC = V["assertion.fail"]
   RULES_OFF = "|" V["rules_off"] "|"
-  # A property marker exempts only the test that holds it, in its body or in
-  # the decorator or attribute stack above it (prop_scan, append_block), so an
-  # example test beside a property test in the same file is still judged.
   R_PROP = V["property_markers"]
-  # C#: a statement-initial Verify( is Verify's snapshot only in a file that
-  # imports a Verify package and declares no Verify method of its own.
   CS_VERIFY = 0
   if (LEXER == "cs" && ARGV[1] != "") {
     while ((getline line < ARGV[1]) > 0) {
@@ -139,9 +71,6 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
     }
     close(ARGV[1])
   }
-  # C#: RunAsync on an object initializer is Microsoft.CodeAnalysis.Testing's
-  # analyzer or code-fix harness, which asserts the diagnostics and fixed
-  # code, only in a file that imports that harness or aliases one of its types.
   if (LEXER == "cs" && ARGV[1] != "") {
     while ((getline line < ARGV[1]) > 0)
       if (line ~ /^[[:space:]]*(global[[:space:]]+)?using[[:space:]]+([A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*)?Microsoft\.CodeAnalysis(\.[A-Za-z]+)*\.Testing([^A-Za-z0-9_]|$)/) {
@@ -151,14 +80,9 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
     close(ARGV[1])
   }
 
-  # Two-argument equality helpers, matched by substring in list order.
-  # Inequality asserts are never listed: Assert.NotEqual(f(2), f(2)) is an
-  # always-fail defect, not this rule.
   R_CALL2 = V["equality.call2"]
   N_CALL2 = split(R_CALL2, CALL2, "|")
 
-  # Receiver form <wrapper>.<matcher>: wrapper(A).matcher(B). Grouped by
-  # wrapper into one matcher alternation each; RW_RE is the wrapper's regex.
   NRW = 0
   n = split(V["equality.receiver"], w, "|")
   for (i = 1; i <= n; i++) {
@@ -172,19 +96,10 @@ function load_adapter(    line, f, key, n, i, w, nw, wi) {
   }
 }
 
-# Two alternations joined into one; an empty side adds nothing.
 function alt(a, b) { return a == "" ? b : b == "" ? a : a "|" b }
 
 function has(s, re) { return re != "" && s ~ re }
 
-# ---------------------------------------------------------------------------
-# Masking. One function per language; string/comment interiors become spaces,
-# LENGTH-PRESERVING, so token matches and brace counts run over code only and
-# raw/masked column positions stay aligned. Multi-line states (block comments,
-# template literals, triple quotes, verbatim strings) are file-scoped globals.
-# mask_js is shared with runner-config-scan.awk and lives in mask-js.awk, which
-# the driver loads as the first -f program.
-# ---------------------------------------------------------------------------
 
 function mask_py(s,    out, i, c, c3, n) {
   out = ""; n = length(s); i = 1
@@ -237,11 +152,8 @@ function mask_cs(s,    out, i, c, c2, c3, n) {
 
 function blanks(n,    out) { out = ""; while (n-- > 0) out = out " "; return out }
 
-# A "#" opens a comment only at the start of a word, so $# and ${#x} stay code.
 function word_start(s, i) { return i == 1 || substr(s, i - 1, 1) ~ /[[:space:];|&({]/ }
 
-# Bash and bats. Strings may span lines; a heredoc body is masked to its
-# terminator line (<<-TAG allows leading tabs there).
 function mask_sh(s,    out, i, c, n, t, k, q) {
   if (S_hd) {
     t = s
@@ -254,7 +166,6 @@ function mask_sh(s,    out, i, c, n, t, k, q) {
     c = substr(s, i, 1)
     if (S_str) {
       if (c == "\\" && S_q != "'") { out = out "  "; i += 2; continue }
-      # "$( ... )" is code again, with its own quotes, until its ")".
       if (S_q == "\"" && substr(s, i, 2) == "$(") { S_str = 0; S_sub[++S_nsub] = 0; out = out "$("; i += 2; continue }
       if (c == (S_q == "\"" ? "\"" : "'")) S_str = 0
       out = out " "; i++; continue
@@ -262,11 +173,9 @@ function mask_sh(s,    out, i, c, n, t, k, q) {
     if (S_nsub > 0 && c == "(") S_sub[S_nsub]++
     if (S_nsub > 0 && c == ")" && S_sub[S_nsub]-- == 0) { S_nsub--; S_str = 1; S_q = "\""; out = out ")"; i++; continue }
     if (c == "\\") { out = out substr(s, i, 2); i += 2; continue }
-    # ${#x} is a length, not a comment: "{" starts no word in bash.
     if (c == "#" && word_start(s, i) && substr(s, i - 1, 1) != "{") { out = out blanks(n - i + 1); break }
     if (c == "$" && substr(s, i + 1, 1) == "'") { S_str = 1; S_q = "e"; out = out "  "; i += 2; continue }
     if (c == "'" || c == "\"") { S_str = 1; S_q = c; out = out " "; i++; continue }
-    # A here-string, consumed whole so its last two "<" never read as "<<".
     if (substr(s, i, 3) == "<<<") { out = out "<<<"; i += 3; continue }
     if (substr(s, i, 2) == "<<") {
       t = substr(s, i + 2); k = 2; S_hd_dash = 0
@@ -286,8 +195,6 @@ function mask_sh(s,    out, i, c, n, t, k, q) {
   return out
 }
 
-# PowerShell. <# #> block comments, here-strings (@' or @" ending a line,
-# closed by '@ or "@ opening one), '' and backtick escapes.
 function mask_ps(s,    out, i, c, c2, n) {
   if (S_hs != "") {
     if (substr(s, 1, 2) == S_hs "@") { S_hs = ""; return "  " substr(s, 3) }
@@ -315,7 +222,6 @@ function mask_ps(s,    out, i, c, c2, n) {
   return out
 }
 
-# Go. Interpreted strings and runes end on their line; raw `strings` may not.
 function mask_go(s,    out, i, c, c2, n) {
   out = ""; n = length(s); i = 1
   while (i <= n) {
@@ -337,8 +243,6 @@ function mask_go(s,    out, i, c, c2, n) {
   return out
 }
 
-# A string, heredoc or comment still open at end of file means the masker lost
-# sync; the new lexers then report nothing rather than a guess.
 function mask_open() {
   if (LEXER == "bash") return S_str || S_hd || S_nsub > 0
   if (LEXER == "pwsh") return S_str || S_bc || S_hs != ""
@@ -346,13 +250,9 @@ function mask_open() {
   return 0
 }
 
-# ---------------------------------------------------------------------------
-# Small helpers
-# ---------------------------------------------------------------------------
 
 function brace_delta(s) { return delta(s, "{", "}") }
 
-# Net opens over closes in s, for the given opening and closing characters.
 function delta(s, opens, closes,    i, n, c, d) {
   d = 0; n = length(s)
   for (i = 1; i <= n; i++) {
@@ -376,9 +276,6 @@ function indent_of(s,    i, n, c, w) {
 
 function norm(s) { gsub(/[[:space:]]+/, "", s); return s }
 
-# s after the last character re matches: the identifier that ends it, for re
-# a negated class. A loop, because gawk 5.4.0 fails to match ^.* followed by
-# a negated bracket expression, as in sub(/^.*[^A-Za-z0-9_]/, "", s).
 function after_last(s, re) {
   while (match(s, re)) s = substr(s, RSTART + 1)
   return s
@@ -396,10 +293,6 @@ function count_matches(s, re,    c) {
 }
 
 function first_quoted(s,    q, rest, n, i, c) {
-  # first '…' / "…" / `…` payload after the leading token, for a test name,
-  # as written (escapes kept). An escaped quote does not end it: PowerShell's
-  # doubled quote, and its backtick inside "…"; elsewhere a backslash, except
-  # in a bash '…' or a Go `…`, which have no escapes.
   if (match(s, /['"`]/) == 0) return "(unnamed)"
   q = substr(s, RSTART, 1)
   rest = substr(s, RSTART + 1)
@@ -418,9 +311,6 @@ function first_quoted(s,    q, rest, n, i, c) {
   return "(unnamed)"
 }
 
-# Balanced-( extraction. s[from] must be "(". Sets EXTRACT (interior) and
-# EXTEND (index of the closing paren); returns 1 on success. Quote-aware so a
-# ")" inside a string argument does not close the group early.
 function extract_parens(s, from,    i, n, c, d, q, out) {
   n = length(s)
   if (substr(s, from, 1) != "(") return 0
@@ -441,8 +331,6 @@ function extract_parens(s, from,    i, n, c, d, q, out) {
   return 0
 }
 
-# First top-level comma split of s. Sets SPLIT1 / SPLIT2; returns 1 when a
-# top-level comma exists.
 function split_top_comma(s,    i, n, c, d, q) {
   n = length(s); d = 0; q = ""
   for (i = 1; i <= n; i++) {
@@ -460,7 +348,6 @@ function split_top_comma(s,    i, n, c, d, q) {
   return 0
 }
 
-# Exactly-one top-level "==" split. Sets EQL / EQR; returns 1 on success.
 function split_top_eq(s,    i, n, c, d, q, hits, pos) {
   n = length(s); d = 0; q = ""; hits = 0; pos = 0
   for (i = 1; i <= n; i++) {
@@ -484,8 +371,6 @@ function split_top_eq(s,    i, n, c, d, q, hits, pos) {
   return 1
 }
 
-# One shell word from s[i]: quotes, and $( ) or ( ) groups, stay inside it.
-# Sets SW and returns the index just past it.
 function shell_word(s, i,    n, c, q, d, out) {
   n = length(s); q = ""; d = 0; out = ""
   for (; i <= n; i++) {
@@ -506,8 +391,6 @@ function shell_word(s, i,    n, c, q, d, out) {
   return i
 }
 
-# The first two shell words at or after s[i]. Sets SW1 / SW2; returns 1 when
-# both exist.
 function shell_words(s, i) {
   while (substr(s, i, 1) ~ /[[:space:]]/) i++
   i = shell_word(s, i); SW1 = SW
@@ -516,15 +399,11 @@ function shell_words(s, i) {
   return SW1 != "" && SW2 != ""
 }
 
-# Drop one wrapping ( ) or $( ), so (f 2) and f 2 compare equal.
 function unparen(s) {
   if (s ~ /^\$?\(.*\)$/) { sub(/^\$?\(/, "", s); sub(/\)$/, "", s) }
   return s
 }
 
-# SCOPE (driver --lines) keeps only findings whose test block overlaps one of
-# its ranges. A line-scoped finding inside an open block waits in PEND until
-# the block closes and its extent is known.
 function in_scope(lo, hi,    i) {
   for (i = 1; i <= NS; i++) if (S_LO[i] <= hi && S_HI[i] >= lo) return 1
   return 0
@@ -539,8 +418,6 @@ function emit(kind, slug, line, detail,    rec) {
   else if (FNR == closed_at && MODEL != "indent" ? in_scope(closed_lo, block_hi) : in_scope(line, line)) printf "%s", rec
 }
 
-# Inventory records (-v INVENTORY). A pattern list the adapter leaves empty
-# counts nothing.
 function inv_count(s, re) { return re == "" ? 0 : count_matches(s, re) }
 
 function inv_line(    t, n) {
@@ -551,9 +428,6 @@ function inv_line(    t, n) {
   inv_cmp()
 }
 
-# A comparison statement with exactly one comparison operator and no && || ;
-# the Go `if got != 3 {` and the bash `[ "$output" = "3" ]` forms. The masked
-# line gates, the raw line gives the sides; inv_eq keeps only a literal side.
 function inv_cmp(    m, l, r) {
   m = masked
   if (LEXER == "go") {
@@ -570,7 +444,6 @@ function inv_cmp(    m, l, r) {
   inv_eq(l, r)
 }
 
-# An equality whose one side is a literal: the other side, then the literal.
 function inv_eq(a, b) {
   if (!INVENTORY) return
   a = trim(a); b = trim(b)
@@ -578,14 +451,7 @@ function inv_eq(a, b) {
   else if (is_lit(a) && !is_lit(b)) printf "%s\texpect\t%s\t%s\n", INVENTORY, norm(b), norm(a)
 }
 
-# ---------------------------------------------------------------------------
-# CF2 — recomputed expectation (self-identical actual/expected), line-scoped.
-# The masked line gates (no findings from comments or strings); the raw line
-# is what the expressions are read from.
-# ---------------------------------------------------------------------------
 
-# The length of a Python line before its trailing # comment, so an annotation
-# on the assert line stays out of the compared sides.
 function py_code_len(s,    i, n, c, q) {
   n = length(s); q = ""
   for (i = 1; i <= n; i++) {
@@ -599,9 +465,6 @@ function py_code_len(s,    i, n, c, q) {
 
 function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, expr) {
   tkind = line_kind()
-  # Receiver form, e.g. expect(A).toBe(A). The masked match position indexes
-  # into the RAW line — masking is length-preserving, so the columns align,
-  # and an earlier "expect" inside a string cannot shadow the real call site.
   for (i = 1; i <= NRW; i++) {
     if (match(masked_line, RW_RE[i] "[[:space:]]*\\(") == 0) continue
     m = RSTART + length(RW_NAME[i])
@@ -622,14 +485,12 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
       if (const_check(a, b, tkind) || derived_check(a, b, tkind)) return
     }
   }
-  # two-argument equality helpers
   for (i = 1; i <= N_CALL2; i++) {
     fn = CALL2[i]
     if (index(masked_line, fn) == 0) continue
     p = index(raw_line, fn)
     if (p == 0) continue
     m = p + length(fn)
-    # Shell command form: fn A B, fn a whole word, A and B its first two words.
     if (SHELL_LEX && word_start(raw_line, p) && substr(raw_line, m, 1) ~ /[[:space:]]/) {
       if (!shell_words(raw_line, m)) continue
       inv_eq(SW1, SW2)
@@ -645,7 +506,7 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
     if (!extract_parens(raw_line, m)) continue
     if (!split_top_comma(EXTRACT)) continue
     a = SPLIT1; b = SPLIT2
-    if (split_top_comma(b)) b = SPLIT1  # drop trailing message/args
+    if (split_top_comma(b)) b = SPLIT1
     inv_eq(a, b)
     expr = norm(a)
     if (expr != "" && expr == norm(b)) {
@@ -654,8 +515,6 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
     }
     if (const_check(a, b, tkind) || derived_check(a, b, tkind)) return
   }
-  # pipeline form, e.g. A | Should -Be A: A runs from the statement start to
-  # the last pipe before the matcher; the other side is the matcher's first word.
   for (i = 1; i <= N_PIPE; i++) {
     if (match(masked_line, "\\|[[:space:]]*" PIPE_RE[i] "([[:space:]]|$)") == 0) continue
     rest = substr(masked_line, 1, RSTART - 1)
@@ -672,11 +531,10 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
     }
     if (const_check(a, b, tkind) || derived_check(a, b, tkind)) return
   }
-  # python assert EXPR == EXPR: the statement is language syntax, not adapter data
   if (LEXER == "python" && masked_line ~ /^[[:space:]]*assert[[:space:]]/) {
     rest = substr(raw_line, 1, py_code_len(raw_line))
     sub(/^[[:space:]]*assert[[:space:]]+/, "", rest)
-    if (split_top_comma(rest)) rest = SPLIT1  # drop ", msg"
+    if (split_top_comma(rest)) rest = SPLIT1
     if (split_top_eq(rest)) {
       inv_eq(EQL, EQR)
       expr = norm(EQL)
@@ -687,20 +545,9 @@ function taut_scan(raw_line, masked_line,    tkind, a, b, rest, m, i, p, fn, exp
   }
 }
 
-# ---------------------------------------------------------------------------
-# Change detectors. rule-constant-restatement: an equality whose one side is a
-# constant (SCREAMING_SNAKE, bare or at the end of a member access, no call)
-# and whose other side is a literal. Shell variables are uppercase whether
-# constant or computed, so a shell name counts only when nothing in the file
-# assigned it earlier: it came from a sourced file. "Testing the fixture"
-# (js, python): the subject's root is bound to a literal in the same block,
-# compared to a literal or to a path whose root the block also bound to a
-# literal, and the block calls nothing but assertions; judged when it closes.
-# ---------------------------------------------------------------------------
 
 function is_lit(s) {
   if (s ~ /^-?[0-9][0-9_]*(\.[0-9]+)?$/ || s ~ /^(true|false|null|undefined|None|True|False)$/) return 1
-  # A shell helper may take a message first; a spaced string is that message.
   if (SHELL_LEX && s ~ /[[:space:]]/) return 0
   if (s ~ /^'[^']*'$/ || s ~ /^"[^"$\\]*"$/ || s ~ /^`[^`$]*`$/) return 1
   return SHELL_LEX && s ~ /^[A-Za-z0-9_.,:\/+-]+$/
@@ -722,13 +569,10 @@ function const_check(a, b, tkind,    x, y) {
   x = trim(a); y = trim(b)
   if (is_lit(x) && !is_lit(y)) { x = y; y = trim(a) }
   if (x == "") return 0
-  # Two plain paths: the fixture variant again, when both roots are bound.
   if (!is_lit(y)) {
     if (g8_path(x) && g8_path(y)) G8_CAND = G8_CAND FNR "\t" tkind "\t" x "\t" y "\tpath\n"
     return 0
   }
-  # No act step before the assertion: a call, or in shell any command after the
-  # last source line, may be what gave the uppercase name its value.
   if (is_const(x)) {
     if (SHELL_LEX ? SH_ACT : !g8_no_calls()) return 0
     emit(tkind, "constant-restatement", FNR, "constant " x " compared to the literal " y)
@@ -738,7 +582,6 @@ function const_check(a, b, tkind,    x, y) {
   return 0
 }
 
-# A path rooted in a plain identifier, no call anywhere in it (js, python).
 function g8_path(s) {
   return (LEXER == "js" || LEXER == "python") && s ~ /^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*|\[[^]()]*\])*$/
 }
@@ -748,7 +591,6 @@ function g8_root(s) {
   return s
 }
 
-# A binding of a name to a literal, for the fixture variant.
 function g8_bind(m, r,    re) {
   if (LEXER == "js") re = "^[[:space:]]*(const|let|var)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*=[[:space:]]*([{['\"`0-9-]|true|false|null)"
   else re = "^[[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*=[[:space:]]*([{['\"0-9-]|True|False|None)"
@@ -758,9 +600,6 @@ function g8_bind(m, r,    re) {
   G8_BOUND = G8_BOUND " " substr(m, 1, RLENGTH) " "
 }
 
-# 1 when every call in the block body, the test-start line aside, is an
-# assertion: expect, assert*, a to* matcher, or node:assert's bare helpers,
-# or an import. Run mid-block, it covers the lines read so far, this one included.
 function g8_no_calls(    rest, n, lines, i, s, name) {
   n = split(block_masked, lines, "\n")
   for (i = 2; i <= n; i++) {
@@ -791,8 +630,6 @@ function g8_eval(    n, recs, i, f, root, root2) {
   }
 }
 
-# Shell names assigned so far in the file: bash NAME=, local/export/readonly/
-# declare NAME=, read NAME, for NAME in; PowerShell $NAME =.
 function sh_assign(m,    s, name) {
   s = m
   while (match(s, /(^|[[:space:];&|(])(local|export|readonly|declare|typeset)?[[:space:]]*(-[A-Za-z]+[[:space:]]+)*[A-Za-z_][A-Za-z0-9_]*\+?=/)) {
@@ -816,10 +653,6 @@ function sh_assign(m,    s, name) {
   }
 }
 
-# SH_ACT: a command ran in the test since its last source line, so a name it
-# reads may hold that command's output. Settings, declarations without a
-# substitution, [ ] tests, assertions, block keywords and the bodies of
-# functions the test defines run nothing under test.
 function sh_act_scan(m,    s, n, seg, i) {
   s = trim(m)
   if (SH_FN) { SH_FN += brace_delta(m); return }
@@ -828,7 +661,6 @@ function sh_act_scan(m,    s, n, seg, i) {
     SH_FN = brace_delta(m)
     return
   }
-  # One command at a time: source lib.sh; parse_args ...; assert_equal ...
   gsub(/&&|\|\|/, ";", s)
   n = split(s, seg, ";")
   for (i = 1; i <= n; i++) sh_act_cmd(seg[i])
@@ -847,10 +679,6 @@ function sh_act_cmd(s,    w, w2) {
   SH_ACT = 1
 }
 
-# Whole-file bash facts the shell forms depend on: set -e (a failing [ ] then
-# exits), a sourced helper (which may set it), a cd (a relative path no longer
-# resolves against the start directory), and names assigned from mktemp or a
-# temp directory (never a source path).
 function sh_file_facts(    name, rhs, v) {
   if (masked ~ /(^|[[:space:];&|])set[[:space:]]+(-[A-Za-z]*e[A-Za-z]*|-o[[:space:]]+errexit)([[:space:]]|$)/ ||
       (FNR == 1 && raw ~ /^#!.*[[:space:]]-[A-Za-z]*e/)) SET_E = 1
@@ -869,13 +697,6 @@ function sh_file_facts(    name, rhs, v) {
   }
 }
 
-# ---------------------------------------------------------------------------
-# rule-inert-assertion: a statement that looks like an assertion and never
-# asserts. The adapter's assertion.async (never awaited) and assertion.inert
-# forms match a statement start; the language forms live here: the Python
-# tuple assert, bats run and !, a harness [ ] whose status nothing reads, and
-# for go the if statement joined onto one line.
-# ---------------------------------------------------------------------------
 
 function snippet(r) {
   r = trim(r)
@@ -884,8 +705,6 @@ function snippet(r) {
 
 function line_kind() { return (raw ~ R_EXEMPT || prev_raw ~ R_EXEMPT) ? "X" : "F" }
 
-# A statement starts on this line unless the code before it leaves an
-# expression open (an operator, an opener, a comma, a line continuation).
 function stmt_start(    p) {
   if (LEXER == "python") return bracket_depth <= 0 && prev_code !~ /\\[[:space:]]*$/
   p = prev_code
@@ -894,9 +713,6 @@ function stmt_start(    p) {
   return p !~ /(^|[^A-Za-z0-9_$])(await|return|yield|void)$/
 }
 
-# The code line as seen for stmt_start: masking blanks a string, so a line
-# ending in one would read as ending in the "=" before it. A closing quote in
-# the raw text stands in for the masked string; a comment stays blank.
 function code_tail(m, r,    i, c) {
   for (i = length(r); i > 0; i--) {
     c = substr(m, i, 1)
@@ -917,11 +733,6 @@ function py_assert_inert(r,    rest) {
   return ""
 }
 
-# bats: `run cmd` leaves the status in $status, so a run nothing checks before
-# the next run or the end of the test passes whatever cmd did; `! cmd` fails
-# the test only as its last command. Harness (file model): a [ ] test on its
-# own line whose status the next line does not read ($? or a bare exit, which
-# returns it), in a file with no set -e and no sourced helper that might set it.
 function sh_inert(s, r) {
   if (MODEL == "file") {
     if (s == "" || s ~ /^(fi|done|esac|else|elif|then|do|\}|\)|;;)/) { if (s != "") BRK_PEND = ""; return }
@@ -938,7 +749,6 @@ function sh_inert(s, r) {
   if (s ~ /^run[[:space:]]/) {
     if (RUN_PEND) emit(RUN_KIND, "inert-assertion", RUN_PEND, "run result never checked: " RUN_SNIP)
     RUN_PEND = 0
-    # run ! cmd and run -N cmd check the status themselves.
     if (s !~ /^run[[:space:]]+(--?[A-Za-z-]+[[:space:]]+)*(!|-[0-9])/) {
       RUN_PEND = FNR; RUN_KIND = line_kind(); RUN_SNIP = snippet(r)
       r = substr(r, index(r, "run") + 3)
@@ -948,13 +758,10 @@ function sh_inert(s, r) {
   if (s ~ /^![[:space:]]/) { BANG_PEND = FNR; BANG_KIND = line_kind(); BANG_SNIP = snippet(r); BANG_SOLO = s !~ /\|\||&&|;/ }
 }
 
-# Flushed as the block closes: a pending run or harness [ ] is decided there.
 function inert_close(    n, recs, i, f) {
   if (has(block_masked, R_BODY_SKIP)) RUN_PEND = 0
   if (RUN_PEND) emit(RUN_KIND, "inert-assertion", RUN_PEND, "run result never checked: " RUN_SNIP)
   if (PS_PEND) emit(PS_KIND, "inert-assertion", PS_PEND, PS_DET)
-  # A standalone ! command on the test's last line is its assertion; after
-  # || , && or ; the list's status is no longer the negation's.
   BANG_LAST = BANG_PEND && BANG_SOLO
   RUN_PEND = BANG_PEND = PS_PEND = 0
   if (!SET_E && !SOURCED && BRK_OUT != "") {
@@ -967,8 +774,6 @@ function inert_close(    n, recs, i, f) {
   BRK_OUT = BRK_PEND = ""
 }
 
-# go: an if statement is joined onto one line (at most 30) before the inert
-# forms are matched, so a multi-line branch holding only t.Log reads whole.
 function go_inert(s, m) {
   if (GO_IF == 0) {
     if (s !~ /^if[[:space:]]/) return
@@ -979,8 +784,6 @@ function go_inert(s, m) {
   if (GO_D > 0 && ++GO_N <= 30) return
   if (GO_D <= 0 && has(GO_BUF, R_INERT) && GO_BUF !~ /(^|[^A-Za-z0-9_])nil([^A-Za-z0-9_]|$)/)
     emit(GO_KIND, "inert-assertion", GO_IF, "an if branch that only logs never fails the test: " snippet(GO_BUF))
-  # A nil check whose branch only fails is a weak oracle: its failing calls
-  # were counted strong line by line, and are taken back here.
   if (GO_D <= 0 && has(GO_BUF, R_WEAK)) {
     OR_S = GO_S0
     if (!OR_W++) { OR_WLINE = GO_IF; OR_WSNIP = snippet(GO_BUF) }
@@ -992,15 +795,11 @@ function inert_scan(m, r,    s, d) {
   s = trim(m)
   if (LEXER == "bash") { sh_inert(s, r); return }
   if (LEXER == "go") { if (GO_IF || stmt_start()) go_inert(s, m); return }
-  # A PowerShell 7 line opening with a pipe continues the one before it.
   if (PS_PEND && s != "") {
     if (s !~ /^\|/) emit(PS_KIND, "inert-assertion", PS_PEND, PS_DET)
     PS_PEND = 0
   }
-  # A statement after a ";" on the same line starts there (split_stmts).
   if (s == "" || !(SEG_I > 1 || CS_HEAD || stmt_start())) return
-  # A Pester script block nested in the test (a ParameterFilter, a
-  # Where-Object) returns its bare comparison; only the It body discards it.
   if (LEXER == "pwsh" && depth != 1) return
   d = ""
   if (has(s, R_ASYNC) && !CS_RET) d = "an async assertion nothing awaits never runs before the test ends"
@@ -1011,19 +810,7 @@ function inert_scan(m, r,    s, d) {
   else emit(line_kind(), "inert-assertion", FNR, d ": " snippet(r))
 }
 
-# ---------------------------------------------------------------------------
-# rule-source-text-read candidates: a file read whose path is a static
-# literal, optionally joined onto the test's own directory or the repository
-# root. In JS/TS a same-file const holding such a path counts as the path. Any
-# other variable, a glob or a walk is never a candidate, and neither is a temp,
-# fixture or testdata path.
-# ---------------------------------------------------------------------------
 
-# Record `const NAME = <static path>` (a literal, or a join or resolve over
-# literals) in SRC_CONST, with or without a type annotation. A let or var of
-# the same name only forgets it: a mutable binding can be reassigned. The
-# declaration may span lines until its parentheses close; one that never
-# resolves forgets NAME, so a stale value never applies.
 function src_const(m, r,    k, p) {
   if (SRC_CN == "") {
     if (!match(m, /^[[:space:]]*(export[[:space:]]+)?(const|let|var)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*(:[^=]*)?=/)) return
@@ -1052,18 +839,15 @@ function unquote(s) {
   return s
 }
 
-# The literal path an argument list names, or "".
 function arg_path(args,    first, p) {
   first = split_top_comma(args) ? trim(SPLIT1) : trim(args)
   if (first in SRC_CONST) return SRC_CONST[first]
   if ((p = unquote(first)) != "") return p
-  # new URL('lit', import.meta.url)
   if (first ~ /^new[[:space:]]+URL[[:space:]]*\(/ && index(first, "import.meta.url")) {
     p = index(first, "(")
     if (extract_parens(first, p) && split_top_comma(EXTRACT)) return unquote(trim(SPLIT1))
     return ""
   }
-  # join / resolve / Path.Combine / filepath.Join over a base and literals
   if (first ~ /^([A-Za-z_]+\.)?(resolve|join|Join|Combine)[[:space:]]*\(/) {
     p = index(first, "(")
     if (!extract_parens(first, p)) return ""
@@ -1072,8 +856,6 @@ function arg_path(args,    first, p) {
   return ""
 }
 
-# Literal parts joined with "/", after an optional leading base that names the
-# test's directory (__dirname, import.meta.dirname).
 function join_literals(args,    out, part, more) {
   out = ""
   for (;;) {
@@ -1093,10 +875,6 @@ function join_literals(args,    out, part, more) {
   return out
 }
 
-# A read counts only when the test then searches the text (indexOf, toContain,
-# `in`, Contains, -match, grep) and nothing parses or executes it: a test that
-# compares a generated file whole, walks a syntax tree or runs the script is
-# exercising it. Candidates wait in SRC_PEND until the block closes.
 function src_flush(    blk, s, n, recs, i, f) {
   blk = block_masked
   if (index(RULES_OFF, "|source-text-read|")) { SRC_PEND = ""; return }
@@ -1119,18 +897,12 @@ function src_flush(    blk, s, n, recs, i, f) {
 function src_emit(path) {
   gsub(/\\/, "/", path)
   sub(/^\.\//, "", path)
-  # A `$` is literal in a JS, Python, C# or Go string (a route file such as
-  # _app.$id.tsx); in shell and PowerShell it interpolates.
   if (path == "" || path ~ /[*?[]/ || path ~ /^\// || (SHELL_LEX && index(path, "$"))) return
   if (tolower(path) ~ /(^|\/)(tmp|temp|fixtures?|testdata|__fixtures__|__testfixtures__|__snapshots__|snapshots?)(\/|$)/) return
   if (path !~ /\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|cs|razor|go|sh|bash|ps1|psm1|vue|svelte)$/) return
   SRC_PEND = SRC_PEND line_kind() "\t" FNR "\t" path "\n"
 }
 
-# A shell word naming a path: a literal, or one joined onto the test's own
-# directory ($(dirname ...), ${BASH_SOURCE%/*}, $BATS_TEST_DIRNAME) or a
-# directory variable that names the repository or a script directory and was
-# never assigned from mktemp or a temp variable.
 function sh_path(w,    v) {
   if (w ~ /^"/) { sub(/^"/, "", w); sub(/"$/, "", w) }
   else if (w ~ /^'[^']*'$/) return substr(w, 2, length(w) - 2)
@@ -1161,8 +933,6 @@ function src_scan_sh(m, r,    s, rest, cmd, i, n, skip_first, w, prev) {
       if (i > n || substr(r, i, 1) ~ /[|;&><)]/) break
       i = shell_word(r, i); w = SW
       if (w ~ /^-/) {
-        # -e PATTERN / -f PROGRAM: the pattern word is given, so every
-        # operand after it is a file; the word after -f is a program.
         if (w ~ /^-(e|f)$|^--(file|regexp)$/) skip_first = 0
         prev = w
         continue
@@ -1208,16 +978,6 @@ function src_scan(m, r,    p, args, low, w) {
   }
 }
 
-# ---------------------------------------------------------------------------
-# Oracle strength: every assertion statement of a block is strong, weak (only
-# an assertion.weak call), a snapshot (only a snapshot call) or an existence
-# check (only an assertion.exists call). rule-weak-oracle and
-# rule-snapshot-only fire when a block holds nothing but that kind, and
-# rule-throw-only-oracle when every oracle is an existence check of a value the
-# test constructed with new, which only a throwing constructor fails. The
-# adapter entries match whole calls over the statement with strings standing
-# as `_`, so a matcher argument (toThrow('boom')) is never read as absent.
-# ---------------------------------------------------------------------------
 
 function fill(m, r,    i, n, out, c) {
   if (m == r) return m
@@ -1230,7 +990,6 @@ function fill(m, r,    i, n, out, c) {
   return out
 }
 
-# 1 when the line's only assertions are calls re covers.
 function only_calls(m, r, re,    f) {
   if (!has(m, re)) return 0
   f = fill(m, r)
@@ -1241,21 +1000,13 @@ function only_calls(m, r, re,    f) {
 
 function oracle_line(m, r) {
   if (!has(m, R_ANY) && !has(m, R_MOCKA)) return
-  # C#: a statement inert_scan reports as inert is no oracle, weak or strong,
-  # so Assert.NotNull(typeof(T)) is not also a weak oracle. Same precondition
-  # as inert_scan, or a statement could be dropped here and not reported there.
   if (LEXER == "cs" && (SEG_I > 1 || CS_HEAD || stmt_start()) && has(trim(m), R_INERT)) return
-  # An existence check waits for the block's close, when every binding of the
-  # name it checks is known (exists_resolve).
   if (only_calls(m, r, R_EXISTS)) { exists_add(m, r); return }
-  # go: the nil check is an if statement, judged whole in go_inert.
   if (LEXER != "go" && only_calls(m, r, R_WEAK)) { if (!OR_W++) { OR_WLINE = FNR; OR_WSNIP = snippet(r) }; return }
   if (only_calls(m, r, R_SNAP) && snap_ok(m)) { if (!OR_P++) OR_PLINE = FNR; return }
   OR_S++
 }
 
-# One existence check: the name it checks (the first identifier inside its
-# parentheses), the type a <T> names, and whether it is also a weak call.
 function exists_add(m, r,    t) {
   match(m, R_EXISTS)
   t = substr(m, RSTART, RLENGTH)
@@ -1268,15 +1019,10 @@ function exists_add(m, r,    t) {
   EX_LINE[EX_N] = FNR; EX_SNIP[EX_N] = snippet(r)
 }
 
-# At the block's close: a check of a name the test bound once, in one
-# statement, to new T(...) and nothing after it (and of that T, when the check
-# names a type), counts toward rule-throw-only-oracle; any other is the weak or
-# strong oracle it reads as. A chain or an as cast after the constructor can
-# yield null without a throw.
 function exists_resolve(    i, rhs, built, ty) {
   for (i = 1; i <= EX_N; i++) {
     rhs = DV_N[BID, EX_NAME[i]] == 1 && DV_END[BID, EX_NAME[i]] ? DV_RHS[BID, EX_NAME[i]] : ""
-    sub(/;.*$/, "", rhs)  # the bind statement alone, when others share its line
+    sub(/;.*$/, "", rhs)
     built = rhs ~ /^new([[:space:]]+[A-Za-z_][A-Za-z0-9_.<>,?[:space:]]*)?[[:space:]]*(\([^()]*(\([^()]*\)[^()]*)*\))?[[:space:]]*(\{[^{}]*\})?[[:space:]]*$/ && rhs ~ /[)}][[:space:]]*$/
     if (built && EX_TYPE[i] != "") {
       ty = rhs
@@ -1289,26 +1035,13 @@ function exists_resolve(    i, rhs, built, ty) {
   }
 }
 
-# A snapshot call needs its library in reach: in C#, Verify's (CS_VERIFY); in
-# Python, syrupy's snapshot fixture, which is a parameter of the test.
 function snap_ok(m) {
   if (LEXER == "cs") return CS_VERIFY
   if (LEXER == "python" && m ~ /(^|[^A-Za-z0-9_.])snapshot([^A-Za-z0-9_]|$)/) return SIG ~ /[(,][[:space:]]*snapshot[[:space:]]*[,:)=]/
   return 1
 }
 
-# ---------------------------------------------------------------------------
-# rule-conditional-assertion: every assertion of the block sits inside an if,
-# a catch or a loop over a value the test computed, so some path asserts
-# nothing. A call that fails the test outright (assertion.fail) is the
-# assertion an if or catch exists to make, and counts as conditional only
-# inside such a loop. A loop over a literal table, a range or a name bound
-# outside the test is a table-driven test and asserts on every row.
-# ---------------------------------------------------------------------------
 
-# The name an assignment statement binds, left in AS_NAME with its raw
-# right-hand side in AS_RHS; 0 when s (masked, leading blanks removed) is no
-# declaration. A plain reassignment sets AS_NAME with AS_RHS "".
 function assign_of(s, rl,    re, p) {
   AS_NAME = AS_RHS = ""
   if (LEXER == "js") re = "^(const|let|var)[[:space:]]+[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*(:[^=]*)?="
@@ -1338,12 +1071,8 @@ function literal_rhs(v) {
   return tolower(v) ~ /^(@\(|@\{|['"0-9-]|\$(true|false|null)([^a-z0-9_]|$)|\[)/
 }
 
-# Per statement: which names the test bound to a literal and which to a
-# computed value (a loop over the latter is a loop over a result), and the
-# right-hand side of each for rule-recomputed-derived.
 function bind_scan(m, r,    s, rl) {
   s = m; sub(/^[[:space:]]+/, "", s)
-  # Promise.all( with its argument on the next line.
   if (PM_NAME != "" && s != "") { if (mapped_literal(s)) RES[BID, PM_NAME] = "l"; PM_NAME = "" }
   if (LEXER == "python" ? bracket_depth > 0 : !stmt_start()) return
   rl = r; sub(/^[[:space:]]+/, "", rl)
@@ -1355,9 +1084,6 @@ function bind_scan(m, r,    s, rl) {
   if (LEXER == "js" && AS_RHS ~ /Promise[[:space:]]*\.[[:space:]]*all(Settled)?[[:space:]]*\($/) PM_NAME = AS_NAME
 }
 
-# js: a map over a nonempty array literal, or over a name the test bound
-# to one, optionally awaited through Promise.all, has one entry per literal
-# element.
 function mapped_literal(v,    e) {
   if (LEXER != "js") return 0
   e = v
@@ -1378,7 +1104,6 @@ function cr_pop() {
   CR_N--
 }
 
-# One assertion-bearing text, inside the open regions plus k.
 function ca_class(t, k,    loops, br) {
   if (!has(t, R_ANY) && !has(t, R_MOCKA)) return
   loops = CR_LOOPS + (k == "l"); br = CR_BR + (k == "b")
@@ -1386,7 +1111,6 @@ function ca_class(t, k,    loops, br) {
   else CA_OUT++
 }
 
-# The loop kind when name (a root identifier) was computed in the test.
 function loop_kind(name) {
   if (LEXER == "pwsh") name = tolower(name)
   return RES[BID, name] == "r" ? "l" : ""
@@ -1431,13 +1155,10 @@ function cond_brace(m,    cdb, s, k, low, pos, pre, post, e) {
   }
   if (k == "" || pos == 0) { ca_class(m, ""); return }
   pre = substr(m, 1, pos - 1); post = substr(m, pos)
-  # "} catch (e) {": the brace closing the try belongs before the region.
   if (match(post, /^[[:space:]]*\}/)) { pre = pre substr(post, 1, RLENGTH); post = substr(post, RLENGTH + 1) }
   ca_class(pre, "")
   ca_class(post, k)
   if (brace_delta(post) > 0) cr_push(k, cdb + brace_delta(pre) + 1)
-  # The body is the next statement: after a keyword's closed condition, or
-  # inside a call (forEach, catch) whose parentheses are still open.
   else if (post ~ /^[[:space:]]*(if|for|foreach|catch)/ ? post ~ /\)[[:space:]]*$/ && delta(post, "(", ")") == 0 : delta(post, "(", ")") > 0) COND_NEXT = k
 }
 
@@ -1462,21 +1183,7 @@ function cond_scan(m) {
   else if (LEXER != "bash") cond_brace(m)
 }
 
-# ---------------------------------------------------------------------------
-# rule-recomputed-derived: the expected side of an equality is built from the
-# arguments of the call on the other side with an operator or an aggregate
-# (items.reduce(...), sum(xs), a + b), directly or through the one in-test
-# binding of a name. Its free identifiers (lambda parameters and member names
-# dropped) must all be arguments of that call. A property test is not judged:
-# a marker in the test's body, or in the decorator or attribute stack right
-# above it (@given, [Property]), exempts that test alone, and an adapter turns
-# the rule off with rules_off. The marker may sit below the equality in the
-# body, so a finding inside an open test waits for its close (close_block).
-# ---------------------------------------------------------------------------
 
-# The free identifiers of s, space-separated: no member names, no lambda
-# parameters, no keywords or aggregate names, nothing inside a string. For
-# PowerShell, its $variables.
 function idents(s,    params, out, t, name, prev) {
   gsub(/'[^']*'|"[^"]*"|`[^`]*`/, "\"\"", s)
   out = ""
@@ -1507,7 +1214,6 @@ function idents(s,    params, out, t, name, prev) {
   return out
 }
 
-# x is the call under test, y the expected side.
 function derived_side(x, y,    name, args, key, short, e, ids, n, id, i, ar) {
   x = trim(x); y = trim(y)
   sub(/^await[[:space:]]+/, "", x)
@@ -1528,9 +1234,6 @@ function derived_side(x, y,    name, args, key, short, e, ids, n, id, i, ar) {
     if (DV_N[BID, key] != 1) return 0
     y = DV_RHS[BID, key]
   }
-  # A spread copies an input whole ({ ...input, id: 1 }, {**payload, "id": 1}),
-  # and a length (a.length + b.length, len(items) * 5) states an invariant:
-  # neither rebuilds the value the way the code does, so neither is an input.
   e = y
   gsub(/[{,][[:space:]]*(\.\.\.|\*\*)[[:space:]]*[A-Za-z_$][A-Za-z0-9_$.]*/, "{", e)
   if (e !~ /[+*]|(^|[^A-Za-z0-9_$])(reduce|sum|Sum|Aggregate|map)[[:space:]]*\(|[Mm]easure-[Oo]bject[^|]*-[Ss]um/) return 0  # spellchecker:disable-line
@@ -1551,7 +1254,6 @@ function derived_side(x, y,    name, args, key, short, e, ids, n, id, i, ar) {
 function derived_check(a, b, tkind) {
   if (!LINE_IN_TEST) return 0
   if (derived_side(a, b) || derived_side(b, a)) {
-    # A line that closed its test is judged now, by the flag of the test it closed.
     if (!in_test) { if (!PROP_TEST) emit(tkind, "recomputed-derived", FNR, DV_DETAIL) }
     else { DP_N++; DP_K[DP_N] = tkind; DP_L[DP_N] = FNR; DP_D[DP_N] = DV_DETAIL }
     return 1
@@ -1559,31 +1261,14 @@ function derived_check(a, b, tkind) {
   return 0
 }
 
-# Outside a test: a decorator or attribute line carrying a marker arms the next
-# test, any other code line disarms it, and a Python line inside an open
-# bracket continues the decorator above it. A marker on an ordinary line (a
-# generator in a field, a property in a helper) arms nothing.
 function prop_scan(bd0) {
   if (in_test || R_PROP == "" || masked ~ /^[[:space:]]*$/) return
   if (masked ~ /^[[:space:]]*[@[]/) { if (masked ~ R_PROP) PROP_PRE = 1 }
   else if (!(LEXER == "python" && bd0 > 0)) PROP_PRE = 0
 }
 
-# ---------------------------------------------------------------------------
-# Block evaluation — CF1 and CF3
-# ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# Same-file helpers. A function defined in the test file outside any test
-# asserts when its text, from its definition to the next definition or test
-# start, holds an assertion token, a mock verification, a fail call, or a
-# throw, raise or reject, or when it calls such a function the same way a test
-# would. A test with no assertion token of its own that calls an asserting
-# function by name is not a zero-assertion finding. Bash and PowerShell are not tracked: a
-# harness file is one block, and a PowerShell call takes no parentheses.
-# ---------------------------------------------------------------------------
 
-# The name a definition line defines, or "".
 function def_name(m,    s) {
   s = ""
   if (LEXER == "python") {
@@ -1600,18 +1285,10 @@ function def_name(m,    s) {
   } else if (LEXER == "go") {
     if (match(m, /^func[[:space:]]+(\([^)]*\)[[:space:]]*)?[A-Za-z_][A-Za-z0-9_]*/)) s = substr(m, RSTART, RLENGTH)
   }
-  # Where the matched header ends, past the defined name: every pattern is
-  # anchored at the line start, and sub leaves RSTART and RLENGTH alone.
   DEF_END = s == "" ? 0 : RSTART + RLENGTH
   return after_last(s, "[^A-Za-z0-9_$]")
 }
 
-# A line outside every test: it opens, continues or closes a function. A
-# code line indented no deeper than an open definition closes it, unless it
-# starts with ) or ], closing a signature split over lines, or with the {
-# opening the body on a line of its own. A definition indented deeper than
-# the open one nests in it, so a line of the inner function is also a line
-# of the outer.
 function helper_scan(m,    name, ind, k, calls) {
   if (m ~ /^[[:space:]]*$/) return
   if (has(m, R_START)) { HK = 0; return }
@@ -1621,12 +1298,8 @@ function helper_scan(m,    name, ind, k, calls) {
   if (name != "") { HK++; HI[HK] = ind; HD[HK] = ++DEF_N; DEF_NAME[DEF_N] = name; DEF_CLS[DEF_N] = CLS_K ? CLS_NAME[CLS_K] : "" }
   if (HK > 0 && (has(m, R_ANY) || has(m, R_MOCKA) || has(m, R_FAILC) || m ~ /(^|[^A-Za-z0-9_$.])((throw|raise)([^A-Za-z0-9_$]|$)|reject[[:space:]]*\()/))
     for (k = 1; k <= HK; k++) DEF_ASSERTS[HD[k]] = 1
-  # A definition line is read from after the name it defines.
   if (name != "") {
     m = substr(m, DEF_END)
-    # The parameter count, from the list on this line, C# only (the header
-    # match ends at its open paren; no other lexer has overloads); -1 when
-    # unknown.
     DEF_ARITY[DEF_N] = -1
     if (LEXER == "cs" && extract_parens("(" m, 1)) DEF_ARITY[DEF_N] = arg_count(EXTRACT)
   }
@@ -1635,8 +1308,6 @@ function helper_scan(m,    name, ind, k, calls) {
   for (k = 1; k <= HK; k++) DEF_SELF[HD[k]] = DEF_SELF[HD[k]] self_arities(m, DEF_NAME[HD[k]])
 }
 
-# The class a line sits in, by indentation as helper_scan tracks functions:
-# the innermost open class is CLS_NAME[CLS_K].
 function cls_scan(m,    ind, re) {
   if (m ~ /^[[:space:]]*$/) return
   ind = indent_of(m)
@@ -1647,9 +1318,6 @@ function cls_scan(m,    ind, re) {
   if (match(m, re)) { CLS_K++; CLS_I[CLS_K] = ind; CLS_NAME[CLS_K] = after_last(substr(m, RSTART, RLENGTH), "[^A-Za-z0-9_$]") }
 }
 
-# The names blk calls bare or on self, this or cls, space-separated, a call
-# on self, this or cls marked with a leading dot, the test's own name left
-# out: os.write( is not a call to the file's write.
 function called_names(blk,    out, t, pre) {
   out = ""
   if (SHELL_LEX) return out
@@ -1668,12 +1336,6 @@ function called_names(blk,    out, t, pre) {
   return out
 }
 
-# Whether a test in class cls that makes these calls reaches an asserting
-# helper. A call on self or this, and a bare C# call, names the method of the
-# test's own class, a bare Python or JS call a module function; when that
-# scope defines the name, every definition of it there (C# overloads) must
-# assert. A name the scope does not define, as a base class's method, counts
-# when any definition of it in the file asserts.
 function calls_helper(calls, cls,    n, c, i, name, key) {
   n = split(calls, c, " ")
   for (i = 1; i <= n; i++) {
@@ -1690,7 +1352,6 @@ function helper_mark(i) {
   NAME_ASSERTS[DEF_NAME[i]] = 1
 }
 
-# The number of top-level arguments in an argument or parameter list.
 function arg_count(s,    n) {
   if (s ~ /^[[:space:]]*$/) return 0
   n = 1
@@ -1698,8 +1359,6 @@ function arg_count(s,    n) {
   return n
 }
 
-# The arity of every call to name in m, bare or on self, this or cls, each
-# with a leading space.
 function self_arities(m, name,    out, pre, p) {
   out = ""
   while ((p = index(m, name)) > 0) {
@@ -1712,12 +1371,6 @@ function self_arities(m, name,    out, pre, p) {
   return out
 }
 
-# Whether definition i calls another overload of its own name, by argument
-# count, and that overload asserts. A call whose count matches i's own
-# parameters is recursion, not delegation. An arity of -1 (a parameter list
-# split over lines) matches any count.
-# Plain statements on purpose: gawk 5.2.1 double-frees on this test written
-# as one return of joined && and || terms (Ubuntu 24.04, 2026-09-29).
 function delegates_to_overload(i,    j, a) {
   if (DEF_SELF[i] == "") return 0
   for (j = 1; j <= DEF_N; j++) {
@@ -1731,8 +1384,6 @@ function delegates_to_overload(i,    j, a) {
   return 0
 }
 
-# A helper that calls an asserting helper asserts too, to any depth: repeat
-# until no definition changes.
 function helper_verdicts(    i, changed, hit) {
   for (i = 1; i <= DEF_N; i++) SCOPE_DEFS[DEF_CLS[i] SUBSEP DEF_NAME[i]]++
   for (i = 1; i <= DEF_N; i++) if (i in DEF_ASSERTS) helper_mark(i)
@@ -1749,7 +1400,6 @@ function helper_verdicts(    i, changed, hit) {
 
 function eval_block(    blk, stripped, mocka_n, kind, calls) {
   blk = block_masked
-  # A test that skips itself from inside its body does not run: not judged.
   if (has(blk, R_BODY_SKIP)) return
   blocks++
   if (BLOCKS) block_record()
@@ -1758,8 +1408,6 @@ function eval_block(    blk, stripped, mocka_n, kind, calls) {
   if (block_raw) return
   kind = block_exempt ? "X" : "F"
   if (!has(blk, R_ANY) && !has(blk, R_MOCKA) && !BANG_LAST) {
-    # A call to a same-file function may be the assertion; the verdict waits
-    # for END, when every function in the file has been read.
     if ((calls = called_names(blk)) == "") emit(kind, "zero-assertion", block_line, "test '" block_name "' has 0 assertion tokens")
     else if (!INVENTORY && !index(RULES_OFF, "|zero-assertion|") && (SCOPE == "" || in_scope(block_line, block_hi))) {
       ZA_N++; ZA_CALLS[ZA_N] = calls; ZA_CLS[ZA_N] = block_cls
@@ -1774,8 +1422,6 @@ function eval_block(    blk, stripped, mocka_n, kind, calls) {
     emit(kind, "snapshot-only", OR_PLINE, "test '" block_name "': snapshot is the only oracle: review it as code")
   if (OR_T && !OR_S && !OR_W && !OR_P)
     emit(kind, "throw-only-oracle", OR_TLINE, "test '" block_name "': the only oracle checks a value the test constructed, so it fails only if the constructor throws: " OR_TSNIP)
-  # An else gives the other path its own assertions; a length check makes an
-  # empty result fail. Either way some assertion runs.
   if (CA_IN && !CA_OUT && blk !~ /(^|[^A-Za-z0-9_$])else([^A-Za-z0-9_$]|$)/ && !has(blk, R_COUNT))
     emit(kind, "conditional-assertion", CA_LINE, "test '" block_name "': every assertion sits inside an if, a catch or a loop over a result, so a path runs none: " CA_SNIP)
   else if (ER_LINE)
@@ -1812,19 +1458,6 @@ function open_block(line, name) {
   PROP_TEST = PROP_PRE; PROP_PRE = DP_N = 0
 }
 
-# The statements of a body line, for the oracle and inert rules: SEG_M[i] and
-# SEG_R[i], i = 1..SEG_N, each the line with every other statement blanked, so
-# masked and raw columns stay paired. A line with one statement is one segment,
-# the line itself. A statement ends at a ";" outside parentheses and brackets,
-# so a for (;;) header stays whole; a "{" opens a block whose statements split
-# again, a lambda's body inside a call included. The depths carry from line to
-# line. C#, JS and TS keep the ";" that ends a statement, which their inert
-# forms anchor on; Python and bash separate statements with it, so it is
-# blanked, and bash's case terminators (;; ;& ;;&) never split. Strings,
-# comments and char literals are already masked. Go and PowerShell lines stay
-# whole. Each segment is a full-width copy, so a line of more than 16
-# statements (minified or generated code) is judged whole, keeping the cost of
-# a line linear in its length.
 function split_stmts(m, r,    n, i, c, from, k) {
   SEG_N = 0
   n = length(m)
@@ -1847,16 +1480,6 @@ function split_stmts(m, r,    n, i, c, from, k) {
   if (!SEG_N) seg_add(m, r, 1, n)
 }
 
-# C#: a bare return; before every assertion of the test ends it as passed on
-# that path with nothing asserted (rule-conditional-assertion, judged at the
-# close). A return in the body of a catch with a when filter is the guard for
-# an environment the test cannot run in, such as a trial license, and is left
-# alone, and so is a return in the body of a local function or a lambda, which
-# exits only that callable. ER_D is the brace depth in the body; CW_OPEN the
-# depth inside such a catch or callable, CW_IN set while the scan is in it.
-# A header whose "{" is not on its line arms CW_ARM; the next non-blank line
-# must open with that "{", else the header had no block (a multi-line
-# expression lambda) and the scope is dropped.
 function er_scan(m, r,    d0, p, a, cw, post) {
   if (LEXER != "cs" || ER_DONE) return
   d0 = ER_D
@@ -1868,8 +1491,6 @@ function er_scan(m, r,    d0, p, a, cw, post) {
   if (match(m, R_ANY)) a = RSTART
   if (R_MOCKA != "" && match(m, R_MOCKA) && (!a || RSTART < a)) a = RSTART
   cw = 0
-  # A filtered catch, a lambda whose block opens here, or a local function
-  # declaration (a type, a name and "(" that no keyword starts, not ending in ;).
   if (match(m, /(^|[^A-Za-z0-9_])catch([[:space:](].*)?[[:space:])]when[[:space:]]*\(/) ||
     match(m, /=>[[:space:]]*(\{|$)/) ||
     (m !~ /^[[:space:]]*(return|await|throw|yield|new|else|case|goto)([^A-Za-z0-9_]|$)/ && m !~ /;[[:space:]]*$/ &&
@@ -1895,22 +1516,11 @@ function seg_add(m, r, a, b,    n) {
   SEG_R[SEG_N] = blanks(a - 1) substr(r, a, b - a + 1) blanks(n - b)
 }
 
-# block_raw: an idiom or a delegation matched the raw text of this line and
-# the two before it, joined by newlines so a pattern can anchor a line start,
-# which counts as an assertion. The per-line rules that
-# need to know they are inside a test run from here.
 function append_block(m, r,    bm, br) {
   bm = m; br = r
-  # CS_HEAD: the first code line of an expression body that wrapped after its
-  # "=>", which starts the body's statement though the line before ends in "=>".
   CS_HEAD = CS_WRAP && m !~ /^[[:space:]]*$/
   if (CS_HEAD) CS_WRAP = 0
-  # A C# line before the body opens is signature: the test's name and its
-  # parameters are code, and a test named Check_x or a parameter named
-  # expected would read as an assertion. Only the body after it is judged.
   if (LEXER == "cs" && !body_open && !expr_body) { cs_cut(m, r); bm = CUT_M; br = CUT_R }
-  # The same for a Python def and a Go func: the start line, and a Python
-  # signature split over lines, are judged from the body on.
   else if (PY_HEAD || (LEXER == "go" && FNR == block_line)) {
     decl_cut(m, r); bm = CUT_M; br = CUT_R
     if (has(bm, R_MOCKC)) file_mock = 1
@@ -1919,15 +1529,12 @@ function append_block(m, r,    bm, br) {
   block_last = FNR
   LINE_IN_TEST = 1
   if (!PROP_TEST && has(m, R_PROP)) PROP_TEST = 1
-  # The def's signature, up to the parenthesis that closes its parameters.
   if (SIG_OPEN) { SIG = SIG " " m; if (index(SIG, "(") && delta(SIG, "(", ")") <= 0) SIG_OPEN = 0 }
   if (r ~ R_EXEMPT) block_exempt = 1
   if (R_RAW != "" && !block_raw) {
     if ((BW2 "\n" BW1 "\n" br) ~ R_RAW) block_raw = 1
     BW2 = BW1; BW1 = br
   }
-  # cs, python and go have cut the start line's signature to its body. The
-  # oracle and inert rules judge each statement of the line on its own.
   OR_S0 = OR_S
   split_stmts(bm, br)
   if (FNR != block_line || LEXER != "bash")
@@ -1946,8 +1553,6 @@ function append_block(m, r,    bm, br) {
 
 function close_block(    i) {
   in_test = 0
-  # A brace block ends on its closing line; an indent block closes on the
-  # next dedented line, so its extent ends at the last line it took.
   block_hi = MODEL == "indent" ? block_last : FNR
   closed_lo = block_line; closed_at = FNR
   if (PEND != "" && in_scope(block_line, block_hi)) printf "%s", PEND
@@ -1959,18 +1564,12 @@ function close_block(    i) {
   eval_block(); closing = 0
 }
 
-# --blocks: a block is named by its name and its ordinal among same-named
-# blocks, counted whether or not SCOPE lists them, so a scoped run numbers a
-# block as an unscoped one does. An indent block ends on its last code line,
-# leaving out the blank and comment lines before the next def.
 function block_record(    hi) {
   hi = MODEL == "indent" ? block_code_last : block_hi
   if (SCOPE == "" || in_scope(block_line, hi))
     printf "K\t%d-%d\t%d\t%s\n", block_line, hi, ORD[block_name], clean_detail(block_name)
 }
 
-# A C# test body starting on this line: a "{" opens a brace body, a "=>" opens
-# an expression body that a trailing ";" closes on the same line.
 function cs_body_start(m) {
   if (index(m, "{") > 0) {
     body_open = 1
@@ -1982,13 +1581,6 @@ function cs_body_start(m) {
   }
 }
 
-# A C# signature line cut to its body, in CUT_M and CUT_R: the signature and
-# the body's opener ("{" or "=>") blanked, and a "}" that closes the body on
-# this line too. Blanking keeps the columns fill() pairs masked and raw text by.
-# CS_RET: the body is an expression a Task-returning test returns, so an async
-# assertion there is awaited by the runner. An async test's expression body
-# returns nothing: its value is discarded. CS_WRAP: nothing follows the "=>",
-# so the expression starts on a later line.
 function cs_cut(m, r,    i, j, k, n) {
   i = index(m, "{"); j = index(m, "=>")
   k = (j && (!i || j < i)) ? j : i
@@ -2005,18 +1597,11 @@ function cs_cut(m, r,    i, j, k, n) {
   if (brace_delta(m) <= 0) cut_last_brace(n)
 }
 
-# Blank the last "}" past column k in CUT_M and CUT_R: the one closing a body
-# that ends on its start line.
 function cut_last_brace(k,    i) {
   for (i = length(CUT_M); i > k; i--) if (substr(CUT_M, i, 1) == "}") break
   if (i > k) { CUT_M = substr(CUT_M, 1, i - 1) " " substr(CUT_M, i + 1); CUT_R = substr(CUT_R, 1, i - 1) " " substr(CUT_R, i + 1) }
 }
 
-# A Python def or Go func start line cut to its body, in CUT_M and CUT_R: the
-# signature blanked through the ":" (Python, outside brackets, so a split
-# signature stays blank until its ") -> None:") or the "{" (Go) that opens the
-# body, as cs_cut blanks a C# signature. A Go body that closes on this line
-# loses its "}" too, so a one-line if reads whole.
 function decl_cut(m, r,    i, n, c, k, d) {
   n = length(m); k = n; d = 0
   for (i = 1; i <= n; i++) {
@@ -2042,13 +1627,6 @@ function cs_method_name(s) {
   return s
 }
 
-# ---------------------------------------------------------------------------
-# Block models. brace_call: a test_start call opens a brace block on its own
-# line (js) that closes once its braces and the call's parentheses both have, so
-# a call split before its body brace keeps its body. brace_decl: test_start
-# attributes, then a method signature opens a brace or expression body (cs).
-# indent: a test_start def opens a block its indentation closes (python).
-# ---------------------------------------------------------------------------
 
 function brace_call() {
   if (in_test) {
@@ -2058,8 +1636,6 @@ function brace_call() {
     if (depth <= 0 && call_depth <= 0) close_block()
     taut_scan(raw, masked)
   } else if (sr) {
-    # inside a skipped suite: consume braces until the suite closes; open
-    # nothing and judge nothing — a test that does not run is not judged
     sr_depth += brace_delta(masked)
     if (sr_depth <= 0) sr = 0
   } else if (has(masked, R_SUITE_SKIP)) {
@@ -2080,7 +1656,6 @@ function brace_call() {
   }
 }
 
-# file: the whole file is one test, named by its basename (bash harnesses).
 function whole_file(    n, parts) {
   if (!in_test) {
     n = split(FILENAME, parts, "/")
@@ -2090,11 +1665,6 @@ function whole_file(    n, parts) {
   taut_scan(raw, masked)
 }
 
-# test_skip here matches a decorator on a line above the def, or above a class,
-# which skips every test indented under it (skip_cls is that class's indent).
-# A line inside open brackets continues the one before it, so it never dedents
-# and never resets a pending skip: a signature split over lines closes on its
-# ") -> None:", not the block, and a decorator split over lines stays one.
 function indent(    code) {
   code = masked !~ /^[[:space:]]*$/ && bracket_depth <= 0
   if (skip_cls >= 0 && code && indent_of(raw) <= skip_cls) skip_cls = -1
@@ -2119,12 +1689,7 @@ function indent(    code) {
   taut_scan(raw, masked)
 }
 
-# test_skip here matches any attribute in the stack, before or after the test
-# attribute. An attribute is a line opening with "["; a signature is a line
-# with a C# modifier or return type before its "(".
 function brace_decl() {
-  # A skip in the attribute stack of a class skips every test in it: consume
-  # the class's braces, open nothing and judge nothing.
   if (pending_skip && masked ~ /(^|[^A-Za-z0-9_])class[[:space:]]/) {
     sr = 1; sr_open = sr_depth = pending_attr = pending_skip = 0
   }
@@ -2154,17 +1719,12 @@ function brace_decl() {
       pending_attr = 1
       if (has(masked, R_SKIP)) pending_skip = 1
     } else if (masked ~ /^[[:space:]]*\[/) {
-      # any other attribute in the same stack — a skip marker counts whether
-      # it precedes or follows the test attribute
       if (has(masked, R_SKIP)) pending_skip = 1
     } else if (masked !~ /^[[:space:]]*$/) { pending_attr = 0; pending_skip = 0 }
   }
   taut_scan(raw, masked)
 }
 
-# ---------------------------------------------------------------------------
-# Main loop: one lexer and one block model per adapter language.
-# ---------------------------------------------------------------------------
 
 {
   raw = $0
@@ -2176,8 +1736,6 @@ function brace_decl() {
   else if (LEXER == "go") masked = mask_go(raw)
   else masked = mask_cs(raw)
 
-  # A Python or Go test's name is no mock: append_block reads its start line
-  # from the body on.
   if (has(masked, R_MOCKC) && !((LEXER == "python" || LEXER == "go") && has(masked, R_START))) file_mock = 1
   if (INVENTORY) inv_line()
   LINE_IN_TEST = 0
@@ -2198,8 +1756,6 @@ function brace_decl() {
 
 END {
   if (FATAL) exit 2
-  # A fragment can also end inside a JS template, a block comment, a Python
-  # triple-quoted string or a C# verbatim string; the rules never ask.
   if (INVENTORY && (mask_open() || S_bc || S_tpl || S_triple || S_verb)) print INVENTORY "\tunjudged"
   else if (mask_open()) print "L\t1"
   else if (in_test) close_block()

@@ -1,52 +1,4 @@
 #!/usr/bin/env bash
-# Description-driven auto-invocation probe harness (#3526).
-#
-# Measures whether a skill's listing text would win the requests it should
-# (and stay quiet on the ones it should not). Default method is a
-# deterministic lexical listing-overlap floor that runs without a model.
-# Model-graded `claude plugin eval` cases are emitted on demand; a
-# replayed model run uses the same report shape so `compare` can show a
-# rewrite delta.
-#
-# Exit 0 = success (WARN lines allowed); 1 = FAIL findings; 2 = usage /
-# environment error (no jq, missing file).
-#
-# Usage:
-#   bash measure-invocation.sh validate [--copy-span N] [--verbose] <probes-dir>
-#   bash measure-invocation.sh score [--method listing-overlap] <probes-dir>
-#   bash measure-invocation.sh compare <baseline.json> <treatment.json>
-#   bash measure-invocation.sh emit-plugin-eval [--runs N] <probes-dir> <out-dir>
-#   bash measure-invocation.sh --help
-#
-# validate WARNs when a should-trigger probe shares N or more consecutive
-# words (default 4) with the target listing, and once per probe file naming
-# every competitor whose id does not start with the file's plugin and a colon
-# (--verbose: one WARN per competitor, plus each skill's listing and query
-# split; the warning count is the same either way). emit-plugin-eval writes N runs
-# per case: --runs, else the plugin_eval_runs setting (skill-quality.yaml, then
-# skill-quality.local.yaml, in the convention home), else 3, the CLI's own
-# default. compare adds a 95% paired
-# normal-approximation interval on each trigger-rate delta, from per-probe
-# outcomes matched by id, and an INFO line that says "within noise" when the
-# interval contains 0.
-#
-# Probe files: <probes-dir>/*.json (not baselines/). Each file is one skill:
-#   skill, plugin, skill_dir (repo-relative), competitors[], queries[]
-#   query: id, split (train|validation), expect_trigger (bool), request
-# A competitor's directory is plugins/<plugin>/skills/<skill> from its
-# plugin:skill id; an optional competitor_dirs entry overrides it for a rival
-# outside the plugins/ tree. skill_dir and competitor directories resolve
-# against the repo root (MEASURE_INVOCATION_REPO_ROOT, else the
-# git toplevel of this script, else $PWD). The shipped seed probes name this
-# marketplace's own skills; `score` exits 2 when none of them resolve.
-# Roughly 20 labeled queries per skill, both polarities, both splits.
-#
-# listing-overlap is a FLOOR, not a model-graded auto-invocation rate. It
-# ranks the request against the target description and named competitors by
-# quoted-trigger hits plus content-token overlap. The live method is
-# emit-plugin-eval + `claude plugin eval`; each emitted case lists the target
-# plugin and its competitors' plugins under `plugins:`, and emit exits 2 when
-# one of those is not under plugins/. Replay the results through compare.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -54,7 +6,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/skill-frontmatter.sh"
 
 usage() {
-  awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+Description-driven auto-invocation probe harness: would a skill's listing text win the requests it should?
+
+Usage:
+  bash measure-invocation.sh validate [--copy-span N] [--verbose] <probes-dir>
+  bash measure-invocation.sh score [--method listing-overlap] <probes-dir>
+  bash measure-invocation.sh compare <baseline.json> <treatment.json>
+  bash measure-invocation.sh emit-plugin-eval [--runs N] <probes-dir> <out-dir>
+  bash measure-invocation.sh --help
+
+  --copy-span N  validate WARNs on N or more words shared with the target listing (default 4)
+  --verbose      one WARN per competitor
+  --method       score method; listing-overlap is a FLOOR, not a model-graded rate
+  --runs N       runs per emitted case (default: plugin_eval_runs setting, else 3)
+
+Exit 0 = success (WARN lines allowed); 1 = FAIL findings; 2 = usage /
+environment error (no jq, missing file).
+EOF
 }
 
 if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
@@ -105,6 +74,28 @@ load_listing() {
   desc="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field description <<<"$fm")")"
   wtu="$(skill_frontmatter::strip_quotes "$(skill_frontmatter::field when_to_use <<<"$fm")")"
   printf '%s\n%s\n' "$desc" "$wtu"
+}
+
+is_dmi_true() {
+  local md="$1" fm raw val
+  fm="$(skill_frontmatter::extract <"$md")"
+  raw="$(skill_frontmatter::field disable-model-invocation <<<"$fm")"
+  raw="${raw#"${raw%%[![:space:]]*}"}"
+  raw="${raw%"${raw##*[![:space:]]}"}"
+  val="${raw,,}"
+  case "$val" in
+  true | yes | on | 1) return 0 ;;
+  *) return 1 ;;
+  esac
+}
+
+derived_competitor_dir() {
+  local comp="$1"
+  if [[ "$comp" =~ ^[a-z0-9-]+:[a-z0-9-]+$ ]]; then
+    printf 'plugins/%s/skills/%s\n' "${comp%%:*}" "${comp#*:}"
+    return 0
+  fi
+  return 1
 }
 
 listing_tokens() {
@@ -206,7 +197,7 @@ cmd_validate() {
   fi
   local root
   root="$(repo_root)"
-  local f nfiles=0 unresolved=0 cross=0 cross_files=0
+  local f nfiles=0 unresolved=0 cross=0 cross_files=0 dmi_comps=0 dmi_files=0
   local -a files
   mapfile -t files < <(probe_files "$dir")
   if [[ ${#files[@]} -eq 0 ]]; then
@@ -296,11 +287,33 @@ cmd_validate() {
     else
       warn "$f ($skill): no skill_dir; score cannot load a listing"
     fi
+    local vcomp vcomp_dir vcmd dmi_in_file=0
+    while IFS= read -r vcomp; do
+      [[ -z "$vcomp" ]] && continue
+      vcomp_dir="$(jq -r --arg c "$vcomp" '.competitor_dirs[$c] // empty' "$f")"
+      if [[ -z "$vcomp_dir" ]]; then
+        vcomp_dir="$(derived_competitor_dir "$vcomp" || true)"
+      fi
+      if [[ -n "$vcomp_dir" ]] && vcmd="$(resolve_skill_md "$root" "$vcomp_dir")" && is_dmi_true "$vcmd"; then
+        if ((verbose)); then
+          warn "$f ($skill): competitor '$vcomp' sets disable-model-invocation: true and never competes in model auto-invocation"
+        else
+          dmi_in_file=$((dmi_in_file + 1))
+        fi
+      fi
+    done < <(jq -r '.competitors[]?' "$f")
+    if ((dmi_in_file > 0)); then
+      dmi_comps=$((dmi_comps + dmi_in_file))
+      dmi_files=$((dmi_files + 1))
+    fi
     ((verbose)) && note "$skill: $n queries (pos=$pos neg=$neg train=$train validation=$val)"
   done
   note "validated $nfiles probe file(s)"
   if ((cross > 0)); then
     note "$cross competitor(s) in $cross_files probe file(s) are not from the file's plugin; a rewrite in that plugin moves the probe's listing-overlap score (fine for a live emit-plugin-eval set, which loads it as a rival); --verbose prints one WARN per competitor and each skill's listing and query split"
+  fi
+  if ((dmi_comps > 0)); then
+    warn "$dmi_comps competitor(s) in $dmi_files probe file(s) set disable-model-invocation: true and never compete in model auto-invocation (pass --verbose to list each)"
   fi
   if ((unresolved > 0)); then
     note "$unresolved of $nfiles probe file(s) have a skill_dir that does not resolve under $root; score cannot load those listings (see reference/invocation-probes.md, Outside the marketplace checkout)"
@@ -349,7 +362,7 @@ cmd_score() {
     exit 2
   fi
   local skill_idx=0
-  local -A comp_listing
+  local -A comp_listing=()
   for f in "${files[@]}"; do
     local skill plugin rel
     skill="$(jq -r '.skill' "$f")"
@@ -362,16 +375,13 @@ cmd_score() {
     fi
     local listing
     listing="$(load_listing "$md")"
-    for k in "${!comp_listing[@]}"; do
-      unset "comp_listing[$k]"
-    done
+    comp_listing=()
     local comp
     while IFS= read -r comp; do
       [[ -z "$comp" ]] && continue
       local comp_dir derived=""
       comp_dir="$(jq -r --arg c "$comp" '.competitor_dirs[$c] // empty' "$f")"
-      if [[ -z "$comp_dir" && "$comp" == *:* ]]; then
-        comp_dir="plugins/${comp%%:*}/skills/${comp#*:}"
+      if [[ -z "$comp_dir" ]] && comp_dir="$(derived_competitor_dir "$comp")"; then
         derived=1
       fi
       if [[ -z "$comp_dir" ]]; then
@@ -380,6 +390,10 @@ cmd_score() {
       fi
       local cmd
       if cmd="$(resolve_skill_md "$root" "$comp_dir")"; then
+        if is_dmi_true "$cmd"; then
+          note "$skill: skipping competitor '$comp' (disable-model-invocation: true — excluded from model listing)"
+          continue
+        fi
         comp_listing["$comp"]="$(load_listing "$cmd")"
       elif [[ -n "$derived" ]]; then
         err "$skill: competitor '$comp' has no competitor_dirs entry and '$comp_dir' does not resolve; a partial rival set would inflate the rates"
@@ -406,19 +420,20 @@ cmd_score() {
         best=0
       fi
       local cname
-      for cname in $(printf '%s\n' "${!comp_listing[@]}" | sort); do
-        local cscore
-        cscore="$(score_request "$request" "${comp_listing[$cname]}")"
-        if ((cscore > best)); then
-          best="$cscore"
-          winner="$cname"
-          predicted=false
-        elif ((cscore == best)) && [[ "$winner" == "$skill" ]] && ((cscore > 0)); then
-          # Tie with a competitor: target did not uniquely win.
-          predicted=false
-          winner="$skill+$cname"
-        fi
-      done
+      if ((${#comp_listing[@]} > 0)); then
+        for cname in $(printf '%s\n' "${!comp_listing[@]}" | sort); do
+          local cscore
+          cscore="$(score_request "$request" "${comp_listing[$cname]}")"
+          if ((cscore > best)); then
+            best="$cscore"
+            winner="$cname"
+            predicted=false
+          elif ((cscore == best)) && [[ "$winner" == "$skill" ]] && ((cscore > 0)); then
+            predicted=false
+            winner="$skill+$cname"
+          fi
+        done
+      fi
       local correct=false
       if [[ "$expect" == "$predicted" ]]; then
         correct=true
@@ -537,9 +552,27 @@ cmd_compare() {
 }
 
 rival_plugins() {
-  jq -r '(.plugin // "") as $own
-    | [.competitors[]? | select(type == "string" and contains(":")) | split(":")[0] | select(. != $own)]
-    | unique[]' "$1"
+  local f="$1" root="${2:-}" own comp cdir cmd
+  own="$(jq -r '.plugin // ""' "$f")"
+  local -a plugins=()
+  while IFS= read -r comp; do
+    [[ -z "$comp" || "$comp" != *:* ]] && continue
+    local p="${comp%%:*}"
+    [[ "$p" == "$own" ]] && continue
+    if [[ -n "$root" ]]; then
+      cdir="$(jq -r --arg c "$comp" '.competitor_dirs[$c] // empty' "$f")"
+      if [[ -z "$cdir" ]]; then
+        cdir="$(derived_competitor_dir "$comp" || true)"
+      fi
+      if [[ -n "$cdir" ]] && cmd="$(resolve_skill_md "$root" "$cdir")" && is_dmi_true "$cmd"; then
+        continue
+      fi
+    fi
+    plugins+=("$p")
+  done < <(jq -r '.competitors[]? | select(type == "string")' "$f")
+  if ((${#plugins[@]} > 0)); then
+    printf '%s\n' "${plugins[@]}" | sort -u
+  fi
 }
 
 rel_path() {
@@ -616,7 +649,7 @@ cmd_emit() {
   for f in "${files[@]}"; do
     local p
     local -a need
-    mapfile -t need < <(rival_plugins "$f")
+    mapfile -t need < <(rival_plugins "$f" "$root")
     ((${#need[@]})) && need+=("$(jq -r '.plugin // empty' "$f")")
     for p in "${need[@]}"; do
       if [[ ! -d "$root/plugins/$p" ]]; then
@@ -633,7 +666,7 @@ cmd_emit() {
   out_abs="$(cd "$out" && pwd -P)" || return 2
   root_abs="$(cd "$root" && pwd -P)" || return 2
   for f in "${files[@]}"; do
-    if [[ -n "$(rival_plugins "$f")" && "$out_abs" != "$root_abs"/* ]]; then
+    if [[ -n "$(rival_plugins "$f" "$root")" && "$out_abs" != "$root_abs"/* ]]; then
       printf 'Error: emit-plugin-eval: %s lists cross-plugin rivals, so <out-dir> must sit inside %s; the CLI loads a case'"'"'s plugins only from inside the run target\n' "$f" "$root_abs" >&2
       ((made)) && rmdir "$out" 2>/dev/null
       exit 2
@@ -645,9 +678,8 @@ cmd_emit() {
     plugin="$(jq -r '.plugin // empty' "$f")"
     leaf="${skill#*:}"
     local -a rivals
-    mapfile -t rivals < <(rival_plugins "$f")
+    mapfile -t rivals < <(rival_plugins "$f" "$root")
     if ((${#rivals[@]})); then
-      # Every case sits one level below out_abs; paths are relative to the case directory.
       local -a paths
       paths=("$(rel_path "$out_abs/_" "$(cd "$root/plugins/$plugin" && pwd -P)")") || return 2
       for p in "${rivals[@]}"; do
@@ -675,7 +707,6 @@ expected_outcome: Skill ${skill} $(if [[ "$expect" == "true" ]]; then echo fires
 ${request}
 " >"$case_dir/prompt.md" || return 2
       # portability-ok: \s is read by the eval grader's own regex engine, never
-      # shell grep/sed; kept out of the emitted YAML so the grader files stay clean.
       local match_re="\"skill\"\\s*:\\s*\"(?:${plugin}:)?${leaf}\""
       if [[ "$expect" == "true" ]]; then
         printf '%s\n' "---

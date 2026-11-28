@@ -1,5 +1,3 @@
-// Trap corpus for the grep lane's C# pass. Each declaration's role is listed
-// in context/lanes.md, never here: a name in this comment would save it.
 namespace Fixture.Orders;
 
 public interface IRequestHandler

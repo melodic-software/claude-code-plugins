@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-// Exit: 0 ok (no rows prints `no rows`), 2 usage, 1 a row that is not a JSON object or a read that
-// does not fit in memory, else buffer.sh read's own exit.
 import { spawnSync } from "node:child_process";
 import { realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";

@@ -14,8 +14,6 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
-# The merged pull request list comes from $TEST_TMPDIR/prs.json; a missing
-# file fails the call.
 cat >"$STUB_DIR/gh" <<STUB_EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >>"$TEST_TMPDIR/calls"
@@ -26,7 +24,6 @@ esac
 STUB_EOF
 chmod +x "$STUB_DIR/gh"
 
-# entry <number> <body> [closing-refs-json]
 entry() {
   jq -n --argjson n "$1" --arg b "$2" --argjson c "${3:-[]}" \
     '{number: $n, body: $b, closingIssuesReferences: $c}'

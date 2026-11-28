@@ -4,6 +4,8 @@
 
 Full detail for `/source-control:worktree cleanup [<path>...] [--dry-run]`. SKILL.md carries the headline and the safety invariants; this file carries the full procedure (prune → identify → present → execute → verify), including the Windows file-lock handling and the Step 4b branch deletion.
 
+The nightly reap (`<scripts-dir>/worktree-reap.sh`) records why it kept or removed each worktree in its run file, `${XDG_STATE_HOME:-~/.local/state}/worktree-reap/runs/<utc>.jsonl`. When a worktree you are cleaning up is in the newest run file, read its row first: the facts there are why the reap did not remove it. A row marked `review` goes to the `review` action ([review.md](review.md)), which makes its work durable before a cleanup removes it.
+
 ## Scope: explicit paths or the whole repository
 
 Settle the scope before Step 1. Strip `--dry-run` from the arguments; what remains are worktree paths.
@@ -131,7 +133,7 @@ Read the candidate's row from the record collected in Step 2:
 - `risk=landed`, `ok`, or `bare` → proceed.
 - `risk=STRANDED`, `UNKNOWN`, or `superseded` → **stop and do not remove.** Present the count, the `base` stamp, the `reason`, and the commit subjects (`git -C <path> log HEAD --not --remotes --oneline`), then get explicit per-worktree confirmation naming those commits. `UNKNOWN` means the engine could not prove landedness, not that it proved absence. `superseded` means only that a merged pull request carried this branch's name; a name reused after that merge makes the evidence describe different commits than these, and the row is `landed=no` either way. Treat both exactly as `STRANDED`.
 - `risk=in-progress` → **stop.** A merge, rebase, cherry-pick, revert, or bisect is mid-flight here. Its staged tree is recomputable, but the operator's conflict resolutions are not, and the operation's position is lost with the directory. The tree can be completely clean too: an interactive rebase paused at a `break` leaves `--porcelain` empty, which is why this row outranks `landed` and never reads as disposable. Report the operation and let the user finish or abort it first.
-- `risk=dirty` → **stop.** Nothing is unpushed, but the working tree carries uncommitted edits; the same value is emitted when the working-tree status could not be read at all (the `-` or `?` in the count columns). Neither is safe to remove without the user looking.
+- `risk=dirty` → **stop.** The working tree carries uncommitted edits or untracked files (this outranks `landed`, so even a merged branch with local edits or untracked files stops here). Neither is safe to remove without the user looking. An unreadable working-tree status (`?` in the count columns) emits `risk=UNKNOWN` above, not `dirty`.
 - **Any value not listed above → treat it as `STRANDED`.** The list is closed on the safe side only: an unrecognized risk value is one this file cannot vouch for, and an unproven verdict never authorizes a removal.
 - When the row's `peers` column names another worktree, say so: those commits survive in the peer, which is a different decision from losing them.
 - The override is `--acknowledge-stranded`, per worktree, never a bare `--force`. `--force` answers git's dirty-tree check, a different question, and one flag must not silently answer both.
@@ -142,12 +144,8 @@ Offer the non-destructive resolution first: `git -C <path> push -u origin HEAD` 
 
 **2. Carried-ignored-file guard:** `git worktree remove`
 succeeds on a worktree whose only edits are gitignored files, which `status --porcelain` does not
-show, so plain removal silently discards them. When the repo root has a `.worktreeinclude`, run
-the same per-pattern comparison as `/source-control:pull-request create`'s pre-flight, expanding each pattern from
-the worktree toplevel (skip unmatched globs) and from `MAIN_ROOT`, before removing. Differing or
-new carried file → offer the copy-to-main sync; main-side file absent in the worktree → offer
-removing main's copy only on explicit confirmation of a deliberate deletion (default keep, since the
-file may simply never have been carried). Removal without this pass loses the edits with exit 0.
+show, so plain removal silently discards them. Run `bash "<scripts-dir>/worktree-include.sh" diff '<path>' --main-root '<main-root>'`
+before removing (exit 0: clean or no `.worktreeinclude`; exit 1: TSV `status<TAB>relpath<TAB>main_path` of `MODIFIED`, `NEW`, or `ABSENT` carried files; exit 3: unreadable, fail closed and stop). Show diffs with `--unified`; for `MODIFIED` or `NEW` files offer `bash "<scripts-dir>/worktree-include.sh" sync-back '<path>' --main-root '<main-root>' --copy '<relpath>'`; for `ABSENT` files offer `--remove '<relpath>'` only on explicit confirmation of a deliberate deletion (default keep, since the file may simply never have been carried). `sync-back` refuses (exit 2) a path main changed since the copy, judged against the worktree's `carried.index` (what `copy` carried, in the worktree's git dir); show the user both versions and let them merge by hand. To ask only whether the worktree edited a carried file, as the nightly reap does, add `--worktree-only`: `MODIFIED` is a carried file edited in the worktree, `NEW` an included file never carried, and, for a worktree with no `carried.index`, one `NO-MANIFEST` row when a copy differs from main (copies that match main exit 0). Removal without this pass loses the edits with exit 0.
 
 **File-lock release (Windows-critical).** Once both guards have cleared, and for a locked candidate once `bash "<scripts-dir>/worktree-claim.sh" stale <path>` has exited 0 (run for that candidate just before its release, not read from the Step 2 batch, and after any owner-is-done confirmation, as the Escalation guard below describes; any other exit keeps the row, with nothing stopped), release the candidate's OS file locks. `git worktree remove --force` overrides git's dirty/locked-worktree check but does not release OS file handles: on Windows any process holding a file under the worktree blocks directory deletion ("Permission denied" / "being used by another process"), and `--force` then unregisters the worktree but leaves a husk on disk. Stop the processes rooted in the candidate's path:
 

@@ -1,35 +1,6 @@
 #!/usr/bin/env bash
-# PostToolUse-shaped wrapper: run the can't-fail scanner on the test file just
-# written. No hooks.json row runs it (check-placement moved that reporting off
-# per-edit hooks); test-scan.test.sh still exercises it.
-#
-# ADVISORY: always exits 0. Findings go back to the writing agent through
-# additionalContext; the write has already happened and is never undone.
-#
-# Scope (hook-precision rule 1): a Write that creates the file reports every
-# test block; an Edit or an overwriting Write reports only blocks that overlap
-# the lines the call wrote, read from tool_response.structuredPatch. An Edit
-# whose payload carries no patch reports nothing rather than the whole file.
-#
-# Session state: every scanned write leaves one file,
-# $DATA/sessions/<pkey>/<session_id>/<tool_use_id>.json, naming the test
-# blocks it created or changed (blocks:null when that is unknown: the whole
-# file). A gitignored path, a file the config
-# excludes, and a working copy under the system temp directory or a Claude
-# session scratchpad write nothing.
-#
-# Test seams: TEST_SCAN_SCANNER replaces the scanner, TEST_SCAN_TIMEOUT
-# (seconds, default 8, below the hooks.json timeout of 10) bounds it.
-
 set -uo pipefail
 
-# Kill switch before any library is sourced; the launcher's --require-true
-# gate already applies it, this keeps a direct run honest too. --enabled is
-# for the consumer settings entry /testing:setup check prints for a glob no
-# shipped row covers: a settings hook receives no CLAUDE_PLUGIN_OPTION_*
-# (probe: https://github.com/melodic-software/claude-code-plugins/blob/9a0d6f5cf47098fa73bb4b8bb41336be1945c70e/docs/specs/tautological-tests/probes.md#consumer-settings-hook-environment-claude-code-21284-wsl2-2026-09-29,
-# as of 2026-09-29; recheck when a Claude Code release note says settings
-# hooks receive plugin options), and adding that entry is the opt-in.
 [[ "${1:-}" == --enabled ]] && CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED=true
 [[ "${CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED:-false}" == "true" ]] || exit 0
 
@@ -42,9 +13,6 @@ source "$HOOK_DIR/rewrite-guard.sh"
 # shellcheck source=scanner-run.sh
 source "$HOOK_DIR/scanner-run.sh"
 
-# --no-membership: the `if` rows bound this hook's scope, and a PostToolUse
-# check cannot undo the write, so the CLAUDE_PROJECT_DIR guard only loses
-# coverage (see actionlint-check.sh for the Windows short-name case).
 hook::begin --no-membership test-scan PostToolUse
 
 if hook::gitignored_out_of_scope false "$FILE"; then
@@ -66,25 +34,15 @@ wtype="${HOOK_JQ_FIELDS[6]}" has_patch="${HOOK_JQ_FIELDS[7]}" lines="${HOOK_JQ_F
 
 testing::data_dir
 mkdir -p "$DATA/marks" 2>/dev/null
-# No -type: markers are files now, and directories the earlier mkdir scheme left.
 find "$DATA/marks" -mindepth 1 -maxdepth 1 -mtime +7 -delete 2>/dev/null
-# Session state and the judge's state, at every depth. An empty directory goes
-# only once it is an hour old, so a parallel run's fresh mkdir keeps its
-# directory until it writes.
 find "$DATA"/{sessions,verdicts,locks,relayed,attempts,slots,successors,pending,runs,findings,derive} -mindepth 1 \
   \( -type f -mtime +7 -o -type d -empty -mmin +60 \) -delete 2>/dev/null
 
 out_file="$(mktemp)"
 trap 'rm -f "$out_file"' EXIT
 
-# state_write blocks|null: record this write for the task-end judge, one file
-# per call so parallel writers never share one, renamed into place so a reader
-# never sees half of it. A block the lexer lost is never listed, so a scan that
-# lost one records null too. `lines` are the lines the patch wrote (null for a
-# create or when unknown), the judge's hint for a whole-file bash harness.
 state_write() {
   local repo="$REPO_ROOT" dir
-  # A temp or scratchpad copy is not an authored test: no judge record.
   testing::record_skip "$FILE" && return 0
   [[ "$session" =~ ^[A-Za-z0-9_-]+$ && "$call" =~ ^[A-Za-z0-9_-]+$ ]] || return 0
   testing::pkey "${CLAUDE_PROJECT_DIR:-$pcwd}" "$tpath" || return 0
@@ -111,18 +69,10 @@ state_write() {
 create=false
 [[ "$tool" == Write && "$wtype" == create ]] && create=true
 
-# mark <path>: create a marker file exclusively (noclobber opens with O_EXCL),
-# so exactly one of several racing runs succeeds. mkdir is not atomic under
-# uutils coreutils.
 mark() { (set -o noclobber && : >"$1") 2>/dev/null; }
 
-# Two `if` rows can match one path (test_x_test.py matches test_*.py and
-# *_test.py) and each starts this hook; only the run that creates the marker
-# reports.
 if [[ -n "$call" ]] && ! mark "$DATA/marks/call-$call"; then exit 0; fi
 
-# A deletion-only patch or an edit with no patch names no written line, so
-# no block can be scoped: its state says the whole file.
 scope=()
 if [[ "$create" == true ]]; then
   :
@@ -137,8 +87,6 @@ elif [[ "$tool" != Write ]]; then
   hook::finish skipped findings array '[]'
 fi
 
-# ponytail: patch line numbers go stale if another PostToolUse hook reformats
-# the file before this read; the scan then scopes to shifted blocks.
 SCANNER="${TEST_SCAN_SCANNER:-$HOOK_DIR/../skills/audit/scripts/cant-fail-scan.sh}"
 scan_timeout="${TEST_SCAN_TIMEOUT:-8}"
 testing::run_scanner "$scan_timeout" "$out_file" --file "$FILE" "${scope[@]}" --blocks --brief
@@ -148,8 +96,6 @@ if ((rc != 0)); then
   state_write null
   why="scanner exited $rc"
   ((rc > 128)) && why="scanner timed out after ${scan_timeout}s"
-  # A config the scanner refuses is the agent's to fix: log the resolver's or
-  # loader's own message and name it, at its file and line, in the context.
   cfg_err=""
   if grep -q -e '^ERROR: the testing config did not resolve' -e '^ERROR: adapter load failed' "$out_file"; then
     cfg_err="$(grep -v -m1 '^resolve-config: warning: ' < <(grep -E '^(resolve-config|adapter-load): ' "$out_file"))"
@@ -161,8 +107,6 @@ if ((rc != 0)); then
   hook::finish error findings array '[]'
 fi
 
-# The scanner examined nothing: the testing config excluded the path or
-# disabled its adapter. No findings and no note.
 if grep -q '^  test files: 0 examined' "$out_file"; then
   hook::finish skipped findings array '[]'
 fi
@@ -172,9 +116,6 @@ findings="$(sed -n 's/^finding \[/[/p' "$out_file")"
 ctx=""
 FINDINGS_JSON='[]'
 if [[ -n "$findings" ]]; then
-  # The change-detector rules flag tests that fail on harmless changes, and a
-  # derived expectation, a snapshot, a weak oracle or a throw-only oracle can
-  # fail too; only the rest cannot fail.
   lead="has tests that cannot fail:"
   if ! grep -qv -e rule-constant-restatement -e rule-source-text-read -e rule-recomputed-derived -e rule-snapshot-only -e rule-weak-oracle -e rule-throw-only-oracle <<<"$findings"; then
     lead="has tests that check little (derived, weak, throw-only or snapshot-only oracles):"
@@ -183,17 +124,12 @@ if [[ -n "$findings" ]]; then
   fi
   hook::findings_to ctx "testing: $FILE_BASE $lead" "$findings" FINDINGS_JSON \
     --max 10 --more "/testing:audit lists the rest"
-  # One Action per rule, after the findings it covers.
   actions="$(sed -n 's/^action \[\([^]]*\)\] /Action [\1]: /p' "$out_file")"
   [[ -z "$actions" ]] || ctx+=$'\n'"$actions"
-  # The skill pointer once per (session, agent, file), and only beside findings.
-  # CLAUDE_PLUGIN_DATA is set for the consumer settings entry, which has none,
-  # so both entries share one latch.
   CLAUDE_PLUGIN_DATA="$DATA" hook::once_per_file testing-note "$INPUT" "$FILE" &&
     ctx+=$'\n'"/testing:test-value covers where expected values come from."
 fi
 
-# --max bounds the line count, not line length: a finding carries its test name.
 ((${#ctx} < 10000)) || ctx="${ctx:0:9800}"$'\n'"(truncated; /testing:audit lists the rest)"
 
 hook::finish --context "$ctx" ok findings array "$FINDINGS_JSON"

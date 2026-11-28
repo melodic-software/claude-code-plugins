@@ -79,8 +79,6 @@ export function parseRunArgs(argv) {
   const flags = {};
   while (args.length > 0 && Object.hasOwn(LEADING_FLAGS, args[0])) {
     const flag = LEADING_FLAGS[args[0]];
-    // A bare flag with no following value is a caller bug — surface it rather than
-    // silently swallowing the next token (or the script) as an empty value.
     if (args.length < 2) {
       throw new Error(`\`${args[0]}\` requires a ${flag.valueLabel}`);
     }

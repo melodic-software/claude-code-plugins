@@ -4,8 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# risk.py adds a cost-review hold when a patch raises a job's timeout. The
-# branch drops the line anchor, so a commented-out timeout line counts too.
 mkdir -p scripts/risk
 
 cat >scripts/risk/risk.py <<'PY'

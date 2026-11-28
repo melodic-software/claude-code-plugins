@@ -1,4 +1,5 @@
 # test-scope: plugins/source-control/lib/parse-concern-value.sh
+# test-scope: plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/merged-pr.json plugins/source-control/skills/babysit-prs/scripts/tests/fixtures/postmerge/workflow-run.json
 """The attempt carry of the post-merge check (`babysit_postmerge`).
 
 A completed attempt of a workflow run never changes, so a check answers an
@@ -58,7 +59,6 @@ class AttemptCase(unittest.TestCase):
         self.path = pathlib.Path(tmp.name) / "attempts.json"
 
         def run_command(command: list[str], **kwargs: Any) -> Any:
-            # The fake answers without headers, so the `-i` the guard adds is dropped.
             args = [a for i, a in enumerate(command[1:]) if (i, a) != (1, "-i")]
             return self.gh(args, timeout_seconds=kwargs.get("timeout_seconds"))
 
@@ -127,7 +127,6 @@ class TheCarrySparesTheAttemptReads(AttemptCase):
         carried = self.check(self.path)
         self.assertEqual(self.reads(), 0)
         self.assertEqual(carried.report(), expected)
-        # The flake and the failure stand on the carried attempt 1.
         self.assertEqual(
             carried.flakes, (f"https://github.com/{REPO}/actions/runs/11",)
         )
@@ -192,7 +191,6 @@ class AnUnusableFileIsNoFile(AttemptCase):
             entry["head_sha"] = OTHER_SHA
         self.path.write_text(json.dumps(data), encoding="utf-8")
         self.assert_read_as_with_no_file(expected)
-        # The live reads replace the stale entries.
         self.assertNotIn(
             OTHER_SHA, {e["head_sha"] for e in self.written()["attempts"].values()}
         )

@@ -1,18 +1,5 @@
 #!/usr/bin/env bash
-# Consumer-side front-matter validator for file-based markdown handoff queues
-# (one item per file with YAML front matter). Detects malformed items that make
-# a `grep '^status:'` reconciliation report a false all-clear.
-#
-#   scripts/check-queue-front-matter.sh <queue-dir>
-#
-# Not a CI gate — the queue lives outside the repository. Invoke at claim time
-# when an agent decides whether work is present.
-#
-# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr. That is
-# the whole family's contract, stated once in scripts/README.md, "The check-script
-# contract", and held by scripts/check-script-contract.test.sh. The one line on
-# stdout is the reconciliation count, which is the report this script is invoked
-# for and is printed on a clean run and a failing one alike.
+# Exit 0 clean, 1 findings, 2 environment or usage; findings on stderr.
 set -euo pipefail
 
 usage() {
@@ -49,7 +36,6 @@ extract_front_matter() {
   ' "$1"
 }
 
-# fm_value <front_matter> <key>
 fm_value() {
   awk -v key="$2" '
     $1 == key ":" {

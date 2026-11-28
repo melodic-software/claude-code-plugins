@@ -16,19 +16,10 @@ ${user_config.config_file}, is unset; a leading ~/ expands against --home; a
 value still not absolute is skipped with a warning; a file that does not exist
 supplies no layer.
 
-Dual-read window: two old paths are still read, each with one warning per run
-naming the old file and where its keys go.
-
-  ~/.claude/code-metrics.yaml         read as layer `userConfig` only while the
-                                      config_file option's file is absent or
-                                      outside the YAML subset
-  <repo>/.claude/code-metrics.local.yaml
-                                      read as layer `local` only while the
-                                      docs/conventions personal file is absent
-                                      or outside the YAML subset
-
 The team file earlier releases read from the repository's .claude directory
 is not read; /code-metrics:setup check reports it and apply moves its keys.
+Old ~/.claude/code-metrics.yaml and .claude/code-metrics.local.yaml files are
+not read.
 
 An invalid layer never stops the run. A file outside the YAML subset is named
 and read as absent. A value of the wrong shape (a scalar where a list or a
@@ -37,15 +28,15 @@ exclude glob the matcher cannot compile) is named with its file, key and value
 and dropped: the key resolves from a valid higher layer, else the bundled
 default, never from a lower layer.
 
-The consumer's ecosystem files (`docs/conventions/ecosystems/<lane>.yaml`, the
+The consumer's ecosystem files (`docs/conventions/ecosystems/<language>.yaml`, the
 marketplace-wide ecosystem-commands convention) resolve through that
-convention's three layers (`~/.claude/ecosystems/<lane>.yaml`, then the
-repository's `<lane>.yaml` and `<lane>.local.yaml`) for their `globs` and
+convention's three layers (`~/.claude/ecosystems/<language>.yaml`, then the
+repository's `<language>.yaml` and `<language>.local.yaml`) for their `globs` and
 `enabled` keys. A repository file absent from `docs/conventions/ecosystems/`
 is read from the legacy `.claude/ecosystems/`; with both present the first
-wins and a warning names both. Only a lane in the resolved
-`lanes` mapping reads its ecosystem file: the bundled lanes, plus any id a
-layer lists under `lanes`. A record whose id no layer lists creates no lane.
+wins and a warning names both. Only a language in the resolved
+`languages` mapping reads its ecosystem file: the bundled languages, plus any id a
+layer lists under `languages`. A record whose id no layer lists creates no language.
 
 Usage:
   resolve-config.py [options] [<user.yaml> [<team.yaml> [<local.yaml>]]]
@@ -57,16 +48,16 @@ them); otherwise the layers are discovered from --home (default $HOME) and
 Options:
   --defaults <file>        bundled defaults (default: config-defaults.json beside this script)
   --user-file <f>          the config_file option's value: the userConfig layer's file
-  --ladder <file>          validate `lanes.<lane>.collectors.<measure>` names against the ladder
+  --ladder <file>          validate `languages.<language>.collectors.<measure>` names against the ladder
   --format json            the resolved document (default): every key, plus `_layers`
                            (dotted key -> the layer that supplied it), `_provenance`
                            (dotted key -> {value, layer}), `_files` (the layer files read),
-                           `_ecosystems` (lane -> {globs, enabled, layer}), `_warnings`
-  --format dispatch-args   one dispatcher option per line: `--lane-globs <lane>=<g1,g2>`
-                           for a lane whose ecosystem file declares globs, `--disable-lane
-                           <lane>` for a lane resolved to enabled: false
+                           `_ecosystems` (language -> {globs, enabled, layer}), `_warnings`
+  --format dispatch-args   one dispatcher option per line: `--language-globs <language>=<g1,g2>`
+                           for a language whose ecosystem file declares globs, `--disable-language
+                           <language>` for a language resolved to enabled: false
   --format ladder-overrides
-                           `lane<TAB>measure<TAB>tool` rows from `lanes.<lane>.collectors`
+                           `language<TAB>measure<TAB>tool` rows from `languages.<language>.collectors`
   --format excludes        one `scope.exclude` glob per line
   --format registries      one sanctioned-replication registry path per line:
                            `scope.registries`, or `duplication.registries` when the
@@ -116,21 +107,15 @@ yaml_subset = _module("yaml_subset")
 pathglob = _module("pathglob")
 
 CONTROL = re.compile(r"[\n\r\t]")
-# The ecosystem-commands convention's identifier form (lowercase kebab-case).
-# A listed lane id names a record file
-# (https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/ecosystem-commands/README.md), so anything else
-# (a slash, `..`) is refused rather than joined into a path.
-LANE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
+LANGUAGE_ID = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
 STRING_LISTS = {"suppressions.correctness_rules"}
 
 
 def _reserved(key: str) -> bool:
-    """A key no layer may supply: the resolver's own `_` outputs, and `thresholds`."""
     return key.startswith("_") or key == "thresholds"
 
 
 def _load_layer(path: str, warnings: list[str]) -> dict[str, Any] | None:
-    """The layer's mapping, or None (with a warning) when it cannot be read."""
     try:
         value = yaml_subset.load(path)
         if value is not None and not isinstance(value, dict):
@@ -159,7 +144,6 @@ def _is_number(value: Any) -> bool:
 def _invalid(
     key: str, value: Any, defaults: dict[str, Any], threshold_keys: set[str]
 ) -> str | None:
-    """Why a layer's value for `key` cannot be used, or None when it can."""
     parts = key.split(".")
     scalars = value if isinstance(value, list) else [value]
     if CONTROL.search(key) or any(
@@ -171,17 +155,17 @@ def _invalid(
         )
     if key in threshold_keys and not (value is None or _is_number(value)):
         return "a reference must be a number or null"
-    if parts[0] == "lanes" and len(parts) > 1 and not LANE_ID.fullmatch(parts[1]):
-        return "a lane id must be lowercase kebab-case"
-    lane_node = parts[0] == "lanes" and (
+    if parts[0] == "languages" and len(parts) > 1 and not LANGUAGE_ID.fullmatch(parts[1]):
+        return "a language id must be lowercase kebab-case"
+    language_node = parts[0] == "languages" and (
         len(parts) == 2 or (len(parts) == 3 and parts[2] == "collectors")
     )
-    if lane_node and value is not None:
+    if language_node and value is not None:
         return "must be a mapping"
     default = _lookup(defaults, parts)
     if isinstance(default, dict):
         return "must be a mapping"
-    collectors = len(parts) == 4 and parts[0] == "lanes" and parts[2] == "collectors"
+    collectors = len(parts) == 4 and parts[0] == "languages" and parts[2] == "collectors"
     if (isinstance(default, list) or collectors) and not (
         value is None or isinstance(value, list)
     ):
@@ -210,7 +194,6 @@ def _reset(
     parts: list[str],
     layers: dict[str, str],
 ) -> None:
-    """Put `parts` back to its bundled default, discarding lower layers' values."""
     default = _lookup(defaults, parts)
     parent: Any = config
     for part in parts[:-1]:
@@ -266,20 +249,12 @@ def repo_root() -> str:
     return os.getcwd().replace("\\", "/")
 
 
-def layer_paths(home: str, root: str, stem: str) -> list[tuple[str, str]]:
-    return [
-        ("user-global", os.path.join(home, ".claude", f"{stem}.yaml")),
-        ("team", os.path.join(root, ".claude", f"{stem}.yaml")),
-        ("local", os.path.join(root, ".claude", f"{stem}.local.yaml")),
-    ]
-
-
 def ecosystem_layer_paths(
-    home: str, root: str, lane: str, warnings: list[str]
+    home: str, root: str, language: str, warnings: list[str]
 ) -> list[tuple[str, str]]:
-    """A lane record's layers: the convention home, else the legacy .claude/ecosystems."""
-    paths = [("user-global", os.path.join(home, ".claude", "ecosystems", f"{lane}.yaml"))]
-    for layer, name in (("team", f"{lane}.yaml"), ("local", f"{lane}.local.yaml")):
+    """A language record's layers: the convention home, else the legacy .claude/ecosystems."""
+    paths = [("user-global", os.path.join(home, ".claude", "ecosystems", f"{language}.yaml"))]
+    for layer, name in (("team", f"{language}.yaml"), ("local", f"{language}.local.yaml")):
         new = f"{root}/docs/conventions/ecosystems/{name}"
         old = f"{root}/.claude/ecosystems/{name}"
         if os.path.isfile(new) and os.path.isfile(old):
@@ -288,18 +263,7 @@ def ecosystem_layer_paths(
     return paths
 
 
-def old_layer_paths(home: str, root: str) -> dict[str, str]:
-    """The pre-cascade user-global and personal override paths, by layer."""
-    return {
-        "user-global": os.path.join(home, ".claude", f"{SURFACE}.yaml"),
-        "local": os.path.join(root, ".claude", f"{SURFACE}.local.yaml"),
-    }
-
-
 USER_OPTION = "config_file"
-UNSET_USER_FILE = (
-    f"the file the {USER_OPTION} userConfig option names (set it in /config)"
-)
 
 
 def user_file(raw: str | None, home: str, warnings: list[str]) -> str | None:
@@ -318,80 +282,22 @@ def user_file(raw: str | None, home: str, warnings: list[str]) -> str | None:
     return value
 
 
-def _same_file(a: str, b: str) -> bool:
-    try:
-        return os.path.samefile(a, b)
-    except OSError:
-        return False
-
-
-def _dual_read(
-    layer: str,
-    new: str | None,
-    old: str,
-    what: str,
-    where: str,
-    warnings: list[str],
-) -> list[tuple[str, str]]:
-    """One layer's files: the new one, or the old one while the new one is unusable."""
-    has_new = new is not None and os.path.isfile(new)
-    has_old = os.path.isfile(old) and not (has_new and _same_file(old, str(new)))
-    layer_word = "personal layer" if layer == "local" else f"{layer} layer"
-    if has_new and has_old:
-        if _load_layer(str(new), []) is None:
-            warnings.append(
-                f"{old} is the old {what}, still read as the {layer_word} because "
-                f"{new} is outside the YAML subset; fix {new}, then delete the old file"
-            )
-            return [(layer, old), (layer, str(new))]
-        warnings.append(
-            f"{old} is the old {what} and is not read because {new} exists; move "
-            f"any key it still holds to {new} and delete the old file"
-        )
-    if has_new:
-        return [(layer, str(new))]
-    if has_old:
-        warnings.append(
-            f"{old} is the old {what}, still read as the {layer_word}; move it to "
-            f"{where} (/code-metrics:setup apply --copy-old)"
-        )
-        return [(layer, old)]
-    return []
-
-
 def surface_layer_paths(
     home: str,
     root: str,
     warnings: list[str] | None = None,
     user_option: str | None = None,
 ) -> list[tuple[str, str]]:
-    """The plugin's file layers, with the old paths the dual-read window keeps.
-
-    The userConfig file is the one the config_file option names; the team and
-    personal override files sit in `docs/conventions/` (config-cascade, "The
-    layers"). The older team file in the repository's `.claude` directory is
-    never read. An old user-global or personal file is read in its layer's
-    place and named in one warning each.
-    """
+    """The plugin's canonical file layers: userConfig option, team YAML, personal override."""
     warnings = [] if warnings is None else warnings
     conventions = os.path.join(root, "docs", "conventions")
-    personal = os.path.join(conventions, f"{SURFACE}.local.yaml")
-    old = old_layer_paths(home, root)
     user = user_file(user_option, home, warnings)
-    return [
-        *_dual_read(
-            "userConfig",
-            user,
-            old["user-global"],
-            "user-global file",
-            user or UNSET_USER_FILE,
-            warnings,
-        ),
-        ("team", os.path.join(conventions, f"{SURFACE}.yaml")),
-        *_dual_read(
-            "local", personal, old["local"], "personal override", personal, warnings
-        ),
-    ]
+    layers: list[tuple[str, str]] = []
+    if user is not None:
+        layers.append(("userConfig", user))
+    layers.append(("team", os.path.join(conventions, f"{SURFACE}.yaml")))
+    layers.append(("local", os.path.join(conventions, f"{SURFACE}.local.yaml")))
+    return layers
 
 
 def resolve(
@@ -446,36 +352,36 @@ def resolve(
                 parts = raw.rstrip("\n").split("\t")
                 if len(parts) >= 3:
                     known.add((parts[0], parts[1], parts[2]))
-        for lane, lane_cfg in (config.get("lanes") or {}).items():
-            collectors = (lane_cfg or {}).get("collectors") or {}
+        for language, language_cfg in (config.get("languages") or {}).items():
+            collectors = (language_cfg or {}).get("collectors") or {}
             for measure, tools in list(collectors.items()):
                 if not isinstance(tools, list):
                     warnings.append(
-                        f"lanes.{lane}.collectors.{measure}: expected a list; ignored"
+                        f"languages.{language}.collectors.{measure}: expected a list; ignored"
                     )
                     del collectors[measure]
                     continue
                 kept = []
                 for tool in tools:
-                    if (lane, measure, str(tool)) in known or (
-                        lane,
+                    if (language, measure, str(tool)) in known or (
+                        language,
                         "*",
                         str(tool),
                     ) in known:
                         kept.append(str(tool))
                     else:
                         warnings.append(
-                            f"lanes.{lane}.collectors.{measure}: {tool!r} is not in the ladder for {lane}/{measure}; dropped"
+                            f"languages.{language}.collectors.{measure}: {tool!r} is not in the ladder for {language}/{measure}; dropped"
                         )
                 collectors[measure] = kept
     ecosystems: dict[str, Any] = {}
     listed = [
-        lane for lane in (config.get("lanes") or {}) if LANE_ID.fullmatch(str(lane))
+        language for language in (config.get("languages") or {}) if LANGUAGE_ID.fullmatch(str(language))
     ]
-    for lane in listed if ecosystem_paths else []:
+    for language in listed if ecosystem_paths else []:
         eco: dict[str, Any] = {}
         eco_layers: dict[str, str] = {}
-        for layer, path in ecosystem_paths(lane):
+        for layer, path in ecosystem_paths(language):
             if not os.path.isfile(path):
                 continue
             override = _load_layer(path, warnings)
@@ -487,7 +393,7 @@ def resolve(
             continue
         globs = eco.get("globs")
         enabled = eco.get("enabled", True)
-        ecosystems[lane] = {
+        ecosystems[language] = {
             "globs": [str(g) for g in globs] if isinstance(globs, list) else None,
             "enabled": bool(enabled) if enabled is not None else True,
             "layer": eco_layers.get("globs") or eco_layers.get("enabled") or "team",
@@ -513,7 +419,7 @@ def _field(config: dict[str, Any], key: str, value: Any, tabs: bool = False) -> 
     time (the dispatcher uses `mapfile`, then dispatches on the first word),
     and the ladder rows are tab separated. The YAML subset's double-quoted
     scalars support a real `\\n` escape, so without this a layer could write
-    `base: "auto\\n--disable-lane python"` and have one scalar key arrive as
+    `base: "auto\\n--disable-language python"` and have one scalar key arrive as
     two directives, the second of them silently narrowing what gets measured.
     A field that would break out of its line, or out of its column, is refused
     by key instead of obeyed.
@@ -546,38 +452,35 @@ def dispatch_args(config: dict[str, Any]) -> list[str]:
     base = scope.get("base")
     if isinstance(base, str) and base.strip() and base != "auto":
         lines.append(f"--scope-base {_field(config, 'scope.base', base.strip())}")
-    lanes = config.get("lanes") or {}
+    languages = config.get("languages") or {}
     ecosystems = config.get("_ecosystems") or {}
-    for lane in sorted(set(lanes) | set(ecosystems)):
-        eco = ecosystems.get(lane) or {}
-        plugin_enabled = (lanes.get(lane) or {}).get("enabled", True)
+    for language in sorted(set(languages) | set(ecosystems)):
+        eco = ecosystems.get(language) or {}
+        plugin_enabled = (languages.get(language) or {}).get("enabled", True)
         enabled = eco.get("enabled", True) if eco else True
-        name = _field(config, "lanes.<lane>", lane)
+        name = _field(config, "languages.<language>", language)
         if plugin_enabled is False or enabled is False:
-            lines.append(f"--disable-lane {name}")
+            lines.append(f"--disable-language {name}")
             continue
         if eco.get("globs"):
             globs = ",".join(
                 _field(config, f"ecosystems.{name}.globs", glob)
                 for glob in eco["globs"]
             )
-            lines.append(f"--lane-globs {name}={globs}")
+            lines.append(f"--language-globs {name}={globs}")
     return lines
 
 
 def ladder_overrides(config: dict[str, Any]) -> list[str]:
     lines: list[str] = []
-    for lane, lane_cfg in sorted((config.get("lanes") or {}).items()):
-        name = _field(config, "lanes.<lane>", lane, tabs=True)
+    for language, language_cfg in sorted((config.get("languages") or {}).items()):
+        name = _field(config, "languages.<language>", language, tabs=True)
         for measure, tools in sorted(
-            ((lane_cfg or {}).get("collectors") or {}).items()
+            ((language_cfg or {}).get("collectors") or {}).items()
         ):
-            key = f"lanes.{name}.collectors.<measure>"
+            key = f"languages.{name}.collectors.<measure>"
             column = _field(config, key, measure, tabs=True)
             if not tools:
-                # An explicitly empty list is a closed value: no collector runs
-                # for this lane and measure, so the dispatcher gets the
-                # reserved `none` rung rather than falling back to the ladder.
                 lines.append(f"{name}\t{column}\tnone")
                 continue
             for tool in tools:
@@ -591,11 +494,6 @@ def excludes(config: dict[str, Any]) -> list[str]:
     patterns = (config.get("scope") or {}).get("exclude")
     if patterns is None:
         patterns = []
-    # `scope.exclude` is a closed list. A scalar (`exclude: "vendor/**"`, the
-    # shape setup-apply.py writes for a one-glob value) iterates as characters,
-    # so the dispatcher would receive `v`, `e`, `n`, ... as globs: the audit
-    # exits 0 having measured the directory it was told to drop, and having
-    # possibly dropped unrelated single-character paths.
     if not isinstance(patterns, list):
         layer = (config.get("_layers") or {}).get("scope.exclude", "bundled default")
         raise ConfigTypeError(
@@ -705,8 +603,8 @@ def main(argv: list[str]) -> int:
     else:
         layer_files = surface_layer_paths(args.home, root, warnings, args.user_file)
 
-    def discovered(lane: str) -> list[tuple[str, str]]:
-        return ecosystem_layer_paths(args.home, root, lane, warnings)
+    def discovered(language: str) -> list[tuple[str, str]]:
+        return ecosystem_layer_paths(args.home, root, language, warnings)
 
     ecosystem_paths = None if args.layers else discovered
     try:

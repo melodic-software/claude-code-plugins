@@ -1,30 +1,4 @@
 #!/usr/bin/env node
-// rotation.mjs: orders a pr-merge `merge` job's candidates so its gate loop
-// starts after the last candidate the previous gate loop reached, wrapping
-// round to the lowest PR number. Under merge.gate-budget-minutes a loop can
-// stop before the end of the list; starting where the last one stopped means
-// every candidate is reached across runs.
-//
-// The previous position is the `pr-merge-gate-cursor` artifact each gate loop
-// uploads, `{"last": <PR number>}`, with `"deferred": <PR number>` when its
-// read limit (merge.gate-candidate-minutes) stopped a candidate. A deferred
-// candidate is gated first, marked `deferred` so its gate runs under the
-// longer merge.gate-deferred-minutes: one that always passes the limit still
-// gets a longer gate the next run. Only a scheduled or hand-started sweep of
-// pr-merge.yml on main counts (trustedRun); a pull_request_target run runs the PR base
-// branch's copy, so its cursor is not read. The newest such run holding a
-// cursor wins, found from the workflow's own run list, never the repository's
-// artifact list. The cursor sets only the order, never a verdict. Any failure
-// leaves the listing order (ascending PR number) and warns.
-//
-// Environment:
-//   ACTIONS_TOKEN        the job's GITHUB_TOKEN (actions: read)
-//   GITHUB_REPOSITORY    owner/repo
-//   GITHUB_RUN_ID        this run, which has no cursor yet
-//   CANDIDATES_PATH      candidates.json, rewritten in rotated order
-//   RUNNER_TEMP          where the cursor artifact is downloaded
-//   PR_MERGE_READS_PATH  the job's shared GET answers (sharedReads), if set
-//   GITHUB_API_URL
 import { execFileSync } from "node:child_process";
 import { closeSync, mkdtempSync, openSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -60,11 +34,6 @@ export function trustedRun(run, path = WORKFLOW_PATH) {
 
 const API_BUDGET_LIB = fileURLToPath(new URL("../../actions/log-api-budget/api-budget.bash", import.meta.url));
 
-// `gh <args>` with `token`, through api-budget.bash's gh wrapper: each request
-// it sends counts in the job-end api-calls notice under API_BUDGET_TOKEN, and
-// the rate guard refuses it while a stop holds. Plain gh when that file cannot
-// be read. The wrapper keeps the stderr it starts with as its error copy, so
-// only the source line's stderr is silenced.
 export function countedGh(args, { token, env = process.env, stdout = "ignore", timeout } = {}) {
   execFileSync("bash", ["-c", '. "$0" 2>/dev/null && api_budget_wrap_gh "${API_BUDGET_TOKEN:-}"; gh "$@"', API_BUDGET_LIB, ...args], {
     env: { ...env, GH_TOKEN: token },
@@ -73,12 +42,6 @@ export function countedGh(args, { token, env = process.env, stdout = "ignore", t
   });
 }
 
-// A run's artifact `name`, downloaded once per run id, as the text of `file`
-// (another file of the same artifact when the caller names one). With
-// `shared` (PR_MERGE_READS_PATH), the artifact id comes from the run's whole
-// artifact listing a reader already saved there (artifactsNamed), so the
-// archive is one request (ghDownloadArtifact); with no such listing, or no
-// unexpired artifact named `name` in it, `gh run download` lists and fetches.
 export function ghDownload({ repo, token, dir, name = CURSOR_ARTIFACT, file = "cursor.json", env, shared }) {
   const targets = new Map();
   const byId = ghDownloadArtifact({ repo, token, dir, name, file, env });
@@ -112,11 +75,6 @@ function listedArtifactId({ repo, runId, name, shared }) {
   return ids.length > 0 ? Math.max(...ids) : undefined;
 }
 
-// An artifact's file `file` (another file of it when the caller names one),
-// fetched once per artifact id from its archive endpoint. Unlike `gh run
-// download -n`, it lists none of the run's artifacts again, so a caller that
-// already holds the id spends one request, not two. `timeout` (ms) caps the
-// fetch and the unzip each, killing either past it.
 export function ghDownloadArtifact({ repo, token, dir, name, file, env, timeout }) {
   const archives = new Map();
   return (artifactId, other = file) => {
@@ -132,15 +90,10 @@ export function ghDownloadArtifact({ repo, token, dir, name, file, env, timeout 
       archives.set(key, archive);
     }
     try {
-      // Extracted beside the archive and read from disk: a piped `unzip -p`
-      // fails with ENOBUFS once the file passes execFileSync's 1 MiB default
-      // maxBuffer.
       const out = join(dirname(archives.get(key)), "extracted");
       execFileSync("unzip", ["-q", "-o", "-d", out, archives.get(key), other], { stdio: ["ignore", "ignore", "pipe"], ...(timeout !== undefined && { timeout, killSignal: "SIGKILL" }) });
       return readFileSync(join(out, other), "utf8");
     } catch (error) {
-      // unzip's exit 11 is "no matching files": the artifact lacks the file,
-      // raised as reading an extracted copy (ghDownload's other path) would.
       if (error?.status === 11) {
         throw Object.assign(new Error(`ENOENT: no such file or directory, open '${other}' (artifact ${key})`), { code: "ENOENT", syscall: "open", path: other });
       }
@@ -197,9 +150,6 @@ export async function newestTrustedArtifact({ repo, runId, actions, name, accept
     if (!Array.isArray(listing?.workflow_runs)) {
       throw new Error(`the ${file.replace(/\.yml$/, "")} run listing has an unexpected shape`);
     }
-    // Newest first by id, not the API's order, which follows created_at: on
-    // 2026-11-01 runs created 08:00-09:00Z were stamped an hour ahead and
-    // listed above later runs, so a carry came from a run an hour older.
     const runs = [...listing.workflow_runs].sort((a, b) => runOrder(b) - runOrder(a));
     for (const run of runs) {
       if (!trusted(run) || String(run.id) === runId) {

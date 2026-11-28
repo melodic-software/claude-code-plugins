@@ -1,4 +1,3 @@
-"""Checks for embed.py and gallery.py."""
 import json
 import pathlib
 import struct

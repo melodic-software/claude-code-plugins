@@ -10,7 +10,7 @@ When an open PR exists for the branch, its `baseRefName` is the base: dispatched
 `git merge-base origin/<baseRefName> HEAD`. A capped pre-computed PR list that lacks the current
 branch is not proof of no PR: run `gh pr list --head <current-branch> --json number,baseRefName`
 before concluding none exists. Otherwise `git merge-base origin/HEAD HEAD` (falling back to the
-remote's resolved default branch via `git ls-remote --symref`, then `origin/main`). When none of
+remote's resolved default branch via `git ls-remote --symref`, then `origin/main`). When none of <!-- portability-ok: detection-first fallback wrapped from origin/HEAD merge-base on line above -->
 them yields a merge-base (no remote, or a shallow clone sharing no ancestor with it), the base is
 unresolved: never fall back to `HEAD`. A hardcoded `git diff HEAD` is empty on a clean committed
 branch, so it would read as nothing to review.

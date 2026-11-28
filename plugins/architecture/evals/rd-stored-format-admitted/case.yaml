@@ -1,0 +1,12 @@
+schema_version: "1.1"
+name: rd-stored-format-admitted
+context:
+  scaffold_script: scaffold.sh
+graders:
+  - name: writes-record
+    type: file_exists
+    path: 'docs/adr/0002-*.md'
+  - name: reports-record-path
+    type: regex
+    pattern: 'docs/adr/0002-[^\s/`]*\.md'
+    target: last_message

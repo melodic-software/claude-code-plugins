@@ -3,7 +3,7 @@ set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)" || exit 2
 SECONDS_LIST="$ROOT/scripts/suite-seconds.txt"
-WHOLE_TREE_JOBS=("Lint Repo" "Lint Shell" "Check Plugins" "Check Catalog" "Check Skills" "Check Managed Files")
+WHOLE_TREE_JOBS=("Lint Repo" "Lint Repo Tree" "Lint Shell" "Check Plugins" "Check Catalog" "Check Skills" "Check Managed Files")
 LANES=(bash python node)
 
 usage() {
@@ -32,7 +32,7 @@ differ in: what main and the entries ahead changed since M.
     both the pull request's plan and the plan of X select it, sel(P) ∩ sel(X).
     The planner's own widening (a workflow change, a pin, an unmapped file)
     applies to X as to any diff.
-  - Lint Repo, Lint Shell, Check Plugins, Check Catalog, Check Skills and
+  - Lint Repo, Lint Repo Tree, Lint Shell, Check Plugins, Check Catalog, Check Skills and
     Check Managed Files would skip only when X is empty: the group tree is the
     tree the pull request run proved.
   - Test Selection, Select Tests and CI Status always run.

@@ -3,6 +3,42 @@
 All notable changes to the `implementation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.48.10] - 2026-11-28
+
+### Changed
+
+- Trimmed `/implementation:implement` (494 -> 345 chars) and `/implementation:implement-dispatch` (508 -> 347 chars; total 1002 -> 692 chars, -310 chars) frontmatter descriptions while preserving TDD/validation workflows, `replace` modes, direct-evidence worker verification, main-side build/test gating, and sibling boundaries.
+
+## [0.48.9] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.48.8] - 2026-11-26
+
+### Changed
+
+- `/implementation:implement` and `/implementation:implement-dispatch` point at the GitHub Actions docs for the `pull_request` activity types and for concurrency cancellation, and anchor the git-worktree link, instead of stating that behavior ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [0.48.7] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [0.48.6] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+## [0.48.5] - 2026-11-25
+
+### Changed
+
+- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
+
 ## [0.48.4] - 2026-11-24
 
 ### Changed

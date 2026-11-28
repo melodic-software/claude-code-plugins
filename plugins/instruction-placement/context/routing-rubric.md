@@ -13,7 +13,7 @@ a section, and never a whole file when only one section of it is misplaced.
 - [The decision ladder](#the-decision-ladder)
 - [Scope shape: glob or subtree](#scope-shape-glob-or-subtree)
 - [Deriving the glob](#deriving-the-glob)
-- [The promote lane](#the-promote-lane)
+- [The promote direction](#the-promote-direction)
 - [Pricing every move](#pricing-every-move)
 - [What this rubric does not decide](#what-this-rubric-does-not-decide)
 
@@ -118,7 +118,7 @@ Rung 4 splits on what the content is keyed to. Get this wrong and the rule eithe
 fires constantly.
 
 **Keyed to a file kind → path-scoped rule** (`.claude/rules/<topic>.md` with `paths:`). The content
-governs files identified by extension or filename pattern, wherever they sit: C# conventions, test
+governs files identified by extension or filename pattern, wherever they sit: C# conventions, test <!-- portability-ok: R6 illustrative path-scoped rule example -->
 file conventions, migration file conventions. Cross-cutting by nature.
 
 **Keyed to a place → nested `AGENTS.md` + `CLAUDE.md` shim** in that directory. The content governs
@@ -182,7 +182,7 @@ Validation gates every derived glob:
 Prefer the narrowest glob that covers the content's real scope. Breadth is not safety here: an
 over-broad glob loads the content constantly, which is the cost the move exists to avoid.
 
-## The promote lane
+## The promote direction
 
 The mirror direction, and the one with no downside to weigh. Convention content living in ordinary
 documentation, in `docs/`, in `CONTRIBUTING.md`, or in a module README, is loaded by Claude

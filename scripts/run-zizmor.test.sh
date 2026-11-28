@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Self-test for scripts/run-zizmor.sh with a stubbed zizmor on PATH. The stub
-# answers the offline run (--no-online-audits) and the online run separately,
-# so each case pins one pair of outcomes. The error text is zizmor 1.30's, from
-# merge-group run 39187151244 (403 on api.github.com/advisories) and a local
-# reproduction of a refused connection.
 # test-scope: scripts/run-zizmor.sh .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -18,9 +13,10 @@ SCRIPT="$ROOT/scripts/run-zizmor.sh"
 scratch=""
 fixture_tree::build scratch --label run-zizmor
 mkdir -p "$scratch/bin"
+standards="$scratch/standards"
+mkdir -p "$standards/.github"
+printf 'rules: checkout\n' >"$standards/.github/zizmor.yml"
 
-# A fatal online-audit error, as zizmor 1.30 prints it, with <cause> as the
-# innermost lines.
 online_error() {
   cat <<EOF
 fatal: no audit was performed
@@ -33,8 +29,6 @@ $1
 EOF
 }
 
-# stub <offline-rc> <offline-out> <online-rc> <online-out>: a zizmor whose
-# offline run (--no-online-audits) and online run print and exit as given.
 stub() {
   printf '%s' "$2" >"$scratch/offline.out"
   printf '%s' "$4" >"$scratch/online.out"
@@ -51,16 +45,15 @@ EOF
 }
 
 run() {
-  OUT=$(PATH="$scratch/bin:$PATH" bash "$SCRIPT" 2>&1) && RC=0 || RC=$?
+  OUT=$(PATH="$scratch/bin:$PATH" STANDARDS_DIR="$standards" bash "$SCRIPT" 2>&1) && RC=0 || RC=$?
 }
 
-check() { # check <name> <condition-result>
+check() {
   if [[ "$2" == yes ]]; then ok "$1"; else bad "$1" "rc=$RC out=$OUT"; fi
 }
 
 finding='::error file=.github/workflows/a.yml,line=7,title=unpinned-uses::a.yml:7: unpinned action reference'
 
-# A 403 from the online audit warns, names the status, and passes.
 stub 0 '' 1 "$(online_error '    2: HTTP status client error (403 Forbidden) for url (https://api.github.com/advisories?ecosystem=actions)')"
 run
 check 'a 403 from the online audit is a warning naming the status, and passes' \
@@ -81,7 +74,6 @@ run
 check 'a timeout is a warning naming the network error' \
   "$([[ $RC -eq 0 && "$OUT" == *'::warning '*'operation timed out'* ]] && echo yes)"
 
-# Not a downgrade: a 401 or 404 is a configuration or reference problem.
 stub 0 '' 1 "$(online_error '    2: HTTP status client error (401 Unauthorized) for url (https://api.github.com/advisories)')"
 run
 check 'a 401 still fails' "$([[ $RC -ne 0 && "$OUT" != *'::warning title=zizmor online'* ]] && echo yes)"
@@ -90,23 +82,19 @@ stub 0 '' 1 "$(online_error '    2: HTTP status client error (404 Not Found) for
 run
 check 'a 404 still fails' "$([[ $RC -ne 0 && "$OUT" != *'::warning title=zizmor online'* ]] && echo yes)"
 
-# An exit 1 that is not a GitHub API request error still fails.
 stub 0 '' 1 $'fatal: no audit was performed\nfailed to load input .github/workflows/a.yml'
 run
 check 'an online-run error that is not a network error still fails' "$([[ $RC -eq 1 ]] && echo yes)"
 
-# Findings from the online run fail with zizmor's own exit code.
 stub 0 '' 14 "$finding"
 run
 check 'an online finding fails' "$([[ $RC -eq 14 && "$OUT" == *"$finding"* ]] && echo yes)"
 
-# Findings from an offline audit fail, and the online run is not reached.
 stub 13 "$finding" 1 "$(online_error '    2: HTTP status client error (403 Forbidden) for url (https://api.github.com/advisories)')"
 run
 check 'an offline finding fails, whatever the online run would do' \
   "$([[ $RC -eq 13 && "$(wc -l <"$scratch/calls")" -eq 1 ]] && echo yes)"
 
-# An offline-run error fails too: only the online run can be downgraded.
 stub 1 "$(online_error '    2: HTTP status client error (403 Forbidden) for url (https://api.github.com/advisories)')" 0 ''
 run
 check 'an error in the offline run fails, even one that reads like a network error' "$([[ $RC -eq 1 ]] && echo yes)"
@@ -129,7 +117,8 @@ git_test_config "$repo" commit -q -m head
 
 bare=""
 fixture_tree::build bare --git --label run-zizmor-bare
-printf 'readme\n' >"$bare/README.md"
+mkdir -p "$bare/docs/conventions"
+printf 'standards_repository: example-org/standards\n' >"$bare/docs/conventions/source-control.yaml"
 git_test_config "$bare" add -A
 git_test_config "$bare" commit -q -m base
 bare_sha=$(git_test_config "$bare" rev-parse HEAD)
@@ -168,17 +157,28 @@ check 'the offline run and the online run both pass that config' \
 
 printf 'rules: standards\n' >"$scratch/gh.out"
 run_in "$bare" "$bare_sha"
-check "a base with no config falls back to standards' config, whatever the head adds" \
-  "$([[ $RC -eq 0 && "$(cat "$scratch/configs")" == $'rules: standards\nrules: standards' && "$(head -n 1 "$scratch/gh.calls")" == *repos/melodic-software/standards/contents/.github/zizmor.yml ]] && echo yes)"
+check "a base with no config falls back to the config of its standards_repository, whatever the head adds" \
+  "$([[ $RC -eq 0 && "$(cat "$scratch/configs")" == $'rules: standards\nrules: standards' && "$(head -n 1 "$scratch/gh.calls")" == *repos/example-org/standards/contents/.github/zizmor.yml ]] && echo yes)"
+
+nokey=""
+fixture_tree::build nokey --git --label run-zizmor-nokey
+printf 'readme\n' >"$nokey/README.md"
+git_test_config "$nokey" add -A
+git_test_config "$nokey" commit -q -m base
+nokey_sha=$(git_test_config "$nokey" rev-parse HEAD)
+mkdir -p "$nokey/docs/conventions"
+printf 'standards_repository: head-org/standards\n' >"$nokey/docs/conventions/source-control.yaml"
+git_test_config "$nokey" add -A
+git_test_config "$nokey" commit -q -m head
+run_in "$nokey" "$nokey_sha"
+check "a base with no config and no standards_repository fails closed, whatever the head adds" \
+  "$([[ $RC -eq 2 && ! -s "$scratch/calls" && ! -s "$scratch/gh.calls" ]] && echo yes)"
 
 rm "$scratch/gh.out"
 run_in "$bare" "$bare_sha"
 check "an unreadable standards config fails closed before zizmor runs" \
   "$([[ $RC -eq 2 && ! -s "$scratch/calls" ]] && echo yes)"
 
-standards="$scratch/standards"
-mkdir -p "$standards/.github"
-printf 'rules: checkout\n' >"$standards/.github/zizmor.yml"
 run_in "$bare" "$bare_sha" "$standards"
 check "a base with no config reads the run's standards checkout, with no API read" \
   "$([[ $RC -eq 0 && "$(cat "$scratch/configs")" == $'rules: checkout\nrules: checkout' && ! -s "$scratch/gh.calls" ]] && echo yes)"
@@ -196,6 +196,12 @@ check 'a base commit missing from the checkout fails closed' \
 run_in "$repo" ""
 check 'outside a pull request zizmor gets no --config and discovers its own' \
   "$([[ $RC -eq 0 && "$(grep -c -- '--config' "$scratch/calls")" -eq 0 && ! -s "$scratch/gh.calls" ]] && echo yes)"
+
+none=""
+fixture_tree::build none --label run-zizmor-none
+run_in "$none" "" "$standards"
+check "outside a pull request a checkout with no config falls back to standards' config" \
+  "$([[ $RC -eq 0 && "$(cat "$scratch/configs")" == $'rules: checkout\nrules: checkout' && ! -s "$scratch/gh.calls" ]] && echo yes)"
 
 step=$(grep -n -A9 -- '- name: Run zizmor$' "$ROOT/.github/workflows/pr-require-checks.yml")
 check 'the lint-repo zizmor step runs scripts/run-zizmor.sh' \

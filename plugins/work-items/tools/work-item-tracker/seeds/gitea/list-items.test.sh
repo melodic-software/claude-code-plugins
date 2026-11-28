@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# list-items: offline contract tests. Pagination, PR exclusion, and the per-item
-# blocker count are all driven through a mocked curl — no live Gitea call.
 # test-scope: plugins/work-items/tools/work-item-tracker/seeds/gitea/*
 set -uo pipefail
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-items.sh"
@@ -19,8 +17,6 @@ assert_usage_error "$S" --repo
 gitea_fixture_init
 trap 'rm -rf "$GITEA_FIX"' EXIT
 
-# --repo is caller text that reaches a request path, so it faces the same anchored
-# allowlist the binding's own scopes did.
 rc="$(gitea_run "$S" --repo "not-a-scope")"
 assert_eq "malformed --repo → exit 2" "2" "$rc"
 rc="$(gitea_run "$S" --repo "../../etc/passwd")"
@@ -41,13 +37,9 @@ assert_eq "one item" "1" "$(jq -r '.items | length' <<<"$(gitea_out)")"
 assert_eq "a complete listing carries truncated:false" "false" "$(jq -c '.truncated' <<<"$(gitea_out)")"
 assert_eq "item id is fully qualified" "gitea:acme/webapp#12" "$(jq -r '.items[0].id' <<<"$(gitea_out)")"
 assert_eq "a row carries milestone as null" "true" "$(jq -c '.items[0] | has("milestone") and .milestone == null' <<<"$(gitea_out)")"
-# The page size must be EXPLICIT. Gitea defaults an omitted limit to 30 and truncates
-# silently — the same trap the contract calls out for `gh`.
 assert_contains "the request sends an explicit limit" "$(gitea_requests)" "limit=50"
 assert_contains "the request sends the requested state" "$(gitea_requests)" "state=open"
 
-# With two declared scopes the target is ambiguous. Picking the first would quietly
-# list the wrong repository, so it is a usage error naming the fix.
 gitea_write_binding '{"scopes":["acme/webapp","acme/api"]}'
 gitea_reset_routes
 rc="$(gitea_run "$S")"
@@ -56,9 +48,6 @@ assert_contains "and says --repo is required" "$(gitea_err)" "--repo is required
 assert_eq "nothing was requested" "" "$(gitea_requests)"
 gitea_write_binding
 
-# --- pull requests are excluded ---
-# In Gitea a PR IS an issue with `pull_request` populated. A PR arriving as a work item
-# would be claimed and worked like one.
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed "/issues?" 200 "$(jq -cn --argjson i "$(gitea_issue_json 12 open 'real issue')" \
@@ -82,10 +71,6 @@ rc="$(gitea_run "$S")"
 assert_eq "empty repo → exit 0" "0" "$rc"
 assert_eq "empty items array" "0" "$(jq -r '.items | length' <<<"$(gitea_out)")"
 
-# --- pagination stops on a short page ---
-# These routes are seeded without a total-count header, so a short page is the only
-# end-of-list signal left. With page_size 2, a 2-row page must be followed by another
-# request and a 1-row page must not.
 gitea_write_binding '{"page_size":2}'
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
@@ -104,11 +89,6 @@ else
 fi
 gitea_write_binding
 
-# --- a failing per-item blocker count keeps its own status ---
-# The status cases below fail the ISSUE page and never reach the per-item count. These
-# seed a healthy page and break only the dependencies request, so the failure is the one
-# that would otherwise exit inside $( ) and reach the caller as this adapter's internal
-# error.
 gitea_reset_routes
 gitea_seed "/dependencies" 401 '{"message":"token required"}'
 gitea_seed "/issues?" 200 "[$(gitea_issue_json 12 open 'listed')]"
@@ -116,18 +96,12 @@ rc="$(gitea_run "$S")"
 assert_eq "unauthorized dependencies read → exit 4" "4" "$rc"
 assert_eq "and no envelope is emitted" "" "$(gitea_out)"
 
-# work-loop routes "seam exit 8 → backoff-and-retry", so a 5xx here must stay an 8.
 gitea_reset_routes
 gitea_seed "/dependencies" 503 '{"message":"down"}'
 gitea_seed "/issues?" 200 "[$(gitea_issue_json 12 open 'listed')]"
 rc="$(gitea_run "$S")"
 assert_eq "unavailable dependencies read → exit 8" "8" "$rc"
 
-# --- an issue without a numeric number is refused, never walked ---
-# The number is interpolated into the dependencies request path, into an unquoted JSON
-# number literal in COUNTS, and is the join key of the final envelope pass, so a row
-# whose `number` is not a canonical JSON integer is refused before any of those: exit 1,
-# no envelope, and no request carrying the bad value.
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed "/issues?" 200 "[$(gitea_issue_json null open 'no number')]"
@@ -156,7 +130,6 @@ else
   pass "no request carried the padded number"
 fi
 
-# --- HTTP status mapping ---
 gitea_reset_routes
 gitea_seed "/issues?" 404 '{"message":"repo not found"}'
 rc="$(gitea_run "$S")"
@@ -167,19 +140,11 @@ gitea_seed "/issues?" 429 '{"message":"slow down"}'
 rc="$(gitea_run "$S")"
 assert_eq "rate limited → exit 8" "8" "$rc"
 
-# --- the list asks gitea to exclude PRs, rather than fetching and discarding them ---
-# `type` is a real query parameter on this endpoint (enum: issues|pulls). Without it gitea
-# returns pull requests too: they consumed the page budget, and the declared ceiling counted
-# ROWS rather than items, so a PR-heavy repo reported "reached the declared ceiling of 1000
-# items" having collected far fewer than 1000 issues.
 gitea_reset_routes
 gitea_seed "/issues?" 200 '[]'
 gitea_run "$S" >/dev/null 2>&1
 assert_contains "the list requests type=issues" "$(gitea_requests)" "type=issues"
 
-# --- X-Total-Count is authoritative when gitea sends it ---
-# Under gitea's page clamp every page comes back short, so the header must decide the end.
-# Page 1 is deliberately SHORT (1 row) while the count says 2.
 gitea_reset_routes
 gitea_seed_total "/issues?state=open&type=issues&page=1" 200 \
   '[{"number":1,"title":"one","state":"open","assignees":[],"labels":[],"html_url":"https://gitea.example/acme/web/issues/1","repository":{"full_name":"acme/web"}}]' 2
@@ -204,12 +169,6 @@ else
   pass "and no extra page was requested"
 fi
 
-# --- each item keeps ITS OWN blocker count, in page order ---
-# Counts are joined to items by number in one jq pass at the end rather than paired inside
-# the per-item loop, so a join keyed on the wrong number would hand every item some other item's count
-# while every other case in this file (one item, or all counts zero) still passed. Five
-# items across two pages, with counts that differ item to item. Each item's dependency
-# route is seeded BEFORE the page routes: the dependency URLs also contain "page=1".
 gitea_write_binding '{"page_size":4}'
 gitea_reset_routes
 gitea_seed "/issues/12/dependencies" 200 '[{"number":1,"state":"open"},{"number":2,"state":"open"},{"number":3,"state":"open"}]'
@@ -228,12 +187,6 @@ assert_eq "each item carries its own open-blocker count" "3 2 1 0 1" \
   "$(jq -r '[.items[].blocked_by_count | tostring] | join(" ")' <<<"$(gitea_out)")"
 gitea_write_binding
 
-# --- the per-item cost is the dependency request, not a fan-out of jq processes ---
-# A jq shim on PATH counts spawns. The fixed cost (binding parse, manifest
-# read, envelope) is measured on an empty repository and subtracted, so the assertion is
-# about the per-item share alone: fewer than two jq processes per item, the dependency
-# count's own included. The shim is on PATH only for the runs under measurement, never for
-# this file's own jq calls.
 JQ_SHIM="$GITEA_FIX/jq-shim"
 REAL_JQ="$(command -v jq)"
 mkdir -p "$JQ_SHIM"
@@ -264,17 +217,6 @@ else
   fail "fewer than two jq processes per item" "<$((2 * N))" "$ITEM_SPAWNS"
 fi
 
-# --- the declared ceiling counts ROWS RETURNED, not pages × requested size ---
-# These diverge under exactly the server-side clamp: when the mock answers fewer rows than
-# the requested page_size, `PAGE * page_size` clears the ceiling a page BEFORE the rows
-# returned do, so a walk counting that way stops short and announces a ceiling it never
-# reached. Run against a fixture copy of the adapter whose manifest declares a ceiling of 40
-# rather than the shipped 1000: the property is the same at any ceiling. The ceiling
-# is read BACK from the fixture manifest rather than repeated here, so the assertions track
-# the manifest and not a literal. Asking for 100 and answering 25: the requested arithmetic
-# (2 * 100) clears 40 after page one, when only 25 rows have arrived, so a walk counting that
-# way collects 25 and the ceiling-relative assertion rejects it; counting rows returned, the
-# walk takes page two and stops at 50.
 gitea_reset_routes
 gitea_fixture_adapter 40
 CEILING="$(jq -r '.limits.list_items_max' "$GITEA_FIX_ADAPTER/capabilities.json")"
@@ -294,17 +236,12 @@ fi
 assert_contains "and the truncation is announced" "$(gitea_err)" "truncated"
 assert_eq "and the envelope carries truncated:true" "true" "$(jq -c '.truncated' <<<"$(gitea_out)")"
 assert_contains "naming the manifest's ceiling, not a built-in one" "$(gitea_err)" "ceiling of $CEILING items"
-# The lowered ceiling is what ended the walk: under the shipped 1000 this mock would have
-# been asked for a third page, and eighteen more after it.
 if [[ "$(gitea_requests)" == *"page=3"* ]]; then
   fail "the fixture ceiling governed the walk" "no page=3" "page=3 requested"
 else
   pass "the fixture ceiling governed the walk"
 fi
 
-# --- --label goes to gitea, so the ceiling counts labeled issues only (#7173) ---
-# The same repository, past the ceiling unfiltered, holds one issue with the label. The
-# mock answers the labeled query with that issue, as gitea's `labels` filter would.
 gitea_reset_routes
 gitea_seed "/dependencies" 200 '[]'
 gitea_seed_total "labels=area%3A%20ci" 200 "[$(gitea_issue_json 7 open 'labeled')]" 1

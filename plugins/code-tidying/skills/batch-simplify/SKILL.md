@@ -1,5 +1,5 @@
 ---
-description: "When the bundled simplify skill resolves in this session, prefer it for single-file cleanup; this skill for batch sweeps. Runs simplification over a time window, a branch, or the whole repository, grouped by ecosystem in dependency order. Use when asked to 'batch simplify' or simplify recent changes, to catch up on simplify after a multi-session sprint, or to sweep a branch, directory or repo."
+description: "When bundled simplify resolves in this session, prefer it for single-file cleanup; this skill for batch sweeps. Runs simplification over a time window, branch, directory, or repository, grouped by ecosystem in dependency order. Use when: 'batch simplify', 'simplify recent changes', or catch up after a multi-session sprint."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[time-window|branch|repo] [--unattended] [path...] [in-place[=commit]] [--repo <repo> ...]"
@@ -111,7 +111,7 @@ Resolve each path against the **invocation directory**, then express it **repo-r
 
 A token counts as a path only if it **resolves** to an existing file or directory. A token that resolves to nothing is neither a path nor a scope, so it falls through to the ask-the-user rule, which is what keeps a mistyped scope or path an explicit question instead of a silent sweep of nothing.
 
-`repo <lane>` is deliberately **not** accepted; use a path. Rationale in [context/reference.md](context/reference.md) "Why narrowing is a path, not a lane".
+`repo <area>` is deliberately **not** accepted; use a path. Rationale in [context/reference.md](context/reference.md) "Why narrowing is a path, not a focus area".
 
 ### Over several repositories
 
@@ -143,7 +143,7 @@ read as the `repo` scope or a path. What differs here:
 
 ### Flag: `docs`
 
-Append `docs` to any mode to include `.md` files in the sweep. By default, `.md` files are excluded because they're prose, not code. The `docs` flag tells the simplifier to review documentation for consistency. Stale references, outdated library names, incorrect API examples, or references to renamed/removed code. Boundary with the sibling `/code-tidying:tidy`: batch-simplify owns factual staleness across the whole doc set in one pass; tidy's `docs-prose` lane owns incremental structural prose work under a scope budget.
+Append `docs` to any mode to include `.md` files in the sweep. By default, `.md` files are excluded because they're prose, not code. The `docs` flag tells the simplifier to review documentation for consistency. Stale references, outdated library names, incorrect API examples, or references to renamed/removed code. Boundary with the sibling `/code-tidying:tidy`: batch-simplify owns factual staleness across the whole doc set in one pass; tidy's `docs-prose` focus area owns incremental structural prose work under a scope budget.
 
 **When to use `docs`:**
 
@@ -208,7 +208,7 @@ Exclude non-code files. Keep only files that benefit from code simplification:
 **Include** (code and code-like config):
 
 - `.cs`, `.ts`, `.tsx`, `.js`, `.jsx`, `.mjs`, `.py`, `.sh`, `.bash`, `.ps1`, `.psm1`, and any other source-code extensions the project uses
-- Build-system config (`.csproj`, `.props`, `.targets`, `package.json`, `pyproject.toml`, and equivalents)
+- Build-system config (`.csproj`, `.props`, `.targets`, `package.json`, `pyproject.toml`, and equivalents) <!-- portability-ok: R6 multi-ecosystem build-system exclusion list -->
 - Project config `.json` / `.jsonc` / `.toml` (e.g. `tsconfig.json`, `biome.json`, not data files)
 - Linter/format config (`.editorconfig`, `.gitattributes`, `.gitignore`, `.dockerignore`, `.shellcheckrc`)
 

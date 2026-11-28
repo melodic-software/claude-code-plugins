@@ -42,7 +42,6 @@ class FakeGitHub:
 
     def __init__(self, issue: dict[str, Any], schedules: dict[str, Any]):
         self.issue = issue
-        # The schedule each tip SHA serves.
         self.schedules = schedules
         self.calls: list[list[str]] = []
 
@@ -90,7 +89,6 @@ class FakeGitHub:
 
 
 def linked(author: dict[str, Any]) -> dict[str, Any]:
-    """The issue as a verdict's `linked_issues` records it."""
     return {
         "number": ISSUE,
         "author_login": author["login"],
@@ -134,7 +132,6 @@ class ARecurringIssueTheFilerOpened(unittest.TestCase):
     def test_the_schedule_comes_from_the_default_branch_never_the_base_or_head(
         self,
     ) -> None:
-        # The pull request's base is trunk, whose schedule lacks the row.
         trusted, fake = judge(
             MARKER,
             branch="trunk",

@@ -1,85 +1,11 @@
-# runner-config-scan.awk: the Playwright runner-config rule engine for
-# cant-fail-scan.sh. Not a standalone entry point: the driver resolves the scan
-# root, walks the tree, picks one config per directory, and aggregates; this
-# program judges ONE Playwright config per invocation.
-#
-# Invocation: awk -f mask-js.awk -f runner-config-scan.awk <file>
-#
-# Output, tab-separated, one record per line:
-#   F <tab> <rule-slug> <tab> <line> <tab> <detail>  a finding
-#   X <tab> <rule-slug> <tab> <line> <tab> <detail>  a finding exempted by a cant-fail-ok: annotation
-#   D <tab> <rule-slug> <tab> <line> <tab> <reason>  a counted decline whose evidence is present in the file
-#   C <tab> 1                                        a config object was examined (the denominator increment)
-#   C <tab> 0 <tab> no-config-object                 enumerated, not examined: a coverage boundary, not a decline
-#   E <tab> <message>                                engine error
-#
-# Rule slugs: flaky-passes-suite | only-not-forbidden. The driver owns the
-# qualified rule-id form and the thresholds' prose.
-#
-# The Playwright facts this engine encodes, each with the record it rests on
-# (the topic's verification records, verified against Playwright v1.63.0 as of
-# 2026-09-11):
-#
-#   Filenames and probe order (VR-8). The runner probes playwright.config with
-#   .ts, .js, .mts, .mjs, .cts, .cjs in ONE directory and takes the first match,
-#   with no parent-directory walk. The driver owns that walk; this engine reads
-#   whatever single file it is handed.
-#
-#   failOnFlakyTests (VR-1). A top-level TestConfig boolean, default false. When
-#   it is true, a run containing a flaky test is reported failed and exits 1.
-#   Absent or false, a test that fails and passes on a retry leaves the run
-#   green, which is the shape rule 1 reports.
-#
-#   forbidOnly (VR-6). A top-level TestConfig boolean, default false. When it is
-#   true, a committed test.only fails the run instead of silently shrinking the
-#   suite to that one passing test, which is the shape rule 2 reports.
-#
-#   retries (VR-3). Defaults to 0. An absent key resolves to 0 and a literal 0
-#   is honored at whichever level it is written, so a provable zero is proof
-#   the flaky shape is out of reach.
-#
-#   Where each key counts (VR-10). retries is both a TestConfig and a
-#   TestProject option, so it is read at depth 1 and inside projects[] entries,
-#   and nowhere else: a retries key in reporter or plugin options is not a
-#   runner retry setting. forbidOnly and failOnFlakyTests are TestConfig-only,
-#   so only a depth-1 occurrence is read as set. Deeper, the engine reports the
-#   placement as a counted decline naming the line and makes no claim about what
-#   the run does.
-#
-# The asymmetry between the three keys is deliberate. retries is safe only when
-# provably zero, so an expression fires (VR-3): the engine cannot evaluate
-# process.env.CI ? 2 : 0, and CI is exactly where retries turn on. The two
-# boolean guards are safe when provably set, so an expression passes (VR-7):
-# forbidOnly: !!process.env.CI is the documented scaffold idiom, and firing on
-# it would cost the detector its audience.
-#
-# Design bias, load-bearing: every heuristic errs toward NOT firing. A token
-# that may override whatever was read (a depth-1 spread, a second defineConfig
-# argument) declines both rules for the whole config, and the token itself is
-# the evidence. A config whose object literal cannot be anchored is reported as
-# enumerated and not examined, never judged and never declined.
-
 BEGIN {
   nlines = 0
   exempt = 0
   EXEMPT_ERE = "cant-fail-ok:"
-  # Anchor priority, in three passes (find_anchor). A defineConfig( call on a
-  # line that also carries an export token wins, because that is the object the
-  # runner loads and a helper defineConfig assigned to a local name above it is
-  # not. Any defineConfig( comes next, because export default defineConfig({
-  # carries both anchors and reading "export default" first would see the
-  # identifier defineConfig as the next token and wrongly report no config
-  # object. An export token alone is last.
-  #
-  # The generic argument is matched as <[^(]*> rather than <[^<>]*>, so a nested
-  # type argument (defineConfig<Options<Extra>>) still anchors; the call's own
-  # paren is what bounds the match.
   DEFINE_ERE = "defineConfig[[:space:]]*(<[^(]*>)?[[:space:]]*\\("
   ALT_ERE = "export[[:space:]]+default|module[[:space:]]*\\.[[:space:]]*exports[[:space:]]*=|[A-Za-z_$][A-Za-z0-9_$]*[[:space:]]*:[[:space:]]*PlaywrightTestConfig[[:space:]]*="
 }
 
-# The engine strips its own \r: a Windows checkout must read the same keys and
-# values as a POSIX one, and the shared masker never sees a carriage return.
 {
   raw = $0
   sub(/\r$/, "", raw)
@@ -99,14 +25,8 @@ END {
   printf "C\t1\n"
 }
 
-# ---------------------------------------------------------------------------
-# Anchoring
-# ---------------------------------------------------------------------------
 
 function find_anchor(   i) {
-  # The exported defineConfig call, when one is on an export line. The ~ test
-  # runs first and leaves RSTART alone, so the match() that follows is the one
-  # that sets the anchor column.
   for (i = 1; i <= nlines; i++) {
     if (MASKL[i] ~ ALT_ERE && match(MASKL[i], DEFINE_ERE) > 0) {
       A_line = i; A_col = RSTART + RLENGTH; A_kind = "defineConfig"
@@ -128,11 +48,6 @@ function find_anchor(   i) {
   return 0
 }
 
-# The config object's { must be the NEXT non-blank token after the anchor, on
-# the anchor's line or the next non-blank line. Any other token (an identifier
-# in defineConfig(baseConfig), a re-exported name in export default config)
-# means there is no object literal to read, and a later unrelated { is never
-# adopted as one.
 function find_brace(   i, j, s, c) {
   i = A_line; j = A_col
   while (i <= nlines) {
@@ -151,12 +66,6 @@ function find_brace(   i, j, s, c) {
   return 0
 }
 
-# ---------------------------------------------------------------------------
-# Body scan. Depth 0 before the config {; { and [ increment, } and ] decrement;
-# parentheses and angle brackets do not count, so a call or a generic argument
-# never moves a key's level. Config keys sit at depth 1 and a projects[] entry's
-# keys at depth 3.
-# ---------------------------------------------------------------------------
 
 function scan_body(   i, j, s, rawline, c, d, seg_start, seg_colon, key, val, ve, done) {
   d = 0
@@ -186,11 +95,6 @@ function scan_body(   i, j, s, rawline, c, d, seg_start, seg_colon, key, val, ve
         d--
         seg_start = j + 1; seg_colon = 0
         if (d <= 0) { C_line = i; C_col = j; done = 1; break }
-        # Back at depth 1 means the depth-1 entry's value has closed, so the
-        # projects context it opened ends with it. Without this, a key the
-        # engine cannot read (its colon on another line) would leave the stale
-        # context in place and a deeper retries under the NEXT key would count
-        # as a per-project one.
         if (d == 1) d1_key = ""
         continue
       }
@@ -199,31 +103,15 @@ function scan_body(   i, j, s, rawline, c, d, seg_start, seg_colon, key, val, ve
         if (d == 1) d1_key = ""
         continue
       }
-      # A spread counts only at depth 1: there it may override any key read,
-      # while deeper it belongs to one option's value (the scaffold's
-      # use: { ...devices[...] }) and decides nothing about the two guards.
       if (d == 1 && substr(s, j, 3) == "...") { spread = 1; j += 2; continue }
       if (c == ":" && !seg_colon) {
         seg_colon = 1
-        # The masker blanks a quoted key entirely, so the key is LOCATED by the
-        # masked colon and READ from the raw line at the same columns.
         key = substr(rawline, seg_start, j - seg_start)
         gsub(/[[:space:]]/, "", key)
         gsub(/['"`]/, "", key)
         ve = value_end(s, j + 1)
         val = trim(substr(rawline, j + 1, ve - j))
-        # A colon separates a key from its value only when what sits left of it
-        # is an identifier (a quoted key is one once the quotes are stripped).
-        # A value continued onto the next line leaves its ternary colon behind,
-        # and reading that as a key would invent an option and inflate the
-        # depth-1 key count the absent-guard detail reports.
         if (key ~ /^[A-Za-z_$][A-Za-z0-9_$]*$/) {
-          # A value written on the NEXT line is still this key's value: the
-          # newline between them is nothing to JS. Reading only the key's own
-          # line leaves val empty, and an empty value classes as an expression,
-          # so failOnFlakyTests:\n false would pass as set and retries:\n 0
-          # would fire. The continuation line is only READ here; i and j stay
-          # put, so the outer loop still walks it for depth and comma resets.
           if (val == "") val = continued_value(i)
           record_key(key, val, d, i)
         }
@@ -233,11 +121,6 @@ function scan_body(   i, j, s, rawline, c, d, seg_start, seg_colon, key, val, ve
   if (A_kind == "defineConfig" && C_line > 0) check_variadic()
 }
 
-# The value of a key whose own line ends at the colon: the first following line
-# carrying anything the masker left standing, read from its start to the end of
-# the value there. A blank or comment-only line is skipped, and a line whose
-# first token closes the enclosing object yields "", which is the same nothing
-# the key's own line gave.
 function continued_value(i,   k, ve) {
   for (k = i + 1; k <= nlines; k++) {
     if (MASKL[k] ~ /^[[:space:]]*$/) continue
@@ -247,9 +130,6 @@ function continued_value(i,   k, ve) {
   return ""
 }
 
-# End of the value that starts at s[from]: the next , } or ] at the value's own
-# depth, else end of line. A trailing } or ] belongs to the enclosing object, so
-# module.exports = { retries: 2 }; reads the value 2, not "2 };".
 function value_end(s, from,   k, n, c, ld) {
   ld = 0; n = length(s)
   for (k = from; k <= n; k++) {
@@ -261,9 +141,6 @@ function value_end(s, from,   k, n, c, ld) {
   return n
 }
 
-# A second defineConfig argument may override anything the first object said, so
-# it declines both rules. Scanning stops at the call's closing paren, and a
-# trailing comma with nothing after it is not a second argument.
 function check_variadic(   i, j, s, c, seen_comma) {
   seen_comma = 0
   i = C_line; j = C_col + 1
@@ -293,11 +170,6 @@ function record_key(key, val, d, line) {
     n_d1++
     d1_key = key
     if (key == "retries") count_retries(val, line)
-    # A duplicate key in an object literal resolves to its LAST occurrence, so
-    # that is the one the run honors and the one each guard is read from.
-    # Keeping the first would classify forbidOnly: true, forbidOnly: false as
-    # set. retries is different: projects[] carries one per entry and every one
-    # of them counts, so count_retries aggregates instead of overwriting.
     else if (key == "failOnFlakyTests") { guard_seen = 1; guard_val = val; guard_line = line }
     else if (key == "forbidOnly") { only_seen = 1; only_val = val; only_line = line }
     return
@@ -328,9 +200,6 @@ function emit(kind, slug, line, detail) {
   printf "%s\t%s\t%d\t%s\n", kind, slug, line, detail
 }
 
-# ---------------------------------------------------------------------------
-# Rule decisions. Made here so the driver stays an aggregator.
-# ---------------------------------------------------------------------------
 
 function decide(   kind, detail) {
   kind = exempt ? "X" : "F"
@@ -345,8 +214,6 @@ function decide(   kind, detail) {
   } else if (guard_seen && val_class(guard_val) != "false") {
     emit("D", "flaky-passes-suite", guard_line, "key-set")
   } else if (!guard_seen && below_guard) {
-    # The key has no runtime effect where it sits, and the misplacement is not
-    # itself a claim about the run, so the rule declines rather than fires.
     emit("D", "flaky-passes-suite", below_guard, "key-below-top-level")
   } else {
     detail = "retries: " ret_val " at line " ret_line

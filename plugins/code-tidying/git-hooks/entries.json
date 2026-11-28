@@ -14,9 +14,11 @@
       "rewrites": false,
       "assets": [
         "git-hooks/comment-lint.py",
+        "git-hooks/comment-lint-ci.sh",
         "scripts/comment-census.py",
         "scripts/comment-settings.sh",
         "scripts/code-extensions.txt",
+        "scripts/code-shebang.ere",
         "scripts/generated-marker.ere",
         "lib/parse-concern-value.sh",
         "lib/yaml-subset.awk",

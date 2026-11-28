@@ -3,6 +3,173 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.2.3] - 2026-11-28
+
+### Fixed
+
+- `/planning:interview` now says how to fix each `preview=`, `basis=` and `flips-if=` line the round check prints, and that `undefined=` also covers a term only another question's Context defines, so a round failing those checks is corrected before it is shown (#18216).
+
+## [6.2.2] - 2026-11-28
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
+## [6.2.1] - 2026-11-27
+
+### Fixed
+
+- `/planning:draft-goal-condition` puts a clock-time end inside the drafted condition, never leaving it out or offering it as a clause the user may append.
+
+## [6.2.0] - 2026-11-27
+
+### Added
+
+- `scripts/check-round-codes.sh` adds three deterministic interview-round checks: under `--pacing single`, it fails a `Later:` topic that matches another question title in the round or open in the ledger (`preview=<line>:later:<Qid>`) and flags Context or Alternatives word overlap with another question title (`preview=<line>:overlap:<Qid>`); for every `My recommendation:` question, it requires a checkable basis (`basis=<line>:missing`, `basis=<line>:uncheckable`), a confirmable `Flips if:` / `Would change if:` condition (`flips-if=<line>:uncheckable`), and a flip condition when Context names an open or unknown fact (`missing=<line>:flips-if`); and its `undefined=` term check now covers terms defined in another question's `Context:` in addition to the ledger's `## Terminology matrix`.
+
+## [6.1.3] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
+## [6.1.2] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [6.1.1] - 2026-11-26
+
+### Fixed
+
+- **`/planning:draft-goal-condition` refuses two drafts the goal evaluator can only end as impossible.** Step 2 now treats an element that must happen before a fixed clock time as fragile and writes the time as an end of its own (`…, or date -u shows <time> or later`). It also checks every required element against the others and the repository's gates, and refuses a draft where one element requires a state another forbids, such as a hold label that keeps a required check red beside an element that needs that check green.
+
+## [6.1.0] - 2026-11-26
+
+### Changed
+
+- Shared `view-builder.mjs` and `html-escape.mjs` synced: an interactive page's policy adds `img-src data:` and `font-src data:`, and both validator profiles admit a base64 `data:` URL in two places only, a PNG or JPEG as the `.rv-logo` rule's one `background-image`, and a WOFF2, WOFF, TTF or OTF font inside `@font-face`. Every other `url(`, scheme and URL-bearing attribute is still refused. Pages built today look the same; no other change to this plugin.
+
+## [6.0.0] - 2026-11-26
+
+### Added
+
+- `questions_per_round` caps how many questions an interview round holds (at most 8, the shared lane included); `citation_links` picks plain, `vscode` or file links for round citations.
+- Round titles take an optional topic, and rounds take the No recommendation, Your answer settles, Why, Gains, Costs and Evidence labels.
+- The terminal confirmation recap groups answers under Needs your eye, each topic, Changed after you first saw it, and Terms and ADRs, one uncut line per question.
+
+### Changed
+
+- The scope check prints the questions asked so far, records each round's opened and closed counts under `## Round counts`, and suggests `/planning:wayfind` when two rounds in a row open more questions than they close.
+- The procedure check fails a ledger with no `## Glossary lookup` line or an answered decision no `## ADR outcomes` line covers.
+- Interview eval cases grade the new round layout and the confirmation's part order, and invoke the skill without `me`; the `interview-wayfind-size-suggestion` case and ADR 0124, which numbered questions under the old layout, are retired.
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+### Removed
+
+- The interview's `me` action: the default interview now runs relentlessly; "interview me" still starts an interview.
+- The `wayfind_suggest_questions` setting and the scope check's `--limit` flag.
+
+## [5.21.0] - 2026-11-26
+
+### Added
+
+- `/planning:design` resolves the consumer's standards through the standards contract's Resolution ladder in Phase 1, so design threads start from the conventions the work will be reviewed against.
+- `/planning:interview`, `/planning:design` and `/planning:plan` follow the contract's new "Adopted shipped concepts" rule (standards contract 1.3.1): a loaded standards file that cites shipped concept ids has its counterweights and conflicts looked up with `/engineering-concepts:lookup` (if enabled) and kept beside each entry.
+- A loader test per stage runs the plugin's `scripts/org-standards.sh subscriptions` against a fixture subscription and checks the stage points at the ladder.
+
+## [5.20.1] - 2026-11-26
+
+### Changed
+
+- `/planning:plan` points at the permission modes page's plan mode section for what plan mode permits, instead of stating it ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [5.20.0] - 2026-11-26
+
+### Added
+
+- Standards resolution reads personal subscriptions, standards contract 1.3.0: the repositories the user-global index lists in `standards_repositories`, each a personal layer beneath the user's own standards files and every team-tracked one. `scripts/org-standards.sh subscriptions` prints each layer with its checkout and its topic-filtered index; an untrusted owner's repository must be pinned to a commit one of its branches or tags reaches.
+
+### Fixed
+
+- `scripts/org-standards.sh` confines the org layer and every subscribed layer to its own checkout: a `standards_dir` or index `File` value that is absolute, has a `..` segment or resolves through a symbolic link outside the checkout is reported and dropped, and so are an org `REVIEW.md` or `.claude/standards.yaml` that resolves outside it and an org `REVIEW.md` line whose `<path>.md#<heading>` citation does. Every `.md` or `.markdown` citation on an org `REVIEW.md` line, a code span split across lines included, is checked as a reader would resolve it, and control characters, C1 included, in the printed criteria are escaped. A new `citations` command prints the citations a consumer may open, in every composition of the criteria: each single-backtick `<path>.md#<heading>` span that resolves to a regular file inside its own checkout, with its absolute path. `review` prints the criteria text alone, so no `REVIEW.md` text can add to them, and consumers open a `REVIEW.md` citation only from `citations`. Every org checkout writes a committed symbolic link as a plain file, so a path printed before a refresh never resolves outside the checkout afterwards, and an org cache that holds one or allows them is deleted without following a link and cloned again. `index` and `subscriptions` print a new index written under the reader's cache state, never inside a checkout, built only from the `standards-contract` version, the table header and each well-formed table row rebuilt from its cells, each `File` rewritten to the absolute path it resolves to inside the checkout; no prose or HTML is copied. Its clones, fetches, checkouts, `ls-remote` calls and lazy object fetches give up after `ORG_STANDARDS_GIT_TIMEOUT` seconds (default 60), and never prompt. Every git command it runs ignores the system and global git config except the user's proxy, CA, `core.sshCommand`, `url.<base>.insteadOf` and `credential.*` settings (their `include` and `includeIf` sections followed, a `gitdir:` condition matched against the `--root` repository), handed to git in environment variables rather than on a command line other users can list, so a private repository loads with the person's own credential helper or SSH key and no hook, fsmonitor, filter driver (git-lfs included) or template from that config runs, and a `trusted_owners` that is not a block list, however its key is quoted or spaced, trusts no owner and is reported, as is a repository layer's `trusted_owners` in any of those spellings and a `trusted_owners` or `standards_repositories` nested under another key. No redirect is followed, so credentials go only to the configured host; a repository that answers with one is reported with a pointer to name its new location. A git command that needs no repository runs in the cache directory, reading no config of the repository the reader runs from, and no transport but `https`, `ssh`, `git` and `file` runs; a symbolic link at an owner directory or an entry of the cache is removed before the entry is read or built; every value a report quotes, the printed criteria and each printed index cell show each control character and each byte outside valid UTF-8 as `\xNN`, so no control sequence reaches the terminal; a `STANDARDS_DIR` holding one is refused, and so is a cache directory holding one when an org layer or a subscription needs the cache. A user index with CRLF line endings is read like one with LF endings.
+
+- **A live-prototype restart no longer fails when the stopped server has not released its ports yet.** `restart` now waits up to 5 seconds for the kept guest and control ports to free (`SHARED_PORT_FREE_SECONDS` overrides), and refuses with a message naming the port when one stays busy ([#18551](https://github.com/melodic-software/claude-code-plugins/issues/18551)).
+
+## [5.19.3] - 2026-11-26
+
+### Changed
+
+- Tidied offers/offer-source.mjs: named the GitHub fetch and plugin-list timeouts as constants.
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [5.19.2] - 2026-11-26
+
+### Changed
+
+- Shared `html-chrome.html` synced: its palette, type stacks and per-scheme roles are now kept equal to the marketplace's shared token layer, it gains an `--accent` role set to the existing clay value, and its header no longer rules out a team or user theme override. Pages look the same; no other change to this plugin.
+
+## [5.19.1] - 2026-11-26
+
+### Changed
+
+- **`/planning:brainstorm`, `/planning:prd`, `/planning:interview` and `/planning:design` name one successor per `## Next` bullet.** The interview's spec bullet splits into a PRD bullet and a design-stage bullet, the design's handoff bullet names only `/planning:design-handoff`, and the "unsure where this leaves the work" bullet is gone.
+
+## [5.19.0] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+- `/planning:plan` lists each interview answer a plan changes in its approval request, as `Q<N> (<plain name>): you answered <was>; the plan proposes <new>`, and one "approve" reconfirms every listed row. A reply that names a row still reconfirms or restores that row alone, and an unattended run still leaves listed rows uncleared.
+
+## [5.18.0] - 2026-11-25
+
+### Added
+
+- `/planning:design`, `/planning:interview` and `/planning:wayfind` offer collaborative canvas mode (`/visualization:visualize`) on a structural question, and only there.
+
+### Changed
+
+- `/planning:interview` lists `/session-flow:workflow` under `## Related` instead of `## Next`.
+
+## [5.17.0] - 2026-11-25
+
+### Added
+
+- Standards resolution reads the org layer of standards contract 1.2.0: the standards index of the repository `standards_repository` names, from its `main`, beneath the repository's own. `scripts/org-standards.sh` reads it.
+
+## [5.16.0] - 2026-11-24
+
+### Changed
+
+- `/planning:interview` round 1 recommends the quality bar when the survey cites evidence for
+  one, such as who runs the result, what data it touches, or whether it ships to users. The bar is
+  then a decision question with a recommendation, alternatives and a `Flips if:` line, beside the
+  intake questions. With no such evidence it stays an open discovery question. Either form stays
+  open until the user answers, and the bar is never settled by evidence. An unattended run
+  records it as a blocker reserved for the user in either form.
+- New eval `interview-quality-bar-recommended-shipped-plugin` covers the evidence branch, with a
+  deterministic `My recommendation:` grader and calibration samples for its judged grader, and
+  `interview-quality-bar-asked-bookmark-sync` now checks that the no-evidence branch carries no
+  recommendation.
+
+## [5.15.5] - 2026-11-24
+
+### Changed
+
+- `/planning:interview` session config calls its model knob the capability tier, the glossary
+  word, in place of model tier.
+
 ## [5.15.4] - 2026-11-24
 
 ### Changed

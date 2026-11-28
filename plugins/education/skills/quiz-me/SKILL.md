@@ -1,5 +1,5 @@
 ---
-description: "Post-work comprehension check: a self-contained HTML report of a completed change (context, intuition, decisions) with a quiz at the bottom that tests the human, not the artifact; also recalls prior quizzed work. Non-gating by default; the quiz_policy userConfig tunes offer cadence. Use when the user says 'quiz me', 'quiz me on this change', 'do I understand this change', 'comprehension check', 'a quiz at the bottom that I must pass', 'I want to make sure I understand everything that happened' or 'what did we do on TICKET'. Verifying the artifact is verification:confirm (if installed); coaching a subject is education:teach; a one-shot explainer is education:explain."
+description: "Post-work HTML report (context, decisions) + human quiz to check you understand a completed change; recalls prior work; non-gating (quiz_policy). Use when: 'quiz me on this change', 'comprehension check', 'what did we do on TICKET'. Not for artifacts: /verification:confirm (if installed), coaching: /education:teach, prose: /education:explain."
 argument-hint: "[recall <query>]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/build-report.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-report.mjs\":*)"]
 user-invocable: true
@@ -172,7 +172,7 @@ This is an optional post-work step; it never edits another plugin's gate sequenc
 workflow (session-flow's workflow skill, if enabled) routes to `/education:quiz-me` by pointer
 from its own on-ramps, never by mutating a shared stage list.
 
-## Boundaries
+## What this skill does not do
 
 - **Artifact verification** ("did we build the right thing, does it work") is
   `verification:confirm` (if enabled).

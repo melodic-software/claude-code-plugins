@@ -2,13 +2,6 @@
 # test-scope: .github/actions/log-api-budget/api-budget.bash
 # test-scope: .github/scripts/pr-merge/retry-call.bash
 # test-scope: .github/scripts/pr-merge/rate-stop.bash
-# Runs the `Resolve the queued pull request` step body of
-# .github/workflows/pr-require-checks.yml under bash -e, against stub `gh` and
-# `git`.
-#
-# The merge group's head ref is gh-readonly-queue/<base>/pr-<number>-<base sha>.
-# The step must take the head commit from the pull request, never the ref's
-# SHA: the Dependabot fragment exemption reads the commits up to that head.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -26,8 +19,6 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 NAME='Resolve the queued pull request'
 step="$(ci_step::read "$WORKFLOW" "$NAME" "$TMP_ROOT/body.sh")" || ci_step::abort "$WORKFLOW" "$NAME"
 
-# gh prints STUB_PR for any call, after a rate-limit header block when called
-# with -i, as the step's api-budget wrapper calls it; git logs its arguments.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -60,18 +51,14 @@ HEAD=223dfbfe9c9ccba08e86650e28c9150b05c9959b
 PR="{\"user\":{\"login\":\"dependabot[bot]\"},\"head\":{\"sha\":\"$HEAD\",\"ref\":\"dependabot/npm\",\"repo\":{\"full_name\":\"o/r\"}}}"
 FORK="{\"user\":{\"login\":\"someone\"},\"head\":{\"sha\":\"$HEAD\",\"ref\":\"main\",\"repo\":{\"full_name\":\"someone/r\"}}}"
 
-# The token file's reading of the stub's header block after a passing run.
 READING="200 5000 4990 10 1900000000 core repos/{repo}/pulls/{n}"
 
-# expect <label> <want-rc> <QUEUE_HEAD_REF> <STUB_PR> <want-output|-> [want-log]
 expect() {
   local label="$1" want_rc="$2" out rc got
   : >"$TMP_ROOT/log"
   : >"$TMP_ROOT/output"
   rm -rf "$TMP_ROOT/runner"
   mkdir -p "$TMP_ROOT/runner"
-  # From the repository root, as on a runner: the step sources the api-budget
-  # library by a relative path and wraps gh, which adds -i to each gh api call.
   out="$(cd "$ROOT" && PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" QUEUE_HEAD_REF="$3" STUB_PR="$4" \
     RUNNER_TEMP="$TMP_ROOT/runner" GITHUB_REPOSITORY=o/r GITHUB_OUTPUT="$TMP_ROOT/output" \
     QUEUED_PR_WAIT_SECONDS=900 STUB_LIMITED="${LIMITED:-}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?

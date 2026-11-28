@@ -30,9 +30,6 @@ from typing import Any
 from unittest import mock
 from urllib.parse import unquote
 
-# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
-# fixtures' identity writes into the caller's repository
-# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -53,7 +50,6 @@ import babysit_gh  # noqa: E402
 import babysit_merge_policy as policy  # noqa: E402  (follows the git-env clear above)
 import babysit_postmerge  # noqa: E402
 
-# This repository's rows, which the floor paths below sit on.
 FLOOR_ROWS = policy.floor_paths_in(
     (pathlib.Path(__file__).resolve().parents[6] / "docs/conventions/pr-pipeline.yaml").read_text(encoding="utf-8")
 )
@@ -63,7 +59,7 @@ REPO_FLOOR = policy.floor_for(FLOOR_ROWS)
 REPO = "owner/repo"
 SHA = "a" * 40
 IDENTITY = "agent-lanes[bot]"
-POLICY = ".github/standards/dependabot-policy/policy.json"
+RETIRED_POLICY_COPY = ".github/standards/dependabot-policy/policy.json"
 OPERATOR = "operator"
 PR_CREATED = "2026-10-12T12:00:00Z"
 DEMOTION_BODY = (
@@ -85,22 +81,35 @@ merge:
 """
 SOURCE_CONTROL = "babysit_loop_merge: c2-mechanical\n"
 TEAM_YAML = "docs/conventions/source-control.yaml"
-# The retired legacy file the gate no longer reads.
 RETIRED_SOURCE_CONTROL = ".claude/source-control.md"
 TRACKER_YAML = policy.tracker_binding.YAML_PATH
-# The YAML files `GhFake` answers absent when a test sets none.
 UNSET_YAML = (TEAM_YAML, policy.tracker_binding.YAML_PATH)
 STANDARDS_SHA = "5" * 40
 STANDARDS_REPO = "example-org/standards"
 OPTED_IN = f"trusted_actors_source: standards\n{policy.STANDARDS_REPO_KEY}: {STANDARDS_REPO}\n"
 STANDARDS_HEAD = {"ref": "refs/heads/main", "object": {"sha": STANDARDS_SHA}}
 dependabot = policy.dependabot
+NAMES_STANDARDS = f"{policy.STANDARDS_REPO_KEY}: {STANDARDS_REPO}\n"
+NEXT_STANDARDS_REPO = "example-org/standards-next"
 
 
 def standards_cleared(case: unittest.TestCase) -> None:
-    """Empty the per-process standards reads for the rest of `case`."""
     for cache in ("_READS_STANDARDS", "_STANDARDS_SHA", "_STANDARDS_TEXT"):
         case.enterContext(mock.patch.object(policy, cache, type(getattr(policy, cache))()))
+
+
+def serve_policy(gh: Any, sha: str, answer: Any, standards: str = STANDARDS_REPO) -> None:
+    """Make REPO's team YAML at `sha` name `standards`, whose main is
+    STANDARDS_SHA and whose Dependabot policy answers `answer` (text, a
+    payload or an HTTP status)."""
+    gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={sha}"] = file_payload(
+        f"{policy.STANDARDS_REPO_KEY}: {standards}\n"
+    )
+    gh.rest[f"repos/{standards}/git/ref/heads/main"] = STANDARDS_HEAD
+    gh.rest[f"repos/{standards}/contents/{dependabot.STANDARDS_POLICY}?ref={STANDARDS_SHA}"] = (
+        file_payload(answer) if isinstance(answer, str) else answer
+    )
+    gh.rest[f"repos/{standards}/contents?ref={STANDARDS_SHA}"] = []
 
 
 def ok(payload: Any) -> subprocess.CompletedProcess[str]:
@@ -127,7 +136,6 @@ class Answers(list):
     """REST answers given one per call, in order; the last repeats."""
 
 
-# A REST answer where gh never reports a status: run_command's timeout.
 TIMEOUT = object()
 
 
@@ -398,8 +406,6 @@ class ReadConfigAt(unittest.TestCase):
     def test_max_verify_fails_defaults_to_three_and_a_bad_value_is_one(
         self,
     ) -> None:
-        # Owner decision 2026-10-21: 3 by default; a value that is not a
-        # count of at least 1 fails closed, so any earlier FAIL holds.
         def with_cap(value: str) -> str:
             return PIPELINE.replace(
                 "merge:\n", f"merge:\n  max-verify-fails: {value}\n"
@@ -412,15 +418,12 @@ class ReadConfigAt(unittest.TestCase):
             (with_cap("0"), 1, True),
             (with_cap("-3"), 1, True),
             (with_cap("three"), 1, True),
-            # Present but empty or not a scalar: the shared reader prints
-            # nothing for these, as for an absent key.
             (with_cap("''"), 1, True),
             (with_cap("[]"), 1, True),
             (with_cap("[3]"), 1, True),
             (with_cap(""), 1, True),
             (with_cap("\n    a: 1"), 1, True),
             (with_cap("\n    - 3"), 1, True),
-            # A key of that name in another mapping is not the setting.
             (
                 PIPELINE.replace(
                     "diff-check:\n", "diff-check:\n    max-verify-fails:\n"
@@ -441,8 +444,6 @@ class ReadConfigAt(unittest.TestCase):
     def test_verify_cap_attempts_defaults_to_one_and_a_bad_value_is_zero(
         self,
     ) -> None:
-        # Owner decision 2026-10-29: one fresh attempt per issue by default; a
-        # value that is not a whole number fails closed, so no attempt starts.
         def with_attempts(value: str) -> str:
             return PIPELINE.replace(
                 "merge:\n", f"merge:\n  verify-cap-attempts: {value}\n"
@@ -466,8 +467,6 @@ class ReadConfigAt(unittest.TestCase):
                 )
 
     def test_a_flow_mapping_max_verify_fails_turns_the_lane_off(self) -> None:
-        # The shared reader's subset rejects any flow mapping, empty or not,
-        # so the whole config is unread and the lane is off.
         for value in ("{}", "{a: 1}"):
             with self.subTest(value=value):
                 config_fake(
@@ -618,11 +617,8 @@ class ReadConfigAt(unittest.TestCase):
             (None, None),
         ):
             for legacy in (
-                # A lower value no longer demotes the gate.
                 "## babysit_loop_merge\n\nhuman-only\n",
-                # A higher value no longer raises it.
                 "## babysit_loop_merge\n\nfull-autonomy\n",
-                # A malformed or unreadable file no longer holds it off.
                 "## babysit_loop_merge\n\nc2-mechanical\n\n"
                 "## babysit_loop_merge\n\nfull-autonomy\n",
                 "## babysit_loop_merge\n\n## next\n",
@@ -821,7 +817,6 @@ class IsHuman(unittest.TestCase):
         self.assertFalse(self.human(None))
 
     def test_the_configured_identity_as_a_user_is_not(self) -> None:
-        # A machine-user identity is a `User` with write; it must still fail.
         identity_table = permissions({"agent-lanes": "admin", "machine-user": "write"})
         for identity, actor in (
             (IDENTITY, user("agent-lanes")),
@@ -869,9 +864,6 @@ def green_runs(
     since: str = "2026-10-12T10:00:00Z",
     until: str = "2026-10-19T10:00:00Z",
 ) -> str:
-    """The listing of `event`'s green full runs on main created in the first
-    `GREEN_SPAN` after the record (`demotion_fake`'s `createdAt`), page
-    `page`."""
     return (
         f"{GREEN_RUNS_PATH}?branch=main&event={event}&status=success"
         f"&created={since}..{until}&per_page=100&page={page}"
@@ -888,15 +880,9 @@ def lift_answer(
     comments: list[dict[str, Any]] = (),
     reference: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """`PolicyRecordLift`'s data: the pull requests that cross-reference the
-    record, its comments and, for a read-back record, the pull request it
-    names."""
     issue = {
         "timelineItems": {
             "pageInfo": {"hasNextPage": False},
-            # Each reference made by the identity before its merge
-            # (`merged_pull`'s 2026-10-13T09:00:00Z), unless `reference`
-            # says otherwise.
             "nodes": [
                 {"actor": bot("agent-lanes"), "referencedAt": "2026-10-13T08:00:00Z"}
                 | (reference or {})
@@ -910,7 +896,6 @@ def lift_answer(
 
 
 def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
-    """One demotion record, #9, filed by the identity, with `issue` overrides."""
     record = {
         "number": 9,
         "state": "CLOSED",
@@ -932,9 +917,6 @@ def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
 
     def by_author(variables: dict[str, str]) -> dict[str, Any]:
         nodes = []
-        # Shape per GitHub's GraphQL createdBy filter, which matches the [bot]
-        # login: probed, "github-actions[bot]" returned this repository's issues
-        # and "github-actions" and "app/github-actions" returned none.
         if variables["a"] == IDENTITY:
             nodes = [
                 {
@@ -947,28 +929,19 @@ def demotion_fake(case: unittest.TestCase, **issue: Any) -> GhFake:
         return {"repository": {"issues": page}}
 
     gh.graphql["PolicyIssuesByAuthor"] = by_author
-    # Before the single read's name, which the batch query's name extends.
     gh.graphql["PolicyDemotionRecords"] = {"repository": {"i9": record}}
     gh.graphql["PolicyDemotionRecord"] = {"repository": {"issue": record}}
-    # No pull request references the record, so a revert or read-back record
-    # has no lift evidence.
     gh.graphql["PolicyRecordLift"] = lift_answer()
-    # No green full run since: an open red-main record keeps holding. Every
-    # later span up to now lists none either.
     for listing in later_spans():
         gh.rest[listing] = {"workflow_runs": []}
     gh.rest[SCHEDULE_RUNS] = gh.rest[DISPATCH_RUNS] = {"workflow_runs": []}
     return gh
 
 
-# The clock `read_demotion` reads green-run spans up to: four spans after the
-# record's creation.
 NOW = policy.datetime.fromisoformat("2026-11-02T12:00:00Z")
 
 
 def later_spans() -> list[str]:
-    """The green listings of every `GREEN_SPAN` after the first one, from the
-    record's creation up to `NOW`."""
     start = policy.datetime.fromisoformat("2026-10-12T10:00:00Z")
     stamp = lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
     out = []
@@ -995,7 +968,6 @@ class ReadDemotion(unittest.TestCase):
         result = read_demotion()
         self.assertFalse(result.active, result.reason)
         self.assertEqual(result.records, (9,))
-        # The cleared record restarts the evidence window and the floor.
         self.assertEqual(
             (result.newest_created, result.cleared_at),
             (
@@ -1035,7 +1007,6 @@ class ReadDemotion(unittest.TestCase):
         self.assertTrue(read_demotion().active)
 
     def test_closed_by_a_pull_request_reference_is_off(self) -> None:
-        # A merged PR's "Closes #N" sets `closer`; its actor is the human who merged.
         demotion_fake(
             self,
             timelineItems={
@@ -1055,7 +1026,6 @@ class ReadDemotion(unittest.TestCase):
         self.assertIn(f"more than {policy.ISSUES_PAGE_LIMIT} pages", result.reason)
 
     def test_marker_beyond_a_truncated_edit_history_is_off(self) -> None:
-        # Only the newest 100 revisions are read; the marker may sit in an older one.
         edit = {"editedAt": "2026-10-12T11:00:00Z", "deletedAt": None}
         edit |= {"editor": bot("agent-lanes"), "diff": "scrubbed"}
         demotion_fake(
@@ -1099,8 +1069,6 @@ class ReadDemotion(unittest.TestCase):
         self.assertTrue(result.active)
 
     def test_role_label_removed_is_still_off(self) -> None:
-        # Records are found by author and marker: neither query reads labels,
-        # so a record with its role label removed is still found and held.
         gh = demotion_fake(
             self,
             timelineItems={"nodes": [{"actor": bot("agent-lanes"), "closer": None}]},
@@ -1113,8 +1081,6 @@ class ReadDemotion(unittest.TestCase):
             self.assertNotIn("labels", query)
 
     def test_only_the_earliest_revision_at_creation_is_the_original(self) -> None:
-        # A second identity revision stamped at createdAt is an edit, not the
-        # original body, even when a human edited after it.
         edits = {
             "totalCount": 3,
             "nodes": [
@@ -1185,8 +1151,6 @@ class ReadDemotion(unittest.TestCase):
                 self.assertTrue(read_demotion().active)
 
     def test_a_human_edit_keeps_it_clear(self) -> None:
-        # GitHub lists the original body as an edit by the author once anyone
-        # edits it (probed on #6202); that entry alone is not a non-human edit.
         edits = {
             "totalCount": 2,
             "nodes": [
@@ -1226,8 +1190,6 @@ class ReadDemotion(unittest.TestCase):
         self.assertTrue(result.reason.startswith("demotion-unreadable"), result.reason)
 
     def test_a_timestamp_without_an_offset_is_off(self) -> None:
-        # The original revision's naive stamp equals createdAt, so its offset
-        # is read when compared with the human edit's stamp.
         edits = {
             "totalCount": 2,
             "nodes": [
@@ -1263,8 +1225,6 @@ SETTLED_RUNS = (
 
 
 def green_run(**fields: Any) -> dict[str, Any]:
-    """An attempt-1 green full run the lane's github-actions[bot] dispatched
-    on main after the record, at `GREEN_HEAD`."""
     return {
         "id": 500,
         "conclusion": "success",
@@ -1511,8 +1471,6 @@ class AutoClearOnGreen(unittest.TestCase):
                 self.assertEqual(result.cleared_at, floor)
 
     def test_a_record_cleared_early_reads_no_later_span(self) -> None:
-        # However many green runs came since, a record main cleared in its
-        # first span reads only that span: later spans would fail the read.
         gh = self.fake()
         for listing in later_spans():
             gh.rest[listing] = 502
@@ -1647,8 +1605,6 @@ class AutoClearOnGreen(unittest.TestCase):
                 self.assertTrue(self.run_listings(gh))
 
     def test_a_lane_closed_record_holds_while_main_is_still_red(self) -> None:
-        # A lane takes up the record and may close it; with no later green
-        # full run it still holds the rung off.
         self.fake(
             runs={"workflow_runs": []},
             state="CLOSED",
@@ -1683,8 +1639,6 @@ class AutoClearOnGreen(unittest.TestCase):
         )
 
     def test_newer_runs_do_not_move_the_clear(self) -> None:
-        # A full newest page of later greens pushes the earliest to page 2;
-        # the whole window is read, so the clear stays at the earliest.
         gh = self.fake()
         first = read_demotion().cleared_at
         newer = [
@@ -1712,8 +1666,6 @@ class AutoClearOnGreen(unittest.TestCase):
         )
 
     def test_other_events_never_take_the_listing(self) -> None:
-        # Each listing names its event, so pull_request runs (a fork's main
-        # included) are never read and cannot crowd out a qualifying run.
         gh = self.fake()
         self.assertFalse(read_demotion().active)
         listings = [c[1] for c in gh.calls if c[1].startswith(GREEN_RUNS_PATH)]
@@ -1724,7 +1676,6 @@ class AutoClearOnGreen(unittest.TestCase):
         full = {"workflow_runs": [green_run()] * 100}
         for page in range(1, policy.GREEN_PAGES + 1):
             gh.rest[green_runs("schedule", page)] = full
-        # The span is the record's whole grid cell, which lists on past five.
         gh.rest[green_runs("schedule", policy.GREEN_PAGES + 1)] = {"workflow_runs": []}
         result = read_demotion()
         self.assertEqual((result.active, result.reason), (True, "#9 open"))
@@ -1774,7 +1725,6 @@ READ_BACK_BODY = (
     "- Merge commit: `" + "b" * 40 + "`"
 )
 CANARY_BODY = DEMOTION_BODY.replace("dispatch", "canary")
-# A canary record whose merge deleted two lines of f.py.
 CANARY_BLOCK_BODY = (
     CANARY_BODY + "\n\n" + policy.lift_block([("f.py", b"gone one"), ("f.py", b"gone two")])
 )
@@ -1793,8 +1743,6 @@ def pin(sha: str = PULL_HEAD, **fields: Any) -> dict[str, Any]:
 
 
 def merged_pull(number: int = 7, comments: list[dict[str, Any]] = (), **fields: Any) -> dict[str, Any]:
-    """A pull request of this repository merged into main at `FIX_MERGE` after
-    the record (created 2026-10-12T10:00:00Z)."""
     return {
         "__typename": "PullRequest",
         "number": number,
@@ -1823,8 +1771,6 @@ class RecordLift(unittest.TestCase):
         gh = demotion_fake(self, body=body, state="OPEN", timelineItems={"nodes": []})
         gh.graphql["PolicyRecordLift"] = lift
         gh.rest[f"repos/{REPO}/git/ref/heads/main"] = {"object": {"sha": tip}}
-        # f.py at the record's SHA, the state just after the deletion: absent
-        # unless a test says otherwise, so it held none of the deleted lines.
         gh.rest[f"repos/{REPO}/contents/f.py?ref={'b' * 40}"] = 404
         return gh
 
@@ -1862,8 +1808,6 @@ class RecordLift(unittest.TestCase):
         self.lifted(read_demotion(), "2026-10-13T09:00:00Z")
 
     def test_only_a_trusted_reference_made_before_the_merge_lifts(self) -> None:
-        # Anyone can mention the record in a comment on a merged pull request,
-        # which makes a reference too; that must not lift any record.
         green = {
             "conclusion": "success", "event": "push", "head_sha": FIX_MERGE,
             "head_branch": "main", "head_repository": {"full_name": REPO},
@@ -1981,8 +1925,6 @@ class RecordLift(unittest.TestCase):
         self.assertFalse([c for c in gh.calls if any("PolicyRecordLift" in a for a in c)])
 
     def test_a_canary_record_without_a_lift_block_never_lifts(self) -> None:
-        # The one exception: no block records what was deleted, so neither
-        # condition can be checked and only a person's close clears it.
         gh = self.fake(CANARY_BODY, lift_answer([merged_pull()]))
         self.assertEqual(read_demotion().reason, "#9 open")
         self.assertFalse([c for c in gh.calls if c[:2] != ["api", "graphql"]])
@@ -2017,7 +1959,6 @@ class RecordLift(unittest.TestCase):
                 self.assertEqual(not read_demotion().active, lifts)
 
     def test_a_canary_record_lifts_on_a_referencing_merge_with_its_content(self) -> None:
-        # main's tip lost the content again; the merge commit held it.
         gh = self.fake(CANARY_BLOCK_BODY, lift_answer([merged_pull()]), tip=MAIN_TIP)
         self.content(gh, MAIN_TIP, "keep\n")
         self.content(gh, FIX_MERGE, "gone one\ngone two\n")
@@ -2063,8 +2004,6 @@ class RecordLift(unittest.TestCase):
             self.assertEqual(read_demotion().reason, "#9 open")
 
     def test_a_lane_closed_record_stays_lifted_at_the_commit_it_was_found_at(self) -> None:
-        # The lane closed it with the commit it found the content at; main's
-        # tip has since lost a line, which must not re-demote a closed record.
         closed = {
             "state": "CLOSED",
             "timelineItems": {
@@ -2098,10 +2037,6 @@ class RecordLift(unittest.TestCase):
                     self.assertEqual(result.reason, "#9 closed-by-non-human")
 
     def test_a_copy_the_deletion_left_behind_is_not_a_restore(self) -> None:
-        # A reverted pull request that moved a line within f.py: the revert's
-        # diff records it deleted and the same revert adds it back elsewhere,
-        # so at the record's own SHA (the state just after the deletion) it is
-        # already there. Only copies beyond those count as restored.
         body = REVERT_BODY + "\n\n" + policy.lift_block([("f.py", b"moved")])
         for name, at_record, at_tip, lifts in (
             ("only the copy the revert left", "moved\n", "moved\n", False),
@@ -2115,8 +2050,6 @@ class RecordLift(unittest.TestCase):
                 self.assertEqual(not read_demotion().active, lifts)
 
     def test_a_final_newline_is_no_restored_blank_line(self) -> None:
-        # A deleted blank line is back only when the file holds a blank line,
-        # not because its text ends with a newline.
         body = REVERT_BODY + "\n\n" + policy.lift_block([("f.py", b"")])
         for name, at_tip, lifts in (
             ("only a final newline", "a\n", False),
@@ -2165,7 +2098,6 @@ class RecordsFake:
 
     def __call__(self, args: list[str], **_: Any) -> subprocess.CompletedProcess[str]:
         if args[1].startswith(GREEN_RUNS_PATH):
-            # No green full run since: an open red-main record keeps holding.
             return ok({"workflow_runs": []})
         query = next(a for a in args if a.startswith("query="))
         variables = dict(a.split("=", 1) for a in args if "=" in a and a[0] != "q")
@@ -2218,7 +2150,6 @@ class ReadDemotionBatched(unittest.TestCase):
         with contextlib.ExitStack() as stack:
             stack.enter_context(mock.patch.object(policy, "gh_capture", fake))
             if per_issue:
-                # The reference: every record read on its own.
                 stack.enter_context(
                     mock.patch.object(policy, "_demotion_records", lambda *a: {})
                 )
@@ -2266,14 +2197,11 @@ class ReadDemotionBatched(unittest.TestCase):
                 self.assertEqual(batched, expected)
                 singles = batched_fake.queries.count("PolicyDemotionRecord")
                 if failing:
-                    # The failed chunk's records, each read on its own: past
-                    # the hold too, for the clears that set the floor.
                     self.assertEqual(singles, policy.DEMOTION_BATCH)
                 if dropped:
                     self.assertEqual(singles, len(dropped))
 
     def test_the_cases_reach_their_answers(self) -> None:
-        # The equality cases above are not all one answer.
         records = {n: demotion_record(n) for n in range(1, 31)}
         records[12] |= {"userContentEdits": {"totalCount": 101, "nodes": []}}
         self.assertEqual(
@@ -2287,9 +2215,6 @@ class ReadDemotionBatched(unittest.TestCase):
     OPEN = {"state": "OPEN", "timelineItems": {"nodes": []}}
 
     def test_a_hold_keeps_the_newest_clear_as_the_floor(self) -> None:
-        # The hold, its reason and its records are the first holding record's,
-        # in either order; the clear is the newest among the cleared records,
-        # all of them before the holding record was opened.
         opened_later = self.OPEN | {"createdAt": "2026-10-12T13:00:00Z"}
         cases = {
             "open after the cleared ones": (4, (1, 2, 3, 4), "12:03"),
@@ -2310,8 +2235,6 @@ class ReadDemotionBatched(unittest.TestCase):
                 )
 
     def test_a_clear_after_the_hold_began_does_not_raise_the_floor(self) -> None:
-        # Merge M, then record #3 citing it opens and holds, then #2 clears:
-        # the floor stays at #1's clear, before #3 opened, so M is still judged.
         records = {n: demotion_record(n) for n in range(1, 4)}
         records[3] |= self.OPEN | {"createdAt": "2026-10-12T12:01:30Z"}
         self.assertEqual(
@@ -2324,8 +2247,6 @@ class ReadDemotionBatched(unittest.TestCase):
                 policy.datetime.fromisoformat("2026-10-12T12:01:00Z"),
             ),
         )
-        # With every clear after the hold began, the floor keeps the
-        # enabling commit.
         records[3] |= {"createdAt": "2026-10-12T12:00:30Z"}
         self.assertEqual(
             self.read(RecordsFake(records)),
@@ -2333,8 +2254,6 @@ class ReadDemotionBatched(unittest.TestCase):
         )
 
     def test_any_failure_after_a_hold_keeps_the_hold(self) -> None:
-        # A failure that is not a read error keeps the hold once it is found,
-        # and before the hold still escapes, as the early return let it.
         records = {n: demotion_record(n) for n in range(1, 6)}
         records[2] |= self.OPEN
         real = policy._record_hold
@@ -2450,15 +2369,10 @@ def grid_run(created_at: str, **fields: Any) -> dict[str, Any]:
 
 
 GRID_IDS = iter(range(10_000, 1_000_000))
-# A red-main record filed between grid lines: its first span,
-# 2026-10-14T03:00:00Z..2026-10-21T03:00:00Z, straddles the cells
-# 2026-10-12T10:00:00Z..2026-10-19T10:00:00Z and the one after.
 GRID_RECORD = "2026-10-14T03:00:00Z"
 
 
 def minutes_from(start: str, count: int, **fields: Any) -> list[dict[str, Any]]:
-    """`count` runs a minute apart from `start`, none of which clears a record
-    (attempt 2) unless `fields` says otherwise."""
     base = datetime.fromisoformat(start)
     return [
         grid_run(
@@ -2539,9 +2453,6 @@ class SharedGreenGrid(unittest.TestCase):
                 self.assertEqual(self.recovered(policy._GreenMain, runs), expected)
 
     def test_a_span_past_the_page_bound_raises_though_no_cell_is(self) -> None:
-        # 301 runs in the first cell's part of the span and 199 from the line
-        # between the cells on, the first of which both cells list: 500 in
-        # the span, as five full pages of it would list.
         runs = [
             grid_run("2026-10-14T03:30:00Z"),
             *minutes_from("2026-10-14T04:00:00Z", 300),
@@ -2554,7 +2465,6 @@ class SharedGreenGrid(unittest.TestCase):
                 self.assertEqual(
                     str(got), "workflow_dispatch green runs: more than 5 pages"
                 )
-        # One run fewer is 499, under the bound, and the earliest clears.
         for green_class in (PerRecordGreenMain, policy._GreenMain):
             self.assertEqual(
                 self.recovered(green_class, runs[:-1]),
@@ -2592,9 +2502,6 @@ class SharedGreenGrid(unittest.TestCase):
         )
 
     def test_a_busy_week_before_the_record_still_reads(self) -> None:
-        # 998 runs before the record, more than one span may list, and the
-        # green after it fill ten pages less one run: the cell reads whole and
-        # the span clears.
         runs = [
             *minutes_from("2026-10-12T11:00:00Z", 998),
             grid_run("2026-10-14T05:00:00Z"),
@@ -2754,7 +2661,6 @@ def eligibility_fake(
     linked = {
         "number": ISSUE,
         "lastEditedAt": None,
-        # A write-access human wrote it, so it is vouched for (`_vouch_refusal`).
         "author": user(OPERATOR),
         "repository": {"nameWithOwner": REPO},
         "labels": {"totalCount": 1, "nodes": [{"name": "work-class: mechanical"}]},
@@ -2772,8 +2678,6 @@ def eligibility_fake(
     } | (pr or {})
     gh = GhFake().install(case)
     gh.graphql["PolicyEligibility"] = {"repository": {"pullRequest": pull}}
-    # REST issue timeline `labeled` event: `actor` is a REST user object
-    # (`login`, `type`), the field label-provenance.sh reads as `.actor.login`.
     gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"] = [
         {
             "event": "labeled",
@@ -2873,8 +2777,6 @@ class IssueVouch(unittest.TestCase):
         )
 
     def test_the_admission_label_is_the_resolved_one(self) -> None:
-        # A tracker that maps the role elsewhere: the default name no longer
-        # vouches, the mapped one does.
         self.outside_issue(["agent-ready"], {"login": OPERATOR, "type": "User"})
         self.assertEqual(
             eligibility("ready-for-agent").reason,
@@ -2928,13 +2830,10 @@ class IssueVouch(unittest.TestCase):
         self.assertEqual(
             eligibility().reason, "issue-not-vouched:title-edited-after-label"
         )
-        # A rename before the label is what the labeler read: it vouches.
         gh.rest[self.TIMELINE][-1]["created_at"] = "2026-10-11T08:00:00Z"
         self.assertTrue(eligibility().eligible)
 
     def test_a_retitle_with_no_recorded_actor_is_refused(self) -> None:
-        # A title edit leaves `lastEditedAt` empty, and a `renamed` event
-        # with no actor is not shown to be a person's.
         gh = eligibility_fake(self, issue={"labels": {"totalCount": 0, "nodes": []}})
         gh.rest[self.TIMELINE] = [
             {
@@ -2969,7 +2868,6 @@ class IssueVouch(unittest.TestCase):
         ]
         result = eligibility()
         self.assertTrue(result.eligible, result.reason)
-        # A label applied before the retitle did not see it.
         gh.rest[self.TIMELINE][1]["created_at"] = "2026-10-11T09:00:00Z"
         self.assertEqual(
             eligibility().reason, "issue-not-vouched:title-edited-by-non-human"
@@ -2979,8 +2877,6 @@ class IssueVouch(unittest.TestCase):
         gh = self.outside_issue(["agent-ready"], {"login": OPERATOR, "type": "User"})
         gh.rest[self.TIMELINE] = []
         self.assertEqual(eligibility().reason, "issue-not-vouched:no-labeled-event")
-        # Past a provenance read that passes, an empty timeline still refuses
-        # rather than raising out of the rename check.
         with mock.patch.object(policy, "_label_provenance", return_value=None):
             self.assertEqual(eligibility().reason, "issue-not-vouched:no-labeled-event")
 
@@ -2992,8 +2888,6 @@ class IssueVouch(unittest.TestCase):
         }
 
     def test_the_production_default_reads_the_tracker_at_the_base(self) -> None:
-        # No `admission=` override: the label comes from the base branch's
-        # tracker config, here mapped away from the default name.
         gh = eligibility_fake(
             self,
             pr={"baseRefName": "main"},
@@ -3067,8 +2961,6 @@ class IssueVouch(unittest.TestCase):
         )
 
     def test_a_human_issue_retitled_by_a_non_human_is_refused(self) -> None:
-        # A title edit leaves the body history alone, so the author path reads
-        # the `renamed` events too: only a human in person may retitle.
         gh = eligibility_fake(self, issue={"labels": {"totalCount": 0, "nodes": []}})
         rename = {
             "event": "renamed",
@@ -3090,8 +2982,6 @@ class IssueVouch(unittest.TestCase):
         self.assertTrue(result.eligible, result.reason)
 
     def test_a_human_relabel_after_a_lane_rewrite_vouches(self) -> None:
-        # Either vouch suffices: a human who re-applies the admission label in
-        # person after the lane's edit vouches for the edited body.
         gh = self.edited_issue(bot("agent-lanes"))
         issue = gh.graphql["PolicyEligibility"]["repository"]["pullRequest"][
             "closingIssuesReferences"
@@ -3107,8 +2997,6 @@ class IssueVouch(unittest.TestCase):
         ]
         result = eligibility()
         self.assertTrue(result.eligible, result.reason)
-        # A label applied before the rewrite did not see it: the author
-        # path's reason stands.
         gh.rest[self.TIMELINE][0]["created_at"] = "2026-10-11T09:00:00Z"
         self.assertEqual(
             eligibility().reason, "issue-not-vouched:body-edited-by-non-human"
@@ -3138,8 +3026,6 @@ class Eligibility(unittest.TestCase):
         self.assertEqual(result.issue, ISSUE)
 
     def test_a_structural_unknown_or_class_less_issue_is_eligible(self) -> None:
-        # Owner decision (option a): no work class gates the merge, so the
-        # former class-missing and class-unknown refusals are gone.
         for name, labels in (
             ("structural", ["work-class: structural"]),
             ("class-less", []),
@@ -3160,8 +3046,6 @@ class Eligibility(unittest.TestCase):
                 self.assertEqual(result.issue, ISSUE)
 
     def test_an_untrusted_provenance_issue_is_held(self) -> None:
-        # The trust hold stays (owner decision, option a), in any case or
-        # whitespace, beside any other label.
         for label in (
             "provenance: untrusted",
             "Work-Class: Untrusted-Provenance",
@@ -3189,7 +3073,6 @@ class Eligibility(unittest.TestCase):
                 self.assertEqual(result.reason, "untrusted-provenance")
 
     def test_unreadable_issue_labels_hold(self) -> None:
-        # The trust hold cannot be ruled out, so it fails closed.
         eligibility_fake(
             self, issue={"labels": {"totalCount": 101, "nodes": [{"name": "a"}]}}
         )
@@ -3232,8 +3115,6 @@ class Eligibility(unittest.TestCase):
         self.assertEqual(eligibility().reason, "opt-in-label:labeler-not-human")
 
     def test_the_enqueue_recheck_reads_the_opt_in_again(self) -> None:
-        # #7339 comment 2: a removal, or a removal and a bot re-add, between
-        # the eligibility read and the enqueue must refuse the enqueue.
         def recheck() -> str | None:
             return policy.recheck_opt_in(
                 REPO, 7, agent_identity=IDENTITY, permission=HUMANS
@@ -3290,8 +3171,6 @@ class Eligibility(unittest.TestCase):
         self.assertEqual(eligibility().reason, "linked-issue-other-repository")
 
     def test_a_class_label_s_provenance_no_longer_refuses(self) -> None:
-        # Owner decision (option a): the former class-provenance refusals,
-        # an agent's class label and a body edit after it, are gone.
         gh = eligibility_fake(self)
         gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"] = [
             {
@@ -3303,7 +3182,6 @@ class Eligibility(unittest.TestCase):
         ]
         self.assertIsNone(eligibility().reason)
 
-        # A body edit after the class label, by the human author.
         IssueVouch.edited_issue(self, user(OPERATOR))
         self.assertIsNone(eligibility().reason)
 
@@ -3378,8 +3256,6 @@ class EligibilityAgentSignals(unittest.TestCase):
                 )
 
     def test_another_class_label_removed_by_a_non_human_stays_eligible(self) -> None:
-        # The former class-label-removed-by-non-human refusal, for a
-        # structural label and a scoped one.
         for label in ("work-class: structural", "work-class: scoped"):
             with self.subTest(label):
                 gh = eligibility_fake(self)
@@ -3510,7 +3386,6 @@ class ChangedFiles(unittest.TestCase):
 
 class LaneWritable(unittest.TestCase):
     def test_a_writable_ancestor_directory_is_lane_writable(self) -> None:
-        # #7339 item 1: renaming a writable grandparent replaces the file.
         import tempfile
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -3532,7 +3407,6 @@ class LaneWritable(unittest.TestCase):
                 self.assertFalse(policy._lane_writable(target))
 
 
-# The checker's evaluation block (check-security-binding.mjs evaluation mode).
 EVALUATION = (
     "Effective promotion state (evaluation mode):\n"
     "- C2-auto-merge: bound promoted -> effective promoted\n"
@@ -3637,8 +3511,6 @@ class RealResolver(unittest.TestCase):
         return json.loads(self.record.read_text(encoding="utf-8"))
 
     def test_the_resolver_promotes_from_the_operator_settings(self) -> None:
-        # Against the retired --binding/--evidence call shape the resolver
-        # refused every call as a usage error, so nothing was ever promoted.
         result = self.read()
         self.assertIsNone(result.reason)
         self.assertTrue(result.promoted("C2"))
@@ -3684,7 +3556,6 @@ class RealResolver(unittest.TestCase):
         self.assertIsNone(result.reason)
         seen = self.seen()
         self.assertNotEqual(seen["evidence"], str(self.source))
-        # Rounded up to the next whole second, never before the demotion.
         self.assertEqual(
             seen["events"],
             [
@@ -3713,7 +3584,6 @@ class RealResolver(unittest.TestCase):
         self.assertFalse(result.promoted("C2"))
 
     def test_a_lane_writable_value_or_settings_file_refuses(self) -> None:
-        # The real check: every file this test created is the lane user's own.
         self.assertEqual(
             self.read(writable=policy._lane_writable).reason,
             "evidence-lane-writable:promotion_evidence_binding",
@@ -3729,8 +3599,6 @@ class RealResolver(unittest.TestCase):
         )
 
     def test_the_resolver_itself_refuses_a_lane_writable_surface(self) -> None:
-        # The babysit-loop prose route has no gate `writable` behind it, so
-        # the resolver's own check is the one that refuses there.
         with mock.patch.object(policy, "PROMOTION_RESOLVER", self.resolver):
             result = self.read()
         self.assertEqual(
@@ -3776,7 +3644,6 @@ class ReadPromotion(unittest.TestCase):
         return result, seen
 
     def test_every_worktree_is_a_root_the_resolver_refuses(self) -> None:
-        # #7339 item 1: without the roots a surface in a sibling worktree passed.
         roots = ["/w/main", "/w/sibling"]
         _, seen = self.run_resolver(worktrees=lambda c: roots)
         argv = seen[0]
@@ -3805,9 +3672,6 @@ class ReadPromotion(unittest.TestCase):
             self.assertIsNone(policy.worktree_roots(pathlib.Path("/w/main")))
 
     def test_credential_roots_check_only_their_settings_file(self) -> None:
-        # The roots name the probe host, so the value is never judged as a
-        # local path: one absent here is not refused, as the real
-        # _lane_writable would refuse it (OSError).
         absent = "/nonexistent-probe-host/creds"
         creds_file = "/etc/claude-code/managed-settings.d/20-creds.json"
         payload = {
@@ -3845,9 +3709,6 @@ class ReadPromotion(unittest.TestCase):
         self.assertTrue(result.promoted("C3"))
 
     def test_the_age_bound_checks_only_its_settings_file(self) -> None:
-        # The bound is a number of hours, never judged as a local path; a
-        # settings file holding it that the lane can write lets the lane make
-        # old evidence count, so it refuses.
         bound_file = "/etc/claude-code/managed-settings.d/30-age.json"
         payload = {
             "failClosedReason": None,
@@ -3898,8 +3759,6 @@ class ReadPromotion(unittest.TestCase):
         self.assertFalse(result.promoted("C2"))
 
     def test_only_an_on_rung_is_promoted(self) -> None:
-        # Keyed by the rung: `off`, a missing rung and any class name have no
-        # cells, so nothing outside RUNG_CELLS is ever promoted.
         result, _ = self.run_resolver()
         self.assertTrue(result.promoted("C2"))
         self.assertTrue(result.promoted("C3"))
@@ -3909,9 +3768,6 @@ class ReadPromotion(unittest.TestCase):
             self.assertFalse(result.promoted(other))
 
     def test_each_rung_needs_its_own_cells(self) -> None:
-        # promotion-evidence-resolution.md "Promotable cells and rung
-        # mapping": C2 needs C2-auto-merge; C3 also needs C3-auto-merge and
-        # its prerequisite C3-ai-review-blocking.
         cells = self.CELLS | {"C3-ai-review-blocking": {"effective": "unpromoted"}}
         options = {
             o: {"value": f"/opt/p/{o}", "scope": "managed", "file": "/etc/m.json"}
@@ -3921,7 +3777,6 @@ class ReadPromotion(unittest.TestCase):
         result, _ = self.run_resolver(payload)
         self.assertTrue(result.promoted("C2"))
         self.assertFalse(result.promoted("C3"))
-        # A rung name needs the cells of the code it stands for.
         self.assertTrue(result.promoted("merge"))
         self.assertFalse(result.promoted("merge-reviewed"))
         payload["cells"] = self.CELLS | {"C2-auto-merge": {"effective": "unpromoted"}}
@@ -3973,12 +3828,10 @@ class EntryHold(unittest.TestCase):
         self.assertEqual(self.hold(), "do-not-merge")
 
     def test_the_pr_verify_failed_label(self) -> None:
-        # A queued entry whose pr-verify FAIL labels it leaves the queue.
         self.fake(labels={"totalCount": 1, "nodes": [{"name": "PR-Verify-Failed"}]})
         self.assertEqual(self.hold(), "pr-verify-failed")
 
     def test_the_needs_human_label(self) -> None:
-        # A queued entry that gains the human-gated label leaves the queue.
         self.fake(labels={"totalCount": 1, "nodes": [{"name": "Needs-Human"}]})
         self.assertEqual(self.hold(), "needs-human")
 
@@ -3995,24 +3848,37 @@ class EntryHold(unittest.TestCase):
         with mock.patch.object(babysit_postmerge, "_role_label", side_effect=failed):
             self.assertEqual(self.hold(), "unreadable: tracker: HTTP 502")
 
-    def test_a_body_hold(self) -> None:
-        self.fake(body="Please do not merge until the release")
-        self.assertEqual(self.hold(), "body-hold")
+    def test_body_hold_text_is_no_hold_but_the_label_is(self) -> None:
+        for body in (
+            "Please do not merge until the release",
+            "Refs: #1\r\n\r\nHold: a human merges this",
+        ):
+            with self.subTest(body=body):
+                self.fake(body=body)
+                self.assertIsNone(self.hold())
+                self.fake(body=body, labels={"totalCount": 1, "nodes": [{"name": "do-not-merge"}]})
+                self.assertEqual(self.hold(), "do-not-merge")
 
-    def test_a_body_hold_line(self) -> None:
-        self.fake(body="Refs: #1\r\n\r\nHold: a human merges this")
-        self.assertEqual(self.hold(), "body-hold")
-
-    def test_a_human_blocking_comment(self) -> None:
+    def member_comments(self, body: str) -> GhFake:
         gh = self.fake()
         gh.rest[f"repos/{REPO}/issues/5/comments?per_page=100"] = [
             {
                 "user": {"login": OPERATOR, "type": "User"},
                 "author_association": "MEMBER",
-                "body": "don't merge this",
+                "body": body,
             }
         ]
+        return gh
+
+    def test_a_human_blocking_comment(self) -> None:
+        self.member_comments("This is a blocking regression.")
         self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
+
+    def test_a_members_do_not_merge_comment_is_no_hold_but_the_label_is(self) -> None:
+        gh = self.member_comments("don't merge this")
+        self.assertIsNone(self.hold())
+        gh.graphql["PolicyEntryHold"]["repository"]["pullRequest"]["labels"] = {"totalCount": 1, "nodes": [{"name": "do-not-merge"}]}
+        self.assertEqual(self.hold(), "do-not-merge")
 
     def member_says(self, *bodies: str) -> None:
         gh = self.fake()
@@ -4030,26 +3896,25 @@ class EntryHold(unittest.TestCase):
         return policy.entry_hold(REPO, 5, IDENTITY, authority=policy.PR_MERGE)
 
     def test_the_lane_keeps_an_entry_a_member_only_mentions_blocking_in(self) -> None:
-        # enable-auto-merge arms on the veto rule, so any wider hold here
-        # dequeues and re-arms the entry every run (#11519).
         self.member_says("A team that wants blocking sets `enforce`.")
         self.assertIsNone(self.lane_hold())
         self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
 
-    def test_the_lane_holds_a_members_newest_veto(self) -> None:
-        self.member_says("looks fine", "don't merge this")
-        self.assertEqual(self.lane_hold(), f"human-blocking-comment:{OPERATOR}")
-
-    def test_the_lane_lets_a_member_lift_their_own_veto(self) -> None:
-        self.member_says("don't merge this", "go ahead")
+    def test_the_lane_reads_no_member_comment_but_holds_the_label(self) -> None:
+        self.member_says("looks fine", "don't merge this", "a blocking regression")
         self.assertIsNone(self.lane_hold())
-
-    def test_an_empty_review_item_does_not_lift_a_lane_veto(self) -> None:
-        self.member_says("don't merge this", "  ")
-        self.assertEqual(self.lane_hold(), f"human-blocking-comment:{OPERATOR}")
+        self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
+        gh = self.fake(labels={"totalCount": 1, "nodes": [{"name": "do-not-merge"}]})
+        gh.rest[f"repos/{REPO}/pulls/5/comments?per_page=100"] = [
+            {
+                "user": {"login": OPERATOR, "type": "User"},
+                "author_association": "MEMBER",
+                "body": "don't merge this",
+            }
+        ]
+        self.assertEqual(self.lane_hold(), "do-not-merge")
 
     def test_a_strangers_blocking_text_is_no_hold(self) -> None:
-        # #7339 item 4: this repository is public, so anyone can comment.
         gh = self.fake()
         for kind, association in (
             ("issues/5/comments", "NONE"),
@@ -4082,8 +3947,6 @@ class EntryHold(unittest.TestCase):
         self.assertEqual(self.hold(), "opt-in-label-removed")
 
     def relabeled(self, actor: dict[str, Any], via_app: Any = None) -> str | None:
-        # A human opts in, the entry is queued (10:00), the human revokes the
-        # opt-in (10:30), then `actor` puts the label back (10:45).
         gh = self.fake(
             labels={"totalCount": 1, "nodes": [{"name": policy.OPT_IN_LABEL}]}
         )
@@ -4113,8 +3976,6 @@ class EntryHold(unittest.TestCase):
         return policy.entry_hold(REPO, 5, IDENTITY, permission=HUMANS)
 
     def test_a_revoked_opt_in_restored_by_a_non_human_is_a_hold(self) -> None:
-        # The claude-security-review finding on #7335: presence alone let a bot
-        # silently restore a consent the human had withdrawn.
         for name, actor, via_app, hold in (
             (
                 "a bot",
@@ -4139,8 +4000,6 @@ class EntryHold(unittest.TestCase):
                 self.assertEqual(self.relabeled(actor, via_app), hold)
 
     def test_a_removal_the_timeline_shows_beats_the_label_snapshot(self) -> None:
-        # The labels were read before a human removed the label; the timeline,
-        # read after, already shows the removal (local review of ed841af72).
         gh = self.fake(
             labels={"totalCount": 1, "nodes": [{"name": policy.OPT_IN_LABEL}]}
         )
@@ -4173,9 +4032,6 @@ class EntryHold(unittest.TestCase):
         self.assertEqual(self.hold(), "unreadable")
 
     def test_a_pull_request_never_queued_is_judged_without_queue_events(self) -> None:
-        # The gate's capped close (babysit_merge.close_capped): a capped lane
-        # pull request was never enqueued, so no queue event and no opt-in
-        # comparison; its labels, body and people still hold it.
         self.fake(timelineItems={"nodes": []})
         self.assertIsNone(policy.entry_hold(REPO, 5, IDENTITY, queued=False))
         self.fake(
@@ -4186,9 +4042,7 @@ class EntryHold(unittest.TestCase):
             policy.entry_hold(REPO, 5, IDENTITY, queued=False), "do-not-merge"
         )
         self.fake(timelineItems={"nodes": []}, body="Hold: waiting on a decision")
-        self.assertEqual(
-            policy.entry_hold(REPO, 5, IDENTITY, queued=False), "body-hold"
-        )
+        self.assertIsNone(policy.entry_hold(REPO, 5, IDENTITY, queued=False))
         self.fake(timelineItems={"nodes": []}, labels={"totalCount": 2, "nodes": []})
         self.assertEqual(
             policy.entry_hold(REPO, 5, IDENTITY, queued=False), "unreadable"
@@ -4209,8 +4063,6 @@ def queue_fake(
 
 
 def merge_pages(pages: list[list[dict[str, Any]]], *, endless: bool = False) -> Any:
-    """Answer the merged-PR read one page per cursor: page i+1 at cursor "p<i>"."""
-
     def answer(variables: dict[str, str]) -> dict[str, Any]:
         index = int(variables["c"][1:]) + 1 if "c" in variables else 0
         more = endless or index + 1 < len(pages)
@@ -4315,7 +4167,6 @@ class InFlight(unittest.TestCase):
         admitted = self.capped(5, 2, 2)
         self.assertEqual((admitted.clear, admitted.reason), (True, None))
         self.assertEqual(admitted.unverified, 2)
-        # Two queued entries and two unverified merges: four in flight.
         self.assertEqual(admitted.count, 4)
         self.assertEqual(self.capped(5, 3, 2).reason, "unverified-auto-merge:#21")
         self.assertEqual(self.capped(5, 5, 0).reason, "identity-entry-queued:#14")
@@ -4434,13 +4285,9 @@ class InFlight(unittest.TestCase):
         )
         self.assertTrue(result.clear, result.reason)
         reads = [c for c in gh.calls if any("PolicyRecentMerges" in a for a in c)]
-        # Two pages walked, then page 1 again for a PR that moved mid-read;
-        # the endless third page is never read.
         self.assertEqual(len(reads), 3)
 
     def test_a_gate_floor_past_a_long_verified_history_reads_clear(self) -> None:
-        # #7336: the lane gate's anchored floor (`PostMergeGate.floor`) ends
-        # the walk that the policy floor runs past the read bound.
         gh = queue_fake(self, [], [])
         human = merged(2, user(OPERATOR), user(OPERATOR))
         older = merged(1, bot("agent-lanes"), None, "2026-09-01T09:00:00Z")
@@ -4461,12 +4308,9 @@ class InFlight(unittest.TestCase):
                     lane_merges_only=True,
                 )
                 self.assertEqual(result.reason, reason)
-        # A gate floor never lowers the policy floor.
         self.assertEqual(gate.floor_from(anchor + policy.timedelta(days=1)).day, 2)
 
     def test_a_merge_that_jumped_to_page_one_mid_read_is_counted(self) -> None:
-        # An unverified auto-merge on a later page updated during the walk
-        # moves to page 1 behind the cursor; the re-read of page 1 finds it.
         gh = queue_fake(self, [], [])
         human = merged(2, user(OPERATOR), user(OPERATOR))
         jumped = merged(1, bot("agent-lanes"), None, "2026-10-01T09:00:00Z")
@@ -4477,11 +4321,11 @@ class InFlight(unittest.TestCase):
             first = "c" not in variables
             reads.append(variables.get("c", "first"))
             if first and len(reads) > 1:
-                nodes, more = [jumped, human], True  # the re-read of page 1
+                nodes, more = [jumped, human], True
             elif first:
                 nodes, more = [human], True
             else:
-                nodes, more = [older], False  # #1 left this page mid-read
+                nodes, more = [older], False
             info = {"hasNextPage": more, "endCursor": "p0"}
             return {"repository": {"pullRequests": {"pageInfo": info, "nodes": nodes}}}
 
@@ -4491,9 +4335,6 @@ class InFlight(unittest.TestCase):
         self.assertEqual(result.reason, "unverified-auto-merge:#1")
 
     def test_a_merge_before_the_floor_updated_after_it_is_not_judged(self) -> None:
-        # Codex P1 on #7335: a comment on an old bot-queued merge moves its
-        # updatedAt past the floor, but it merged before the path was enabled,
-        # so the post-merge verdict never judges it and in_flight must not.
         old = merged(2, bot("agent-lanes"), None, "2025-12-01T09:00:00Z")
         old["updatedAt"] = "2026-10-12T09:00:00Z"
         queue_fake(self, [], [old])
@@ -4546,8 +4387,6 @@ class Assess(unittest.TestCase):
             "head": {"ref": "feat", "sha": "e" * 40},
         }
         gh.rest[f"repos/{REPO}"] = {"default_branch": "trunk"}
-        # The default branch head is the base, so the in-flight cap is the
-        # base config's.
         gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = {"object": {"sha": SHA}}
         return gh
 
@@ -4555,7 +4394,7 @@ class Assess(unittest.TestCase):
         """Identity-only credentials, kill switch on, no cap, no demotion
         record, and the path enabled since ENABLED_AT."""
         gh = self.fake()
-        gh.rest["status"] = IDENTITY_ONLY  # gh auth status --json hosts
+        gh.rest["status"] = IDENTITY_ONLY
         variables = f"repos/{REPO}/actions/variables"
         gh.rest[f"{variables}?per_page=1"] = {"variables": []}
         gh.rest[f"repos/{REPO}/actions/organization-variables?per_page=100"] = {
@@ -4593,7 +4432,6 @@ class Assess(unittest.TestCase):
         return stack
 
     def test_every_input_good_permits_the_merge(self) -> None:
-        # The outcome that replaced Phase 6's `merge-unconnected`: nothing refuses.
         self.readable()
         self.all_clear()
         result = self.assess(
@@ -4606,8 +4444,6 @@ class Assess(unittest.TestCase):
         self.assertNotIn("configNotes", result.report())
 
     def test_the_config_notes_reach_the_report(self) -> None:
-        # A retired key's note (read_config_at) is what tells the operator
-        # the setting does nothing.
         self.readable()
         self.all_clear()
         note = "merge.diff-check.c2-contradictions is retired and has no effect"
@@ -4633,19 +4469,15 @@ class Assess(unittest.TestCase):
                 post_merge=later, promotion=later, stop_when_closed=True
             )
         later.assert_not_called()
-        # The gate's own blocker for a pull request that is not open.
         self.assertEqual(result.reason, "state=MERGED (not OPEN)")
         self.assertIs(result.enabled, False)
         self.assertIs(result.report()["reportOnly"], False)
-        # What the queue sweep reads: the identity, branch and readers.
         for key in ("identity", "branch", "config", "permission", "self_logins"):
             self.assertIn(key, result.inputs)
 
     def test_a_closed_unmerged_pull_request_is_read_in_full_with_the_stop(
         self,
     ) -> None:
-        # Closed but not merged can reopen before the gate's own state read,
-        # so only a merge, which is final, stops early.
         gh = self.readable()
         gh.rest[f"repos/{REPO}/pulls/1"].update(state="closed", merged=False)
         self.all_clear()
@@ -4748,8 +4580,6 @@ class Assess(unittest.TestCase):
         self.assertEqual(result.inputs["own_refusal"], "ineligible:fork")
 
     def test_the_in_flight_refusal_matches_the_full_judgment(self) -> None:
-        # None: the queue was not read whole, so the pull request is read in
-        # full; its own queued entry (#1) is read in full too, and refused.
         self.readable()
         ineligible = policy.Eligibility(False, "fork")
         seen = []
@@ -4806,11 +4636,6 @@ class Assess(unittest.TestCase):
     def test_a_base_other_than_the_default_branch_refuses_before_any_write(
         self,
     ) -> None:
-        # Codex P1 on #7335: the post-merge check, its dispatch and the
-        # scheduled full run all judge the default branch, so a merge into any
-        # other base would go unjudged. The refusal comes after the kill
-        # switch with the identity accepted, so the identity's queued entries
-        # can still be held or dequeued (local review of ed841af72).
         for name, answer, reason in (
             ("another branch", {"default_branch": "main"}, "base-not-default:trunk"),
             ("unreadable", 502, "default-branch-unreadable"),
@@ -4857,10 +4682,6 @@ class Assess(unittest.TestCase):
         self.assertFalse(any("variables" in " ".join(c) for c in gh.calls))
 
     def test_no_work_class_is_a_ceiling_on_the_rung(self) -> None:
-        # Owner decision (option a): the former class-above-rung refusal is
-        # gone, and promotion is keyed by the rung (Q21 option b). An eligible
-        # pull request reporting no class, or a class above the C2 rung,
-        # merges at a promoted C2.
         self.readable()
         for work_class in (None, "C3", "C5"):
             with self.subTest(work_class=work_class), self.all_clear(work_class):
@@ -4875,8 +4696,6 @@ class Assess(unittest.TestCase):
         return mock.patch.object(policy, "effective_rung", return_value=at)
 
     def test_the_rung_names_the_promotion_cells_it_needs(self) -> None:
-        # Q21 option b: rung C2 needs C2-auto-merge; rung C3 needs every C3
-        # cell. The pull request's class does not change the answer.
         only_c2 = policy.Promotion(
             {
                 "C2-auto-merge": "promoted",
@@ -4908,7 +4727,6 @@ class Assess(unittest.TestCase):
                     )
                     self.assertEqual(result.reason, reason)
                     self.assertIs(result.promoted, reason is None)
-                    # The pull request's own refusal, so a queued entry leaves.
                     self.assertEqual(result.inputs["own_refusal"], reason)
 
     def test_an_unreadable_resolver_refuses(self) -> None:
@@ -4932,7 +4750,6 @@ class Assess(unittest.TestCase):
                 "nodes": [{"name": name} for name in labels],
             },
         }
-        # A person applied each label (REST timeline `labeled` events).
         gh.rest[f"repos/{REPO}/issues/{ISSUE}/timeline?per_page=100"] = [
             {
                 "event": "labeled",
@@ -4967,10 +4784,6 @@ class Assess(unittest.TestCase):
     def test_each_rung_admits_a_class_less_or_structural_item_and_holds_untrusted(
         self,
     ) -> None:
-        # Once the rung's cells are promoted, an item with no
-        # work-class label and a structural one pass the real `eligibility()`
-        # at both rungs (C2 is c2-mechanical; C3 is c3-autonomous and
-        # full-autonomy); the untrusted-provenance hold still refuses.
         for rung in ("C2", "C3"):
             for labels, reason in (
                 ([], None),
@@ -4996,7 +4809,6 @@ class Assess(unittest.TestCase):
                     self.assertIs(result.promoted, True)
 
     def test_the_real_eligibility_holds_an_untrusted_provenance_issue(self) -> None:
-        # The trust hold through `eligibility()` itself, not a stubbed answer.
         gh = self.readable()
         issue = {
             "number": ISSUE,
@@ -5054,8 +4866,6 @@ class Assess(unittest.TestCase):
                 post_merge=lambda floor, who: gate(),
                 promotion=lambda start: seen.append(start) or PROMOTED,
             )
-            # The restarted window holds the rung's cells unpromoted until a
-            # publisher re-earns them after the demotion: the merge refuses.
             restarted = policy.Promotion(
                 dict.fromkeys(policy.PROMOTABLE_CELLS, "unpromoted"), None
             )
@@ -5067,13 +4877,6 @@ class Assess(unittest.TestCase):
         self.assertEqual(held.reason, "promotion-unqualified:C2")
 
     def test_after_a_demotion_the_rung_waits_for_re_ratified_evidence(self) -> None:
-        # The resolver, given --window-start, adds a gate-failure per cell at
-        # the demotion (resolve-promotion-evidence.test.mjs "--window-start
-        # hands the checker a copy with one gate-failure per cell"), so its
-        # cells read unpromoted until a promotion newer than that exists. Here
-        # the resolver's answer is canned on each side of that ratification;
-        # the gate must pass the window start through read_promotion's argv
-        # and refuse until the cells read promoted.
         self.readable()
         self.all_clear()
         created = policy.datetime.fromisoformat("2026-10-11T07:00:00Z")
@@ -5338,7 +5141,6 @@ class LocalEnabledSince(unittest.TestCase):
         self.tmp = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.clone = self.tmp / "clone"
         self.git(self.tmp, "init", "-q", str(self.clone))
-        # The lane runs the script from a subdirectory of its checkout.
         self.scripts = self.clone / "scripts"
         self.scripts.mkdir()
 
@@ -5383,7 +5185,6 @@ class LocalEnabledSince(unittest.TestCase):
         with self.assertRaises(policy.PolicyReadError):
             policy.enabled_since(REPO, base, "pr-merge")
         self.assertEqual(gh.calls, [])
-        # Pin: the contents-API path gives the same floor for this history.
         self.fake(
             [
                 self.commit_record(newest, "2026-10-12T00:00:00Z"),
@@ -5435,8 +5236,6 @@ class LocalEnabledSince(unittest.TestCase):
         )
 
     def test_more_than_100_enabled_commits_still_have_a_floor(self) -> None:
-        # Every commit enables the path, so the walk reaches the first one.
-        # Two alternating texts keep each commit a change to the file.
         for n in range(101):
             base = self.pipeline(
                 f"{PIPELINE}# {n % 2}\n", f"2026-02-01T00:{n // 60:02d}:{n % 60:02d}Z"
@@ -5467,7 +5266,6 @@ class LocalEnabledSince(unittest.TestCase):
         )
 
     def test_a_partial_clone_falls_back_to_the_api(self) -> None:
-        # Its older blobs are not local, and the read never lazy-fetches.
         self.pipeline(PIPELINE, "2026-10-01T00:00:00Z")
         base = self.pipeline(PIPELINE + "# edit\n", "2026-10-11T00:00:00Z")
         self.git(self.clone, "config", "uploadpack.allowFilter", "true")
@@ -5505,7 +5303,6 @@ class LocalEnabledSince(unittest.TestCase):
         return middle, whole
 
     def test_a_graft_file_does_not_cut_the_history(self) -> None:
-        # Grafted parentless, the middle commit would end the walk there.
         middle, whole = self.cut_history()
         (self.clone / ".git" / "info").mkdir(exist_ok=True)
         (self.clone / ".git" / "info" / "grafts").write_text(f"{middle}\n")
@@ -5517,7 +5314,6 @@ class LocalEnabledSince(unittest.TestCase):
         self.assertEqual(policy._local_history(self.base), whole)
 
     def test_the_base_config_comes_from_the_clone(self) -> None:
-        # Before the clone read: two contents-API calls per candidate.
         self.commit(TEAM_YAML, SOURCE_CONTROL, "2026-10-01T00:00:00Z")
         base = self.pipeline(PIPELINE, "2026-10-02T00:00:00Z")
         gh = self.local()
@@ -5529,8 +5325,6 @@ class LocalEnabledSince(unittest.TestCase):
         self.assertEqual(gh.calls, [])
 
     def test_a_symlinked_config_reads_the_api_as_before(self) -> None:
-        # The contents API follows an in-repository symlink to a file; the
-        # clone read hands such a path to it rather than refusing it.
         self.commit("docs/source-control.yaml", SOURCE_CONTROL, "2026-10-01T00:00:00Z")
         (self.clone / TEAM_YAML).parent.mkdir(parents=True, exist_ok=True)
         (self.clone / TEAM_YAML).symlink_to("../source-control.yaml")
@@ -5557,7 +5351,6 @@ class LocalEnabledSince(unittest.TestCase):
         )
 
     def test_changed_file_modes_come_from_the_clone(self) -> None:
-        # Before the clone read: one trees-API call per side.
         base = self.commit("tool.sh", "echo\n", "2026-10-01T00:00:00Z")
         (self.clone / "tool.sh").chmod(0o755)
         self.git(self.clone, "update-index", "--chmod=+x", "tool.sh")
@@ -5668,7 +5461,6 @@ LANE_DENIED = (
     "plugins/*/skills/**",
     "plugins/*/agents/**",
 )
-# resolve-issue's `labels-absent` in docs/conventions/pr-pipeline.yaml.
 ISSUE_HOLDS = (
     "needs-human",
     "needs-owner-decision",
@@ -5701,7 +5493,6 @@ class LaneConfig(unittest.TestCase):
         return policy.read_config_at(REPO, SHA)
 
     def test_the_lane_switches_default_to_off(self) -> None:
-        # Owner decision Q624: absent, the floor and both size caps are off.
         config = self.diff_check([])
         self.assertEqual(
             (
@@ -5731,8 +5522,6 @@ class LaneConfig(unittest.TestCase):
         )
 
     def test_the_retired_c2_contradictions_key_only_leaves_a_note(self) -> None:
-        # Kept valid in the schema for existing configs; it has no effect, and
-        # an operator who set it is told so.
         config = self.diff_check(["c2-contradictions: true"])
         self.assertEqual(config.rung, "C2")
         self.assertEqual(
@@ -5746,8 +5535,6 @@ class LaneConfig(unittest.TestCase):
         self.assertEqual(self.diff_check(["c2-contradictions: false"]).notes, ())
 
     def test_path_holds_are_off_unless_set_true(self) -> None:
-        # Owner decision Q15: absent or false, no path holds; any other
-        # value keeps them, as every switch here reads.
         self.assertIs(self.diff_check([]).path_holds, False)
         self.assertIs(self.diff_check(["path-holds: false"]).path_holds, False)
         self.assertIs(self.diff_check(["path-holds: true"]).path_holds, True)
@@ -5858,14 +5645,11 @@ class LaneEligibility(unittest.TestCase):
         result = self.eligibility()
         self.assertTrue(result.eligible, result.reason)
         self.assertEqual((result.work_class, result.issue), ("C2", 41))
-        # One label history read, the trust hold's, and no issue comment:
-        # the agent-ready label alone admitted the issue.
         calls = [" ".join(c) for c in gh.calls]
         self.assertEqual(sum(self.TIMELINE in c for c in calls), 1)
         self.assertFalse(any(self.COMMENTS in c for c in calls))
 
     def test_a_class_label_on_the_issue_or_the_pr_is_ignored(self) -> None:
-        # The admitted issues still carrying these labels (#5981, #6821).
         for labels in (
             ["work-class: scoped"],
             ["Work-Class: Structural"],
@@ -5889,9 +5673,6 @@ class LaneEligibility(unittest.TestCase):
                 self.assertEqual(result.reason, "untrusted-provenance")
 
     def test_the_label_match_agrees_with_the_queue_step(self) -> None:
-        # The shared table scripts/ci-hold-merge-group.test.sh runs through the
-        # merge-queue step's jq `ascii_downcase`: an ASCII-only match, so a
-        # letter that folds to an ASCII one ("ſ", "ﬆ") holds in neither.
         table = json.loads(
             (pathlib.Path(__file__).parent / "fixtures/untrusted-labels.json").read_text(
                 encoding="utf-8"
@@ -5922,7 +5703,6 @@ class LaneEligibility(unittest.TestCase):
                     self.eligibility().reason,
                     "untrusted-provenance-removed-by-non-human",
                 )
-        # A write-access person's removal lifts it.
         self.fake(timeline=[unlabeled({"login": "maintainer", "type": "User"})])
         self.assertTrue(self.eligibility().eligible)
 
@@ -5935,7 +5715,6 @@ class LaneEligibility(unittest.TestCase):
         self.assertTrue(str(self.eligibility().reason).startswith("unreadable: "))
 
     def test_a_pr_the_lanes_app_did_not_open_is_ineligible(self) -> None:
-        # Anyone with write access could name an issue in `Closes #N`.
         for author in (user(OPERATOR), bot("other-app")):
             with self.subTest(author["login"]):
                 self.fake(author=author)
@@ -5969,8 +5748,6 @@ class LaneEligibility(unittest.TestCase):
                 self.assertEqual(result.reason, f"denied-path:{path}")
 
     def test_the_live_config_denies_no_path(self) -> None:
-        # Owner decision Q624: the live denied-path list is empty, so a lane
-        # PR touching the paths it used to deny is eligible.
         live = pathlib.Path(__file__).resolve().parents[6] / policy.CONFIG_PATH
         values = policy._concern_values(
             live.read_text(encoding="utf-8"),
@@ -5988,7 +5765,6 @@ class LaneEligibility(unittest.TestCase):
             "plugins/foo/hooks/hooks.json",
             "plugins/foo/.claude-plugin/plugin.json",
             "scripts/check-convention-yaml.sh",
-            # The wrapper pr-merge.yml runs under the lane token (#7476 review).
             "plugins/source-control/scripts/source-control-babysit-merge",
         ):
             with self.subTest(path):
@@ -6018,7 +5794,6 @@ class LaneEligibility(unittest.TestCase):
         )
 
     def test_no_denied_paths_configured_allows_any_path(self) -> None:
-        # Owner decision Q624: an empty list is the permissive default.
         self.fake(files=["plugins/source-control/skills/babysit-prs/scripts/x.py"])
         result = policy.lane_eligibility(
             REPO,
@@ -6062,7 +5837,6 @@ class LaneEligibility(unittest.TestCase):
 
         self.fake()
         self.assertIsNone(recheck())
-        # A label removed since the eligibility read no longer refuses.
         self.fake(labels=[])
         self.assertIsNone(recheck())
         self.fake(closing=[self.issue_node(number=42)])
@@ -6071,12 +5845,10 @@ class LaneEligibility(unittest.TestCase):
         self.assertEqual(recheck(), "linked-issues:0")
         self.fake(closing=[self.issue_node(repository="other/repo")])
         self.assertEqual(recheck(), "linked-issue-other-repository")
-        # No issue from the eligibility read: nothing to hold the recheck to.
         self.fake()
         self.assertEqual(recheck(None), "closing-issue-changed:None>41")
 
     def test_each_configured_hold_on_the_issue_refuses_at_both_reads(self) -> None:
-        # #7783: a hold added to the issue after admission stops the merge.
         for label in ISSUE_HOLDS:
             with self.subTest(label=label):
                 self.fake(labels=["agent-ready", label.upper()])
@@ -6236,7 +6008,6 @@ class RefsIssueEligibility(unittest.TestCase):
         gh.graphql["PolicyRefsIssue"] = refs_answer(self.issue_node())
         result = self.eligibility()
         self.assertTrue(result.eligible, result.reason)
-        # The issue the cost-decision lookup and the enqueue recheck bind to.
         self.assertEqual((result.work_class, result.issue), ("C2", 41))
         self.assertIsNone(
             policy.recheck_lane_issue(REPO, 7, issue=41, holds=ISSUE_HOLDS)
@@ -6277,7 +6048,6 @@ class RefsIssueEligibility(unittest.TestCase):
                 gh = self.fake(closing=[], body=body)
                 self.assertEqual(self.eligibility().reason, reason)
                 self.assertEqual(self.refs_calls(gh), 0)
-        # The same issue named twice is one issue.
         gh = self.fake(closing=[], body="Refs: #41\nRefs: #41")
         gh.graphql["PolicyRefsIssue"] = refs_answer(self.issue_node())
         self.assertEqual(self.eligibility().issue, 41)
@@ -6296,8 +6066,6 @@ class RefsIssueEligibility(unittest.TestCase):
         self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
 
     def test_a_refs_number_that_names_nothing_refuses_as_no_issue(self) -> None:
-        # A typo: no issue or pull request has the number. It names no
-        # issue here (`no_issue_here`), never a read error.
         gh = self.fake(closing=[], body="Refs: #99999")
         gh.graphql["PolicyRefsIssue"] = refs_answer(self.issue_node())
         self.assertEqual(self.eligibility().reason, "refs-not-an-issue")
@@ -6305,7 +6073,6 @@ class RefsIssueEligibility(unittest.TestCase):
         self.assertEqual(
             policy.recheck_lane_issue(REPO, 7, issue=41), "refs-not-an-issue"
         )
-        # NOT_FOUND anywhere else, or beside another error, stays unreadable.
         for errors in (
             [{"type": "NOT_FOUND", "path": ["repository"]}],
             [
@@ -6324,11 +6091,9 @@ class RefsIssueEligibility(unittest.TestCase):
                     [], 1, json.dumps(answer), "gh: error"
                 )
                 self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-        # An answer with no errors and no repository is no answer.
         gh = self.fake(closing=[], body="Refs: #41")
         gh.graphql["PolicyRefsIssue"] = {}
         self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
-        # Nor is a null issue without NOT_FOUND "no issue".
         gh = self.fake(closing=[], body="Refs: #41")
         gh.graphql["PolicyRefsIssue"] = {"repository": {"issueOrPullRequest": None}}
         self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
@@ -6338,12 +6103,10 @@ class RefsIssueEligibility(unittest.TestCase):
         result = self.eligibility()
         self.assertEqual((result.reason, result.issue), (None, 41))
         self.assertEqual(self.refs_calls(gh), 0)
-        # Two closing issues still refuse; a Refs line does not pick one.
         self.fake(
             closing=[self.issue_node(), self.issue_node(number=42)], body="Refs: #41"
         )
         self.assertEqual(self.eligibility().reason, "linked-issues:2")
-        # Another repository's closing issue is not "none": Refs is not read.
         self.fake(closing=[self.issue_node(repository="other/repo")], body="Refs: #41")
         self.assertEqual(self.eligibility().reason, "linked-issue-other-repository")
 
@@ -6371,8 +6134,6 @@ class RefsIssueEligibility(unittest.TestCase):
             }
 
         gh = eligibility_fake(self, issues=[], pr={"body": f"Refs: #{ISSUE}"})
-        # A structural class an agent applied no longer refuses: no class is
-        # read (owner decision, option a).
         gh.graphql["PolicyRefsIssue"] = refs_answer(
             refs_issue("work-class: structural")
         )
@@ -6406,16 +6167,15 @@ class RefsIssueEligibility(unittest.TestCase):
 OWNER_LOGIN = "kyle-sexton"
 OWNER_ID = 153232337
 ADOPT_NOW = datetime(2026, 10, 12, 12, tzinfo=UTC)
-IDLE = "2026-10-11T11:00:00Z"  # 25 hours before ADOPT_NOW
-FRESH = "2026-10-11T13:00:00Z"  # 23 hours before ADOPT_NOW
-NOW_ISH = "2026-10-11T14:00:00Z"  # an hour after FRESH
-REMOVED = "2026-10-11T13:30:00Z"  # the queue removed the entry FRESH queued
-SEEN = "2026-10-11T12:50:00Z"  # the head first reached GitHub
+IDLE = "2026-10-11T11:00:00Z"
+FRESH = "2026-10-11T13:00:00Z"
+NOW_ISH = "2026-10-11T14:00:00Z"
+REMOVED = "2026-10-11T13:30:00Z"
+SEEN = "2026-10-11T12:50:00Z"
 HEAD = "c" * 40
 
 
 def owner_pr(**changes: Any) -> dict[str, Any]:
-    """An idle, ready, unheld REST pull request the owner account opened."""
     pr = {
         "number": 7,
         "base": {"sha": SHA},
@@ -6485,7 +6245,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertEqual(self.refusal(owner_pr(user=user)), "author-not-owner")
 
     def test_the_owner_login_with_another_id_is_not_adopted(self) -> None:
-        # Login text is never the match: only the account id is.
         for login in (OWNER_LOGIN, OWNER_LOGIN.upper()):
             with self.subTest(login=login):
                 spoof = {
@@ -6496,8 +6255,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertEqual(self.refusal(owner_pr(user=spoof)), "author-not-owner")
 
     def test_a_listed_app_is_adopted_with_no_idle_wait(self) -> None:
-        # Owner decision 2026-10-22: a trusted App's PR (the release App's)
-        # is adopted at once; only a person may still be working on theirs.
         app = {"login": "melodic-release[bot]", "id": 337859524, "type": "Bot"}
         fresh = owner_pr(user=app)
         self.assertIsNone(
@@ -6518,7 +6275,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertEqual(self.refusal(activity=FRESH), "updated-fresh")
 
     def test_the_raw_update_time_decides_nothing(self) -> None:
-        # Any commenter moves `updated_at` (#9136): only `activity` counts.
         self.assertIsNone(self.refusal(owner_pr(updated_at=FRESH)))
 
     def test_a_recent_head_commit_is_not_adopted(self) -> None:
@@ -6594,7 +6350,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             self.refusal(pr, human_gated="awaiting-owner"),
             "hold-label:awaiting-owner",
         )
-        # The label is the resolved one, never the literal default.
         pr = owner_pr(labels=[{"name": "needs-human"}])
         self.assertIsNone(self.refusal(pr, human_gated="awaiting-owner"))
         self.assertEqual(self.refusal(pr), "hold-label:needs-human")
@@ -6602,16 +6357,18 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     def test_an_unresolved_human_gated_label_is_not_adopted(self) -> None:
         self.assertEqual(self.refusal(human_gated=None), "human-gated-label-unresolved")
 
-    def test_a_hold_line_in_the_body_holds(self) -> None:
-        for body in ("Closes #41\n\nHold: waiting on the owner", "  hold: x"):
+    def test_body_hold_text_is_no_refusal_but_the_label_is(self) -> None:
+        for body in (
+            "Closes #41\n\nHold: waiting on the owner",
+            "  hold: x",
+            "Do not merge",
+        ):
             with self.subTest(body=body):
-                self.assertEqual(self.refusal(owner_pr(body=body)), "hold-body")
-
-    # --- While the lane's own queue entry is pending ------------------------
+                self.assertIsNone(self.refusal(owner_pr(body=body)))
+                pr = owner_pr(body=body, labels=[{"name": "do-not-merge"}])
+                self.assertEqual(self.refusal(pr), "hold-label:do-not-merge")
 
     def test_a_fresh_update_keeps_adoption_while_the_lane_entry_is_queued(self) -> None:
-        # The lane's own entry at this head must not leave the queue as not
-        # adopted while its activity is fresh.
         self.assertIsNone(self.refusal(activity=FRESH, queued_at_head=lambda: True))
         self.assertEqual(
             self.refusal(activity=FRESH, queued_at_head=lambda: False),
@@ -6631,7 +6388,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         for pr, refused in (
             (owner_pr(labels=[{"name": "do-not-merge"}]), "hold-label:do-not-merge"),
             (owner_pr(labels=[{"name": "needs-human"}]), "hold-label:needs-human"),
-            (owner_pr(body="Hold: the owner merges"), "hold-body"),
             (owner_pr(draft=True), "draft"),
         ):
             with self.subTest(refused=refused):
@@ -6672,8 +6428,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                         read.assert_called_once_with(REPO, 7, IDENTITY, alone=True)
 
     def test_a_comment_after_the_pin_ends_the_queued_excuse(self) -> None:
-        # A human asking to wait is fresh trusted activity: with the lane's
-        # entry still queued at the head, the next sweep refuses it again.
         pin = {
             "author": bot("agent-lanes"),
             "body": babysit_postmerge.pin_comment(HEAD),
@@ -6745,8 +6499,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                     )
         self.assertFalse(policy.lane_queued_at_head(REPO, 7, "trunk", IDENTITY, ""))
 
-    # --- After the lane's own whole-review toggle --------------------------
-
     RECORDED = datetime(2026, 10, 11, 13, tzinfo=UTC)
 
     def reasons(self, head: str = HEAD, author: str = IDENTITY) -> dict[str, Any]:
@@ -6789,8 +6541,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         return refusal
 
     def test_the_lanes_recorded_toggle_at_the_head_keeps_adoption(self) -> None:
-        # The record, the draft toggle and the whole review it starts are
-        # fresh activity; the next sweep still adopts the PR.
         review = {"user": {"login": "claude[bot]", "type": "Bot"}}
         review["submitted_at"] = "2026-10-11T14:00:00Z"
         self.assertIsNone(self.toggled([self.reasons()], [review]))
@@ -6813,9 +6563,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertEqual(self.toggled(comments), "updated-fresh")
 
     def test_a_record_with_no_lane_conversion_after_it_does_not_excuse(self) -> None:
-        # A person with write access can edit the record's time past their
-        # own "wait"; the lane's conversion to draft has a server time an
-        # edit cannot move, so a record it does not follow excuses nothing.
         late = self.RECORDED + policy.whole_review.CONVERT_WINDOW + timedelta(minutes=1)
         for label, converted in (
             ("no conversion read", None),
@@ -6855,7 +6602,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         )
         for held, refused in (
             (owner_pr(labels=[{"name": "do-not-merge"}]), "hold-label:do-not-merge"),
-            (owner_pr(body="Hold: the owner merges"), "hold-body"),
             (owner_pr(draft=True), "draft"),
         ):
             with self.subTest(refused=refused):
@@ -6885,8 +6631,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertIsNone(
             self.refusal(activity=FRESH, committed=FRESH, idle_hours=1)
         )
-
-    # --- In the lane's eligibility ------------------------------------------
 
     def eligibility(self, pr: dict[str, Any], **kwargs: Any) -> Any:
         args: dict[str, Any] = {
@@ -6929,8 +6673,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertEqual(result.adoption, "idle-owner:24h")
 
     def test_an_adopted_pr_with_no_issue_here_is_its_own_intent(self) -> None:
-        # Owner decision 2026-10-22: its title and body are the spec, so no
-        # closing issue in this repository is needed; two still refuse.
         committed = {"sha": HEAD, "commit": {"committer": {"date": IDLE}}}
         for closing, reason, issue in (
             ([], None, None),
@@ -6943,13 +6685,10 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.idle_activity(gh)
                 result = self.eligibility(owner_pr())
                 self.assertEqual((result.reason, result.issue), (reason, issue))
-        # Before the enqueue the issue is read again: still none here holds.
         self.fake_lane(author=user(OWNER_LOGIN), closing=[])
         self.assertIsNone(policy.recheck_lane_issue(REPO, 7, issue=None))
 
     def test_an_adopted_pr_reads_a_refs_issue_as_a_closing_one(self) -> None:
-        # One Refs issue is its issue, as resolve-pr gives the verifier; Refs
-        # lines that name none or several leave the body as its intent.
         committed = {"sha": HEAD, "commit": {"committer": {"date": IDLE}}}
         for body, issue in (
             ("Refs: #41", 41),
@@ -6969,17 +6708,12 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 )
 
     def test_only_a_script_written_apps_body_is_its_intent(self) -> None:
-        # A model-written App body (claude[bot]) would grade the diff against
-        # the spec the same run wrote: it needs a closing issue. The release
-        # App's script-written body does not (adoption.spec-from-body-apps).
         release = {
             "login": "melodic-release[bot]",
             "id": 337859524,
             "type": "Bot",
         }
         claude = {"login": "claude[bot]", "id": 209825114, "type": "Bot"}
-        # A GitHub User the trusted list marks kind bot: a model writes its
-        # bodies, so being a User does not make it a person.
         cursoragent = {"login": "cursoragent", "id": 199161495, "type": "User"}
         ids = (OWNER_ID, release["id"], claude["id"], cursoragent["id"])
         for author, reason in (
@@ -7000,7 +6734,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                     spec_from_body_ids=(OWNER_ID, release["id"]),
                 )
                 self.assertEqual(result.reason, reason)
-                # S&C B: only these authors' own lines skip the floor.
                 self.assertEqual(result.body_is_intent, reason is None)
         self.fake_lane(author=user(OWNER_LOGIN), closing=[])
         self.assertIsNone(policy.recheck_lane_issue(REPO, 7, issue=None))
@@ -7052,8 +6785,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         result = self.eligibility(pr, toggled_at_head=lambda: False)
         self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
-    # --- Idleness counts trusted activity only (#9136) ----------------------
-
     OWNER = {"login": OWNER_LOGIN, "id": OWNER_ID, "type": "User"}
     STRANGER = {"login": "stranger", "id": 99, "type": "User"}
     LANE = {"login": "agent-lanes[bot]", "id": 2, "type": "Bot"}
@@ -7079,7 +6810,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             self.commented(self.STRANGER, (ADOPT_NOW - timedelta(hours=h)).isoformat())
             for h in range(1, 49)
         ]
-        # The lane's own pin comment is not the owner's activity either.
         pin = self.commented(self.LANE, NOW_ISH)
         pin["body"] = babysit_postmerge.pin_comment(HEAD)
         self.owner_fake(timeline=[*hourly, pin])
@@ -7106,26 +6836,31 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 result = self.eligibility(owner_pr(), adoption_owner_ids=ids)
                 self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
-    # Owner decision Q30: an untrusted account's hold still counts, but only a
-    # repository member's or collaborator's (the `human_veto_logins` filter).
-
     BLOCKERS = ("OWNER", "MEMBER", "COLLABORATOR")
     DRIVE_BY = ("NONE", "CONTRIBUTOR", "FIRST_TIME_CONTRIBUTOR", "FIRST_TIMER", None)
 
+    @staticmethod
+    def tag(association: str | None) -> dict[str, Any]:
+        return {} if association is None else {"author_association": association}
+
     def holds(self, association: str | None) -> list[dict[str, Any]]:
-        """A stranger's changes-requested review and hold-phrase comment,
-        review and inline comment, each written with `association`."""
-        tag = {} if association is None else {"author_association": association}
-        events: list[dict[str, Any]] = [
+        """A stranger's changes-requested review, written with `association`."""
+        return [
             {
                 "event": "reviewed",
                 "user": self.STRANGER,
                 "state": "changes_requested",
                 "body": "",
                 "submitted_at": FRESH,
-                **tag,
+                **self.tag(association),
             }
         ]
+
+    def hold_phrases(self, association: str | None) -> list[dict[str, Any]]:
+        """A stranger's hold-phrase comment, review and inline comment, each
+        written with `association`."""
+        tag = self.tag(association)
+        events: list[dict[str, Any]] = []
         for body in ("do not merge, this leaks X", "Don't merge yet", "Hold: see #1"):
             comment = {**self.commented(self.STRANGER, FRESH), "body": body, **tag}
             thread = {
@@ -7145,9 +6880,23 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                     result = self.eligibility(owner_pr())
                     self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
+    def test_a_members_hold_phrase_leaves_an_owner_pr_idle(self) -> None:
+        for association in self.BLOCKERS:
+            for event in self.hold_phrases(association):
+                with self.subTest(association=association, event=event):
+                    self.owner_fake(timeline=[event])
+                    result = self.eligibility(owner_pr())
+                    self.assertTrue(result.eligible, result.reason)
+                    self.assertEqual(result.adoption, "idle-owner:24h")
+                    labeled = owner_pr(labels=[{"name": "do-not-merge"}])
+                    self.assertEqual(
+                        self.eligibility(labeled).reason,
+                        "not-adopted:hold-label:do-not-merge",
+                    )
+
     def test_a_drive_by_accounts_hold_leaves_an_owner_pr_idle(self) -> None:
         for association in self.DRIVE_BY:
-            for event in self.holds(association):
+            for event in [*self.holds(association), *self.hold_phrases(association)]:
                 with self.subTest(association=association, event=event):
                     self.owner_fake(timeline=[event])
                     result = self.eligibility(owner_pr())
@@ -7158,7 +6907,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         comment = self.commented(self.STRANGER, FRESH)
         comment["body"] = "Looks fine; the do-not-merge label is gone."
         comment["author_association"] = "MEMBER"
-        # A bot's text is not read: review lanes quote the hold phrase.
         bot = {"login": "github-actions[bot]", "id": 41898282, "type": "Bot"}
         quoted = self.commented(bot, FRESH)
         quoted["body"] = 'a collaborator comments "do not merge, this leaks X"'
@@ -7204,8 +6952,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
     def test_a_fresh_push_of_an_old_commit_is_not_adopted(self) -> None:
-        # A commit's dates are its pusher's: the push counts when GitHub saw
-        # the head arrive, and an unreadable arrival is not idle.
         self.owner_fake(pushed=FRESH)
         result = self.eligibility(owner_pr())
         self.assertEqual(result.reason, "not-adopted:updated-fresh")
@@ -7223,7 +6969,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             "event": "line-commented",
             "comments": [{"user": self.STRANGER, "created_at": FRESH}],
         }
-        # A mention names the person mentioned, not the account that acted.
         mention = {"event": "mentioned", "actor": self.OWNER, "created_at": FRESH}
         commit = {"event": "committed", "committer": {"date": FRESH}}
         for label, args, kwargs, expected in (
@@ -7240,10 +6985,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertEqual(self.activity(*args, **kwargs), expected)
         with self.assertRaises(policy.PolicyReadError):
             self.activity(created_at=None)
-
-    # --- After a person's enqueue left the queue on failed checks ----------
-    # Owner decision Q-REQ (a): that person's enqueue of this head stands in
-    # for the idle wait; every other rule still applies.
 
     def ejected(self, **changes: Any) -> dict[str, Any]:
         enqueue = {
@@ -7267,7 +7008,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
 
     def test_a_persons_ejected_enqueue_at_this_head_requeues(self) -> None:
         self.assertTrue(self.requeued(self.ejected()))
-        # The lane's own retry, queued at this head, keeps it adopted.
         retry = self.ejected(requeued=True)
         self.assertTrue(self.requeued(retry, queued_at_head=lambda: True))
         self.assertFalse(self.requeued(retry))
@@ -7276,7 +7016,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         app = {"__typename": "Bot", "databaseId": 337595936}
         for label, enqueue, humans in (
             ("an App actor", {"actor": app}, (OWNER_ID,)),
-            # GitHub types the lanes App's enqueuer a User: only the id counts.
             (
                 "an App enqueuer typed User",
                 {"enqueuer": {"login": "agent-lanes[bot]", "databaseId": 337595936}},
@@ -7300,9 +7039,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertFalse(self.requeued(ejected, human_ids=humans))
 
     def test_a_head_pushed_after_the_enqueue_does_not_requeue(self) -> None:
-        # The server's newest check suite on the head, never a commit date: a
-        # backdated commit fast-forwarded after the removal, or a head staged
-        # before, reset away and pushed back, has a suite after the enqueue.
         self.assertFalse(self.requeued(self.ejected(), head_last_seen=lambda: NOW_ISH))
         self.assertTrue(self.requeued(self.ejected(), head_last_seen=lambda: FRESH))
 
@@ -7320,8 +7056,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             return False
 
         self.assertFalse(self.requeued(self.ejected(), quiet_since=quiet))
-        # From the enqueue: a request to wait made then, before the run
-        # failed, still holds.
         self.assertEqual(seen, [policy._time(FRESH)])
 
         def unreadable(when: Any) -> bool:
@@ -7505,7 +7239,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertIsNone(result.adoption)
 
     def test_a_wait_comment_after_the_removal_keeps_the_idle_rule(self) -> None:
-        # AGENTS.md: a person's comment asking to wait stops the merge.
         wait = {
             "user": {"login": OWNER_LOGIN, "type": "User"},
             "body": "hold on, looking at the flake",
@@ -7521,8 +7254,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertIsNone(result.adoption)
 
     def test_a_wait_comment_before_the_run_failed_keeps_the_idle_rule(self) -> None:
-        # "Wait for me if this fails", posted after the enqueue and before the
-        # removal, still holds.
         wait = {
             "user": {"login": OWNER_LOGIN, "type": "User"},
             "body": "wait for me if this fails",
@@ -7537,8 +7268,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
     def test_a_check_suite_after_the_enqueue_keeps_the_idle_rule(self) -> None:
-        # The head staged before the enqueue, reset away, and pushed back
-        # after the removal: its newest suite is after the enqueue.
         gh = self.requeue_fake()
         gh.rest[self.SUITES] = {
             "total_count": 2,
@@ -7564,7 +7293,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertEqual(result.adoption, "idle-owner:24h")
         for pr, reason in (
             (owner_pr(labels=[{"name": "do-not-merge"}]), "hold-label:do-not-merge"),
-            (owner_pr(body="Hold: the owner merges"), "hold-body"),
             (owner_pr(draft=True), "draft"),
         ):
             with self.subTest(reason):
@@ -7592,11 +7320,8 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         )
         self.assertEqual(result.reason, "not-lane-authored")
 
-    # --- The setting ---------------------------------------------------------
-
     def test_idle_hours_default_to_24_and_read_the_setting(self) -> None:
         for text, expected, noted in (
-            # No setting, no adoption, as in fix-ci.
             (PIPELINE, None, False),
             (PIPELINE + "adoption:\n  idle-hours: 48\n", 48, False),
             (PIPELINE + "adoption:\n  idle-hours: 1\n", 1, False),
@@ -7606,7 +7331,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
             (PIPELINE + "adoption:\n  idle-hours: 01\n", None, True),
             (PIPELINE + "adoption:\n  idle-hours: soon\n", None, True),
             (PIPELINE + "adoption:\n  idle-hours: -1\n", None, True),
-            # Under merge it is another key, not the setting.
             (PIPELINE.replace("merge:\n", "merge:\n  idle-hours: 1\n"), None, False),
         ):
             with self.subTest(text=text):
@@ -7617,7 +7341,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertEqual(any("idle-hours" in n for n in config.notes), noted)
 
     def test_the_adoptable_ids_are_every_trusted_actor_by_id(self) -> None:
-        # Owner decision 2026-10-22: the trusted-actor list, people and Apps.
         listing = {
             "version": 1,
             "actors": [
@@ -7687,6 +7410,36 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertNotIn(["api", ours], gh.calls)
         self.assertFalse(any(STANDARDS_REPO in c[1] for c in gh.calls))
 
+    def test_an_unknown_or_non_scalar_source_raises_and_reads_neither_list(
+        self,
+    ) -> None:
+        listing = {"version": 1, "actors": [{"id": 5, "login": "p", "kind": "human"}]}
+        ours = f"repos/{REPO}/contents/{policy.TRUSTED_ACTORS_PATH}?ref=trunk"
+        theirs = (
+            f"repos/{STANDARDS_REPO}/contents/"
+            f"{policy.STANDARDS_TRUSTED_ACTORS}?ref={STANDARDS_SHA}"
+        )
+        for team in (
+            "trusted_actors_source: elsewhere\n",
+            f"trusted_actors_source: [standards]\n{policy.STANDARDS_REPO_KEY}: {STANDARDS_REPO}\n",
+            f"trusted_actors_source:\n  - standards\n{policy.STANDARDS_REPO_KEY}: {STANDARDS_REPO}\n",
+            f"trusted_actors_source:\n  name: standards\n{policy.STANDARDS_REPO_KEY}: {STANDARDS_REPO}\n",
+        ):  # fmt: skip
+            with self.subTest(team=team):
+                standards_cleared(self)
+                policy._TRUSTED_IDS.clear()
+                gh = GhFake().install(self)
+                gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref=trunk"] = file_payload(team)
+                gh.rest[ours] = file_payload(json.dumps(listing))
+                gh.rest[f"repos/{STANDARDS_REPO}/git/ref/heads/main"] = STANDARDS_HEAD
+                gh.rest[theirs] = file_payload(json.dumps(listing))
+                with self.assertRaises(policy.PolicyReadError):
+                    policy.opts_in_to_standards(team)
+                with self.assertRaises(policy.PolicyReadError):
+                    policy.trusted_listing(REPO, "trunk")
+                self.assertNotIn(["api", ours], gh.calls)
+                self.assertFalse(any(STANDARDS_REPO in c[1] for c in gh.calls))
+
     def test_one_standards_commit_and_read_serve_every_repository(self) -> None:
         standards_cleared(self)
         policy._TRUSTED_IDS.clear()
@@ -7732,7 +7485,12 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                 self.assertFalse(any(tag in c[1] for c in gh.calls))
 
     def test_an_unset_or_repository_source_reads_the_copy(self) -> None:
-        for team in (None, "trusted_actors_source: repository\n"):
+        for team in (
+            None,
+            "trusted_actors_source: repository\n",
+            f"standards_repository: {STANDARDS_REPO}\n",
+            f"trusted_actors_source: repository\nstandards_repository: {STANDARDS_REPO}\n",
+        ):
             with self.subTest(team=team):
                 standards_cleared(self)
                 policy._TRUSTED_IDS.clear()
@@ -7815,7 +7573,6 @@ class ForeignPaths(unittest.TestCase):
     def test_a_commit_is_the_authors_own_only_when_committed_and_verified(
         self,
     ) -> None:
-        # The author id is the git author email, which anyone can set.
         x = {"x": [{"filename": ".github/x.yml"}]}
         forged = self.commit("x", OWNER_ID, self.LANES)
         self.assertEqual(self.paths([forged], x), frozenset({".github/x.yml"}))
@@ -7824,8 +7581,6 @@ class ForeignPaths(unittest.TestCase):
         self.assertEqual(self.paths([self.commit("x", OWNER_ID)], x), frozenset())
 
     def test_a_trusted_apps_own_verified_commits_score_nothing(self) -> None:
-        # An App commits through the API, so GitHub's web-flow commits it:
-        # author and signature alone, the weaker case.
         app = owner_pr(
             user={
                 "login": "melodic-release[bot]",
@@ -7835,7 +7590,6 @@ class ForeignPaths(unittest.TestCase):
         )
         own = self.commit("r1", 337859524, self.WEB_FLOW)
         unsigned = self.commit("r2", 337859524, self.WEB_FLOW, verified=False)
-        # S&C: an App's commit someone else committed is not its own.
         other = self.commit("r3", 337859524, self.LANES)
         r3 = {"r3": [{"filename": "scripts/x.sh"}]}
         self.assertEqual(self.paths([other], r3, app), frozenset({"scripts/x.sh"}))
@@ -7846,8 +7600,6 @@ class ForeignPaths(unittest.TestCase):
         )
 
     def test_s_and_c_forged_merged_and_parentless_commits_score(self) -> None:
-        # S&C review of #9107: an owner-email commit the lanes App committed,
-        # a lanes App merge adding a PR file, and a parentless commit.
         changed = (".github/workflows/x.yml", "plugins/x/hooks/evil.sh")
         workflow = {"w": [{"filename": ".github/workflows/x.yml"}]}
         evil = {"m": [{"filename": "plugins/x/hooks/evil.sh"}]}
@@ -7869,9 +7621,6 @@ class ForeignPaths(unittest.TestCase):
                 )
 
     def test_some_paths_are_never_the_authors_own(self) -> None:
-        # The HIGH path floor (owner decision Q-FLOOR (B)) always scores, even
-        # in a standards-sync PR whose every commit is its own; everything
-        # else, the trusted-actor list included, is the author's own.
         changed = frozenset(
             {
                 ".github/workflows/pr-merge.yml",
@@ -7897,8 +7646,6 @@ class ForeignPaths(unittest.TestCase):
         )
         own = changed - {
             ".github/workflows/pr-merge.yml",
-            # A workflow holding a secret is a gate path, and so are Claude
-            # Code settings and the agent instructions.
             ".github/workflows/release-publish-plugins.yml",
             ".claude/settings.json",
             "AGENTS.md",
@@ -7907,7 +7654,6 @@ class ForeignPaths(unittest.TestCase):
             "CODEOWNERS",
             "docs/CODEOWNERS",
             ".gitmodules",
-            # adjudicate-feedback.mjs reads the linked issues' spec through it.
             ".github/scripts/pr-verify/resolve-pr.mjs",
         }
         for user in (
@@ -7927,8 +7673,6 @@ class ForeignPaths(unittest.TestCase):
             self.assertEqual(policy.own_paths(REPO, owner_pr(), changed, floor=REPO_FLOOR), frozenset())
 
     def test_a_model_app_owns_only_its_script_lines(self) -> None:
-        # Owner decision Q14 (c): plugins/*/scripts/, less the never-exempt
-        # paths. Top-level scripts/ runs in credentialed jobs on main (S&C).
         changed = frozenset(
             {
                 "scripts/release-plugins.sh",
@@ -7996,7 +7740,6 @@ class AuthorReviewedPaths(unittest.TestCase):
         for user in (
             self.LANES,
             {"login": "claude[bot]", "id": 209825114, "type": "Bot"},
-            # An App's id on the human list is still not a person.
             {"login": "x[bot]", "id": OWNER_ID, "type": "Bot"},
         ):
             with self.subTest(user=user["login"]):
@@ -8012,9 +7755,6 @@ class AuthorReviewedPaths(unittest.TestCase):
         self.assertEqual(self.reviewed(verified=False), frozenset())
 
     def test_token_scope_paths_are_never_lifted(self) -> None:
-        # Owner decision 2026-10-28: what the token broker loads to scope a
-        # lane token waits for a person even on a trusted person's own pull
-        # request with a pr-verify pass.
         token_scope = {
             ".github/actions/resolve-config/resolve.mjs",
             ".github/actions/resolve-config/effect-grants.json",
@@ -8118,8 +7858,6 @@ class LaneAssess(unittest.TestCase):
             LANE_PIPELINE + "adoption:\n  idle-hours: 48\n"
         )
         policy._TRUSTED_IDS.clear()
-        # Read at the default branch head's SHA, never the PR's base ref
-        # (owner decision Q22): a stacked PR's base is its author's.
         gh.rest[f"repos/{REPO}/contents/{policy.TRUSTED_ACTORS_PATH}?ref={SHA}"] = (
             file_payload(
                 json.dumps(
@@ -8128,7 +7866,6 @@ class LaneAssess(unittest.TestCase):
                         "actors": [
                             {"id": 5, "login": "a", "kind": "human"},
                             {"id": 77, "login": "b[bot]", "kind": "bot"},
-                            # S&C E: never adopted, the lanes App and Dependabot.
                             {"id": 9, "login": IDENTITY, "kind": "bot"},
                             {"id": 49699333, "login": "dependabot[bot]", "kind": "bot"},
                         ],
@@ -8146,7 +7883,6 @@ class LaneAssess(unittest.TestCase):
         self.assertIsNone(result.reason)
         kwargs = lane.call_args.kwargs
         self.assertEqual(kwargs["human_gated"], "awaiting-owner")
-        # The queue read names the resolved identity, the base and the head.
         with mock.patch.object(
             policy, "lane_queued_at_head", return_value=True
         ) as queued:
@@ -8159,9 +7895,7 @@ class LaneAssess(unittest.TestCase):
         toggled.assert_called_once_with(REPO, 1, IDENTITY, "e" * 40, "PR_1")
         self.assertEqual(kwargs["adoption_idle_hours"], 48)
         self.assertEqual(kwargs["adoption_owner_ids"], (5, 77))
-        # The people (kind human) and the configured Apps: whose body is intent.
         self.assertEqual(kwargs["spec_from_body_ids"], (5,))
-        # Q-REQ (a): the people may stand in for the idle wait, by the queue read.
         self.assertEqual(kwargs["adoption_human_ids"], (5,))
         with mock.patch.object(policy, "ejected_enqueue", return_value=None) as read:
             self.assertIsNone(kwargs["ejected_enqueue"]())
@@ -8169,7 +7903,6 @@ class LaneAssess(unittest.TestCase):
         self.assertEqual(result.details["eligibility"]["adoption"], "idle-owner:24h")
 
     def test_an_empty_workflow_cap_allows_the_configured_rung(self) -> None:
-        # The variable's own rule: unset (empty in `vars`) is no cap.
         gh = self.unreadable_variables()
         self.lane_clear()
         result = self.lane_assess(post_merge=lambda floor, who: gate())
@@ -8212,8 +7945,6 @@ class LaneAssess(unittest.TestCase):
         self.assertEqual(result.reason, "rung-off:rungCap")
 
     def test_the_lane_takes_the_kill_switch_from_the_workflow(self) -> None:
-        # Owner decision 2026-10-14: the lane token cannot read Actions
-        # variables, so the workflow's own kill-switch check is passed in.
         gh = self.readable()
         gh.rest[f"repos/{REPO}/actions/variables?per_page=1"] = 403
         gh.rest[f"repos/{REPO}/actions/organization-variables?per_page=100"] = 403
@@ -8254,7 +7985,6 @@ class LaneAssess(unittest.TestCase):
         self.assertEqual(result.reason, "kill-switch:repo-switch-not-false")
 
     def test_the_lane_counts_only_its_own_merges_in_flight(self) -> None:
-        # #7481: another App's merge on main is not the lane's.
         self.readable()
         self.lane_clear()
         self.lane_assess(post_merge=lambda floor, who: gate())
@@ -8282,8 +8012,6 @@ class LaneAssess(unittest.TestCase):
         )
 
     def test_the_lane_refuses_when_the_verdict_is_not_required(self) -> None:
-        # Design 3: with no class read, the verdict is the merge criterion, so
-        # a lane that does not require it has none; absent reads as false.
         key = "  require-verifier-verdict: true\n"
         for value in ("", key.replace("true", "false")):
             with self.subTest(value=value):
@@ -8420,8 +8148,6 @@ class TheInFlightCapIsTheDefaultBranchHeads(unittest.TestCase):
         self.assertEqual(gh.calls.count(["api", self.HEAD_CONFIG]), 3)
 
 
-# Two lane pipelines differing in every merge setting: LOOSE allows more on
-# each, STRICT less.
 LOOSE_PIPELINE = """\
 merge:
   rung: C3
@@ -8537,7 +8263,6 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
             "queue_ejection_infra_causes": ("rate-limit",),
             "verify_cap_attempts": 0,
             "agent_identity": IDENTITY,
-            # Timing only: the base's, whichever side is stricter.
             "risk_escalation_minutes": escalation_minutes,
         }
         for name, value in expected.items():
@@ -8550,7 +8275,6 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
             with self.subTest(setting=name):
                 self.assertEqual(set(getattr(config, name)), value)
         with self.subTest(setting="check_inputs"):
-            # Both lists are read, each in its own diff.
             self.assertEqual(
                 set(config.check_inputs) | set(config.head_check_inputs),
                 {"x/**", "y/**"},
@@ -8589,8 +8313,6 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
         self.assertEqual(result.reason, "rung-off:merge.rung")
 
     def test_main_dropping_the_pipeline_or_identity_stops_the_lane(self) -> None:
-        # Either switches the lane off on main: a stop, as rung: off is, so
-        # the identity's queued entries leave.
         for main in (
             None,
             LOOSE_PIPELINE.replace("  agent-identity: agent-lanes[bot]\n", ""),
@@ -8609,7 +8331,6 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
                 self.moved(base, main)
                 self.lane_clear()
                 result = self.lane_assess(post_merge=lambda floor, who: gate())
-                # Past the authority and identity checks: the path stays enabled.
                 self.assertIs(result.enabled, True)
 
     def test_an_identity_differing_only_in_case_agrees(self) -> None:
@@ -8619,14 +8340,11 @@ class TheStricterOfBaseAndMainGoverns(unittest.TestCase):
         )
         self.lane_clear()
         result = self.lane_assess(post_merge=lambda floor, who: gate())
-        # Past the authority and identity checks: the path stays enabled.
         self.assertIs(result.enabled, True)
 
     def test_main_turning_dependabot_enforce_down_reports_a_dependabot_pr(
         self,
     ) -> None:
-        # A Dependabot pull request's report-only is its own mode short of
-        # enforce, recomputed from the combined config.
         gh = self.moved(LOOSE_PIPELINE, STRICT_PIPELINE)
         gh.rest[f"repos/{REPO}/pulls/1"]["user"] = {
             "login": "dependabot[bot]",
@@ -8749,8 +8467,6 @@ class TheStricterConfigEdges(unittest.TestCase):
                     base, base_sha=MAIN_SHA, check_inputs=("scripts/b.txt", exclude)
                 )
                 combined = policy.stricter_config(base, main)
-                # Each list is listed on its own, so main's exclude reaches
-                # only main's paths.
                 self.assertEqual(combined.check_inputs, ("scripts/a.txt",))
                 self.assertEqual(combined.head_check_inputs, ("scripts/b.txt", exclude))
 
@@ -8772,7 +8488,6 @@ class TheStricterConfigEdges(unittest.TestCase):
             {**good, "adoption_idle_hours": 721},
         ):
             with self.subTest(broken=broken):
-                # No commit's config saved by an earlier case either.
                 pathlib.Path(env["BABYSIT_RUN_CACHE"]).unlink(missing_ok=True)
                 policy.run_cache.put(policy.DEFAULT_BRANCH_CONFIG_SECTION, REPO, broken)
                 gh = config_fake(self, PIPELINE.replace("local-babysit", "pr-merge"))
@@ -8846,8 +8561,6 @@ class ConfigAtIsSharedByCommit(unittest.TestCase):
         gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = {"object": {"sha": SHA}}
         start = datetime(2026, 10, 24, 12, 0, tzinfo=UTC)
         base = policy.PipelineConfig(MAIN_SHA, "C2", "pr-merge", None, None, (), None)
-        # Past the repository-keyed window (two minutes), the head is read
-        # again and the same commit's config comes from the cache.
         for minutes in (0, 3, 6):
             with mock.patch.object(
                 policy.run_cache, "now", return_value=start + timedelta(minutes=minutes)
@@ -8902,7 +8615,6 @@ class SharedPostMergeAnswer(unittest.TestCase):
     def bound(self) -> GhFake:
         gh = self.readable()
         gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = {"object": {"sha": MAIN_SHA}}
-        # The merge config at the head this class moves main to: the base's.
         for sha in (MAIN_SHA, "f" * 40):
             gh.rest[f"repos/{REPO}/contents/{policy.CONFIG_PATH}?ref={sha}"] = (
                 file_payload(LANE_PIPELINE)
@@ -8956,8 +8668,6 @@ class SharedPostMergeAnswer(unittest.TestCase):
         details = {
             k: v for k, v in (result.details or {}).items() if k != "postMergeShared"
         }
-        # Where the cap was read is provenance, not a decision: an unreadable
-        # head falls back to the base's cap.
         if isinstance(details.get("inFlight"), dict):
             details["inFlight"] = {
                 k: v for k, v in details["inFlight"].items() if k != "capSource"
@@ -8997,9 +8707,6 @@ class SharedPostMergeAnswer(unittest.TestCase):
     def test_a_moved_head_with_no_new_lane_merge_decides_as_the_fresh_reads_do(
         self,
     ) -> None:
-        # The check judges only the identity's merges since the floor, so a
-        # person's merge, another App's, or one already in the answer moves
-        # the head without changing the answer.
         counted = policy.PostMergeGate(
             None, {"ok": True, "autoMerges": [{"number": 7}]}, lambda m: True
         )
@@ -9023,7 +8730,6 @@ class SharedPostMergeAnswer(unittest.TestCase):
             reused = self.lane_assess(post_merge=never, shared=self.shared(counted))
         self.assertEqual(reused.details["postMergeShared"], "used")
         self.assertEqual(self.decided(reused), self.decided(fresh))
-        # An unreadable head leaves its config unread, which refuses.
         gh.rest[f"repos/{REPO}/git/ref/heads/trunk"] = 502
         with self.assertRaises(policy.PolicyReadError):
             self.lane_assess(post_merge=never, shared=self.shared(counted))
@@ -9031,8 +8737,6 @@ class SharedPostMergeAnswer(unittest.TestCase):
     def test_a_base_behind_with_the_same_floor_decides_as_the_fresh_reads_do(
         self,
     ) -> None:
-        # A later config commit on the default branch that keeps the path
-        # enabled leaves the floor where the base's own history puts it.
         answer = gate("failure:canary#7708")
         self.bound().rest[NEWEST_CONFIG] = [{"sha": "f" * 40}]
         self.flight()
@@ -9046,9 +8750,6 @@ class SharedPostMergeAnswer(unittest.TestCase):
         self.assertEqual(self.decided(reused), self.decided(fresh))
 
     def test_a_demotion_record_filed_since_the_answer_is_not_missed(self) -> None:
-        # The answer says not demoted; a record opened after it, an edit or
-        # close of a known record, an unreadable re-read, or a full page
-        # sends the pull request to its own demotion read.
         record = {
             "number": 90,
             "user": {"login": "github-actions[bot]"},
@@ -9089,9 +8790,6 @@ class SharedPostMergeAnswer(unittest.TestCase):
     def test_demotion_changed_is_reported_only_when_nothing_else_refuses(
         self,
     ) -> None:
-        # lane_room keeps an answer refused only as `demotion-changed` once a
-        # demotion read agrees, so a lane merge it does not count must not
-        # hide behind that reason.
         gh = self.moved(merge_pages([[merged(7, bot("agent-lanes"), None)]]))
         gh.rest[self.issues_since()] = [
             {"number": 12, "user": {"login": OPERATOR}, "state": "closed"}
@@ -9119,8 +8817,6 @@ class SharedPostMergeAnswer(unittest.TestCase):
     def test_a_fresh_filer_issue_without_the_marker_leaves_the_answer_bound(
         self,
     ) -> None:
-        # `read_demotion` never counts it: no marker, and never touched since
-        # it was opened, so no earlier revision could carry one.
         gh = self.bound()
         gh.rest[self.issues_since()] = [
             {
@@ -9139,7 +8835,6 @@ class SharedPostMergeAnswer(unittest.TestCase):
         self.assertEqual(result.details["postMergeShared"], "used")
 
     def test_a_demoted_answer_needs_no_re_read(self) -> None:
-        # Already demoted, the answer is the conservative one.
         gh = self.bound()
         del gh.rest[self.issues_since()]
         self.flight()
@@ -9151,8 +8846,6 @@ class SharedPostMergeAnswer(unittest.TestCase):
         self.assertEqual(result.details["postMergeShared"], "used")
 
     def test_a_demoted_answer_with_a_clear_re_reads_a_changed_record(self) -> None:
-        # Its floor came from another record's clear, which a reopen or an
-        # edit since can move, so the change check still runs.
         gh = self.bound()
         gh.rest[self.issues_since()] = [
             {"number": 3, "user": {"login": OPERATOR}, "state": "open"}
@@ -9224,8 +8917,6 @@ class SharedPostMergeAnswer(unittest.TestCase):
 
 
 def lane_gate(verified: bool, failed: bool = False) -> policy.PostMergeGate:
-    """The check's answer on lane merge #8040: its verifying run passed,
-    is still pending, or failed."""
     return babysit_postmerge.gate_from_report(
         {
             "ok": not failed,
@@ -9300,7 +8991,6 @@ class DemotionChanged(unittest.TestCase):
     def test_a_known_record_updated_is_changed(self) -> None:
         known = self.filed(user={"login": OPERATOR}, number=12)
         self.assertTrue(self.changed(known, records=(12,)))
-        # Its author and its timestamps do not matter.
         self.assertTrue(self.changed(self.filed(number=12), records=(12,)))
 
 
@@ -9349,8 +9039,6 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
         return gh
 
     def test_a_stale_unverified_answer_decides_as_a_from_scratch_run(self) -> None:
-        # Pending at the shared read; by now the run passed, is still pending,
-        # or failed. Only a pass clears the in-flight refusal.
         for fresh, expected in (
             (lane_gate(True), None),
             (lane_gate(False), "in-flight:unverified-auto-merge:#8040"),
@@ -9380,8 +9068,6 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
     def test_the_candidate_that_refreshed_proceeds_through_the_rest_of_the_gate(
         self,
     ) -> None:
-        # Judged against the fresh answer in the same invocation: no in-flight
-        # refusal, and every later read runs as a from-scratch run's does.
         self.aged(3)
         self.judged_flight()
         refreshed = self.lane_assess(
@@ -9514,9 +9200,6 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
         self.assertEqual([answer.main_sha for answer in shared], ["f" * 40])
 
     def test_the_binding_is_read_before_the_check(self) -> None:
-        # A lane merge landing during the check moves the head after the
-        # binding read, so the next candidate lists merges rather than taking
-        # the unchanged-head shortcut on an answer that never judged it.
         gh = self.aged(3)
         self.judged_flight()
         called: list[Any] = []
@@ -9535,8 +9218,6 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
         self.assertLessEqual(answer.computed_at, called[0])
 
     def test_an_answer_bound_to_another_candidate_is_not_overwritten(self) -> None:
-        # Not a fresher answer, only a different one: writing it back would
-        # send the candidates that match the run's answer to their own reads.
         other_floor = policy.datetime.fromisoformat("2026-10-11T00:00:00Z")
         for overrides, rest, reason in (
             (
@@ -9561,9 +9242,6 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
                 share.assert_not_called()
 
     def test_an_unreadable_config_history_writes_nothing_back(self) -> None:
-        # The binding check could not read the base's config history; the
-        # reads after it can succeed, but the floor they compute may be
-        # another one, which later candidates would refuse as floor-differs.
         self.bound()
         self.judged_flight()
         share = mock.Mock()
@@ -9579,10 +9257,6 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
         share.assert_not_called()
 
     def test_another_floor_on_a_stale_answer_leaves_the_runs_answer(self) -> None:
-        # The binding is checked before the age: a candidate on another floor
-        # is refused as bound elsewhere and writes nothing back, so the next
-        # main-floor candidate refreshes the run's answer and the one after
-        # reuses it. Every verdict is a from-scratch run's.
         other_floor = policy.datetime.fromisoformat("2026-10-11T00:00:00Z")
         path = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
         path /= "post-merge.json"
@@ -9627,8 +9301,6 @@ class AStaleSharedAnswerIsRefreshed(unittest.TestCase):
         candidate(None, "used")
 
     def test_the_age_is_the_recorded_computed_at_not_the_files_mtime(self) -> None:
-        # Written just now, but its answer was computed 3 minutes ago with
-        # #8040 unverified: read again.
         path = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
         path /= "post-merge.json"
         self.aged(3)
@@ -9760,7 +9432,6 @@ class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
         self.assertEqual(checks, [], "no post-merge check")
         share.assert_not_called()
         self.assertEqual(result.reason, "in-flight:unverified-auto-merge:#8040")
-        # One listing per verifying workflow on the default branch.
         self.assertEqual(len(listed), 2)
         for args in listed:
             self.assertIn("branch=trunk", args[1])
@@ -9783,8 +9454,6 @@ class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
     def test_a_verifying_run_that_concluded_since_reads_the_answer_again(
         self,
     ) -> None:
-        # The post-merge safety case: #8040's full run went red (or green)
-        # after the answer was read; a kept passing answer would hide the red.
         now = policy.datetime.now(policy.UTC)
         for workflow, fresh, expected in (
             (
@@ -9823,8 +9492,6 @@ class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
                 self.assertEqual(len(checks), 1)
 
     def test_a_moved_head_reads_the_answer_again(self) -> None:
-        # `_moved` binds the keep to main's head: a newer head reads
-        # the check afresh even with no run concluded.
         self.aged(5)
         self.judged_flight()
         checks: list[Any] = []
@@ -9847,9 +9514,6 @@ class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
     def test_a_rerun_in_an_older_verified_merges_window_reads_it_again(
         self,
     ) -> None:
-        # `_judge` judges a verified merge's runs created from its `mergedAt`,
-        # and a re-run keeps its `created_at`: the listing reaches back to the
-        # earliest merge in the answer, not the earliest unverified one.
         now = policy.datetime.now(policy.UTC)
         stamp = lambda t: t.strftime("%Y-%m-%dT%H:%M:%SZ")  # noqa: E731
         report = {
@@ -9879,7 +9543,6 @@ class AStaleUnverifiedAnswerIsKeptOnRunEvidence(unittest.TestCase):
         }
 
         def read(args: list[str], label: str) -> dict[str, Any]:
-            # The API's `created=>=` filter.
             floor = unquote(args[1].split("created=")[1].split("&")[0])
             runs = [r for r in [rerun] if r["created_at"] >= floor[2:]]
             return {"total_count": len(runs), "workflow_runs": runs}
@@ -9915,7 +9578,6 @@ class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
         gh.rest[f"repos/{REPO}"] = {"default_branch": "main"}
         gh.rest[f"repos/{REPO}/git/ref/heads/main"] = {"object": {"sha": SHA}}
         if main_identity is not None:
-            # Main has moved to a head that names another identity.
             gh.rest[f"repos/{REPO}/git/ref/heads/main"] = {"object": {"sha": MAIN_SHA}}
             gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
             for path, text in (
@@ -9925,7 +9587,6 @@ class PlainMergeRefusesTheIdentityFromRealConfig(unittest.TestCase):
                 gh.rest[f"repos/{REPO}/contents/{path}?ref={MAIN_SHA}"] = file_payload(
                     text
                 )
-        # The config is read at the pull request's base SHA (S4), and at main's head.
         gh.rest[f"repos/{REPO}/pulls/1"] = {
             "number": 1,
             "base": {"ref": "main", "sha": SHA},
@@ -10065,7 +9726,6 @@ class DependabotEligibility(unittest.TestCase):
         registry: dict[str, Any] | None = None,
     ) -> GhFake:
         gh = GhFake().install(self)
-        # The package registry: by default x has never had provenance.
         pages = (
             {
                 "https://registry.npmjs.org/x": {
@@ -10090,7 +9750,10 @@ class DependabotEligibility(unittest.TestCase):
         patcher = mock.patch.object(policy, "_registry_json", read)
         patcher.start()
         self.addCleanup(patcher.stop)
-        gh.rest[f"repos/{REPO}/contents/{POLICY}?ref={SHA}"] = file_payload(
+        standards_cleared(self)
+        serve_policy(
+            gh,
+            SHA,
             json.dumps(
                 {
                     "autoMerge": {
@@ -10099,7 +9762,7 @@ class DependabotEligibility(unittest.TestCase):
                         else review_only
                     }
                 }
-            )
+            ),
         )
         gh.graphql["PolicyEligibility"] = {
             "repository": {
@@ -10115,13 +9778,10 @@ class DependabotEligibility(unittest.TestCase):
         gh.rest[self.COMMITS] = self.commits
         runs = [{"status": "completed", "conclusion": "success"}] if ci is None else ci
         gh.rest[self.CI] = {"check_runs": runs}
-        # A head tested before the rename has no CI Status run.
         gh.rest[self.GATE] = {"check_runs": gate or []}
         gh.rest[f"repos/{REPO}/issues/7/comments?per_page=100"] = comments or []
         gh.rest[f"repos/{REPO}/pulls/7/reviews?per_page=100"] = []
         gh.rest[f"repos/{REPO}/pulls/7/comments?per_page=100"] = []
-        # Dependabot created the branch at its first commit and pushed the
-        # head; the diff is a covered lock file.
         first = str(self.commits[0].get("sha")) if self.commits else self.HEAD
         dependabot = {"login": "dependabot[bot]", "type": "Bot"}
         gh.rest[self.ACTIVITY] = (
@@ -10173,7 +9833,6 @@ class DependabotEligibility(unittest.TestCase):
             "head": {"sha": self.HEAD, "ref": "dependabot/npm_and_yarn/x-1.3.0"},
             "user": {"login": "dependabot[bot]", "type": "Bot"},
         }
-        # By default the default branch head is the base.
         options.setdefault("main_sha", SHA)
         return policy.dependabot_eligibility(
             REPO, 7, pr=pr, agent_identity=IDENTITY, **options
@@ -10298,7 +9957,6 @@ class DependabotEligibility(unittest.TestCase):
     )
 
     def test_a_sha_pin_bump_is_held_despite_a_merge_verdict(self) -> None:
-        # Fail closed: an unreadable version may be a major.
         self.fake(commits=[self.SHA_PIN], comments=[self.marker()])
         result = self.eligibility()
         self.assertFalse(result.eligible)
@@ -10306,7 +9964,6 @@ class DependabotEligibility(unittest.TestCase):
         self.assertEqual(result.dependabot.reasons, ("unparsed-version:x",))
 
     def test_sources_that_disagree_are_held_despite_a_merge_verdict(self) -> None:
-        # The metadata says minor, the title says major.
         self.fake(comments=[self.marker()])
         result = self.eligibility(title="build(deps): bump x from 1.2.0 to 2.0.0")
         self.assertFalse(result.eligible)
@@ -10314,7 +9971,6 @@ class DependabotEligibility(unittest.TestCase):
         self.assertIn("sources-disagree", result.dependabot.reasons)
 
     def test_no_readable_update_is_held_despite_a_merge_verdict(self) -> None:
-        # Fail closed: neither the title nor the commit names an update.
         self.fake(
             commits=[dependabot_commit(message="build(deps): update dependencies")],
             comments=[self.marker()],
@@ -10345,7 +10001,6 @@ class DependabotEligibility(unittest.TestCase):
         result = self.eligibility(hold_majors=True)
         self.assertTrue(result.eligible, result.reason)
         self.assertEqual(result.dependabot.tier, "auto")
-        # A non-major review-tier bump still merges on the verdict.
         self.fake(review_only=[self.entry()], comments=[self.marker()])
         result = self.eligibility(hold_majors=True)
         self.assertTrue(result.eligible, result.reason)
@@ -10419,7 +10074,6 @@ class DependabotEligibility(unittest.TestCase):
         self.lane_fix(gh, ["package.json"])
         result = self.eligibility(hold_majors=False)
         self.assertTrue(result.eligible, result.reason)
-        # A fix commit may change only npm or pip manifests outside .github/.
         for path in (".github/workflows/ci.yml", ".github/scripts/x.mjs", "src/x.js"):
             with self.subTest(path=path):
                 gh = self.fake(
@@ -10953,7 +10607,6 @@ class DependabotEligibility(unittest.TestCase):
                 result = self.pinned_patch(comments=[self.marker()], pin=pin)
                 self.assertFalse(result.eligible)
                 self.assertEqual(result.reason, refused)
-        # The lanes App's commit pushed by anyone else still refuses.
         result = self.pinned_patch(
             comments=[self.marker()], pushes=self.FOREIGN_PUSH
         )
@@ -10961,7 +10614,6 @@ class DependabotEligibility(unittest.TestCase):
         self.assertEqual(result.reason, "pushed-by:maintainer")
 
     def test_an_unreadable_fix_commit_file_list_refuses(self) -> None:
-        # Unreadable is not "touches nothing": the .github/ boundary must hold.
         fix = dependabot_commit(
             name="agent-lanes[bot]",
             email="1+agent-lanes[bot]@users.noreply.github.com",
@@ -10995,7 +10647,6 @@ class DependabotEligibility(unittest.TestCase):
     ]
 
     def test_bad_provenance_refuses_even_with_a_merge_verdict(self) -> None:
-        # A commit's author is text; the pusher is who it is.
         self.fake(pushes=self.FOREIGN_PUSH)
         self.assertEqual(self.eligibility().reason, "pushed-by:maintainer")
         self.fake(pushes=self.FOREIGN_PUSH, comments=[self.marker()])
@@ -11007,7 +10658,6 @@ class DependabotEligibility(unittest.TestCase):
         self.assertTrue(self.eligibility().reason.startswith("unreadable:"))
 
     def test_content_beyond_manifests_is_tier_review_not_a_refusal(self) -> None:
-        # A rebuilt bundle on a minor bump: the AI review judges it.
         files = [
             {"filename": "package-lock.json"},
             {"filename": "plugins/miro/server/dist/index.min.js"},
@@ -11062,8 +10712,7 @@ class DependabotEligibility(unittest.TestCase):
         for answer in (404, file_payload("{not json"), file_payload("{}")):
             with self.subTest(answer=answer):
                 gh = self.fake()
-                gh.rest[f"repos/{REPO}/contents/{POLICY}?ref={SHA}"] = answer
-                gh.rest[f"repos/{REPO}/contents?ref={SHA}"] = []
+                serve_policy(gh, SHA, answer)
                 result = self.eligibility()
                 self.assertFalse(result.eligible)
                 self.assertEqual(result.dependabot.tier, "review")
@@ -11082,11 +10731,17 @@ class DependabotEligibility(unittest.TestCase):
             (OPTED_IN, 502, valid, False),
             (OPTED_IN, STANDARDS_HEAD, 502, False),
             ("trusted_actors_source: elsewhere\n", STANDARDS_HEAD, valid, False),
-        ):
+            (f"standards_repository: {STANDARDS_REPO}\n", STANDARDS_HEAD, valid, True),
+            (f"trusted_actors_source: repository\nstandards_repository: {STANDARDS_REPO}\n", STANDARDS_HEAD, valid, True),
+            (f"standards_repository: {STANDARDS_REPO}\n", 502, valid, False),
+            ("standards_repository: nope\n", STANDARDS_HEAD, valid, False),
+            (f"standards_repository: [{STANDARDS_REPO}]\n", STANDARDS_HEAD, valid, False),
+            ("trusted_actors_source: repository\nstandards_repository: nope\n", STANDARDS_HEAD, valid, False),
+        ):  # fmt: skip
             with self.subTest(team=team, head=head, theirs=theirs):
                 standards_cleared(self)
                 gh = self.fake()
-                ours = f"repos/{REPO}/contents/{POLICY}?ref={SHA}"
+                ours = f"repos/{REPO}/contents/{RETIRED_POLICY_COPY}?ref={SHA}"
                 gh.rest[ours] = 500
                 gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={SHA}"] = file_payload(team)
                 gh.rest[f"repos/{STANDARDS_REPO}/git/ref/heads/main"] = head
@@ -11097,19 +10752,31 @@ class DependabotEligibility(unittest.TestCase):
                 self.assertIs(result.eligible, eligible, result.reason)
                 self.assertNotIn(["api", ours], gh.calls)
 
-    def test_a_repository_source_reads_the_policy_copy(self) -> None:
-        standards_cleared(self)
-        gh = self.fake()
-        gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={SHA}"] = file_payload(
-            "trusted_actors_source: repository\n"
-        )
-        self.assertTrue(self.eligibility().eligible)
-        self.assertFalse(any(STANDARDS_REPO in c[1] for c in gh.calls))
+    def test_a_repository_naming_no_standards_reads_no_policy(self) -> None:
+        valid = file_payload(json.dumps({"autoMerge": {"reviewOnly": []}}))
+        for team in ("trusted_actors_source: repository\n", "", 404):
+            with self.subTest(team=team):
+                gh = self.fake()
+                standards_cleared(self)
+                ours = f"repos/{REPO}/contents/{RETIRED_POLICY_COPY}?ref={SHA}"
+                gh.rest[ours] = valid
+                gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={SHA}"] = (
+                    team if isinstance(team, int) else file_payload(team)
+                )
+                result = self.eligibility()
+                self.assertFalse(result.eligible)
+                self.assertEqual(
+                    result.reason,
+                    "dependabot-review:dependabot-policy-unreadable;"
+                    "review-verdict-missing",
+                )
+                self.assertNotIn(["api", ours], gh.calls)
+                self.assertFalse(any(STANDARDS_REPO in c[1] for c in gh.calls))
 
     def test_a_failed_read_of_the_team_yaml_reads_neither_policy(self) -> None:
         standards_cleared(self)
         gh = self.fake()
-        ours = f"repos/{REPO}/contents/{POLICY}?ref={SHA}"
+        ours = f"repos/{REPO}/contents/{RETIRED_POLICY_COPY}?ref={SHA}"
         gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={SHA}"] = 502
         gh.rest[f"repos/{STANDARDS_REPO}/git/ref/heads/main"] = STANDARDS_HEAD
         result = self.eligibility()
@@ -11121,27 +10788,30 @@ class DependabotEligibility(unittest.TestCase):
         self, main_config: Any = None, main_policy: Any = None, **options: Any
     ) -> GhFake:
         """The base's fake, with main moved to MAIN_SHA, whose dependabot.yml
-        and policy answer `main_config` and `main_policy` (the base's when
-        None; text, a payload or an HTTP status)."""
+        answers `main_config` (the base's when None; text, a payload or an
+        HTTP status) and whose team YAML names the base's standards
+        repository, or, with `main_policy`, another one whose policy answers
+        it."""
         gh = self.fake(**options)
-        base = f"repos/{REPO}/contents/{{}}?ref={SHA}"
-        main = f"repos/{REPO}/contents/{{}}?ref={MAIN_SHA}"
-        for path, answer in (
-            (".github/dependabot.yml", main_config),
-            (POLICY, main_policy),
-        ):
-            if answer is None:
-                answer = gh.rest[base.format(path)]
-            elif isinstance(answer, str):
-                answer = file_payload(answer)
-            gh.rest[main.format(path)] = answer
+        path = ".github/dependabot.yml"
+        answer = main_config
+        if answer is None:
+            answer = gh.rest[f"repos/{REPO}/contents/{path}?ref={SHA}"]
+        elif isinstance(answer, str):
+            answer = file_payload(answer)
+        gh.rest[f"repos/{REPO}/contents/{path}?ref={MAIN_SHA}"] = answer
+        if main_policy is None:
+            gh.rest[f"repos/{REPO}/contents/{TEAM_YAML}?ref={MAIN_SHA}"] = (
+                file_payload(NAMES_STANDARDS)
+            )
+        else:
+            serve_policy(gh, MAIN_SHA, main_policy, NEXT_STANDARDS_REPO)
         gh.rest[f"repos/{REPO}/contents?ref={MAIN_SHA}"] = []
         return gh
 
     def test_main_dropping_a_dependabot_directory_sends_its_files_to_review(
         self,
     ) -> None:
-        # Coverage only admits: a pair main no longer names is not covered.
         self.moved_main(
             main_config="updates:\n  - package-ecosystem: npm\n    directory: /x\n"
         )
@@ -11204,7 +10874,7 @@ class DependabotEligibility(unittest.TestCase):
                 )
 
     def test_a_failed_read_at_main_refuses(self) -> None:
-        for path in (".github/dependabot.yml", POLICY):
+        for path in (".github/dependabot.yml", TEAM_YAML):
             with self.subTest(path=path):
                 gh = self.moved_main()
                 gh.rest[f"repos/{REPO}/contents/{path}?ref={MAIN_SHA}"] = 502
@@ -11262,8 +10932,6 @@ class DependabotEligibility(unittest.TestCase):
         self.assertEqual(result.dependabot.tier, "review")
 
     def test_the_ci_status_run_that_started_last_decides(self) -> None:
-        # `filter=latest` keeps the latest run of each check suite, so a
-        # re-triggered workflow leaves an older red run beside a newer one.
         red = {"status": "completed", "conclusion": "failure"}
         green = {"status": "completed", "conclusion": "success"}
         running = {"status": "in_progress", "conclusion": None}
@@ -11356,16 +11024,21 @@ class DependabotEligibility(unittest.TestCase):
                 self.assertEqual(result.reason, "ci-status:pending")
                 self.assertEqual(result.dependabot.tier, "auto")
 
-    def test_a_human_hold_comment_refuses(self) -> None:
-        hold = {
-            "user": {"login": "maintainer", "type": "User"},
-            "author_association": "MEMBER",
-            "body": "Do not merge this one yet",
-        }
-        self.fake(comments=[hold])
-        result = self.eligibility()
-        self.assertFalse(result.eligible)
-        self.assertEqual(result.reason, "human-blocking-comment:maintainer")
+    def test_a_human_blocking_comment_refuses(self) -> None:
+        for body, reason in (
+            ("This is a blocking regression.", "human-blocking-comment:maintainer"),
+            ("Do not merge this one yet", None),
+        ):
+            with self.subTest(body=body):
+                comment = {
+                    "user": {"login": "maintainer", "type": "User"},
+                    "author_association": "MEMBER",
+                    "body": body,
+                }
+                self.fake(comments=[comment])
+                result = self.eligibility()
+                self.assertEqual(result.eligible, reason is None, result.reason)
+                self.assertEqual(result.reason, reason)
 
     def test_a_fork_or_another_author_is_ineligible(self) -> None:
         self.fake(cross=True)
@@ -11435,7 +11108,6 @@ class DependabotAssess(unittest.TestCase):
         self.assertEqual(result.report()["dependabot"]["tier"], "auto")
 
     def test_a_dependabot_pr_needs_no_verdict_key(self) -> None:
-        # Its tier and ci-status are its criterion, not the verifier verdict.
         pipeline = LANE_PIPELINE.replace("  require-verifier-verdict: true\n", "")
         self.assertIsNone(self.assess_mode("enforce", pipeline=pipeline).reason)
 
@@ -11586,8 +11258,6 @@ class OneRunSharesItsCredentialReads(unittest.TestCase):
         self.assertEqual(gh.calls.count(["api", endpoint]), 2)
 
 
-# The tracker's human-gated label read an autonomous gate makes: stubbed so
-# no test reads GitHub.
 _role_label = mock.patch.object(
     babysit_postmerge, "_role_label", return_value="needs-human"
 )
@@ -11802,7 +11472,6 @@ class FileContents(unittest.TestCase):
         self.assertEqual(len(calls), 2)
 
     def test_the_trusted_actor_list_is_read_on_both_sides(self) -> None:
-        # The trust-gate hold compares its base and head entries.
         path = ".github/standards/trusted-actors/trusted-actors.json"
         texts = {(path, "b" * 40): "old", (path, "c" * 40): "new"}
         out, _ = self.read([self.changed(path)], texts)
@@ -11844,7 +11513,6 @@ class FileContents(unittest.TestCase):
         self.assertIn("TypeError", out[0].contents_error)
 
     def test_the_logged_path_cannot_start_a_workflow_command(self) -> None:
-        # Review thread L2597: a newline in a changed path must stay escaped.
         path = ".github/workflows/a\n::set-output name=dispatch::true\nb.yml"
         texts = {(path, "b" * 40): TypeError("bad\n::error::x")}
         err = io.StringIO()
@@ -11865,6 +11533,45 @@ class FileContents(unittest.TestCase):
         out, _ = self.read([skill], texts)
         self.assertIsNone(out[0].contents)
         self.assertIn("502", out[0].contents_error)
+
+
+class HistoryReads(unittest.TestCase):
+    def git(self, root: pathlib.Path, *args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()  # fmt: skip
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.src = pathlib.Path(tmp.name) / "src"
+        self.git(pathlib.Path(tmp.name), "init", "-q", "-b", "main", str(self.src))
+        self.git(self.src, "config", "uploadpack.allowFilter", "true")
+        (self.src / "f").write_text("one\n", encoding="utf-8")
+        self.git(self.src, "add", "f")
+        self.git(self.src, "commit", "-q", "-m", "one")
+        self.first = self.git(self.src, "rev-parse", "HEAD")
+        (self.src / "f").write_text("two\n", encoding="utf-8")
+        self.git(self.src, "commit", "-q", "-am", "two")
+        self.head = self.git(self.src, "rev-parse", "HEAD")
+        self.partial = pathlib.Path(tmp.name) / "partial"
+        self.git(
+            pathlib.Path(tmp.name), "clone", "-q", "--no-local", "--no-checkout",
+            "--filter=blob:none", self.src.as_uri(), str(self.partial),
+        )  # fmt: skip
+
+    def test_a_graft_file_does_not_cut_the_history(self) -> None:
+        (self.src / ".git" / "info").mkdir(exist_ok=True)
+        (self.src / ".git" / "info" / "grafts").write_text(self.head + "\n", encoding="utf-8")
+        self.assertEqual(policy._git(self.src, "rev-list", "--count", "HEAD"), "2\n")
+
+    def test_a_missing_blob_is_not_lazily_fetched(self) -> None:
+        self.assertIsNone(policy._git(self.partial, "cat-file", "blob", f"{self.first}:f"))
+
+    def test_a_partial_clone_has_no_full_history_root(self) -> None:
+        self.assertIsNone(policy._full_history_root(self.partial))
+        self.assertEqual(policy._full_history_root(self.src), self.src.resolve())
 
 
 class LaneIdentity(unittest.TestCase):
@@ -11950,7 +11657,6 @@ class ConfigFromTheBaseCheckout(unittest.TestCase):
             (sha, "C2", IDENTITY, "c2-mechanical"),
         )
         self.assertIsNone(config.error)
-        # Every file the gate reads is in the commit's tree or absent from it.
         self.assertEqual(gh.calls, [])
 
     def test_another_commit_reads_the_contents_api(self) -> None:
@@ -11978,8 +11684,6 @@ class ConfigFromTheBaseCheckout(unittest.TestCase):
         self.assertEqual(gh.calls, [["api", endpoint]])
 
     def test_a_shallow_sparse_partial_clone_reads_only_its_sparse_files(self) -> None:
-        # As actions/checkout makes base-config: depth 1, no blobs fetched
-        # but the sparse paths'. A file outside them reads through the API.
         sha = self.commit({policy.CONFIG_PATH: PIPELINE, TEAM_YAML: SOURCE_CONTROL})
         self.git(self.checkout, "config", "uploadpack.allowFilter", "true")
         clone = self.checkout.parent / "sparse"
@@ -12023,6 +11727,114 @@ class ConfigFromTheBaseCheckout(unittest.TestCase):
         self.assertIsNone(policy.checkout_file_at("absent.json", sha))
         self.assertIsNone(policy.checkout_file_at(policy.CONFIG_PATH, SHA))
         self.assertIsNone(policy.checkout_file_at(policy.CONFIG_PATH, "main"))
+
+    def test_a_checkout_lacks_only_a_path_absent_from_its_head_tree(self) -> None:
+        sha = self.commit({policy.CONFIG_PATH: PIPELINE})
+        self.assertTrue(policy.checkout_lacks("absent.json", sha))
+        self.assertFalse(policy.checkout_lacks(policy.CONFIG_PATH, sha))
+        self.assertFalse(policy.checkout_lacks("absent.json", SHA))
+        with mock.patch.dict(os.environ, {policy.CONFIG_CHECKOUT_ENV: ""}):
+            self.assertFalse(policy.checkout_lacks("absent.json", sha))
+
+    def test_a_sparse_partial_clone_lacks_only_what_its_tree_lacks(self) -> None:
+        sha = self.commit({policy.CONFIG_PATH: PIPELINE, TEAM_YAML: SOURCE_CONTROL})
+        self.git(self.checkout, "config", "uploadpack.allowFilter", "true")
+        clone = self.checkout.parent / "sparse"
+        self.git(
+            self.checkout.parent, "clone", "-q", "--depth", "1", "--filter=blob:none",
+            "--sparse", f"file://{self.checkout}", str(clone),
+        )  # fmt: skip
+        self.git(clone, "sparse-checkout", "set", "--no-cone", f"/{policy.CONFIG_PATH}")
+        with mock.patch.dict(os.environ, {policy.CONFIG_CHECKOUT_ENV: str(clone)}):
+            self.assertFalse(policy.checkout_lacks(TEAM_YAML, sha))
+            self.assertTrue(policy.checkout_lacks(policy.TRUSTED_ACTORS_PATH, sha))
+
+
+class StandardsFromTheJobCheckout(unittest.TestCase):
+    """`standards_file` reads the standards file from the job's standards
+    checkout (`STANDARDS_CHECKOUT_ENV`) only when its HEAD is the commit the
+    API read would use (`standards_sha`); a file the checkout lacks, another
+    commit or no checkout reads through the contents API as before."""
+
+    LISTED = '{"version": 1, "actors": [{"id": 7, "login": "octo", "kind": "user"}]}\n'
+    CRLF_PATH = "crlf.json"
+    CRLF = '{"version": 1,\r\n "actors": []}\r\n'
+
+    def setUp(self) -> None:
+        standards_cleared(self)
+        tmp = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.checkout = tmp / "standards"
+        listed = self.checkout / policy.STANDARDS_TRUSTED_ACTORS
+        listed.parent.mkdir(parents=True)
+        listed.write_text(self.LISTED)
+        (self.checkout / self.CRLF_PATH).write_bytes(self.CRLF.encode())
+        env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+        for args in (["init", "-q"], ["add", "-A"],
+                     ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                      "commit", "-q", "-m", "standards"]):  # fmt: skip
+            subprocess.run(["git", "-C", str(self.checkout), *args], check=True, env=env)
+        self.sha = subprocess.run(
+            ["git", "-C", str(self.checkout), "rev-parse", "HEAD"],
+            check=True, capture_output=True, text=True, env=env,
+        ).stdout.strip()  # fmt: skip
+        self.enterContext(
+            mock.patch.dict(
+                os.environ,
+                {policy.STANDARDS_CHECKOUT_ENV: str(self.checkout), policy.CONFIG_CHECKOUT_ENV: ""},
+            )
+        )
+        self.gh = GhFake().install(self)
+
+    def contents(self, path: str, sha: str) -> str:
+        return f"repos/{STANDARDS_REPO}/contents/{path}?ref={sha}"
+
+    def test_the_list_at_the_checkout_head_reads_no_contents(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = self.sha
+        text = policy.standards_file(STANDARDS_REPO, policy.STANDARDS_TRUSTED_ACTORS)
+        self.assertEqual(text, self.LISTED)
+        self.assertEqual(self.gh.calls, [])
+
+    def test_a_crlf_file_reads_byte_for_byte_as_the_contents_api_reads_it(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = self.sha
+        local = policy.standards_file(STANDARDS_REPO, self.CRLF_PATH)
+        self.assertEqual(self.gh.calls, [])
+        endpoint = self.contents(self.CRLF_PATH, self.sha)
+        self.gh.rest[endpoint] = file_payload(self.CRLF)
+        api = policy._file_at(*STANDARDS_REPO.split("/"), self.CRLF_PATH, self.sha)
+        self.assertEqual((local, api), (self.CRLF, self.CRLF))
+        blob = subprocess.run(
+            ["git", "-C", str(self.checkout), "hash-object", "--stdin"],
+            input=local.encode(), check=True, capture_output=True,
+        ).stdout.decode().strip()  # fmt: skip
+        committed = subprocess.run(
+            ["git", "-C", str(self.checkout), "rev-parse", f"HEAD:{self.CRLF_PATH}"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()  # fmt: skip
+        self.assertEqual(blob, committed)
+
+    def test_a_file_the_checkout_lacks_reads_the_contents_api(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = self.sha
+        endpoint = self.contents("components/other.json", self.sha)
+        self.gh.rest[endpoint] = file_payload("{}\n")
+        self.assertEqual(policy.standards_file(STANDARDS_REPO, "components/other.json"), "{}\n")
+        self.assertEqual(self.gh.calls, [["api", endpoint]])
+
+    def test_another_standards_commit_reads_the_contents_api(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = STANDARDS_SHA
+        endpoint = self.contents(policy.STANDARDS_TRUSTED_ACTORS, STANDARDS_SHA)
+        self.gh.rest[endpoint] = file_payload('{"version": 1, "actors": []}\n')
+        text = policy.standards_file(STANDARDS_REPO, policy.STANDARDS_TRUSTED_ACTORS)
+        self.assertEqual(text, '{"version": 1, "actors": []}\n')
+        self.assertEqual(self.gh.calls, [["api", endpoint]])
+
+    def test_no_standards_checkout_reads_the_contents_api(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = self.sha
+        endpoint = self.contents(policy.STANDARDS_TRUSTED_ACTORS, self.sha)
+        self.gh.rest[endpoint] = file_payload(self.LISTED)
+        with mock.patch.dict(os.environ, {policy.STANDARDS_CHECKOUT_ENV: ""}):
+            text = policy.standards_file(STANDARDS_REPO, policy.STANDARDS_TRUSTED_ACTORS)
+        self.assertEqual(text, self.LISTED)
+        self.assertEqual(self.gh.calls, [["api", endpoint]])
 
 
 class DefaultBranchFromTheEvent(unittest.TestCase):
@@ -12077,6 +11889,169 @@ class BaseTipsRemembered(unittest.TestCase):
         policy.remembered_base_tip("owner", "repo", "main")
         policy.remembered_base_tip("owner", "repo", "main")
         self.assertEqual(self.reads(), 3)
+
+
+class ListedBaseTip(unittest.TestCase):
+    """`base_tip` lists the branch with one unauthenticated `git ls-remote`
+    of github.com first, by pr-require-checks.yml's ls-remote rule (one
+    refs/heads/<base> line of 40 hex, no tag of the same name); anything else
+    reads `git/ref/heads/<base>` over REST as before."""
+
+    OTHER = "b" * 40
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        """Real `git ls-remote` listings of a throwaway repository: main
+        alone, then beside a branch whose name ends in refs/heads/main and an
+        annotated tag named main."""
+        tmp = tempfile.TemporaryDirectory()
+        cls.addClassCleanup(tmp.cleanup)
+        src = pathlib.Path(tmp.name) / "src"
+        cls.git(pathlib.Path(tmp.name), "init", "-q", "-b", "main", str(src))
+        cls.git(src, "commit", "-q", "--allow-empty", "-m", "one")
+        cls.sha = cls.git(src, "rev-parse", "HEAD")
+        cls.only_main = cls.listing(src, "refs/heads/main", "refs/tags/main")
+        cls.none_listed = cls.listing(src, "refs/heads/trunk", "refs/tags/trunk")
+        cls.git(src, "branch", "main-next")
+        cls.near_name = cls.listing(src, "refs/heads/main-next")
+        cls.git(src, "branch", "x/refs/heads/main")
+        cls.tail_match = cls.listing(src, "refs/heads/main", "refs/tags/main")
+        cls.git(src, "branch", "-D", "x/refs/heads/main")
+        cls.git(src, "tag", "-a", "main", "-m", "tag")
+        cls.tagged = cls.listing(src, "refs/heads/main", "refs/tags/main")
+        cls.peeled = cls.only_main + "".join(
+            f"{line}\n"
+            for line in subprocess.run(
+                ["git", "ls-remote", "--tags", str(src)],
+                check=True, capture_output=True, text=True,
+            ).stdout.splitlines()
+            if line.endswith("^{}")
+        )  # fmt: skip
+
+    @staticmethod
+    def git(root: pathlib.Path, *args: str) -> str:
+        return subprocess.run(
+            ["git", "-C", str(root), "-c", "user.name=t", "-c", "user.email=t@t", *args],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()  # fmt: skip
+
+    @staticmethod
+    def listing(src: pathlib.Path, *patterns: str) -> str:
+        return subprocess.run(
+            ["git", "ls-remote", str(src), *patterns],
+            check=True, capture_output=True, text=True,
+        ).stdout  # fmt: skip
+
+    def setUp(self) -> None:
+        self.gh = GhFake().install(self)
+        self.endpoint = f"repos/{REPO}/git/ref/heads/main"
+        self.gh.rest[self.endpoint] = {"object": {"sha": self.OTHER}}
+        self.enterContext(mock.patch.dict(os.environ, {"GH_HOST": "github.com"}))
+        self.runs: list[tuple[list[str], dict[str, Any]]] = []
+        self.answer: Any = subprocess.CompletedProcess([], 0, self.only_main, "")
+
+    def test_the_fixtures_are_the_listings_they_name(self) -> None:
+        self.assertEqual(self.only_main, f"{self.sha}\trefs/heads/main\n")
+        self.assertEqual(self.none_listed, "")
+        self.assertEqual(len(self.tail_match.splitlines()), 2)
+        self.assertEqual(
+            sorted(line.split("\t")[1] for line in self.tagged.splitlines()),
+            ["refs/heads/main", "refs/tags/main"],
+        )
+        self.assertEqual(
+            [line.split("\t")[1] for line in self.peeled.splitlines()],
+            ["refs/heads/main", "refs/tags/main^{}"],
+        )
+
+    def test_a_branch_whose_name_ends_in_the_base_does_not_hide_it(self) -> None:
+        self.answer = subprocess.CompletedProcess([], 0, self.tail_match, "")
+        self.assertEqual(self.tip(), self.sha)
+        self.assertEqual(self.reads(), 0)
+
+    def run_git(self, argv: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        self.runs.append((argv, kwargs))
+        if isinstance(self.answer, BaseException):
+            raise self.answer
+        return self.answer
+
+    def tip(self, base: str = "main") -> str:
+        with mock.patch.object(policy, "run_command", self.run_git):
+            return policy.base_tip("owner", "repo", base)
+
+    def reads(self) -> int:
+        return self.gh.calls.count(["api", self.endpoint])
+
+    def test_a_listed_tip_answers_with_no_rest_read(self) -> None:
+        self.assertEqual(self.tip(), self.sha)
+        self.assertEqual(self.reads(), 0)
+        [(argv, kwargs)] = self.runs
+        self.assertEqual(
+            argv,
+            ["git", "-c", "credential.helper=", "ls-remote", f"https://github.com/{REPO}"]
+            + ["refs/heads/main", "refs/tags/main"],
+        )
+        self.assertEqual(kwargs["allowed_executables"], ("git",))
+        self.assertEqual(kwargs["env_overrides"], {"GIT_TERMINAL_PROMPT": "0"})
+        self.assertFalse(kwargs["check"])
+        self.assertGreater(kwargs["timeout_seconds"], 0)
+
+    def test_a_failed_listing_reads_over_rest(self) -> None:
+        for answer in (
+            subprocess.CompletedProcess([], 128, "", "fatal: could not read Username"),
+            RuntimeError("git ls-remote timed out after 30s"),
+            RuntimeError("git executable not found on PATH"),
+            OSError("exec format error"),
+        ):
+            with self.subTest(answer=answer):
+                self.answer = answer
+                self.assertEqual(self.tip(), self.OTHER)
+        self.assertEqual(self.reads(), 4)
+
+    def test_a_listing_with_no_single_hex_head_reads_over_rest(self) -> None:
+        sha = self.sha
+        for stdout in (
+            self.none_listed,
+            self.near_name,
+            self.only_main + self.only_main.replace(sha, self.OTHER),
+            self.only_main.replace(sha, sha.upper()),
+            self.only_main.replace(sha, sha[:39]),
+        ):
+            with self.subTest(stdout=stdout):
+                self.answer = subprocess.CompletedProcess([], 0, stdout, "")
+                self.assertEqual(self.tip(), self.OTHER)
+        self.assertEqual(self.reads(), 5)
+
+    def test_a_tag_named_like_the_branch_reads_over_rest(self) -> None:
+        for stdout in (self.tagged, self.peeled):
+            with self.subTest(stdout=stdout):
+                self.answer = subprocess.CompletedProcess([], 0, stdout, "")
+                self.assertEqual(self.tip(), self.OTHER)
+        self.assertEqual(self.reads(), 2)
+
+    def test_another_gh_host_reads_over_rest_with_no_listing(self) -> None:
+        for host in ("ghe.example.com", "github.test"):
+            with self.subTest(host=host), mock.patch.dict(os.environ, {"GH_HOST": host}):
+                self.assertEqual(self.tip(), self.OTHER)
+        self.assertEqual(self.runs, [])
+        self.assertEqual(self.reads(), 2)
+
+    def test_an_unset_gh_host_lists_github_com(self) -> None:
+        del os.environ["GH_HOST"]
+        self.assertEqual(self.tip(), self.sha)
+        self.assertEqual(self.reads(), 0)
+
+    def test_a_failed_listing_and_rest_read_fail_closed(self) -> None:
+        self.answer = RuntimeError("git ls-remote timed out after 30s")
+        self.gh.rest[self.endpoint] = 404
+        with self.assertRaises(policy.PolicyReadError):
+            self.tip()
+
+    def test_a_listed_tip_is_remembered(self) -> None:
+        with policy.base_tips_remembered():
+            self.assertEqual(self.tip(), self.sha)
+            self.assertEqual(policy.remembered_base_tip("owner", "repo", "main"), self.sha)
+        self.assertEqual(len(self.runs), 1)
+        self.assertEqual(self.reads(), 0)
 
 
 class PassedMainTip(unittest.TestCase):
@@ -12179,9 +12154,9 @@ class CachedPullRequest(unittest.TestCase):
 
 class OwnReleaseEligibility(unittest.TestCase):
     """`dependabot_eligibility` sorts this organization's own releases under
-    `fastTrack.own` only when the base copy and the default branch copy of
-    the Dependabot policy both name every update. Reuses DependabotEligibility's
-    fake on a github_actions branch."""
+    `fastTrack.own` only when the Dependabot policy the base names and the
+    one the default branch names both name every update. Reuses
+    DependabotEligibility's fake on a github_actions branch."""
 
     REF = "dependabot/github_actions/first-party-actions-0a1b2c3d4e"
     HEAD = DependabotEligibility.HEAD
@@ -12221,11 +12196,12 @@ class OwnReleaseEligibility(unittest.TestCase):
             files=[{"filename": ".github/workflows/ci.yml", "patch": patch}],
         )
         config = "updates:\n  - package-ecosystem: github-actions\n    directory: /\n"
-        for sha, own in ((SHA, base_own), (MAIN_SHA, main_own)):
-            copy = {"autoMerge": {"reviewOnly": []}, **(self.OWN if own else {})}
-            gh.rest[f"repos/{REPO}/contents/{POLICY}?ref={sha}"] = file_payload(
-                json.dumps(copy)
-            )
+        for sha, own, standards in (
+            (SHA, base_own, STANDARDS_REPO),
+            (MAIN_SHA, main_own, NEXT_STANDARDS_REPO),
+        ):
+            listed = {"autoMerge": {"reviewOnly": []}, **(self.OWN if own else {})}
+            serve_policy(gh, sha, json.dumps(listed), standards)
             gh.rest[f"repos/{REPO}/contents/.github/dependabot.yml?ref={sha}"] = (
                 file_payload(config)
             )

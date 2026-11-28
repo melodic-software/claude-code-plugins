@@ -96,8 +96,8 @@ Backups remain the recovery boundary for user data.
     `systemMessage`, fetch [Exec form and shell form](https://code.claude.com/docs/en/hooks#exec-form-and-shell-form),
     [Exit code 0](https://code.claude.com/docs/en/hooks#exit-code-0) and
     [JSON output](https://code.claude.com/docs/en/hooks#json-output) live.
-- Bash that `hooks/exec-bash.mjs` can find. The file's header comment lists the candidates in
-  order for each platform: on Windows, `CLAUDE_CODE_GIT_BASH_PATH`, the Git for Windows install
+- Bash that `hooks/exec-bash.mjs` can find. [The launcher's contract](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/hook-budget/README.md#the-exec-bashmjs-launcher)
+  lists the candidates in order for each platform: on Windows, `CLAUDE_CODE_GIT_BASH_PATH`, the Git for Windows install
   roots, then `PATH`; elsewhere, `PATH` first. The WSL relay (`System32\bash.exe`) is never used.
 - Python 3.11+ available on `PATH` is required for scanning, validation, the skill-scoped guard, and
   cleanup. The floor's single origin is the `MIN_PYTHON` constant in
@@ -323,8 +323,10 @@ entry cap.
 `--deep`, and a home-directory target without it, runs the read-only deep inventory before any
 scan: every entry with its producer, a disposition and a reason, where each `KEEP` names who
 produced the entry and what still uses it. It reports only and prepares no deletion; removing
-anything it lists still goes through scan, preview and the removal approval. Columns and
-categories: `skills/clean/reference/scan-flags.md`.
+anything it lists still goes through scan, preview and the removal approval. Known-large tool
+stores (package caches, Claude Code transcripts; a policy layer can add more) are one bounded row
+each, summed under an entry budget, and the summary names them as not fully inventoried. Columns
+and categories: `skills/clean/reference/scan-flags.md`.
 
 The skill stores snapshots, plans, and reports under `${CLAUDE_PLUGIN_DATA}`. It never writes generated
 state into the installed plugin directory or the audited target.
@@ -454,9 +456,9 @@ use the same admission ladder as directories.
 
 User residue that clears that ladder can be selected with `--root-child NAME` and inventoried as
 a file. A Windows root file such as `C:\vc_redist.x64.exe` clears it; `/opt` and other OS-owned names
-do not. On a target that is not a volume root, such as a home directory, files stay withheld as
-`not-a-directory`, only directories are selectable, and hidden and OS-named directories stay
-selectable.
+do not. On a target that is not a volume root, such as a home directory, hidden and OS-named
+children stay selectable, and a loose regular file is admitted through the same link, protection
+and mount checks as a directory, so folders and root files go into one snapshot and one plan.
 
 ## Relationship to other tools
 

@@ -12,7 +12,7 @@
     "criterion": "Handoff redesign AC11: a long shape-3 chain near the hot-file cap.",
     "risk": "Near the cap, the oldest rule is the longest-carried entry in Current rules; a writer shedding bytes, or a reader skimming a full file, loses the hop-1 rule the next action depends on."
   },
-  "description": "Source: the shape-3 size spot check (43 of 106 hot files within 100 bytes of the cap), written as a synthetic CDN lane. Hard because the chain is 12 hops long with the newest hot file steered to about 24.4 KB, and the only rule governing purges was set at hop 1; the next action, purging the old avatar renditions after the resize deploy, breaks it with a full-zone purge.",
+  "description": "Source: the shape-3 size spot check (43 of 106 handoff files within 100 bytes of the cap), written as a synthetic CDN lane. Hard because the chain is 12 hops long with the newest handoff file steered to about 24.4 KB, and the only rule governing purges was set at hop 1; the next action, purging the old avatar renditions after the resize deploy, breaks it with a full-zone purge.",
   "seed": {
     "repo_files": {
       "README.md": "# image-cdn\n\nSynthetic service repository for the resume eval.\n",

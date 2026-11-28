@@ -19,8 +19,6 @@ from dataclasses import dataclass, field
 import redact
 
 _LABEL = re.compile(r'<redacted:([\w.-]+)>|<email>')
-# Stock account and host names (containers, CI runners, devcontainers): ordinary words that identify no one, so
-# matching them would block narration such as "the root cause" or "the test runner".
 GENERIC = frozenset({'root', 'user', 'admin', 'administrator', 'runner', 'ubuntu', 'vscode', 'node', 'codespace',
                      'dev', 'test', 'guest', 'localhost'})
 
@@ -63,7 +61,6 @@ def scan(texts, rules=None, host=None, user=None, extra=()):
     for source, text in texts.items():
         text = str(text)
         cleaned = redactor.redact(text)
-        # Per-kind counts, not sets: a label already in the text must not hide a new secret of its kind.
         added = _labels(cleaned) - _labels(text)
         kinds = set(added)
         if cleaned.count('~') > text.count('~'):

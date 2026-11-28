@@ -1,33 +1,5 @@
 // GENERATED from lib/html-escape.mjs by scripts/sync-shared-copies.sh. Do not edit this copy:
 // edit the canonical source, then rerun the script.
-// Deterministic HTML escape for text and double-quoted attribute positions,
-// plus a generator marker whose digest shows a page was not edited after it
-// was stamped. Anyone can stamp a page, so the marker proves no provenance:
-// whether a page is safe rests on the structural scan in validateRenderedPage.
-//
-// Claim: the five HTML-significant characters encode as &amp; &lt; &gt; &quot;
-// &#x27;, ampersand first, and a double-quoted attribute value must not contain
-// a raw quotation mark. Apostrophe uses the semicolon form from the OWASP
-// example table. A numeric reference without the semicolon would keep consuming
-// hex digits (WHATWG character-reference parsing).
-// Basis: OWASP XSS Prevention Cheat Sheet, HTML entity example table and the
-// "Output Encoding Rules Summary" HTML Entity row, fetched 2026-09-28 from
-// https://cheatsheetseries.owasp.org/cheatsheets/Cross_Site_Scripting_Prevention_Cheat_Sheet.html
-// (the example table writes &#x27;; the summary row names the same mapping).
-// WHATWG HTML living standard, last updated 25 September 2026, text and
-// double-quoted attribute restrictions:
-// https://html.spec.whatwg.org/multipage/syntax.html#elements-2
-// https://html.spec.whatwg.org/multipage/syntax.html#attributes-2
-// Recheck: that OWASP table or those WHATWG restrictions change what a quoted
-// attribute or a text node may contain.
-//
-// This encoding is the text and quoted-attribute rule only. It does not make
-// a URL, an event-handler name, or the contents of script or style safe. The
-// page builder never interpolates into those positions. validateRenderedPage
-// rejects script, every URL-bearing attribute, and inside style any `url(`,
-// `@import`, `expression(` or backslash escape; quotes are rejected there as
-// everywhere in text, which removes the string argument of image-set().
-
 import { createHash } from "node:crypto";
 
 const MARKER_PREFIX = "<!-- rv-gen:escape-helper-v1 sha256:";
@@ -68,11 +40,59 @@ const ALLOWED_ATTRS = new Set([
   "title",
 ]);
 
-// A value this module emits: raw text, or one of the five entities, and nothing
-// else that is HTML-significant. Used on attribute values and on the text left
-// after tags and comments are removed.
 const ESCAPED_TEXT =
   /^(?:[^&<>"']|&(?:amp|lt|gt|quot|#x27);)*$/;
+
+const BASE64 = "base64,[A-Za-z0-9+/]+={0,2}";
+const LOGO_RULE = new RegExp(
+  `\\.rv-logo\\s*\\{\\s*background-image\\s*:\\s*url\\(data:image/(?:png|jpeg);${BASE64}\\)\\s*;?\\s*\\}`,
+  "g",
+);
+const GROUPING_RULE = /^\s*@(?:media|supports|layer)\b/;
+const FONT_FACE = /(?<=^|[{}])\s*@font-face\s*\{[^{}]*\}/g;
+const FONT_URL = new RegExp(`url\\(data:font/(?:woff2|woff|ttf|otf);${BASE64}\\)`, "g");
+const CSS_COMMENT = /\/\*[\s\S]*?(?:\*\/|$)/g;
+const REFUSED_CSS = /url\(|image-set\(|(?<![\w-])image\(|(?<![\w-])src\(|@import|expression\(|\\/i;
+
+function outsideStyleRules(css, at) {
+  const before = css.slice(0, at);
+  if (!/(?:^|[{}])\s*$/.test(before)) {
+    return false;
+  }
+  const open = [];
+  let start = 0;
+  for (const mark of before.matchAll(/[{};]/g)) {
+    if (mark[0] === "{") {
+      open.push(before.slice(start, mark.index));
+    } else if (mark[0] === "}") {
+      open.pop();
+    }
+    start = mark.index + 1;
+  }
+  return open.every((prelude) => GROUPING_RULE.test(prelude));
+}
+
+/**
+ * Whether style text fetches a resource or runs code. A `data:` URL passes in
+ * two positions only: the logo slot, a `.rv-logo` rule at the top level or
+ * inside `@media`, `@supports` or `@layer` whose one declaration is
+ * `background-image`, as a base64 PNG or JPEG; and an `@font-face` block, as
+ * a base64 WOFF2, WOFF, TTF or OTF font. Every other `url(`, `@import`,
+ * `expression(` or backslash escape is refused, inside a comment too, and so
+ * is every function that takes a URL as a plain string: `image-set(` (and
+ * `-webkit-image-set(`), `image(` and `src(`.
+ *
+ * @param {string} css the body of a style element
+ * @returns {boolean}
+ */
+export function styleRefused(css) {
+  const comments = css.match(CSS_COMMENT) ?? [];
+  const bare = css.replace(CSS_COMMENT, " ");
+  const rest = bare
+    .replace(LOGO_RULE, (rule, at) => (outsideStyleRules(bare, at) ? ".rv-logo{}" : rule))
+    .replace(FONT_FACE, (block) => block.replace(FONT_URL, "none"));
+  return REFUSED_CSS.test(rest) || comments.some((comment) => REFUSED_CSS.test(comment));
+}
 
 /**
  * Escape for HTML text and for a quoted attribute. Ampersand is replaced
@@ -154,18 +174,17 @@ function scanStructure(html, failures) {
     }
   }
 
-  // Style text is raw CSS, which can fetch a resource with no HTML-significant
-  // character. A backslash escape can spell any of these, so it is refused too.
-  // The capture ends where a browser ends style text: `</style` followed by
-  // whitespace, `/` or `>`, or end of input for an unclosed element.
   const styleRe = /<style\b[^>]*>([\s\S]*?)(?:<\/style[\s/>]|$)/gi;
   for (const style of html.matchAll(styleRe)) {
-    if (/url\(|@import|expression\(|\\/i.test(style[1])) {
+    if (styleRefused(style[1]) || style[1].includes("<")) {
       failures.push("style");
     }
   }
 
   let rest = html.replace(/<!--[\s\S]*?-->/g, "");
+  rest = rest.replace(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gi, (match, body) =>
+    styleRefused(body) || body.includes("<") ? match : "",
+  );
   rest = rest.replace(/<!doctype html>/gi, "");
   rest = rest.replace(/<\/?[A-Za-z][A-Za-z0-9]*\b[^>]*>/g, "");
   if (rest.includes("<")) {

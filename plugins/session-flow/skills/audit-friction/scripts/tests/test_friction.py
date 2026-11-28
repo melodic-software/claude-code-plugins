@@ -1,15 +1,4 @@
 # test-scope: plugins/session-flow/.claude-plugin/plugin.json plugins/session-flow/skills/audit-friction/scripts/tests/fixtures/*
-"""Contract tests for friction.py, and for the `friction` block collect.py writes, by subprocess.
-
-Fixture `fixtures/friction/` is synthetic. `proj-f/sess-f1` (interactive, 2026-09-10) holds, in its
-main transcript: a classifier denial ([Git Destructive]), a hook denial from the `shellguard` plugin,
-one prompt the person approved, an ask answered "yes, go with recommended", a hand-off answered
-"done", one `!` command, a correction, a 400 s `gh run watch`, a `sleep 30` and an interrupt, with
-900 s of turn time. Its subagent (`general-purpose`) holds a deny-rule denial and a classifier denial
-([Self-Modification]). `proj-f/sess-f2` (headless, 2026-09-12) holds two rule denials, one of them
-also listed in the closing `result` record's `permission_denials`. `proj-g/sess-g1` (2026-08-01)
-holds one approved prompt and two stops, each running two Stop hooks in parallel.
-"""
 
 from __future__ import annotations
 
@@ -18,6 +7,8 @@ import os
 import shutil
 import subprocess
 import sys
+import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -25,20 +16,47 @@ import pytest
 SCRIPTS = Path(__file__).resolve().parents[1]
 COLLECT = SCRIPTS.parents[2] / "scripts" / "collect.py"
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "friction"
+sys.path.insert(0, str(COLLECT.parent))
+
+import session_record  # noqa: E402  (beside collect.py)
+import transcript_sources  # noqa: E402  (beside collect.py)
 WINDOW = ("--since", "2026-09-01", "--until", "2026-09-30")
 HOOK_KEY = "denied/hook/shellguard/BLOCKED: file write through the shell. Use the Write tool."
+LOCK = ("--lock-name", f"claude-transcript-run.t-{uuid.uuid4().hex[:16]}")
 
 
-def run(script: Path, *args: str, siblings: str = "") -> subprocess.CompletedProcess[str]:
-    # An empty AUDIT_FRICTION_SIBLING_GLOBS turns sibling detection off, so a WSL or Windows test host's own
-    # projects trees never reach these runs.
-    env = {**os.environ, "AUDIT_FRICTION_SIBLING_GLOBS": siblings}
-    return subprocess.run([sys.executable, str(script), *args], capture_output=True, text=True, encoding="utf-8",
+def locked(args: tuple[str, ...]) -> tuple[str, ...]:
+    """`args` with `LOCK` after a `collect` or `mine` subcommand, the two that read transcripts."""
+    return (args[0], *LOCK, *args[1:]) if args[:1] in (("collect",), ("mine",)) else args
+
+
+def run(script: Path, *args: str, config: Path | None = None) -> subprocess.CompletedProcess[str]:
+    env = dict(os.environ)
+    if config is not None:
+        env["CLAUDE_CONFIG_DIR"] = str(config)
+    return subprocess.run([sys.executable, str(script), *locked(args)], capture_output=True, text=True, encoding="utf-8",
                           timeout=120, env=env)
 
 
-def friction(*args: str, siblings: str = "") -> subprocess.CompletedProcess[str]:
-    return run(SCRIPTS / "friction.py", *args, siblings=siblings)
+def friction(*args: str) -> subprocess.CompletedProcess[str]:
+    return run(SCRIPTS / "friction.py", *args)
+
+
+STUB_MACHINE = (
+    "import getpass, runpy, socket, sys; socket.gethostname = lambda: 'host-q'; getpass.getuser = lambda: 'user-q'; "
+    "sys.argv = sys.argv[1:]; runpy.run_path(sys.argv[0], run_name='__main__')"
+)
+
+
+def friction_published(tmp_path: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    """friction.py with this machine named host-q and user-q, and one source, host-a, whose config dir is tmp_path."""
+    sources = tmp_path / "sources.json"
+    sources.write_text(json.dumps({"schema": "transcript-sources/v1", "sources": [
+        {"name": "host-a-wsl", "host": "host-a", "platform": "wsl", "config_dir": str(tmp_path)},
+        {"name": "host-b-wsl", "host": "host-b", "platform": "wsl", "config_dir": "/srv/user-b/.claude", "via": ["ssh", "host-b"]},
+    ]}), encoding="utf-8")
+    return subprocess.run([sys.executable, "-c", STUB_MACHINE, str(SCRIPTS / "friction.py"), *locked(args), "--sources-file", str(sources)],
+                          capture_output=True, text=True, encoding="utf-8", timeout=120)
 
 
 def data_of(result: subprocess.CompletedProcess[str]) -> dict:
@@ -46,7 +64,6 @@ def data_of(result: subprocess.CompletedProcess[str]) -> dict:
 
 
 def copy_projects(dest: Path, tmp_path: Path, *projects: str) -> Path:
-    """Copy fixture projects under `dest`, pointing each project's `__CWD__` at its own directory."""
     for name in projects:
         shutil.copytree(FIXTURES / name, dest / name)
         cwd = tmp_path / "work" / {"proj-f": "alpha", "proj-g": "beta"}[name]
@@ -60,13 +77,13 @@ def copy_projects(dest: Path, tmp_path: Path, *projects: str) -> Path:
 def store(tmp_path: Path) -> Path:
     root = copy_projects(tmp_path / "projects", tmp_path, "proj-f", "proj-g")
     data_dir = tmp_path / "data"
-    done = run(COLLECT, "collect", "--data-dir", str(data_dir), "--projects-root", str(root))
+    done = run(COLLECT, "collect", "--data-dir", str(data_dir), config=root.parent)
     assert done.returncode == 0, done.stdout + done.stderr
     return data_dir
 
 
 def stored(data_dir: Path, session: str) -> dict:
-    path = next((data_dir / "audit-sessions" / "store" / "v1" / "sessions").glob(f"p-*/{session}.json"))
+    path = next((data_dir / "audit-sessions" / "store" / "v2").glob(f"*/p-*/{session}.json"))
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -166,7 +183,6 @@ def test_mine_project_and_session_filters(store):
 
 
 def test_mine_reports_the_stop_hook_wait_beside_the_parallel_sum(store):
-    # sess-g1's two stops each run two hooks in parallel: 300 and 100 ms, then 50 and 200 ms.
     args = ("mine", "--data-dir", str(store), "--since", "2026-07-01", "--project", "beta")
     perf = data_of(friction(*args))["perf"]
     assert (perf["stop_hook_wait_ms"], perf["stop_hook_ms"]) == (500, 650)
@@ -182,161 +198,79 @@ def test_mine_without_a_store_is_an_error(tmp_path):
     assert json.loads(result.stdout)["status"] == "error"
 
 
-def test_source_dirs_collect_into_their_own_store(tmp_path):
-    machine = copy_projects(tmp_path / "machine", tmp_path, "proj-g")
-    extra = copy_projects(tmp_path / "extra", tmp_path, "proj-f")
+def test_source_dirs_collect_into_the_one_store_as_their_own_source(tmp_path):
+    machine = copy_projects(tmp_path / "machine" / "projects", tmp_path, "proj-g")
+    extra = copy_projects(tmp_path / "extra" / "projects", tmp_path, "proj-f")
     data_dir = tmp_path / "data"
-    assert run(COLLECT, "collect", "--data-dir", str(data_dir), "--projects-root", str(machine)).returncode == 0
+    assert run(COLLECT, "collect", "--data-dir", str(data_dir), config=machine.parent).returncode == 0
     data = data_of(friction("mine", "--data-dir", str(data_dir), "--since", "2026-07-01", "--source", str(extra)))
     assert data["sessions"] == 3
     assert data["sources"][0]["status"] == "pass"
-    assert len(list((data_dir / "audit-sessions" / "store" / "v1" / "sessions").glob("p-*/*.json"))) == 1
+    store = data_dir / "audit-sessions" / "store" / "v2"
+    assert len(list((store / "local").glob("p-*/*.json"))) == 1
+    assert len(list((store / data["sources"][0]["name"]).glob("p-*/*.json"))) == 2
 
 
 def test_source_collect_uses_the_given_excerpt_limits(tmp_path):
-    machine = copy_projects(tmp_path / "machine", tmp_path, "proj-g")
-    extra = copy_projects(tmp_path / "extra", tmp_path, "proj-f")
+    machine = copy_projects(tmp_path / "machine" / "projects", tmp_path, "proj-g")
+    extra = copy_projects(tmp_path / "extra" / "projects", tmp_path, "proj-f")
     data_dir = tmp_path / "data"
-    assert run(COLLECT, "collect", "--data-dir", str(data_dir), "--projects-root", str(machine)).returncode == 0
+    assert run(COLLECT, "collect", "--data-dir", str(data_dir), config=machine.parent).returncode == 0
     data = data_of(friction("mine", "--data-dir", str(data_dir), "--since", "2026-07-01", "--source", str(extra),
                             "--excerpt-chars", "0", "--excerpt-words", "5"))
     assert data["sources"][0]["status"] == "pass"
-    assert stored(Path(data["sources"][0]["store"]), "sess-f1")["excerpt_limits"] == {"chars": 0, "words": 5}
+    assert stored(data_dir, "sess-f1")["excerpt_limits"] == {"chars": 0, "words": 5}
 
 
-def test_mine_warns_about_an_unread_sibling_projects_tree(store, tmp_path):
-    sibling = tmp_path / "mnt" / "c" / "Users" / "someone" / ".claude" / "projects"
-    sibling.mkdir(parents=True)
-    pattern = str(tmp_path / "mnt" / "*" / "Users" / "*" / ".claude" / "projects")
-    result = friction("mine", "--data-dir", str(store), *WINDOW, siblings=pattern)
-    assert result.returncode == 1, result.stdout
-    data = data_of(result)
-    assert data["sibling_roots_unread"] == [str(sibling)]
-    assert f'add it with --source "{sibling}"' in data["warnings"][0]
-    # The store does not record the root it was collected from, so the row says it is the collector's default.
-    assert [r["via"] for r in data["projects_roots"]] == [
-        "machine store, collector default root; the store does not record the root it was collected from"
+def test_source_without_a_projects_directory_is_an_error(store, tmp_path):
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    result = friction("mine", "--data-dir", str(store), "--source", str(empty))
+    assert (result.returncode, json.loads(result.stdout)["status"]) == (2, "error")
+
+
+def test_header_gaps_and_stale(store, tmp_path):
+    """An older collection left host-b-wsl a gap and read host-a-wsl 20 days ago: both reach the header, which names the latest record."""
+    finished = (datetime.now(timezone.utc) - timedelta(days=20)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    retry = ["python3", "/srv/plugin/scripts/collect.py", "collect", "--data-dir", "/srv/data", "--source", "host-b-wsl"]
+    diagnostics = store / "audit-sessions" / "store" / "v2" / transcript_sources.DIAGNOSTICS_DIR / "zz-seeded.json"
+    diagnostics.write_text(json.dumps({
+        "schema": "transcript-run.diagnostics/v1", "kind": "ingest", "started_at": finished, "finished_at": finished,
+        "sources": [{"name": "host-a-wsl", "gaps": 0, "cleanup_period_days": 30}, {"name": "host-b-wsl", "gaps": 1, "cleanup_period_days": 30}],
+        "gaps": [{"source": "host-b-wsl", "kind": "unreachable", "detail": "ssh exited 255", "holder_pid": None, "retry_argv": retry}],
+    }), encoding="utf-8")
+    sources = tmp_path / "sources.json"
+    sources.write_text(json.dumps({"schema": "transcript-sources/v1", "sources": [
+        {"name": "host-a-wsl", "host": "host-a", "platform": "wsl", "config_dir": "/srv/user-a/.claude"},
+        {"name": "host-b-wsl", "host": "host-b", "platform": "wsl", "config_dir": "/srv/user-b/.claude", "via": ["ssh", "host-b"]},
+    ]}), encoding="utf-8")
+    collected = next(path for path in diagnostics.parent.glob("*.json") if path != diagnostics)
+    data = data_of(friction("mine", "--data-dir", str(store), *WINDOW, "--sources-file", str(sources)))
+    assert data["header"] == [
+        "Gap: host-b-wsl unreachable: ssh exited 255. Retry: " + " ".join(retry),
+        f"Stale: host-a-wsl was last collected without a gap at {finished}, past half its cleanupPeriodDays of 30.",
+        "Stale: host-b-wsl has no collection without a gap in the retained diagnostics.",
+        f"Diagnostics: {collected}",
     ]
-    markdown = friction("mine", "--data-dir", str(store), *WINDOW, "--format", "md", siblings=pattern).stdout
-    assert f"Warning: sibling projects tree not read: {sibling}" in markdown
-    assert "Projects roots: " in markdown
-    assert "collector default root" in markdown
+    markdown = friction_published(tmp_path, "mine", "--data-dir", str(store), *WINDOW, "--format", "md").stdout
+    assert "- Stale: " in markdown
 
 
-def test_mine_reads_a_sibling_given_as_source_without_warning(tmp_path):
-    machine = copy_projects(tmp_path / "machine", tmp_path, "proj-g")
-    sibling = copy_projects(tmp_path / "mnt" / "c" / "Users" / "someone" / ".claude" / "projects", tmp_path, "proj-f")
-    data_dir = tmp_path / "data"
-    assert run(COLLECT, "collect", "--data-dir", str(data_dir), "--projects-root", str(machine)).returncode == 0
-    pattern = str(tmp_path / "mnt" / "*" / "Users" / "*" / ".claude" / "projects")
-    result = friction("mine", "--data-dir", str(data_dir), "--since", "2026-07-01", "--source", str(sibling), siblings=pattern)
-    assert result.returncode == 0, result.stdout
-    data = data_of(result)
-    assert data["sibling_roots_unread"] == []
-    assert data["projects_roots"][1] == {"root": str(sibling), "via": "--source"}
-
-
-def test_mine_without_a_sibling_lists_only_the_machine_root(store, tmp_path):
-    pattern = str(tmp_path / "mnt" / "*" / "Users" / "*" / ".claude" / "projects")
-    result = friction("mine", "--data-dir", str(store), *WINDOW, siblings=pattern)
-    assert result.returncode == 0, result.stdout
-    data = data_of(result)
-    assert (data["sibling_roots_unread"], data["warnings"]) == ([], [])
+def test_mine_after_a_clean_collect_has_no_header(store):
+    data = data_of(friction("mine", "--data-dir", str(store), *WINDOW))
+    assert (data["header"], data["warnings"]) == ([], [])
     assert len(data["projects_roots"]) == 1
 
 
-@pytest.fixture
-def module():
-    import importlib.util
-
-    spec = importlib.util.spec_from_file_location("friction_detection_under_test", SCRIPTS / "friction.py")
-    loaded = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(loaded)
-    return loaded
-
-
-def test_wsl_distros_decodes_utf16_and_utf8_listings(module, monkeypatch):
-    calls = []
-    outputs = iter([
-        "\ufeffUbuntu\r\nDebian\r\n\r\n".encode("utf-16-le"),
-        b"Ubuntu\nDebian\n",
-    ])
-
-    def fake_run(argv, **kwargs):
-        calls.append(argv)
-        return subprocess.CompletedProcess(argv, 0, stdout=next(outputs))
-
-    monkeypatch.setattr(module, "_wsl_exe", lambda: "C:\\Windows\\System32\\wsl.exe")
-    monkeypatch.setattr(module.subprocess, "run", fake_run)
-    assert module._wsl_distros("--running") == ["Ubuntu", "Debian"]
-    assert module._wsl_distros() == ["Ubuntu", "Debian"]
-    assert calls == [
-        ["C:\\Windows\\System32\\wsl.exe", "--list", "--quiet", "--running"],
-        ["C:\\Windows\\System32\\wsl.exe", "--list", "--quiet"],
-    ]
-
-
-def test_wsl_distros_is_empty_on_failure_or_without_wsl(module, monkeypatch):
-    monkeypatch.setattr(module, "_wsl_exe", lambda: "wsl")
-    monkeypatch.setattr(module.subprocess, "run", lambda argv, **kw: subprocess.CompletedProcess(argv, 1, stdout=b"x"))
-    assert module._wsl_distros() == []
-
-    def must_not_run(argv, **kwargs):
-        raise AssertionError("wsl.exe ran without a resolved path")
-
-    monkeypatch.setattr(module, "_wsl_exe", lambda: None)
-    monkeypatch.setattr(module.subprocess, "run", must_not_run)
-    assert module._wsl_distros() == []
-
-
-def test_wsl_exe_resolves_under_system_root_only(module, monkeypatch, tmp_path):
-    monkeypatch.setenv("SystemRoot", str(tmp_path))
-    assert module._wsl_exe() is None
-    exe = tmp_path / "System32" / "wsl.exe"
-    exe.parent.mkdir()
-    exe.write_bytes(b"")
-    assert module._wsl_exe() == str(exe)
-
-
-def test_wsl_automount_root_reads_wsl_conf(module, tmp_path):
+def test_wsl_automount_root_reads_wsl_conf(tmp_path):
     conf = tmp_path / "wsl.conf"
     conf.write_text('[automount]\nroot = "/win/"\n', encoding="utf-8")
-    assert module._wsl_automount_root(str(conf)) == "/win/"
+    assert session_record.wsl_automount_root(str(conf)) == "/win/"
     conf.write_text("[network]\nhostname = box\n", encoding="utf-8")
-    assert module._wsl_automount_root(str(conf)) == "/mnt/"
+    assert session_record.wsl_automount_root(str(conf)) == "/mnt/"
     conf.write_text("root = /win/\n", encoding="utf-8")
-    assert module._wsl_automount_root(str(conf)) == "/mnt/"
-    assert module._wsl_automount_root(str(tmp_path / "missing.conf")) == "/mnt/"
-
-
-def test_sibling_patterns_on_windows_lists_running_distros_and_skips_stopped(module, monkeypatch):
-    monkeypatch.delenv("AUDIT_FRICTION_SIBLING_GLOBS", raising=False)
-    monkeypatch.setattr(module.sys, "platform", "win32")
-    monkeypatch.setattr(module, "_wsl_distros", lambda *flags: ["Ubuntu"] if "--running" in flags else ["Ubuntu", "Debian"])
-    patterns, stopped = module.sibling_patterns()
-    assert patterns == [
-        "\\\\wsl$\\Ubuntu\\home\\*\\.claude\\projects",
-        "\\\\wsl$\\Ubuntu\\root\\.claude\\projects",
-    ]
-    assert stopped == ["Debian"]
-
-
-def test_sibling_patterns_under_wsl_uses_the_automount_root(module, monkeypatch):
-    monkeypatch.delenv("AUDIT_FRICTION_SIBLING_GLOBS", raising=False)
-    monkeypatch.setattr(module.sys, "platform", "linux")
-    monkeypatch.setattr(module, "_wsl_automount_root", lambda: "/win/")
-    interop: list[str] = []
-    monkeypatch.setattr(module.glob, "glob", lambda pattern: list(interop) if "WSLInterop" in pattern else [])
-    assert module.sibling_patterns() == ([], [])
-    interop.append("/proc/sys/fs/binfmt_misc/WSLInterop-late")
-    assert module.sibling_patterns() == ([str(Path("/win/") / "*" / "Users" / "*" / ".claude" / "projects")], [])
-
-
-def test_root_key_folds_the_two_wsl_unc_spellings(module, monkeypatch):
-    monkeypatch.setattr(module.os.path, "realpath", lambda path: path)
-    assert module._root_key("\\\\wsl.localhost\\Ubuntu\\home\\me\\.claude\\projects\\") == module._root_key(
-        "\\\\wsl$\\Ubuntu\\home\\me\\.claude\\projects"
-    )
+    assert session_record.wsl_automount_root(str(conf)) == "/mnt/"
+    assert session_record.wsl_automount_root(str(tmp_path / "missing.conf")) == "/mnt/"
 
 
 MERGE = """CAVEAT: synthetic
@@ -389,8 +323,6 @@ def test_estimate_sizes_each_mode(tmp_path):
     inventory.write_text(json.dumps({"claims": claims}), encoding="utf-8")
     data = data_of(friction("estimate", "--inventory", str(inventory), "--probes", "3"))
     assert (data["claims"], data["consequential"]) == (25, 13)
-    # Hand-computed from the constants: tokens = agents x (100K, 125K) + 320K + probes x (6K, 9K); minutes = the
-    # larger of (waves + 2) x (12, 18) and probes x (3, 5).
     assert data["modes"]["probes"] == {
         "claims_checked": 0, "verifier_agents": 0, "waves": 0, "probe_cases": 3, "tokens": [18_000, 27_000], "minutes": [9, 15],
     }
@@ -405,8 +337,6 @@ def test_estimate_sizes_each_mode(tmp_path):
 
 
 def test_estimate_ranges_hold_the_measured_run(tmp_path):
-    # The measured fact-check: 32 verify batches of 12 claims and 16 challenge agents of 3 recommendations,
-    # 5.53M tokens in 119 min; the probe agent: 17 cases, 0.12M tokens in 64 min.
     claims = [{"id": f"c{i}", "type": "fact"} for i in range(32 * 12 - 16 * 3)]
     claims += [{"id": f"r{i}", "type": "recommendation"} for i in range(16 * 3)]
     inventory = tmp_path / "inventory.json"
@@ -461,3 +391,84 @@ def test_diff_finds_the_newest_saved_baseline(store, tmp_path):
     data = data_of(result)
     assert Path(data["baseline"]).parent == store / "audit-friction" / "baselines"
     assert {r["verdict"] for r in data["rows"]} == {"same"}
+
+
+@pytest.mark.skipif(sys.platform == "win32" or os.geteuid() == 0, reason="needs POSIX permissions that bind")
+def test_a_source_dir_gap_retry_recollects_it(store, tmp_path):
+    extra = copy_projects(tmp_path / "extra" / "projects", tmp_path, "proj-f")
+    extra.chmod(0)
+    try:
+        result = friction("mine", "--data-dir", str(store), "--since", "2026-07-01", "--source", str(extra))
+    finally:
+        extra.chmod(0o755)
+    (gap,) = data_of(result)["sources"][0]["gaps"]
+    assert gap["kind"] == "unreadable"
+    retry = gap["retry_argv"]
+    assert retry[0] == "python3" and "--config-dir" in retry, retry
+    again = subprocess.run([sys.executable, *retry[1:]], capture_output=True, text=True, encoding="utf-8", timeout=120)
+    assert again.returncode == 0, again.stdout + again.stderr
+    data = json.loads(again.stdout)["data"]
+    assert (data["ingested"], data["gaps"]) == (2, []), "the retry reads exactly the --source directory"
+    assert len(list((store / "audit-sessions" / "store" / "v2" / gap["source"]).glob("p-*/*.json"))) == 2
+
+
+def test_source_retention_prunes_only_that_source(store, tmp_path):
+    extra = copy_projects(tmp_path / "extra" / "projects", tmp_path, "proj-f")
+    sessions = data_of(friction("mine", "--data-dir", str(store), "--since", "2026-07-01", "--source", str(extra)))["sessions"]
+    assert sessions == 5
+    data = data_of(friction("mine", "--data-dir", str(store), "--since", "2026-07-01", "--source", str(extra), "--retention-days", "1"))
+    v2 = store / "audit-sessions" / "store" / "v2"
+    assert len(list((v2 / "local").glob("p-*/*.json"))) == 3, "the machine store's records outlive a --source run's retention"
+    assert list((v2 / data["sources"][0]["name"]).glob("p-*/*.json")) == []
+
+
+HOME_B = "/" + "home/user-b"
+
+
+def test_cause_md_publishes_no_host_home_path_or_email(store, tmp_path):
+    out = tmp_path / "friction.json"
+    assert friction("mine", "--data-dir", str(store), *WINDOW, "--out", str(out)).returncode in (0, 1)
+    payload = json.loads(out.read_text(encoding="utf-8"))
+    event = next(e for e in payload["data"]["events"] if e.get("cause") == "classifier")
+    event["reason"] = f"ssh host-b read {HOME_B}/notes for ops-b" + "@" + "example.org"
+    out.write_text(json.dumps(payload), encoding="utf-8")
+    sources = tmp_path / "sources.json"
+    sources.write_text(json.dumps({"schema": "transcript-sources/v1", "sources": [
+        {"name": "host-a-wsl", "host": "host-a", "platform": "wsl", "config_dir": str(tmp_path / "cfg-a")},
+        {"name": "host-b-wsl", "host": "host-b", "platform": "wsl", "config_dir": "/srv/user-b/.claude", "via": ["ssh", "host-b"]},
+    ]}), encoding="utf-8")
+    md = friction("cause", "--friction", str(out), "--format", "md", "--sources-file", str(sources))
+    assert md.returncode == 1, md.stdout + md.stderr
+    assert "ssh <host-2> read ~/notes for <email>" in md.stdout
+    for value in ("host-b", HOME_B, "example.org"):
+        assert value not in md.stdout
+
+
+def test_estimate_md_prints_nothing_when_the_sources_file_is_missing(tmp_path):
+    inventory = tmp_path / "inventory.json"
+    inventory.write_text(json.dumps({"claims": [{"id": "c0", "type": "fact", "consequential": True}]}), encoding="utf-8")
+    published = friction_published(tmp_path, "estimate", "--inventory", str(inventory), "--format", "md")
+    assert published.returncode == 0, published.stdout + published.stderr
+    assert "| consequential | 1 | 1 | 1 | 0 |" in published.stdout
+    missing = friction("estimate", "--inventory", str(inventory), "--format", "md", "--sources-file", str(tmp_path / "absent.json"))
+    assert missing.returncode == 2
+    assert json.loads(missing.stdout)["summary"] == "nothing published: the sources file was not found"
+    assert "| consequential" not in missing.stdout
+
+
+def test_diff_md_names_a_host_key_by_its_placeholder(store, tmp_path):
+    baseline, current = tmp_path / "base.json", tmp_path / "now.json"
+    for path in (baseline, current):
+        assert friction("mine", "--data-dir", str(store), *WINDOW, "--out", str(path)).returncode in (0, 1)
+    payload = json.loads(current.read_text(encoding="utf-8"))
+    payload["data"]["rows"][0]["key"] = "denied/hook/blocked ssh to host-b"
+    current.write_text(json.dumps(payload), encoding="utf-8")
+    md = friction_published(tmp_path, "diff", "--current", str(current), "--baseline", str(baseline), "--format", "md")
+    assert md.returncode == 1, md.stdout + md.stderr
+    assert "| denied/hook/blocked ssh to <host-2> |" in md.stdout
+    assert "host-b" not in md.stdout
+
+
+def test_mine_warns_once_on_stderr_for_a_missing_sources_file(store, tmp_path):
+    done = friction("mine", "--data-dir", str(store), *WINDOW, "--sources-file", str(tmp_path / "absent.json"))
+    assert (done.returncode, done.stderr.count("not found")) == (0, 1), done.stderr

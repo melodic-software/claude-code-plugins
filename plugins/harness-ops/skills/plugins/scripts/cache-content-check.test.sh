@@ -1,31 +1,19 @@
 #!/usr/bin/env bash
-# Black-box contract tests for cache-content-check.sh (self-contained — ships
-# with the plugin). Fixtures are built per-case into a temp dir: a throwaway git
-# repo standing in for a marketplace's installLocation at two commits, a fake
-# cache directory, and CACHE_CONTENT_* state files pointing at both. Mirrors
-# fleet-state.test.sh's structure.
 # test-scope: .gitattributes
 set -uo pipefail
 
-# Fixture git isolation: an inherited GIT_DIR/GIT_WORK_TREE/GIT_CONFIG would
-# redirect `git init` / `git config` into the caller's repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SCRIPT="$SCRIPT_DIR/cache-content-check.sh"
-# Never /tmp: on Windows that is a drive-root path that accumulates silently.
-# $TEMP there is a NATIVE Windows path spelled with drive letter and backslash
-# separators, and those backslashes would be
-# embedded raw into the fixture JSON, where a backslash is an escape character —
-# the state files would be malformed and every case would read as the script
-# correctly rejecting schema drift. Folded to forward slashes, which Git Bash
-# accepts everywhere, before anything is built under it.
 TMP_BASE="${TMPDIR:-${TEMP:-/var/tmp}}"
 TMP_BASE="${TMP_BASE//\\//}"
 TEST_TMPDIR="$(mktemp -d "$TMP_BASE/cache-content-check.XXXXXX")"
 TEST_TMPDIR="${TEST_TMPDIR//\\//}"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
+export FLEET_STATE_USER_SETTINGS="$TEST_TMPDIR/no-user-settings.json" CLAUDE_PROJECT_DIR="$TEST_TMPDIR"
+unset FLEET_STATE_CATALOG_DIR FLEET_STATE_INSTALLED_JSON FLEET_STATE_MARKETPLACES_JSON
 
 FAILED=0
 CASE_NUM=0
@@ -45,13 +33,11 @@ assert_exit() {
 }
 assert_contains() {
   case "$2" in
-  *"$3"*) pass "$1" ;;
-  *) fail "$1" "expected to contain: $3 — got: $2" ;;
+    *"$3"*) pass "$1" ;;
+    *) fail "$1" "expected to contain: $3 — got: $2" ;;
   esac
 }
 
-# Discriminating skips: each names the single tool whose absence it excuses, so
-# a green run on a host missing it is not read as a green run of these cases.
 if ! command -v jq >/dev/null 2>&1; then
   echo "SKIP: jq not installed — every case here parses the script's JSON body" >&2
   exit 0
@@ -61,11 +47,6 @@ if ! command -v git >/dev/null 2>&1; then
   exit 0
 fi
 
-# --- Fixture builders --------------------------------------------------------
-
-# CASE_NUM must be incremented in the CALLER's shell before calling this, never
-# inside it: `case_dir=$(new_case_dir)` runs in a subshell, so an assignment
-# made in here is discarded and every case reuses case-1's directory.
 new_case_dir() {
   local case_dir="$TEST_TMPDIR/case-$CASE_NUM"
   mkdir -p "$case_dir"
@@ -78,9 +59,6 @@ write() {
   printf '%s' "$content" >"$path"
 }
 
-# A throwaway marketplace clone carrying its own committer identity, so a
-# fixture commit can never be authored as the caller. One definition for every
-# case that builds a repo, so no case can drift from the isolated form.
 init_fixture_repo() {
   local repo="$1"
   mkdir -p "$repo"
@@ -90,12 +68,6 @@ init_fixture_repo() {
   git -C "$repo" config commit.gpgsign false
 }
 
-# Builds the marketplace clone at TWO commits and echoes "<sha1> <sha2>".
-#   commit 1: plugins/alpha/{hooks/run.sh, lib/util.sh, gone.txt}
-#   commit 2: run.sh changed, gone.txt deleted, lib/new.sh added
-# Both commits carry the same marketplace.json, so a version number that never
-# moves — the exact condition the reported cache-staleness mechanism turns on —
-# is what the fixture models.
 seed_market_repo() {
   local case_dir="$1" repo="$1/market"
   init_fixture_repo "$repo"
@@ -120,16 +92,10 @@ seed_market_repo() {
   echo "$sha1 $sha2"
 }
 
-# Materializes the cache directory from a commit of the fixture repo, so "the
-# cache holds commit N's build" is expressed as exactly that and never as a
-# hand-copied approximation that could drift from what the commit contains.
 seed_cache_from() {
   local case_dir="$1" sha="$2" repo="$1/market" cache="$1/cache/alpha/1.0.0"
   rm -rf "$cache"
   mkdir -p "$cache"
-  # `-z`, and NUL-delimited reads, because a non-ASCII name comes back QUOTED
-  # from a plain ls-tree and `git show` would then be handed the quoted
-  # spelling — the fixture would fail to build rather than exercise the case.
   local rel
   while IFS= read -r -d '' rel; do
     [[ -n "$rel" ]] || continue
@@ -139,7 +105,6 @@ seed_cache_from() {
   echo "$cache"
 }
 
-# Args: case_dir, sha recorded on the install record, [scope], [projectPath]
 seed_state() {
   local case_dir="$1" sha="$2" scope="${3:-user}" project_path="${4:-}"
   local extra=""
@@ -165,8 +130,6 @@ run_check() {
     bash "$SCRIPT" "$@" 2>&1
 }
 
-# Same run with stdout kept clean of stderr, for the cases that assert the
-# "a rejection leaves stdout EMPTY" half of the --ids contract.
 run_check_stdout() {
   local case_dir="$1"
   shift
@@ -176,9 +139,6 @@ run_check_stdout() {
     bash "$SCRIPT" "$@"
 }
 
-# ============================================================================
-# Case: the cache holds exactly the recorded sha's build → match
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
@@ -193,12 +153,6 @@ assert_eq "match: the match tally counts it" "1" "$(jq -r '.match' <<<"$out" 2>/
 assert_eq "match: nothing is reported stale" "0" "$(jq -r '.stale_content' <<<"$out" 2>/dev/null)"
 assert_eq "match: the record carries its recorded sha back" "$SHA2" "$(jq -r '.installs[0].gitCommitSha' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: the cache holds the OLDER commit's build while the record's sha points
-# at the newer one. This is the reported failure's exact shape, and the version
-# number is identical across both commits, so a version-and-sha check sees
-# nothing.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
@@ -213,25 +167,15 @@ assert_eq "stale: the changed file is counted as differing" "1" "$(jq -r '.insta
 assert_contains "stale: the changed file is named" "$(jq -r '.installs[0].paths | join(",")' <<<"$out" 2>/dev/null)" "differs: hooks/run.sh"
 assert_eq "stale: the file added at the newer sha is missing from the cache" "1" "$(jq -r '.installs[0].missing_from_cache' <<<"$out" 2>/dev/null)"
 assert_contains "stale: that missing file is named" "$(jq -r '.installs[0].paths | join(",")' <<<"$out" 2>/dev/null)" "missing-from-cache: lib/new.sh"
-# The same fixture carries the deletion half: gone.txt exists at SHA1, which is
-# what the cache was built from, and not at SHA2.
 assert_eq "stale: a file deleted at the recorded sha but still in the cache is counted" "1" "$(jq -r '.installs[0].extra_in_cache' <<<"$out" 2>/dev/null)"
 assert_contains "stale: that leftover file is named" "$(jq -r '.installs[0].paths | join(",")' <<<"$out" 2>/dev/null)" "extra-in-cache: gone.txt"
-# An untouched file must NOT be swept into the finding — the report is read as
-# a list of files to look at, so a false name in it costs the operator a read.
 assert_eq "stale: an unchanged file is not reported" "" "$(jq -r '[.installs[].paths[] | select(test("util.sh"))] | join(",")' <<<"$out" 2>/dev/null)"
 assert_eq "stale: no .changes/alpha/ in the clone, so no unreleased changes" "false" "$(jq -r '.installs[0].unreleased_changes' <<<"$out" 2>/dev/null)"
-# The same stale cache in a marketplace that releases from changelog fragments:
-# a pending fragment for the plugin marks the finding as an unreleased change.
 write "$case_dir/market/.changes/alpha/feat-x-0123abcd.md" $'---\nbump: patch\n---\n\n### Fixed\n\n- x\n'
 out=$(run_check "$case_dir" --marketplace market1)
 assert_eq "stale with fragments: still stale-content" "stale-content" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
 assert_eq "stale with fragments: marked unreleased_changes" "true" "$(jq -r '.installs[0].unreleased_changes' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: --ids emits only the stale-content ids, and emits them CR-free. Same
-# fixture as above, so the id it emits is one the JSON body verdicts stale.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 ids=$(run_check_stdout "$case_dir" --marketplace market1 --ids 2>/dev/null)
 rc=$?
@@ -240,7 +184,6 @@ assert_eq "--ids: emits the stale id, fully qualified" "alpha@market1" "$ids"
 cr_free=$(printf '%s' "$ids" | tr -d '\r')
 assert_eq "--ids: the id carries no carriage return" "$ids" "$cr_free"
 
-# ...and a matching fleet emits nothing at all, which is success, not an error.
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
@@ -251,13 +194,6 @@ rc=$?
 assert_exit "--ids: a clean fleet is exit 0" 0 "$rc"
 assert_eq "--ids: a clean fleet emits nothing" "" "$ids"
 
-# ============================================================================
-# Case: the recorded sha is not an object in the installLocation clone. It is
-# not the clone's HEAD, so it is not compared: counted not_checked, never
-# unverifiable and never a match. The check must NOT fetch — a fetch is a
-# network mutation, and it would silently repair the very condition being
-# reported.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
@@ -271,24 +207,13 @@ assert_eq "sha absent from the clone: counted not_checked" "1" "$(jq -r '.not_ch
 assert_eq "sha absent from the clone: not counted unverifiable" "0" "$(jq -r '.unverifiable' <<<"$out" 2>/dev/null)"
 assert_eq "sha absent from the clone: and not as a match" "0" "$(jq -r '.match' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: a one-commit (shallow) clone, the shape Claude Code's marketplace clone
-# is observed in. A record at the clone's HEAD is compared; a record at an older
-# sha, which the clone does not hold, is counted not_checked with no file
-# compared, and nothing is fetched to reach it.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
 seed_cache_from "$case_dir" "$SHA2" >/dev/null
-# `--depth` is honored only over a transport, so the source is a file:// URL.
-# A drive-letter path (Windows) needs the third slash a POSIX path already
-# supplies.
 shallow_url="file://$case_dir/market"
 [[ "$case_dir" == /* ]] || shallow_url="file:///$case_dir/market"
 git clone -q --depth 1 "$shallow_url" "$case_dir/shallow" 2>/dev/null
-# Fixture preconditions, asserted so a deep clone cannot turn the older record
-# into a vacuous pass.
 assert_eq "one-commit clone: the fixture clone's HEAD is the newer sha" "$SHA2" \
   "$(git -C "$case_dir/shallow" rev-parse HEAD 2>/dev/null)"
 if git -C "$case_dir/shallow" cat-file -e "$SHA1^{commit}" 2>/dev/null; then
@@ -321,8 +246,6 @@ assert_eq "one-commit clone: no file of the older record is compared" "0 0 0 0" 
   "$(jq -r --arg s "$SHA1" 'first(.installs[] | select(.gitCommitSha == $s) | "\(.differing) \(.missing_from_cache) \(.extra_in_cache) \(.paths | length)")' <<<"$out" 2>/dev/null)"
 assert_eq "one-commit clone: tallies are 1 match, 1 not checked, 0 unverifiable, 0 stale" "1 1 0 0" \
   "$(jq -r '"\(.match) \(.not_checked) \(.unverifiable) \(.stale_content)"' <<<"$out" 2>/dev/null)"
-# The same compare still catches a stale cache at HEAD, so the gate narrows
-# what is compared and does not excuse it.
 write "$case_dir/cache/alpha/1.0.0/hooks/run.sh" 'echo edited'
 out=$(run_check "$case_dir" --marketplace market1 --scope all)
 assert_eq "one-commit clone: an edited cache at HEAD is still stale-content" "stale-content" \
@@ -330,11 +253,6 @@ assert_eq "one-commit clone: an edited cache at HEAD is still stale-content" "st
 assert_eq "one-commit clone: the older record stays not-at-head" "not-at-head" \
   "$(jq -r --arg s "$SHA1" 'first(.installs[] | select(.gitCommitSha == $s) | .verdict)' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: a cache-only file the marketplace's own .gitignore covers is generated
-# state, not a stale build. Without this filter a live plugin root reports
-# stale on its own __pycache__ / node_modules.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
@@ -344,18 +262,11 @@ write "$cache/generated/artifact.bin" 'generated at run time'
 out=$(run_check "$case_dir" --marketplace market1)
 assert_eq "gitignored extra: still a match" "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
 assert_eq "gitignored extra: not counted as extra" "0" "$(jq -r '.installs[0].extra_in_cache' <<<"$out" 2>/dev/null)"
-# A cache-only file the repo does NOT ignore is still a finding, so the filter
-# above is a filter and not a blanket amnesty for every extra file.
 write "$cache/leftover.txt" 'not ignored anywhere'
 out=$(run_check "$case_dir" --marketplace market1)
 assert_eq "unignored extra: is stale-content" "stale-content" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
 assert_contains "unignored extra: is named" "$(jq -r '.installs[0].paths | join(",")' <<<"$out" 2>/dev/null)" "extra-in-cache: leftover.txt"
 
-# ============================================================================
-# Case: `.in_use` is Claude Code's own per-process refcount directory. It is in
-# every cache version directory and in no commit; counting it would report the
-# entire fleet stale on its existence alone.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
@@ -365,11 +276,6 @@ write "$cache/.in_use/12345" ''
 out=$(run_check "$case_dir" --marketplace market1)
 assert_eq ".in_use: does not make the install stale" "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: a project-scope record whose projectPath is not present on this machine
-# is skipped and COUNTED, never verdicted. Absent is not dead: an unmounted
-# volume and a removed worktree are indistinguishable to a directory test.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
@@ -381,46 +287,42 @@ assert_exit "absent projectPath: exit 0" 0 "$rc"
 assert_eq "absent projectPath: counted as skipped" "1" "$(jq -r '.skipped_absent_project_paths' <<<"$out" 2>/dev/null)"
 assert_eq "absent projectPath: not counted as checked" "0" "$(jq -r '.checked' <<<"$out" 2>/dev/null)"
 assert_eq "absent projectPath: emits no install record" "0" "$(jq -r '.installs | length' <<<"$out" 2>/dev/null)"
-# The same record with a present directory IS checked, so the skip is keyed on
-# presence and not on the scope.
 mkdir -p "$case_dir/present-repo"
 seed_state "$case_dir" "$SHA2" project "$case_dir/present-repo"
 out=$(run_check "$case_dir" --marketplace market1 --scope project)
 assert_eq "present projectPath: checked" "1" "$(jq -r '.checked' <<<"$out" 2>/dev/null)"
 assert_eq "present projectPath: nothing skipped" "0" "$(jq -r '.skipped_absent_project_paths' <<<"$out" 2>/dev/null)"
-# ...and the default scope is `user`, so neither record appears without --scope.
 out=$(run_check "$case_dir" --marketplace market1)
 assert_eq "default scope is user: a project record is out of scope" "0" "$(jq -r '.checked' <<<"$out" 2>/dev/null)"
 assert_eq "default scope is reported back" "user" "$(jq -r '.scope' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: the installLocation is a directory but not a git work tree. There is no
-# tree to compare against, and that is a stated verdict, never a silent match.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
 seed_cache_from "$case_dir" "$SHA2" >/dev/null
 seed_state "$case_dir" "$SHA2"
-mkdir -p "$case_dir/plain"
+write "$case_dir/plain/.claude-plugin/marketplace.json" '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}'
 write "$case_dir/known_marketplaces.json" \
   "{\"market1\": {\"installLocation\": \"$case_dir/plain\"}}"
 out=$(run_check "$case_dir" --marketplace market1)
 assert_eq "not-a-git-worktree: verdict names the condition" "not-a-git-worktree" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
 assert_eq "not-a-git-worktree: counted as unverifiable" "1" "$(jq -r '.unverifiable' <<<"$out" 2>/dev/null)"
 
-# ...and an installLocation that is not on this machine at all is its own
-# verdict, distinct from a directory that exists and is not a repo.
 CASE_NUM=$((CASE_NUM + 1))
 write "$case_dir/known_marketplaces.json" \
   "{\"market1\": {\"installLocation\": \"$case_dir/does-not-exist\"}}"
-out=$(run_check "$case_dir" --marketplace market1)
+write "$case_dir/catalog/market1.json" '{"plugins":[{"name":"alpha"}]}'
+out=$(FLEET_STATE_CATALOG_DIR="$case_dir/catalog" run_check "$case_dir" --marketplace market1)
 assert_eq "no-install-location: verdict names the condition" "no-install-location" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
+out=$(run_check "$case_dir" --marketplace market1)
+rc=$?
+assert_exit "no-install-location without a catalog elsewhere: fleet-state cannot read the marketplace, exit 2" 2 "$rc"
+assert_contains "no-install-location without a catalog elsewhere: the error names the marketplace and the reason" \
+  "$out" "could not read marketplace: market1 (marketplace.json not found at installLocation)"
 
-# ...and a git work tree whose HEAD names no commit (an unborn branch) has
-# nothing any record could be compared against: unverifiable, not not_checked.
 CASE_NUM=$((CASE_NUM + 1))
 init_fixture_repo "$case_dir/unborn"
+write "$case_dir/unborn/.claude-plugin/marketplace.json" '{"plugins":[{"name":"alpha","source":"./plugins/alpha"}]}'
 write "$case_dir/known_marketplaces.json" \
   "{\"market1\": {\"installLocation\": \"$case_dir/unborn\"}}"
 out=$(run_check "$case_dir" --marketplace market1)
@@ -428,9 +330,6 @@ assert_eq "no-clone-head: verdict names the condition" "no-clone-head" "$(jq -r 
 assert_eq "no-clone-head: counted unverifiable, not not_checked" "1 0" \
   "$(jq -r '"\(.unverifiable) \(.not_checked)"' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: the cache directory itself is gone. Reported, never treated as a match.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
@@ -438,11 +337,6 @@ seed_state "$case_dir" "$SHA2"
 out=$(run_check "$case_dir" --marketplace market1)
 assert_eq "install-path-missing: verdict names the condition" "install-path-missing" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: malformed installed_plugins.json fails LOUD. Read leniently it would
-# yield an empty install list, which is indistinguishable from a clean fleet —
-# the one wrong answer this check must never give.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
@@ -452,18 +346,11 @@ out=$(run_check "$case_dir" --marketplace market1)
 rc=$?
 assert_exit "malformed installed_plugins.json: exit 2" 2 "$rc"
 assert_contains "malformed installed_plugins.json: the error names the file" "$out" "installed_plugins.json"
-# Structurally-valid JSON of the WRONG SHAPE is refused too, not just a parse
-# error: `.plugins` holding anything but a map of arrays is schema drift.
 write "$case_dir/installed_plugins.json" '{"version":1,"plugins":{"alpha@market1":{"scope":"user"}}}'
 out=$(run_check "$case_dir" --marketplace market1)
 rc=$?
 assert_exit "wrong-shape installed_plugins.json: exit 2" 2 "$rc"
 
-# ============================================================================
-# Case: an unknown marketplace is a usage error and names itself. Deliberately
-# exit 2 rather than fleet-state.sh's exit 1 for an unresolvable marketplace:
-# the name came from the caller's own argument.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
@@ -476,11 +363,6 @@ assert_contains "unknown marketplace: the error names it" "$out" "nosuchmarket"
 stdout_only=$(run_check_stdout "$case_dir" --marketplace nosuchmarket 2>/dev/null)
 assert_eq "unknown marketplace: stdout is left empty" "" "$stdout_only"
 
-# ============================================================================
-# Case: usage rejections. Each leaves stdout EMPTY, so a `< <(… --ids …)`
-# consumer — which cannot see the process's exit status — can never read an
-# error line as a plugin id.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 out=$(run_check "$case_dir" --all --ids)
 rc=$?
@@ -507,8 +389,6 @@ rc=$?
 assert_exit "unknown argument: exit 2" 2 "$rc"
 assert_contains "unknown argument: names --help" "$out" "(see --help)"
 
-# --help must work with neither jq nor git on PATH, and a run without them
-# must still name the missing tool.
 nojq_bin="$case_dir/nojq-bin"
 mkdir -p "$nojq_bin"
 ln -s "$(command -v bash)" "$nojq_bin/bash" 2>/dev/null
@@ -525,29 +405,23 @@ else
   printf 'SKIP: no-jq cases — ln -s cannot make a runnable link on this host (Windows without the symlink privilege)\n' >&2
 fi
 
-# ============================================================================
-# Case: --all sweeps every marketplace, and a per-marketplace failure is
-# reported inline rather than aborting the sweep.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
 seed_cache_from "$case_dir" "$SHA2" >/dev/null
 seed_state "$case_dir" "$SHA2"
 write "$case_dir/known_marketplaces.json" \
-  "{\"market1\": {\"installLocation\": \"$case_dir/market\"}, \"market2\": {\"installLocation\": \"$case_dir/absent\"}}"
+  "{\"market1\": {\"installLocation\": \"$case_dir/market\"}, \"market2\": {\"installLocation\": \"$case_dir/empty\"}, \"market3\": {\"installLocation\": \"$case_dir/absent\"}}"
+write "$case_dir/empty/.claude-plugin/marketplace.json" '{"plugins":[]}'
 out=$(run_check "$case_dir" --all)
 rc=$?
 assert_exit "--all: exit 0" 0 "$rc"
-assert_eq "--all: both marketplaces appear in the envelope" "2" "$(jq -r '.marketplaces | length' <<<"$out" 2>/dev/null)"
+assert_eq "--all: every marketplace appears in the envelope" "3" "$(jq -r '.marketplaces | length' <<<"$out" 2>/dev/null)"
 assert_eq "--all: the healthy marketplace still reports its match" "match" "$(jq -r '.marketplaces.market1.installs[0].verdict' <<<"$out" 2>/dev/null)"
 assert_eq "--all: a marketplace with no installs is still reported" "0" "$(jq -r '.marketplaces.market2.checked' <<<"$out" 2>/dev/null)"
+assert_eq "--all: a marketplace fleet-state cannot read is reported with its reason" \
+  "marketplace.json not found at installLocation" "$(jq -r '.marketplaces.market3.error' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: the script writes NOTHING. That is its whole contract — it is the audit
-# that must never repair the condition it reports — so both the cache directory
-# and the marketplace clone are hash-compared across a full run.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
@@ -565,13 +439,6 @@ git_status=$(git -C "$case_dir/market" status --porcelain 2>&1)
 assert_eq "read-only: the marketplace clone's work tree is still clean" "" "$git_status"
 assert_eq "read-only: the clone's HEAD did not move" "$SHA2" "$(git -C "$case_dir/market" rev-parse HEAD)"
 
-# ============================================================================
-# Case: an install record with NO gitCommitSha field at all. Decoded with a
-# whitespace separator the empty column would vanish and installPath would
-# slide left into the sha, yielding install-path-missing with a fabricated sha.
-# The honest answer is no-git-commit-sha, and the installPath must come back
-# intact.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
@@ -596,16 +463,6 @@ assert_eq "absent gitCommitSha: the installPath did not slide into another colum
   "$case_dir/cache/alpha/1.0.0" "$(jq -r '.installs[0].installPath' <<<"$out" 2>/dev/null)"
 assert_eq "absent gitCommitSha: counted as unverifiable" "1" "$(jq -r '.unverifiable' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: the plugin's source directory is RENAMED after the recorded commit.
-# Resolving the source from the current checkout would look an older tree up
-# under a path it does not contain, and `git ls-tree` reports a pathspec that
-# matches nothing as success with EMPTY output — so every cache file becomes an
-# extra and a perfectly matching cache reports stale-content. A record at the
-# pre-rename commit is not the clone's HEAD, so it is not compared at all; with
-# the clone checked out AT that commit and its work-tree manifest edited to the
-# renamed path, reading the manifest at the recorded sha makes it a match.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 repo="$case_dir/market"
@@ -622,7 +479,6 @@ write "$repo/.claude-plugin/marketplace.json" \
   '{"plugins":[{"name":"alpha","source":"./plugins/alpha-renamed"}]}'
 git -C "$repo" add -A
 git -C "$repo" commit -q -m rename
-# The cache holds the recorded commit's build, under the name that commit used.
 cache="$case_dir/cache/alpha/1.0.0"
 mkdir -p "$cache/hooks" "$cache/lib"
 git -C "$repo" show "$RENAME_SHA1:plugins/alpha/hooks/run.sh" >"$cache/hooks/run.sh"
@@ -634,8 +490,6 @@ assert_exit "renamed source: exit 0" 0 "$rc"
 assert_eq "renamed source: a record older than the clone's HEAD is not-at-head, never stale-content" \
   "not-at-head" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
 git -C "$repo" checkout -q --detach "$RENAME_SHA1"
-# The work tree's manifest names the renamed path, uncommitted, so only a read
-# at the recorded sha (never the checkout) resolves the source the cache holds.
 write "$repo/.claude-plugin/marketplace.json" \
   '{"plugins":[{"name":"alpha","source":"./plugins/alpha-renamed"}]}'
 out=$(run_check "$case_dir" --marketplace market1)
@@ -646,11 +500,6 @@ assert_eq "renamed source: nothing is called extra-in-cache" \
 assert_eq "renamed source: nothing is called missing-from-cache" \
   "0" "$(jq -r '.installs[0].missing_from_cache' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: the manifest at the recorded sha names a source directory that commit
-# does not contain. That is its own verdict — an empty expected tree would
-# otherwise make every cache file an extra and report a healthy cache stale.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 repo="$case_dir/market"
@@ -674,12 +523,6 @@ assert_eq "no-source-at-sha: counted as unverifiable" "1" "$(jq -r '.unverifiabl
 assert_eq "no-source-at-sha: not counted as stale" "0" "$(jq -r '.stale_content' <<<"$out" 2>/dev/null)"
 assert_eq "no-source-at-sha: no cache file is called extra" "0" "$(jq -r '.installs[0].extra_in_cache' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: a tracked filename carrying non-ASCII bytes. Without `-z`, git QUOTES
-# and escapes such a pathname in ls-tree output, and the line-oriented compare
-# then reads the quoted spelling and the raw one as two different files — an
-# unchanged file reported as BOTH missing-from-cache and extra-in-cache.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 repo="$case_dir/market"
@@ -702,8 +545,6 @@ assert_eq "non-ASCII path: it is not reported missing from the cache" \
   "0" "$(jq -r '.installs[0].missing_from_cache' <<<"$out" 2>/dev/null)"
 assert_eq "non-ASCII path: nor extra in the cache" \
   "0" "$(jq -r '.installs[0].extra_in_cache' <<<"$out" 2>/dev/null)"
-# ...and a genuine edit to that same file is still caught, so the fix is a fix
-# and not a blanket exemption for awkward names.
 printf '%s' 'edited' >"$case_dir/cache/alpha/1.0.0/café.txt"
 out=$(run_check "$case_dir" --marketplace market1)
 assert_eq "non-ASCII path: an edited accented file is still stale-content" \
@@ -711,12 +552,6 @@ assert_eq "non-ASCII path: an edited accented file is still stale-content" \
 assert_eq "non-ASCII path: and is counted as differing, not as missing+extra" \
   "1" "$(jq -r '.installs[0].differing' <<<"$out" 2>/dev/null)"
 
-# Builds a one-commit fixture whose plugin holds plain.sh plus every name given,
-# with the cache seeded from that commit and the record pointing at it. Returns
-# 1 when this host cannot hold one of the names as a tracked file spelled
-# exactly that way (Windows refuses a control character, a tab and `*` in a
-# filename, and Git Bash maps some of them to other characters), so the caller
-# skips instead of passing a case that never held the name.
 seed_odd_names_case() {
   local case_dir="$1" repo="$1/market" name rel odd_sha
   shift
@@ -741,14 +576,6 @@ seed_odd_names_case() {
   seed_state "$case_dir" "$odd_sha"
 }
 
-# ============================================================================
-# Case: paths a word split or a glob would break, on the split branch of
-# `spool_records_to` (no record holds a newline or an SOH, so the capture is
-# split on newlines by `split_lines_to`). A space or a tab splits a record in
-# two under a wider IFS, and `star*.sh` expands to its siblings without
-# `set -f`. The extra-file count is asserted EXACTLY: an expanded glob lists
-# `stark.sh` twice, which only a count can see.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 if ! seed_odd_names_case "$case_dir" 'sp ace.sh' $'tab\there.sh' 'star*.sh'; then
@@ -762,7 +589,6 @@ else
     "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
   assert_eq "space/tab/glob path: nothing missing, extra or differing" "0 0 0" \
     "$(jq -r '.installs[0] | "\(.missing_from_cache) \(.extra_in_cache) \(.differing)"' <<<"$out" 2>/dev/null)"
-  # A cache-only file the glob would match: one extra, never two.
   write "$cache/stark.sh" 'not tracked'
   out=$(run_check "$case_dir" --marketplace market1)
   assert_eq "space/tab/glob path: a cache-only file beside star*.sh is stale-content" \
@@ -780,14 +606,6 @@ else
     "$(jq -r '.installs[0].paths | join(",")' <<<"$out" 2>/dev/null)" "missing-from-cache: sp ace.sh"
 fi
 
-# ============================================================================
-# Case: a path holding a newline and one holding an SOH, which send
-# `spool_records_to` to its `mapfile -d ''` fallback: `tr` maps a newline to SOH,
-# so either byte puts an SOH in the capture. A newline path is also hashed by
-# its own process, since `hash-object --stdin-paths` has no `-z`. If the
-# fallback broke, `nl<newline>name.sh` would be read as two records and its
-# unchanged file reported missing and extra.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 if ! seed_odd_names_case "$case_dir" $'nl\nname.sh' $'soh\x01name.sh' 'sp ace.sh' 'star*.sh'; then
@@ -817,13 +635,6 @@ else
     "$(jq -r '.installs[0] | "\(.missing_from_cache) \(.extra_in_cache) \(.differing)"' <<<"$out" 2>/dev/null)"
 fi
 
-# ============================================================================
-# Case: a tracked SYMLINK. git stores it as a blob holding the target text,
-# while `find -type f` excludes it entirely — so an unchanged link would be
-# reported missing-from-cache forever. Guarded by a capability check: creating
-# a symlink on Windows may need a privilege this host does not have, and a
-# silent pass there would be a green run of a case that never executed.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 repo="$case_dir/market"
@@ -836,8 +647,8 @@ if ln -s real.sh "$repo/plugins/alpha/link.sh" 2>/dev/null && [[ -L "$repo/plugi
   git -C "$repo" add -A
   git -C "$repo" commit -q -m one
   case "$(git -C "$repo" ls-tree -r HEAD -- plugins/alpha/link.sh)" in
-  120000*) symlink_ok="yes" ;;
-  *) symlink_ok="" ;;
+    120000*) symlink_ok="yes" ;;
+    *) symlink_ok="" ;;
   esac
 fi
 if [[ -z "$symlink_ok" ]]; then
@@ -854,8 +665,6 @@ else
     "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
   assert_eq "symlink: it is not reported missing from the cache" \
     "0" "$(jq -r '.installs[0].missing_from_cache' <<<"$out" 2>/dev/null)"
-  # A link pointing somewhere else IS a difference, so the link is compared
-  # rather than excused.
   rm -f "$cache/link.sh"
   ln -s elsewhere.sh "$cache/link.sh"
   out=$(run_check "$case_dir" --marketplace market1)
@@ -863,13 +672,6 @@ else
     "stale-content" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
 fi
 
-# ============================================================================
-# Case: `git hash-object --stdin-paths` returns fewer hashes than it was given
-# paths. Every entry after the gap would be filed under the WRONG path, so the
-# run must refuse to compare rather than report healthy files as differing. A
-# stub `git` earlier on PATH truncates that one subcommand's output and
-# delegates everything else to the real binary.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
@@ -877,8 +679,6 @@ seed_cache_from "$case_dir" "$SHA2" >/dev/null
 seed_state "$case_dir" "$SHA2"
 REAL_GIT="$(command -v git)"
 mkdir -p "$case_dir/stub"
-# The stub must call the real binary by ABSOLUTE path: a script named `git`
-# that runs `git` would find itself first on PATH and recurse forever.
 write "$case_dir/stub/git" "#!/usr/bin/env bash
 case \"\$*\" in
 *'hash-object --stdin-paths'*)
@@ -889,10 +689,6 @@ esac
 exec '$REAL_GIT' \"\$@\"
 "
 chmod +x "$case_dir/stub/git"
-# PATH entries must be POSIX-spelled. The fixture root is derived from $TEMP,
-# which on Windows is a drive-letter path, and a `C:/…` entry in PATH is not
-# searched at all — the stub would be silently ignored and the case would report
-# a plain match, which is exactly the vacuous pass it exists to prevent.
 STUB_PATH_ENTRY="$case_dir/stub"
 if command -v cygpath >/dev/null 2>&1; then
   STUB_PATH_ENTRY="$(cygpath -u "$case_dir/stub")"
@@ -913,25 +709,13 @@ assert_eq "hash-batch-misaligned: nothing is reported missing from the cache" \
   "0" "$(jq -r '.installs[0].missing_from_cache' <<<"$out" 2>/dev/null)"
 assert_eq "hash-batch-misaligned: nothing is reported extra in the cache" \
   "0" "$(jq -r '.installs[0].extra_in_cache' <<<"$out" 2>/dev/null)"
-# The same fixture without the stub is a plain match, so the verdict above came
-# from the truncation and not from the fixture being broken.
 out=$(run_check "$case_dir" --marketplace market1)
 assert_eq "hash-batch-misaligned: the same fixture with the real git is a match" \
   "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: two records share ONE source directory at DIFFERENT shas, both held by
-# a full clone. Only the record at the clone's HEAD is compared: the record at
-# the older sha is not-at-head even though the clone holds that commit, so the
-# answer does not depend on how deep the clone is, and the newer sha's file
-# list never stands in for the older one's.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
-# A third commit whose ONLY delta is one added file: compared against the older
-# sha's tree, the cache would show it as an extra, so a record compared there
-# would be stale-content rather than not-at-head.
 write "$case_dir/market/plugins/alpha/lib/extra.sh" 'echo extra'
 git -C "$case_dir/market" add -A
 git -C "$case_dir/market" commit -q -m three
@@ -953,8 +737,6 @@ out=$(run_check "$case_dir" --marketplace market1 --scope all)
 rc=$?
 assert_exit "shared source dir, two shas: exit 0" 0 "$rc"
 assert_eq "shared source dir: both records checked" "2" "$(jq -r '.checked' <<<"$out" 2>/dev/null)"
-# Selected by sha, never by array position: the record order is the state file's,
-# not this assertion's to assume.
 assert_eq "shared source dir: the record at the newer sha matches" "match" \
   "$(jq -r --arg s "$SHA3" 'first(.installs[] | select(.gitCommitSha == $s) | .verdict)' <<<"$out" 2>/dev/null)"
 assert_eq "shared source dir: the record at the older sha is not-at-head, though the clone holds it" "not-at-head" \
@@ -964,14 +746,6 @@ assert_eq "shared source dir: no file is reported against the older record" "0 0
 assert_eq "shared source dir: 1 match, 1 not checked, nothing stale" "1 1 0" \
   "$(jq -r '"\(.match) \(.not_checked) \(.stale_content)"' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Case: two marketplace entries with nested source directories share one sha.
-# The batched ls-tree emits each blob once; the join must attach it to EVERY
-# matching source, the way a per-source ls-tree included it in both expected
-# trees. Longest-match-only drops the nested subtree from the ancestor, so a
-# healthy ancestor cache containing that subtree is reported stale-content
-# (cache-only extras) and an ancestor cache missing it is reported as a match.
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 case_dir=$(new_case_dir)
 repo="$case_dir/market"
@@ -1009,9 +783,6 @@ assert_eq "nested sources: the ancestor cache that holds the nested subtree is a
 assert_eq "nested sources: the nested plugin is a match" \
   "match" "$(jq -r 'first(.installs[] | select(.id == "nested@market1") | .verdict)' <<<"$out" 2>/dev/null)"
 assert_eq "nested sources: neither is stale" "0" "$(jq -r '.stale_content' <<<"$out" 2>/dev/null)"
-# Inverse: drop the nested file from the ancestor cache. Longest-match-only
-# would still call that a match (the blob never joined the ancestor's tree);
-# attaching it to every matching source makes the hole missing-from-cache.
 rm -f "$case_dir/cache/alpha/1.0.0/nested/inner.sh"
 out=$(run_check "$case_dir" --marketplace market1)
 assert_eq "nested sources: an ancestor cache missing the nested file is stale-content" \
@@ -1021,25 +792,6 @@ assert_eq "nested sources: that hole is missing-from-cache, not a cache-only ext
 assert_eq "nested sources: the nested plugin is unaffected" \
   "match" "$(jq -r 'first(.installs[] | select(.id == "nested@market1") | .verdict)' <<<"$out" 2>/dev/null)"
 
-# ============================================================================
-# Process budget: a clean install costs a FIXED number of process creations,
-# never one per file. Each creation is a fork() emulation plus a CreateProcess
-# on Windows Git Bash (roughly 120 ms on a quiet host, seconds on a contended
-# one), and the obvious implementation of this check — hash each cache file on
-# its own — would pay one for every file in every plugin, which for a plugin
-# that vendors dependencies is thousands. The batched `git hash-object
-# --stdin-paths` is what keeps it flat, and the per-file `--path` re-hash is
-# reached only for a file that already looks different. Counted the way
-# fleet-state.test.sh counts it: `bash -x` with PS4 carrying $BASHPID, so every
-# subshell shows up as a distinct pid, plus every external exec. Two fixtures
-# differing only in FILE COUNT must cost the same.
-#
-# The probe is itself asserted, not just its result. `count_creations` returns
-# `forks - 1 + execs`, so a trace it cannot parse at all yields -1 — which would
-# satisfy any ceiling and turn this whole section into a test that cannot fail.
-# The floor below makes a broken probe a FAILURE, and the measured number is
-# printed either way so a silent drift in what the trace looks like is visible.
-# ============================================================================
 count_creations() {
   local trace="$1" forks execs
   forks=$(grep -oE '^\++[0-9]+\+' "$trace" | sort -u | wc -l | tr -d ' ')
@@ -1047,9 +799,6 @@ count_creations() {
   echo $((forks - 1 + execs))
 }
 
-# Builds a one-commit fixture whose plugin holds $2 files, with the cache an
-# exact copy of it, so every case here is a clean `match` and the only variable
-# is how many files that match covers.
 seed_budget_case() {
   local case_dir="$1" n="$2" repo="$1/market" i
   init_fixture_repo "$repo"
@@ -1066,11 +815,6 @@ seed_budget_case() {
 
 run_traced() {
   local case_dir="$1" trace="$2"
-  # PS4 travels through a BASH_ENV startup file, never the environment: bash
-  # 4.4 and later rebind an euid-0 shell's PS4 to '+ ' at startup, before any
-  # startup file runs (CVE-2016-7543), so an exported PS4 never reaches a root
-  # shell and the probe counts nothing. A BASH_ENV assignment lands after that
-  # rebind, and its own unstamped `+ PS4=` trace line matches no pid pattern.
   # shellcheck disable=SC2016  # PS4 must reach bash unexpanded: bash expands it per traced line
   write "$case_dir/ps4.env" 'PS4='\''+${BASHPID}+ '\'''
   env \
@@ -1097,9 +841,6 @@ assert_eq "process budget: the thirty-file run still reports a match" \
   "match" "$(jq -r '.installs[0].verdict' <<<"$out" 2>/dev/null)"
 assert_eq "process budget: the count does not grow with the file count (2 files vs 30)" \
   "$small" "$large"
-# Floor first: a probe that parses nothing counts -1 and would pass every
-# ceiling below it, so the ceiling assertion is only meaningful once the count
-# is known to be real.
 if [[ "$large" -ge 1 ]]; then
   pass "process budget: the trace probe actually counted something (measured $large)"
 else
@@ -1113,7 +854,33 @@ else
     "measured $large (trace: $case_dir/trace-large.log)"
 fi
 
-# --- Summary -------------------------------------------------------------
+CASE_NUM=$((CASE_NUM + 1))
+case_dir=$(new_case_dir)
+read -r SHA1 SHA2 <<<"$(seed_market_repo "$case_dir")"
+seed_cache_from "$case_dir" "$SHA2" >/dev/null
+mkdir -p "$case_dir/present-repo"
+write "$case_dir/installed_plugins.json" "$(jq -n --arg c "$case_dir" --arg s "$SHA2" '
+  def r($scope): {scope: $scope, version: "1.0.0", gitCommitSha: $s, installPath: ($c + "/cache/alpha/1.0.0")};
+  {version: 1, plugins: {"alpha@market1": [
+    r("user"),
+    r("project") + {projectPath: ($c + "/present-repo")},
+    r("local") + {projectPath: ($c + "/gone-a")},
+    r("project") + {projectPath: ($c + "/gone-b")}]}}')"
+write "$case_dir/known_marketplaces.json" \
+  "{\"market1\": {\"installLocation\": \"$case_dir/market\", \"lastUpdated\": \"2026-01-01T00:00:00Z\"}}"
+out=$(run_check_stdout "$case_dir" --marketplace market1 --scope all)
+fleet=$(env FLEET_STATE_INSTALLED_JSON="$case_dir/installed_plugins.json" \
+  FLEET_STATE_MARKETPLACES_JSON="$case_dir/known_marketplaces.json" \
+  bash "$SCRIPT_DIR/fleet-state.sh" --marketplace market1)
+assert_eq "fleet-state records: the checker checks the records fleet-state reports present" \
+  "$(jq -r '[.installed[] | select(.projectPathPresent != false) | "\(.scope) \(.gitCommitSha)"] | sort | join(",")' <<<"$fleet")" \
+  "$(jq -r '[.installs[] | "\(.scope) \(.gitCommitSha)"] | sort | join(",")' <<<"$out")"
+assert_eq "fleet-state records: and skips the ones fleet-state reports absent" \
+  "$(jq -r '[.installed[] | select(.projectPathPresent == false)] | length' <<<"$fleet")" \
+  "$(jq -r '.skipped_absent_project_paths' <<<"$out")"
+assert_eq "fleet-state records: the fixture holds two present and two absent records" "2 2" \
+  "$(jq -r '"\(.checked) \(.skipped_absent_project_paths)"' <<<"$out")"
+
 printf '\n%d cases, %d failed\n' "$CASE_NUM" "$FAILED"
 [[ "$FAILED" -eq 0 ]] && exit 0
 exit 1

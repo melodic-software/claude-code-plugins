@@ -30,7 +30,7 @@ import re
 import sys
 from typing import NoReturn
 
-sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+sys.dont_write_bytecode = True
 sys.path.insert(
     0, os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir, "lib")
 )
@@ -41,8 +41,6 @@ EXTRACTOR_NAME = "extract_nodes.py"
 EXTRACTOR_VERSION = "1.0.0"
 
 UTF8_BOM = b"\xef\xbb\xbf"
-# UTF-32 BOMs listed before their UTF-16 prefixes: \xff\xfe\x00\x00 starts
-# with \xff\xfe, so order decides which one matches.
 NON_UTF8_BOMS = [
     (b"\xff\xfe\x00\x00", "UTF-32 LE"),
     (b"\x00\x00\xfe\xff", "UTF-32 BE"),
@@ -70,7 +68,6 @@ class Line:
 
 
 def split_lines(data: bytes, base: int) -> list:
-    """Split into lines; offsets are raw-snapshot offsets starting at `base`."""
     lines = []
     pos = base
     n = len(data)
@@ -103,8 +100,6 @@ def markdown_boundaries(data: bytes):
     - setext-vs-thematic-break ambiguity for `---` resolves to setext whenever
       the previous line is non-blank and not itself a boundary.
     """
-    # Scan past a UTF-8 BOM with raw offsets so its bytes land in the first node.
-    # CR-only line endings would silently lose every heading, so fail loudly.
     base = len(UTF8_BOM) if data.startswith(UTF8_BOM) else 0
     if b"\n" not in data[base:] and b"\r" in data[base:]:
         fail(
@@ -213,7 +208,6 @@ def html_boundaries(data: bytes):
 
 
 def build_nodes(data: bytes, frontmatter_end: int, boundaries, whole_kind: str):
-    """Assemble the non-overlapping node partition covering [0, len(data))."""
     n = len(data)
     spans = []
 
@@ -262,7 +256,6 @@ def build_nodes(data: bytes, frontmatter_end: int, boundaries, whole_kind: str):
 
 
 def self_check(nodes, data: bytes) -> None:
-    """Partition invariants; violation is a bug, fail loudly."""
     n = len(data)
     if not nodes:
         fail(3, "self-check: empty node list")
@@ -314,7 +307,7 @@ EXTENSION_FORMATS = {
     ".htm": "html",
     ".txt": "opaque",
     ".json": "opaque",
-    ".pdf": None,  # extract from source.txt, never the binary
+    ".pdf": None,
 }
 
 

@@ -1,56 +1,5 @@
 #!/usr/bin/env node
 
-// Runs check-security-binding.mjs evaluation mode through the promotion-evidence
-// bootstrap and prints each promotable cell's effective state as JSON.
-//
-// Usage: node resolve-promotion-evidence.mjs --checkout <dir> [--worktree-root <dir> ...]
-//          [--window-start <ISO 8601 date-time with an offset>]
-//
-// --window-start restarts the evidence window after a demotion: the checker reads a copy of the
-// evidence source, written to a fresh temporary directory outside the checkout and every
-// worktree root and removed on exit, with one gate-failure event per promotable cell at that
-// instant appended, so a cell stays unpromoted until the source holds a `re-earned` event for it
-// whose `since` is at or after that instant (the publisher's `since` is the later of the demotion
-// record's creation and its discovery, so it never precedes the restart). An empty or malformed
-// value, or a source that cannot be read as a JSON array, fails closed.
-// Every cell that resolves promoted under --window-start is a re-earn, so the source must also be
-// fresh: its sidecar (evidence.json -> evidence.meta.json, written by
-// publish-promotion-evidence.mjs) must hold the source's sha256 and a generated_at no older than
-// promotion_evidence_max_age_hours, a positive whole number read from settings like the options
-// below. An unset or malformed bound, a missing, mismatched or lane-writable sidecar, or a stale
-// generated_at fails closed, so a demoted cell stays demoted while the publisher is not running.
-// Without --window-start a `re-earned` event in the source can still lift a contrary event the
-// file holds, so a source that reads as a JSON array holding any `re-earned` event must pass the
-// same freshness test; one that does not read as a JSON array goes to the checker, which reports
-// it unavailable.
-//
-// The four bootstrap values (promotion_evidence_binding, promotion_evidence_root,
-// promotion_evidence_source, promotion_evidence_checker) are not arguments: the helper reads
-// them from the operator's own managed and user settings (operator-options.mjs, channel F
-// of docs/contracts/hook-config-delivery), so a path the caller chose cannot stand in for
-// one, and the CLAUDE_PLUGIN_OPTION_* mirror and repository files are never read for them. The
-// optional fifth, promotion_evidence_credential_roots, read the same way, becomes the checker's
-// --credential-roots when set; a malformed entry fails closed (credentialRootsArgs).
-// Prints {source, failClosedReason, options: {<option>: {value, scope, file}}, cells:
-// {<cell>: {bound, effective, line}}} and exits 0, fail-closed results included.
-// Fail-closed means failClosedReason is set and every promotable cell is effective
-// "unpromoted". It fails closed on an unknown argument (the retired --binding,
-// --probe-evidence-root, --evidence and --checker included); an option no readable source
-// sets, or a settings source that cannot be read; a relative or unresolvable path; a surface
-// or checker that is inside the checkout or a worktree root, or contains one, before or after
-// symlinks resolve; a surface, checker or supplying settings file the lane can write
-// (laneWritable, reason "lane-writable:<option or file>"); any run on win32, where that test is
-// not trusted ("writability-unverifiable-on-win32"; pointer record under "Read-only to the lane"
-// in reference/promotion-evidence-bootstrap.md); a checker that exits non-zero,
-// times out, or prints no evaluation block; and any line in that block that does not parse. The
-// unattended merge gate (babysit_merge_policy.py) repeats the writability test as a second
-// layer. Tests run main() from a wrapper with an injected platform, access, stat and uid; the
-// helper takes none of them from its arguments or the environment. The checker runs with an allowlisted
-// environment (PATH and SystemRoot only), so NODE_OPTIONS, NODE_PATH, LD_PRELOAD and GIT_*
-// values from a repository's settings env block never reach it. It reports only what the
-// checker printed and never re-derives the resolution algorithm. It writes no file but the
-// --window-start copy and reads nothing in the checkout.
-
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { accessSync, constants, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -61,9 +10,6 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { managedSettingsFiles, OptionsError, readOperatorOptions, resolveInstall } from "./operator-options.mjs";
 
-// The first four are required; promotion_evidence_credential_roots is optional, and unset it
-// passes the checker no --credential-roots. promotion_evidence_max_age_hours is required only
-// with --window-start or when the source holds a `re-earned` event.
 export const OPTION_KEYS = [
   "promotion_evidence_binding",
   "promotion_evidence_root",
@@ -74,8 +20,6 @@ export const OPTION_KEYS = [
 ];
 const MAX_AGE = "promotion_evidence_max_age_hours";
 const HOUR_MS = 3_600_000;
-// How far the publisher's clock may run ahead of this host's before a generated_at reads as
-// forged: a future one would keep the evidence fresh past the bound.
 const CLOCK_SKEW_MS = 300_000;
 
 const PROMOTABLE_CELLS = ["C2-auto-merge", "C3-auto-merge", "C3-ai-review-blocking"];
@@ -108,11 +52,6 @@ function canWrite(path) {
   }
 }
 
-// The lane user can write the path, or replace it through any directory above it (written, or
-// owned and so re-permissioned), as given (".." segments kept, like Python's Path.absolute()),
-// normalized, or after symlinks resolve: the rule of _lane_writable in babysit_merge_policy.py.
-// Throws when the path does not exist. access, stat and uid are the test seam; uid undefined (no
-// process.getuid) skips the owner test.
 export function laneWritable(path, { access = canWrite, stat = statSync, uid = process.getuid?.() } = {}) {
   const given = isAbsolute(path) ? path : `${process.cwd()}${sep}${path}`;
   for (const candidate of new Set([given, resolve(path), realpathSync.native(path)])) {
@@ -125,7 +64,6 @@ export function laneWritable(path, { access = canWrite, stat = statSync, uid = p
   return false;
 }
 
-// Returns the realpath, or fails closed with a reason naming the option or argument.
 function resolveInput(label, value, roots) {
   if (!value) emit(source, `${label} not set${label.startsWith("--") ? "" : " in managed or user settings"}`);
   if (!isAbsolute(value)) emit(source, `${label} ${value} is not an absolute path`);
@@ -144,7 +82,6 @@ function resolveInput(label, value, roots) {
   return real;
 }
 
-// Fails closed when the lane can write `path`, or when that cannot be judged.
 function refuseLaneWritable(label, path, judge) {
   let writable;
   try {
@@ -155,8 +92,6 @@ function refuseLaneWritable(label, path, judge) {
   if (writable) emit(source, `lane-writable:${label}`);
 }
 
-// A root that does not exist yet is canonicalized through its longest existing prefix, so a
-// symlinked parent cannot hide where the root will land.
 function canonical(path) {
   const missing = [];
   let existing = path;
@@ -172,8 +107,6 @@ function canonical(path) {
   }
 }
 
-// The checker's strict form: an explicit offset, at most millisecond precision, and a calendar
-// date that survives a round trip, so the instant cannot shift across a ratification.
 const ISO_DATE_TIME = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})(?:\.\d{1,3})?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/;
 function isStrictIso(value) {
   const match = ISO_DATE_TIME.exec(value);
@@ -192,8 +125,6 @@ function isStrictIso(value) {
 
 const restartEvents = (events, at) => [...events, ...PROMOTABLE_CELLS.map((cell) => ({ cell, event: "gate-failure", at }))];
 
-// Fails closed unless the publisher's sidecar describes `text`, the source as read, and its
-// generated_at is within the operator's age bound of now.
 function requireFresh(path, text, judge) {
   const bound = options[MAX_AGE]?.value?.trim();
   if (!bound) emit(source, `${MAX_AGE} not set in managed or user settings, so a re-earn cannot be read`);
@@ -221,10 +152,6 @@ function requireFresh(path, text, judge) {
   }
 }
 
-// The source as given, once a source holding a `re-earned` event has passed requireFresh: without
-// --window-start such an event lifts a contrary event the file holds with no demotion record, so
-// a stale file must not keep its cell promoted. A source that does not read as a JSON array is
-// left to the checker, which reports it unavailable.
 function checkedSource(path, judge) {
   let text;
   let events;
@@ -238,8 +165,6 @@ function checkedSource(path, judge) {
   return path;
 }
 
-// The source's events plus one gate-failure per promotable cell at `at`, written outside every
-// root and removed on exit.
 function restartedCopy(path, at, roots, judge) {
   if (!isStrictIso(at)) emit(source, `--window-start ${JSON.stringify(at)} is not an ISO 8601 date-time with an offset`);
   let text;
@@ -262,8 +187,6 @@ function restartedCopy(path, at, roots, judge) {
   return copy;
 }
 
-// A probe-host path's lexical form: an anchor ("" for POSIX "/", a folded "c:" for a drive) and
-// its segments, "." and empty ones dropped; null when it is not absolute ("//" UNC included).
 function hostPath(value) {
   const slashed = value.replaceAll("\\", "/");
   const drive = /^[A-Za-z]:\//.test(slashed);
@@ -272,17 +195,8 @@ function hostPath(value) {
   return drive ? { anchor: slashed.slice(0, 2).toLowerCase(), segments: segments.map((s) => s.toLowerCase()) } : { anchor: "", segments };
 }
 
-// Path segments naming an ephemeral base (/tmp, /var/tmp, /dev/shm, C:\Temp, ...\AppData\Local\
-// Temp), compared case-insensitively. Restates EPHEMERAL_SEGMENTS in the autonomy plugin's
-// check-security-binding.mjs, which refuses a credential probe expanded under one; recheck when
-// that set changes.
 const EPHEMERAL_SEGMENTS = new Set(["tmp", "temp", "shm"]);
 
-// The checker's --credential-roots argument, or none when the option is unset or empty. The roots
-// name locations on the probe host, which need not exist here, so each entry is judged lexically
-// and never resolved: absolute, not a filesystem root, no ".." segment, no ephemeral-base
-// segment, and not inside the checkout or a worktree root. A root containing the checkout is allowed (/home/runner holds a
-// hosted runner's checkout).
 function credentialRootsArgs(value, roots) {
   if (value === undefined || value.trim() === "") return [];
   const label = "promotion_evidence_credential_roots";
@@ -306,7 +220,6 @@ function credentialRootsArgs(value, roots) {
   return ["--credential-roots", value];
 }
 
-// platform, access, stat and uid are the test seam; the CLI entry below passes none.
 export function main({ platform = process.platform, ...judge } = {}) {
   let values;
   try {
@@ -323,8 +236,6 @@ export function main({ platform = process.platform, ...judge } = {}) {
     emit(null, `usage: ${error.message}`);
   }
 
-  // This install's root, from the helper's own real path (skills/babysit-loop/scripts/ below it),
-  // never from the environment.
   const pluginRoot = resolve(dirname(realpathSync.native(fileURLToPath(import.meta.url))), "..", "..", "..");
   try {
     options = readOperatorOptions(resolveInstall(pluginRoot), managedSettingsFiles(), OPTION_KEYS);
@@ -333,10 +244,8 @@ export function main({ platform = process.platform, ...judge } = {}) {
     emit(null, error.message);
   }
   source = options.promotion_evidence_source?.value || null;
-  // The write test is not trusted on Windows (reference/promotion-evidence-bootstrap.md).
   if (platform === "win32") emit(source, "writability-unverifiable-on-win32");
 
-  // The option's realpath, once its value and the settings file it came from are lane-unwritable.
   const option = (key, roots) => {
     const real = resolveInput(key, options[key]?.value, roots);
     refuseLaneWritable(key, options[key].value, judge);
@@ -357,14 +266,12 @@ export function main({ platform = process.platform, ...judge } = {}) {
   const sourcePath = option("promotion_evidence_source", roots);
   const evidence =
     values["window-start"] === undefined ? checkedSource(sourcePath, judge) : restartedCopy(sourcePath, values["window-start"], roots, judge);
-  // The roots name the probe host, so only the settings file that set them is judged.
   const credentialSetting = options.promotion_evidence_credential_roots;
   if (credentialSetting) refuseLaneWritable(credentialSetting.file, credentialSetting.file, judge);
   const credentialRoots = credentialRootsArgs(credentialSetting?.value, roots);
   emitVerdict(runChecker(checker, [binding, "--evidence", evidence, "--probe-evidence-root", probeRoot, ...credentialRoots]));
 }
 
-// The checker, run with an allowlisted environment.
 function runChecker(checker, args) {
   const checkerEnv = Object.fromEntries(
     CHECKER_ENV_KEYS.filter((key) => key in process.env).map((key) => [key, process.env[key]]),
@@ -379,7 +286,6 @@ function runChecker(checker, args) {
   });
 }
 
-// Emits the cells the checker's evaluation block printed, or fails closed on anything else.
 function emitVerdict(run) {
   if (run.error) emit(source, `checker did not complete (${run.error.code ?? run.error.message})`);
   if (run.status !== 0) {

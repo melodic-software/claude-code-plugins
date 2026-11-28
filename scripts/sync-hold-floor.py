@@ -13,9 +13,9 @@ hand: change the table, then run this script. test_merge_holds_sync.py runs `--c
 
 - merge-holds.mjs `COST_PATHS` and `HOLD_PATH_CLASSES` rows: literals, because ci-status
   runs that file alone and it imports no repository file.
-- the review callers' `hold-paths`: the trusted-actor list, every floor glob, then the
-  security review's own files (scrutiny only).
-- ci-status's exempt-author `hold_patterns`: the same less those two, as bash patterns
+- the review callers' `hold-paths`: every floor glob, then the security review's own files
+  (scrutiny only).
+- ci-status's exempt-author `hold_patterns`: the same less the security review's, as bash patterns
   (`**/X` is `X` and `*/X`; a trailing `/**` is `/*`). While pr-pipeline.yaml's
   `merge.diff-check.path-holds` is absent or false, a guard line after the list empties it for
   every author but Dependabot (owner decisions Q21 and Q24, 2026-10-29).
@@ -79,21 +79,17 @@ def gate_workflow_rows(indent: str) -> list[str]:
     ]
 
 
-TRUSTED_ACTORS = ".github/standards/trusted-actors/**"
 SCRUTINY_ONLY = (
     "plugins/review/skills/security-review/**",
     "plugins/review/evals/security-review-*/**",
 )
-HOLD_PATHS = (TRUSTED_ACTORS, *(g for g, _ in floor_classes()), *SCRUTINY_ONLY)
+HOLD_PATHS = (*(g for g, _ in floor_classes()), *SCRUTINY_ONLY)
 
 
 def bash_patterns(glob: str) -> list[str]:
     if glob.endswith("/**"):
         glob = glob[:-3] + "/*"
     found = [glob[3:], "*/" + glob[3:]] if glob.startswith("**/") else [glob]
-    # Bash's `*` crosses `/`, which Python's and Node's `*` never do, so a
-    # glob whose `*` is not the leading `**/` or trailing `/**` has no form
-    # that matches the same paths.
     core = glob.removeprefix("**/").removesuffix("/*")
     if any(c in core for c in "*?[") or "'" in glob:
         raise SystemExit(f"sync-hold-floor: no bash form for {glob!r}")
@@ -132,8 +128,6 @@ def path_holds() -> bool:
     return value == "true"
 
 
-# dependabot[bot] in trusted-actors.json. Its pull requests bump third-party action pins, so
-# ci-status holds its trust-gate paths with path holds off too (owner decision Q24, 2026-10-29).
 DEPENDABOT_ID = "49699333"
 
 
@@ -160,7 +154,11 @@ def api_budget_sh(indent: str) -> list[str]:
     text = (ROOT / API_BUDGET).read_text(encoding="utf-8").removesuffix("\n")
     return [
         f"{indent}API_BUDGET_SH: |",
-        *(f"{indent}  {line}" if line else "" for line in text.split("\n") if not line.lstrip().startswith("#")),
+        *(
+            f"{indent}  {line}" if line else ""
+            for line in text.split("\n")
+            if not line.lstrip().startswith("#")
+        ),
     ]
 
 

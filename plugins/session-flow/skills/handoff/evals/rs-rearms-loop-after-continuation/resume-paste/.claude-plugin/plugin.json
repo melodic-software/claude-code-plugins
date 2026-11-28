@@ -1,0 +1,17 @@
+{
+  "name": "resume-paste",
+  "description": "Submits the scaffolded handoff as the first user message.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cat",
+            "args": [".work/resume-paste.json"]
+          }
+        ]
+      }
+    ]
+  }
+}

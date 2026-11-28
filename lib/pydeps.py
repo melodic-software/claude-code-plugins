@@ -41,22 +41,19 @@ def _version(text):
 
 _CONFIG = json.loads((Path(__file__).resolve().parent / 'pydeps.json').read_text(encoding='utf-8'))
 PLUGIN = _CONFIG['plugin']
-# Either an explicit set of supported versions, or a floor with no ceiling.
 PYTHONS = tuple(_version(v) for v in _CONFIG.get('pythons', ()))
 MIN_PYTHON = _version(_CONFIG['python_min']) if 'python_min' in _CONFIG else None
 ALLOW_FREE_THREADED = bool(_CONFIG.get('allow_free_threaded', False))
 CANDIDATES = (*(f'python{a}.{b}' for a, b in reversed(PYTHONS)), 'python3', 'python')
 REQUIREMENTS = Path(__file__).resolve().parent.parent / 'requirements.txt'
 PROBE = tuple(_CONFIG['probe'])
-# Packages that may build from their hash-pinned source archive; every other package installs from wheels only.
 BUILD_FROM_SOURCE = frozenset(n.lower() for n in _CONFIG.get('build_from_source', ()))
-BUILD_HINT = _CONFIG.get('build_hint')   # {"match": regex over pip's stderr, "text": the hint}
-PIP_TIMEOUT_S = int(_CONFIG['pip_timeout_s'])   # under the hook's timeout, so this one fires first
+BUILD_HINT = _CONFIG.get('build_hint')
+PIP_TIMEOUT_S = int(_CONFIG['pip_timeout_s'])
 STALE_PARTIAL_S = 2 * PIP_TIMEOUT_S
 CHECK_LABEL = _CONFIG.get('check', {}).get('label', 'Python packages')
-CHECK_TOOLS = dict(_CONFIG.get('check', {}).get('tools', {}))   # tool -> what to do when it is missing
+CHECK_TOOLS = dict(_CONFIG.get('check', {}).get('tools', {}))
 HANDED_OVER = re.sub(r'[^A-Z0-9]', '_', PLUGIN.upper()) + '_PYDEPS_INTERPRETER'
-# The hook's own candidate list, in its order; the ready stamp records what each resolves to.
 HOOK_CANDIDATES = ('python3.13', 'python3.12', 'python3', 'python')
 STAMP_TAG = 'pydeps-hook-ready 1'
 
@@ -70,7 +67,6 @@ def supported(version):
     return version in PYTHONS if PYTHONS else version >= MIN_PYTHON
 
 
-# Read at import: sysconfig loads its data lazily, keyed by sys.platform.
 _FREE_THREADED = bool(sysconfig.get_config_var('Py_GIL_DISABLED'))
 
 
@@ -140,7 +136,7 @@ def loads(packages, probe):
 
 def repair_line(data):
     cmd = [sys.executable, str(Path(__file__).resolve()), 'install', '--data-dir', str(data)]
-    if sys.platform == 'win32':   # Windows PowerShell 5.1: call operator, single quotes doubled
+    if sys.platform == 'win32':
         return '& ' + ' '.join("'" + part.replace("'", "''") + "'" for part in cmd)
     return shlex.join(cmd)
 
@@ -155,7 +151,7 @@ def _drop_stale_partials(target):
             if path.stat().st_mtime < cutoff:
                 shutil.rmtree(path, ignore_errors=True)
         except OSError:
-            pass   # a concurrent install renamed or removed it first
+            pass
 
 
 def install(data, requirements=REQUIREMENTS, probe=PROBE):
@@ -170,7 +166,7 @@ def install(data, requirements=REQUIREMENTS, probe=PROBE):
     only_binary = binary_only(requirements) if BUILD_FROM_SOURCE else [':all:']
     try:
         if target.exists():
-            shutil.rmtree(target)   # present but not loading: rebuild it rather than trust it
+            shutil.rmtree(target)
         try:
             r = subprocess.run(
                 [sys.executable, '-P', '-m', 'pip', 'install', '--require-hashes', '--no-deps',
@@ -192,7 +188,7 @@ def install(data, requirements=REQUIREMENTS, probe=PROBE):
         try:
             os.replace(partial, target)
         except OSError:
-            if not (target.is_dir() and loads(target, probe)):   # a concurrent install may have won the rename
+            if not (target.is_dir() and loads(target, probe)):
                 raise Broken(f'could not move the installed packages into {target}')
         return 'installed'
     finally:
@@ -242,16 +238,15 @@ def run(data, script_args, requirements=REQUIREMENTS):
     if not target.is_dir():
         drop_ready_stamp(data)
         sys.stderr.write(f'{PLUGIN}: the Python packages are not installed for {sys.implementation.cache_tag}. '
-                         'Start a new Claude Code session, whose SessionStart hook installs them, or run: '
-                         f'{repair_line(data)}\n')
+                         f'Run: {repair_line(data)}, or set install_python_deps_enabled to true and start a new '
+                         'Claude Code session.\n')
         return 2
     code = subprocess.run([sys.executable, '-S', *script_args], env=_env(target)).returncode
     if code and ready_stamp(data).exists():
-        # The hook trusted the stamp and skipped the load probe, so the set may no longer import.
         drop_ready_stamp(data)
-        sys.stderr.write(f'{PLUGIN}: the run failed; if the Python packages no longer load, the next Claude Code '
-                         'session start re-probes them and rebuilds them, or run now: '
-                         f'{repair_line(data)}\n')
+        sys.stderr.write(f'{PLUGIN}: the run failed; if the Python packages no longer load, run: '
+                         f'{repair_line(data)}, or set install_python_deps_enabled to true and start a new '
+                         'Claude Code session.\n')
     return code
 
 
@@ -263,8 +258,9 @@ def check(data, requirements=REQUIREMENTS, probe=PROBE):
     if target.is_dir() and loads(target, probe):
         rows.append(('PASS', CHECK_LABEL, str(target)))
     else:
-        rows.append(('FAIL', CHECK_LABEL, f'not installed for {sys.implementation.cache_tag}; the SessionStart hook '
-                                          f'installs it, or run: {repair_line(data)}'))
+        rows.append(('FAIL', CHECK_LABEL, f'not installed for {sys.implementation.cache_tag}; run: '
+                                          f'{repair_line(data)}, or set install_python_deps_enabled to true '
+                                          'and start a new session'))
     for tool, missing in CHECK_TOOLS.items():
         found = shutil.which(tool)
         rows.append(('PASS', tool, found) if found else ('FAIL', tool, f'not on PATH; {missing}'))
@@ -352,9 +348,6 @@ def main(argv=None):
     except Broken as e:
         sys.stderr.write(f'{PLUGIN}: {e}\nRepair with: {repair_line(data)}\n')
         return 1
-    # Only the plugin's own lock, and only an interpreter found through a name the hook checks: one the py launcher
-    # listed, or one named outside HOOK_CANDIDATES (python3.14 for a plugin allowing 3.14), could change without
-    # the hook seeing it, so no stamp, and the hook keeps its full path.
     if (a.requirements.resolve() == REQUIREMENTS and tuple(a.probe) == PROBE
             and chosen in {_which(name) for name in HOOK_CANDIDATES} - {None}):
         write_ready_stamp(data, env_dir(data, a.requirements))

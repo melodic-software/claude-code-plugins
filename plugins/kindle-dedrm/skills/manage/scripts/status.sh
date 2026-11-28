@@ -1,10 +1,6 @@
 #!/usr/bin/env bash
-# status.sh — emit current state of the kindle-dedrm workflow as JSON.
-# Read by SKILL.md pre-computed-context block + by `status` action.
-# Idempotent, read-only — no mutations.
-
+# Git Bash sets the Windows env vars at runtime.
 # shellcheck disable=SC2154
-# (Windows env vars LOCALAPPDATA/USERPROFILE/APPDATA are set on Git Bash runtime)
 
 set -uo pipefail
 
@@ -17,11 +13,10 @@ KEY_FINDER_DIR="${HOME}/Tools/Kindle_Key_Finder"
 DOWNLOADS_DIR="${HOME}/Downloads"
 FIREWALL_RULE_NAME="Block Kindle for PC (lock 2.8.0)"
 
-
 probe_kindle_version() {
   if [[ -f "${KINDLE_APP_DIR}/Kindle.exe" ]]; then
+    # $env:LOCALAPPDATA is expanded by PowerShell, not bash.
     # shellcheck disable=SC2016
-    # ($env:LOCALAPPDATA is expanded by PowerShell, not bash — single quotes are deliberate)
     powershell.exe -NoProfile -Command '(Get-Item "$env:LOCALAPPDATA\Amazon\Kindle\application\Kindle.exe").VersionInfo.FileVersion' 2>/dev/null | tr -d '\r\n '
   fi
 }
@@ -35,8 +30,8 @@ probe_icacls_deny() {
     echo "n/a-no-dir"
     return
   fi
+  # $env:LOCALAPPDATA is expanded by PowerShell, not bash.
   # shellcheck disable=SC2016
-  # ($env:LOCALAPPDATA is expanded by PowerShell, not bash — single quotes are deliberate)
   if grep -q '(DENY)(W)' < <(powershell.exe -NoProfile -Command 'icacls "$env:LOCALAPPDATA\Amazon\Kindle\updates"' 2>/dev/null); then
     echo "applied"
   else
@@ -49,7 +44,6 @@ probe_cached_installer() {
   if [[ -f "${installer}" ]]; then
     local size_bytes
     # portability-ok: Windows-only script (Git Bash + PowerShell + LOCALAPPDATA
-    # above already require Windows) — a BSD stat fallback would be dead code.
     size_bytes=$(stat -c%s "${installer}" 2>/dev/null || echo 0)
     echo "present-${size_bytes}b"
   else
@@ -93,13 +87,12 @@ probe_calibre_plugins() {
 
 probe_book_count() {
   local synced converted
+  # The ls | grep count is safe: Amazon's _EBOK entry names contain no spaces.
   # shellcheck disable=SC2010
-  # (ls|grep used for filename-pattern count; entries are Amazon-generated _EBOK dirs without spaces)
   synced=$(ls "${KINDLE_CONTENT_DIR}" 2>/dev/null | grep -c "_EBOK")
   converted=$(find "${CALIBRE_LIBRARY_DIR}" -name "*.epub" 2>/dev/null | grep -vc "Quick Start")
   echo "synced=${synced},converted=${converted}"
 }
-
 
 cat <<EOF
 {

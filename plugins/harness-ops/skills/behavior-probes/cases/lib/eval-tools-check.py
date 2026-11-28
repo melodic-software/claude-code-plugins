@@ -36,9 +36,7 @@ import tempfile
 from pathlib import Path
 
 WATCHED = ("Skill", "Task", "TaskStop", "ToolSearch")
-# The init line names the Agent tool Task; a call may carry either name.
 ALIASES = {"Agent": "Task"}
-# An is_error tool result carrying this text is a denial too.
 DENIAL_TEXT = "denied by your permission settings"
 EVAL_TIMEOUT = 540
 MAX_TMPDIR = 24
@@ -140,7 +138,7 @@ def remove_tree(path: Path) -> None:
         for name in dirs:
             child = os.path.join(top, name)
             if os.path.islink(child):
-                continue  # never change a link's target outside the tree
+                continue
             with contextlib.suppress(OSError):
                 os.chmod(child, 0o700)
     shutil.rmtree(path, ignore_errors=True)

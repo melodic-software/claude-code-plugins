@@ -1,5 +1,5 @@
 ---
-description: "Verify actionlint's prerequisites and whether its hooks lint workflows here, and register its git pre-commit entry. Use when: 'set up actionlint', 'configure actionlint', 'is actionlint working', workflow lint silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply [install-git-hooks [scope=local|shared]]. Re-runnable and safe."
+description: "Verify actionlint prerequisites and workflow hooks (check [inspect]), or register its git pre-commit entry (apply [install-git-hooks])."
 argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
@@ -181,9 +181,10 @@ The entry only reports: at commit it lints the staged workflow files and blocks 
 finding actionlint reports on a line the commit adds. It rewrites nothing.
 
 A remote entry stays in the committed `lefthook.yml`, so stop it in one clone by skipping its job,
-`actionlint-remote-<entry>`, in the clone's untracked `lefthook-local.yml`; a failing remote job prints
-that skip, and the [adoption
-path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md#when-a-remote-job-breaks)
+`actionlint-remote-<entry>`, in the clone's gitignored lefthook local config, written as lefthook's
+docs say at the time (pointer: [lefthook-local](https://lefthook.dev/examples/lefthook-local/) and
+[skip](https://lefthook.dev/configuration/skip/)); a failing remote job prints that skip, and the
+[adoption path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md#when-a-remote-job-breaks)
 says when to use it and how to drop it.
 
 When the user does not want an entry in this clone, run

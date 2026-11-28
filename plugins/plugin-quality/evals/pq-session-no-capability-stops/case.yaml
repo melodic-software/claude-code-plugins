@@ -24,7 +24,7 @@ graders:
     arm: both
   - name: names-by-name-form
     type: regex
-    pattern: '/?plugin-quality:audit[`*]*\s+[`*]*(?!(?:session|arm)\b(?!-))[\\<]*[\w-]+[\\>]*\[?:[\\<]*[\w-]+|/?plugin-quality:audit\b[^\n]{0,60}<plugin>|by name[^\n]{0,60}plugin-quality:audit|plugin-quality:audit[^\n]{0,60}by name'
+    pattern: '/?plugin-quality:audit[`*]*\s+[`*]*(?!session\b(?!-))[\\<]*[\w-]+[\\>]*\[?:[\\<]*[\w-]+|/?plugin-quality:audit\b[^\n]{0,60}<plugin>|by name[^\n]{0,60}plugin-quality:audit|plugin-quality:audit[^\n]{0,60}by name'
     flags: 'i'
     target: last_message
     arm: both

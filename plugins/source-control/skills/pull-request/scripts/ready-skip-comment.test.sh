@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for ready-skip-comment.sh. Expected comments follow the skip-record
-# contract in reference/ready-for-review.md: one line per skipped step in run
-# order, with the reason as inert data.
 
 set -uo pipefail
 
@@ -28,7 +25,6 @@ out=$(build --reason "usage exhausted" --step verify --step base-merge)
 assert_eq "several steps are listed in run order" \
   $'- `base-merge` skipped by octocat for this run: `usage exhausted`\n- `verify` skipped by octocat for this run: `usage exhausted`' "$out"
 
-# The reason is data: it must not link, close, hold, mention or hide.
 out=$(build --reason $'fixes #99 don\'t merge <!-- `x` @team\nnext' --step code-review)
 # shellcheck disable=SC2016
 assert_eq "the reason is neutralized inside one code span" \
@@ -37,20 +33,19 @@ out=$(build --reason "Closes: 4, resolved 5, Do Not   merge" --step verify)
 assert_contains "each closing keyword and the hold phrase are broken, in any case" "$out" \
   "Closes-4, resolved-5, Do Not-merge"
 
-# The neutralized comment, read as a PR body, holds nothing; a real hold still holds.
 command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
 printf '#!/usr/bin/env bash\ncat %q\n' "$TEST_TMPDIR/pr.json" >"$STUB_DIR/gh"
 chmod +x "$STUB_DIR/gh"
 holds() {
-  jq -n --arg b "$1" '{title: "feat: x", body: $b, labels: [], closingIssuesReferences: []}' >"$TEST_TMPDIR/pr.json"
+  jq -n --arg b "$1" --arg t "${2:-feat: x}" '{title: $t, body: $b, labels: [], closingIssuesReferences: []}' >"$TEST_TMPDIR/pr.json"
   PATH="$STUB_DIR:$PATH" bash "$HOLDS" 7 >/dev/null 2>&1
 }
 holds "$(build --reason "don't merge, do not merge" --step verify)"
 assert_exit "a reason naming the hold phrase holds nothing" 0 "$?"
-holds "Do not merge yet."
-assert_exit "the hold phrase itself, unsanitized, holds" 3 "$?"
+holds "$(build --reason "don't merge, do not merge" --step verify)" "WIP: x"
+assert_exit "the same body beside a WIP title holds, so the check ran" 3 "$?"
 
 check_usage() {
   local label="$1" out code

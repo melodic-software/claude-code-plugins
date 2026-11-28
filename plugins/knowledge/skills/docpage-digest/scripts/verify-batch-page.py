@@ -40,7 +40,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+sys.dont_write_bytecode = True
 
 SCRIPTS = Path(__file__).resolve().parent
 VERIFIED = "verified"
@@ -56,7 +56,6 @@ VERDICT_LINE = re.compile(
 COUNTS_LINE = re.compile(
     r"^\W*findings?(?:\s+counts?)?\W+high\W+(\d+)\W+medium\W+(\d+)\W+low\W+(\d+)", re.I | re.M
 )
-# Read loosely on purpose: a false match leaves a page unverified, a miss would hide a high finding.
 HIGH_FINDING = re.compile(
     r"severity[^\w\n]+high\b|\bhigh[^\w\n]+severity\b|\bfinding[^\w\n]+high\b|\[high\]|\(high\)"
     r"|\|[ \t]*high[ \t]*\||^[ \t]*(?:[-*][ \t]*)?\**high\**[ \t]*[:|]|\bhigh[^\w\n]*[1-9]",
@@ -73,7 +72,6 @@ LIST_PREFIX = re.compile(r"^\s*(?:[-*]\s+)?")
 
 
 def decide_page(ev: dict) -> str:
-    """Return `verified` or `unverified: <code>` from facts already read off the disk."""
     if ev["symlink_leaves_root"]:
         return "unverified: symlink-leaves-root"
     if ev["pin"] != "ok":
@@ -105,7 +103,6 @@ def read_text(path: Path) -> str:
 
 
 def containment_refusal(page: dict, slice_arg: str, root_arg: str):
-    """Return the code that refuses this slice before any read or write, or None."""
     work = os.path.join(os.path.realpath(root_arg), ".work")
     if os.path.islink(slice_arg):
         return "slice-symlink"
@@ -128,7 +125,6 @@ def symlink_leaves_root(slice_dir: Path, work: str) -> bool:
 
 
 def read_pin(slice_dir: Path, started_at: float):
-    """Return (state, pinned_at, hashes); state is ok, missing, before-run or moved."""
     try:
         manifest = json.loads(read_text(slice_dir / "verification" / "pin-manifest.json"))
         pinned_at = parse_time(manifest["pinned_at"])
@@ -148,7 +144,6 @@ def read_pin(slice_dir: Path, started_at: float):
 
 
 def judge_verdict(text: str) -> str:
-    """Return pass, fail, blocked, high or malformed for one verdict file's text."""
     verdicts = [v.upper() for v in VERDICT_LINE.findall(text)]
     if "FAIL" in verdicts:
         return "fail"
@@ -166,7 +161,6 @@ def judge_verdict(text: str) -> str:
 
 
 def arm_state(slice_dir: Path, arm: str, pinned_at: float, hashes: set) -> str:
-    """Judge every verdict file of this run for one arm; a retry can leave more than one."""
     files = [p for p in sorted((slice_dir / "verification").glob(f"verifier-{arm}-*.md")) if regular(p)]
     if not files:
         return "missing"
@@ -220,7 +214,6 @@ def failed_gates(slice_dir: Path) -> list:
 
 
 def status_spans(lines: list) -> list:
-    """Return (start, end) per status line; a template line may wrap inside its parenthesis."""
     spans = []
     i = 0
     while i < len(lines):

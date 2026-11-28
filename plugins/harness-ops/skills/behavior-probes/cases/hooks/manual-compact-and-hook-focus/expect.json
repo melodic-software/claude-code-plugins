@@ -1,0 +1,20 @@
+{
+  "claim": "A manual `/compact <focus>` and a PreCompact hook's printed text both reach the compact summary.",
+  "tags": ["/compact", "PreCompact", "PostCompact", "compact summary", "hook"],
+  "permission_mode": "default",
+  "model": "claude-haiku-5-5",
+  "max_turns": 4,
+  "max_budget_usd": 0.5,
+  "cli_args": ["--input-format", "stream-json"],
+  "target": {
+    "compaction": true,
+    "patterns": [
+      "^(?=.*\"hook_event_name\":\\s*\"PostCompact\")(?=.*\"trigger\":\\s*\"manual\")(?=.*FOCUS-4242)(?=.*HOOK-9191)"
+    ],
+    "example": [
+      "{\"session_id\":\"s\",\"hook_event_name\":\"PostCompact\",\"trigger\":\"manual\",\"compact_summary\":\"Summary. FOCUS-4242 HOOK-9191\"}"
+    ]
+  },
+  "outcome": "transcript-grep",
+  "control": "hooks/manual-compact-focus-without-hook-text"
+}

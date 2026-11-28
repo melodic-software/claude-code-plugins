@@ -5,8 +5,8 @@
         {
           "tool": "Write",
           "input": {
-            "file_path": "/ws/docs/adr/0003-cache-order-totals-in-redis.md",
-            "content": "# 3. Cache order totals in Redis\n"
+            "file_path": "/ws/docs/adr/0003-add-totals-to-order-events.md",
+            "content": "# 3. Add totals to order events\n"
           }
         }
       ],
@@ -23,8 +23,8 @@
         {
           "tool": "Write",
           "input": {
-            "file_path": "/platform-docs/docs/adr/0003-cache-order-totals-in-redis.md",
-            "content": "# 3. Cache order totals in Redis\n"
+            "file_path": "/platform-docs/docs/adr/0003-add-totals-to-order-events.md",
+            "content": "# 3. Add totals to order events\n"
           }
         }
       ],
@@ -35,8 +35,8 @@
         {
           "tool": "Write",
           "input": {
-            "file_path": "/ws/docs/adr/0001-cache-order-totals-in-redis.md",
-            "content": "# 1. Cache order totals in Redis\n"
+            "file_path": "/ws/docs/adr/0001-add-totals-to-order-events.md",
+            "content": "# 1. Add totals to order events\n"
           }
         }
       ],

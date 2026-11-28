@@ -5,7 +5,7 @@
         "{repo}/.work/handoffs/20261024T120000Z-handoff-queue-drain.md",
         "{repo}/.work/handoffs/archive/20260615T080000Z-handoff-queue-drain/h19-1a2b3c4d.md"
       ],
-      "why": "the hot file plus one archive read"
+      "why": "the handoff file plus one archive read"
     },
     {
       "reads": [

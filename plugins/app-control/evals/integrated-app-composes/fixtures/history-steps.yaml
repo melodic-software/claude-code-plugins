@@ -6,4 +6,4 @@ steps:
   - id: open-history
     action: goto /orders
   - id: check-first-order
-    action: expect text "Order #1001"
+    action: 'expect text "Order #1001"'

@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Tests for target-repo.sh. Each case builds a throwaway git repo with a given
-# set of remotes and runs the resolver against a stub gh whose
-# `repo set-default --view` and `api` output come from the STUB_* variables.
-# The stub's `api repos/<repo>` builds the repository's JSON and runs the
-# caller's --jq filter over it with jq. STUB_PARENTS lists `<repo>=<parent>`
-# pairs, space-separated; any other repository has no parent. STUB_NOPUSH lists
-# repositories the caller cannot push to. STUB_API_FAIL makes the call fail with
-# that message.
-# Non-zero exit on any FAIL.
-
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO GITHUB_ACTIONS
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -62,7 +52,6 @@ make_repo() {
   echo "$repo"
 }
 
-# check <desc> <repo> <expected stdout> <expected exit> <stderr substring> [VAR=value...]
 check() {
   local desc="$1" repo="$2" want_out="$3" want_rc="$4" want_err="$5"
   shift 5

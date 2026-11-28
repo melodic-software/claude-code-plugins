@@ -1,36 +1,4 @@
 #!/usr/bin/env bash
-# Build block-cross-domain's identity-domain map from a machine profile.
-#
-#   identity-domains.sh --profile FILE|- [--data-dir DIR [--confirm] [--replace]]
-#                       [--owner NAME=OWNER] [--marker NAME=TEXT]
-#                       [--az-config-dir NAME=DIR] [--owner-root DIR]
-#                       [--shared-exception FROM[,FROM...]:TO=PATH]
-#
-# FILE is a /harness-ops:machine-profile document: the stored profile.json or a
-# saved `discover` output ("-" reads stdin). Each recorded identity domain whose
-# tree is an absolute path with no wildcard becomes one map domain: the tree is
-# its root under the profile's own os key, and a gh directory the profile
-# records `set` is its gh_config_dir. A domain is named after its tree's last
-# segment, with `-2`, `-3` added on a clash. The profile records no owners,
-# identity markers, az directory or shared exceptions; the repeatable flags add
-# them by domain name, and a value left unsupplied is left out of the map. Each
-# --owner-root is a directory holding one directory per owner, such as
-# "$(ghq root)/github.com", or flat <owner>-<repo>-<slug> trees, such as
-# "$(git config worktreeroot.path)"; given, they become the map's owner_roots
-# under the profile's os key, in place of ~/src/github.com and
-# ~/worktrees/github.com.
-#
-# A --shared-exception opens PATH, a directory of domain TO, to sessions in the
-# FROM domains, one way: the map entry {path, from, to}. PATH must be TO's tree,
-# or below it or below one of TO's owner directories, and not below
-# another domain's path nested there, compared as block-cross-domain.sh compares
-# them; FROM must not list TO.
-#
-# Prints the map, and one note per tree skipped or value left out on stderr.
-# With --data-dir, refuses when DIR already holds a different map, unless
-# --replace, and reports a map that is already there unchanged. Writes
-# DIR/identity-domains.json only with --confirm, and nothing else, anywhere.
-#
 # Exit: 0 ok, 1 refused (nothing written), 2 usage or missing tool.
 set -uo pipefail
 
@@ -41,9 +9,6 @@ die() {
 
 command -v jq >/dev/null 2>&1 || die "jq is required"
 
-# The raw profile in; one object out: the map, the notes, and the refusals. The
-# root and value rules are block-cross-domain.sh's own, so a map written here
-# compiles there.
 # shellcheck disable=SC2016  # jq source, not shell expansion
 BUILD_JQ='
 def oneline: type == "string" and length > 0 and (explode | all(. >= 32 and . != 127));
@@ -144,9 +109,6 @@ def innermost($paths; $os):
 '
 
 PROFILE="" DATA_DIR="" CONFIRM=0 REPLACE=0
-# Flag, domain name, value triples for jq's --args. Each word carries a leading
-# `:`, which BUILD_JQ strips, so a word that starts with `-` is never read as a
-# jq option.
 EXTRA=()
 add_extra() {
   [[ "$2" == ?*=* ]] || die "--$1 takes NAME=VALUE"
@@ -168,7 +130,22 @@ while [[ $# -gt 0 ]]; do
   --confirm) CONFIRM=1; shift ;;
   --replace) REPLACE=1; shift ;;
   --help | -h)
-    awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"
+    cat <<'EOF'
+Build block-cross-domain's identity-domain map from a machine profile.
+
+Usage: identity-domains.sh --profile FILE|- [options]
+  --profile FILE|-                        machine profile JSON ("-" reads stdin)
+  --data-dir DIR                          compare with, or write, DIR/identity-domains.json
+  --confirm                               write the map (with --data-dir)
+  --replace                               replace a different existing map (with --data-dir)
+  --owner NAME=OWNER                      add an owner to domain NAME (repeatable)
+  --marker NAME=TEXT                      add an identity marker to domain NAME (repeatable)
+  --az-config-dir NAME=DIR                set domain NAME's az config directory
+  --owner-root DIR                        add an owner root (repeatable)
+  --shared-exception FROM[,FROM...]:TO=PATH  open PATH of domain TO to the FROM domains
+
+Exit: 0 ok, 1 refused (nothing written), 2 usage or missing tool.
+EOF
     exit 0
     ;;
   *) die "unknown argument $1 (see --help)" ;;
@@ -180,11 +157,9 @@ done
 [[ "$DATA_DIR" != *'${'* ]] || die "--data-dir is unresolved; pass the plugin data directory"
 ((CONFIRM == 0)) || [[ -n "$DATA_DIR" ]] || die "--confirm needs --data-dir"
 
-# cat reads stdin for the operand "-", even after "--".
 [[ "$PROFILE" == "-" || -r "$PROFILE" ]] || die "cannot read $PROFILE"
 RAW="$(cat -- "$PROFILE")"
 
-# MSYS_NO_PATHCONV=1 keeps Git Bash from rewriting the path values handed to jq.
 OUT="$(MSYS_NO_PATHCONV=1 jq -c -R -s --arg home "${HOME:-}" "$BUILD_JQ" --args ${EXTRA[@]+"${EXTRA[@]}"} <<<"$RAW")" || die "jq could not build the map" 1
 OUT=${OUT//$'\r'/}
 jq -r '(.notes // [])[] | "note: \(.)"' <<<"$OUT" | tr -d '\r' >&2

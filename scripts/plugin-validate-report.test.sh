@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Contract for scripts/plugin-validate-report.mjs. No claude binary required.
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -52,8 +51,6 @@ else
   fail "clean report (rc=$rc): $out"
 fi
 
-# gatingHooks item shape and the "gating hook without .catch: tool.call"
-# wording come from the plugin commands reference and the mods create page.
 out="$(run '{
   "success": true,
   "strict": false,

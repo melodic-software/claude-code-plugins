@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for new-changelog-fragment.sh: the name it gives a fragment, the
-# front matter it writes, and the cases it refuses. The fragment it writes is
-# filled in the way a contributor would and run through the shared validator.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -51,7 +48,6 @@ if [[ "$(cat "$f/$first")" == $'---\nbump: minor\n---' ]]; then
 else
   fail "unexpected content: $(cat "$f/$first")"
 fi
-# 30 draws: with no redraw, a suffix holds two hex letters in a row more often than not.
 paired=""
 for _ in $(seq 30); do
   name="$(run_new "$f" alpha patch)" || {
@@ -152,7 +148,6 @@ if [[ "$lane" =~ ^\.changes/alpha/work-resolve-issue-issue-1-2-3-[0-9a-f]{8}\.md
 else
   fail "expected .changes/alpha/work-resolve-issue-issue-1-2-3-<hex>.md that validates, got: $lane"
 fi
-# The way the lane's check wrapper runs it: the base copy, against the checkout.
 if out="$(CHECK_DATA_ROOT="$f" bash "$SELF_DIR/check-changelog-fragments.sh" --check 2>&1)"; then
   ok "check-changelog-fragments.sh --check accepts the lane's fragment"
 else
@@ -160,9 +155,6 @@ else
 fi
 rm -rf "$f"
 
-# --- several plugins, --carriers-of, and a body from stdin -------------------
-# alpha and gamma are in fragment mode, beta is not; lib/esc.mjs is carried by
-# alpha (twice), beta and gamma, lib/other.sh by gamma only.
 multi_fixture() {
   local dir
   fixture_tree::build "$1" --sut "$SCRIPT" --sut sync-shared-copies.sh --git --plugins --label new-fragment || return 1
@@ -185,7 +177,6 @@ multi_fixture() {
 declare -A want=()
 body=$'### Changed\n\n- Shared `esc.mjs` synced.'
 
-# The reference: one run per plugin, each body appended by hand.
 multi_fixture f
 for name in alpha gamma; do
   p="$(run_new "$f" "$name" patch)" && printf '%s\n' "$body" >>"$f/$p"
@@ -259,11 +250,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a copy of scripts/ kept outside the checkout -----------------------------
-# The issue lane runs a read-only base copy of only scripts/ through a wrapper
-# whose working directory is the checkout (pr-run-activity.md, "Skill
-# activities"), so the fragment must land in the checkout and no checkout code
-# may run.
 tools="" elsewhere=""
 multi_fixture f
 fixture_tree::build tools --label new-fragment-tools || exit 2
@@ -278,8 +264,6 @@ if [[ $? -eq 0 && "$out" =~ ^\.changes/alpha/sync-esc-[0-9a-f]{8}\.md$ && -f "$f
 else
   fail "expected .changes/alpha/sync-esc-<hex>.md in the checkout, got: $out"
 fi
-# The copy holds only scripts/, so its sync-shared-copies.sh must read the
-# checkout's registry and canonicals; the checkout's own copy must never run.
 out="$(ext "$f" --carriers-of lib/esc.mjs patch 2>/dev/null)"
 if [[ $? -eq 0 && "$(grep -c '^\.changes/alpha/' <<<"$out")" == 1 && "$(grep -c '^\.changes/gamma/' <<<"$out")" == 1 ]]; then
   ok "an outside copy's --carriers-of reads the checkout's registry"
@@ -306,8 +290,6 @@ fi
 chmod -R u+w "$tools"
 rm -rf "$f" "$tools" "$elsewhere"
 
-# --- -C <dir>: act as if started in <dir> ---------------------------------------
-# A worker that cannot cd runs it from a directory outside the target work tree.
 other=""
 base_fixture f
 base_fixture other
@@ -332,8 +314,6 @@ if [[ $? -eq 2 && "$out" == *"only once"* && ! -e "$f/.changes" ]]; then
 else
   fail "expected exit 2 and no fragment for two -C options, got: $out"
 fi
-# A same-named directory on CDPATH must not win over the caller's, and cd must
-# print nothing ahead of the fragment path.
 mkdir -p "$elsewhere/cdpath/${f##*/}"
 out="$(cd "${f%/*}" && CDPATH="$elsewhere/cdpath" bash "$SCRIPT" -C "${f##*/}" alpha patch)"
 if [[ $? -eq 0 && "$out" =~ ^\.changes/alpha/feat-some_thing-[0-9a-f]{8}\.md$ && -f "$f/$out" ]]; then
@@ -367,7 +347,6 @@ if [[ $? -eq 2 && "$out" == *"usage:"* ]]; then
 else
   fail "expected usage and exit 2 for a bare -C, got: $out"
 fi
-# Run from inside a work tree, so an ignored -C would write there.
 rm -rf "$f/.changes"
 out="$(cd "$f" && bash "$SCRIPT" -C "$elsewhere" alpha patch 2>&1)"
 if [[ $? -eq 2 && "$out" == *"work tree"* && ! -e "$f/.changes" ]]; then
@@ -377,9 +356,6 @@ else
 fi
 rm -rf "$f" "$other" "$elsewhere"
 
-# --- every fragment stays under .changes/<plugin>/ -----------------------------
-# The lane passes the model's arguments, and the checkout's fragment-plugins.txt
-# and plugin.json files are the model's to edit.
 base_fixture f
 mkdir -p "$f/escape/.claude-plugin"
 printf '{"name":"escape","version":"1.0.0"}\n' >"$f/escape/.claude-plugin/plugin.json"

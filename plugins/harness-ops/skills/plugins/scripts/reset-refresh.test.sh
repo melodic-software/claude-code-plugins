@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract tests for reset-refresh.sh. Each case builds a throwaway
-# HOME from fixtures/reset-refresh/ and puts stub `claude`, `pgrep`, `uname`,
-# `tasklist.exe` and `chezmoi` commands first on PATH (STUB_UNAME picks the
-# platform). `clean` cases run under util-linux `script`, which gives the run the
-# terminal clean requires. The committed fixtures are only copied, never written.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -38,14 +33,6 @@ if ! command -v jq >/dev/null 2>&1; then
   exit 0
 fi
 
-# The `claude` stub acts on the case's HOME the way the probed CLI does: an
-# install refills the cache and turns a recorded `false` into `true`, enable and
-# disable on a plugin already in that state exit 1, and marketplace update
-# re-creates a missing clone. STUB_DROP_AUTOUPDATE=1 makes marketplace update
-# drop the marketplace's autoUpdate, the difference a refresh must catch.
-# STUB_REORDER_SETTINGS=1 makes install reorder settings.json's keys, which only a
-# byte compare sees. For STUB_ACCEPT_ID, an install without `--accept-command abc123`
-# only displays a marketplace-declared command, as a `--json` failure result.
 write_stubs() {
   local stubs="$1"
   mkdir -p "$stubs"
@@ -124,7 +111,6 @@ STUB
   chmod +x "$stubs/claude" "$stubs/pgrep" "$stubs/uname" "$stubs/tasklist.exe" "$stubs/chezmoi"
 }
 
-# CASE_NUM is incremented by the caller: this runs in a subshell.
 new_case() {
   local dir="$TEST_TMPDIR/case-$CASE_NUM"
   local plugins="$dir/home/.claude/plugins"
@@ -152,7 +138,6 @@ run_script() {
   env_cmd "$dir"
   "${ENV_CMD[@]}" bash "$SCRIPT" "$@" 2>"$dir/stderr.txt"
 }
-# Runs the script on a pseudo-terminal whose input is $2; stdout loses the terminal's `\r`.
 run_tty() {
   local dir="$1" input="$2" cmd
   shift 2
@@ -164,9 +149,6 @@ run_tty() {
 
 tree_state() { (cd "$1" && find . -print | LC_ALL=C sort && find . -type f -exec cksum {} + | LC_ALL=C sort); }
 
-# ============================================================================
-# Case: preview reports what refresh would move and changes nothing
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 dir=$(new_case)
 before=$(tree_state "$dir/home")
@@ -184,9 +166,6 @@ assert_contains "preview: names the project/local records it does not reinstall"
 assert_contains "preview: counts what clean also discards" "$out" "clean also discards data/: 1 entries"
 assert_eq "preview: no earlier backup to name" "0" "$(grep -c 'earlier backup' <<<"$out")"
 
-# ============================================================================
-# Case: refresh leaves marketplaces, installs and enabledPlugins identical
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 dir=$(new_case)
 EXTRA_ENV=()
@@ -218,9 +197,6 @@ assert_eq "refresh: the cache is refilled" "yes" \
 assert_eq "refresh: an unknown marketplace dir and data/ stay" "yes" \
   "$([[ -d "$plugins/marketplaces/orphan" && -f "$plugins/data/alpha-market1/state.txt" ]] && echo yes || echo no)"
 
-# ============================================================================
-# Case: a snapshot difference exits non-zero
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 dir=$(new_case)
 EXTRA_ENV=(STUB_DROP_AUTOUPDATE=1)
@@ -228,9 +204,6 @@ out=$(run_script "$dir" refresh --journal-root "$dir/journal")
 assert_eq "mismatch: exit 1" "1" "$?"
 assert_contains "mismatch: names the differing snapshot" "$out" "differs: marketplaces"
 
-# ============================================================================
-# Case: refusals act before anything moves
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 dir=$(new_case)
 EXTRA_ENV=(CLAUDE_CODE_REMOTE=1)
@@ -253,9 +226,6 @@ assert_eq "journal inside plugins/: the refused root is not created" "absent" \
   "$([[ -e "$dir/home/.claude/plugins/runs" ]] && echo present || echo absent)"
 assert_eq "refusals: nothing was moved or fetched" "0" "$(wc -l <"$dir/claude.log" | tr -d ' ')"
 
-# ============================================================================
-# Case: on Git Bash (no pgrep) tasklist.exe decides whether claude.exe runs
-# ============================================================================
 CASE_NUM=$((CASE_NUM + 1))
 dir=$(new_case)
 EXTRA_ENV=(STUB_UNAME=MINGW64_NT-10.0-26300 STUB_TASKLIST_PID=5150 STUB_PGREP_PID=4242)
@@ -271,16 +241,12 @@ EXTRA_ENV=(STUB_UNAME=MINGW64_NT-10.0-26300 STUB_PGREP_PID=4242)
 run_script "$dir" refresh --journal-root "$dir/journal" >/dev/null
 assert_eq "windows no claude.exe: refresh runs to exit 0 (pgrep is not consulted)" "0" "$?"
 
-# ============================================================================
-# clean: every case below runs on a pseudo-terminal from util-linux `script`
-# ============================================================================
 if ! script -qec true /dev/null </dev/null >/dev/null 2>&1; then
   echo "SKIP: clean cases need util-linux script for a terminal" >&2
 else
   bak_count() { find "$1/home/.claude" -mindepth 1 -maxdepth 1 -name 'plugins.bak-*' | wc -l | tr -d ' '; }
   has() { [[ -e "$1" ]] && echo yes || echo no; }
 
-  # Case: clean discards data/ too, keeps the backup, and reports it
   CASE_NUM=$((CASE_NUM + 1))
   dir=$(new_case)
   EXTRA_ENV=()
@@ -310,7 +276,6 @@ else
     "$(find "$run_dir" -maxdepth 1 \( -name 'before.*' -o -name 'after.*' -o -name 'settings.*' \) | wc -l | tr -d ' ')"
   assert_eq "clean: the journal stays" "yes" "$(has "$run_dir/journal.log")"
 
-  # Case: a comparison failure moves the backup back
   CASE_NUM=$((CASE_NUM + 1))
   dir=$(new_case)
   EXTRA_ENV=(STUB_DROP_AUTOUPDATE=1)
@@ -328,7 +293,6 @@ else
   assert_eq "move-back: the rebuilt copies are kept in the run directory" "yes" "$(has "$run_dir/rebuilt/cache/market1/alpha/1.0.0")"
   assert_eq "move-back: the snapshots stay for the operator" "yes" "$(has "$run_dir/after.marketplaces.json")"
 
-  # Case: the move-back leaves a target absent before the run absent after it
   CASE_NUM=$((CASE_NUM + 1))
   dir=$(new_case)
   plugins="$dir/home/.claude/plugins"
@@ -346,7 +310,6 @@ else
   assert_eq "absent before: the rebuilt cache and clone are in the run directory" "yes yes" \
     "$(has "$run_dir/rebuilt/cache/market1/alpha/1.0.0") $(has "$run_dir/rebuilt/marketplaces/market1")"
 
-  # Case: a settings file that differs only in byte order fails the cmp check
   CASE_NUM=$((CASE_NUM + 1))
   dir=$(new_case)
   EXTRA_ENV=(STUB_REORDER_SETTINGS=1)
@@ -357,7 +320,6 @@ else
   assert_eq "clean settings cmp: the backup is moved back" "keep" \
     "$(cat "$dir/home/.claude/plugins/data/alpha-market1/state.txt" 2>/dev/null)"
 
-  # Case: an earlier backup refuses the run before anything moves
   CASE_NUM=$((CASE_NUM + 1))
   dir=$(new_case)
   mkdir -p "$dir/home/.claude/plugins.bak-20260101T000000Z"
@@ -372,7 +334,6 @@ else
   assert_eq "earlier backup: no CLI call" "0" "$(wc -l <"$dir/claude.log" | tr -d ' ')"
   assert_eq "earlier backup: the HOME tree is unchanged, the backup included" "$before" "$(tree_state "$dir/home")"
 
-  # Case: clean aborts when run autonomously, with no terminal
   CASE_NUM=$((CASE_NUM + 1))
   dir=$(new_case)
   before=$(tree_state "$dir/home")
@@ -383,7 +344,6 @@ else
   assert_eq "autonomous: no CLI call" "0" "$(wc -l <"$dir/claude.log" | tr -d ' ')"
   assert_eq "autonomous: the HOME tree is unchanged" "$before" "$(tree_state "$dir/home")"
 
-  # Case: an install that displays a command asks, and a yes accepts it by sha256
   CASE_NUM=$((CASE_NUM + 1))
   dir=$(new_case)
   EXTRA_ENV=(STUB_ACCEPT_ID=alpha@market1)
@@ -395,7 +355,6 @@ else
     "$(grep -c '^plugin install alpha@market1 --scope user --json --accept-command abc123$' "$dir/claude.log")"
   assert_eq "accept: never passes -y" "0" "$(grep -c -e ' -y' -e '--yes' "$dir/claude.log")"
 
-  # Case: a no declines the install, which fails the run and moves the backup back
   CASE_NUM=$((CASE_NUM + 1))
   dir=$(new_case)
   EXTRA_ENV=(STUB_ACCEPT_ID=alpha@market1)

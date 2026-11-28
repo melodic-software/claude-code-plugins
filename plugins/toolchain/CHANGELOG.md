@@ -3,6 +3,51 @@
 All notable changes to the `toolchain` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.1] - 2026-11-28
+
+### Changed
+
+- Resolve `result_gate_enabled` in-process in `hooks/result-gate.mjs` via the shared `lib/hook-enabled.mjs` helper instead of spawning `bash` on `hooks/hook-enabled.sh`, removing the vendored shell helper.
+
+- Trimmed frontmatter descriptions for `/toolchain:check` (401 -> 332 chars), `/toolchain:lint` (424 -> 323 chars), `/toolchain:ratchet` (384 -> 348 chars), and `/toolchain:setup` (215 -> 139 chars; total 1424 -> 1142 chars, -282 chars) while preserving all modes, confirmation gates, counters-only rules, and sibling exclusions.
+
+## [3.4.0] - 2026-11-28
+
+### Added
+
+- **`result_gate_enabled` turns the turn-end Stop hook on or off.** The boolean option (default `true`, so existing installs keep the hook) is resolved by `hooks/result-gate.mjs` through `lib/hook-enabled.sh` with `--security` across the plugin default, the user layer and the repository layer (`docs/conventions/toolchain.yaml`, checked against the new `schemas/toolchain.schema.json`). A repository can turn the hook on but not off; only the user's or managed settings turn it off. The hook runs only while `result_gate_enabled` is on and `turn_end_result_gate` is not `off`.
+
+## [3.3.2] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [3.3.1] - 2026-11-25
+
+### Fixed
+
+- The lane record script's write mode now reads every cited file at the merge-base with the default branch (or `--base <ref>`), as verify mode does, and exits 2 with nothing written when `--repo` is not the root of a git work tree or git fails there. It no longer drafts from working-tree text when git cannot confirm the repository.
+- A stated command is refused when its section (from the nearest heading above to the next one, where a `#` line inside a code fence is no heading) holds a forbidding word, emphasis marks ignored, now including `cannot`, `no`, `forbid`, `prohibit`, `unless`, `without`, `only` and a `n’t` with a typographic apostrophe.
+- The install refusal no longer looks past a wrapper or shell keyword at a command's start (`env`, `nice`, `timeout`, `if`, `then`, `!`, `eval`, `source`, `.`), refuses any shell expansion, checks every word for a package manager and its install verbs, and adds `npm ic`, `npm u`, `install-clean`, `init`, `create`, `python -<flags>m pip install`, `setup.py install`, `uv --with`, `go run <module>@<version>`, `poetry add` and `bundle update`.
+- `/toolchain:check --propose-records` now has the session open each record pull request as a draft with a `Hold:` line saying a person reads the proposed record before it merges, since verify proves where each command came from, not that it suits its key.
+- A record holding a control or invisible character anywhere, a comment included, fails verify.
+- The draft is refused inside `~/.claude/ecosystems` reached through a symlinked or differently cased path.
+- The lane record script refuses a `package.json` script when git cannot list the lockfiles at the merge-base, instead of counting every lockfile present. Unattended runs keep the resolution ladder's lockfile rule unchanged.
+
+## [3.3.0] - 2026-11-25
+
+### Added
+
+- `/toolchain:check --propose-records <dir>` drafts an ecosystem record in an unattended run from the run's `assumed:` lines, through a script in the check skill. The script re-reads each cited `file:line` and refuses a cited file that is untracked or changed from the merge-base with the default branch (or from `--base <ref>`). It finds that branch from the remote's `HEAD` ref, else by asking the remote, so it also drafts in an `actions/checkout` workspace, which sets no remote `HEAD` ref. It refuses any command that line does not hold, an install verb, a package runner, a shell command string and a CI workflow file as the source. On a refusal it writes nothing, and it never writes inside an ecosystem records folder or over an existing file. The session then proposes the draft in a separate pull request.
+- The same script's `verify` mode exits non-zero on any key or command in a record that the run's `assumed:` lines do not support. It requires `--base` and reads every cited line at that commit, the pull request's base, so a consumer's CI can check a lane's record pull request and no line the pull request adds can support it.
+
+## [3.2.5] - 2026-11-25
+
+### Changed
+
+- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
+
 ## [3.2.4] - 2026-11-24
 
 ### Changed

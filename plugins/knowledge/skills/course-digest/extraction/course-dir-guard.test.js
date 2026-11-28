@@ -28,7 +28,6 @@ function repo(at, remote) {
   if (remote) execFileSync("git", ["remote", "add", "origin", remote], { cwd: at, env: gitEnv });
 }
 
-/** run.mjs launching validate-extraction.js, which fails on the empty course directory only if it runs. */
 function run(args, ghAnswer = "") {
   const result = spawnSync(process.execPath, [path.join(dir, "run.mjs"), "validate-extraction.js", ...args], {
     encoding: "utf8",

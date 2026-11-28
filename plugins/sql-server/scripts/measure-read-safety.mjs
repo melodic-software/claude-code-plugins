@@ -1,15 +1,4 @@
 #!/usr/bin/env node
-// Measures the read controls and the process topology of ADR 0086 sections 1
-// and 4 against a local SQL Server Linux container it starts and removes, then
-// rewrites the results block of reference/read-safety-measurement.md.
-//
-//   node scripts/measure-read-safety.mjs [--image <tag>] [--doc <path>] [--runs <n>]
-//
-// Needs Docker, Node 22 and the plugin's dependencies (npm ci). The SA and
-// reader passwords are generated per run and never written or printed. The
-// container's certificate is self-signed, so the measurement connects with a
-// driver whose Connection sets trustServerCertificate; the shipped executor
-// code runs unchanged on top of it.
 import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes, randomInt } from 'node:crypto';
 import { mkdtempSync, readFileSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -24,7 +13,6 @@ const PLUGIN_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const SELF = fileURLToPath(import.meta.url);
 const DEFAULT_IMAGE = 'mcr.microsoft.com/mssql/server:2025-CU10-ubuntu-24.04';
 const DEFAULT_DOC = join(PLUGIN_ROOT, 'reference', 'read-safety-measurement.md');
-// The form the ai-slop audit skips, so its fix pass never edits the measured results.
 const START = '<!-- BEGIN GENERATED: measure-read-safety-results. Run node plugins/sql-server/scripts/measure-read-safety.mjs -->';
 const END = '<!-- END GENERATED: measure-read-safety-results -->';
 const RETIRED = ['<!-- measure-read-safety:results:start -->', '<!-- measure-read-safety:results:end -->'];
@@ -42,7 +30,6 @@ const now = () => performance.now();
 const password = () => `Aa1!${randomBytes(18).toString('base64url')}`;
 const hasMarkers = (text) => text.includes(START) && text.includes(END);
 
-// The error fn throws or rejects with, or undefined when it completes.
 async function failureOf(fn) {
   try {
     await fn();
@@ -52,10 +39,6 @@ async function failureOf(fn) {
 }
 
 const role = (program) => (program === APP_NAME ? 'agent' : program === WRITER_APP ? 'writer' : program ? 'other' : 'system');
-// What a waiting task waits on. sys.dm_os_waiting_tasks reports a negative
-// blocking_session_id for an owner SQL Server cannot name (-2 orphaned
-// distributed transaction, -3 deferred recovery, -4 and -5 latch owner), and
-// the task's own session for a parallel query's tasks waiting on each other.
 const blockerOf = (session, blocking, program) =>
   blocking < 0 ? `unidentified (${blocking})` : blocking === session ? 'same session' : role(program);
 const waitClass = (type) => (type?.startsWith('LCK_') ? 'lock' : 'other');
@@ -65,7 +48,6 @@ async function tediousModule() {
   return module.default ?? module;
 }
 
-// tedious with the one change a self-signed container certificate needs.
 async function trustingDriver() {
   const tedious = await tediousModule();
   class Connection extends tedious.Connection {
@@ -130,8 +112,6 @@ async function measure() {
     const reader = password();
     const port = await freePort();
     console.error(`starting ${name} from ${image} on 127.0.0.1:${port}`);
-    // Before the run: `docker run -d` creates the container before it starts it,
-    // so a failed start still leaves one for cleanup to remove.
     started = true;
     docker(
       ['run', '-d', '--name', name, '--memory', '2g', '-e', 'ACCEPT_EULA=Y', '-e', 'MSSQL_SA_PASSWORD', '-e', 'MSSQL_MEMORY_LIMIT_MB=1536',
@@ -143,7 +123,6 @@ async function measure() {
     const lines = await runAll(lab, { image, digest, port, reader, work, runs });
     await lab.close();
 
-    // Re-read: the run takes minutes, and an edit to the prose around the block meanwhile must survive.
     const current = readFileSync(docPath, 'utf8');
     if (!hasMarkers(current)) throw new Error(`${docPath} lost its results markers during the run`);
     const block = `${START}\n${lines.join('\n')}\n${END}`;
@@ -160,7 +139,6 @@ async function measure() {
   }
 }
 
-// Raw tedious sessions for setup, the writer, the sampler and the baselines.
 class Lab {
   static async open({ port, sa, reader }) {
     const lab = new Lab(await tediousModule(), port, sa, reader);
@@ -191,7 +169,6 @@ class Lab {
     return new Promise((done, fail) => connection.connect((error) => (error ? fail(error) : done(connection))));
   }
 
-  // A raw session as the reader, outside the executor.
   connectReader() {
     return this.connect({ appName: BASELINE_APP, database: DB, user: READER_USER, pass: this.reader });
   }
@@ -209,8 +186,6 @@ class Lab {
     return this.run(this.admin, sql);
   }
 
-  // Open transactions held by sessions with this program name, after giving
-  // a closed session time to end.
   async openTransactions(program) {
     let count;
     for (let i = 0; i < 20; i += 1) {
@@ -234,9 +209,6 @@ class Lab {
     };
   }
 
-  // Samples sessions and waiting tasks of the given programs every interval
-  // until stopped. Each waiting task with a blocking_session_id is attributed
-  // to a waiter and a blocker (see role and blockerOf below), by wait class.
   sampler(programs, intervalMs = 100) {
     const list = programs.map((program) => `N'${program}'`).join(', ');
     const samples = [];
@@ -324,7 +296,6 @@ const outcome = (error) => {
   return `error: ${String(error.message).split('\n')[0]}`;
 };
 
-// Runs a read through the executor while a writer holds a row lock it scans.
 async function blockedRead(lab, limits, holdMs) {
   const release = await lab.holdRowLock();
   const stopSampler = lab.sampler([APP_NAME]);
@@ -335,15 +306,12 @@ async function blockedRead(lab, limits, holdMs) {
   const blockedMs = Math.round(now() - began);
   clearTimeout(releaser);
   await release();
-  // Sampled before close, so a connection wrongly kept in the pool still counts.
   const open = await lab.openTransactions(APP_NAME);
   await executor.close();
   const sample = await stopSampler();
   return { blockedMs, outcome: outcome(error), lockWaits: sample.lockWaits, open };
 }
 
-// A raw reader session inside a transaction, cancelled on the client side and
-// kept open: what the discard rule guards against.
 async function keptOpenAfterCancel(lab, xactAbort) {
   const release = await lab.holdRowLock();
   const connection = await lab.connectReader();
@@ -358,7 +326,6 @@ async function keptOpenAfterCancel(lab, xactAbort) {
   return { blockedMs, outcome: outcome(error), open };
 }
 
-// A statement that opens a transaction, sent past the reject list.
 async function openedTransaction(lab, viaExecutor) {
   const sql = 'BEGIN TRAN; SELECT TOP (1) id FROM dbo.items;';
   if (!viaExecutor) {
@@ -420,7 +387,6 @@ async function guardOverhead(lab) {
   return { viaExecutor: viaExecutor.toFixed(2), viaRaw: viaRaw.toFixed(2) };
 }
 
-// One stdio server process: initialize, then `calls` concurrent query calls.
 function serverProcess({ config, cwd, reader, calls, sql, children }) {
   const child = spawn(process.execPath, [SELF, '--serve', '--config', config, '--environment', 'local'], {
     cwd,
@@ -486,7 +452,6 @@ async function topology(lab, { work, reader }, processes) {
   }));
   const sql = 'SELECT COUNT_BIG(*) AS n FROM dbo.items AS a CROSS JOIN (SELECT TOP (40) id FROM dbo.items) AS b WHERE (a.id + b.id) % 7 = 0;';
 
-  // A writer updating single rows in autocommit throughout, timing each.
   const writer = await lab.connect({ appName: WRITER_APP, database: DB });
   let writing = true;
   const writes = [];
@@ -507,7 +472,6 @@ async function topology(lab, { work, reader }, processes) {
   let latencies;
   let wallMs;
   let sample;
-  // A failed call must not leave server processes, the writer or the sampler running.
   try {
     latencies = (
       await Promise.all(Array.from({ length: processes }, () => serverProcess({ config, cwd, reader, calls: 4, sql, children })))
@@ -645,8 +609,6 @@ async function runAll(lab, { image, digest, reader, work, runs }) {
   return out;
 }
 
-// The topology's waiting tasks by waiter, blocker and wait class, the worst
-// case over every run, and the bounded-blocking check.
 function attribution(results, runs) {
   const out = ['', '### Waiting tasks in the topology runs, by waiter and blocker', ''];
   out.push(`Sampled every 50 ms from \`sys.dm_os_waiting_tasks\`, for the agent sessions and the writer. A task counts when its`);
@@ -687,18 +649,12 @@ function attribution(results, runs) {
   const medians = counts.map((n) => `${n}: ${median(results.filter((t) => t.processes === n).map((t) => t.writerMaxMs))} ms`);
   out.push(`${tableLocks}. Median over the runs of the writer's slowest update, by process count: ${medians.join(', ')}.`);
   out.push(`${runs} runs show the worst case; they support no estimate of run-to-run spread.`);
-  // A call whose lock wait hit the lock timeout, or that ran past the request
-  // timeout, fails its query and ends the run before this line (serverProcess
-  // throws). The lock timeout limits each lock wait, not a call's length. The
-  // line judges only what can still differ; the magnitudes are the worst-case
-  // line above.
   out.push('', open === 0
     ? `Topology check: PASS. No agent lock wait reached the lock timeout (${d.lockTimeoutMs} ms), every call returned within the request timeout (${d.requestTimeoutMs} ms), and no transaction was left open. How long anyone waited is the worst-case line above.`
     : `Topology check: FAIL. ${open} transaction(s) left open after a topology run.`);
   return out;
 }
 
-// Child mode: one stdio server process, as a registration launches it.
 if (process.argv[2] === '--serve') {
   const { main } = await import('../src/main.mjs');
   const driver = await trustingDriver();

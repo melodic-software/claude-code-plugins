@@ -14,10 +14,8 @@ const schema = read("reference/routing.schema.json");
 const SLASH_ID = /^\/[a-z0-9-]+(:[a-z0-9-]+)?$/;
 const PLUGIN_SKILL_ID = /^\/([a-z0-9-]+):([a-z0-9-]+)$/;
 const repoSkillExists = (plugin, skill) => existsSync(join(REPO, "plugins", plugin, "skills", skill, "SKILL.md"));
-/** A row for one of this marketplace's own plugin skills: a bare detect and a `/<plugin>:<skill>` id. */
 const isOwn = (r) => r.kind === "skill" && !r.detect.includes("@") && PLUGIN_SKILL_ID.test(r.id);
 
-/** Schema errors for routing.json holding one row: the first row's shared fields plus `fields`. */
 function rowErrors(fields) {
   const { concern, rank, account, status, platforms, as_of } = routing.rows[0];
   return validate(schema, { ...routing, rows: [{ concern, rank, account, status, platforms, as_of, ...fields }] });
@@ -44,7 +42,6 @@ test("routing.json matches its schema", () => {
   assert.deepEqual(validate(schema, routing), []);
 });
 
-// Expected values: row from the plan's Design Contracts (routing row).
 test("css-authoring routes first to write-css, an account-free skill on every platform", () => {
   const rows = routing.rows.filter((r) => r.concern === "css-authoring");
   assert.deepEqual(rows.map(({ rank, id, kind, detect, account, status }) => ({ rank, id, kind, detect, account, status })), [

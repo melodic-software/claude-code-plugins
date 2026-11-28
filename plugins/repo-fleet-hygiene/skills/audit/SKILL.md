@@ -1,5 +1,5 @@
 ---
-description: "Coordinate Git/GitHub hygiene across a cross-repository fleet: discover canonical repositories, collect and roll up cross-repository evidence (including merged remote-tracking heads still on origin), and hand an action plan to repo-hygiene/source-control, which own per-repository cleanup. The current collector is read-only and emits detailed exact handoffs; it never deletes, prunes, repairs, fetches, checks out, or rewrites. Use when: 'audit repositories across a fleet', 'stale branches across repos', 'orphaned worktrees across repos', 'merged remote branches still on origin', 'moved or renamed GitHub repos'."
+description: "Read-only Git/GitHub fleet hygiene audit: discover each canonical repo, merged remote branch still on origin, orphaned worktree, and moved/renamed GitHub entry into an action plan (never mutates). Use when: 'audit the fleet', 'stale branches across repos', 'orphaned worktrees across repos'. Not for applying: /repo-fleet-hygiene:apply."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[[<dir>]... [--root <dir>]... [--repo <dir>]... [--config <file>] [--detail]|--apply-plan <path>]"
@@ -138,8 +138,11 @@ The bundled collector is authoritative for classifications. Preserve its evidenc
    never touch non-404/403 failures or successful-response evidence.
 3. **Merged branch:** one aliased `gh api graphql` query per repository page of local branches
    (up to `MERGED_PR_GRAPHQL_ALIAS_PAGE` `headRefName` aliases per call, `first:1`,
-   `states:[MERGED]`). GraphQL's `headRefName` argument is an **exact** match, never the search
-   API's prefix-matching `head:` qualifier, so `feature/auth` and `feature/auth-v2` never conflate.
+   `states:[MERGED]`). We filter by GraphQL's `headRefName` argument, never the search API's
+   `head:` qualifier, so `feature/auth` and `feature/auth-v2` never conflate; for how each matches
+   a branch name, read the
+   [Repository `pullRequests` arguments](https://docs.github.com/en/graphql/reference/repos#object-repository)
+   and [Search by branch name](https://docs.github.com/en/search-github/searching-on-github/searching-issues-and-pull-requests#search-by-branch-name).
    Measured rate cost stays 1 per call (nodeCount equals the alias count), well under GitHub's
    limits:
    [Primary rate limit](https://docs.github.com/en/graphql/overview/rate-limits-and-query-limits-for-the-graphql-api#primary-rate-limit)

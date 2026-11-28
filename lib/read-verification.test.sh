@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Tests for lib/read-verification.sh. Expected outputs follow
-# docs/contracts/verification-level/README.md: a skill entry beats the plugin
-# value, the team file is read at origin's default branch only, a layer with no
-# value to read resolves light, and an invalid value or unparsable file resolves
-# standard, each with its reason.
-# Run directly: bash lib/read-verification.test.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,9 +27,6 @@ assert_eq() {
 
 g() { git -c user.email=t@example.invalid -c user.name=t -c commit.gpgsign=false "$@"; }
 
-# fixture <name> <default-branch file text, or - for none>: a clone of a local
-# bare origin whose default branch commits that text as
-# docs/conventions/verification.yaml. Prints the clone's path.
 fixture() {
   local dir="$TEST_TMPDIR/$1"
   mkdir -p "$dir/work/docs/conventions"
@@ -124,8 +115,8 @@ repo=$(fixture list-skill $'verification: strict\nverification_skills:\n  confir
 assert_eq "a list-valued skill entry is named and keeps the standard floor" \
   "verification: standard (default; $F verification_skills.confirm is a list or map, not off, light, standard or strict $(at "$repo"))" "$(run "$repo")"
 
-# A tag and a local branch both named origin/main, on a commit that sets off,
-# must not shadow the remote-tracking ref (gitrevisions resolves refs/tags first).
+# gitrevisions resolves refs/tags/<name> before refs/remotes/<name>:
+# https://git-scm.com/docs/gitrevisions
 repo=$(fixture shadow $'verification: strict\n')
 want="verification: strict ($F verification $(at "$repo"))"
 printf 'verification: off\n' >"$repo/$F"
@@ -135,8 +126,6 @@ g -C "$repo" branch origin/main
 g -C "$repo" reset -q --hard HEAD~1
 assert_eq "a tag or local branch named origin/main does not shadow origin's default branch" "$want" "$(run "$repo")"
 
-# A single-branch clone of another branch has no refs/remotes/origin/main until
-# the reader fetches it into that ref.
 repo=$(fixture single $'verification: strict\n')
 g -C "$repo" push -q origin main:refs/heads/other
 g clone -q --single-branch --branch other "$TEST_TMPDIR/single/origin.git" "$TEST_TMPDIR/single/clone"
@@ -186,16 +175,11 @@ rc=0
 CLAUDE_PROJECT_DIR="$repo" bash "$SCRIPT" >/dev/null 2>&1 || rc=$?
 assert_eq "a usage error still exits 0" 0 "$rc"
 
-# No default-branch text selects the working-tree read: a team file holding only `--worktree` beside a
-# working-tree copy set to off still resolves from the team text, which does not parse.
 repo=$(fixture selector $'--worktree\n')
 printf 'verification: off\n' >"$repo/$F"
 assert_eq "team file text cannot select the working-tree copy" \
   "verification: standard (default; $F does not parse or repeats a key $(at "$repo"))" "$(run "$repo" | head -n 1)"
 
-# A failed fetch keeps the team's level from the last fetched copy, named as possibly stale, rather than
-# dropping to the light default. Origin's main moves to a commit whose tree names a blob origin does not
-# have: ls-remote still answers, but the fetch cannot send the commit on any git version.
 repo=$(fixture stale $'verification: strict\n')
 origin="$TEST_TMPDIR/stale/origin.git"
 tree="$(printf '100644 blob %s\tx\n' 1111111111111111111111111111111111111111 | g -C "$origin" mktree --missing)"

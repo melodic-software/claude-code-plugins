@@ -21,7 +21,7 @@ result comes from a live listing or a page read through the shared cache at run 
    a better one for this work type. Basis: the section or consensus that supports the step.
 3. **Never below the default for code.** Work that changes code, verifies a change or is likely to
    hit edge cases never gets a lower effort than the vendor's default (`vendor-decide` raises any
-   lower `coding` consensus or trial effort to the selected model's default with one note).
+   lower `coding` consensus effort to the selected model's default with one note).
 4. **Only levels the CLI accepts.** A Codex or Gemini effort must appear in that product's
    `external-agents models` output (`efforts`, or the model's own `efforts`); a model must be one
    of its `models[].id`.
@@ -73,7 +73,7 @@ A product whose `external-agents models` output has a `status` other than `ok`, 
 without `external-agents`, gets no recommendation: the output names it as unavailable with the
 reason, and covers the rest.
 
-## Harness gating, usage tiebreak and image work
+## Harness gating and image work
 
 - **Breaker skip**: a vendor whose `external-agents models` output reports `breaker.open: true`
   is skipped with one note naming `reset_at` (unless `in_use: false`, which skips silently).
@@ -84,12 +84,6 @@ reason, and covers the rest.
   skipped. With `--use investigate` (a read-only brief), the tool check reads the vendor's
   `read_only_tools` instead, falling back to `tools` when the entry has none; `--use task`, the
   default, reads `tools`.
-- **Usage tiebreak**: plan usage is queried only when the resolved `vendors.tiebreak` names
-  `most-usage-left`, via `external-agents usage <product>` per in-use vendor outside delegated
-  runs, and from the `rate-limits` status tool (`mcp__rate-limits__status`) for Claude when that
-  plugin is enabled (else marked unavailable). `vendor-decide --usage <file>` compares `remaining`
-  only in the `most-usage-left` step; a missing or `unavailable` reading falls back to vendor
-  order with one note.
 - **Image generation**: Claude cannot generate images, so `image` routes to an image-capable
   vendor (`image: true`) with `basis: claude-cannot` (or `proven` once proven). With
   `vendors.auto_delegation` off, routing recommends that vendor and shows how to run it; with it
@@ -133,8 +127,12 @@ Without the external-agents plugin, route covers only Claude, so the step runs h
 ## Benchmarks and trust model
 
 Benchmark sources live as pointers only in [`benchmarks.json`](benchmarks.json) (closed schema:
-[`../schemas/benchmark-registry.schema.json`](../schemas/benchmark-registry.schema.json)). Every
-page is fetched through `fetch-boards` (wrapping the shared docs cache; default freshness window
+[`../schemas/benchmark-registry.schema.json`](../schemas/benchmark-registry.schema.json)).
+`fetch-boards` fetches only rows that can lead (`status` not `support-only`, `provider_own`
+false); a row it skips is listed as `not-read`. A trial runs the first model each vendor's
+`external-agents models` lists, at that model's default effort (for a heavy task, the level the vendor's own guidance gives, else
+one step above the default, as rule 2 says), so no board record picks it. Each fetched
+page goes through `fetch-boards` (wrapping the shared docs cache; default freshness window
 one day, overridable per row via `freshness_seconds`; a page without the row's `expect` marker is
 unread, and when the docs-cache `renderer` is `firecrawl` a blocked page or one drawn by script is
 rendered through the Firecrawl CLI, as the registry fetcher does), read in isolation by the Read-only
@@ -161,20 +159,13 @@ Trust-model rules enforced by `vendor-decide`:
 - **Freshness and page dates**: a page must be dated within 6 months (a dated row, release column
   or changelog entry counts as the page date). Undated or older pages are ineligible.
 - **Source maturity**: new sources start `support-only` and become `permanent` once they pass
-  longevity, accuracy and coverage: every check below in each of at least
-  `vendors.promotion_audits` registry audits (default 3) spanning at least
-  `vendors.promotion_days` days (default 30), with no failed check in between. Per audit, the page
-  reads live (reachable, not partial), is dated within 6 months, states an error range, and tests
-  a current model of every vendor the row's work types need (for image, only the vendors that make
-  images). `/multi-agent:audit-defaults registry` runs the checks, keeps their history per machine
-  ([`config.md`](config.md) "Registry audit history") and proposes the promotion; it ships only
-  through that skill's reviewed apply step.
+  longevity, accuracy and coverage.
 - **Degradation on fetch failure**: a cached copy served after a failed fetch is flagged stale
   with its age and shown as support-only. A gone page (404, 410, off-site redirect) is unread,
   named as unread in the reply, and its work type stays on its default.
 - **Ties**: on a tie across trusted sources, list every tied vendor with its published token
-  counts (no prices) and apply the configured tiebreak; with none set, the caller keeps its
-  vendor.
+  counts (no prices); the work stays on Claude unless exactly one non-Claude vendor remains
+  eligible.
 
 ## Where to read the specifics
 

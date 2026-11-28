@@ -1,10 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/Add-TodoProposal.ps1 -- state-rooted TODO.md path,
-proposal append, and the report's open-questions section.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Add-TodoProposal.ps1', 'Resolve-SkillRoot.ps1' -MockHelpers

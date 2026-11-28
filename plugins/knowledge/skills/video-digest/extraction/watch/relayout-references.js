@@ -1,30 +1,12 @@
-/**
- * The path half of a video-digest slice re-layout: find the references in a
- * markdown file, rewrite them for the file's new location, and link-check a
- * staged layout. The copy plan, staging and CLI live in `relayout-slice.js`.
- *
- * Markdown is parsed with mdast-util-from-markdown; the links, images,
- * definitions and path-like code spans it finds are edited in place by source
- * offset, so nothing else in the file changes. A reference resolves first
- * against the naming file's own directory, then against the slice root
- * (`SLICE/<path>` names the root explicitly). One landing on a copied path is
- * rewritten relative to the file's new location; one landing on a slice file
- * or directory the layout does not keep becomes plain text naming it as not
- * retained; anything else (URLs, other repositories' paths) is left alone.
- */
-
 import fs from "node:fs";
 import path from "node:path";
 
 import { fromMarkdown } from "mdast-util-from-markdown";
 
 export const MARKDOWN_FILE = /\.(?:md|markdown)$/i;
-/** Link paths naming another repository's files: a directory (trailing `/`) matches below it, a file exactly. */
 const ALLOWED_MISSES = Object.freeze(["plugins/", "docs/", "templates/", ".claude/", "AGENTS.md"]);
 const URL_SCHEME = /^[a-z][a-z0-9+.-]*:/i;
-/** Placeholder or glob syntax (`<slice>/x`, `${ROOT}`, `{tmp}`, `*.md`), never a real path. */
 const PLACEHOLDER = /[<>{}*$]/;
-/** `:12`, `:12-20`, `:12,15` and `:12:5` endings on a backticked path. */
 const LINE_SUFFIX = /(?::\d+(?:[-,]\d+)*)+$/;
 const NOT_RETAINED = "not retained in this copy";
 
@@ -223,7 +205,7 @@ export function rewriteReferences(text, sourceFile, targetFile, map) {
     if ("missing" in found) {
       if (ref.kind === "code") missing.push(ref.value);
     } else if ("target" in found) {
-      if (ref.from === null) continue; // written with escapes: left for the link check
+      if (ref.from === null) continue;
       let rel = path.posix.relative(path.posix.dirname(targetFile), found.target) || ".";
       if (reading[0].endsWith("/")) rel += "/";
       if (ref.kind === "link" && (ref.value.includes("%") || /[\s()<>]/.test(rel))) {

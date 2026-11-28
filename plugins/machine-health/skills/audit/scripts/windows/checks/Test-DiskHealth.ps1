@@ -30,8 +30,6 @@ function Get-TemperatureSeverity {
     )
     if ($null -eq $Temperature) { return 'OK' }
 
-    # Relative to the drive's own TemperatureMax (at max: throttle/damage territory);
-    # the fixed 55/65 C fallback applies only when that max is missing or nonsensical.
     if ($null -ne $TemperatureMax -and $TemperatureMax -gt 0) {
         if ($Temperature -ge $TemperatureMax) { return 'CRIT' }
         if ($Temperature -ge ($TemperatureMax * 0.9)) { return 'WARN' }
@@ -60,8 +58,6 @@ $CheckBody = {
 
     try {
         Get-Volume -ErrorAction Stop |
-            # DriveLetter excludes the Recovery Environment partition and other unlettered
-            # fixed volumes, which report a blank drive and an always-high used %.
             Where-Object { $_.DriveType -eq 'Fixed' -and $_.FileSystem -in 'NTFS', 'ReFS' -and $_.DriveLetter } |
             ForEach-Object {
                 $sizeGB = if ($_.Size) { [math]::Round($_.Size / 1GB, 1) } else { 0 }
@@ -148,8 +144,6 @@ $CheckBody = {
         used_pct       = $worstVolumeUsedPct
     }
 
-    # Non-elevated runs silently miss Get-StorageReliabilityCounter data on most
-    # drives, so declare admin_fields and note it in the summary.
     $adminFields = @()
     $adminNote = $null
     if (-not (Test-IsElevated)) {

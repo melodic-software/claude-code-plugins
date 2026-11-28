@@ -1,5 +1,5 @@
 ---
-description: "Diverge before scoping: turn a rough engineering/product problem into codebase-grounded candidate approaches, cheapest→most ambitious, capture which resonate, and hand off scoped. Use when: 'brainstorm', 'what are my options', 'places we could intervene', 'how could we approach X', 'ideas for this', 'explore some approaches', 'what could we do here', or any rough technical problem with no locked scope; skip when scope is already locked or the options are visual variations."
+description: "Diverge before scoping: turn rough engineering problem into codebase-grounded candidate approaches (cheapest to ambitious), pick what resonates, hand off scoped. Use for problem ideas, intervene, how could we approach/what could we do, no locked scope ('brainstorm', 'what are my options', 'explore some approaches'). Not for locked/visuals."
 argument-hint: "<rough-problem>"
 user-invocable: true
 disable-model-invocation: false
@@ -128,7 +128,6 @@ routes write nothing.
 - Product intent is still fuzzy: /planning:prd.
 - The direction is a product or feature idea to stress-test before building it: /planning:interview product.
 - Type and module decisions, with the contract already locked: /planning:design.
-- Unsure where this leaves the work, or arrived mid-flow: /session-flow:workflow.
 
 ## Related
 

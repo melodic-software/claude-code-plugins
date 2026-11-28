@@ -1,48 +1,4 @@
 #!/usr/bin/env bash
-# conflict-scan.sh — advisory deterministic pre-scan for the audit-instructions
-# skill's cross-surface conflict pass (reference/conflict-criteria.md).
-#
-# Emits CANDIDATE PAIRS: two lines in two DIFFERENT files that name the same
-# entity with opposed polarity — one mandating it, one prohibiting it.
-#
-#   entity    a CamelCase identifier (AskUserQuestion, WebFetch, PreToolUse).
-#             Derived by shape, never from a hardcoded tool list, so a tool the
-#             scan has never heard of is still covered. The tradeoff is recall
-#             over precision, not strictly better: CamelCase proper nouns
-#             (GitHub, PowerShell, GraphQL) match the same shape and dominate a
-#             repo-wide run. Entity triage is the lane's first refinement step.
-#   mandate   the line requires the entity (must/always/mandatory/required/use)
-#   prohibit  the line forbids it (the I6 token set, shared with instruction-scan.sh)
-#
-# Only the four gates a text scan can actually decide are applied here:
-# distinct files, same entity, opposed polarity, and the config-gate filter.
-# The remaining gates — whether the two lines constrain the same observable, and
-# whether a realistic prompt fires both — are not greppable and belong to the
-# model lane. This scan therefore narrows a quadratic search space to a review
-# queue; it never reports a conflict.
-#
-# Advisory: prints candidate rows, ALWAYS exits 0 (candidates never fail a run).
-# Requires awk and sort; exits 2 when either is absent.
-#
-# Rows are `fileA:lineA|fileB:lineB|entity|flags`, sorted and de-duplicated.
-# `flags` is `-`, or a `+`-joined list drawn from:
-#   exception-A / exception-B   that side carries an exception clause (unless,
-#                               except, only when). The clause may or may not
-#                               reach the other surface — that is gate 4, and
-#                               the lane adjudicates it rather than the scan.
-#
-# A line whose entity mention is conditioned by an explicit user-config opt-in
-# is SUPPRESSED, not flagged: an opt-in gate is arbitration, so the pair is
-# resolved and is not a candidate.
-#
-# Nonexistent path arguments are skipped, not errors. Fewer than two readable
-# files can produce no pair, which is a valid clean result.
-#
-# Usage:
-#   conflict-scan.sh FILE...            # one candidate-pair row per match; exit 0
-#   conflict-scan.sh --count FILE...    # integer candidate-pair count only; exit 0
-#   conflict-scan.sh --help
-
 set -uo pipefail
 
 usage() {
@@ -67,10 +23,6 @@ if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   exit 0
 fi
 
-# Check the tools this script actually executes. `mapfile < <(… | sort -u)`
-# swallows a failure inside the process substitution, so a missing `awk` or
-# `sort` would otherwise yield an empty row set and a clean-looking report —
-# converting an absent prerequisite into a false "no conflicts found".
 for tool in awk sort; do
   if ! command -v "$tool" >/dev/null 2>&1; then
     echo "ERROR: $tool required" >&2
@@ -84,68 +36,19 @@ if [[ "${1:-}" == "--count" ]]; then
   shift
 fi
 
-# --- Detection patterns ------------------------------------------------------
-# Classification runs inside a single awk pass rather than a grep per mention:
-# an instruction tree yields tens of thousands of mentions, and a subprocess per
-# mention does not finish. Patterns are therefore written in awk ERE against a
-# space-padded, lowercased window, so `[^a-z]` supplies the word boundary that
-# POSIX awk has no `\b` for.
-#
-# Entity shape, case-SENSITIVE and matched on the raw line: a CamelCase
-# identifier anywhere, or a single capitalized word INSIDE BACKTICKS. The second
-# alternative is what reaches single-word tools (`Bash`, `Read`, `Edit`), which
-# CamelCase alone cannot match; requiring the backticks is what keeps every
-# sentence-initial capitalized word out. Backticks are stripped from the entity
-# name, so a backticked and a bare mention of one tool pair with each other.
-# The backtick is built separately rather than written literally: inside a
-# single-quoted pattern shellcheck reads it as an unexpanded command
-# substitution (SC2016), and escaping it inside double quotes is worse to read.
 BACKTICK=$(printf '\140')
 ENTITY_ERE="[A-Z][a-z]+([A-Z][a-z]*)+|${BACKTICK}[A-Z][a-z]+${BACKTICK}"
-# Prohibition tokens — the I6 set, kept semantically identical to
-# instruction-scan.sh so the two scans classify a line's polarity the same way.
 PROHIBIT_ALT='never|do not|don[^a-z]?t|must ?not|mustn[^a-z]?t|should ?not|shouldn[^a-z]?t'
 PROHIBIT_ERE="[^a-z](${PROHIBIT_ALT})[^a-z]"
 MANDATE_ALT='must|always|mandator(y|ily)|require[ds]?|shall|use|present|ask'
 MANDATE_ERE="[^a-z](${MANDATE_ALT})[^a-z]"
 EXCEPTION_ERE='[^a-z](unless|except|only when|only if|other than)[^a-z]'
-# Explicit user-config opt-in gates — SUPPRESSED. An opt-in is arbitration, so
-# the pair is already resolved. Generic by shape, not a per-plugin allowlist.
-# Suppression additionally requires a CONDITIONAL marker, because naming an
-# opt-in is not the same as being gated on one: "never use `X` for opt-in
-# prompts" describes the subject and must still be classified as a prohibition.
 GATED_ERE='(user_config|user config|[^a-z]opt-?in[^a-z]|[^a-z]opted in[^a-z])'
 CONDITIONAL_ERE='[^a-z](only when|only if|unless|requires?|gated|enabled|is on|when set)[^a-z]'
-# Clause boundary — where a polarity window stops. See the window construction
-# below for why contrastive conjunctions are listed rather than any comma.
-# The comma is OPTIONAL for the unambiguous contrastives ("always use X but
-# never use Y" reads the same as ", but") and REQUIRED for `while`, which is a
-# temporal conjunction as often as a contrastive one ("use X while the flag is
-# set" must not split).
 BOUNDARY_ERE='([.;!?] |[^a-z],? *(but|whereas|though|although|yet)[^a-z]|, while[^a-z])'
-# Coordinated second directive — `and` joining a directive that carries its OWN
-# polarity token ("always use `Read` and never use `Bash`"). Opposite polarities
-# coordinate with `and` as readily as with a contrastive, and without a boundary
-# the first entity's trailing window swallows the second directive's token and
-# takes its polarity. A bare `and` is NOT a boundary: it usually joins the
-# objects of one directive ("never use `Bash` and `Grep`"), where cutting would
-# strip the token that governs the second object. Requiring the polarity token
-# is what separates the two readings.
-#
-# The token set is COMPOSED from the two classifier alternations rather than
-# retyped: a token missing here means `Never use X and use Y` finds no boundary
-# and Y inherits the leading `never`.
 COORD_ERE="[^a-z],? *and +(${PROHIBIT_ALT}|${MANDATE_ALT})[^a-z]"
-# The coordinator alone. A LEADING window resumes after this much of a COORD
-# match rather than after the whole of it, so the second directive's polarity
-# token stays on the entity's side of the cut and still classifies it.
 COORD_HEAD_ERE='[^a-z],? *and +'
 
-# Polarity is read from a window around each entity mention, not from the whole
-# line. A prose line often carries a prohibition about one object and names an
-# unrelated entity elsewhere ("never offer them for `git branch -d` … via
-# `AskUserQuestion`"); whole-line classification reads that as a conflict. The
-# window keeps the polarity token in the same clause as the entity it governs.
 WINDOW_CHARS="${CONFLICT_SCAN_WINDOW:-60}"
 
 mapfile -t rows < <(

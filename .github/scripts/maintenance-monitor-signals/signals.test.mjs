@@ -447,13 +447,26 @@ test("signal 8: no lane merge for 3 hours with countable PRs fires", () => {
 });
 
 test("signal 8: a recent merge, no countable PR, or a report-only lane stays quiet", () => {
-  const quiet = (sweepValue, lastMergedAt) =>
-    throughputFindings({ ...base, sweep: sweepValue, laneMerges: { lastMergedAt } });
+  const quiet = (sweepValue, lastMergedAt, extra = {}) =>
+    throughputFindings({ ...base, sweep: sweepValue, laneMerges: { lastMergedAt }, ...extra });
   assert.deepEqual(quiet(sweep([]), "2026-10-19T14:00:00Z"), []);
   assert.deepEqual(quiet(sweep([], { candidates: 0 }), "2026-10-19T10:00:00Z"), []);
   assert.deepEqual(quiet(sweep([], { live: false }), "2026-10-19T10:00:00Z"), []);
   assert.deepEqual(quiet(null, "2026-10-19T10:00:00Z"), []);
   assert.deepEqual(quiet(sweep([], { startedAt: "2026-10-19T15:00:00Z" }), "2026-10-19T10:00:00Z"), []);
+  assert.deepEqual(quiet(sweep([], { candidates: 3, refusalCounts: { "ineligible:not-adopted:updated-fresh": 3 } }), "2026-10-19T10:00:00Z", { openLanePrs: 0 }), []);
+  assert.deepEqual(quiet(sweep([], { live: false }), "2026-10-19T10:00:00Z", { openLanePrs: 2 }), []);
+});
+
+test("signal 8: open unheld lane PRs fire even when pr-merge's sweep counts 0 non-lane candidates", () => {
+  const found = throughputFindings({
+    ...base,
+    sweep: sweep([], { candidates: 0 }),
+    laneMerges: { lastMergedAt: "2026-10-19T13:30:00Z" },
+    openLanePrs: 2,
+  });
+  assert.deepEqual(found.map((f) => f.key), ["throughput-zero"]);
+  assert.match(found[0].summary, /2 open unheld lane PRs wait/);
 });
 
 test("signal 8: a stall keeps its fingerprint until a merge lands", () => {
@@ -643,8 +656,6 @@ test("signal 13: work-unblock's held issue read parses to the issue and the stat
   assert.equal(parseHold("report-outcome", "#20: fetch failed; holding, and the next sweep reads it again"), null);
 });
 
-// apply-verdict.mjs closing's own annotation line, split as the runner splits
-// `::notice title=<title>::<message>`, so producer and parser are one contract.
 const annotation = (line) => /^::notice title=([^:]+)::(.*)$/.exec(line).slice(1);
 const verdictHold = (closed) => parseHold(...annotation(closed.lines[0]));
 
@@ -714,10 +725,6 @@ test("signal 13: pr-verify's resolver and trigger-gate holds parse to fixed reas
   const lane = HOLD_LANES.find((l) => l.lane === "pr-verify");
   assert.deepEqual([lane.workflow, lane.holdStep], ["pr-verify.yml", HELD_STEP]);
   for (const job of lane.jobs) assert.match(workflow, new RegExp(`\\n  ${job}:\\n`), job);
-  // Each notice prints only where Note the hold runs, so a green hold job
-  // listed without steps (GraphQL) is read in full and one listed with steps
-  // (REST) only where Note the hold ran: the resolver's beside reason=held,
-  // which the step's `if:` runs on, and the gate's in the step.
   assert.match(resolver.outputs, new RegExp(`^reason=${HELD_REASON}$`, "m"));
   const noteHold = [...workflow.matchAll(/- name: Note the hold\n {8}id: note-hold\n {8}if: (.*)\n([\s\S]*?)\n {6}- /g)];
   assert.equal(noteHold.length, 3);

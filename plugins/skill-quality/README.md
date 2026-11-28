@@ -26,7 +26,45 @@ the reviewer to confirm the description still names that intent, or to restore t
 
 ## Checks
 
-`check` runs `check-skill.sh`. Thirty checks, reported as `FAIL:` (blocking) or `WARN:` (advisory):
+`check` runs `check-skill.sh`. Thirty checks, reported as `FAIL:` (blocking) or `WARN:` (advisory).
+Other files cite them by number, as `check-skill.sh check N`:
+
+| N | Check |
+|---|---|
+| 1 | Frontmatter parses, `description` present, `name` rules |
+| 2 | `description` + `when_to_use` within the listing-entry cap |
+| 2b | `description` alone within the spec field maximum |
+| 3 | Trigger-keyword preservation vs the base ref (advisory; skips `disable-model-invocation: true`, downgrades lexically covered drops to INFO) |
+| 4 | `SKILL.md` under the line cap |
+| 5 | Cited skill-internal files resolve; no backslash separators |
+| 6 | markdownlint clean |
+| 7 | `scripts/*.test.sh` pass |
+| 8 | `vendor/` unchanged unless paired with an `upstream-version` bump |
+| 9 | Stale-tracking metadata keys preserved |
+| 10 | Retired; numbering kept stable |
+| 11 | Gotchas surface present |
+| 12 | `description` carries "Use when" phrasing (inverted for `disable-model-invocation: true`, which expects a concise `<= 150`-char summary without triggers) |
+| 13 | No committed cache or build artifacts |
+| 14 | `evals/evals.json` presence |
+| 15 | Companion spoke directories referenced from `SKILL.md` |
+| 16 | `metadata.category` present (INFO) |
+| 17 | Vendor-backed `metadata.synced` under 180 days old |
+| 18 | Precompute opportunity for `!` injection |
+| 19 | `shell:` declared for bash-only `!` injections |
+| 20 | `!`-injected commands carry a fallback |
+| 21 | Fresh-eyes declaration conformance |
+| 22 | `metadata.summary` length |
+| 23 | Completion-criteria signal on a numbered procedure |
+| 24 | `disable-model-invocation` stated explicitly |
+| 25 | Description and verb-contract polarity |
+| 26 | Long spoke files carry a table of contents |
+| 27 | `## Next` successor section |
+| 28 | Every `metadata` key is in `scripts/metadata-registry.txt` |
+| 29 | No bare `#N` history reference |
+| 30 | Skill size |
+| 31 | A `${user_config.KEY}` condition with no fallback |
+
+In detail:
 
 - Frontmatter parses; `description` present; a declared `name` is kebab-case and matches the skill
   directory (in a plugin skill it also WARNs as redundant, because the field defaults to the directory).
@@ -38,15 +76,24 @@ the reviewer to confirm the description still names that intent, or to restore t
   `name` length cap (FAIL) and WARNs when it carries `anthropic` or `claude`, a Skills API upload
   rule rather than a spec rule. Claude Code enforces neither name rule, so both are portability
   findings.
-  - **Record**: the pointer for parse-failure behavior is in the unquoted-description comment under
-    the `# --- Check 1` header of `scripts/check-skill.sh`, and the name cap in the comment above
-    `NAME_MAX_LEN=` there (a script, so no section anchor).
+  - **Record**: `NAME_MAX_LEN` (64) comes from the spec's `name` field and its `skills-ref`
+    validator; the reserved words are a Skills API upload rule. Claude Code 2.1.263 loaded an
+    88-codepoint name containing `claude` (2026-09-11), so the length limb is a portability FAIL
+    and the word limb a WARN. **As of**: 2026-09-10. **Recheck trigger**: the validator gaining a
+    word list, the upload rules changing, or a Claude Code release rejecting either form.
+  - **Pointer**: for how Claude Code loads a skill whose frontmatter does not parse, fetch
+    <https://code.claude.com/docs/en/skills#frontmatter-reference> live.
   - **Pointer**: when a `compatibility`, `name`, or reserved-word finding is in doubt, fetch
     <https://agentskills.io/specification#compatibility-field>,
     <https://agentskills.io/specification#name-field> and
     <https://platform.claude.com/docs/en/build-with-claude/skills-guide#creating-a-skill> live.
 - `description` + `when_to_use` within the **per-skill** listing-entry cap. A different, narrower
   limit from the shared budget below.
+  - **Record**: `DESC_CHAR_CAP` (1536) is the harness default of `skillListingMaxDescChars`,
+    counting the `" - "` joiner when `when_to_use` is set. `check-listing-budget.sh` encodes the
+    same cap, the 0.01 budget fraction and the 8000-character fallback from the pages below; its
+    200000- and 1000000-token windows and 4 characters per token are this plugin's assumptions.
+    **As of**: 2026-10-11. **Recheck trigger**: any of these pages moving a default.
   - **Pointer**: for the cap's default, fetch
     <https://code.claude.com/docs/en/settings-reference#skilllistingmaxdescchars> live.
 - `description` alone within the Agent Skills spec's `description` field maximum, counted in
@@ -62,13 +109,16 @@ the reviewer to confirm the description still names that intent, or to restore t
   - **Pointer**: for the field maximum, fetch
     <https://agentskills.io/specification#description-field> live.
 - Trigger-keyword preservation vs `HEAD` (advisory: a dropped phrase warns naming it and never
-  fails the run; a phrase moved to a sibling skill warns naming the host; skipped for a new,
-  uncommitted skill).
+  fails the run; a phrase moved to a sibling skill warns naming the host; a dropped phrase whose
+  non-stopword tokens of length >= 2 remain in the updated positive description downgrades to
+  `INFO`; skipped for `disable-model-invocation: true` skills and new, uncommitted skills).
 - `SKILL.md` within the line cap (`LINE_HARD_CAP` in `scripts/check-skill.sh`), counted over the
   whole file: this check's stricter reading of official guidance on `SKILL.md` length.
-  - **Record**: the comment under the `# --- Check 4` header of `scripts/check-skill.sh` (a
-    script, so no section anchor). **As of**: 2026-10-11. **Recheck trigger**: that header or
-    `LINE_HARD_CAP` being renamed or moved, or that comment's pointer changing.
+  - **Record**: the platform best-practices page and the Claude Code skills page disagree on what
+    the 500 lines cover; whole-file is the stricter reading, so a skill that passes satisfies
+    both. Neither enforces it: Claude Code 2.1.263 loaded a 608-line `SKILL.md` (2026-09-11).
+    **As of**: 2026-10-11. **Recheck trigger**: either page moving the number or its scope, or a
+    Claude Code release rejecting a long file.
   - **Pointer**: for the number and what it covers, fetch
     <https://code.claude.com/docs/en/skills#add-supporting-files> live.
 - Backtick- and link-cited skill-internal supporting files resolve. When a path that misses instead
@@ -93,7 +143,10 @@ the reviewer to confirm the description still names that intent, or to restore t
   The hash proves `vendor/` matches its recorded value, not that it came from upstream: anyone
   editing `vendor/` can recompute it. It catches an accidental unpaired edit, not a deliberate one;
   provenance rests on reviewing the diff and on the skill's own content tests.
-- Gotchas surface present; `description` carries `Use when` phrasing; no committed cache artifacts;
+- Gotchas surface present; model-invoked `description` carries `Use when` phrasing while
+  `disable-model-invocation: true` skills are exempt and instead warn when carrying trigger
+  phrasing (`Use when`, quoted triggers, or `when_to_use`) or exceeding 150 chars; no committed
+  cache artifacts;
   action-router skills without evals WARN (FAIL with `--require-evals` for any shape unless a plugin suite case lists the skill's directory name in a one-line `tags: [...]`, or a recorded skip exists in `scripts/evals-warrant-exemptions.txt`); companion spoke
   dirs are referenced.
 - Precompute opportunity (advisory). A fenced shell block gathers read-only context the skill could
@@ -118,9 +171,11 @@ the reviewer to confirm the description still names that intent, or to restore t
   three `](#` in-page anchor links warns, naming the file. The threshold is the bundled skill-creator's; the
   100-to-300 band stays with `docs-hygiene:audit-progressive-disclosure`, whose TOC heuristic
   this check mirrors.
-- `## Next` successor section (advisory). A section placed after `## Gotchas`, last in the file,
-  in neither the one-invocation nor the two-to-four-outcome-bullet shape, or carrying
-  operative-chain phrasing warns. Absence is an INFO note, because most skills are terminal,
+- Routing sections (advisory). A `## Next` placed after `## Gotchas` or last in the file warns,
+  as does a single bullet, a bullet naming no skill or more than one, a bullet with no
+  `<result>:` lead, the unsure-reader `/session-flow:workflow` bullet, or operative-chain
+  phrasing. A `## Related` bullet not in `<condition>: /plugin:skill` form, a skill token under
+  `## See also`, and an existing skill named without its slash in the description warn too. Absence is an INFO note, because most skills are terminal,
   except on a stage-bearing skill: a `metadata.workflow-stage` of `explore`, `research`, `plan`,
   `implement`, `test`, `review`, `verify`, `pr`, or `retro` with no `## Next` and no `Handoff`,
   `Routing`, `Integration`, or `Skill chaining` heading warns. `interview`, `prd` and `design` are not

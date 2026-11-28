@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-app-key-references.sh.
-#
-# Builds a throwaway tree with a key-free workflow and action, runs the checker
-# against it, then adds each forbidden form and asserts the checker fails and
-# names the line. Mutates only its own mktemp dir.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -17,7 +12,6 @@ SUT_SRC="$SCRIPT_DIR/check-app-key-references.sh"
 WORKFLOW=.github/workflows/pr-refine.yml
 ACTION=.github/actions/do-thing/action.yml
 
-# mk_tree <out-var>: one workflow and one composite action, neither naming a key.
 mk_tree() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --label app-key-references || return 1
@@ -38,7 +32,6 @@ runs:
     - run: echo hi
       shell: bash
 EOF
-  # Another App's mint is out of scope.
   cat >"$dir/.github/workflows/release.yml" <<'EOF'
 on: push
 jobs:
@@ -50,11 +43,9 @@ jobs:
           client-id: ${{ vars.PLUGIN_RELEASE_APP_CLIENT_ID }}
           private-key: ${{ secrets.PLUGIN_RELEASE_APP_PRIVATE_KEY }}
 EOF
-  # Docs may name the secret; they are out of scope.
   printf 'AUTOMATION_LANES_APP_PRIVATE_KEY, app-private-key, AUTOMATION_LANES_APP_CLIENT_ID\n' >"$dir/docs/adr.md"
 }
 
-# run_case <label> <expected-rc> <setup> [<must-name>...]
 run_case() { test_harness::check_case mk_tree check-app-key-references.sh "$@"; }
 
 MSG="references the lanes App key or client id"
@@ -88,7 +79,6 @@ run_case "a lanes App client id in an action fails" 1 \
   "printf '      env:\n        ID: \${{ vars.automation_lanes_app_client_id }}\n' >>$ACTION" \
   "$ACTION:7: $MSG"
 
-# Findings on stderr only; the clean statement on stdout only.
 tree=""
 if mk_tree tree; then
   printf '      app-private-key: x\n' >>"$tree/$ACTION"

@@ -84,7 +84,7 @@
     },
     {
       "id": "vals-vibe-code",
-      "workloads": ["web-ui"],
+      "workloads": ["coding", "web-ui"],
       "link": "https://www.vals.ai/benchmarks/vibe-code-v1-1-1",
       "publisher": "vals.ai",
       "provider_own": false,

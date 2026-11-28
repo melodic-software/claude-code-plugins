@@ -104,8 +104,10 @@ unmerged or uncommitted edit cannot move a stage.
 
 ## What protects the file
 
-- A change reaches the default branch through a pull request, and AGENTS.md-style rules that ask a
-  person before merging a change to what agents may do unattended apply to an interactive merge.
+- A change reaches the default branch through a pull request. AGENTS.md-style rules ask a person
+  before an interactive merge only when the change lets agents do something new unattended that
+  touches a secret, a permission setting or anything that can bill the owner; moving where a stage
+  runs merges without asking.
 - A repository that runs the PR pipeline adds this file to `merge.diff-check.denied-paths` in its
   pipeline config. The pipeline does not force this path today; forcing it is requested in #6202.
 - Every reader prints the SHA it read, so a run shows which policy placed it.

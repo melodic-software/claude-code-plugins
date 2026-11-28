@@ -1,7 +1,3 @@
-/**
- * Extract single-frame PNG snapshots at explicit timestamps via ffmpeg.
- */
-
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 

@@ -3,6 +3,62 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.5] - 2026-11-28
+
+### Changed
+
+- Trimmed `bugs` skill frontmatter descriptions (`scan`: 737 -> 350 chars; `setup`: 225 -> 141 chars; `write`: 510 -> 344 chars; total 1,472 -> 835 chars, -637 chars) with zero body changes.
+
+## [1.0.4] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [1.0.3] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [1.0.2] - 2026-11-26
+
+### Fixed
+
+- A retired `lanes` key in `~/.claude/bugs.md` is no longer read; `/bugs:setup apply` now moves it
+  as `areas`, and the old-file warning and `check` name it, so the focus areas are not lost.
+
+## [1.0.1] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [1.0.0] - 2026-11-26
+
+### Changed
+
+- **`/bugs:scan` hunts focus areas, not lanes.** "Lane" now means only a worker that serves one
+  pipeline stage, so the slice a scan rotates through is a focus area. The flag is `--area <name>`
+  (`--lane` is gone, with no alias), the `docs/conventions/bugs.yaml` key is `areas` (rename a
+  `lanes:` key to `areas:`), the persisted cursor block writes `area`, `area-index` and
+  `area-count`, the scope tag is `in-area` / `out-of-area`, and a filed item's provenance line is
+  `Filed by /bugs:scan (area: <name>)`. Rotation reads only the new keys, so the first run after
+  upgrading falls through to the date-derived floor until it files or persists under the new names.
+  `/bugs:setup` checks and writes `areas`.
+
+## [0.26.5] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+## [0.26.4] - 2026-11-25
+
+### Changed
+
+- The issue house style also reads `issue-tracker.md` from the org layer, the standards repository `standards_repository` names, when the repository has none of its own.
+
 ## [0.26.3] - 2026-11-24
 
 ### Changed

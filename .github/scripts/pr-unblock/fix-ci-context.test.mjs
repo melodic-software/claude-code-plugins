@@ -7,13 +7,11 @@ import { commitMessage, loadRules, rowFor } from "../apply-patch/apply-patch.mjs
 import { CONTEXT_MAX_BYTES, countFixRounds, feedbackLines, logExcerpt, main, OWNED_BRANCH, select, specField, WEAKEN_BRIEF } from "./fix-ci-context.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
-// The lanes App bot's id (.github/standards/trusted-actors/trusted-actors.json).
 const APP = 337595936;
-// claude[bot] and github-actions[bot], the reviewer bot and the marker author.
 const REVIEWER = 209825114;
 const ACTIONS = 41898282;
 const HUMAN = 153232337;
-const TRUSTED_ACTORS = join(import.meta.dirname, "../../standards/trusted-actors/trusted-actors.json");
+const TRUSTED_ACTORS = join(import.meta.dirname, "../../scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json");
 const STRANGER = 4242;
 const HEAD = "a".repeat(40);
 const TRAILER = "Lane-Activity: pr-unblock/fix-ci";
@@ -48,9 +46,7 @@ function fakeApi(overrides = {}) {
       }
       return Object.assign([...(overrides.checkRuns ?? [run(11, "Lint Shell", "failure"), run(13, "ci-status", "failure")])], { complete: overrides.complete ?? true });
     },
-    // The head's pr-unblock / apply-patch checks: a lane stop runs the retry a rung up.
     listCheckRuns: async (sha, name) => (name === "pr-unblock / fix-ci" ? (overrides.fixCiRuns ?? []) : (overrides.stopRuns ?? [])),
-    // The head's statuses: report-escalation.sh status names a fail-routed stop's reason.
     listCommitStatuses: async () => overrides.statuses ?? [],
     listAnnotations: async (id) =>
       overrides.annotations?.[id] ?? [
@@ -84,8 +80,6 @@ test("a head outside this repository stops before any output", async () => {
   }
 });
 
-// One unresolved thread on HEAD, opened by `author` in review 500, which the
-// reviewed-head marker confirms, with `replies` after it.
 const FINDING =
   "Adding `get-field-options` to `ADAPTER_VERBS` makes the generator require it; the `BASE_SPEC` fixture in generate-adapter.test.sh lacks it, so the suite fails.";
 function reviewed({ author = REVIEWER, resolved = false, replies = [], body = FINDING } = {}) {
@@ -134,8 +128,6 @@ test("a resolved thread, a person's thread and one a person replied to stay out 
   }
 });
 
-// #8284: a listed bot's finding is one address-feedback works only behind a
-// trusted person's `@codex` request.
 test("a Codex finding goes into the context only when a trusted person asked Codex for the review", async () => {
   const CODEX = 199175422;
   const codex = (asker) => {
@@ -247,10 +239,6 @@ test("timed_out and startup_failure count as failing", async () => {
   );
 });
 
-// #9828's head c1184e03: test-bash (3) ended cancelled past its 9-minute
-// limit, beside the failed ci-status aggregate. Its recorded annotations
-// carry the time limit, so it is fixable and the model reads the cause; a
-// fail-fast sibling cancelled with only the cancel note is not.
 const TIME_LIMITED = JSON.parse(readFileSync(new URL("../maintenance-reconcile-lost-runs/fixtures/annotations-120950643531.json", import.meta.url), "utf8"));
 const CANCEL_ONLY = TIME_LIMITED.filter((a) => a.message === "The operation was canceled.");
 
@@ -272,7 +260,6 @@ test("a check cancelled past its time limit counts as failing, with the time-lim
     ["Test Bash (3)"],
   );
   assert.match(result.file.checks[0].annotations[0].message, /^The job has exceeded the maximum execution time of 9m0s$/);
-  // Each cancelled check's annotations are read once.
   assert.deepEqual(reads, [11, 12]);
 });
 
@@ -298,9 +285,6 @@ test("one round under the cap proceeds", async () => {
   assert.equal(result.rounds, 2);
 });
 
-// apply-patch pushes a fix with no escalation and leaves the new head to its
-// own CI; this is the bound on that: a red head that is the lane's own fix
-// commit counts its round, and the cap's run hands the PR to a person.
 test("a red head the lane's fix commit made counts that round, and escalates once the rounds are spent", async () => {
   const own = { sha: HEAD, author: { id: APP }, commit: { message: `Fix failing CI checks on work/x\n\n${TRAILER}\n` } };
   const api = () => fakeApi({ commits: [{ sha: "b".repeat(40), author: { id: APP }, commit: { message: "Address review feedback" } }, own] });
@@ -323,17 +307,12 @@ test("only the lanes App's commits carrying the fix-ci trailer count as rounds",
   );
 });
 
-// The round cap is fix-ci's only stop, so the trailer it counts must be the one apply-patch writes.
 test("a commit apply-patch writes for fix-ci counts as a round", () => {
   const row = rowFor(loadRules(join(import.meta.dirname, "../../..")), { prepare: "ci-context" });
   const message = commitMessage(row, { ref: "feature", base: "main", lane: "pr-unblock", activity: "fix-ci", issue: "1" });
   assert.equal(countFixRounds([{ sha: "e".repeat(40), author: { id: APP }, commit: { message } }], APP), 1);
 });
 
-// A failing pr-unblock/fix-ci status must come off
-// a head whose CI went green with no new commit (fixed by hand, or a flaky
-// lane re-run green), including after the round cap; only a whole, settled
-// check listing with nothing failing says so.
 test("a head with no failing check resolves the fix-ci stop, at the round cap too", async () => {
   const green = [run(11, "Lint Shell", "failure"), run(14, "Lint Shell", "success"), run(13, "ci-status", "failure")];
   for (const commits of [[], [fixCommit(), fixCommit(), fixCommit()]]) {
@@ -381,8 +360,6 @@ test("a closed pull request is skipped", async () => {
   assert.equal(result.decision, "skip");
 });
 
-// release-publish-plugins.yml rebuilds release/plugins after fix-ci reads it,
-// so a fix-ci push there answers 422 (#11840's runs 41308756974, 41312571464).
 test("a head branch a workflow owns and rebuilds skips owned-branch before any check is read", async () => {
   const pull = (ref) => ({ state: "open", head: { sha: HEAD, ref, repo: { full_name: "o/r" } } });
   const api = { ...fakeApi({ pull: pull("release/plugins") }), listCommitCheckRuns: async () => assert.fail("no check read") };
@@ -407,8 +384,6 @@ test("main reads OWNED_BRANCHES and writes the owned-branch skip", async () => {
   }
 });
 
-// The human-gated label holds fix-ci unless another lane's escalation put it
-// on (report-escalation.sh's label then comment, its Reason line).
 const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP, type: "Bot" };
 const gatedApi = (actor, reason) => {
   const api = fakeApi({
@@ -442,7 +417,6 @@ test("needs-human from another lane's escalation proceeds and says so; fix-ci's 
 });
 
 test("a person's inline review-thread reply since another lane's escalation skips awaiting-human", async () => {
-  // GitHub's timeline has no event for a reply inside an existing review thread.
   const api = gatedApi(APP_USER, "feedback-disputed");
   api.listReviewComments = async () => [
     { id: 2, in_reply_to_id: 1, user: { login: "kyle-sexton", id: HUMAN, type: "User" }, body: "Wait.", created_at: "2026-10-22T11:00:00Z", updated_at: "2026-10-22T11:00:00Z" },
@@ -549,8 +523,6 @@ test("main refuses a malformed round cap", async () => {
   await assert.rejects(main({ ...env, FIX_CI_ROUNDS: "0" }, { api: fakeApi() }), /FIX_CI_ROUNDS/);
 });
 
-// A retry after the push job stopped on this head runs one model rung up, so
-// apply-patch takes no second in-run rung-up.
 test("a head whose push job stopped proceeds at model rung 1; any other at its own", async () => {
   const stop = { status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, app: { id: 15368 } };
   assert.equal((await selectWith(fakeApi({ stopRuns: [stop] }))).modelRung, "1");
@@ -558,11 +530,6 @@ test("a head whose push job stopped proceeds at model rung 1; any other at its o
   assert.equal((await selectWith(fakeApi({ stopRuns: [{ ...stop, app: { id: 2 } }] }))).modelRung, "");
 });
 
-// The first weaken-required stop on a head takes one fresh fixer round:
-// apply-patch gets weakenRetry only while the head has no lane stop, and the
-// round after a weaken retry stop carries the runner's brief and the pull
-// request's stated change. A lane stop for another reason, or a status by
-// another creator or on another context, carries no brief.
 const LANE_STOP = { status: "completed", conclusion: "neutral", output: { title: "Skipped: lane-stopped" }, app: { id: 15368 } };
 const weakenStatus = (extra = {}) => ({
   context: "pr-unblock/fix-ci",
@@ -645,9 +612,6 @@ test("main writes weaken-retry true on a head with no lane stop, false after one
   }
 });
 
-// #10919: address-feedback added the line that met a criterion, fix-ci cut it
-// to pass a line cap, and pr-verify failed the head on that criterion. The
-// context carries both the criterion and the line, so fix-ci can keep it.
 const CRITERION = "- [ ] `SKILL.md` names the new check where it lists what `run-validity.py` judges.";
 const ADDED = "- `run-validity.py` also judges whether each run's transcript names its check.";
 const STRANGER_USER = { __typename: "User", login: "someone", databaseId: STRANGER };
@@ -687,8 +651,6 @@ const FEEDBACK_SHA = "f".repeat(40);
 
 function specApi(overrides = {}) {
   const queries = [];
-  // An earlier round, the last one, a fix-ci round after it, and a stranger's
-  // commit carrying the trailer, which is no round.
   const commits = [feedbackCommit("e".repeat(40)), feedbackCommit(FEEDBACK_SHA), fixCommit(), { ...feedbackCommit("d".repeat(40)), author: { id: STRANGER } }];
   const api = fakeApi({ commits, ...overrides });
   api.graphqlAnswer = async (body) => {
@@ -717,7 +679,6 @@ const mainEnv = (dir) => ({
   FIX_CI_ROUNDS: "3",
   OWNED_BRANCHES: "[]",
   TRUSTED_ACTORS,
-  // As pr-verify.yml sets it, so the base config is not read.
   ISSUE_LANE_WEB_HOSTS: "[]",
 });
 
@@ -729,10 +690,7 @@ test("the context file carries the linked issue's trusted spec text and the last
     const lines = [];
     await main(env, { api, log: (line) => lines.push(line) });
     const file = JSON.parse(readFileSync(env.CONTEXT_FILE, "utf8"));
-    // A stranger's comment is not spec; the person's body and decision are.
     assert.deepEqual(file.spec, [{ number: 7, spec_kind: "closes", body: `## Done when\n\n${CRITERION}\n`, comments: ["**Decision recorded.** Keep the list in SKILL.md."] }]);
-    // The last address-feedback commit's non-blank added lines, by file; a
-    // file it only removed from holds none.
     assert.deepEqual(file.feedback_lines, [{ path: "plugins/p/skills/s/SKILL.md", lines: [ADDED] }]);
     assert.equal(queries[0].number, 42);
     assert.deepEqual(lines.filter((line) => line.startsWith("::warning::")), []);
@@ -767,7 +725,6 @@ test("a spec or feedback commit read that fails leaves null and still proceeds",
   ]);
 });
 
-// A cut list would read as whole, so a field past its budget is null.
 test("spec text over its byte budget is null, never a partial list", () => {
   const issue = { number: 8, spec_kind: "refs", body: null, comments: ["only"], scope: ["a"] };
   assert.deepEqual(specField([issue]), [{ number: 8, spec_kind: "refs", scope: ["a"], body: null, comments: ["only"] }]);
@@ -780,16 +737,10 @@ test("feedback lines skip blank and removed lines, and are null past their budge
   assert.deepEqual(feedbackLines([{ filename: "a.md", patch: "@@ -1 +1,3 @@\n+one\n+  \n-gone\n+two\r" }]), [{ path: "a.md", lines: ["one", "two"] }]);
   const many = Array.from({ length: 20000 }, (_, i) => `+line ${i}`).join("\n");
   assert.equal(feedbackLines([{ filename: "a.md", patch: many }]), null);
-  // A file listed with no patch that added lines leaves them unknown; one
-  // that added none holds nothing.
   assert.equal(feedbackLines([{ filename: "big.md", additions: 4000 }]), null);
   assert.deepEqual(feedbackLines([{ filename: "logo.png", additions: 0 }]), []);
 });
 
-// The read job refuses a context file over 1 MiB (pr-run-activity-read.yml).
-// Every field filled to its cap with three-byte characters fits, spec and
-// feedback lines just under their budgets included; text that escapes to six
-// bytes a character drops spec and feedback lines rather than pass the limit.
 for (const [why, char, specLength, keepsSpec] of [
   ["three-byte text", "中", 65000, true],
   ["control characters", "\u0001", 32000, false],

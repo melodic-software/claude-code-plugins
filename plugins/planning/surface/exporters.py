@@ -8,8 +8,10 @@ Each exporter reads only questions.json and responses.json from a data dir and r
                  the first row numbered past its range (after the last row when none is);
                  it refuses a gap line the gate would read as malformed, and writes
                  `- gap | Q<a>-Q<b> | never assigned` for ids nothing held (never_assigned);
-                 it writes the ledger's `## Problems` above the register and its
-                 `## Reopened answers` last (carried_section)
+                 it writes the ledger's `## Problems` above the register, then after
+                 the deferred questions its `## Self-answered facts`, `## Assumption sweep`,
+                 `## Glossary lookup`, `## ADR outcomes`, `## Round counts` and
+                 `## Reopened answers`, each present one (carried_section)
   sync_ledger    a ledger's text with only its register rows and gap lines replaced by the
                  merged rows and those gap lines, placed as export_ledger places them; it
                  refuses a malformed gap line and writes never-assigned lines as export_ledger does
@@ -54,7 +56,8 @@ is not the bare `round <N>` in meta.seededFrom.roundCells, which export writes b
 question's round still equals the cell's number, so an imported ledger round-trips byte for byte.
 
 A resolution may end, before `stale::`, in a tail of register tags (TAG_NAMES: `kind:: discovery`,
-`problem:: P<n>`, `depends:: Q<a>[, ...]`, `reopened:: round <N>`, `recheck:: Q<a>[, ...]`),
+`problem:: P<n>`, `depends:: Q<a>[, ...]`, `reopened:: round <N>`, `recheck:: Q<a>[, ...]`,
+`topic:: <plain words>` with no `;`, `|` or backslash),
 peeled from the right (split_tags) before any field is parsed. Import keeps each row's tail in
 meta.seededFrom.tags and export writes it back; a merge into a ledger keeps the ledger's tail.
 
@@ -138,13 +141,11 @@ from interview_server import (
     unchecked_constraints,
 )
 
-# The Brief's arbiter tokens (the interview skill's context/loop.md "Brief template").
 ARBITER_USER = "**arbiter: USER-RESERVED**"
 ARBITER_PLAN = "**arbiter: /planning:plan**"
 ARBITER_DESIGN = "**arbiter: /planning:design**"
 DESIGN_ROUTE = ARBITER_DESIGN.removeprefix("**arbiter: ").removesuffix("**")
 SEED_NOTE = "Seeded from ledger"
-# The note an accept made by an accept-audit event exports with (schema/event.schema.json).
 PENDING_NOTE = "pending agent validation"
 ROW = re.compile(r"^\s*-\s+[Qq]([0-9]+)\s*\|(.*)$")
 GAP_LINE = re.compile(
@@ -157,22 +158,14 @@ MID_SENTENCE = re.compile(r"[.!?)\"'`\]]$")
 QN = re.compile(r"^Q[1-9][0-9]*$")
 ROUND_CELL = re.compile(r"^\s*round\s+([0-9]+)", re.IGNORECASE)
 ADDED = re.compile(r"\(added in round\s+([0-9]+)\)", re.IGNORECASE)
-# Register statuses that leave a question unresolved; superseded-by-plan is a plan's
-# displacement of a user answer, waiting on the user's explicit reply.
 UNSETTLED = ("open", "superseded-by-plan")
 SETTLED = ("answered", "deferred", "withdrawn", "blocked")
-# The Brief's field labels, per context/problem-framing.md "Problem fields" and "Work size".
 PROBLEM_FIELDS = ("Gap", "Who / how many", "Frequency", "Trend", "Cost", "Evidence")
 WORK_SIZE_FIELDS = ("Appetite", "Size", "Uncertainty", "Split signals")
 PROPOSES = re.compile(r"^plan proposes:\s*(.*?);\s*was:\s*(.*)$", re.IGNORECASE)
-# An open row held on research or on the user; a research hold carries the answer it keeps,
-# and an unanswered one the commitments confirmed on it.
 HELD = re.compile(
     r"^(waits on|awaiting user): (.*?)(?:; answer: (.*)|; confirmed: (.*))?$"
 )
-# E() (module docstring) escapes backslash, `;`, `|`, newline, tab and CR,
-# and any other whitespace and a field's trailing spaces (the register strips a row's end) as
-# \uXXXX. Only these sequences unescape; any other backslash stays literal.
 ESCAPES = {"\\": "\\\\", ";": "\\;", "|": "\\|", "\n": "\\n", "\t": "\\t", "\r": "\\r"}
 UNESCAPES = {"n": "\n", "t": "\t", "r": "\r"}
 UNESCAPE = re.compile(r"\\(?:([\\;|])|([ntr])|u([0-9a-fA-F]{4}))")
@@ -190,18 +183,16 @@ NAMED = re.compile(
 )
 UNKNOWN_LEAD = re.compile(r"^([^:;]+)::(?: |$)")
 ALT = re.compile(r"^alt (\S+?)(?:: (.*))?$", re.DOTALL)
-# A row's last field: the constraints its recommendation was not checked against. The page derives
-# it, so parse_register drops it and an import never reads it as part of the answer.
-# The `; ` must be unescaped: an even run of backslashes before it is answer text.
 STALE_LIST = r"stale:: C[0-9]+(?:, C[0-9]+)*$"
 STALE_TAIL = re.compile(
     rf"(?:(?<=\] )|^){STALE_LIST}|((?:^|[^\\])(?:\\\\)*); {STALE_LIST}"
 )
-TAG_NAMES = ("kind", "problem", "depends", "reopened", "recheck")
+TAG_NAMES = ("kind", "problem", "depends", "reopened", "recheck", "topic")
 QLIST = r"Q[1-9][0-9]*(?:, Q[1-9][0-9]*)*"
+TOPIC = r"[^;|\\\s](?:[^;|\\]*[^;|\\\s])?"
 TAG = (
     rf"(?:kind:: discovery|problem:: P[1-9][0-9]*|depends:: {QLIST}"
-    rf"|reopened:: round [1-9][0-9]*|recheck:: {QLIST})"
+    rf"|reopened:: round [1-9][0-9]*|recheck:: {QLIST}|topic:: {TOPIC})"
 )
 TAG_LIST = rf"{TAG}(?:; {TAG})*$"
 TAG_TAIL = re.compile(rf"^({TAG_LIST})|((?:^|[^\\])(?:\\\\)*); ({TAG_LIST})")
@@ -493,7 +484,6 @@ def readable(status, fields, marked):
         parts.append(f"aside: {fields['aside']}")
     decided = fields.get("answer") or fields.get("aside") or ""
     if fields.get("note"):
-        # A decision's note is labeled; any other note is the row's own seeded text.
         noted = (
             decided.startswith(("accepted: ", "hedged: "))
             or ALT.match(decided)
@@ -501,10 +491,7 @@ def readable(status, fields, marked):
         )
         parts.append(("note: " if noted else "") + fields["note"])
     if status == "deferred" and fields.get("note") is None:
-        # A page deferral; a seeded one's arbiter is in its own text.
         parts.append("arbiter: USER-RESERVED")
-    # An unconfirmed commitment reaches the Brief as a named risk, and only where the decision
-    # carries it (register's "carries").
     confirmed = [c for ok, c in marked if ok]
     if confirmed:
         parts.append("confirmed: " + "; ".join(confirmed))
@@ -520,7 +507,6 @@ def held_terminal(q, answer, note, at):
     elif answer.startswith("free-text: "):
         decision, key, text = "own", None, answer[len("free-text: ") :]
         if note:
-            # A resolved own answer: the answer is the accepted reading, the note the user's words.
             q["resolution"] = {"text": text, "at": at, "decidedAt": at}
             text = note
     elif alt:
@@ -632,7 +618,6 @@ def marked_commits(q, events):
     return [(i in ticked, c) for i, c in enumerate(q.get("commits") or [])]
 
 
-# The decisions that carry a question's commitments.
 CARRIES = ("accept", "hedged")
 
 
@@ -667,22 +652,17 @@ def settle(q, responses, events, seed_rows):
         rec = rec or newest_decision(q, responses, aside=True)
         said = (rec or {}).get("decision")
         if kind == "answer" and rec.get("seeded") and status == "deferred":
-            # A deferral as a ledger seeded it, as below; a blocked one stays a page deferral,
-            # since a held row's status reads open and could not tell it from a deferred one.
             fields.update(answer="deferred", note=rec.get("text") or "")
         elif said:
             fields[kind], note = decision_fields(
                 q, rec, kind == "answer" and status != "superseded-by-plan"
             )
             fields["note"] = note or None
-        # The seeded text of a row still unsettled once the hold clears rides in note, unless
-        # the decision's own note is there.
         if said not in ("accept", "hedged", "alt") and fields.get("note") is None:
             if kind == "aside" or status == "superseded-by-plan":
                 fields["note"] = seed_text(seed)
         return status if status == "superseded-by-plan" else "open", fields, "", False
     if decision == "defer" and rec.get("seeded") and status in ("deferred", "blocked"):
-        # A deferral as a ledger seeded it: its text rides in note, its arbiter in that text.
         text = rec.get("text") or ""
         fields.update(answer="deferred", note=text)
         return status, fields, "", status == "blocked" or "USER-RESERVED" in text
@@ -699,13 +679,10 @@ def settle(q, responses, events, seed_rows):
         return status, fields, clean(text), decision == "defer"
     aside = newest_decision(q, responses, aside=True)
     if status != "superseded-by-plan" and aside and aside_rec(q, aside) is not None:
-        # A revised recommendation set this accept aside: open until the user accepts again,
-        # the accept named as of the text it accepted.
         fields["aside"], note = decision_fields(q, aside)
         fields["note"] = note or None
         return "open", fields, "", False
     fields["note"] = seed_text(seed)
-    # A set-aside decision leaves the plan's proposal waiting on the user again.
     return status if status == "superseded-by-plan" else "open", fields, "", False
 
 
@@ -781,8 +758,6 @@ def register(doc, resp, pos=None, tails=None):
             res = f"{res}; {stale}" if res else stale
         res = lead + res
         decided = latest_decision(q, responses) or {}
-        # An own answer replaces the recommendation, so the Brief and the report drop its
-        # commitments; the ledger row keeps their ticks, so an import restores them.
         briefed = [] if decided.get("decision") == "own" else marked
         shown = readable(status, fields, briefed)
         rows.append(
@@ -798,8 +773,6 @@ def register(doc, resp, pos=None, tails=None):
                 "design": DESIGN_ROUTE in res,
                 "confirmed": [c for ok, c in briefed if ok],
                 "unconfirmed": [c for ok, c in briefed if not ok],
-                # Accept and hedged carry the recommendation's commitments; an own answer or an
-                # alternative withdraws them and a defer's open row covers them.
                 "carries": decided.get("decision") in CARRIES,
                 "decision": decided.get("decision"),
             }
@@ -809,7 +782,6 @@ def register(doc, resp, pos=None, tails=None):
 
 def row_line(r):
     line = f"- {r['n']} | {r['status']} | {r['round']} | {r['title']} | {r['resolution']}".rstrip()
-    # A raw line break would start a continuation line, and one starting `- Q` forges a row.
     if len(line.splitlines()) != 1:
         raise ValueError(f"register row {r['n']} would span lines: {line!r}")
     return line
@@ -872,12 +844,10 @@ def merged_register(d, text=None):
     responses = resp.get("responses") or {}
 
     def page_decided(q):
-        """True when the page holds a decision of its own, one made after any import."""
         stamps = [
             x.get("updatedAt") for x in (responses.get(q["id"]), q.get("terminal")) if x
         ]
         stamps.append((q.get("archived") or {}).get("at"))
-        # A hold counts from the wait op's stamp; an imported hold carries none.
         stamps.append(q.get("waiting") and q.get("waitingSince"))
         return any(s and s > seeded.get("at", "") for s in stamps) or bool(
             q.get("supersededBy")
@@ -887,9 +857,6 @@ def merged_register(d, text=None):
     numbers = ledger_numbers(text)
 
     def held_open(q, status, res, page_res):
-        """True when the ledger reopened q's row (`status` and `res` its ledger cells) and the
-        page's resolution `page_res` still holds the answer it reopened, given before the round
-        that asks it again was posted."""
         entry = reopened.get(f"Q{numbers[q['id']]}")
         tags = parse_tags(split_tags(res)[1], q["id"], "the ledger")
         if status != "open" or not entry or "reopened" not in tags:
@@ -1048,14 +1015,24 @@ def export_ledger(d, text=None, where="the ledger"):
     out += ["", "### Deferred questions", ""]
     retired = [r for r in rows if r["status"] in ("deferred", "blocked")]
     out += [f"- {r['n']}: {r['title']}" for r in retired] or ["- none"]
-    reopened = carried_section(text, "reopened answers")
-    return "\n".join(out + ([""] + reopened[:-1] if reopened else [])) + "\n"
+    tail = [line for name in CARRIED for line in carried_section(text, name)]
+    return "\n".join(out + ([""] + tail[:-1] if tail else [])) + "\n"
+
+
+CARRIED = (
+    "self-answered facts",
+    "assumption sweep",
+    "glossary lookup",
+    "adr outcomes",
+    "round counts",
+    "reopened answers",
+)
 
 
 def carried_section(text, name):
     """The lines of the ledger section headed `name` (the first one outside fences), heading
     through its last non-blank line, then one blank line; [] with no such section. export_ledger
-    writes the ledger's `## Problems` and `## Reopened answers` back with it, as sync-ledger
+    writes the ledger's `## Problems` and each CARRIED section back with it, as sync-ledger
     leaves them."""
     lines = (text or "").splitlines()
     heads = headings(lines)
@@ -1069,8 +1046,6 @@ def carried_section(text, name):
     return [*body, ""]
 
 
-# Longest answer, in characters, a live question's recap line keeps before it is cut; the recap
-# tries each in turn until it fits the caller's cap.
 RECAP_ANSWER_STEPS = (240, 120, 60, 30)
 
 
@@ -1109,13 +1084,26 @@ def recap_state(rows):
     return {r["n"]: f"{r['status']}: {r['title']} ({recap_answer(r)})" for r in rows}
 
 
+def first_recap_state(saved, rows):
+    """The recap state to save for the terminal lane: each row as the user first saw it, that
+    is its `saved` value (an earlier first_recap_state, or an older ledger's last recap) when
+    it has one, else its recap_state now, so Changed after you first saw it keeps comparing
+    against the first recap."""
+    return {**recap_state(rows), **(saved or {})}
+
+
 def confirmation_recap(d, cap, text=None, since=None):
-    """The confirmation gate's compact recap, one `Q<N> <status>: <question> (<answer>)` line per
-    live question, with every withdrawn row collapsed into one closing line and each long answer
-    cut. With `since` (the recap_state an earlier recap saved) it lists only the rows whose
-    status, question or answer changed since then, and closes with one `Unchanged since the last
-    recap (N): <count> <status>, ...` line for the rest. The answer length steps down until the
-    recap fits `cap` characters; (recap, fits) says whether it did."""
+    """(recap, fits): the confirmation gate's recap and whether it fits `cap` characters. With
+    no data dir (the terminal lane) it is plain_recap of the ledger text, never cut. With one
+    (the page lane, whose Brief reads its Decisions from this recap) it is one
+    `Q<N> <status>: <question> (<answer>)` line per live question, with every withdrawn row
+    collapsed into one closing line and the answer length stepped down until the recap fits;
+    with `since` (the recap_state an earlier recap saved) it lists only the rows whose status,
+    question or answer changed since then, and closes with one `Unchanged since the last recap
+    (N): <count> <status>, ...` line for the rest."""
+    if d is None:
+        out = plain_recap(text, since)
+        return out, len(out) <= cap
     rows = recap_rows(d, text)
     state = recap_state(rows)
     kept = {n for n, line in state.items() if since is not None and since.get(n) == line}
@@ -1140,6 +1128,203 @@ def confirmation_recap(d, cap, text=None, since=None):
         if len(out) <= cap:
             return out, True
     return out, False
+
+
+LOOSE_TAGS = re.compile(rf"\s+((?:{TAG})(?:(?:;\s*|\s+)(?:{TAG}))*)$")
+CITES = re.compile(
+    r"^(?:answered through|merged into|folded into|superseded by|see) (Q[1-9][0-9]*)\b[:;,]?\s*",
+    re.IGNORECASE,
+)
+PART_OF = re.compile(r"\s*\(part of (Q[1-9][0-9]*)\)")
+EVIDENCE = re.compile(r"^answered-from-[a-z-]+:\s*")
+ARBITER_TEXT = re.compile(r"\**arbiter: ([^*;]+?)\**(?=;|$)")
+NO_ANSWER = "no answer yet"
+
+
+def row_tags(res):
+    """(resolution, {tag name: value}) of a register resolution, its tags peeled whether a `; `
+    or, as hand-written ledgers have it, a space sets them off."""
+    body, tail = split_tags(drop_stale(res))
+    if not tail:
+        m = LOOSE_TAGS.search(body)
+        body, tail = (body[: m.start()], m.group(1)) if m else (body, "")
+    tags = {}
+    for m in re.finditer(TAG, tail):
+        name, _, value = m.group(0).partition(":: ")
+        tags[name] = value
+    return body, tags
+
+
+def decision_words(answer):
+    """An answer without the word naming its kind: `accepted: X` is X, `alt b: X` is X."""
+    alt = ALT.match(answer)
+    if alt:
+        return alt.group(2) or f"option {alt.group(1)}"
+    word, sep, rest = answer.partition(": ")
+    if sep and word in ("accepted", "hedged", "free-text", "deferred"):
+        return rest
+    return "" if answer == "deferred" else answer
+
+
+def arbiter_words(m):
+    who = m.group(1).strip()
+    return "left for you to decide later" if who == "USER-RESERVED" else f"left to {who}"
+
+
+def plain_answer(r, body):
+    """(a row's answer in plain words, its unconfirmed commitments): no status word, field
+    name, escape or tag; a confirmed commitment folds in as `also:`."""
+    try:
+        named = parse_named(body, "the ledger")
+    except SystemExit:
+        named = None
+    if not named:
+        text = ARBITER_TEXT.sub(arbiter_words, clean(EVIDENCE.sub("", body)))
+        return decision_words(text), []
+    fields, marked = named
+    answer, note = fields.get("answer") or "", fields.get("note")
+    parts = []
+    if fields.get("proposal") is not None:
+        parts.append(f"the plan proposes {fields['proposal']} in place of {fields['was']}")
+    who, _, waits = (fields.get("hold") or "").partition(" ")
+    if waits:
+        parts.append(f"waiting for you: {waits}" if who == "user" else f"waiting on {waits}")
+    parts.append(decision_words(answer))
+    if note:
+        parts.append(f"your condition: {note}" if answer.startswith("hedged: ") else note)
+    if r["status"] == "deferred" and note is None:
+        parts.append("left for you to decide later")
+    confirmed = [c for ok, c in marked if ok]
+    unconfirmed = [c for ok, c in marked if not ok]
+    if confirmed:
+        parts.append("also: " + "; ".join(confirmed))
+    if unconfirmed:
+        parts.append("not yet confirmed: " + "; ".join(unconfirmed))
+    return clean("; ".join(p for p in parts if p)), unconfirmed
+
+
+def plain_title(title):
+    return PART_OF.sub("", clean(title)).rstrip().rstrip("?").rstrip()
+
+
+def section_body(text, name):
+    """The lines under the ledger's first section headed `name` (lowercase), blank ones left
+    out; [] with no such section."""
+    lines = (text or "").splitlines()
+    heads = headings(lines)
+    own = [h for h, _, t in heads if t == name]
+    if not own:
+        return []
+    start, end = section_span(heads, own[0], len(lines))
+    return [x.strip() for x in lines[start + 1 : end] if x.strip()]
+
+
+def terms_and_adrs(text):
+    """`<term>: <definition>` for each agreed Terminology matrix row, then `<decision>:
+    <outcome>` for each `## ADR outcomes` entry."""
+    out = []
+    for line in section_body(text, "terminology matrix"):
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if line.startswith("|") and len(cells) >= 4 and cells[-1].lower() == "agreed":
+            out.append(f"{cells[0]}: {cells[1]}")
+    for line in section_body(text, "adr outcomes"):
+        if not line.startswith("- "):
+            continue
+        left, sep, right = line[2:].partition(" | ")
+        if not sep:
+            out.append(left)
+            continue
+        named = re.search(r"\(([^()]*)\)", left)
+        name = named.group(1) if named else re.sub(r"\bQ[0-9]+\b[/,\s]*", "", left).strip()
+        out.append(f"{name}: {right}" if name else right)
+    return out
+
+
+def fact_lines(text):
+    """`<question>: <answer>` for each `## Self-answered facts` row."""
+    out = []
+    for line in section_body(text, "self-answered facts"):
+        cells = [c.strip() for c in line.split("|")]
+        if re.match(r"^-\s+F[0-9]+$", cells[0]) and len(cells) >= 4:
+            out.append(f"{plain_title(cells[2])}: {cells[3]}")
+    return out
+
+
+def plain_recap(text, since=None):
+    """The terminal lane's confirmation recap of a ledger, each part only when it has a line:
+    Needs your eye (unsettled, deferred, blocked, hedged and reopened rows, unconfirmed
+    commitments, the ledger's `## Captured assumptions`), the rest grouped under each row's
+    `topic::` (untagged rows and self-answered facts under Other), and Terms and ADRs. One
+    `<title>: <answer>` line per question, never cut: a commitment part (`(part of Q<N>)`)
+    and a row whose answer opens by citing Q<N> (`answered through Q<N>: ...`) join Q<N>'s
+    line, and withdrawn rows are left out. With `since` (first_recap_state's saved rows) a line
+    holding a row whose recap_state differs from its saved one moves to Changed after you
+    first saw it, after the grouped summary; each line appears in one part only."""
+    rows = recap_rows(None, text)
+    by_n = {r["n"]: r for r in rows if r["status"] != "withdrawn"}
+    was = {}
+    for n, _, before, _ in reopened_entries(text or ""):
+        was[n] = decision_words(row_tags(before)[0].strip())
+    state = recap_state(rows)
+    lines = {n: {"parts": [], "topic": None, "eye": False, "changed": False} for n in by_n}
+    for r in by_n.values():
+        body, tags = row_tags(r["resolution"])
+        body = split_lead(body)[1]
+        part = PART_OF.search(r["title"])
+        cited = CITES.match(body)
+        key = (part or cited) and (part or cited).group(1)
+        key = key if key in by_n and key != r["n"] else r["n"]
+        answer, unconfirmed = plain_answer(r, body[cited.end() :] if cited and key != r["n"] else body)
+        unsettled = r["status"] in (*UNSETTLED, "discussing")
+        reopened = "reopened" in tags or r["n"] in was
+        if reopened:
+            before = was.get(r["n"])
+            answer += f" (changed from {before} after a new finding)" if before else (
+                " (answered again after a new finding)"
+            )
+        said = answer or (NO_ANSWER if unsettled else "")
+        if key == r["n"] or part:
+            said = f"{plain_title(r['title'])}: {said}" if said else plain_title(r["title"])
+        line = lines[key]
+        if said and key == r["n"]:
+            line["parts"].insert(0, said)
+        elif said:
+            line["parts"].append(said)
+        if tags.get("topic") and (key == r["n"] or not line["topic"]):
+            line["topic"] = tags["topic"]
+        line["eye"] |= bool(
+            unsettled
+            or r["status"] in ("deferred", "blocked")
+            or (body.startswith(("hedged: ", "answer:: hedged: ")))
+            or reopened
+            or unconfirmed
+        )
+        line["changed"] |= r["n"] in (since or {}) and since[r["n"]] != state[r["n"]]
+    seen = set()
+
+    def fresh(said):
+        if said in seen:
+            return False
+        seen.add(said)
+        return True
+
+    joined = [{**v, "said": "; ".join(v["parts"])} for v in lines.values() if v["parts"]]
+    changed = [x["said"] for x in joined if x["changed"] and fresh(x["said"])]
+    eye = [x["said"] for x in joined if x["eye"] and not x["changed"] and fresh(x["said"])]
+    eye += [x[2:] if x.startswith("- ") else x for x in section_body(text, "captured assumptions")]
+    groups = {}
+    for x in joined:
+        if not (x["eye"] or x["changed"]) and fresh(x["said"]):
+            groups.setdefault(x["topic"] or "Other", []).append(x["said"])
+    groups["Other"] = [*groups.pop("Other", []), *fact_lines(text)]
+    blocks = [["**Needs your eye**", *eye]] if eye else []
+    blocks += [[f"**{t}**", *said] for t, said in groups.items() if said]
+    if changed:
+        blocks.append(["**Changed after you first saw it**", *changed])
+    terms = terms_and_adrs(text)
+    if terms:
+        blocks.append(["**Terms and ADRs**", *terms])
+    return "".join("\n".join([b[0], *(f"- {x}" for x in b[1:])]) + "\n\n" for b in blocks)[:-1]
 
 
 def check_ledger(text, where):
@@ -1260,7 +1445,6 @@ def goal_block(lines):
 
 
 LEAD_QN = re.compile(r"^[\\\[(*_]*[Qq]([1-9][0-9]*)\b")
-# A restated bullet that says there is nothing to list.
 NONE_BULLET = re.compile(r"^- none\.?$", re.IGNORECASE)
 
 
@@ -1341,7 +1525,6 @@ def replacements(rows):
     return out
 
 
-# A recap line written while the row was open: its Q<N>, then its question and answer.
 OPEN_RECAP = re.compile(r"^(?:[-*+]\s+)?(Q[1-9][0-9]*) open: (.*)\)$")
 
 
@@ -1483,8 +1666,6 @@ def brief_label(r):
     return r["n"] if r["n"] == qid else f"{r['n']} [{clean(qid)}]"
 
 
-# The events whose text is the user's own words, and how the Brief's Intent labels each; an
-# accept, alt or hedged event has text only when the user typed a note on that choice.
 USER_WORDS = {
     "ask": "asked",
     "note": "note",
@@ -1518,7 +1699,6 @@ def user_words(rows, events, intent):
         where = f"{labels.get(qid) or clean(qid)} " if qid else ""
         label = USER_WORDS[kind].format(alt=clean(e.get("alt")))
         line = f"- {where}{label}: {text}"
-        # A Reconfirm posts the kept choice and its note again.
         if kind in CHOICE_WORDS and line in out:
             continue
         out.append(line)
@@ -1563,7 +1743,6 @@ def export_brief(d, text=None):
     risks = named_risks(rows)
     gated = [brief_label(r) for r in rows if held_open(r)]
     superseded = count["superseded-by-plan"]
-    # The confirmed scope bullets lead the TLDR, ahead of the bookkeeping.
     out = ["## Brief", "", "### TLDR", "", *bullets(sections.get("tldr"))]
     out.append(
         f"- {len(rows)} question{'' if len(rows) == 1 else 's'}: {count['answered']} answered, {count['deferred']} deferred, "
@@ -1577,16 +1756,11 @@ def export_brief(d, text=None):
         out.append(
             f"- {', '.join(gated)}: decided, open until its commitments are confirmed"
         )
-    # A row the Brief writes no line for keeps its ticked commitments here.
     out += [
         f"- {brief_label(r)} confirmed so far: {'; '.join(clean(c) for c in r['confirmed'])}"
         for r in rows
         if r["confirmed"] and r["status"] not in ("answered", "withdrawn")
     ]
-    # The stamp and page title the --brief gate reads; every page export carries both, so the
-    # gate tells it from a hand-written Brief. The gate judges confirmation by the stamp alone, so
-    # it cannot see a Brief edited after the Confirm; the skill's rule, not the gate, asks for a
-    # new restate.
     if latest is None:
         stamp = "UNCONFIRMED (no restatement posted)"
     elif restated and restated["rev"] == latest:
@@ -1618,13 +1792,10 @@ def export_brief(d, text=None):
     out += ["", "### Constraints", ""]
     recorded = []
     if not bullets(sections.get("constraints")):
-        # No confirmed restatement supplies constraints: the page's own ledger, then the
-        # ledger file's rows under a C<N> the page has not recorded.
         page = doc.get("constraints") or []
         recorded = [f"- {c['id']}: {para(c['text'])}" for c in page]
         seen = {c["id"] for c in page}
         recorded += [b for i, b in ledger_constraints(text) if i not in seen]
-    # An answered row the restatement already carries is said there, once, its `why:` under it.
     carried = carried_rows(sections, answered)
     given = set()
     out += [
@@ -1642,10 +1813,6 @@ def export_brief(d, text=None):
         if criteria
         else ["- none recorded in the interview surface", ""]
     )
-    # A confirmed commitment is part of its decision's line (readable's `confirmed:`), or the
-    # TLDR's `confirmed so far` line, not an assumption to revisit: this section holds the
-    # unconfirmed ones, as risks, and a Notes
-    # question the user left unanswered (the coverage prompt asked on the page).
     out += ["### Captured assumptions", ""]
     lines = [
         f"- risk: {clean(c)} (unconfirmed); from {brief_label(r)}" for r, c in risks
@@ -1656,7 +1823,6 @@ def export_brief(d, text=None):
     ]
     out += lines or ["- none"]
     out += ["", "### Out-of-scope", ""]
-    # A superseded row was replaced, not excluded: Out-of-scope reads as approved scope.
     archived = [r for r in rows if r["status"] == "withdrawn" and r["n"] not in replaced]
     out += [
         *bullets(sections.get("outOfScope")),
@@ -1688,7 +1854,6 @@ def export_brief(d, text=None):
 
 BRIEF_HEADING = re.compile(r"^##\s+brief\s*$", re.IGNORECASE)
 HEADING = re.compile(r"^(#{1,6})\s")
-# A fence delimiter and the rest of its line, read as scripts/check-open-questions.sh reads one.
 FENCE_RUN = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
 
 
@@ -1701,7 +1866,6 @@ def merge_brief(plan, brief, where):
     character at least as long, with nothing after it. Refuses a file with no `## Brief` heading,
     more than one, or a fence that never closes, which would hide the headings after it."""
     section = brief[: brief.rindex("\n## Plan\n")].rstrip("\n").split("\n")
-    # Lines split on \n alone, as the gate's awk splits them.
     lines = [x for x in re.split(r"(?<=\n)", plan) if x]
     heads, fence = [], None
     for i, line in enumerate(lines):
@@ -1739,8 +1903,6 @@ def merge_brief(plan, brief, where):
     nl = "\r\n" if "\r\n" in plan else "\n"
     keep = lines[start + 1 : first]
     if any(x.strip() for x in keep):
-        # The export's blank line after `## Brief` gives way to the kept text, which ends on a
-        # blank line before the export's first subheading.
         keep[-1] = keep[-1] if keep[-1].endswith("\n") else keep[-1] + nl
         if keep[-1].strip():
             keep.append(nl)
@@ -1748,7 +1910,6 @@ def merge_brief(plan, brief, where):
         section = section[2:]
     else:
         head = ""
-    # A blank line before the heading that follows; none after the file's last line.
     block = head + nl.join(section) + nl + (nl if stop < len(lines) else "")
     return "".join(lines[:start]) + block + "".join(lines[stop:])
 
@@ -1858,7 +2019,6 @@ table{border-collapse:collapse;width:100%}th,td{border:1px solid #ccd;padding:4p
 section{border-top:1px solid #ccd;margin-top:16px}iframe{width:100%;height:320px;border:1px solid #ccd}
 pre{white-space:pre-wrap;background:#f4f5f8;padding:8px}.muted{color:#667}.withdrawn{text-decoration:line-through}
 """
-# No network source: the srcdoc iframes inherit this policy, so a visual cannot load remote content.
 REPORT_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'"
 SCRIPT_TAG = re.compile(r"<script\b", re.IGNORECASE)
 
@@ -2199,9 +2359,6 @@ def resolve_row(text, qid, how, note, where):
             return "answered", lead + old
         marked, kept = None, note
         if form == "named":
-            # `was` holds the whole displaced row; the reconfirmed row keeps its answer, its note
-            # when no --note-file replaces it, and its commitments. An earlier reconfirm's proposal and
-            # `was` have no field left to go in, so they are dropped.
             held = parse_named(old, where)
             if held:
                 old, marked = held[0].get("answer", old), held[1]
@@ -2511,7 +2668,6 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
         clash("proposal", "was")
     if hold is not None and status not in UNSETTLED:
         clash("hold", f"status {status}")
-    # Without a hold, only a recommendation revision sets a decision aside: an open row's accept.
     revised_aside = (
         "aside" in fields
         and hold is None
@@ -2544,13 +2700,9 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
     }
     if not fits[status]:
         clash("answer", f"status {status}")
-    # A bare `deferred` answer with a note is a deferral as a ledger seeded it; on a held row,
-    # whose status reads open, it is a deferred one.
     seeded_defer = answer == "deferred" and (
         status == "blocked" or (note is not None and status in ("deferred", "open"))
     )
-    # A counted free-text answer's note is the user's words behind its resolution; the note of a
-    # set-aside one, or of a superseded-by-plan row's, is the row's seeded text.
     own_noted = answer is not None and status != "superseded-by-plan"
     noted = decided is not None and (
         decided.startswith(("accepted: ", "hedged: "))
@@ -2559,8 +2711,6 @@ def import_named(qid, title, rnd, status, fields, marked, seeded, at, rev, where
     )
     if decided is not None and decided.startswith("hedged: ") and not note:
         refuse("a hedged answer with no condition in field 'note'", where)
-    # Any other note on a row still unsettled is the seeded text of a row no decision counts on:
-    # on a held row, one with no counted answer or a superseded-by-plan one.
     residual = (
         status in UNSETTLED
         and "proposal" not in fields
@@ -2670,7 +2820,7 @@ def import_ledger(doc, text, ledger, at):
             continue
         held = HELD.match(res) if status == "open" else None
         commits = held.group(4).split("; ") if held and held.group(4) else None
-        if held:  # the hold itself is restored below, so its text leaves the seeded row
+        if held:
             if held.group(3):
                 status, res = "answered", held.group(3)
             else:
@@ -2686,7 +2836,6 @@ def import_ledger(doc, text, ledger, at):
         proposal = (
             parse_proposal(res, ledger) if status == "superseded-by-plan" else None
         )
-        # An escaped open or answer row settles from its state alone, as a held row does.
         if not (listed and listed.group(1)) and not answer:
             seeded[qid] = {"status": status, "round": rnd, "resolution": res}
         if proposal:

@@ -236,7 +236,6 @@ class FakeGitHub:
 
 
 def recorded(author: dict[str, Any]) -> dict[str, Any]:
-    """The issue as a verdict's `linked_issues` records it."""
     return {
         "number": ISSUE,
         "author_login": author["login"],
@@ -782,7 +781,7 @@ class TheGateAndAdmissionAgree(unittest.TestCase):
         source = RESOLVE_CONFIG.read_text(encoding="utf-8")
         fold = source[
             source.index("function eventsFrom(nodes) {") : source.index(
-                "// Open issues per issuesByStatus page."
+                "export const ISSUE_PAGE_SIZE = 25;"
             )
         ].replace("export async function", "async function")
         script = (
@@ -871,8 +870,6 @@ def record_comment(
 
 
 def brief(**kwargs: Any) -> bool:
-    """The gate's judgment of a lanes App filing with no `source:` label, so
-    the own-agent rule never decides it, and the record comments given."""
     kwargs.setdefault("labels", [])
     kwargs.setdefault("briefed", [record_comment()])
     return judge(**kwargs)[0]

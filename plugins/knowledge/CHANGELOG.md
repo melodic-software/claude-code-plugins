@@ -4,6 +4,81 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.6.5] - 2026-11-28
+
+### Changed
+
+- Trimmed `knowledge` skill frontmatter descriptions (`absorb-upstream` 445 -> 341 chars, `course-digest` 407 -> 341 chars, `distill` 490 -> 330 chars, `docpage-digest` 377 -> 332 chars, `setup` 229 -> 148 chars, `video-digest` 364 -> 313 chars; changed skills 2312 -> 1805 chars, -507 chars; total 2648 -> 2141 chars) and backfilled `probes/absorb-upstream.json` (20 queries).
+
+## [3.6.4] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [3.6.3] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
+## [3.6.2] - 2026-11-27
+
+### Changed
+
+- `/knowledge:video-digest` points at the yt-dlp wiki and README and the ffmpeg download page for install and update commands, instead of stating package-manager commands and vendor behavior ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [3.6.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [3.6.0] - 2026-11-26
+
+### Changed
+
+- Shared `html-escape.mjs` synced: the report validator admits a base64 `data:` URL in two places only, a PNG or JPEG as the `.rv-logo` rule's one `background-image`, and a WOFF2, WOFF, TTF or OTF font inside `@font-face`. Every other `url(`, scheme and URL-bearing attribute is still refused. Pages built today look the same; no other change to this plugin.
+
+## [3.5.12] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+- Comments outside the necessary posture are removed from the vendored `node-launcher`, `repo-analysis` and `video-digestion` libraries, and a test now pins that a clone whose isolated home cannot be made fails without starting git.
+
+## [3.5.11] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+### Fixed
+
+- The video-digest readiness report runs when the `asr_python` option is unset. The pre-computed
+  preflight command now single-quotes its `--asr-python` argument, so the literal
+  `${user_config.asr_python}` token Claude Code leaves for an unset option reaches the script
+  instead of failing in bash with "bad substitution".
+
+## [3.5.10] - 2026-11-25
+
+### Changed
+
+- Removed comments from extraction scripts and the vendored node-launcher and video-digestion copies; no behavior change.
+
+## [3.5.9] - 2026-11-25
+
+### Changed
+
+- Comments removed from the vendored `video-digestion` progress module and the docpage digest batch workflow; no behavior change. The patch bump delivers the vendored source to consumers.
+
+## [3.5.8] - 2026-11-25
+
+### Changed
+
+- Comments removed from the video-digest extraction, the vendored `repo-analysis` and `video-digestion` libraries, and their tests; no behavior change. The patch bump delivers the vendored source to consumers.
+
 ## [3.5.7] - 2026-11-24
 
 ### Changed

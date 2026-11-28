@@ -21,7 +21,7 @@
   "required-undone": { "route": "retry", "why": "the run left a required check undone, so the next run continues the branch" },
   "hold-label-failed": { "route": "retry", "why": "the held PR could not be labeled do-not-merge, a failed write, not a finding about the issue" },
   "pr-head-moved": { "route": "retry", "why": "the PR opened at a head other than the tip the runner checked, a race, not a finding about the issue" },
-  "closed-by-open-pr": { "route": "retry", "why": "an open PR the lanes App or a listed human opened already closes the issue, a race with the earlier-work check, not a finding about the issue; while it stays open the next run stops before any model turn" },
+  "closed-by-open-pr": { "route": "wait", "why": "an open PR the lanes App or a listed human opened already closes the issue, a race with the earlier-work check, not a finding about the issue, so the lane waits on that PR and runs the issue again only once it closes unmerged or merges" },
   "turn-cap-spent": { "route": "fail", "why": "the run reached its turn cap with no restart left" },
   "retry-spent": { "route": "fail", "why": "the lane has retried this issue as many times as limits.stop-retries, or the stop's own row, allows" },
   "pushback": { "route": "hold", "why": "the run names cause intent: the issue leaves its intended outcome open, an intent question only a person answers", "class": "intent-change" },

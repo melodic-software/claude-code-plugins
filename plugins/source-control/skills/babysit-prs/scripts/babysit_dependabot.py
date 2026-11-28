@@ -70,7 +70,6 @@ from babysit_util import json_object
 AUTO = "auto"
 REVIEW = "review"
 
-# The forms the author login takes across the gh CLI, REST and GraphQL.
 DEPENDABOT_LOGINS = frozenset({"app/dependabot", "dependabot[bot]", "dependabot"})
 DEPENDABOT_AUTHOR = (
     "dependabot[bot]",
@@ -83,12 +82,8 @@ RED = frozenset(
     {"failure", "cancelled", "timed_out", "action_required", "startup_failure"}
 )
 MARKER_PREFIX = "<!-- pr-unblock:review-dependency-round "
-# The standards-synced Dependabot policy, read at the base.
-POLICY_PATH = ".github/standards/dependabot-policy/policy.json"
 STANDARDS_POLICY = "components/dependabot-policy/policy.json"
 POLICY_UNREADABLE = "dependabot-policy-unreadable"
-# The head branch's ecosystem segment in `dependabot.yml` spelling; any other
-# segment is the same in both.
 BRANCH_ECOSYSTEMS = {"npm_and_yarn": "npm", "github_actions": "github-actions"}
 _REVIEW_ONLY_KEYS = ("repository", "ecosystem", "directory", "dependency", "control")
 
@@ -98,7 +93,6 @@ _GROUP = re.compile(r"\bbump the \S+ group\b.*\bwith (\d+) updates?\s*$", re.I)
 _UPDATE_LINE = re.compile(r"^Updates `([^`\s]+)` from (\S+) to (\S+?)\.?$", re.M)
 _VERSION = re.compile(r"^v?(\d+)(?:\.(\d+))?(?:\.\d+)*(?:[-+.][0-9A-Za-z.+-]*)?$")
 _ECOSYSTEM = re.compile(r"^dependabot/([^/]+)/")
-# Dependabot quotes a value YAML would misread, such as a scoped npm name.
 _ENTRY = re.compile(r"""^-\s+dependency-name:\s*(["']?)([^"'\s]+)\1\s*$""")
 _FIELD = re.compile(
     r"""^\s+(dependency-version|update-type):\s*(["']?)([^"'\s]+)\2\s*$"""
@@ -107,7 +101,6 @@ _MARKER = re.compile(
     r"^<!-- pr-unblock:review-dependency-round head=([0-9a-f]{40}) "
     r"verdict=([a-z]+) run=([0-9]+-[0-9]+) -->$"
 )
-# The files each ecosystem's updates edit, in the configured directory.
 MANIFESTS = {
     "npm": re.compile(
         r"^(package\.json|package-lock\.json|npm-shrinkwrap\.json|yarn\.lock|pnpm-lock\.yaml)$"
@@ -119,8 +112,6 @@ MANIFESTS = {
 }
 _WORKFLOW = re.compile(r"^\.github/workflows/[^/]+\.ya?ml$")
 _ACTION = re.compile(r"^(.+/)?action\.ya?ml$")
-# A changed line that only repins an action: `uses:` and its ref, with an
-# optional trailing comment (the version).
 _USES_LINE = re.compile(r"^[+-]\s*(-\s+)?uses:\s*[^\s#]+(\s+#.*)?\s*$")
 _CONFIG_ENTRY = re.compile(r"^\s*-\s+package-ecosystem:\s*[\"']?([A-Za-z0-9_-]+)")
 _CONFIG_DIR = re.compile(r"^\s+directory:\s*[\"']?([^\"'#\s]+)")
@@ -132,21 +123,17 @@ PUSH_TYPES = frozenset({"push", "force_push", "branch_creation"})
 @dataclass(frozen=True)
 class Update:
     name: str
-    major: bool | None  # None when unreadable
-    # The new version, for the provenance gate; None when unread.
+    major: bool | None
     version: str | None = field(default=None, compare=False)
-    # Whether the first version component changed; None when unread.
     first_major: bool | None = field(default=None, compare=False)
 
 
 @dataclass(frozen=True)
 class Classification:
-    tier: str  # AUTO or REVIEW
-    reasons: tuple[str, ...] = ()  # why REVIEW; empty for AUTO
+    tier: str
+    reasons: tuple[str, ...] = ()
     updates: tuple[Update, ...] = ()
     ecosystem: str = ""
-    # The approving round marker's run, for a REVIEW pull request the
-    # review activity passed; None otherwise.
     approved: str | None = None
 
     @property
@@ -174,26 +161,11 @@ def is_dependabot(login: Any) -> bool:
     return str(login or "").strip().casefold() in DEPENDABOT_LOGINS
 
 
-# A Dependabot head is never updated from its base: the Dependabot merge
-# tier's commit check refuses a merge of the base by anyone else. Its rebase is asked for instead,
-# once per base tip; a head another writer has only merged the base into is
-# recreated.
-#   Pointer: <https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-pull-request-comment-commands#commands-for-dependabot-pull-requests>
-#   As-of: 2026-10-24.
-#   Recheck trigger: that section changes what rebase or recreate does to a
-#   branch that carries another author's commits.
 REBASE_HOLD = "dependabot-rebase-requested"
 EDITED_HOLD = "dependabot-branch-edited"
 REBASE_COMMAND = "@dependabot rebase"
 RECREATE_COMMAND = "@dependabot recreate"
-# The most files the compare endpoint lists; a full list may hide more.
-#   Pointer: <https://docs.github.com/en/rest/commits/commits#compare-two-commits>
-#   As-of: 2026-10-24.
-#   Recheck trigger: that section changes how many files a comparison returns.
 COMPARE_FILES_LIMIT = 300
-# Who may have posted a request that counts: a writer, or the caller's own
-# identity (a lane App's association does not show write access). Anyone can
-# comment on a public repository, so another author's marker suppresses nothing.
 TRUSTED_ASSOCIATIONS = frozenset({"OWNER", "MEMBER", "COLLABORATOR"})
 Get = Callable[[str], Any]
 
@@ -216,9 +188,6 @@ def rebase_body(base_sha: str, command: str = REBASE_COMMAND) -> str:
 _REQUEST_MARKER = re.compile(
     r"^<!-- babysit-dependabot-rebase base=([0-9a-f]{40}) -->$"
 )
-# At most one request per pull request in this window, so a head that stays
-# behind does not collect a comment at every base tip (judgment). A conflict
-# still gets its request, once per base tip.
 REQUEST_COOLDOWN = timedelta(hours=1)
 
 
@@ -459,7 +428,9 @@ def parse_title(title: str, body: str) -> list[Update] | None:
         return found if len(found) == int(group.group(1)) else None
     if single := _SINGLE.search(subject):
         old, new = single.group(2), single.group(3)
-        return [Update(single.group(1), is_major(old, new), new, is_first_major(old, new))]
+        return [
+            Update(single.group(1), is_major(old, new), new, is_first_major(old, new))
+        ]
     return None
 
 
@@ -509,13 +480,14 @@ def all_own(updates: Sequence[Update], globs: Sequence[str]) -> bool:
     request takes no `publisher:` reason, and a below-1.0 second-component
     move is not major for it; a first-component move still is."""
     patterns = [_own_regex(g) for g in globs]
-    return bool(updates) and bool(patterns) and all(
-        any(p.match(u.name) for p in patterns) for u in updates
+    return (
+        bool(updates)
+        and bool(patterns)
+        and all(any(p.match(u.name) for p in patterns) for u in updates)
     )
 
 
 def _from_subject(message: str, update: Update) -> Update:
-    """`update` with its jump read from its commit's subject (`subject_jump`)."""
     jump = subject_jump(message, update)
     if jump is None:
         return Update(update.name, None, update.version)
@@ -565,7 +537,6 @@ def classify(
             by_name[u.name] != u.major for u in metadata
         ):
             reasons.append("sources-disagree")
-    # Every read policy copy must name this organization's own releases.
     is_own = bool(own) and all(all_own(updates, globs) for globs in own)
     if is_own:
         updates = [
@@ -639,13 +610,8 @@ def _entry_covers(entry: dict[str, str], path: str) -> bool:
     )
 
 
-# The provenance gate, the same rule as the pr-unblock lane's
-# `provenanceReasons` (`.github/scripts/pr-unblock/dependency-classify.mjs`):
-# each npm or pip update's publisher identity against the newest earlier
-# stable version that has one. Rule: docs/conventions/pr-pipeline/README.md,
-# "Registry provenance".
-PROVENANCE_TIMEOUT = 10  # seconds per registry read
-PROVENANCE_CALL_CAP = 20  # registry reads per pull request
+PROVENANCE_TIMEOUT = 10
+PROVENANCE_CALL_CAP = 20
 _PROVENANCE_ECOSYSTEMS = {"npm_and_yarn": "npm", "pip": "pip"}
 NPM_REGISTRY = "https://registry.npmjs.org"
 PYPI = "https://pypi.org"
@@ -656,7 +622,6 @@ _NPM_STABLE = re.compile(r"^\d+\.\d+\.\d+$")
 _PIP_STABLE = re.compile(r"^\d+(\.\d+)*(\.post\d+)?$")
 _WHEEL = re.compile(r"^[^-]+-([^-]+)-.+\.whl$")
 _SDIST = re.compile(r"^.+-([^-]+)\.(tar\.gz|zip)$")
-# `fetch(url, accept)` returns the registry's parsed JSON, or raises.
 Fetch = Callable[[str, str], Any]
 
 
@@ -728,7 +693,6 @@ def _npm_identity(name: str, version: str, manifest: Any, get: Fetch) -> str | N
         repository, path = workflow.get("repository"), workflow.get("path")
         if isinstance(repository, str) and isinstance(path, str):
             return f"workflow:{_repo_name(repository)}:{path}"
-        # SLSA v0.2, which npm wrote before v1: the ref follows the last `@`.
         source = json_object(
             json_object(predicate.get("invocation")).get("configSource")
         )
@@ -858,15 +822,13 @@ def provenance_reasons(
             if not update.version:
                 raise _Unreadable("no version")
             found = reason(update, counted)
-        except Exception:  # any failure to read is fail-closed, never a pass
+        except Exception:
             found = f"provenance-unreadable:{update.name}"
         if found:
             reasons.append(found)
     return tuple(reasons)
 
 
-# The reasons a pull request goes to review only because the classifier could
-# not read something: a parse gap, not a risk.
 CLASSIFIER_GAPS = frozenset(
     {
         "unparsed-updates",
@@ -1069,7 +1031,6 @@ def content_refusal(
 
 
 def _ancestry(sha: str, by_sha: dict[str, Any]) -> set[str]:
-    """`sha` and its ancestors among the pull request's commits `by_sha`."""
     found: set[str] = set()
     todo = [sha]
     while todo:
@@ -1132,21 +1093,13 @@ def push_refusal(
         rewrite = push.get("activity_type") in ("force_push", "branch_creation")
         if dependabot and rewrite:
             return "push-history-incomplete" if unattributed else None
-    # No Dependabot branch creation or force push in reach: the history is cut.
     return "push-history-incomplete"
 
 
-# The lanes App fix rule, the same as the pr-unblock lane's `inFixScope` and
-# `fixRefusal` (`.github/scripts/pr-unblock/dependency-classify.mjs`): what a
-# lanes App commit on a reviewed Dependabot pull request may change. npm and
-# pip manifests and lock files only, narrower than MANIFESTS (no setup.py,
-# pyproject.toml or other file a build runs), never under `.github/`.
 _FIX_MANIFESTS = {
     "npm": re.compile(r"package\.json|package-lock\.json|npm-shrinkwrap\.json"),
     "pip": re.compile(r"requirements[^/]*\.(txt|in)"),
 }
-# A fix changes only regular, non-executable files: no symbolic link
-# (120000), submodule (160000) or executable (100755).
 FIX_MODE = 0o100644
 _DEPENDENCY_SECTIONS = (
     "dependencies",
@@ -1166,9 +1119,7 @@ _REQUIREMENT = re.compile(
 )
 _HASH_LINE = re.compile(r"\s+--hash=sha256:[0-9a-f]{64}(\s+\\)?")
 _BLANK_OR_COMMENT = re.compile(r"\s*(#.*)?")
-# Every range set is bounded: no wildcard major and no lower bounds alone.
 _WILD_MAJOR = re.compile(r"(\^|~|[<>]=?|=)?v?[xX*]")
-# The package a lock key installs: the last `node_modules/<name>` of the path.
 _LOCK_KEY = re.compile(
     r"(?:node_modules/(?:@[^/]+/)?[^/@][^/]*/)*node_modules/((?:@[^/]+/)?[^/@][^/]*)"
 )
@@ -1360,8 +1311,6 @@ def _canonical(value: Any) -> str:
     return json.dumps(value, sort_keys=True, separators=(",", ":"))
 
 
-# The packages whose install script package.json's `allowScripts` approves for
-# one exact version, which a fix may move to the version the manifest pins.
 INSTALL_SCRIPT_PINS = ("@anthropic-ai/claude-code",)
 _EXACT_VERSION = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?")
 
@@ -1409,8 +1358,6 @@ def allow_scripts_refusal(old: dict[str, Any], now: dict[str, Any]) -> str | Non
         return "allow-scripts-package"
     if _canonical(was[gone[0]]) != _canonical(is_[added[0]]):
         return "allow-scripts-value"
-    # The version the commit before the fix (Dependabot's) pins, unchanged by
-    # the fix, so a fix cannot move the manifest and the pin together.
     version = pinned_version(old, name)
     if (
         version is None
@@ -1519,7 +1466,6 @@ def lock_refusal(before: Any, after: Any) -> str | None:
     def script(packages: dict[str, Any], name: str) -> bool:
         return json_object(packages.get(name)).get("hasInstallScript") is True
 
-    # Both sides hold the same keys, checked above.
     for name in sorted(now["packages"]):
         if script(old["packages"], name) != script(now["packages"], name):
             return f"lock-install-script:{name}"
@@ -1543,7 +1489,6 @@ def requirements_refusal(before: Any, after: Any) -> str | None:
             added.append(_project(text))
         elif not (_BLANK_OR_COMMENT.fullmatch(text) or _HASH_LINE.fullmatch(text)):
             return "requirements-line"
-    # A fix repins; every pin it adds names a project a removed line named.
     removed = {_project(line.removesuffix("\r")) for line, n in kept.items() if n > 0}
     fresh = next((name for name in added if name not in removed), "")
     return f"requirements-new-package:{fresh}" if fresh else None

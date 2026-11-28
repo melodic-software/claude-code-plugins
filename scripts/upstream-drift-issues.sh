@@ -1,51 +1,5 @@
 #!/usr/bin/env bash
-# Keep one GitHub issue per drifted upstream from a report file: the
-# check-upstream-drift.sh --report lines, then the
-# upstream-drift-vendored-report.sh lines.
-#
-#   scripts/upstream-drift-issues.sh [--dry-run] <report-file>
-#   scripts/upstream-drift-issues.sh --help
-#
-# Each upstream id (`<owner>/<repo>`, or `<plugin>/<skill>` for a source with
-# no git pin) gets at most one issue titled `Upstream drift: <id>`, found with
-# an exact title match in jq over every issue, open or closed, the workflow's
-# github-actions bot opened, read once through the REST issue list: a
-# same-titled issue anyone else opens is never edited or closed. An id with a
-# drifted page gets that issue created, its body replaced in place, or, when
-# closed other than as not planned or duplicate, reopened with its body
-# replaced; an id whose pages are all clean gets an open issue closed with a
-# comment; an id with any `untracked` or `unreachable` page and no drifted one
-# is left alone.
-# Last, the bot's open drift issue for any id the report no longer names is
-# closed with a comment, printed as `action=close-unreported`. The body names
-# the run date and run URL, then per drifted page either its pin, head and
-# counts of changed rows, new units and removed units (a hex pin) or, for
-# `pin=unknown`, the skill and the check script to run, every report-derived
-# string inside a code span with backticks replaced. No row or unit path is
-# written: those names are the upstream's choice, and the body reaches
-# intake's triage model, so the re-audit footer (written only when a hex-pin
-# page drifted) has the reader list them with scripts/check-upstream-drift.sh.
-# The body is cut at 60,000 characters with a pointer to the run's job
-# summary, written to a temp file and passed with --body-file.
-# No run adds a label; a reopen removes `needs-human` with its body edit. No
-# assignees or mentions.
-#
-# The whole report is parsed before any gh call. Each line follows the fixed
-# field order of the report (docs/contracts/upstream-drift/README.md, the
-# --report row): the path is everything after the first ` path=`. A line that
-# breaks the order exits 2 with no gh call.
-#
-# --dry-run makes only the issue list read. Every run prints one
-# `action=<create|edit|reopen|close|none> repo=<id>` line per upstream id,
-# then one `action=close-unreported` line per swept issue.
-# The run URL comes from GITHUB_SERVER_URL, GITHUB_REPOSITORY and GITHUB_RUN_ID.
-#
-# Exit: 0 success, 1 any failed gh call (a failed list read stops the run; after
-# a failed write the other repositories still run),
-# 2 usage, unreadable or malformed report, or jq missing.
 set -uo pipefail
-# In a job, each gh call keeps its rate-limit reading for the job-end
-# api-budget notice (.github/actions/log-api-budget).
 # shellcheck source=/dev/null
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 export LC_ALL=C
@@ -88,15 +42,12 @@ done
 [[ -f "$REPORT" && -r "$REPORT" ]] || die "cannot read report file: $REPORT"
 command -v jq >/dev/null 2>&1 || die "jq is required"
 
-# span <text>: the text as one markdown code span, backticks replaced.
 span() {
   local s="$1"
   # shellcheck disable=SC2016  # the backticks are the literal span delimiters
   printf '`%s`' "${s//\`/\'}"
 }
 
-# skill_name <page-path> <id>: `<plugin>:<skill>` from a
-# plugins/<plugin>/skills/<skill>/ path, else the id.
 skill_name() {
   if [[ "$1" =~ ^plugins/([^/]+)/skills/([^/]+)/ ]]; then
     printf '%s:%s' "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
@@ -105,25 +56,22 @@ skill_name() {
   fi
 }
 
-# --- parse -------------------------------------------------------------------
-
-REPOS=()     # upstream id per index, first-seen order
-STATE=()     # none | clean | drift
-DETAIL=()    # body lines for drifted pages
-PINNED=()    # 1 when a drifted page has a hex pin
-UNTRACKED=() # 1 when any page is untracked or unreachable; blocks a close
+REPOS=()
+STATE=()
+DETAIL=()
+PINNED=()
+UNTRACKED=()
 repo_index=-1
 page_status=""
-counting=0 # 1 while the current page is a drifted hex-pin page
+counting=0
 changed=0 new=0 removed=0
 
-# flush_counts: the current hex-pin page's counts line, onto its upstream's body.
 flush_counts() {
   ((counting)) && DETAIL[repo_index]+="Changed rows: $changed, new units: $new, removed units: $removed."$'\n'
   counting=0 changed=0 new=0 removed=0
 }
 
-find_repo() { # <id>: sets repo_index, adding the id if new
+find_repo() {
   local i
   for i in "${!REPOS[@]}"; do
     if [[ "${REPOS[i]}" == "$1" ]]; then
@@ -163,7 +111,7 @@ while IFS= read -r line || [[ -n "$line" ]]; do
       fi
       ;;
     clean) [[ "${STATE[repo_index]}" == drift ]] || STATE[repo_index]=clean ;;
-    *) UNTRACKED[repo_index]=1 ;; # listed, nothing written, and never closed
+    *) UNTRACKED[repo_index]=1 ;;
     esac
   elif ((repo_index >= 0)) && [[ "$line" =~ $re_row ]]; then
     [[ "${BASH_REMATCH[2]}" != unchanged ]] && changed=$((changed + 1))
@@ -174,8 +122,6 @@ while IFS= read -r line || [[ -n "$line" ]]; do
   fi
 done <"$REPORT"
 flush_counts
-
-# --- act ---------------------------------------------------------------------
 
 RUN_DATE="$(date -u +%Y-%m-%d)"
 RUN_URL="(local run, no run URL)"
@@ -188,19 +134,13 @@ trap 'rm -rf "$TMPDIR_RUN"' EXIT
 
 failed=0
 
-# fail <message>: report a failed gh call; the run goes on and exits 1.
 fail() {
   printf '%s: %s\n' "$SELF" "$*" >&2
   failed=1
 }
 
-# Every issue the workflow's own bot opened, open and closed, read once through
-# the REST list (page by page) rather than search, which is rate-limited and
-# can return incomplete results. Anyone can open an issue with the same title,
-# so the author is checked in jq as well as by the creator filter. The same bot
-# files the monitoring lane's issues (a `factory-monitor` marker on the first
-# body line) and the lane sweep's (a `lane-sweep` marker on the last), so an
-# issue carrying either is never this script's, whatever its title.
+# The REST list, not search, which is rate-limited and can return incomplete results:
+# https://docs.github.com/en/rest/search/search
 BOT='github-actions[bot]'
 if ! listed="$(gh api --paginate "repos/{owner}/{repo}/issues?creator=$BOT&state=all&per_page=100")"; then
   printf '%s: issue list failed\n' "$SELF" >&2
@@ -214,15 +154,11 @@ ISSUES="$(jq -s --arg bot "$BOT" 'add // [] | map(select(.pull_request == null a
   exit 1
 }
 
-# bot_issue <title>: prints `<number> <state> <state_reason>` for the bot's
-# issue with exactly that title, the open one first, else the newest closed;
-# prints nothing when there is none.
 bot_issue() {
   jq -r --arg t "$1" '[.[] | select(.title == $t)] | (map(select(.state == "open")) + sort_by(-.number))
     | first // empty | "\(.number) \(.state) \(.state_reason // "none")"' <<<"$ISSUES"
 }
 
-# write_body <index> <file>
 write_body() {
   local body note lead footer
   if ((PINNED[$1])); then
@@ -252,8 +188,6 @@ for i in "${!REPOS[@]}"; do
       fail "unreadable issue list for $repo"
       continue
     fi
-    # Closed as not planned or duplicate mutes the upstream; closed otherwise,
-    # drift reopens that issue rather than filing another.
     if [[ "${STATE[i]}" == drift ]]; then
       if [[ -z "$num" ]]; then
         action=create
@@ -295,15 +229,10 @@ for i in "${!REPOS[@]}"; do
     gh issue close "$num" --comment "Upstream $(span "$repo") is clean as of $RUN_DATE ($RUN_URL)." >/dev/null ||
       fail "issue close failed for $repo"
     ;;
-  *) ;; # none
+  *) ;;
   esac
 done
 
-# Sweep: an open bot issue for an upstream the report no longer names (its
-# docs/upstream page was removed or renamed) is closed, since no later run
-# would reach it. Titles are matched exactly and the id part must be
-# <owner>/<repo> or <plugin>/<skill>; an id listed in this report in any state
-# is left alone.
 rows="$(jq -r '.[] | select(.state == "open" and (.title | startswith("Upstream drift: ")))
   | [.number, (.title | ltrimstr("Upstream drift: "))] | @tsv' <<<"$ISSUES")" || {
   printf '%s: unreadable issue list for the sweep\n' "$SELF" >&2

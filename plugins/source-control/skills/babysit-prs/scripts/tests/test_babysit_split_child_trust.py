@@ -32,14 +32,10 @@ VECTORS = (
 REPO = "example-org/example-repo"
 LANES_LOGIN = "agent-lanes[bot]"
 CHILD = 9
-# Each branch's tip object, distinct per branch, so a read names the tip of
-# the branch it meant.
 TIPS = {
     branch: {"sha": digit * 40, "type": "commit"}
     for branch, digit in (("main", "a"), ("trunk", "b"), ("feature-x", "c"))
 }
-# The `task-list` of `.github/actions/resolve-config/admission-rules.json`,
-# which the fake serves as the branch's rules.
 TASK_LIST = json.loads(
     (VECTORS.parents[2] / "actions/resolve-config/admission-rules.json").read_text(
         encoding="utf-8"
@@ -54,8 +50,6 @@ def actor(value: Any) -> Any:
 
 
 def graphql_issue(case: dict[str, Any], parents: dict[str, Any]) -> dict[str, Any]:
-    """The case's child, its parent and the parent's comments, renamed into
-    `SPLIT_CHILD_QUERY`'s answer."""
     child = case["child"]
     link = child["parent"]
     parent = None
@@ -92,7 +86,6 @@ def graphql_issue(case: dict[str, Any], parents: dict[str, Any]) -> dict[str, An
 
 
 def linked(child: dict[str, Any]) -> dict[str, Any]:
-    """The child as a verdict's `linked_issues` records it."""
     editor = child["editor"] or {}
     return {
         "number": CHILD,
@@ -128,9 +121,6 @@ class FakeGitHub:
         self.fail = False
         self.rules_fail = False
         self.default_fail = False
-        # Each branch's tip, as `git/ref/heads/<branch>` answers it; a branch
-        # absent here answers 404, and a value that is not a SHA is served as
-        # it stands.
         self.tips: dict[str, Any] = {b: TIPS[b] for b in TIPS}
         self.calls: list[tuple[list[str], Any]] = []
 
@@ -335,7 +325,6 @@ class AFailedReadRefuses(unittest.TestCase):
             judge(fake, linked(self.case["child"]), LANES_LOGIN)
 
     def test_unreadable_comments(self) -> None:
-        # More comments than the first 100 the query reads.
         fake = self.fake()
         fake.issue["parent"]["comments"]["totalCount"] = 101
         self.assertFalse(judge(fake, linked(self.case["child"]), LANES_LOGIN))
@@ -369,7 +358,6 @@ class TheRulesComeFromTheDefaultBranch(unittest.TestCase):
                 reader._trusted_spec({"linked_issues": [linked(case["child"])]})
             )
         self.assertEqual(fake.rules_refs(), [TIPS["trunk"]["sha"]])
-        # The trusted list keeps the reader's branch, at its tip.
         self.assertEqual(fake.actors_refs(), [TIPS["feature-x"]["sha"]])
 
 
@@ -428,7 +416,6 @@ class TheReadsNameACommit(unittest.TestCase):
                         self.fake.tips[branch] = tip
                     with self.assertRaises(ve._Unreadable):
                         self.judge()
-                    # Nothing reads a trust file at the branch's name.
                     self.assertNotIn(branch, self.fake.actors_refs())
                     self.assertNotIn(branch, self.fake.rules_refs())
 
@@ -521,8 +508,6 @@ class OneReadPerChild(unittest.TestCase):
 
 class ScopeTargetTest(unittest.TestCase):
     def test_a_lone_surrogate_counts_as_one_code_unit(self) -> None:
-        # JavaScript strings hold lone surrogates; scopeTarget counts each as
-        # one UTF-16 code unit, so scope_target must not raise on one.
         self.assertTrue(ve.scope_target("\ud800a", {"x \ud800a"}))
         self.assertFalse(ve.scope_target("\ud800", {"x \ud800"}))
 

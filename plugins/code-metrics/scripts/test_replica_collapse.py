@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Output-based tests for replica-collapse.py at its command line."""
 
 from __future__ import annotations
 
@@ -30,7 +29,7 @@ def row(file: str, function: str = "greet", **fields) -> dict:
         "function": function,
         "start_line": 8,
         "end_line": None,
-        "lane": "bash",
+        "language": "bash",
         "values": {"cyclomatic": 22},
         "collector": "shellmetrics",
         "labels": ["start-line-only"],
@@ -43,7 +42,7 @@ def row(file: str, function: str = "greet", **fields) -> dict:
 def document(measures: list[dict]) -> str:
     return json.dumps(
         {
-            "schema": "code-metrics/v2",
+            "schema": "code-metrics/v3",
             "skill": "audit-complexity",
             "status": "complete",
             "scope": {"mode": "all", "files": len(measures)},
@@ -152,7 +151,7 @@ class ReplicaCollapseTests(unittest.TestCase):
         clone = {
             "file": None,
             "function": None,
-            "lane": "bash",
+            "language": "bash",
             "instances": [
                 {
                     "file": "plugins/a/hooks/hook-utils.sh",

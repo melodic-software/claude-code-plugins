@@ -3,6 +3,88 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.1] - 2026-11-28
+
+### Changed
+
+- Trimmed `/debugging:debug` frontmatter description (413 -> 348 chars) below the 350-char target while preserving all failure shapes, input surfaces, `diagnose` no-edit semantics, sibling routes, and probe recall (train FP improved 0.33 -> 0.17).
+
+## [3.2.0] - 2026-11-28
+
+### Added
+
+- Adopt the shared rendered-views token layer (`reference/html-tokens.css`), chrome theme toggle, and branding overrides (palette, type stacks, logo slot, and `branding` `userConfig` option) in the post-mortem HTML view.
+
+## [3.1.5] - 2026-11-28
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
+## [3.1.4] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [3.1.3] - 2026-11-27
+
+### Changed
+
+- Trimmed `/debugging:debug` (1,020 -> 413 chars) and `/debugging:analyze-profile` (630 -> 346 chars) frontmatter descriptions while preserving trigger coverage, `diagnose` no-edit semantics, and sibling boundaries: `/debugging:debug` routes an existing failing test to `/testing:fix-failing` and only a captured profile, trace, or snapshot with no repro to `/debugging:analyze-profile`.
+
+## [3.1.2] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
+## [3.1.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [3.1.0] - 2026-11-26
+
+### Changed
+
+- Shared `view-builder.mjs` and `html-escape.mjs` synced: an interactive page's policy adds `img-src data:` and `font-src data:`, and both validator profiles admit a base64 `data:` URL in two places only, a PNG or JPEG as the `.rv-logo` rule's one `background-image`, and a WOFF2, WOFF, TTF or OTF font inside `@font-face`. Every other `url(`, scheme and URL-bearing attribute is still refused. Pages built today look the same; no other change to this plugin.
+
+## [3.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+## [2.3.7] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [2.3.6] - 2026-11-26
+
+### Changed
+
+- `/debugging:debug` states that a subagent reports an access request to its parent and points at the subagent docs' available-tools section, instead of stating that a subagent cannot ask the user.
+
+## [2.3.5] - 2026-11-26
+
+### Changed
+
+- **`/debugging:debug` drops the "unsure where this leaves the work" `## Next` bullet.** `/session-flow:workflow` stays the fallback when no bullet matches.
+
+## [2.3.4] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
 ## [2.3.3] - 2026-11-24
 
 ### Fixed

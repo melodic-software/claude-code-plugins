@@ -33,14 +33,14 @@ def fill(grid, x, y, w, h, color):
 
 def build():
     grid = blank()
-    fill(grid, 0, 0, 95, 95, "b")  # background, stretched
-    fill(grid, 0, 96, 96, 96, "p")  # pattern, tiled
-    fill(grid, 96, 0, 96, 96, "e")  # 9-slice frame
-    fill(grid, 120, 24, 48, 48, "f")  # frame center, 24px corners remain
-    fill(grid, 132, 24, 24, 12, "n")  # up arrow
-    fill(grid, 132, 60, 24, 12, "n")  # down arrow
-    fill(grid, 96, 96, 48, 48, "c")  # cursor
-    fill(grid, 144, 96, 24, 24, "s")  # pause sign
+    fill(grid, 0, 0, 95, 95, "b")
+    fill(grid, 0, 96, 96, 96, "p")
+    fill(grid, 96, 0, 96, 96, "e")
+    fill(grid, 120, 24, 48, 48, "f")
+    fill(grid, 132, 24, 24, 12, "n")
+    fill(grid, 132, 60, 24, 12, "n")
+    fill(grid, 96, 96, 48, 48, "c")
+    fill(grid, 144, 96, 24, 24, "s")
     for index, key in enumerate(TEXT):
         fill(grid, 96 + (index % 8) * 12, 144 + (index // 8) * 12, 12, 12, key)
     palette = {

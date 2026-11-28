@@ -3,6 +3,57 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.29.1] - 2026-11-28
+
+### Changed
+
+- Trimmed `machine-health` skill frontmatter descriptions (`audit` 508 -> 348 chars, `setup` 974 -> 148 chars; total 1482 -> 496 chars, -986 chars) while preserving OS-specific catalog checks, pre-approved remediation posture, Windows/macOS/Linux support, and all four `setup` actions.
+
+## [0.29.0] - 2026-11-28
+
+### Added
+
+- Adopt the shared rendered-views token layer (`reference/html-tokens.css`), `lib/view-settings.mjs`, chrome theme toggle, and branding overrides (palette, type stacks, logo slot, and `branding` `userConfig` option) in the checkup HTML view.
+
+## [0.28.3] - 2026-11-28
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
+## [0.28.2] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
+## [0.28.1] - 2026-11-27
+
+### Changed
+
+- Extracted a builder spawn helper in the checkup-view test so its CLI cases share one call.
+
+- `/machine-health:setup` points at the Desktop scheduled tasks page's permissions section for whether the owner's allow rules apply in a scheduled run, instead of stating it ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [0.28.0] - 2026-11-26
+
+### Changed
+
+- Shared `view-builder.mjs` and `html-escape.mjs` synced: an interactive page's policy adds `img-src data:` and `font-src data:`, and both validator profiles admit a base64 `data:` URL in two places only, a PNG or JPEG as the `.rv-logo` rule's one `background-image`, and a WOFF2, WOFF, TTF or OTF font inside `@font-face`. Every other `url(`, scheme and URL-bearing attribute is still refused. Pages built today look the same; no other change to this plugin.
+
+## [0.27.9] - 2026-11-26
+
+### Changed
+
+- The synced view registry and builder name a registered skill a producer, not a lane
+  (`PRODUCERS`, `producerOf`, `render(producerId, ...)`).
+
+## [0.27.8] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.27.7] - 2026-11-24
 
 ### Changed

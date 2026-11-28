@@ -146,8 +146,7 @@ STRADDLE_DIR="$TEST_TMPDIR/straddle"
 mkdir -p "$STRADDLE_DIR"
 {
   printf '# Straddle\n\n'
-  # shellcheck disable=SC2016 # fixture text lifted verbatim from the corpus; the backticks are
-  # literal markdown and part of the character count that puts the date at offset 60.
+  # shellcheck disable=SC2016 # fixture text lifted verbatim from the corpus
   printf '  synced set (verified against the `chore: sync standards components` history on 2026-07-30), so\n\n'
   # shellcheck disable=SC2016 # same literal fixture text, date shifted past the window.
   printf '  synced set (verified against the `chore: sync standards componentsxxxx` history on 2026-07-30), so\n'
@@ -325,14 +324,12 @@ mkdir -p "$ESC_DIR"
 {
   echo '# Escaping'
   # portability-ok: literal fixture prose carrying a backslash, asserted through the script's
-  # JSON escaper; the \s here is document text, never a GNU regex class
   echo 'Verified 2026-02-02 against "the quoted source" and a back\slash.'
 } >"$ESC_DIR/esc.md"
 ESC_OUT="$(run --dir "$ESC_DIR" 2>/dev/null)"
 echo "$ESC_OUT" | jq -e . >/dev/null 2>&1
 assert_exit "quotes and backslashes in text stay valid JSON" "$?" "0"
 # portability-ok: the \s is the fixture's literal document text round-tripping through the
-# JSON escaper, never a GNU regex class
 assert_contains "the escaped text round-trips" \
   "$(echo "$ESC_OUT" | jq -r '.directories[0].files[0].stamp_lines[0].text')" 'back\slash'
 

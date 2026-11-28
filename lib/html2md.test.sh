@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for lib/html2md.py (no external test lib; the copies ship with the plugins).
-#
-# Converts the committed fixture lib/html2md-fixture/page.html and a few inline
-# pages, and checks the markdown against values written by hand from those inputs.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -33,9 +29,6 @@ assert_absent() {
   if [[ "$3" != *"$2"* ]]; then pass "$1"; else fail "$1" "unexpected [$2]"; fi
 }
 
-# Python 3 the way lib/session-bridge/view-bridge.sh finds it: python3, then python,
-# each accepted only when it runs and reports major version 3 (the Windows Store
-# alias stub fails this probe).
 PY=""
 for name in python3 python; do
   candidate=$(command -v "$name" 2>/dev/null) || continue
@@ -95,35 +88,29 @@ sed 's/$/\r/' "$FIXTURE" >"$TEST_TMPDIR/crlf.html"
 conv "$TEST_TMPDIR/crlf.html" >"$TEST_TMPDIR/crlf.md"
 assert_eq "cli: CRLF input converts to the same bytes" "$(cksum <"$out_file")" "$(cksum <"$TEST_TMPDIR/crlf.md")"
 
-# --- Case: no H1 anywhere, so <title> becomes the H1 ---
 title_md="$(printf '%s' '<html><head><title>Release notes</title></head><body><main><h2>Fixes</h2><p>Body text.</p></main></body></html>' | conv)"
 assert_eq "title: <title> is the H1 when the page has none" "# Release notes" "$(head -n 1 <<<"$title_md")"
 assert_contains "title: body still follows" $'## Fixes\n\nBody text.' "$title_md"
 
-# --- Case: a '# ' comment line inside fenced code is not mistaken for an H1 ---
 comment_md="$(printf '%s' '<html><head><title>Setup guide</title></head><body><main><pre><code class="language-bash"># install deps
 npm i</code></pre></main></body></html>' | conv)"
 assert_eq "title: code comment does not suppress the title H1" "# Setup guide" "$(head -n 1 <<<"$comment_md")"
 
-# --- Case: an H1 inside <main> is not doubled by the title ---
 inner_md="$(printf '%s' '<html><head><title>Guide - Site</title></head><body><main><h1>Guide</h1><p>Text.</p></main></body></html>' | conv)"
 assert_eq "title: H1 inside <main> is the only H1" "# Guide" "$(grep '^# ' <<<"$inner_md")"
 
-# --- Case: a heading's own trailing '#' is text; permalink anchors are not ---
 head_md="$(printf '%s' '<html><body><main><h1>Doc</h1><h2>Using C#</h2><h2>Setup <a href="#setup">#</a></h2><h2>Usage <a class="headerlink" href="#usage">¶</a></h2><h3>Notes ¶</h3><p>End.</p></main></body></html>' | conv)"
 assert_contains "heading: a trailing '#' in the heading text is kept" $'\n## Using C#\n' "$head_md"
 assert_contains "heading: a '#' permalink anchor is dropped" $'\n## Setup\n' "$head_md"
 assert_contains "heading: a pilcrow permalink anchor is dropped" $'\n## Usage\n' "$head_md"
 assert_contains "heading: a standalone trailing pilcrow is dropped" $'\n### Notes\n' "$head_md"
 
-# --- Case: an in-page anchor that wraps the heading text keeps it (mdBook, VuePress) ---
 wrap_md="$(printf '%s' '<html><body><main><h1 id="b"><a class="header" href="#b">The Book</a></h1><h2 id="s"><a class="header" href="#s">Setup</a></h2><h2 id="u"><a class="header-anchor" href="#u"><span>Usage</span></a></h2><h2>See <a href="#i">Install</a> now</h2><p>End.</p></main></body></html>' | conv)"
 assert_eq "heading: an anchor wrapping the H1 text keeps it" "# The Book" "$(head -n 1 <<<"$wrap_md")"
 assert_contains "heading: an anchor wrapping the H2 text keeps it" $'\n## Setup\n' "$wrap_md"
 assert_contains "heading: an anchor wrapping a span keeps its text" $'\n## Usage\n' "$wrap_md"
 assert_contains "heading: an in-page link inside the heading keeps its text" $'\n## See Install now\n' "$wrap_md"
 
-# --- Case: text hidden from sight or from screen readers inside a heading is dropped ---
 hid_md="$(printf '%s' '<html><body><main><h1>Doc</h1><h2 id="x">Install<a class="anchor" href="#x"><span class="sr-only">Permalink to this heading</span></a></h2><h2>Deploy<span aria-hidden="true">#</span></h2><h2 id="y"><a href="#y">Build<span class="visually-hidden"><span>(</span>anchor)</span></a> steps</h2><h2>Run<span class="screen-reader-text"> section</span></h2><p>End.</p></main></body></html>' | conv)"
 assert_contains "heading: screen-reader-only text in a permalink anchor is dropped" $'\n## Install\n' "$hid_md"
 assert_contains "heading: an aria-hidden glyph span is dropped" $'\n## Deploy\n' "$hid_md"
@@ -132,7 +119,6 @@ assert_contains "heading: screen-reader-text is dropped" $'\n## Run\n' "$hid_md"
 void_md="$(printf '%s' '<html><body><main><h1>Doc</h1><h2><img aria-hidden="true" src="i.svg">Quick start</h2><p>End.</p></main></body></html>' | conv)"
 assert_contains "heading: an aria-hidden void element hides none of the text after it" $'\n## Quick start\n' "$void_md"
 
-# --- Case: a ``` line inside <pre> does not close the fence early ---
 nested_file="$TEST_TMPDIR/nested.md"
 printf '%s' '<html><body><main><h1>Doc</h1><pre><code class="language-markdown">```
 ## Fake heading

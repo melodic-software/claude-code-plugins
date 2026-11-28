@@ -21,7 +21,7 @@ Run the shared medium resolver, with this plugin's `medium` option as SKILL.md's
 it:
 
 ```bash
-node "<plugin-root>/lib/view-settings.mjs" resolve --lane work-items:triage --option "<medium option>"
+node "<plugin-root>/lib/view-settings.mjs" resolve --producer work-items:triage --option "<medium option>"
 ```
 
 It prints one JSON line, then the report line naming the medium and what decided it, then one line per

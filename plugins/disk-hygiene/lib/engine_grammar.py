@@ -59,8 +59,8 @@ from __future__ import annotations
 
 import os
 import re
-from collections.abc import Iterator
-from contextlib import contextmanager, suppress
+
+import data_root_state
 
 TIERS = frozenset({"high", "medium", "low"})
 
@@ -70,84 +70,23 @@ DATA_ROOT_FLAG = "--data-root"
 
 AUTHORIZED_DATA_ROOT_FILE = "file-inside-authorized-data-root"
 
-RUN_MARKER_DIRNAME = "clean-runs"
-ENGINE_OWNED_DIRS = frozenset(
-    {"guard-decisions", "guard-launch-monitor", RUN_MARKER_DIRNAME, "inventory"}
-)
-ENGINE_OWNED_FILES = frozenset({"catalog.json", "catalog.md"})
+RUN_MARKER_DIRNAME = data_root_state.RUN_MARKER_DIRNAME
+ENGINE_OWNED_DIRS = data_root_state.ENGINE_OWNED_DIRS
+ENGINE_OWNED_FILES = data_root_state.ENGINE_OWNED_FILES
 
-RUN_IDLE_TIMEOUT_SECONDS = 3600.0
+RUN_IDLE_TIMEOUT_SECONDS = data_root_state.RUN_IDLE_TIMEOUT_SECONDS
 
-RUN_LOCK_FILENAME = ".lock"
+RUN_LOCK_FILENAME = data_root_state.RUN_LOCK_FILENAME
+
+sanitize_session_id = data_root_state.sanitize_session_id
+run_marker_filename = data_root_state.run_marker_filename
+run_marker_lock = data_root_state.run_marker_lock
+is_engine_owned = data_root_state.is_engine_owned
 
 
 def inline_plan_path(snapshot: str, tier: str) -> str:
     """The fixed plan file an inline ``preview`` writes beside its snapshot."""
     return os.path.join(os.path.dirname(snapshot), f"plan-{tier}.json")
-
-
-def run_marker_filename(session_id: str) -> str:
-    """The run marker's file name under ``RUN_MARKER_DIRNAME`` for one session."""
-    safe = "".join(ch if (ch.isalnum() or ch in "-_") else "_" for ch in session_id)
-    return f"{safe}.json"
-
-
-def _set_run_marker_lock(fd: int, take: bool) -> None:
-    if os.name == "nt":
-        import msvcrt
-
-        os.lseek(fd, 0, os.SEEK_SET)
-        msvcrt.locking(fd, msvcrt.LK_LOCK if take else msvcrt.LK_UNLCK, 1)
-    else:
-        import fcntl
-
-        fcntl.flock(fd, fcntl.LOCK_EX if take else fcntl.LOCK_UN)
-
-
-@contextmanager
-def run_marker_lock(runs: str | os.PathLike[str]) -> Iterator[None]:
-    """Hold the exclusive run-marker lock in ``runs``, creating both if absent.
-
-    Best effort: when the lock file cannot be opened or locked, the body runs
-    unlocked, so a lock failure never costs the marker write it guards.
-    """
-    os.makedirs(runs, exist_ok=True)
-    fd: int | None = None
-    try:
-        fd = os.open(
-            os.path.join(runs, RUN_LOCK_FILENAME), os.O_RDWR | os.O_CREAT, 0o600
-        )
-        _set_run_marker_lock(fd, True)
-    except OSError:
-        if fd is not None:
-            os.close(fd)
-        fd = None
-    try:
-        yield
-    finally:
-        if fd is not None:
-            with suppress(OSError):
-                _set_run_marker_lock(fd, False)
-            os.close(fd)
-
-
-def is_engine_owned(relative: str) -> bool:
-    """True when a data-root-relative path is the root or engine-owned state.
-
-    Names compare case-folded, with a trailing dot or space and any NTFS stream
-    suffix dropped, so a spelling a case-insensitive or Windows file system
-    resolves to the same entry is refused too.
-    """
-    keys = [
-        part.split(":", 1)[0].rstrip(" .").casefold()
-        for part in re.split(r"[/\\]", relative)
-        if part not in ("", ".")
-    ]
-    if not keys:
-        return True
-    return keys[0] in ENGINE_OWNED_DIRS or (
-        len(keys) == 1 and keys[0] in ENGINE_OWNED_FILES
-    )
 
 
 class Flag:
@@ -302,11 +241,10 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 takes_value=False,
                 help=(
                     "inventory only explicitly selected immediate children "
-                    "of the target; on a volume root (OS-managed or not) "
-                    "those children are non-OS directories and regular files, "
-                    "and on any other directory they are directories, so "
-                    "approved children can be re-inventoried without a "
-                    "whole-tree walk"
+                    "of the target: directories and regular files, non-OS "
+                    "ones on a volume root (OS-managed or not), so approved "
+                    "children can be re-inventoried in one snapshot without "
+                    "a whole-tree walk"
                 ),
             ),
             Flag(
@@ -329,6 +267,13 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         (
             Flag("--target", required=True, example="target-dir"),
             _data_root_flag(),
+            Flag("--policy", example="policy.json"),
+            Flag(
+                "--user-policy",
+                example="policy.json",
+                help="the file the policy_file userConfig option names",
+            ),
+            Flag("--project-dir", example="project-dir"),
             Flag(
                 "--deep",
                 takes_value=False,

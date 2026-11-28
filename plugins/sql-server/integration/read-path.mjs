@@ -1,19 +1,3 @@
-// Proves the read and write paths against a real SQL Server: starts a local
-// SQL Server Linux container (Developer edition), creates a read-only login, a
-// write login and a second database, runs the plugin's stdio server on a
-// registration confined to one database, first without --write and then with
-// it, and checks #5940's S1/S2, S4, S5, S6 and S7. Prints one PASS or FAIL
-// line per check on stdout, progress on stderr. Without Docker it prints
-// "SKIP: docker not available" and exits 0.
-//
-// With --azure-server it runs the same checks against an existing, empty Azure
-// SQL Database named app on that logical server instead: it signs in as the
-// Azure CLI's account, which must be the server's Microsoft Entra admin, and
-// creates a read-only and a write contained user there (target.mjs).
-//
-// usage: node plugins/sql-server/integration/read-path.mjs [--azure-server <server>.database.windows.net]
-// needs: the plugin's dependencies (npm ci --prefix plugins/sql-server); locally
-// Docker and openssl, on Azure an `az login` and SQL authentication enabled
 import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -37,9 +21,6 @@ const CALL_TIMEOUT_MS = 60_000;
 
 const log = (line) => process.stderr.write(`read-path: ${line}\n`);
 
-// Each is sent through the query tool and must be refused, on every round. A
-// write is also sent straight to the server as the read-only login, past the
-// reject list, and the login must refuse it with a permission error.
 const write = (label, sql) => ({ label, sql, write: true });
 const setting = (label, sql) => ({ label, sql, write: false });
 const ATTEMPTS = [
@@ -59,7 +40,6 @@ const ATTEMPTS = [
   write('batch', 'SELECT 1 AS a; DELETE FROM dbo.items'),
   write('batch without a semicolon', 'SELECT 1 AS a DELETE FROM dbo.items'),
   write('batch behind a comment', 'SELECT 1 AS a /* x */; DROP TABLE dbo.items'),
-  // A SELECT that writes: the reject list lets it through, so the login must refuse it.
   write('NEXT VALUE FOR', 'SELECT NEXT VALUE FOR dbo.counter AS n'),
   write('DBCC', 'DBCC FREEPROCCACHE'),
   setting('SET XACT_ABORT', 'SET XACT_ABORT OFF'),
@@ -73,8 +53,6 @@ const ATTEMPTS = [
   setting('WAITFOR', "WAITFOR DELAY '00:00:01'"),
 ];
 
-// A refusal for a missing grant names a permission; any other error (a parse
-// error, a dropped connection) does not count as the login refusing.
 const PERMISSION_REFUSAL = /permission/i;
 
 const SESSION_PROBE = `SELECT s.transaction_isolation_level AS isolation, s.lock_timeout AS lockTimeout,
@@ -83,7 +61,7 @@ const SESSION_PROBE = `SELECT s.transaction_isolation_level AS isolation, s.lock
 FROM sys.dm_exec_sessions AS s WHERE s.session_id = @@SPID`;
 
 const EXPECTED_SESSION = {
-  isolation: 2, // READ COMMITTED
+  isolation: 2,
   lockTimeout: LOCK_TIMEOUT_MS,
   openTransactions: 0,
   xactAbort: 16384,
@@ -106,7 +84,6 @@ function run(command, args, { env = process.env, quiet = false } = {}) {
   return (result.stdout ?? '').trim();
 }
 
-// Meets SQL Server's default password policy: upper, lower, digit and symbol.
 const newPassword = () => `${randomBytes(16).toString('hex')}Aa1!`;
 
 async function loadDependency(name) {
@@ -122,9 +99,6 @@ async function loadTedious() {
   return module.default ?? module;
 }
 
-// The container's certificate is self-signed for localhost, so the client
-// trusts it explicitly: the sa connection through ca, the server through
-// NODE_EXTRA_CA_CERTS. The plugin's executor keeps certificate checks on.
 function writeTls(dir) {
   const tls = join(dir, 'tls');
   mkdirSync(tls);
@@ -134,8 +108,6 @@ function writeTls(dir) {
     '-keyout', key, '-out', cert, '-days', '1'], { quiet: true });
   const conf = join(tls, 'mssql.conf');
   writeFileSync(conf, '[network]\ntlscert = /opt/mssql-tls/cert.pem\ntlskey = /opt/mssql-tls/key.pem\ntlsprotocols = 1.2\nforceencryption = 1\n');
-  // The container runs as the mssql user (uid 10001), not the host user; the
-  // 0700 temp directory above keeps other host users out.
   chmodSync(tls, 0o755);
   for (const file of [cert, key, conf]) chmodSync(file, 0o444);
   return { tls, cert, conf };
@@ -143,8 +115,6 @@ function writeTls(dir) {
 
 const sqlLogin = (userName, password) => ({ type: 'default', options: { userName, password } });
 
-// endpoint: { server, port, ca?, connectTimeout }. Azure's certificate chains
-// to a public root, so only the container passes a ca.
 function connect(tedious, { endpoint: { server, port, ca, connectTimeout }, authentication, database }) {
   const connection = new tedious.Connection({
     server,
@@ -200,7 +170,6 @@ async function waitForServer(tedious, container, options) {
   }
 }
 
-// Read as the admin between calls: a plugin session left holding a transaction.
 const OPEN_PLUGIN_TRANSACTIONS = `SELECT COUNT(*) FROM sys.dm_exec_sessions
 WHERE program_name = N'${APP_NAME.replaceAll("'", "''")}' AND open_transaction_count > 0;`;
 
@@ -296,7 +265,6 @@ function pluginFiles(dir) {
   });
 }
 
-// Starts the container and returns its endpoint and an sa connection to master.
 async function startLocal(tedious, dir, container, saPassword) {
   const { tls, cert, conf } = writeTls(dir);
   const ca = readFileSync(cert, 'utf8');
@@ -305,7 +273,6 @@ async function startLocal(tedious, dir, container, saPassword) {
     run('docker', ['pull', IMAGE]);
   }
   log(`starting ${container}`);
-  // The sa password reaches docker through its environment, never its argv.
   run('docker', ['run', '--detach', '--name', container, '-e', 'ACCEPT_EULA=Y', '-e', 'MSSQL_PID=Developer', '-e', 'MSSQL_SA_PASSWORD',
     '-p', '127.0.0.1::1433', '-v', `${tls}:/opt/mssql-tls:ro`, '-v', `${conf}:/var/opt/mssql/mssql.conf`, IMAGE],
   { env: { ...process.env, MSSQL_SA_PASSWORD: saPassword }, quiet: true });
@@ -317,8 +284,6 @@ async function startLocal(tedious, dir, container, saPassword) {
   return { endpoint, admin, cert, conf };
 }
 
-// Connects to app as the Azure CLI's signed-in account, the server's Entra
-// admin. A serverless database resuming from pause can take about a minute.
 async function connectAzure(tedious, target) {
   const identity = await loadDependency('@azure/identity');
   const endpoint = { server: target.server, port: 1433, connectTimeout: 90_000 };
@@ -391,8 +356,6 @@ async function main() {
         },
       },
     }, null, 2)}\n`);
-    // What a stdio registration stores: the command line, with credentials
-    // left to the environment the client starts the server in.
     const registrationPath = join(dir, 'registration.json');
     const registration = {
       type: 'stdio',
@@ -404,8 +367,6 @@ async function main() {
       mcpServers: { 'sql-server-read-path': registration, 'sql-server-write-path': writeRegistration },
     }, null, 2)}\n`);
 
-    // Both registrations get the write login, so a refusal without --write
-    // comes from the opt-in, not from a missing credential.
     const serverEnv = {
       ...process.env,
       SQL_READ_PATH_USER: READER,
@@ -465,11 +426,9 @@ async function main() {
       return `after ${after} the session had ${wrong.map((key) => `${key} ${JSON.stringify(session[key])}, not ${JSON.stringify(EXPECTED_SESSION[key])}`).join('; ')}`;
     }
 
-    // A plain read must work, or every refusal below could be a broken connection.
     const read = await call('query', { sql: 'SELECT id, name FROM dbo.items ORDER BY id' });
     if (read.isError || read.data.rowCount !== 3) throw new SetupError(`the read-only login cannot run a plain SELECT: ${read.text}`);
 
-    // S1/S2
     let byList = 0;
     let byLogin = 0;
     for (let round = 1; round <= ROUNDS; round += 1) {
@@ -489,8 +448,6 @@ async function main() {
         await checkNoOpenTransaction(failures['S1/S2'], `${label} (round ${round})`);
       }
     }
-    // The guarantee does not rest on the reject list: each write sent past it
-    // must meet a permission refusal from the login itself.
     const writes = ATTEMPTS.filter((attempt) => attempt.write);
     const reader = await connect(tedious, { endpoint, authentication: sqlLogin(READER, readerPassword), database: 'app' });
     try {
@@ -514,7 +471,6 @@ async function main() {
       `met a permission refusal, the data and schema are unchanged, every call ran with READ COMMITTED, XACT_ABORT ON and ` +
       `LOCK_TIMEOUT ${LOCK_TIMEOUT_MS}, and no plugin session held a transaction between calls`;
 
-    // S5
     for (const [name, args] of [
       ['query', { sql: 'SELECT id FROM dbo.ledger', database: 'other' }],
       ['list_objects', { database: 'other' }],
@@ -542,7 +498,6 @@ async function main() {
     passes.S5 = 'the registration confined to app was refused the second database by the allow-list on every tool, ' +
       `and by ${outOfScope.by} on three-part names`;
 
-    // S4, first on the registration without --write.
     const flag = (tool) => tool._meta?.[REQUIRES_USER_INTERACTION];
     for (const tool of firstList.result.tools) {
       if (tool.name === 'write' && flag(tool) !== true) failures.S4.push(`write does not carry _meta["${REQUIRES_USER_INTERACTION}"]: true`);
@@ -555,7 +510,6 @@ async function main() {
     for (const change of changed(afterScope, await fingerprint(admin, tedious, target))) failures.S4.push(`the write refused without --write changed the database: ${change}`);
     await stopClient();
 
-    // Then on the registration with --write.
     await startClient(writeRegistration, 'with --write');
     const relisted = await client.request('tools/list');
     if (JSON.stringify(relisted.result) !== baseline) failures.S7.push('tools/list with --write differs from tools/list without it');
@@ -586,7 +540,6 @@ async function main() {
       'and no plugin session held a transaction after either';
     await stopClient();
 
-    // S6
     const secrets = [...(local ? [saPassword] : []), readerPassword, writerPassword];
     const scanned = [configPath, registrationPath, ...(local ? [conf] : []), ...pluginFiles(PLUGIN_ROOT)];
     for (const file of scanned) {
@@ -600,7 +553,6 @@ async function main() {
     }
     passes.S6 = `no password appears in the ${scanned.length} plugin, config and registration files or in either server's output`;
 
-    // S7
     passes.S7 = `tools/list returned the same tools (${toolNames}) with and without --write, before and after each of ${toolCalls} ` +
       'tool calls, with listChanged false';
   } catch (error) {

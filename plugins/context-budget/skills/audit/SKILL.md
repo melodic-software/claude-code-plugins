@@ -1,5 +1,5 @@
 ---
-description: "When the bundled explain-usage skill resolves in this session, prefer it for where this session's tokens went; this skill for startup cost before any work, per-tool attribution, and whether a settings change saved anything. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'did that settings change save tokens'. Read-only; `fix` applies one trim behind approval."
+description: "When explain-usage resolves in this session, prefer it for where session tokens went; use this for startup cost before work, per-tool attribution, whether settings saved tokens (read-only; fix applies a trim with approval). Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most'."
 argument-hint: "[--full-sweep|--tools T1,T2|--ledger|--measure-only|fix] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
@@ -325,6 +325,11 @@ otherwise use the payload's share of the measured window.
 - **The snapshot is another session's, not this one's.** Free-space and window figures describe
   the spawned headless session; they say nothing about the context remaining here and are no
   reason to shorten, summarize, or wrap up this audit.
+
+## Next
+
+- A measured trim is worth applying: /context-budget:audit fix.
+- Most of the payload is plugins this folder does not use: /plugin-profiles:profile.
 
 ## Related
 

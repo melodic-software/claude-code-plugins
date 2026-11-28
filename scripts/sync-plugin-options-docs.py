@@ -25,24 +25,15 @@ import pathlib
 import sys
 
 BEGIN = "<!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->"
-# The marker this one replaced. `split_block` accepts either, so a README still carrying the old
-# text is rewritten in place rather than growing a second block: `splice` only finds the region to
-# replace when it can match the marker already in the file. Drop this once no README carries it.
 LEGACY_BEGIN = "<!-- BEGIN GENERATED: plugin options — edit plugin.json, then run scripts/sync-plugin-options-docs.py -->"
 END = "<!-- END GENERATED: plugin options -->"
 
-# CHECK_DATA_ROOT: the tree to check, when it is not the one holding this script
-# (the pre-push hook runs a merge-base copy against the branch).
 REPO = pathlib.Path(
     os.environ.get("CHECK_DATA_ROOT")
     or pathlib.Path(__file__).resolve().parent.parent
 )
 PLUGINS = REPO / "plugins"
 
-# A placeholder, deliberately, not this repository's marketplace name. Plugin-facing docs are
-# marketplace-agnostic: a plugin can be installed from a fork, a mirror, or a private catalog
-# under a different name, and `plugins/github/github.test.sh` enforces that its docs never
-# hardcode one. The reader substitutes whatever they installed from.
 MARKETPLACE = "<marketplace>"
 
 
@@ -54,13 +45,6 @@ CONVENTION_URL = (
 
 
 def convention_cite(plugin: str) -> str:
-    """Where the verified-version record lives, as inline markdown.
-
-    Installed plugins cannot read this tree, so most generated READMEs cite the
-    published URL. Two plugins forbid the publisher org name in shipped
-    markdown (github's agnosticism sweep; autonomy's binding-seam contract), so
-    those cite the in-repo path instead.
-    """
     if plugin in {"github", "autonomy"}:
         return f"this marketplace's plugin-reconfiguration convention (`{CONVENTION_PATH}`)"
     return f"the [plugin-reconfiguration convention]({CONVENTION_URL})"
@@ -91,9 +75,6 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
     ]
     for key, spec in options.items():
         typ = spec.get("type", "string")
-        # `multiple: true` means the option takes an array of that type, and the
-        # constraint keys bound it. Rendering only `type` would make a repeated option
-        # indistinguishable from a scalar one.
         if spec.get("multiple"):
             typ = f"{typ} (multiple)"
         bounds = [f"{k} {spec[k]}" for k in ("min", "max") if k in spec]
@@ -102,23 +83,13 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         if bounds:
             typ = f"{typ}<br>*{', '.join(bounds)}*"
         default = spec.get("default", "")
-        # MD049: this repo's markdownlint requires asterisk emphasis, not underscore.
-        default = "*(none)*" if default == "" else f"`{json.dumps(default)}`"
+        default = "*(none)*" if default == "" else "`" + json.dumps(default).replace("|", "\\|") + "`"
         desc = " ".join(str(spec.get("description", spec.get("title", ""))).split())
-        # A description is arbitrary prose from the manifest and lands inside a table
-        # cell. Escape the characters that would otherwise be read as markdown: a pipe
-        # ends the cell, and a bracketed run such as `[a-z0-9-]` in a regex reads as an
-        # undefined reference link (MD052).
         desc = desc.replace("|", "\\|").replace("[", "\\[").replace("]", "\\]")
         if spec.get("sensitive"):
             desc = f"**Sensitive.** {desc}"
         lines.append(f"| `{key}` | {typ} | {default} | {desc} |")
 
-    # Pointer-only: this block states no Claude Code CLI or settings behavior as
-    # fact. Each upstream specific is a link to the docs section that owns it, and
-    # what this repository measured lives only in the plugin-reconfiguration
-    # convention, which carries the dated record. Do not restate either here: a copy
-    # in every README is drift waiting to happen.
     cite = convention_cite(plugin)
     sensitive = [k for k, s in options.items() if s.get("sensitive")]
     settable_by_hand = len(sensitive) < len(options)
@@ -156,11 +127,6 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
         "",
         "### Upstream documentation",
         "",
-        # The settings page keeps bare backward-compatibility `<span id=…>` stubs
-        # (`#plugin-settings`, `#configuration-scopes`): lychee's fragment check passes a
-        # link to a stub id, but a reader following it lands on blank space, so these
-        # anchors must target the live headings. A link CI accepts is not the same as a
-        # link that works.
         f"- [User configuration]({USER_CONFIG_DOCS})",
         f"- [Plugin configure]({CONFIGURE_DOCS})",
         f"- [Plugin install options]({INSTALL_DOCS})",
@@ -174,7 +140,6 @@ def render(plugin: str, marketplace: str, options: dict) -> str:
 
 
 def split_block(readme: str) -> tuple[str, str] | None:
-    """Text before and after the generated block, or None when there is none."""
     if END not in readme:
         return None
     begin = BEGIN if BEGIN in readme else LEGACY_BEGIN
@@ -196,12 +161,6 @@ def splice(readme: str, block: str) -> str:
 
 
 def strip_stale_block(readme: pathlib.Path, check: bool) -> str | None:
-    """Drop the generated block from a plugin that declares no options any more.
-
-    Returns "stale" when --check found a block to remove, "wrote" when one was
-    removed, and None when there was nothing to remove -- no README, or a README
-    that never carried a block.
-    """
     if not readme.exists():
         return None
     halves = split_block(readme.read_text(encoding="utf-8"))
@@ -232,11 +191,6 @@ def main() -> int:
             print(f"  MANIFEST UNPARSABLE: {d.name}: {exc}", file=sys.stderr)
             return 2
         if not options:
-            # A plugin that removed its LAST option must lose its generated block too.
-            # Skipping here would leave a stale block documenting options that no longer
-            # exist, and --check would never read the README on this branch, so the gate
-            # would report it as up to date -- the one path where the gate silently
-            # fails at its own job.
             removal = strip_stale_block(readme, check)
             if removal is None:
                 skipped += 1

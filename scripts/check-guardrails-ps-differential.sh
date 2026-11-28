@@ -1,52 +1,4 @@
 #!/usr/bin/env bash
-# Differential for the guardrails PowerShell guards: fail when the working tree's
-# plugins/guardrails allows a PowerShell command that <base-ref>'s refuses.
-#
-#   scripts/check-guardrails-ps-differential.sh [--corpus <file>] [--jobs <n>] <base-ref>
-#   scripts/check-guardrails-ps-differential.sh --harvest
-#
-# WHY. The classifier (lib/powershell/ps-command.sh) and the blocking guards
-# that consume it may only ever add refusals: "over-block, never under-block".
-# A rewrite of that classifier went green on every suite round and was still
-# withdrawn after adversarial passes kept finding a command main blocked and the
-# rewrite allowed (#4682). The suites pin the cases someone thought of; this
-# runs every command in a corpus through BOTH trees and compares.
-#
-# WHAT IS COMPARED. For each corpus command, sent as a PowerShell PreToolUse
-# payload on stdin (nothing is executed):
-#   * each blocking consumer run directly: block-dangerous-git, block-no-verify,
-#     block-convention-violation, block-noncanonical-commit,
-#     block-root-delete-target (the delete lane: it tokenizes on its own, not
-#     through the classifier, and judges an outside-tree target from the payload
-#     cwd, one absolute neutral directory for both arms)
-#     (flag-commit-pr-skill-bypass is advisory and always exits 0);
-#   * the production path: run-guards.sh with the argv of each tree's own
-#     hooks.json Bash|PowerShell row, which loads the library once per process;
-#   * block-dangerous-git under every non-empty subset of the five
-#     ps-unparsable-* allow tokens, for commands the base refuses without a
-#     token. It is the only consumer that reads those tokens, and a token only
-#     waives a refusal, so a command base allows token-free has nothing to lose.
-# A cell FAILS when base exits 2 and the branch exits anything else (0, 1, or a
-# timeout). A branch-only refusal is reported, never failed.
-#
-# EACH TREE LOADS ITS OWN LIBRARY. guard-requires.sh sources
-# ${CLAUDE_PLUGIN_ROOT:-<its dir>/..}/<lib>, so an inherited CLAUDE_PLUGIN_ROOT
-# would hand both arms one library and prove nothing. Every run pins it to its
-# own tree. Inherited CLAUDE_PLUGIN_OPTION_* and HOOK_TELEMETRY_SINK are cleared
-# so an operator's settings cannot decide a cell.
-#
-# BASE is `git archive <base-ref> plugins/guardrails` into a temp dir (no
-# worktree); BRANCH is the working tree of the repository the caller is in.
-#
-# CORPUS. scripts/guardrails-ps-differential-corpus.jsonl by default: one JSON
-# string per line, `#` lines and blank lines skipped. Most of it is harvested
-# from the guard suites: --harvest runs the suites that send PowerShell payloads
-# (every consumer's, plus the two Windows path guards' and the dispatcher's) against
-# a temp copy of the working tree whose hook-utils.sh records every PowerShell
-# payload, and prints the unique commands as JSONL on stdout.
-#
-# Exit codes follow the check-script contract (scripts/README.md): 0 clean, 1 a
-# base-refused command the branch allows, 2 environment or usage.
 set -uo pipefail
 
 PROG=check-guardrails-ps-differential
@@ -135,7 +87,6 @@ mkdir -p "$NEUTRAL" "$WORK/data" "$WORK/payload" "$WORK/res" || exit 2
 TIMEOUT=()
 command -v timeout >/dev/null 2>&1 && TIMEOUT=(timeout 120)
 
-# --- --harvest ---------------------------------------------------------------
 if ((HARVEST)); then
   mkdir -p "$WORK/harvest/plugins" || exit 2
   cp -R "$BRANCH_ROOT" "$WORK/harvest/plugins/" || exit 2
@@ -148,7 +99,6 @@ if ((HARVEST)); then
   fi
   # shellcheck disable=SC2016  # written into the copy verbatim
   record='  [[ -n "${PS_DIFF_HARVEST_LOG:-}" ]] && printf '"'\\036%s\\n'"' "$__hu_input" >>"$PS_DIFF_HARVEST_LOG"'
-  # ENVIRON, not -v: awk would read the record's backslash escapes.
   PS_DIFF_ANCHOR=$anchor PS_DIFF_RECORD=$record \
     awk '$0 == ENVIRON["PS_DIFF_ANCHOR"] { print ENVIRON["PS_DIFF_RECORD"] } { print }' "$hu" >"$hu.new" &&
     mv "$hu.new" "$hu" || exit 2
@@ -159,14 +109,12 @@ if ((HARVEST)); then
     pids+=($!)
   done
   for pid in "${pids[@]}"; do wait "$pid"; done
-  # --seq frames output with RS too; a raw RS cannot occur inside a JSON string.
   cat "$WORK"/harvest-*.seq 2>/dev/null |
     jq --seq -c 'select(type == "object" and .tool_name == "PowerShell") | .tool_input.command | strings' 2>/dev/null |
     tr -d '\036' | LC_ALL=C sort -u
   exit 0
 fi
 
-# --- the two trees -----------------------------------------------------------
 gate_entry::require_base "$BASE_REF" "$PROG: base ref not resolvable: $BASE_REF"
 mkdir -p "$WORK/base" || exit 2
 if ! git archive --format=tar "$BASE_REF" plugins/guardrails | tar -xf - -C "$WORK/base"; then
@@ -176,15 +124,12 @@ fi
 BASE_ROOT="$WORK/base/plugins/guardrails"
 
 for t in "${TOKENS[@]}"; do
-  if ! grep -qF -- "ps-unparsable-$t" "$BASE_ROOT/lib/powershell/ps-command.sh"; then
-    echo "$PROG: the base classifier no longer names allow token ps-unparsable-$t; update TOKENS here" >&2
+  if ! grep -qF -- "PS_SINK_TRIGGER=\"$t\"" "$BASE_ROOT/lib/powershell/ps-command.sh"; then
+    echo "$PROG: the base classifier no longer sets sink trigger $t (allow token ps-unparsable-$t); update TOKENS here" >&2
     exit 2
   fi
 done
 
-# row_args_of <root>: the argv after run-guards.sh on that tree's Bash row.
-# Shell form keeps the script in command. Exec form keeps it in args
-# (command is node) and the guard names follow run-guards.sh in that array.
 row_args_of() {
   local cmd
   cmd=$(jq -r '
@@ -212,7 +157,6 @@ BRANCH_ROW=$(row_args_of "$BRANCH_ROOT") || {
   exit 2
 }
 
-# --- corpus ------------------------------------------------------------------
 if [[ ! -f "$CORPUS" ]]; then
   echo "$PROG: corpus not found: $CORPUS" >&2
   exit 2
@@ -236,10 +180,7 @@ if ((N == 0)); then
   exit 2
 fi
 
-# --- running cells -----------------------------------------------------------
-# A cell is <tree>|<target>|<command index>|<token mask>. Its exit status lands
-# in $WORK/res/<cell with | as _>.
-mask_tokens() { # <mask> -> comma list of allow tokens
+mask_tokens() {
   local m=$1 i out=""
   for i in "${!TOKENS[@]}"; do
     ((m & (1 << i))) && out+="${out:+,}ps-unparsable-${TOKENS[i]}"
@@ -247,7 +188,7 @@ mask_tokens() { # <mask> -> comma list of allow tokens
   printf '%s' "$out"
 }
 
-run_cell() { # <tree> <target> <index> <mask>
+run_cell() {
   local tree=$1 target=$2 idx=$3 mask=$4 root row rc=0 allow
   local -a argv env_add=()
   if [[ "$tree" == base ]]; then
@@ -272,7 +213,7 @@ run_cell() { # <tree> <target> <index> <mask>
   printf '%s' "$rc" >"$WORK/res/${tree}_${target}_${idx}_${mask}"
 }
 
-run_cells() { # <cell list file>, one `<tree> <target> <index> <mask>` per line
+run_cells() {
   local n=0 tree target idx mask
   while read -r tree target idx mask; do
     run_cell "$tree" "$target" "$idx" "$mask" &
@@ -285,7 +226,7 @@ run_cells() { # <cell list file>, one `<tree> <target> <index> <mask>` per line
   wait
 }
 
-result() { # <tree> <target> <index> <mask> -> rc, or `missing`
+result() {
   local f="$WORK/res/${1}_${2}_${3}_${4}"
   if [[ -f "$f" ]]; then cat "$f"; else printf 'missing'; fi
 }
@@ -299,7 +240,6 @@ done
 run_cells "$WORK/cells1"
 
 NMASK=$(((1 << ${#TOKENS[@]}) - 1))
-# Indices of the commands base block-dangerous-git refuses token-free.
 REFUSED=()
 for ((i = 0; i < N; i++)); do
   [[ "$(result base block-dangerous-git "$i" 0)" == 2 ]] && REFUSED+=("$i")
@@ -312,12 +252,11 @@ for i in ${REFUSED[@]+"${REFUSED[@]}"}; do
 done
 run_cells "$WORK/cells2"
 
-# --- report ------------------------------------------------------------------
 command_of() { jq -r '.tool_input.command' "$WORK/payload/$1.json"; }
 
 declare -A T_CELLS=() T_BASE2=() T_BRANCH2=() T_LOST=() T_GAINED=()
 LOST=0
-report_cell() { # <label> <target> <index> <mask>
+report_cell() {
   local label=$1 b r tokens
   b=$(result base "$2" "$3" "$4")
   r=$(result branch "$2" "$3" "$4")

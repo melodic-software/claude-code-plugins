@@ -1,0 +1,49 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/plugins/session-flow/scripts/away.py\" start --session abc12345-0000 --data-root \"/data/session-flow-inline\" --kind bed"
+          }
+        }
+      ],
+      "why": "start with no question"
+    },
+    {
+      "answer": [],
+      "why": "no calls at all"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "AskUserQuestion",
+          "input": {
+            "question": "Start a fresh session or arm here?"
+          }
+        },
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "python3 \"/plugins/session-flow/scripts/away.py\" start --session abc12345-0000 --data-root \"/data/session-flow-inline\" --kind bed"
+          }
+        }
+      ],
+      "why": "question before start"
+    },
+    {
+      "answer": [
+        {
+          "tool": "AskUserQuestion",
+          "input": {
+            "question": "Anything else?"
+          }
+        }
+      ],
+      "why": "any question at all"
+    }
+  ]
+}

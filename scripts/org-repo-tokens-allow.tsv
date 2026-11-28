@@ -20,8 +20,8 @@ plugins/code-tidying/git-hooks/entries.json	melodic-software/claude-code-plugins
 plugins/code-tidying/schemas/code-tidying.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/code-tidying/skills/remove-comments/actions/remove.md	melodic-software/claude-code-plugins	3	raw link to this marketplace's own published doc
 plugins/code-tidying/skills/tidy/SKILL.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
-plugins/code-tidying/skills/tidy/lanes/docs-prose.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
-plugins/code-tidying/skills/tidy/lanes/shell-tooling.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
+plugins/code-tidying/skills/tidy/areas/docs-prose.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
+plugins/code-tidying/skills/tidy/areas/shell-tooling.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/codebase-health/schemas/codebase-health.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/corrections/schemas/corrections.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/corrections/schemas/findings-buffer.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
@@ -42,6 +42,7 @@ plugins/docs-naming/schemas/docs-naming.schema.json	melodic-software/claude-code
 plugins/domain-driven-design/schemas/domain-driven-design.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/education/reference/config.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/education/schemas/education.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
+plugins/engineering-concepts/schemas/engineering-concepts.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/event-storming/schemas/event-storming.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/explainer-video/schemas/explainer-video.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/external-agents/schemas/external-agents.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
@@ -155,6 +156,7 @@ plugins/testing/skills/audit/SKILL.md	melodic-software/claude-code-plugins	1	raw
 plugins/testing/skills/run-e2e/context/e2e-config.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/testing/skills/run-e2e/context/own-driving.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/toolchain/reference/resolution-ladder.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
+plugins/toolchain/schemas/toolchain.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/verification/schemas/verification.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/visualization/schemas/visualization.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/wizard/schemas/wizard.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema

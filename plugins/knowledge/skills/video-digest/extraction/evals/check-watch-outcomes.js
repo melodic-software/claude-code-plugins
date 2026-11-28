@@ -379,7 +379,6 @@ function pushSessionCoverageChecks(checks, slice) {
     };
   });
 
-  // Zero parsed sessions would make both checks below pass over nothing.
   const noSessions =
     slice.parsedSessionCount > 0
       ? "no session in research/claim-inventory.md overlaps the watch.json timeRange"
@@ -659,7 +658,6 @@ function pushQualityAuditChecks(checks, slice) {
  */
 function pushResearchCheck(checks, slice) {
   const skipped = slice.watch.skipResearch === true;
-  // Slice-relative paths: the report lands in the slice, which must not carry machine-local paths.
   const failure = skipped
     ? null
     : (researchGateFailure(slice.sliceDir, { warn: () => {} })?.replaceAll(

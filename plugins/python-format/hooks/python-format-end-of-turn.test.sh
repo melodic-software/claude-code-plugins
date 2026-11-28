@@ -20,7 +20,7 @@ export GIT_CONFIG_GLOBAL="$WORK/no-global" GIT_CONFIG_NOSYSTEM=1
 
 PASS=0
 FAIL=0
-expect() { # <label> <want> <got>
+expect() {
   if [[ "$2" == "$3" ]]; then
     echo "ok: $1"
     PASS=$((PASS + 1))
@@ -44,7 +44,7 @@ printf 'seed = 1\n' >"$R/a.py"
 git -C "$R" add -A
 git -C "$R" commit -q -m seed
 
-stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
+stop() {
   local active="$1" err rc
   shift
   err="$(cd "$R" && printf '{"session_id":"s","hook_event_name":"Stop","stop_hook_active":%s,"cwd":"%s"}' "$active" "$R" |
@@ -53,8 +53,6 @@ stop() { # <stop_hook_active> [env...] -> "<rc>|<stderr>"
   printf '%s|%s' "$rc" "$err"
 }
 
-# The finding lines are the tool's own documented messages; the closing hint
-# line is this plugin's wording, so the case drops it instead of restating it.
 findings() { printf '%s' "${1%$'\n'*}"; }
 # shellcheck disable=SC2016 # the backticks are Ruff's own message text
 FINDING='a.py:2: F821 Undefined name `undefined_name`'
@@ -89,7 +87,6 @@ out="$(printf '{"stop_hook_active":false}' | bash "$COPY/hooks/python-format.sh"
 expect "missing-tool lines alone keep the row quiet" "0|" "$?|$out"
 
 CENSUS="$REPO_ROOT/scripts/hook-census.sh"
-# A working Linux strace, not merely one on PATH: Git Bash ships Cygwin's, which has no -s.
 if [[ -f "$CENSUS" ]] && command -v strace >/dev/null 2>&1 && strace -qq -o /dev/null -e trace=execve true 2>/dev/null; then
   out="$(bash "$CENSUS" python-format Stop python-format.sh \
     '{"session_id":"census","hook_event_name":"Stop","stop_hook_active":false,"cwd":"@DIR@"}' --check 'test ! -s "$HOOK_STDOUT"')"

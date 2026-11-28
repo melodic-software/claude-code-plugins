@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-create.sh.
-# Black-box: build throwaway git fixtures under a mktemp dir, exercise path
-# computation, the refuse-when-unconfigured contract, slug sanitization,
-# base-ref resolution, and the .worktreeinclude copy intersection. No network.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,21 +14,8 @@ command -v git >/dev/null 2>&1 || skip_suite "git not available"
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
-# `fresh` fetches on every run. Only local-path remotes are reachable from this
-# suite, so a fetch from one of the placeholder github.com / gitlab.com URLs
-# fails at once instead of dialing out, and `fresh` bases on the seeded ref.
 export GIT_ALLOW_PROTOCOL=file
 
-# TEST_TMPDIR_NATIVE — a drive-letter-anchored form of TEST_TMPDIR on a Windows
-# shell (MSYS/Cygwin), used only where a fixture path also carries a
-# special shell-metacharacter byte (', $, `). MSYS auto-converts a bare
-# POSIX-style argument like /tmp/tmp.a1b2c3 into the real Windows path when it
-# invokes a native binary (git.exe) — but that conversion heuristic can miss
-# on an argument containing those bytes, and git.exe then treats a leading
-# `/` as drive-relative (`C:/tmp/...`), silently landing the worktree
-# somewhere other than the printed path. A path that already carries a drive
-# letter needs no such conversion, so it never hits the miss. Off Windows
-# (no cygpath), TEST_TMPDIR is already a real native path.
 if command -v cygpath >/dev/null 2>&1; then
   TEST_TMPDIR_NATIVE="$(cygpath -m "$TEST_TMPDIR")"
 else
@@ -40,16 +23,6 @@ else
 fi
 native_path() { if command -v cygpath >/dev/null 2>&1; then cygpath -m -l "$1"; else printf '%s' "$1"; fi; }
 
-# DATA_DIR / DATA_ROOT_FILE — the unconfigured-root default comes from the plugin
-# data directory the caller hands over via --data-root-file, mirroring how the skill
-# substitutes ${CLAUDE_PLUGIN_DATA} into its own body and writes it to a temp file.
-# Native form because the helper prints the path git resolves, which carries a drive
-# letter on Windows; a POSIX spelling would fail on spelling alone even when the
-# behavior is right.
-# Deliberately its OWN mktemp tree, not a subdirectory of TEST_TMPDIR: the
-# discovery-root case below asserts the resolved worktree escapes the repository's
-# whole ancestry, and a data dir sharing that ancestry would make the assertion
-# unfalsifiable.
 DATA_DIR_POSIX="$(mktemp -d)"
 if command -v cygpath >/dev/null 2>&1; then
   DATA_DIR="$(cygpath -m "$DATA_DIR_POSIX")"
@@ -60,31 +33,23 @@ trap 'rm -rf "$TEST_TMPDIR" "$DATA_DIR_POSIX"' EXIT
 DATA_ROOT_FILE="$TEST_TMPDIR/data-root"
 printf '%s' "$DATA_DIR" >"$DATA_ROOT_FILE"
 
-# mkrepo [--origin <url>] [--remote-name <name>] [--no-head] — create a fresh git
-# repo fixture with one commit; unless --no-head, the remote's HEAD is pointed at
-# the default branch. --remote-name names that remote (default `origin`), which
-# is what exercises a `git clone -o upstream` clone that has no `origin` at all.
-# Echoes the repo path (the sole stdout line; all git noise is discarded so
-# command substitution captures only the path). Each call gets a unique dir — the
-# function body runs in a command-substitution subshell, so a mutating counter
-# would not persist.
 mkrepo() {
   local origin_url="" seed_head=1 remote_name="origin"
   while [[ $# -gt 0 ]]; do
     case "$1" in
-    --origin)
-      origin_url="$2"
-      shift 2
-      ;;
-    --remote-name)
-      remote_name="$2"
-      shift 2
-      ;;
-    --no-head)
-      seed_head=0
-      shift
-      ;;
-    *) shift ;;
+      --origin)
+        origin_url="$2"
+        shift 2
+        ;;
+      --remote-name)
+        remote_name="$2"
+        shift 2
+        ;;
+      --no-head)
+        seed_head=0
+        shift
+        ;;
+      *) shift ;;
     esac
   done
   local repo
@@ -93,21 +58,13 @@ mkrepo() {
     git -C "$repo" init -q -b main
     git -C "$repo" config user.email t@t.t
     git -C "$repo" config user.name t
-    # Repo-local, on a repo this helper just mktemp'd. A machine with global
-    # commit.gpgsign=true has no secret key for the fixture identity, so without
-    # this every commit below fails and the suite reports its ~60 creation cases
-    # as failures while its refusal cases still pass — a shape that reads as a
-    # real regression rather than an unrunnable fixture.
     git -C "$repo" config commit.gpgsign false
     printf 'seed\n' >"$repo/README.md"
     git -C "$repo" add README.md
     git -C "$repo" commit -qm init
     if [[ -n "$origin_url" ]]; then
-      # `--` so an option-shaped remote name is a name, not switches: git accepts
-      # one (`git clone -o -foo`), so the fixtures must be able to build one.
       git -C "$repo" remote add -- "$remote_name" "$origin_url"
       if [[ "$seed_head" == 1 ]]; then
-        # Point <remote>/HEAD at main without a network fetch so `fresh` resolves.
         git -C "$repo" update-ref "refs/remotes/$remote_name/main" "$(git -C "$repo" rev-parse HEAD)"
         git -C "$repo" symbolic-ref "refs/remotes/$remote_name/HEAD" "refs/remotes/$remote_name/main"
       fi
@@ -116,10 +73,6 @@ mkrepo() {
   printf '%s' "$repo"
 }
 
-# addremote <repo> <name> <url> — attach a second remote and seed its HEAD at the
-# repo's CURRENT commit, so a caller that commits between calls gives each remote
-# a distinguishable tip. Without distinct tips a precedence assertion passes no
-# matter which remote the helper picks.
 addremote() {
   local repo="$1" name="$2" url="$3"
   {
@@ -129,8 +82,6 @@ addremote() {
   } >/dev/null 2>&1
 }
 
-# commitfile <repo> <path> — add one commit creating <path>, advancing HEAD past
-# whatever remote tips are already seeded.
 commitfile() {
   local repo="$1" rel="$2"
   printf 'x\n' >"$repo/$rel"
@@ -149,21 +100,10 @@ assert_contains "--help documents an omitted session id as no claim" "$help_out"
 bash "$HELPER" --root "$TEST_TMPDIR/wt" >/dev/null 2>&1
 assert_exit "missing --name exit 2" 2 "$?"
 
-# --- Case: drive-relative --root is refused (exit 2, #962) -------------------
 repo=$(mkrepo)
 bash "$HELPER" --name feat/x --root 'C:foo' --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "drive-relative --root exit 2" 2 "$?"
 
-# --- Case: unset root defaults to <plugin-data-dir>/worktrees (exit 0) ---
-# The invariant is that the worktree lands OUTSIDE every repository, not that the
-# user configured a root by hand. The plugin data dir satisfies it, and reaches the
-# helper through the same non-shell file channel --root-file already uses.
-#
-# CLAUDE_PLUGIN_DATA is explicitly cleared throughout: the default must NOT depend
-# on it. In a Bash-tool subprocess that variable is not scoped to the invoking
-# plugin — the repository's own probe recorded it naming an unrelated plugin's
-# data directory — so a fallback reading it could place worktrees under someone
-# else's storage.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 expected_root="$DATA_DIR/worktrees"
 err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/fallback --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>&1 >/dev/null)
@@ -176,24 +116,11 @@ assert_eq "fallback places the worktree under the plugin data dir" \
   "$expected_root/acme-widget-feat-fallback2" "$out"
 assert_file_exists "fallback worktree materialized" "$out/README.md"
 
-# The whole point of the default: it is OUTSIDE the repository. A path inside the
-# checkout would re-trigger the nesting defect this helper exists to prevent, so
-# assert the negative explicitly rather than inferring it.
 case "$out" in
-"$repo"/*) fail "default is outside the repository" "not under $repo" "$out" ;;
-*) pass "default is outside the repository" ;;
+  "$repo"/*) fail "default is outside the repository" "not under $repo" "$out" ;;
+  *) pass "default is outside the repository" ;;
 esac
 
-# --- Case: the default does not land in a repository-discovery tree ---
-# The rejected alternative was a sibling of the checkout (<parent>/worktrees).
-# Under a discovery layout such as ghq's <root>/github.com/<owner>/<repo>, that
-# resolves INSIDE the tree the discovery tool walks, and `ghq list` then reports
-# the worktree as a repository of its own (a leading dot does not hide it).
-#
-# The fixture mirrors that layout — a checkout nested two levels under a discovery
-# root — and the data dir sits OUTSIDE it, as a real plugin data dir does. The
-# assertion is that the resolved worktree escapes the discovery root entirely, not
-# merely that it escapes the checkout.
 discovery_root=$(mktemp -d "$TEST_TMPDIR/ghqrootXXXXXX")
 mkdir -p "$discovery_root/github.com/acme"
 disc_repo="$discovery_root/github.com/acme/widget"
@@ -214,14 +141,10 @@ disc_root_native="${disc_root_native%/github.com/acme/widget}"
 out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/nodiscovery --data-root-file "$DATA_ROOT_FILE" --repo-dir "$disc_repo" 2>/dev/null)
 assert_exit "discovery-layout repo creates against the default (exit 0)" 0 "$?"
 case "$out" in
-"$disc_root_native"/*) fail "default escapes the repository-discovery root" "not under $disc_root_native" "$out" ;;
-*) pass "default escapes the repository-discovery root" ;;
+  "$disc_root_native"/*) fail "default escapes the repository-discovery root" "not under $disc_root_native" "$out" ;;
+  *) pass "default escapes the repository-discovery root" ;;
 esac
 
-# --- Case: an unexpanded token reaches the same default (exit 0) ---
-# An unset key reaches the helper as the literal token, not as an empty string,
-# so the token path must resolve identically — otherwise the common case (key
-# never configured) still fails.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 expected_root="$DATA_DIR/worktrees"
 out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/tokenfallback --data-root-file "$DATA_ROOT_FILE" --root '${user_config.worktree_root}' --repo-dir "$repo" 2>/dev/null)
@@ -229,9 +152,6 @@ assert_exit "unexpanded token creates against the default (exit 0)" 0 "$?"
 assert_eq "token fallback places the worktree under the plugin data dir" \
   "$expected_root/acme-widget-feat-tokenfallback" "$out"
 
-# --- Case: the default does NOT read CLAUDE_PLUGIN_DATA (regression guard) ---
-# A stray CLAUDE_PLUGIN_DATA pointing at another plugin's storage must not change
-# where the worktree lands.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 expected_root="$DATA_DIR/worktrees"
 foreign="$TEST_TMPDIR_NATIVE/some-other-plugin-data"
@@ -240,21 +160,12 @@ assert_eq "a foreign CLAUDE_PLUGIN_DATA does not steer the default" \
   "$expected_root/acme-widget-feat-noenv" "$out"
 assert_file_absent "nothing created under the foreign plugin data dir" "$foreign/worktrees"
 
-# --- Case: no root of any kind refuses (exit 3), nothing created ---
-# A raw CLI invocation with neither a configured root nor a data dir has nothing
-# safe to pick, so refusal is the only answer left.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/noroot --repo-dir "$repo" 2>&1 >/dev/null)
 assert_exit "no root and no data dir refuses exit 3" 3 "$?"
 assert_contains "refuse message names worktree_root key" "$err" "worktree_root"
 assert_contains "refuse message rejects the in-repo fallback" "$err" ".claude/worktrees/"
 
-# --- Case: a data-root-file still holding the literal token refuses (exit 3) ---
-# If ${CLAUDE_PLUGIN_DATA} substitution ever regresses, the caller writes the token
-# verbatim. Treating that as a directory would create a literally-named relative
-# path INSIDE the repository — the nesting this helper exists to prevent — so the
-# token is detected and refused instead. This is the fail-closed property of
-# delivering the value by substitution rather than reading the environment.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 token_data_file="$TEST_TMPDIR/data-root-token"
 # shellcheck disable=SC2016
@@ -264,10 +175,6 @@ assert_exit "unsubstituted data-root-file token refuses exit 3" 3 "$?"
 assert_contains "token refusal names worktree_root key" "$err" "worktree_root"
 assert_file_absent "no literally-named token directory created in the repo" "$repo/\${CLAUDE_PLUGIN_DATA}"
 
-# --- Case: a configured root WINS over the data dir (precedence) ---
-# --data-root-file is a fallback, not an override: supplying both must place the
-# worktree at the configured root. Without this, a data dir could silently displace
-# a root the user deliberately chose.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 chosen="$TEST_TMPDIR_NATIVE/chosen-root"
 out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/precedence --root "$chosen" --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>/dev/null)
@@ -277,9 +184,6 @@ assert_eq "the configured root wins over the data dir" \
 assert_file_absent "nothing created under the data dir when a root is configured" \
   "$DATA_DIR/worktrees/acme-widget-feat-precedence"
 
-# --- Case: worktreeroot.path wins over --fallback-root (plugin option) -----
-# The git config key is machine truth every consumer can read; the plugin option
-# only this plugin can read, so it ranks below (#2610/#2612).
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 config_root="$TEST_TMPDIR_NATIVE/config-root"
 fallback="$TEST_TMPDIR_NATIVE/fallback-root"
@@ -326,9 +230,6 @@ both_left_rc=0
 git -C "$repo" config --local --get melodic.worktreeroot >/dev/null 2>&1 || both_left_rc=$?
 assert_exit "create drops the leftover retired alias when the current key already answers" 1 "$both_left_rc"
 
-# --- Case: explicit --root wins over worktreeroot.path (most specific first) ---
-# A per-invocation caller decision outranks the machine convention; without this,
-# setting the key would silently override every deliberate --root.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 explicit_root="$TEST_TMPDIR_NATIVE/explicit-root"
 git -C "$repo" config --local worktreeroot.path "$TEST_TMPDIR_NATIVE/keyed-root"
@@ -339,10 +240,6 @@ assert_eq "explicit --root wins over worktreeroot.path" \
 assert_file_absent "nothing under the keyed root when --root is explicit" \
   "$TEST_TMPDIR/keyed-root/acme-widget-feat-explicit/README.md"
 
-# --- Case: worktreeroot.path is multi-valued and the LAST value wins -----------
-# includeIf layering APPENDS values in parse order rather than replacing them, so
-# a per-identity include's answer is the last parsed — a first-wins read would
-# silently return the machine default and defeat the whole per-identity layer.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 git -C "$repo" config --local --add worktreeroot.path "$TEST_TMPDIR_NATIVE/first-root"
 git -C "$repo" config --local --add worktreeroot.path "$TEST_TMPDIR_NATIVE/last-root"
@@ -353,25 +250,16 @@ assert_eq "the LAST worktreeroot.path value wins" \
 assert_file_absent "nothing under the earlier value" \
   "$TEST_TMPDIR/first-root/acme-widget-feat-lastwins/README.md"
 
-# --- Case: a worktreeroot.path pointing inside a repository refuses (exit 3) ---
-# The containment guard judges the RESOLVED root whatever rung supplied it; a
-# misconfigured key must not become a licensed nesting.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 git -C "$repo" config --local worktreeroot.path "$repo/.claude/worktrees"
 err=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/keynested --data-root-file "$DATA_ROOT_FILE" --repo-dir "$repo" 2>&1 >/dev/null)
 assert_exit "an in-repo worktreeroot.path refuses exit 3" 3 "$?"
 assert_contains "the in-repo key refusal names the repository" "$err" "inside the repository"
 
-# --- Case: a missing --data-root-file path is a usage error (exit 2) ---
-# Mirrors the --root-file contract: a caller naming a file that is not there has a
-# broken handoff, which is not the same as declining to supply one.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/nodatafile --data-root-file "$TEST_TMPDIR/absent-data-root" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "--data-root-file missing file exit 2" 2 "$?"
 
-# --- Case: --data-root-file rejects a newline, like --root-file (exit 2) ---
-# The shared reader enforces this for both flags; assert it on the new one so the
-# two channels cannot drift apart.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 multi_data_file="$TEST_TMPDIR/data-root-multiline"
 printf '%s\n%s\n' "$TEST_TMPDIR_NATIVE/one" "touch $TEST_TMPDIR/pwned-data" >"$multi_data_file"
@@ -385,34 +273,22 @@ err=$(bash "$HELPER" --name feat/x --root "$repo/.claude/worktrees" --repo-dir "
 assert_exit "in-repo root refuses exit 3" 3 "$?"
 assert_contains "in-repo refuse names the repository" "$err" "inside the repository"
 
-# --- Case: refuse a relative root that resolves inside the repo (exit 3) ---
-# git -C "$toplevel" worktree add anchors a relative target at the repo top level.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 bash "$HELPER" --name feat/x --root "worktrees" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "relative in-repo root refuses exit 3" 3 "$?"
 
-# --- Case: refuse a root nested inside a DIFFERENT checkout (exit 3) ---
-# The guard rejects placement inside ANY working tree, not only the source repo:
-# a root under an unrelated clone still triggers the nested-checkout double-load bug.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 other=$(mkrepo --origin "git@github.com:acme/other.git")
 err=$(bash "$HELPER" --name feat/x --root "$other/nested" --repo-dir "$repo" 2>&1 >/dev/null)
 assert_exit "root inside another checkout refuses exit 3" 3 "$?"
 assert_contains "foreign-checkout refuse names another working tree" "$err" "another git working tree"
 
-# --- Case: refuse a root beneath a normal repo's .git directory (exit 3) ---
-# `git rev-parse --show-toplevel` fails inside a .git dir, so the work-tree probe
-# alone misses it; --is-inside-git-dir catches the git-administrative ancestor
-# and stops a linked checkout from landing inside git metadata.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 err=$(bash "$HELPER" --name feat/x --root "$repo/.git/external" --repo-dir "$repo" 2>&1 >/dev/null)
 assert_exit "root under .git refuses exit 3" 3 "$?"
 assert_contains "git-dir refuse names a git directory" "$err" "inside a git directory"
 assert_file_absent "no worktree created inside .git" "$repo/.git/external/acme-widget-feat-x/README.md"
 
-# --- Case: refuse a root inside a bare clone (exit 3) ---
-# A bare repo has no work tree either, so --show-toplevel reports nothing; the
-# same --is-inside-git-dir guard rejects the bare-repo ancestor.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 bare="$(mktemp -d "$TEST_TMPDIR/bareXXXXXX")/other.git"
 git init -q --bare "$bare" >/dev/null 2>&1
@@ -420,12 +296,6 @@ err=$(bash "$HELPER" --name feat/x --root "$bare/worktrees" --repo-dir "$repo" 2
 assert_exit "root inside a bare clone refuses exit 3" 3 "$?"
 assert_contains "bare-clone refuse names a git directory" "$err" "inside a git directory"
 
-# --- Case: refuse a root with `..` after a NONEXISTENT component (exit 3) ---
-# `<tmp>/nonexistent/../<repo>/.claude/worktrees` lexically resolves inside the
-# repo, but the raw-string ancestor walk stopped at the nonexistent `nonexistent`
-# component and never probed the real repo; `git worktree add` would then create
-# the missing dir, resolve `..`, and land the checkout in `.claude/worktrees`.
-# Normalizing the target before the walk closes this.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR/nonexistent-leading/../${repo##*/}/.claude/worktrees"
 err=$(bash "$HELPER" --name feat/x --root "$root" --repo-dir "$repo" 2>&1 >/dev/null)
@@ -434,33 +304,23 @@ assert_contains "normalized in-repo refuse names the repository" "$err" "inside 
 assert_file_absent "no worktree materialized inside repo via '..' bypass" \
   "$repo/.claude/worktrees/acme-widget-feat-x/README.md"
 
-# --- Case: Windows backslash roots are canonicalized before the guard ---
-# On a Windows shell `\` is a separator git resolves but the ancestor walk (which
-# splits on `/`) cannot climb, so an un-canonicalized backslash root would skip
-# the containment guard entirely. Windows-only: `\` is a legal filename byte
-# elsewhere. cygpath -w builds the native backslash form.
 if [[ "$OSTYPE" == msys || "$OSTYPE" == cygwin ]] && command -v cygpath >/dev/null 2>&1; then
-  # backslash root pointing directly into the repo working tree
   repo=$(mkrepo --origin "git@github.com:acme/widget.git")
   err=$(bash "$HELPER" --name feat/bs --root "$(cygpath -w "$repo")\\.claude\\worktrees" --repo-dir "$repo" 2>&1 >/dev/null) # portability-ok: Windows path string in a test fixture, not a regex/sed construct
   assert_exit "backslash root inside repo refuses exit 3" 3 "$?"
   assert_contains "backslash in-repo refuse names the repository" "$err" "inside the repository"
   assert_file_absent "no worktree via backslash-into-repo" "$repo/.claude/worktrees/acme-widget-feat-bs/README.md"
 
-  # backslash root pointing into the .git directory
   repo=$(mkrepo --origin "git@github.com:acme/widget.git")
   err=$(bash "$HELPER" --name feat/bg --root "$(cygpath -w "$repo")\\.git\\ext" --repo-dir "$repo" 2>&1 >/dev/null)
   assert_exit "backslash root inside .git refuses exit 3" 3 "$?"
   assert_contains "backslash-into-.git names a git directory" "$err" "inside a git directory"
 
-  # backslash root with `..` after a nonexistent component resolving into the repo
   repo=$(mkrepo --origin "git@github.com:acme/widget.git")
   bs_dd="$(cygpath -w "$repo")\\..\\missing\\..\\${repo##*/}\\.claude\\worktrees" # portability-ok: Windows path string in a test fixture, not a regex/sed construct
   bash "$HELPER" --name feat/bd --root "$bs_dd" --repo-dir "$repo" >/dev/null 2>&1
   assert_exit "backslash + '..' resolving inside repo refuses exit 3" 3 "$?"
 
-  # a genuine EXTERNAL backslash root still creates (exit 0) — no over-reject, and
-  # the printed path is the forward-slash form EnterWorktree(path:) expects.
   repo=$(mkrepo --origin "git@github.com:acme/widget.git")
   out=$(bash "$HELPER" --name feat/be --root "$(cygpath -w "$TEST_TMPDIR/ext-backslash")" --repo-dir "$repo" 2>/dev/null)
   assert_exit "external backslash root still creates (exit 0)" 0 "$?"
@@ -469,9 +329,6 @@ else
   skip_case "backslash-root canonicalization is Windows-only"
 fi
 
-# --- Case: an external root adjacent to a .git directory is allowed (exit 0) ---
-# Normal-path guard: the containment check must not over-reject a genuinely
-# external root just because a sibling path holds a git directory.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR/adjacent-external"
 out=$(bash "$HELPER" --name feat/adj --root "$root" --repo-dir "$repo" 2>/dev/null)
@@ -485,7 +342,6 @@ assert_exit "create exit 0" 0 "$?"
 assert_eq "computed path is <root>/<owner>-<repo>-<slug>" \
   "$root/acme-widget-feat-my-feature" "$out"
 assert_file_exists "worktree checkout materialized" "$out/README.md"
-# branch name keeps the slash; only the directory slug is sanitized.
 assert_eq "branch keeps original name" "feat/my-feature" \
   "$(git -C "$out" rev-parse --abbrev-ref HEAD)"
 
@@ -515,8 +371,6 @@ root="$TEST_TMPDIR/wtroot5"
 out=$(bash "$HELPER" --name feat/fresh-base --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
 assert_file_exists "base-ref fresh materializes the worktree" "$out/README.md"
 assert_file_absent "base-ref fresh excludes the unpushed commit" "$out/UNPUSHED.md"
-# #5983: a fresh branch must not track origin/<default>, or a bare push fails
-# under push.default=simple and push-branch.sh keeps the wrong upstream.
 assert_eq "base-ref fresh leaves branch.<name>.merge unset" "" \
   "$(git -C "$repo" config --get branch.feat/fresh-base.merge)"
 assert_eq "base-ref fresh leaves branch.<name>.remote unset" "" \
@@ -528,11 +382,11 @@ printf '.work/keep.md\n.work/*/EXPLORE.md\n*.env\n' >"$repo/.worktreeinclude"
 git -C "$repo" add .gitignore .worktreeinclude
 git -C "$repo" commit -qm "ignore + include"
 mkdir -p "$repo/.work/task1"
-printf 'x\n' >"$repo/.work/keep.md"          # matched + gitignored -> copy
-printf 'x\n' >"$repo/.work/task1/EXPLORE.md" # matched (nested) + gitignored -> copy
-printf 'x\n' >"$repo/.work/task1/OTHER.md"   # gitignored, NOT matched  -> skip
-printf 'x\n' >"$repo/secrets.env"            # matched + gitignored -> copy
-printf 'x\n' >"$repo/loose.txt"              # neither -> skip
+printf 'x\n' >"$repo/.work/keep.md"
+printf 'x\n' >"$repo/.work/task1/EXPLORE.md"
+printf 'x\n' >"$repo/.work/task1/OTHER.md"
+printf 'x\n' >"$repo/secrets.env"
+printf 'x\n' >"$repo/loose.txt"
 root="$TEST_TMPDIR/wtroot6"
 out=$(bash "$HELPER" --name feat/inc --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_file_exists "worktreeinclude: matched+ignored top-level copied" "$out/.work/keep.md"
@@ -541,13 +395,6 @@ assert_file_exists "worktreeinclude: matched+ignored env copied" "$out/secrets.e
 assert_file_absent "worktreeinclude: gitignored-but-unmatched skipped" "$out/.work/task1/OTHER.md"
 assert_file_absent "worktreeinclude: unignored file never copied" "$out/loose.txt"
 
-# --- Case: reserved-name `**` patterns carry a memory tier at any depth ---
-# The repo's own .worktreeinclude keys on the reserved memory-tier filenames via
-# `.work/**/NAME` instead of enumerating one depth per line. Depth-enumerated
-# globs (`.work/*/`, `.work/*/*/`) drop every level past the last one written
-# down, so a sub-slice under an epic loses its index, sidecars, and ledger. This
-# proves the `**` form is honored by `ls-files -o -i --exclude-from` — including
-# the zero-directory case, where `.work/**/INDEX.md` matches `.work/INDEX.md`.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 printf '.work/\n' >"$repo/.gitignore"
 printf '.work/.gitignore\n.work/**/INDEX.md\n.work/**/EXPLORE.md\n.work/**/INTENT.md\n.work/**/*-checklist.md\n' \
@@ -555,12 +402,12 @@ printf '.work/.gitignore\n.work/**/INDEX.md\n.work/**/EXPLORE.md\n.work/**/INTEN
 git -C "$repo" add .gitignore .worktreeinclude
 git -C "$repo" commit -qm "recursive include"
 mkdir -p "$repo/.work/epic/slice" "$repo/.work/slice"
-printf 'x\n' >"$repo/.work/.gitignore"                     # self-ignore rides along
-printf 'x\n' >"$repo/.work/INDEX.md"                       # depth 1 (zero-dir `**`)
-printf 'x\n' >"$repo/.work/slice/INTENT.md"                # depth 2
-printf 'x\n' >"$repo/.work/epic/slice/EXPLORE.md"          # depth 3
-printf 'x\n' >"$repo/.work/epic/slice/review-checklist.md" # depth 3 ledger
-printf 'x\n' >"$repo/.work/slice/scratch-foo"              # gitignored, NOT matched
+printf 'x\n' >"$repo/.work/.gitignore"
+printf 'x\n' >"$repo/.work/INDEX.md"
+printf 'x\n' >"$repo/.work/slice/INTENT.md"
+printf 'x\n' >"$repo/.work/epic/slice/EXPLORE.md"
+printf 'x\n' >"$repo/.work/epic/slice/review-checklist.md"
+printf 'x\n' >"$repo/.work/slice/scratch-foo"
 root="$TEST_TMPDIR/wtroot-recursive"
 out=$(bash "$HELPER" --name feat/deep --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_file_exists "worktreeinclude **: self-ignore carried" "$out/.work/.gitignore"
@@ -570,7 +417,6 @@ assert_file_exists "worktreeinclude **: depth-3 EXPLORE.md carried" "$out/.work/
 assert_file_exists "worktreeinclude **: depth-3 checklist carried" "$out/.work/epic/slice/review-checklist.md"
 assert_file_absent "worktreeinclude **: non-reserved name skipped" "$out/.work/slice/scratch-foo"
 
-# --- Case: settings.local.json copied from the git common dir (#2119) ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 mkdir -p "$repo/.claude"
 printf '{"env":{"DISK_HYGIENE_GUARD_WATCHDOG_SECONDS":"50"}}\n' >"$repo/.claude/settings.local.json"
@@ -578,15 +424,12 @@ root="$TEST_TMPDIR/wtroot-settings"
 out=$(bash "$HELPER" --name feat/settings --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_file_exists "settings.local.json copied into the worktree" "$out/.claude/settings.local.json"
 
-# --- Case: a value-taking flag as the last token errors, does not hang (exit 2) ---
-# Regression guard: a failed `shift 2` on a lone positional once spun forever.
 for flag in --name --root --base-ref --repo-dir --session-id; do
   code=0
   bash "$HELPER" "$flag" >/dev/null 2>&1 || code=$?
   assert_exit "trailing valueless $flag errors (no hang)" 2 "$code"
 done
 
-# --- Case: --base-ref fresh with uncached origin/HEAD warns and falls back ---
 repo=$(mkrepo --origin "git@github.com:acme/widget.git" --no-head)
 root="$TEST_TMPDIR/wtroot7"
 err=$(bash "$HELPER" --name feat/nohead --root "$root" --base-ref fresh --repo-dir "$repo" 2>&1 >/dev/null)
@@ -595,11 +438,6 @@ assert_contains "fresh w/o origin/HEAD warns about fallback" "$err" "could not r
 assert_contains "fresh w/o origin/HEAD names the resolved remote" "$err" "origin/HEAD not set"
 assert_file_exists "fresh fallback still creates the worktree" "$root/acme-widget-feat-nohead/README.md"
 
-# --- Case: fresh resolves a sole non-origin remote (`git clone -o upstream`) ---
-# The gap this closes: probing only refs/remotes/origin/HEAD misses a repo whose
-# single remote is named something else, so `fresh` fell back to local HEAD and
-# carried unpushed commits into a supposedly-fresh worktree. The fallback warned,
-# but named origin — the one remote such a repo does not have.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git" --remote-name upstream)
 commitfile "$repo" UNPUSHED.md
 root="$TEST_TMPDIR/wtroot-upstream"
@@ -607,9 +445,6 @@ out=$(bash "$HELPER" --name feat/upstream-fresh --root "$root" --base-ref fresh 
 assert_exit "fresh with sole non-origin remote succeeds" 0 "$?"
 assert_file_absent "fresh bases on upstream/HEAD, not local HEAD" "$out/UNPUSHED.md"
 
-# --- Case: the uncached-HEAD warning names the RESOLVED remote, not origin ---
-# The origin-remote case above cannot prove this: the old hardcoded message
-# contained the same substring, so only a non-origin remote discriminates.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git" --remote-name upstream --no-head)
 root="$TEST_TMPDIR/wtroot-upstream-nohead"
 errfile="$TEST_TMPDIR/err-upstream-nohead.txt"
@@ -619,9 +454,6 @@ assert_contains "warning names the resolved remote's symref" "$(cat "$errfile")"
 assert_contains "warning offers set-head for that remote" "$(cat "$errfile")" "set-head upstream --auto"
 assert_file_exists "uncached non-origin fallback still creates the worktree" "$out/README.md"
 
-# --- Case: branch.<name>.remote outranks origin when both remotes exist ---
-# Three distinct commits so the assertion discriminates all three candidates:
-# origin/HEAD (seed), upstream/HEAD (UPSTREAM_ONLY.md), local HEAD (UNPUSHED.md).
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 commitfile "$repo" UPSTREAM_ONLY.md
 addremote "$repo" upstream "git@github.com:acme/widget-fork.git"
@@ -632,13 +464,6 @@ out=$(bash "$HELPER" --name feat/branchcfg --root "$root" --base-ref fresh --rep
 assert_file_exists "branch-configured remote wins over origin" "$out/UPSTREAM_ONLY.md"
 assert_file_absent "branch-configured remote is not local HEAD" "$out/UNPUSHED.md"
 
-# --- Case: an option-shaped branch-configured remote still outranks origin ---
-# `git clone -o -foo <url>` is legal and writes `-foo` into branch.<name>.remote,
-# so the rung's existence probe must pass the name after an option terminator.
-# Without it git reads `-foo` as switches, the healthy remote is judged missing,
-# and resolution falls through to origin — a silently wrong base, not an error.
-# `origin` must be present for this to discriminate: with `-foo` as the sole
-# remote the sole-remote rung answers correctly whatever rung 1 does.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 commitfile "$repo" DASHED_ONLY.md
 addremote "$repo" -foo "git@github.com:acme/widget-fork.git"
@@ -650,23 +475,15 @@ assert_exit "option-shaped branch remote still succeeds" 0 "$?"
 assert_file_exists "option-shaped branch remote wins over origin" "$out/DASHED_ONLY.md"
 assert_file_absent "option-shaped branch remote is not local HEAD" "$out/UNPUSHED.md"
 
-# --- Case: a branch.<name>.remote naming a missing remote falls through to origin ---
-# Stale config must not shadow a healthy origin, so the rung requires the name to
-# resolve to a remote that actually exists.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 commitfile "$repo" UNPUSHED.md
 git -C "$repo" config branch.main.remote ghost
 root="$TEST_TMPDIR/wtroot-ghost"
 out=$(bash "$HELPER" --name feat/ghost --root "$root" --base-ref fresh --repo-dir "$repo" 2>/dev/null)
 assert_exit "stale branch remote still succeeds" 0 "$?"
-# A positive anchor as well: on an empty $out the absent-assertion below would
-# probe /UNPUSHED.md and pass no matter how the helper failed.
 assert_file_exists "stale branch remote materializes the worktree" "$out/README.md"
 assert_file_absent "stale branch remote falls through to origin" "$out/UNPUSHED.md"
 
-# --- Case: branch.<name>.remote = "." (a local-tracking branch) falls through ---
-# `.` is git's sentinel for tracking a local branch, not a remote name;
-# refs/remotes/./HEAD is nonsense and must never be probed.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 commitfile "$repo" UNPUSHED.md
 git -C "$repo" config branch.main.remote .
@@ -684,9 +501,6 @@ out=$(bash "$HELPER" --name feat/detached --root "$root" --base-ref fresh --repo
 assert_exit "fresh on a detached HEAD succeeds" 0 "$?"
 assert_file_absent "detached HEAD still bases on origin/HEAD" "$out/UNPUSHED.md"
 
-# --- Case: several remotes, none named origin, no branch config -> ambiguous ---
-# Guessing one remote's default branch would be a silent wrong base, so the
-# helper takes the caller-visible HEAD fallback instead.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git" --remote-name upstream)
 addremote "$repo" fork "git@github.com:someone/widget.git"
 root="$TEST_TMPDIR/wtroot-ambiguous"
@@ -705,9 +519,6 @@ assert_exit "remoteless fresh still succeeds" 0 "$?"
 assert_contains "remoteless fresh warns about fallback" "$(cat "$errfile")" "could not resolve the remote default branch"
 assert_file_exists "remoteless fallback still creates the worktree" "$out/README.md"
 
-# stalerepo <bare-remote-dir> — a clone of a local bare remote whose cached
-# origin/main is one commit behind the remote (REMOTE_ONLY.md exists only
-# there). Echoes the clone path.
 stalerepo() {
   local remote="$1" seed pusher clone
   seed="$(mkrepo)"
@@ -730,10 +541,6 @@ stalerepo() {
   printf '%s' "$clone"
 }
 
-# --- Case: fresh refreshes a stale cached origin/HEAD before basing (#4249) ---
-# The clone's origin/main is one commit behind, so `fresh` must fetch; right
-# after creation the worktree is 0 behind the remote branch, the issue's own
-# verification.
 repo=$(stalerepo "$TEST_TMPDIR/stale-remote.git")
 root="$TEST_TMPDIR/wtroot-stale"
 errfile="$TEST_TMPDIR/err-stale.txt"
@@ -774,9 +581,6 @@ assert_contains "failed refresh warns it could not refresh" "$(cat "$errfile")" 
 assert_contains "failed refresh reports the cached base commit, not fresh" "$(cat "$errfile")" \
   "(base origin/main@$(git -C "$repo" rev-parse --short origin/main 2>/dev/null), not refreshed)"
 
-# --- Case: a hung refresh is abandoned at the 5-second cap ---
-# An ssh transport whose "ssh" only sleeps stands in for an unreachable host;
-# only this call may use ssh, and the sleep outlives the cap by a wide margin.
 repo=$(stalerepo "$TEST_TMPDIR/stale-remote-hang.git")
 git -C "$repo" remote set-url origin "ssh://example.invalid/widget.git"
 rm -f "$repo/.git/FETCH_HEAD"
@@ -803,47 +607,31 @@ root="$TEST_TMPDIR/wtroot9"
 out=$(bash "$HELPER" --name feat/gl --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_eq "GitLab subgroup URL -> subgroup as owner" "$root/subgroup-widget-feat-gl" "$out"
 
-# --- Case: a name with characters git refs reject is refused up front (exit 2) ---
-# The branch is used verbatim, so an unsafe name must fail loudly here rather
-# than opaquely inside `git worktree add`.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 err=$(bash "$HELPER" --name 'feat/weird @name#v2' --root "$TEST_TMPDIR/wtroot10" --repo-dir "$repo" 2>&1 >/dev/null)
 assert_exit "unsafe-char name refused (exit 2)" 2 "$?"
 assert_contains "unsafe-char refusal explains the rule" "$err" "not a valid worktree/branch name"
-# An over-long name (>64 chars) is likewise refused.
 bash "$HELPER" --name "feat/$(printf 'a%.0s' {1..70})" --root "$TEST_TMPDIR/wtroot10" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "over-64-char name refused (exit 2)" 2 "$?"
-# A name whose characters are all in the allowed class but which git rejects as a
-# branch is refused here (exit 2) rather than reaching `git worktree add` and
-# surfacing as environment exit 4 — the correction flow keys on the usage error.
 for badref in 'feat/foo..bar' 'feat/.' 'foo.lock' 'feat/x.lock' '.foo' 'foo.' 'HEAD' '-lead'; do
   code=0
   err=$(bash "$HELPER" --name "$badref" --root "$TEST_TMPDIR/wtroot10c" --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
   assert_exit "git-invalid ref name $badref refused (exit 2, not 4)" 2 "$code"
   assert_contains "git-invalid $badref refusal names the branch grammar" "$err" "not a valid git branch name"
 done
-# The ref check must not eat stdout: `git check-ref-format --branch` echoes the
-# name on success, which would corrupt the sole-stdout-line path contract.
 root="$TEST_TMPDIR/wtroot10d"
 out=$(bash "$HELPER" --name "feat/refok" --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_exit "ref-valid name still creates (exit 0)" 0 "$?"
 assert_eq "ref check leaves stdout as the sole path line" "$root/acme-widget-feat-refok" "$out"
-# `check-ref-format --branch` takes a branchname-shorthand, so it does repository
-# discovery and dies when the process CWD is a stale checkout (a .git file naming
-# a gitdir that no longer exists). Scoping it to $toplevel keeps a VALID name from
-# being rejected because of where the caller happened to stand — the documented
-# invocation omits --repo-dir, so the CWD is the default.
 stale="$(mktemp -d "$TEST_TMPDIR/staleXXXXXX")"
 printf 'gitdir: %s/definitely-not-here\n' "$TEST_TMPDIR" >"$stale/.git"
 root="$TEST_TMPDIR/wtroot10e"
 out=$(cd "$stale" && bash "$HELPER" --name "feat/cwdok" --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_exit "valid name unaffected by a stale .git in the CWD (exit 0)" 0 "$?"
 assert_eq "stale-CWD run still prints the worktree path" "$root/acme-widget-feat-cwdok" "$out"
-# ...and an invalid name is still caught from that same stale CWD.
 code=0
 (cd "$stale" && bash "$HELPER" --name 'feat/foo..bar' --root "$TEST_TMPDIR/wtroot10f" --repo-dir "$repo") >/dev/null 2>&1 || code=$?
 assert_exit "stale CWD still rejects a git-invalid name (exit 2)" 2 "$code"
-# A valid multi-segment name keeps the branch verbatim but transforms the slug.
 root="$TEST_TMPDIR/wtroot10b"
 out=$(bash "$HELPER" --name "feat/scope.v2_final-1" --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_eq "valid name: '/' -> '-' in the dir slug" "$root/acme-widget-feat-scope.v2_final-1" "$out"
@@ -866,10 +654,6 @@ printf '%s' "$TEST_TMPDIR/wtroot-both" >"$root_file"
 bash "$HELPER" --name feat/both --root "$TEST_TMPDIR/wtroot-both" --root-file "$root_file" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "--root and --root-file together exit 2" 2 "$?"
 
-# --- Case: an EMPTY value does not make a supplied flag count as absent ---
-# The exclusion keys off whether each flag appeared, not whether its value is
-# non-empty; otherwise `--root ''` would let --root-file quietly win (and vice
-# versa) despite the caller naming two sources.
 bash "$HELPER" --name feat/both2 --root "" --root-file "$root_file" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "--root '' with --root-file still exits 2" 2 "$?"
 bash "$HELPER" --name feat/both3 --root "$TEST_TMPDIR/wtroot-both" --root-file "" --repo-dir "$repo" >/dev/null 2>&1
@@ -878,12 +662,6 @@ assert_exit "--root with --root-file '' still exits 2" 2 "$?"
 bash "$HELPER" --name feat/missingfile --root-file "$TEST_TMPDIR/does-not-exist" --repo-dir "$repo" >/dev/null 2>&1
 assert_exit "--root-file missing file exit 2" 2 "$?"
 
-# --- Case: --root-file carries a special-character root safely (exit 0) ---
-# This is the out-of-band handoff the skill uses: ${user_config.worktree_root}
-# substitution into skill markdown is raw text, not shell-escaped, so a root
-# containing a single quote, `$`, or a backtick would break an inline --root
-# shell literal. --root-file sidesteps that entirely — the value never passes
-# through a shell literal we write; the file's bytes ARE the root.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR_NATIVE/wtroot13-O'Connor \$weird \`root\`"
 root_file="$TEST_TMPDIR/rootfile-special"
@@ -894,10 +672,6 @@ assert_eq "--root-file special-char root computes the exact path" \
   "$root/acme-widget-feat-special" "$out"
 assert_file_exists "--root-file special-char worktree materialized" "$out/README.md"
 
-# --- Case: --root-file with empty content reaches the derived default (exit 0) ---
-# The file handoff must resolve identically to --root; the skill's own path always
-# writes a file, so a default that only covered --root would leave the common case
-# (key never configured) broken.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-empty"
 : >"$root_file"
@@ -910,11 +684,6 @@ out=$(CLAUDE_PLUGIN_DATA='' bash "$HELPER" --name feat/emptyfallback2 --data-roo
 assert_eq "--root-file empty content places the worktree under the plugin data dir" \
   "$expected_root/acme-widget-feat-emptyfallback2" "$out"
 
-# --- Case: --root-file holding the literal unexpanded token reaches the default ---
-# When the key is unset the caller writes ${user_config.worktree_root} verbatim —
-# the same literal-token detection the --root path covers, reached through the
-# file. This is the exact shape the skill produces on a fresh install, so it must
-# resolve to the derived default rather than refuse.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-token"
 # shellcheck disable=SC2016
@@ -925,9 +694,6 @@ assert_exit "--root-file unexpanded token creates against the default (exit 0)" 
 assert_eq "--root-file token fallback places the worktree under the plugin data dir" \
   "$expected_root/acme-widget-feat-token" "$out"
 
-# --- Case: a root whose last byte is significant survives intact (exit 0) ---
-# The file's bytes ARE the root, so nothing is stripped from the end. A trailing
-# dot would vanish under any "strip the terminator" reader that guessed wrong.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR_NATIVE/wtroot14-noeol.d"
 root_file="$TEST_TMPDIR/rootfile-noeol"
@@ -937,11 +703,6 @@ assert_exit "--root-file unterminated value creates (exit 0)" 0 "$?"
 assert_eq "--root-file unterminated value keeps every byte" "$root/acme-widget-feat-noeol" "$out"
 assert_file_exists "--root-file unterminated value materialized" "$out/README.md"
 
-# --- Case: --root-file holding an embedded newline is a usage error (exit 2) ---
-# A newline inside worktree_root is never a valid root. Taking only the first
-# line would silently proceed with a root the caller never asked for, and the
-# second line here is exactly the payload a heredoc-delimiter collision would
-# have smuggled into shell source — which is why the handoff is non-shell now.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-multiline"
 printf '%s\n%s\n' "$TEST_TMPDIR/wtroot15-multi" "touch $TEST_TMPDIR/pwned" >"$root_file"
@@ -950,11 +711,6 @@ assert_exit "--root-file embedded newline is a usage error (exit 2)" 2 "$?"
 assert_contains "--root-file newline error names the newline" "$err" "newline"
 assert_file_absent "--root-file newline payload never executed" "$TEST_TMPDIR/pwned"
 
-# --- Case: a TRAILING newline is rejected too, not trimmed (exit 2) ---
-# Trimming one terminator is a guess: it is indistinguishable from a root whose
-# own last byte is a newline, and guessing wrong silently creates the worktree
-# somewhere the caller never named. The handoff writes the value unterminated,
-# so a trailing newline means the value really carries one.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-trailing-eol"
 printf '%s\n' "$TEST_TMPDIR/wtroot16-trailing" >"$root_file"
@@ -964,10 +720,6 @@ assert_contains "--root-file trailing-newline error names the newline" "$err" "n
 assert_file_absent "--root-file trailing-newline root never materialized" \
   "$TEST_TMPDIR/wtroot16-trailing/acme-widget-feat-trailing/README.md"
 
-# --- Case: a NUL byte in the root file is a usage error (exit 2) ---
-# Command substitution DROPS NUL bytes, so `<root>-<NUL>suffix` would silently
-# collapse to `<root>-suffix` and create a worktree at a path nobody supplied.
-# The check therefore runs on the file, before the value reaches a variable.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-nul"
 printf '%s\000%s' "$TEST_TMPDIR/wtroot17-nul" "suffix" >"$root_file"
@@ -977,16 +729,6 @@ assert_contains "--root-file NUL error names the NUL byte" "$err" "NUL"
 assert_file_absent "--root-file NUL-collapsed path never materialized" \
   "$TEST_TMPDIR/wtroot17-nulsuffix/acme-widget-feat-nul/README.md"
 
-# --- Case: the created worktree is LOCKED, with a reason naming the creator ---
-# The lock is the liveness guard the cleanup skill honors: without it, plain
-# `git worktree remove` deletes a clean worktree whose operation is mid-flight
-# (an interactive rebase paused at `break` leaves `status --porcelain` empty),
-# and before the helper armed it no lane ever ran `git worktree lock` (#2257).
-# Asserted from `worktree list --porcelain` — the surface cleanup reads — and
-# then behaviorally: plain removal must refuse while the lock is armed.
-# The fixture branch deliberately avoids the word "locked": the worktree PATH
-# appears in the porcelain stanza, so a name containing it would satisfy the
-# substring assertions below even with no lock armed at all.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root_file="$TEST_TMPDIR/rootfile-lock"
 printf '%s' "$TEST_TMPDIR/wtroot18-lock" >"$root_file"
@@ -1005,10 +747,6 @@ else
 fi
 assert_file_exists "the locked worktree survives the removal attempt" "$out/README.md"
 
-# --- Case: --session-id stamps the token check-enter treats as ours ---
-# worktree-claim.sh reason_is_ours matches `session <sid> since` only. The
-# helper must emit that token or check-enter returns FOREIGN CLAIM (exit 4)
-# for a tree this same session just created. No network.
 CLAIM="$SCRIPT_DIR/worktree-claim.sh"
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR/wtroot-session"
@@ -1018,17 +756,15 @@ lock_file="$(git -C "$out" rev-parse --absolute-git-dir)/locked"
 reason="$(tr -d '\r\n' <"$lock_file")"
 assert_contains "session lock reason uses the claim token" "$reason" "session sess-owner since"
 assert_contains "session lock reason still names the helper" "$reason" "worktree-create.sh:"
-# The exact stamp is host + `session <id> since` + a UTC timestamp. Pin the
-# stable prefix and the token; the timestamp is whatever `date -u` wrote.
 case "$reason" in
-"worktree-create.sh: lane active on "*" session sess-owner since "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z"; unlock when the owning lane is done")
-  pass "session lock reason has the claim_reason shape"
-  ;;
-*)
-  fail "session lock reason has the claim_reason shape" \
-    "worktree-create.sh: lane active on <host> session sess-owner since <utc>; unlock when the owning lane is done" \
-    "$reason"
-  ;;
+  "worktree-create.sh: lane active on "*" session sess-owner since "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z"; unlock when the owning lane is done")
+    pass "session lock reason has the claim_reason shape"
+    ;;
+  *)
+    fail "session lock reason has the claim_reason shape" \
+      "worktree-create.sh: lane active on <host> session sess-owner since <utc>; unlock when the owning lane is done" \
+      "$reason"
+    ;;
 esac
 
 bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id sess-owner >/dev/null 2>&1
@@ -1039,7 +775,6 @@ err=$(bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id sess-othe
 assert_exit "check-enter with a different session id exits 4" 4 "$code"
 assert_contains "different session id is a foreign claim" "$err" "FOREIGN CLAIM:"
 
-# `s1` must not own an `s10` stamp. The token is `session <sid> since`, not a prefix.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR/wtroot-s10"
 out=$(bash "$HELPER" --name feat/s10 --root "$root" --session-id s10 --repo-dir "$repo" 2>/dev/null)
@@ -1061,21 +796,20 @@ else
   pass "omitted session id writes no ownable session token"
 fi
 case "$reason" in
-"worktree-create.sh: lane active on "*" since "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z"; unlock when the owning lane is done")
-  pass "omitted session id keeps the host-and-time reason"
-  ;;
-*)
-  fail "omitted session id keeps the host-and-time reason" \
-    "worktree-create.sh: lane active on <host> since <utc>; unlock when the owning lane is done" \
-    "$reason"
-  ;;
+  "worktree-create.sh: lane active on "*" since "[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z"; unlock when the owning lane is done")
+    pass "omitted session id keeps the host-and-time reason"
+    ;;
+  *)
+    fail "omitted session id keeps the host-and-time reason" \
+      "worktree-create.sh: lane active on <host> since <utc>; unlock when the owning lane is done" \
+      "$reason"
+    ;;
 esac
 bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id arbitrary-sid >/dev/null 2>&1
 assert_exit "omitted session id does not satisfy check-enter for an arbitrary id" 4 "$?"
 bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id env-sess >/dev/null 2>&1
 assert_exit "omitted session id is not reported as CLAUDE_SESSION_ID's claim" 4 "$?"
 
-# An empty --session-id is the omitted path, not a blank token (`session  since`).
 root="$TEST_TMPDIR/wtroot-emptysid"
 out=$(bash "$HELPER" --name feat/emptysid --root "$root" --session-id "" --repo-dir "$repo" 2>/dev/null)
 assert_exit "empty --session-id still creates (exit 0)" 0 "$?"
@@ -1089,7 +823,6 @@ fi
 bash "$CLAIM" check-enter "$out" --repo-dir "$repo" --session-id arbitrary-sid >/dev/null 2>&1
 assert_exit "empty --session-id does not satisfy check-enter" 4 "$?"
 
-# A session id outside the claim grammar is usage, and creates nothing.
 code=0
 err=$(bash "$HELPER" --name feat/badsess --root "$TEST_TMPDIR/wtroot-badsess" --session-id 'bad id' --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
 assert_exit "invalid --session-id is usage (exit 2)" 2 "$code"
@@ -1097,11 +830,7 @@ assert_contains "invalid --session-id names the grammar" "$err" "--session-id mu
 assert_file_absent "invalid --session-id creates nothing" \
   "$TEST_TMPDIR/wtroot-badsess/acme-widget-feat-badsess/README.md"
 
-# --- Unit: same-drive policy (#2764/#2806) ------------------------------------
-# Path-shape gate is pure string work; extract the helpers so Linux CI can prove
-# refuse / inert / same-drive without a second volume. Integration coverage
-# on a real NTFS dual-drive host is the Windows backslash block's sibling.
-eval "$(awk '/same-drive helpers \(begin\)/{p=1; next} /same-drive helpers \(end\)/{p=0} p' "$HELPER")"
+eval "$(awk '/^windows_drive_letter\(\) \{/{p=1} p{print} p && /^}$/ && ++n == 2 {exit}' "$HELPER")"
 # shellcheck disable=SC2034 # consumed by check_same_drive, eval'd in above from worktree-create.sh
 PROG=worktree-create.sh
 
@@ -1112,17 +841,16 @@ windows_drive_letter '/tmp/foo' >/dev/null 2>&1
 assert_exit "POSIX path has no drive letter" 1 "$?"
 windows_drive_letter '//server/share/x' >/dev/null 2>&1
 assert_exit "UNC path has no drive letter" 1 "$?"
-# `/d/...` is MSYS-only; on POSIX it must stay inert so `/usr` is never drive U:.
 case "$(uname -s 2>/dev/null || true)" in
-MINGW* | MSYS* | CYGWIN*)
-  assert_eq "MSYS /d/ form is drive D" "D" "$(windows_drive_letter '/d/worktrees')"
-  err=$(check_same_drive 'C:/repos/acme' '/d/worktrees/acme-x' 1 2>&1 >/dev/null)
-  assert_exit "MSYS root vs Windows repo refuses cross-drive" 3 "$?"
-  ;;
-*)
-  windows_drive_letter '/d/worktrees' >/dev/null 2>&1
-  assert_exit "POSIX /d/ path is not a drive letter" 1 "$?"
-  ;;
+  MINGW* | MSYS* | CYGWIN*)
+    assert_eq "MSYS /d/ form is drive D" "D" "$(windows_drive_letter '/d/worktrees')"
+    err=$(check_same_drive 'C:/repos/acme' '/d/worktrees/acme-x' 1 2>&1 >/dev/null)
+    assert_exit "MSYS root vs Windows repo refuses cross-drive" 3 "$?"
+    ;;
+  *)
+    windows_drive_letter '/d/worktrees' >/dev/null 2>&1
+    assert_exit "POSIX /d/ path is not a drive letter" 1 "$?"
+    ;;
 esac
 
 check_same_drive 'C:/repos/acme' 'C:/worktrees/acme-x' 1 >/dev/null 2>&1
@@ -1132,7 +860,6 @@ assert_exit "same-drive casefold proceeds" 0 "$?"
 check_same_drive 'C:/repos/acme' '/cygdrive/c/worktrees/acme-x' 1 >/dev/null 2>&1
 assert_exit "same-drive Cygwin form proceeds" 0 "$?"
 
-# inert when either side lacks a drive letter
 check_same_drive '/tmp/repo' 'D:/worktrees/x' 1 >/dev/null 2>&1
 assert_exit "inert when repo has no drive letter" 0 "$?"
 check_same_drive 'C:/repos/acme' '/var/worktrees/x' 1 >/dev/null 2>&1
@@ -1140,7 +867,6 @@ assert_exit "inert when worktree has no drive letter" 0 "$?"
 check_same_drive '/tmp/repo' '/var/worktrees/x' 1 >/dev/null 2>&1
 assert_exit "inert on POSIX both sides" 0 "$?"
 
-# rungs 1–3 refuse cross-drive
 err=$(check_same_drive 'C:/repos/acme' 'D:/worktrees/acme-x' 1 2>&1 >/dev/null)
 assert_exit "rung-1 cross-drive refuses exit 3" 3 "$?"
 assert_contains "rung-1 refuse names both drives" "$err" "drive C:"
@@ -1157,7 +883,6 @@ assert_exit "rung-3 (--fallback-root) cross-drive refuses exit 3" 3 "$?"
 err=$(check_same_drive 'C:/repos/acme' '/cygdrive/d/worktrees/acme-x' 1 2>&1 >/dev/null)
 assert_exit "rung-1 Cygwin foreign drive refuses exit 3" 3 "$?"
 
-# rung 4 refuses like rungs 1–3 (#2806; fixture paths stay drive-letter-only — no Users/ home literals)
 err=$(check_same_drive 'C:/repos/acme' 'D:/claude/plugins/cache/worktrees/acme-x' 4 2>&1 >/dev/null)
 assert_exit "rung-4 cross-drive refuses exit 3" 3 "$?"
 assert_contains "rung-4 refuse names both drives" "$err" "drive C:"
@@ -1210,10 +935,6 @@ else
   assert_eq "LFS note is one stderr line" 1 "$(grep -c 'LFS content was not checked out' "$errfile")"
 fi
 
-# --- Dependency install: npm ci runs when the new tree has a package-lock.json ---
-# A fake npm stands in for the registry: it records its arguments and, like a
-# real install, creates node_modules/.bin in its working directory. Its exit
-# code and duration come from FAKE_NPM_EXIT and FAKE_NPM_SLEEP.
 fake_bin="$TEST_TMPDIR/fake-npm-bin"
 mkdir -p "$fake_bin"
 cat >"$fake_bin/npm" <<'EOF'
@@ -1253,7 +974,6 @@ assert_eq "lockfile: npm ci ran once" "$NPM_CI_ARGS" "$(cat "$npm_log" 2>/dev/nu
 assert_file_exists "lockfile: node_modules/.bin lands in the new worktree" "$out/node_modules/.bin/markdownlint-cli2"
 assert_not_contains "lockfile: a clean install prints no warning" "$(cat "$errfile")" "warning"
 
-# No lockfile: npm is never invoked.
 npm_log="$TEST_TMPDIR/npm-none.log"
 out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" bash "$HELPER" --name feat/deps-none --base-ref head \
   --root "$TEST_TMPDIR/wtroot-deps" --repo-dir "$(mkrepo)" 2>/dev/null)
@@ -1270,7 +990,6 @@ assert_file_exists "undeclared lockfile: node_modules lands in the new worktree"
 assert_contains "undeclared lockfile: a notice names the lockfile and the fix" "$(cat "$errfile")" \
   "package-lock.json is installed though no ecosystem record declares it; declare it under requires.<command>[].install"
 
-# A failed install warns with the remedy and keeps exit 0.
 npm_log="$TEST_TMPDIR/npm-fail.log"
 errfile="$TEST_TMPDIR/err-deps-fail.txt"
 out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" FAKE_NPM_EXIT=7 bash "$HELPER" --name feat/deps-fail \
@@ -1280,8 +999,6 @@ assert_file_exists "failed install: worktree exists" "$out/README.md"
 assert_contains "failed install: warning names npm's exit code" "$(cat "$errfile")" "npm ci failed (exit 7)"
 assert_contains "failed install: warning names the remedy" "$(cat "$errfile")" "run npm ci --ignore-scripts --no-audit --no-fund in $out"
 
-# An install past the cap is stopped with its children, warned about, and does
-# not hold creation.
 npm_log="$TEST_TMPDIR/npm-slow.log"
 errfile="$TEST_TMPDIR/err-deps-slow.txt"
 child_pid_file="$TEST_TMPDIR/npm-slow-child.pid"
@@ -1311,8 +1028,6 @@ else
   fail "capped install: returns well before the 30s install would finish" "<15s" "${elapsed}s"
 fi
 
-# A cap with a leading zero (08) is 8 seconds, not an invalid octal number: an
-# install that outlasts several polls finishes cleanly with no arithmetic error.
 npm_log="$TEST_TMPDIR/npm-octal.log"
 errfile="$TEST_TMPDIR/err-deps-octal.txt"
 out=$(PATH="$fake_bin:$PATH" FAKE_NPM_LOG="$npm_log" FAKE_NPM_SLEEP=0.5 \
@@ -1441,8 +1156,6 @@ else
   skip_case "flock, node or a hard-linking cp -al is unavailable; the shared seed is not used here"
 fi
 
-# npm missing from PATH: warn and keep exit 0. Drops every PATH entry that holds
-# an npm; skipped when that would also drop git or bash.
 no_npm_path=""
 if command -v node >/dev/null 2>&1; then
   mkdir -p "$TEST_TMPDIR/node-only-bin"
@@ -1469,9 +1182,6 @@ else
   skip_case "node is unavailable, or npm shares a PATH directory with git or bash; cannot hide it"
 fi
 
-# --- Case: a missing sourced library exits 4 with "cannot load" (#5983) ---
-# A copy of the helper beside only some of its libraries. Before the guard, the
-# missing library went unnoticed and git later reported an unrelated error.
 libless="$TEST_TMPDIR/libless/scripts"
 mkdir -p "$libless/lib"
 cp "$HELPER" "$libless/worktree-create.sh"
@@ -1486,10 +1196,6 @@ err=$(bash "$libless/worktree-create.sh" --help 2>&1 >/dev/null) || code=$?
 assert_exit "missing hooks/worktree-path-lib.sh exits 4" 4 "$code"
 assert_contains "missing hooks/worktree-path-lib.sh names it" "$err" "cannot load hooks/worktree-path-lib.sh"
 
-# --- Case: --remove-input-files deletes the handed files and their dir (#5983) ---
-# The skill writes its two input files into a mktemp dir; the helper owns their
-# removal so the skill block needs no rm and no exit-status variable.
-# mkinputs <dir> — the two files the skill writes, the root left unconfigured.
 mkinputs() {
   mkdir -p "$1"
   # shellcheck disable=SC2016 # the literal unexpanded token is the point
@@ -1514,8 +1220,6 @@ bash "$HELPER" --name 'feat/foo..bar' --fallback-root-file "$inputs/worktree-roo
 assert_exit "--remove-input-files: invalid name still exits 2" 2 "$code"
 assert_eq "--remove-input-files: input dir removed after a refusal" absent "$(dir_state "$inputs")"
 
-# A usage error after the flag still removes the files: the trap is armed when
-# the flag is parsed, not after the whole argument list is.
 inputs="$TEST_TMPDIR/inputs-usage"
 mkinputs "$inputs"
 code=0
@@ -1538,9 +1242,6 @@ bash "$HELPER" --name feat/keep-inputs --fallback-root-file "$inputs/worktree-ro
   --data-root-file "$inputs/data-root" --repo-dir "$repo" >/dev/null 2>&1
 assert_file_exists "without --remove-input-files the input files stay" "$inputs/data-root"
 
-# --- Branch naming: worktree_branch_naming and its two companion keys -----------
-# conventionrepo <yaml> — a fixture repo whose tracked
-# docs/conventions/source-control.yaml holds <yaml>. Echoes the repo path.
 conventionrepo() {
   local repo
   repo=$(mkrepo --origin "git@github.com:acme/widget.git")
@@ -1553,9 +1254,6 @@ conventionrepo() {
   printf '%s' "$repo"
 }
 
-# branch_for <repo> <name> — create a worktree for <name> and echo its branch;
-# empty when creation failed. Each call takes a root of its own: it runs in a
-# command-substitution subshell, so a counter would not persist.
 branch_for() {
   local out
   out=$(bash "$HELPER" --name "$2" --root "$(mktemp -d "$TEST_TMPDIR/wtbranchXXXXXX")/wt" --repo-dir "$1" 2>/dev/null) || return 0
@@ -1571,7 +1269,6 @@ worktree_branch_extra_prefixes:
   - copilot
   - dependabot"
 
-# Unset keeps today's behavior: the branch is the name.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 assert_eq "no convention file: the branch is the raw name" "agent-abc123" "$(branch_for "$repo" agent-abc123)"
 repo=$(conventionrepo 'pr_open_state: ready')
@@ -1607,16 +1304,12 @@ bash "$HELPER" --name "wip/quiet" --root "$TEST_TMPDIR/wtbranch-quiet" --repo-di
 assert_not_contains "an unknown type falls back without that note" "$(cat "$TEST_TMPDIR/quiet.err")" "no description"
 assert_contains "the derived branch is named on stderr" "$(cat "$TEST_TMPDIR/quiet.err")" "chore/wip-quiet"
 
-# The directory slug still comes from the raw name; stdout stays the sole path
-# line. A second name that derives a branch already checked out is refused
-# (see "Reuse" below).
 repo=$(conventionrepo "$CONVENTIONAL")
 root="$TEST_TMPDIR/wtbranch-slug"
 out=$(bash "$HELPER" --name feature/login-form --root "$root" --repo-dir "$repo" 2>/dev/null)
 assert_eq "the directory slug comes from the raw name" "$root/acme-widget-feature-login-form" "$out"
 assert_eq "feature is a feat alias" "feat/login-form" "$(git -C "$out" rev-parse --abbrev-ref HEAD 2>/dev/null)"
 
-# worktree_branch_extra_prefixes passes the listed first segments through.
 repo=$(conventionrepo "$AGENT_PREFIXES")
 assert_eq "an extra prefix passes through" "codex/fix-thing" "$(branch_for "$repo" codex/fix-thing)"
 assert_eq "an extra prefix matches in any case and is written as listed" "claude/task" "$(branch_for "$repo" Claude/task)"
@@ -1625,7 +1318,6 @@ assert_eq "later slashes in the description become dashes" "dependabot/nuget-Foo
 assert_eq "an extra prefix list leaves the no-slash default alone" "chore/claude-code-updates" \
   "$(branch_for "$repo" claude-code-updates)"
 
-# worktree_branch_default_type replaces chore.
 repo=$(conventionrepo "$CONVENTIONAL
 worktree_branch_default_type: build")
 assert_eq "worktree_branch_default_type replaces chore" "build/agent-abc123" "$(branch_for "$repo" agent-abc123)"
@@ -1636,8 +1328,6 @@ assert_eq "an invalid default type falls back to chore" "chore/agent-def" \
   "$(git -C "$TEST_TMPDIR/wtbranch-badtype/acme-widget-agent-def" rev-parse --abbrev-ref HEAD 2>/dev/null)"
 assert_contains "an invalid default type is named on stderr" "$(cat "$TEST_TMPDIR/badtype.err")" "worktree_branch_default_type"
 
-# A value the helper cannot use, an untracked file, or a YAML the parser
-# rejects keeps the raw name: a worktree is never refused over naming.
 repo=$(conventionrepo 'worktree_branch_naming: kebab')
 bash "$HELPER" --name agent-ghi --root "$TEST_TMPDIR/wtbranch-unknown" --repo-dir "$repo" >/dev/null 2>"$TEST_TMPDIR/unknown.err"
 assert_exit "an unknown worktree_branch_naming value still creates (exit 0)" 0 "$?"
@@ -1655,23 +1345,15 @@ assert_eq "a rejected YAML keeps the raw name" "agent-jkl" \
   "$(git -C "$TEST_TMPDIR/wtbranch-rejected/acme-widget-agent-jkl" rev-parse --abbrev-ref HEAD 2>/dev/null)"
 assert_contains "a rejected YAML is named on stderr" "$(cat "$TEST_TMPDIR/rejected.err")" "source-control.yaml"
 
-# --existing-branch checks out the named branch; no derivation applies.
 repo=$(conventionrepo "$CONVENTIONAL")
 git -C "$repo" branch parked-work >/dev/null 2>&1
 out=$(bash "$HELPER" --name parked-work --existing-branch --root "$TEST_TMPDIR/wtbranch-existing" --repo-dir "$repo" 2>/dev/null)
 assert_eq "--existing-branch keeps the named branch" "parked-work" "$(git -C "$out" rev-parse --abbrev-ref HEAD 2>/dev/null)"
 
-# --- Reuse: an existing worktree at the target, or an existing branch -----------
-# A relaunched `claude -w <name>` and two names that derive one branch both meet
-# a worktree or branch an earlier run left. The claim rules decide whether this
-# session may take it. Each case uses its own CLAUDE_CONFIG_DIR: a session with
-# a transcript there changed just now is live, one without a transcript is stale.
 lock_reason_of() { tr -d '\r\n' <"$(git -C "$1" rev-parse --absolute-git-dir)/locked" 2>/dev/null; }
 reuse_cfg="$TEST_TMPDIR/reuse-config"
 mkdir -p "$reuse_cfg/projects/p" "$reuse_cfg/sessions"
 
-# Same session, same name: the same path comes back and the tree is left alone.
-# The .worktreeinclude copy is not redone over the tree's own edits.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 printf '*.env\n' >"$repo/.gitignore"
 printf '*.env\n' >"$repo/.worktreeinclude"
@@ -1691,7 +1373,6 @@ assert_eq "reuse does not copy .worktreeinclude files over the tree's edits" "ed
 assert_eq "reuse keeps the session's lock as it was" "$reason_before" "$(lock_reason_of "$first")"
 assert_contains "reuse is named on stderr" "$(cat "$TEST_TMPDIR/reuse-own.err")" "reusing"
 
-# Another session whose transcript changed just now holds it: refuse, untouched.
 : >"$reuse_cfg/projects/p/s-live.jsonl"
 root="$TEST_TMPDIR/wtreuse-live"
 first=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/held --root "$root" --session-id s-live --repo-dir "$repo" 2>/dev/null)
@@ -1702,7 +1383,6 @@ assert_exit "a live foreign session's worktree refuses (exit 4)" 4 "$code"
 assert_contains "the refusal names the live session's claim" "$err" "session s-live since"
 assert_contains "the live session's lock is kept" "$(lock_reason_of "$first")" "session s-live since"
 
-# A foreign session lock that worktree-claim.sh stale proves stale is handed over.
 root="$TEST_TMPDIR/wtreuse-stale"
 first=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/relaunch --root "$root" --session-id s-gone --repo-dir "$repo" 2>/dev/null)
 code=0
@@ -1714,8 +1394,17 @@ bash "$CLAIM" check-enter "$first" --repo-dir "$repo" --session-id s-next >/dev/
 assert_exit "after the takeover check-enter treats the tree as this session's" 0 "$?"
 assert_contains "the takeover keeps the creating helper in the reason" "$(lock_reason_of "$first")" "worktree-create.sh:"
 
-# A lock that names no session, a reasonless lock, or no --session-id on this
-# run proves no ownership: refuse.
+root="$TEST_TMPDIR/wtreuse-stale-gone"
+first=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/relaunch-gone --root "$root" --session-id s-gone --repo-dir "$repo" 2>/dev/null)
+git -C "$repo" config branch.feat/relaunch-gone.remote origin
+git -C "$repo" config branch.feat/relaunch-gone.merge refs/heads/feat/relaunch-gone
+code=0
+CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/relaunch-gone --root "$root" --session-id s-next \
+  --repo-dir "$repo" >/dev/null 2>&1 || code=$?
+assert_exit "a stale takeover of a [gone] branch's worktree exits 0" 0 "$code"
+bash "$CLAIM" check-enter "$first" --repo-dir "$repo" --session-id s-next >/dev/null 2>&1
+assert_exit "after a [gone] takeover the tree is this session's claim" 0 "$?"
+
 root="$TEST_TMPDIR/wtreuse-anon"
 first=$(bash "$HELPER" --name feat/anon --root "$root" --repo-dir "$repo" 2>/dev/null)
 code=0
@@ -1737,8 +1426,6 @@ err=$(bash "$HELPER" --name feat/nosid-again --root "$root" --repo-dir "$repo" 2
 assert_exit "reuse without --session-id refuses (exit 4)" 4 "$code"
 assert_contains "the refusal names --session-id as the remedy" "$err" "--session-id"
 
-# An unlocked worktree at the target (what a plain `git worktree add` or
-# medley's own hook leaves) is claimed for this session and returned.
 root="$TEST_TMPDIR/wtreuse-unlocked"
 mkdir -p "$root"
 git -C "$repo" worktree add -q -b feat/plain "$root/acme-widget-feat-plain" >/dev/null 2>&1
@@ -1751,8 +1438,6 @@ assert_exit "an unlocked worktree is claimed and reused (exit 0)" 0 "$code"
 assert_eq "the claimed worktree's path is printed" "$root/acme-widget-feat-plain" "$out"
 assert_contains "the claim names this session" "$(lock_reason_of "$out")" "session s-adopt since"
 
-# A worktree at the target on another branch, the main worktree, or a plain
-# directory is never returned.
 root="$TEST_TMPDIR/wtreuse-mismatch"
 mkdir -p "$root"
 git -C "$repo" worktree add -q -b other-branch "$root/acme-widget-feat-mismatch" >/dev/null 2>&1
@@ -1766,8 +1451,6 @@ err=$(bash "$HELPER" --name feat/dir --root "$TEST_TMPDIR/wtreuse-dir" --session
 assert_exit "a plain directory at the target refuses (exit 4)" 4 "$code"
 assert_contains "the refusal says the path is not a worktree" "$err" "not a worktree of this repository"
 
-# medley case 5: the branch outlives its worktree. The rerun checks the branch
-# out again without -b, so its commits are kept, and claims the new tree.
 root="$TEST_TMPDIR/wtreuse-branch"
 first=$(bash "$HELPER" --name feat/reentry --root "$root" --session-id s-1 --repo-dir "$repo" 2>/dev/null)
 commitfile "$first" kept.txt
@@ -1782,8 +1465,6 @@ assert_file_exists "the existing branch's commits are kept" "$second/kept.txt"
 assert_contains "the re-entry's lock names this session" "$(lock_reason_of "$second")" "session s-2 since"
 assert_contains "stderr says the existing branch was used" "$(cat "$TEST_TMPDIR/reuse-branch.err")" "existing branch"
 
-# A branch checked out in another worktree refuses and names that worktree:
-# two names that derive one branch, and a branch held by the main checkout.
 repo=$(conventionrepo "$CONVENTIONAL")
 root="$TEST_TMPDIR/wtreuse-derived"
 first=$(bash "$HELPER" --name feat/x --root "$root" --session-id s-x --repo-dir "$repo" 2>/dev/null)
@@ -1801,8 +1482,6 @@ code=0
 bash "$HELPER" --name fix/main-held --existing-branch --root "$root" --repo-dir "$repo" >/dev/null 2>&1 || code=$?
 assert_exit "--existing-branch on a branch held elsewhere refuses (exit 4)" 4 "$code"
 
-# medley case 19: a registered worktree whose directory name extends the
-# target's is a different worktree. The shorter name is created, not reused.
 repo=$(mkrepo --origin "git@github.com:acme/widget.git")
 root="$TEST_TMPDIR/wtreuse-prefix"
 bash "$HELPER" --name feat-login-form --root "$root" --session-id s-p --repo-dir "$repo" >/dev/null 2>&1
@@ -1811,5 +1490,33 @@ out=$(bash "$HELPER" --name feat-login --root "$root" --session-id s-p --repo-di
 assert_exit "a prefix of a registered worktree's name is created (exit 0)" 0 "$code"
 assert_eq "the prefix name gets its own path" "$root/acme-widget-feat-login" "$out"
 assert_eq "the prefix name gets its own branch" "feat-login" "$(git -C "$out" branch --show-current 2>/dev/null)"
+
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+printf '.' >"$repo/.git/commondir"
+root="$TEST_TMPDIR/wtcommondir"
+code=0
+err=$(bash "$HELPER" --name feat/stray --root "$root" --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
+assert_exit "a commondir file in the main .git refuses (exit 4)" 4 "$code"
+assert_contains "the refusal names the stray file" "$err" "/.git/commondir"
+assert_contains "the refusal names EnterWorktree's error" "$err" "not-a-git-repository"
+assert_contains "the refusal gives the fix" "$err" "worktree list"
+assert_file_absent "the refusal creates no worktree" "$root/acme-widget-feat-stray/README.md"
+if git -C "$repo" show-ref --verify --quiet refs/heads/feat/stray; then
+  fail "the refusal creates no branch" "no refs/heads/feat/stray" "branch exists"
+else
+  pass "the refusal creates no branch"
+fi
+
+repo=$(mkrepo --origin "git@github.com:acme/widget.git")
+root="$TEST_TMPDIR/wtcommondir-linked"
+code=0
+linked=$(bash "$HELPER" --name feat/linked-base --root "$root" --repo-dir "$repo" 2>/dev/null) || code=$?
+assert_exit "a main .git without commondir creates (exit 0)" 0 "$code"
+assert_file_exists "the linked worktree's own git dir holds commondir" \
+  "$(git -C "$linked" rev-parse --absolute-git-dir)/commondir"
+code=0
+out=$(bash "$HELPER" --name feat/from-linked --root "$root" --repo-dir "$linked" 2>/dev/null) || code=$?
+assert_exit "run from a linked worktree, its commondir does not refuse (exit 0)" 0 "$code"
+assert_file_exists "the worktree made from a linked worktree materialized" "$out/README.md"
 
 [[ $FAILED -eq 0 ]] || exit 1

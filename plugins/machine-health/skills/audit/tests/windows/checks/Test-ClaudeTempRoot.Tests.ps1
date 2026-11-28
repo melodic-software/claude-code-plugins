@@ -158,8 +158,6 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
         }
 
         It 'measures age at the session level, not the project-key level' {
-            # An old project key holding only fresh sessions must not trip the age arm:
-            # a key directory is reused, so its own timestamp is not an age signal.
             $root = Join-Path $script:tmpDir 'base\claude'
             New-Item -ItemType Directory -Path $root -Force | Out-Null
             $null = New-SessionDir -Root $root -ProjectKey 'key' -SessionId 'fresh'
@@ -226,8 +224,6 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
         }
 
         It 'does not follow a junction out of the tree' {
-            # Get-ChildItem -Recurse does not traverse reparse points without -FollowSymlink; the
-            # hand-rolled walk must match, or a junction inflates the total and can cycle forever.
             $root = Join-Path $script:tmpDir 'base\claude'
             New-Item -ItemType Directory -Path $root -Force | Out-Null
             $session = New-SessionDir -Root $root -ProjectKey 'key' -SessionId 'aaa' -FileCount 1
@@ -253,9 +249,6 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
         }
 
         It 'streams one session directory and stops inside it once the walk budget runs out' {
-            # The stand-in clock proves the deadline is tested per entry; the Get-ChildItem
-            # throw proves no directory is collected whole first, since collecting a huge or
-            # slow directory is what held the walk past its budget before any test ran.
             $root = Join-Path $script:tmpDir 'base\claude'
             $session = New-SessionDir -Root $root -ProjectKey 'key' -SessionId 'aaa' -FileCount 50
             Mock Get-ChildItem { throw 'a directory must be streamed, never collected whole' }
@@ -287,8 +280,6 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
         }
 
         It 'counts hidden and system files, as Get-ChildItem -Force did' {
-            # The .NET enumerator skips Hidden and System entries by default; a leading dot
-            # is what marks a file hidden off Windows.
             $root = Join-Path $script:tmpDir 'base\claude'
             $session = New-SessionDir -Root $root -ProjectKey 'key' -SessionId 'aaa' -FileCount 1
             $hidden = Join-Path $session '.hidden'
@@ -487,8 +478,6 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
         }
 
         It 'never treats a bare CLAUDE_CODE_TMPDIR base as the root' {
-            # Claude Code appends `claude` to the base on Windows; measuring a base with no claude
-            # child would report an unrelated temp directory's contents as this finding.
             $base = Join-Path $script:tmpDir 'base'
             New-Item -ItemType Directory -Path (Join-Path $base 'unrelated') -Force | Out-Null
             Set-Content -LiteralPath (Join-Path $base 'unrelated\big.bin') -Value 'not ours'
@@ -522,8 +511,6 @@ Describe 'Test-ClaudeTempRoot' -Tag 'check' {
         }
 
         It 'normalizes an 8.3 short-name root to its long form' {
-            # %TEMP% commonly carries a short name (KYLESE~1). Long-form normalization
-            # is what makes root_path comparable to what the human sees.
             $base = Join-Path $script:tmpDir 'base'
             $longName = Join-Path $base 'claude'
             New-Item -ItemType Directory -Path $longName -Force | Out-Null

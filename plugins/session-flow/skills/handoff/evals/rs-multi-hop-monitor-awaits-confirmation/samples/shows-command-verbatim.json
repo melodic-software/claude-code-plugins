@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "The staging deploy log monitor has run since before the previous handoff. Confirm and I will re-arm `tail -f deploy.log`."
+    }
+  ],
+  "fail": [
+    {
+      "answer": "The staging deploy log monitor needs your confirmation before I re-arm it."
+    },
+    {
+      "answer": "STATUS.md updated."
+    }
+  ]
+}

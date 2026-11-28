@@ -70,6 +70,9 @@ done
 ((refused)) && exit 1
 
 psf_init "$PWD"
+[[ -z "$PSF_LINT_CACHE" ]] || rm -rf -- "${PSF_LINT_CACHE:?}"
+lint_out=""
+psf_lint_off || lint_out="$CHECKS_TMP/lint-out"
 out="$CHECKS_TMP/pwsh-out"
 written=()
 for ((i = 0; i < RT_GN; i++)); do
@@ -80,8 +83,14 @@ for ((i = 0; i < RT_GN; i++)); do
     [[ -f "$f" && ! -L "$f" ]] && present+=("$f")
   done
   ((${#present[@]})) || continue
-  psf_run "$RT_DIR" "${present[@]}" >"$out" 2>&1
-  case $? in
+  if [[ -n "$lint_out" ]]; then
+    : >"$lint_out"
+    rm -f "$lint_out.rc"
+  fi
+  PSF_LINT_OUT="$lint_out" psf_run "$RT_DIR" "${present[@]}" >"$out" 2>&1
+  rc=$?
+  PSF_LINT_OUT="$lint_out" psf_lint_store "$rc" "$out" "$RT_DIR" "${present[@]}"
+  case $rc in
   0) written+=("${present[@]}") ;;
   3)
     psf_module_missing

@@ -4,8 +4,6 @@ unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CODE_METRICS_REPORT_DIR CM_REPORTS_KEPT
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# state-key.sh derives the directory's key; naming it here keeps this suite in
-# its affected-tests selection.
 : "$SCRIPT_DIR/../lib/state-key.sh"
 
 FAILED=0
@@ -69,10 +67,6 @@ out="$(persist_from "$TMP/repo-a" audit-size)"
 assert_eq "CODE_METRICS_REPORT_DIR overrides with no key" "$TMP/override" "$(dirname "$out")"
 assert_eq "cm_report_dir prints the override unchanged" "$TMP/override" "$(cm_report_dir)"
 
-# (e) another plugin's data dir is never written to or pruned. Another plugin's
-# SessionStart hook can export its own data dir into every Bash call under the
-# name CLAUDE_PLUGIN_DATA; CM_REPORTS_KEPT is still 2 here, so a persist into it
-# would prune the three files planted below.
 unset CODE_METRICS_REPORT_DIR CM_LEFTOVERS_NOTED
 FOREIGN="$TMP/codex-openai-codex"
 KEY_REL="$(dirname "${pa#"$ROOT"/}")"

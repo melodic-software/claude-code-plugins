@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/code-metrics/skills/*/SKILL.md # check-code-metrics-skill-prose.py reads each skill it checks
-# Cross-platform contract wrapper for the code-metrics skill-prose default gate.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

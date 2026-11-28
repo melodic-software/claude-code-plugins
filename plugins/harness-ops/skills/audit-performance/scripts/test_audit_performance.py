@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""Unit tests for the audit-performance engine, concentrated on the fan-out layer.
-
-Every test builds its own synthetic install tree. Nothing here reads the
-author's real `~/.claude`, and nothing here executes a discovered hook or
-statusline command.
-
-The suite's central obligation is stated once, here: asserting that the audit
-RUNS is not the same as asserting that it SEES the fan-out layer. Each fan-out
-probe therefore gets a fixture carrying a defect the old engine was structurally
-incapable of noticing, and the test asserts on the specific finding, not on the
-probe's mere presence.
-"""
 
 from __future__ import annotations
 
@@ -19,10 +7,12 @@ import io
 import json
 import os
 import struct
+import subprocess
 import sys
 import tempfile
 import time
 import unittest
+import shutil
 from pathlib import Path
 from unittest import mock
 
@@ -205,7 +195,6 @@ class TestInvocationShape(unittest.TestCase):
         )
 
     def test_operators_count_without_surrounding_whitespace(self):
-        # Spaces around an operator are the rarer spelling; the common one has none.
         for command in (
             "./a.sh; bash b.sh",
             "./a.sh&&bash b.sh",
@@ -219,14 +208,12 @@ class TestInvocationShape(unittest.TestCase):
                 )
 
     def test_the_legacy_rules_are_blind_to_the_operator_padding(self):
-        # Pinned: the pad is its own token list, so the legacy rules see the old tokens.
         entry = {"command": 'sh -c "x&&bash y"', "args": []}
         self.assertEqual(
             engine.invocation_shape(entry), ["shell-form-hook-names-a-second-shell"]
         )
 
     def test_the_c_flag_grants_command_position_only_after_a_shell(self):
-        # `grep -c` counts and `tar -c` creates; neither hands the next token a shell.
         for command in ("grep -c sh file.txt", "tar -c sh"):
             with self.subTest(command=command):
                 self.assertEqual(
@@ -277,8 +264,6 @@ class TestInvocationShape(unittest.TestCase):
         self.assertEqual(engine.invocation_shape(entry), [])
 
     def test_the_wrapper_note_names_every_shell_that_can_do_the_wrapping(self):
-        # The engine never reads a hook's own `shell` field, so the note must name that
-        # field and the value that changes which shell does the wrapping.
         note = engine.HARNESS_WRAPPER_NOTE
         self.assertIn("`shell` field", note)
         self.assertIn('"powershell"', note)
@@ -559,7 +544,6 @@ class TestFanOutProjection(unittest.TestCase):
     """A registered-row count cannot say what one tool call actually spawns."""
 
     ENTRIES = [
-        # Three gated rows behind one dispatcher: one command, one extension each.
         {
             "event": "PostToolUse",
             "matcher": "Write|Edit|NotebookEdit",
@@ -584,7 +568,6 @@ class TestFanOutProjection(unittest.TestCase):
             "if": "Edit(*.ts)",
             "source": "formatter",
         },
-        # Ungated, and its regex matcher also selects NotebookEdit.
         {
             "event": "PostToolUse",
             "matcher": "Edit.*",
@@ -593,7 +576,6 @@ class TestFanOutProjection(unittest.TestCase):
             "if": None,
             "source": "logger",
         },
-        # An `if` the engine cannot classify: counted as firing, and listed.
         {
             "event": "PreToolUse",
             "matcher": "Bash",
@@ -602,7 +584,6 @@ class TestFanOutProjection(unittest.TestCase):
             "if": "Bash(git *)",
             "source": "guardrails",
         },
-        # A per-tool-call event the old set called `other`.
         {
             "event": "PermissionDenied",
             "matcher": None,
@@ -611,7 +592,6 @@ class TestFanOutProjection(unittest.TestCase):
             "if": None,
             "source": "audit",
         },
-        # An `if` on a per-turn event never runs at all.
         {
             "event": "Stop",
             "matcher": None,
@@ -620,7 +600,6 @@ class TestFanOutProjection(unittest.TestCase):
             "if": "Edit(*.md)",
             "source": "stopper",
         },
-        # A match-all matcher carrying an extension gate: it reaches Bash, the gate does not.
         {
             "event": "PostToolUse",
             "matcher": "*",
@@ -998,16 +977,10 @@ class TestConfigLiveness(unittest.TestCase):
             )
             self.assertEqual(result["sessions_predating_settings"], 1)
             self.assertIn("have NOT picked up the change", result["advisory"])
-            # Source: https://code.claude.com/docs/en/plugins/cli-reference#reload-plugins
-            # names /reload-plugins for plugin changes made outside the panel; a restart
-            # is the next-session route that page's plugin update section states.
             self.assertIn("/reload-plugins", result["advisory"])
             self.assertIn("restart", result["advisory"])
 
     def test_stale_advisory_limits_the_pending_claim_to_plugin_enablement(self):
-        # Source: https://code.claude.com/docs/en/settings#when-edits-take-effect says
-        # edits to permissions and hooks reach the running session without a restart,
-        # so a newer settings.json alone cannot mean the change was not picked up.
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / ".claude"
             write_settings(root, {})
@@ -1296,14 +1269,12 @@ class TestDeadParentAnyAgeCensus(unittest.TestCase):
         now = self.NOW
         records = [
             {"pid": 20, "ppid": 1, "name": "protected.exe", "started_epoch": None},
-            # Verdict candidate past the 24-hour floor: verdict unknown and census unknown.
             {
                 "pid": 21,
                 "ppid": 20,
                 "name": "bash.exe",
                 "started_epoch": now - 2 * 86400,
             },
-            # Verdict name under the floor, and a census-only name: census unknown only.
             {"pid": 22, "ppid": 20, "name": "bash.exe", "started_epoch": now - 60},
             {"pid": 23, "ppid": 20, "name": "tail.exe", "started_epoch": now - 60},
         ]
@@ -1322,7 +1293,6 @@ class TestDeadParentAnyAgeCensus(unittest.TestCase):
         self.assertEqual(result["unknown_sample"], expected)
         self.assertEqual(result["dead_parent_any_age_unknown_count"], 3)
         self.assertEqual(result["dead_parent_any_age"], [])
-        # Off Windows the census is off and the verdict is the unchanged one.
         verdict_only = engine.attribute_orphans(records, now, platform="linux")
         self.assertIsNone(verdict_only["dead_parent_any_age_unknown_count"])
         for key in (
@@ -1462,7 +1432,6 @@ class TestDeadParentByCpu(unittest.TestCase):
     def table(self) -> list[dict]:
         now = self.NOW
         return [
-            # Dead parent, 60,000 s old, 30,000 CPU seconds: cpu_share 0.5.
             {
                 "pid": 40,
                 "ppid": 900,
@@ -1470,7 +1439,6 @@ class TestDeadParentByCpu(unittest.TestCase):
                 "started_epoch": now - 60_000,
                 "cpu_seconds": 30_000.0,
             },
-            # Dead parent, detached by design, 1 CPU second over 5 days.
             {
                 "pid": 41,
                 "ppid": 901,
@@ -1478,7 +1446,6 @@ class TestDeadParentByCpu(unittest.TestCase):
                 "started_epoch": now - 5 * 86400,
                 "cpu_seconds": 1.0,
             },
-            # Dead parent, 7,200 s old, 3,600 CPU seconds.
             {
                 "pid": 42,
                 "ppid": 902,
@@ -1486,7 +1453,6 @@ class TestDeadParentByCpu(unittest.TestCase):
                 "started_epoch": now - 7_200,
                 "cpu_seconds": 3_600.0,
             },
-            # Live parent burning more CPU than anything above.
             {
                 "pid": 43,
                 "ppid": 0,
@@ -1608,10 +1574,8 @@ class TestDeadParentCensusNeedsCreatorParentPids(unittest.TestCase):
         return [
             {"pid": 1, "ppid": 0, "name": init_name, "started_epoch": now - 9e5},
             {"pid": 700, "ppid": 1, "name": "systemd", "started_epoch": now - 8e5},
-            # Launcher gone: adopted by init, or by the user manager acting as a subreaper.
             {"pid": 501, "ppid": 1, "name": "tail", "started_epoch": now - 3600},
             {"pid": 502, "ppid": 700, "name": "sleep", "started_epoch": now - 3600},
-            # A launcher that exited while `ps` walked the table leaves an absent ppid.
             {"pid": 503, "ppid": 4242, "name": "grep", "started_epoch": now - 60},
             {"pid": 504, "ppid": 4243, "name": "bash", "started_epoch": now - 60},
         ]
@@ -2280,8 +2244,8 @@ class TestKernelObjectCensus(unittest.TestCase):
                     1_739,
                     3_811_482,
                     2_000,
-                ),  # 10-byte name, padded to 16
-                ("Key", 189_005, 189_011, 189_595, 190_000),  # 6-byte name, padded to 8
+                ),
+                ("Key", 189_005, 189_011, 189_595, 190_000),
                 ("EtwRegistration", 50_926, 50_926, 50_926, 50_926),
             ]
         )
@@ -2498,8 +2462,6 @@ class TestShellResolution(unittest.TestCase):
             self.assertIn("never executes", result["note"])
 
     def test_the_unset_finding_is_qualified_to_windows(self):
-        # fan_out_layer ships this block on every platform, so the finding cannot state
-        # a Windows-only search order flatly.
         with tempfile.TemporaryDirectory() as tmp:
             result = self.resolve(Path(tmp), {}, {})
             self.assertTrue(result["findings"][0].startswith("On Windows,"))
@@ -2544,6 +2506,53 @@ class TestFanOutIsWiredIntoTheReport(unittest.TestCase):
                     "shell_resolution",
                 },
             )
+
+
+class CollectionHeaderTest(unittest.TestCase):
+    """The resolver-backed root and the report header's lookup gap, with invented hosts."""
+
+    def setUp(self) -> None:
+        self.tmp = Path(tempfile.mkdtemp(prefix="header-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        (self.tmp / "wsl" / "projects").mkdir(parents=True)
+        (self.tmp / "windows").mkdir()
+        (self.tmp / "windows" / "projects").write_text("not a directory", encoding="utf-8")
+        self.sources = self.tmp / "sources.json"
+        self.sources.write_text(json.dumps({"schema": "transcript-sources/v1", "sources": [
+            {"name": "host-b-wsl", "host": "host-b", "platform": "wsl", "config_dir": "/srv/user-b/.claude", "via": ["ssh", "host-b"]},
+            {"name": "host-a-wsl", "host": "host-a", "platform": "wsl", "config_dir": str(self.tmp / "wsl")},
+            {"name": "host-a-windows", "host": "host-a", "platform": "windows", "config_dir": str(self.tmp / "windows")},
+        ]}), encoding="utf-8")
+        self.argv = ["--sources-file", str(self.sources), "--diagnostics-dir", str(self.tmp / "diag")]
+
+    def expected_header(self) -> list[str]:
+        (record,) = (self.tmp / "diag").glob("*.json")
+        script = Path(engine.__file__).resolve()
+        retry = " ".join(["--skip-processes", "--skip-fan-out", "--population-gap", "0", *self.argv])
+        return [
+            "Gap: host-a-windows unreadable: its projects directory could not be listed (NotADirectoryError). "
+            f"Retry: python3 {script} {retry}",
+            f"Diagnostics: {record}",
+        ]
+
+    def run_engine(self, *args: str) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [sys.executable, engine.__file__, "--skip-processes", "--skip-fan-out", "--population-gap", "0", *args],
+            capture_output=True, text=True, encoding="utf-8", timeout=120,
+        )
+
+    def test_header_lookup_gap(self) -> None:
+        done = self.run_engine(*self.argv)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        report = json.loads(done.stdout)
+        self.assertEqual(report["root"], str((self.tmp / "wsl").resolve()))
+        self.assertEqual(report["header"], self.expected_header())
+
+    def test_a_missing_sources_file_warns_on_stderr_and_reads_the_default(self) -> None:
+        done = self.run_engine("--sources-file", str(self.tmp / "absent.json"), "--root", str(self.tmp / "wsl"))
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(done.stderr.count("not found"), 1, done.stderr)
+        self.assertEqual(json.loads(done.stdout)["header"], [])
 
 
 if __name__ == "__main__":

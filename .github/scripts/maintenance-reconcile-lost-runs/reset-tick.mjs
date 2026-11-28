@@ -1,22 +1,3 @@
-// Whether a scheduled tick of the lost-run reconciler runs its pass: the one
-// that follows each GITHUB_TOKEN window's reset re-runs what a defer gate
-// stopped until that reset, wherever the reset has drifted in the hour
-// (https://github.com/melodic-software/claude-code-plugins/issues/17460).
-// The pass cannot wait for the reset inside its run: check-trusted-trigger
-// trusts a reconciler record only for a re-run that starts within WINDOW_MS
-// of the reconciler run's start
-// (https://github.com/melodic-software/claude-code-plugins/blob/main/.github/actions/check-trusted-trigger/check-trusted-trigger.mjs),
-// so the schedule ticks every 15 minutes and this step decides.
-// One GET /rate_limit, which GitHub does not count against the core pool
-// (https://docs.github.com/en/rest/rate-limit/rate-limit), names the reset.
-// A window that began at most ELIGIBLE_MINUTES ago makes the tick due, once
-// GRACE_SECONDS into it, with pass-after naming the window's start for recent-pass.mjs,
-// which skips the tick when a full pass already started after it; an older
-// window makes it due=false, still naming the window's start, so the tick can
-// follow up the reviews that window's full pass left waiting. Any other
-// event, or a read that fails, writes due=true with no pass-after, so the
-// pass runs as before.
-
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -47,6 +28,7 @@ export async function main(env = process.env, { fetchImpl = fetch, now = () => D
   const outputs = { due: true, "post-reset": false, "pass-after": "" };
   if (env.EVENT_NAME === "schedule") {
     try {
+      // GET /rate_limit does not count against the rate limit: https://docs.github.com/en/rest/rate-limit/rate-limit
       const response = await fetchImpl(`${env.GITHUB_API_URL || "https://api.github.com"}/rate_limit`, {
         headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${env.GITHUB_TOKEN}`, "X-GitHub-Api-Version": "2022-11-28" },
         signal: AbortSignal.timeout(10_000),

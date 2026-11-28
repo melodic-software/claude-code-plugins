@@ -31,12 +31,15 @@ export function loadRules(path) {
   if (!Number.isSafeInteger(own["source-cap"]) || own["source-cap"] < 1) {
     throw new Error(`${path}: \`own-agents.source-cap\` must be a positive integer`);
   }
+  if (!Array.isArray(own["hold-sources"]) || !own["hold-sources"].every((label) => typeof label === "string" && /^source: \S/i.test(label))) {
+    throw new Error(`${path}: \`own-agents.hold-sources\` must list \`source: <producer>\` labels`);
+  }
   rules["own-agents"] = own;
   return rules;
 }
 
 export const LANES_APP_IDENTITY = "lanes-app";
-export const OWN_AGENT_DEFAULTS = Object.freeze({ identities: Object.freeze([LANES_APP_IDENTITY]), "source-cap": 5 });
+export const OWN_AGENT_DEFAULTS = Object.freeze({ identities: Object.freeze([LANES_APP_IDENTITY]), "source-cap": 5, "hold-sources": Object.freeze([]) });
 
 export const ownAgentText = (item, ids) =>
   item?.author?.__typename === "Bot" &&
@@ -272,9 +275,6 @@ const VENDORED_ROW = /^\s*"([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\|plugins\/([A-Za-z
 const VENDORED_ROW_ID = /^\s*"([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+)\|/;
 const REPORT_SCRIPT = fileURLToPath(new URL("../../../scripts/upstream-drift-vendored-report.sh", import.meta.url));
 
-// Only an id whose every row is `files-only` maps to a plugin: its apply mode
-// installs no package, so the issue lane, which holds a model key, may run it.
-// https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues
 export function vendoredRows(file = REPORT_SCRIPT) {
   const rows = new Map();
   let text;
@@ -312,10 +312,6 @@ export const driftShape = (title, body, rows = (shippedRows ??= vendoredRows()))
 const actionsBot = (actor) => actor?.__typename === "Bot" && actor.databaseId === ACTIONS_BOT_ID;
 export const actionsBotOnly = (item) => actionsBot(item?.author) && (item.lastEditedAt == null || actionsBot(item.editor));
 
-// The owner's trusted drift-issue rule (Q195 (a), widened to vendored copies):
-// only the title and first body line are read, and callers take the spec from
-// trustedDriftSpec, so no body text becomes spec.
-// https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#daily-drift-issues
 export const driftIssue =(item, rows) => (actionsBotOnly(item) ? driftShape(item.title, item.body, rows) : null);
 
 export function driftSpecText(id, pages = []) {
@@ -390,8 +386,9 @@ export function refinementSpec(comments, appId) {
   return newest?.lastEditedAt == null ? newest : undefined;
 }
 
-export const appRefinement = (comment, appId) =>
-  appId !== undefined && comment?.author?.__typename === "Bot" && comment.author.databaseId === appId && String(comment.body ?? "").startsWith(REFINE_MARKER);
+export const appAuthored = (comment, appId) => appId !== undefined && comment?.author?.__typename === "Bot" && comment.author.databaseId === appId;
+
+export const appRefinement = (comment, appId) => appAuthored(comment, appId) && String(comment.body ?? "").startsWith(REFINE_MARKER);
 
 export const humanActor = (humans) => (actor) => actor?.__typename === "User" && humans.has(actor.databaseId);
 

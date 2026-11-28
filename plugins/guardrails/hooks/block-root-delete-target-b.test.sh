@@ -1,27 +1,5 @@
 #!/usr/bin/env bash
-# Contract test for block-root-delete-target.sh (guardrails plugin), part b of 5:
-# sections 2c to 2j. The parts are block-root-delete-target.test.sh and
-# block-root-delete-target-b.test.sh to -e.test.sh; block-root-delete-target-fixtures.sh
-# holds what they share.
-#
-# Black-box: invokes the hook as a subprocess, pipes PreToolUse Bash JSON on
-# stdin, asserts on exit code (2 = blocked, 0 = allowed). Self-contained, with
-# no host-repo assertion library.
-#
-# The core table runs through expect_both, so every verdict is asserted twice:
-# once with the guard alone, and once under hooks/run-guards.sh. A guard that
-# decides one way by itself and another under the dispatcher is a failure here
-# rather than a blind spot.
-#
-# The guard is NOT host-gated, so no case forces OSTYPE: a recursive delete of
-# `/`, of `~`, of `$HOME`, or with --no-preserve-root is unrecoverable on every
-# host this plugin runs on, and CI is Linux.
-#
-# File-wide, and deliberate: every command string below is a LITERAL the guard
-# must read exactly as an operator wrote it. `$HOME` and `${HOME}` are matched
-# as text, because the guard never evaluates an expansion (SC2016), and `\\` is
-# a real pair of backslashes rather than an escaped quote (SC1003). Expanding
-# either here would test something other than what the guard sees.
+# Command strings are literals the guard reads as written: $HOME stays text (SC2016), \\ is two backslashes (SC1003).
 # shellcheck disable=SC2016,SC1003
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -197,7 +175,7 @@ rdt_ar 'prefix: a glob in the directory grants nothing' 2 "rm -rf '$RDT_PP/.tmp-
 rdt_ar 'prefix: a .. in the directory grants nothing' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_PP/../wt/.tmp-*"
 rdt_ar 'prefix: a plain entry is not a prefix' 2 "rm -rf '$RDT_PP/.tmp-6527'" "$RDT_PP/.tmp-"
 rdt_ar 'prefix: a VAR= prefix in the command grants nothing' 2 "$RDT_KEY='$RDT_PX' rm -rf '$RDT_PP/.tmp-6527'"
-rdt_arp_pfx() { # <label> <want> <command>
+rdt_arp_pfx() {
   expect_both "allowed roots: PS prefix: $1" "$2" --tool PowerShell --cwd / --command "$3" -- "HOME=$RDT_AH" "$RDT_KEY=$RDT_PX"
 }
 rdt_arp_pfx 'Remove-Item on a matching child allowed' 0 "Remove-Item -Recurse -Force '$RDT_PP/.tmp-6527'"
@@ -304,10 +282,8 @@ expect_both 'protected: a subdirectory of the toplevel allowed' 0 "${RDT_CWD[@]}
   --command 'rm -rf plugins/rdt-nonexistent/build'
 expect_both 'protected: a path named under .git allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf .git/rdt-nonexistent-x'
 expect_both 'protected: the toplevel glob leaves .git, allowed' 0 "${RDT_CWD[@]}" --command 'rm -rf *'
-# A glob matches dot names on PowerShell, and in bash once dotglob is on.
 expect_both 'protected: PS Remove-Item * from the toplevel blocks (its * matches .git)' 2 \
   --tool PowerShell "${RDT_CWD[@]}" --command 'Remove-Item -Recurse -Force *'
-# A bash child of the PowerShell tool globs as bash does: `*` skips .git.
 expect_both 'protected: PS bash -c rm -rf * from the toplevel allowed (bash * skips .git)' 0 \
   --tool PowerShell "${RDT_CWD[@]}" --command "bash -c 'rm -rf *'"
 expect_both 'protected: PS cmd /c bash -c rm -rf * from the toplevel allowed' 0 \
@@ -326,9 +302,7 @@ expect_both 'protected: PS wsl rm -rf * keeps the PowerShell glob reading, block
   --tool PowerShell "${RDT_CWD[@]}" --command 'wsl rm -rf *'
 expect_both 'protected: dotglob then rm -rf * blocks' 2 "${RDT_CWD[@]}" --command 'shopt -s dotglob; rm -rf *'
 expect_both 'protected: GLOBIGNORE then rm -rf * blocks' 2 "${RDT_CWD[@]}" --command 'GLOBIGNORE=x; rm -rf *'
-# A case-insensitive filesystem removes .git through .GIT.
 expect_both 'protected: rm -rf .GIT blocks' 2 "${RDT_CWD[@]}" --command 'rm -rf .GIT'
-# Win32 trims a trailing dot or space, so `.git.` names `.git` there.
 case "${OSTYPE:-}" in
 msys* | cygwin* | win32)
   expect_both 'protected: PS Remove-Item on .git. blocks' 2 \
@@ -370,7 +344,7 @@ RDT_CB="$TEST_TMPDIR/claude-rdt"
 RDT_OWN="$RDT_CB/-proj/sess-a/scratchpad"
 RDT_OTH="$RDT_CB/-proj/sess-b/scratchpad"
 mkdir -p "$RDT_OWN/x" "$RDT_OTH/x" "$RDT_CB/-proj/sess-b/tasks"
-rdt_sp() { # <label> <want> <command>: from the checkout, with this session's scratchpad
+rdt_sp() {
   expect_both "protected: scratchpads: $1" "$2" --payload "$(rdt_pl "$3" "$RDT_TOP" "$RDT_OWN")"
 }
 rdt_sp "another session's scratchpad blocks" 2 "rm -rf '$RDT_OTH'"
@@ -389,8 +363,6 @@ expect_both 'protected: scratchpads: TMPDIR at the base, a temp file there allow
   --payload "$(rdt_pl "rm -rf '$RDT_CB/rdt-own-tmp'" "$RDT_TOP" "$RDT_OWN")" -- "TMPDIR=$RDT_CB"
 expect_both "protected: scratchpads: TMPDIR at the base, another session's scratchpad blocks" 2 \
   --payload "$(rdt_pl "rm -rf '$RDT_OTH'" "$RDT_TOP" "$RDT_OWN")" -- "TMPDIR=$RDT_CB"
-# Without a payload scratchpad the base is <temp root>/claude-<uid>
-# (<temp root>/claude on Windows); TMPDIR names a fixture temp root here.
 RDT_TR="$TEST_TMPDIR/rdt-tmproot"
 rdt_cn="claude-$UID"
 case "${OSTYPE:-}" in
@@ -405,7 +377,7 @@ expect_both 'protected: scratchpads: a sibling under that temp root allowed' 0 "
 
 RDT_HF="$TEST_TMPDIR/rdt-home"
 mkdir -p "$RDT_HF/.claude/projects" "$RDT_HF/other"
-rdt_hc() { # <label> <want> <command>
+rdt_hc() {
   expect_both "protected: ~/.claude: $1" "$2" "${RDT_CWD[@]}" --command "$3" -- "HOME=$RDT_HF"
 }
 rdt_hc 'the directory blocks' 2 "rm -rf '$RDT_HF/.claude'"
@@ -418,7 +390,7 @@ rdt_hc 'a plain glob over HOME skips the dot name, allowed' 0 "rm -rf '$RDT_HF/'
 RDT_PK=CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_PROTECTED_TREES
 RDT_KP="$TEST_TMPDIR/rdt-keep"
 mkdir -p "$RDT_KP/data/x" "$RDT_KP/scratch"
-rdt_pt() { # <label> <want> <command> [trees]
+rdt_pt() {
   local -a env=()
   [[ -z "${4:-}" ]] || env+=("$RDT_PK=$4")
   expect_both "protected: listed trees: $1" "$2" "${RDT_CWD[@]}" --command "$3" -- ${env[@]+"${env[@]}"}
@@ -461,7 +433,7 @@ RDT_FIND_FORMS=(
   'find TGT -okdir unlink {} \;'
   'find TGT -depth -type d -empty -exec rmdir {} +'
 )
-rdt_find() { # <label> <want> <start point> [guard_invoke option ...]: every form
+rdt_find() {
   local label="$1" want="$2" t="$3" f c
   shift 3
   for f in "${RDT_FIND_FORMS[@]}"; do
@@ -493,14 +465,10 @@ expect_both 'find: no start point from the toplevel is . and blocks' 2 "${RDT_CW
 expect_both 'find: no start point from a subdirectory allowed' 0 --cwd "$RDT_TOP/plugins" \
   --command "find -name '*.pyc' -delete"
 expect_both 'find: a .git start point blocks' 2 "${RDT_CWD[@]}" --command 'find .git -name x -exec rm {} +'
-# GNU reads a first primary spelled -f... as the expression, so `.` is judged
-# though BSD reads it as -f and a start point.
 expect_both 'find: -fstype first still judges . from the toplevel' 2 "${RDT_CWD[@]}" \
   --command 'find -fstype ext4 -delete'
 expect_both 'find: -files0-from judges no . from the toplevel' 0 "${RDT_CWD[@]}" \
   --command 'find -files0-from list -delete'
-# Under -H, -L or -follow find follows a start point that is a symlink, so it
-# is judged by where it points; without them the link itself is the target.
 if MSYS=winsymlinks:lnk ln -s /opt/rdt-link-target "$TEST_TMPDIR/rdt-find-link" 2>/dev/null &&
   [[ -L "$TEST_TMPDIR/rdt-find-link" ]]; then
   expect_both 'find: a link start point under temp, not followed, allowed' 0 "${RDT_CWD[@]}" \
@@ -567,7 +535,7 @@ RDT_PIPE_FORMS=(
   'find TGT | parallel rm -rf'
   "find TGT | parallel -j 4 'rm -rf {}'"
 )
-rdt_pipe() { # <label> <want> <start point> [guard_invoke option ...]: every form
+rdt_pipe() {
   local label="$1" want="$2" t="$3" f c
   shift 3
   for f in "${RDT_PIPE_FORMS[@]}"; do
@@ -691,7 +659,7 @@ RDT_RSYNC_FORMS=(
   'rsync -a --remove-source-files TGT build/rdt-out'
   'rsync -a --remove-source-files build/rdt-x TGT/ build/rdt-out'
 )
-rdt_rsync() { # <label> <want> <target> [guard_invoke option ...]: every form
+rdt_rsync() {
   local label="$1" want="$2" t="$3" f c
   shift 3
   for f in "${RDT_RSYNC_FORMS[@]}"; do
@@ -777,7 +745,7 @@ RDT_ROBOCOPY_FORMS=(
   'robocopy TGT build/rdt-out /MOVE'
   'robocopy TGT build/rdt-out /E /MOV'
 )
-rdt_robocopy() { # <label> <want> <target> [guard_invoke option ...]: every form, both tools
+rdt_robocopy() {
   local label="$1" want="$2" t="$3" f c
   shift 3
   for f in "${RDT_ROBOCOPY_FORMS[@]}"; do
@@ -839,9 +807,6 @@ robocopy src / -MIR
 echo "$(robocopy src / /MIR)"
 EOF
 
-# From the Bash tool MSYS rewrites a single-slash one-letter word to that
-# drive's root, so `/e` is an operand there and never the /E option; from the
-# PowerShell tool it is the option, and the robocopy names no destination.
 while IFS= read -r rdt_cmd; do
   [[ -n "$rdt_cmd" ]] || continue
   expect_both "robocopy: $rdt_cmd blocks" 2 "${RDT_CWD[@]}" --command "$rdt_cmd"
@@ -906,7 +871,7 @@ RDT_GWT_FORMS=(
   'git worktree remove --forc -- TGT'
   'git -c core.x=1 --no-pager worktree remove -ff TGT'
 )
-rdt_gwt() { # <label> <want> <target> [guard_invoke option ...]: every form
+rdt_gwt() {
   local label="$1" want="$2" t="$3" f c
   shift 3
   for f in "${RDT_GWT_FORMS[@]}"; do
@@ -974,7 +939,7 @@ printf '%s\n' "$RDT_GW/n1/.git" >"$RDT_GW/main/.git/worktrees/n1/gitdir"
 printf 'gitdir: %s\n' "$RDT_GW/main/.git/worktrees/n1" >"$RDT_GW/n1/.git"
 printf '%s\n' "$RDT_GW/main/n2/.git" >"$RDT_GW/main/.git/worktrees/n2/gitdir"
 printf 'gitdir: %s\n' "$RDT_GW/main/.git/worktrees/n2" >"$RDT_GW/main/n2/.git"
-rdt_gw() { # <label> <want> <command> [roots]: from the fixture's main worktree
+rdt_gw() {
   local -a env=("PATH=$TEST_TMPDIR/bin-git-top:$PATH" "RDT_STUB_TOP=$RDT_GW/main" "HOME=$RDT_AH")
   [[ -z "${4:-}" ]] || env+=("$RDT_KEY=$4")
   expect_both "git worktree: $1" "$2" --cwd "$RDT_GW/main" --command "$3" -- "${env[@]}"

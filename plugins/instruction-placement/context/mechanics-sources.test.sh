@@ -1,14 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for mechanics-sources.tsv: the pointer records the
-# loading-mechanics record and the routing rubric cite as MS-<n>.
-#
-# Two checks, so an edit that breaks the records fails CI instead of passing
-# unread: every row has the four columns with a well-formed id, docs URL, quote
-# and as_of date, and the ids agree with the markdown that cites them. The
-# Pointer records table in verified-mechanics.md lists exactly the TSV's ids,
-# and no MS-<n> cited in either markdown file lacks a row. Fixture strings first
-# prove the shape check rejects a bad row. No network: whether each quote is
-# still on its page is a separate check.
 # test-scope: plugins/instruction-placement/context/mechanics-sources.tsv
 # test-scope: plugins/instruction-placement/context/verified-mechanics.md
 # test-scope: plugins/instruction-placement/context/routing-rubric.md

@@ -1,7 +1,9 @@
+# GENERATED from lib/friction_scan.py by scripts/sync-shared-copies.sh. Do not edit this copy:
+# edit the canonical source, then rerun the script.
 # -*- coding: utf-8 -*-
-"""Per-event friction records for one session, built while collect.py scans it.
+"""Per-event friction records for one session, built while session_record.py scans it.
 
-`FrictionScan` sees every record collect.py reads, main transcript first, then each subagent, and
+`FrictionScan` sees every record session_record.py reads, main transcript first, then each subagent, and
 keeps one event per friction moment:
 
 - `denied`: a tool call refused by the classifier, a hook, a permission rule, or the person
@@ -31,8 +33,8 @@ import re
 from collections import Counter
 from datetime import datetime, timezone
 
-import census
 import transcript_reader
+from transcript_values import AUTOMATED_ENTRYPOINTS, epoch
 
 EVENT_CAP = 200
 TOOL_WAIT_S = 300
@@ -60,9 +62,6 @@ APPROVE_RE = re.compile(
 POLL_RE = re.compile(r"\bsleep\s+\d|\buntil\b.*\bdo\b|\bwhile\b.*\bdo\b|--watch\b|\bwatch\s", re.S)
 CI_WAIT_RE = re.compile(r"\bgh\s+(run\s+watch|pr\s+checks\b.*--watch)|\bglab\s+ci\s+status\b.*--live", re.S)
 CONFLICT_RE = re.compile(r"^CONFLICT \(|Automatic merge failed", re.M)
-# A git subcommand that can stop on a conflict, after any `-C <dir>`, `-c <key=value>`, `-p`, `--git-dir <path>`
-# or `--flag[=value]` global options. Each option text has exactly one parse, so a long option run
-# cannot backtrack exponentially.
 CONFLICT_COMMAND_RE = re.compile(
     r"\bgit(?:\.exe)?[\"']?"
     r"(?:\s+(?:-[Cc]\s+(?:\"[^\"]*\"|'[^']*'|[^\s\"'])\S*|-[pP]|--(?:git-dir|work-tree|namespace|config-env)\s+\S+"
@@ -70,17 +69,11 @@ CONFLICT_COMMAND_RE = re.compile(
     r"(?:merge|rebase|pull|cherry-pick|revert|am|stash\s+(?:pop|apply))(?![\w-])"
 )
 PERF_COUNTS = ("tool_waits_gt5m", "polling_calls", "ci_wait_calls", "merge_conflicts")
-# MultiEdit stays listed on purpose: transcripts recorded by older Claude Code
-# versions carry MultiEdit calls, and they must still count as file-tool calls.
-# Pointer: for where the permissions page names the legacy MultiEdit tool, see
-# https://code.claude.com/docs/en/permissions#read-and-edit
-# As of: 2026-10-13
-# Recheck trigger: that section stops naming MultiEdit, or moves.
+# Older transcripts carry the legacy MultiEdit tool: https://code.claude.com/docs/en/permissions#read-and-edit
 FILE_TOOLS = frozenset({"Edit", "Write", "MultiEdit", "NotebookEdit", "Read"})
 SHELL_TOOLS = frozenset({"Bash", "PowerShell"})
 SUBCOMMAND = re.compile(r"[a-z][a-z0-9-]{0,30}")
 GIT_ARG_FLAGS = frozenset({"-C", "-c"})
-# Event fields holding transcript or metadata text, scrubbed before storage; the rest are enums this module sets.
 SCRUBBED_FIELDS = ("reason", "hook", "shape", "tool", "agent", "source", "reason_type", "next_tool", "tool_use_id")
 
 
@@ -175,8 +168,6 @@ class FrictionScan:
         self.denied_ids: set[str] = set()
         self.seen: set[tuple[str, str]] = set()
         self.duplicates = 0
-        # Hook-block denials of the current file still waiting for the next tool call, and the calls
-        # already taken as a next call whose result has not arrived: tool_use id -> denials it answers.
         self.awaiting_next: list[dict] = []
         self.next_calls: dict[str, list[dict]] = {}
         self.side = "main"
@@ -220,9 +211,9 @@ class FrictionScan:
     def add(self, record: dict) -> None:
         if self.cwd is None and isinstance(record.get("cwd"), str):
             self.cwd = record["cwd"]
-        if record.get("entrypoint") in census.AUTOMATED_ENTRYPOINTS:
+        if record.get("entrypoint") in AUTOMATED_ENTRYPOINTS:
             self.headless = True
-        ts = census.epoch(record.get("timestamp"))
+        ts = epoch(record.get("timestamp"))
         kind = record.get("type")
         if kind == "assistant":
             self._assistant(record, ts)
@@ -230,7 +221,6 @@ class FrictionScan:
             self._user(record, ts)
         elif kind == "result":
             for denial in transcript_reader.permission_denials(record):
-                # Keyed apart from tool-result denials, so a later tool-result record still keeps its richer event.
                 if denial["tool_use_id"] in self.denied_ids:
                     self.duplicates += 1
                     continue
@@ -263,8 +253,6 @@ class FrictionScan:
                         denial["next_tool"] = name
                     self.next_calls[block["id"]] = self.awaiting_next
                     self.awaiting_next = []
-                # A Monitor command counts as polling only when it is itself a poll loop: a
-                # tail -f or another event wait is the wait the harness recommends.
                 command = tool_input.get("command") if name in SHELL_TOOLS or name == "Monitor" else None
                 if isinstance(command, str):
                     self.perf["ci_wait_calls"] += bool(CI_WAIT_RE.search(command))
@@ -289,7 +277,7 @@ class FrictionScan:
             self._event("user-command", ts, shape=shape, flags=flags, target=command.splitlines()[0] if command else None)
 
     def typed_turn(self, text: str, ts: float | None, correction: bool) -> None:
-        """Called by collect.py for each typed turn of the main transcript, with its correction flag."""
+        """Called by session_record.py for each typed turn of the main transcript, with its correction flag."""
         reply = "correction" if correction else "approve" if len(text.split()) <= 60 and APPROVE_RE.search(text) else "other"
         asked = self.last_text
         self.last_text = None
@@ -336,7 +324,6 @@ class FrictionScan:
                 source=permission["source"], reason_type=permission["reason_type"],
             )
             if permission["cause"] == "hook":
-                # next_tool stays None when no call follows; next_ok stays None until that call's result.
                 event["next_tool"] = event["next_ok"] = None
                 self.awaiting_next.append(event)
         elif (
@@ -349,7 +336,7 @@ class FrictionScan:
             )
 
     def block(self, scrub, excerpt_chars: int) -> dict:
-        """The record's `friction` block; every transcript string goes through `scrub` (collect.Scrubber)."""
+        """The record's `friction` block; every transcript string goes through `scrub` (session_record.Scrubber)."""
         events = []
         for event in self.events:
             stored = {k: v for k, v in event.items() if k != "target"}
@@ -359,7 +346,7 @@ class FrictionScan:
             target = event.get("target")
             stored["excerpt"] = scrub.excerpt(target, excerpt_chars) if excerpt_chars and target else None
             if "next_tool" in event:
-                stored["key"] = scrub.key(event_key(event))  # the `counts` key, so mine can join the two
+                stored["key"] = scrub.key(event_key(event))
             events.append(stored)
         return {
             "events": events,

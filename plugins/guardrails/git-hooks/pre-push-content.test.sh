@@ -88,6 +88,14 @@ expect "a token one commit adds and a later commit removes still blocks" \
 $HINT" "$(new_push)"
 
 new_repo
+commit_text run.sh $'if x; then\nsee '"$FAKE_LINUX"$' here\ntoken='"$FAKE_GHP"$'\nfi\n' "old"
+git -C "$REPO" update-ref refs/remotes/origin/main HEAD
+commit_text run.sh $'if x; then\n  see '"$FAKE_LINUX"$' here\n  token='"$FAKE_GHP"$'\nfi\n' "reindent"
+expect "a reindent passes the path it moves and blocks the token it moves" \
+  "1|run.sh:3: secret or credential pattern: GitHub PAT (commit $(short HEAD))
+$HINT" "$(new_push)"
+
+new_repo
 commit_text tests/fixtures/token.txt "token=$FAKE_GHP"$'\n' "fixture"
 expect "a token under tests/fixtures/ passes, as secret-pattern-detection exempts it" "0|" "$(new_push)"
 
@@ -180,9 +188,6 @@ echo "measured: a pushed merge started ${starts[0]} git processes with a 20-file
 expect "a pushed merge's git process count does not grow with the other side's diff" yes \
   "$( ((starts[0] > 0 && starts[1] - starts[0] <= 2)) && echo yes)"
 
-# Merges built with plumbing, so no symlink is ever checked out: on Windows
-# with core.symlinks=false, an edited checked-out symlink stays at 120000.
-# ptree <mode> <name>: a one-file tree holding stdin as <name> at <mode>.
 ptree() {
   local blob
   blob="$(git -C "$REPO" hash-object -w --stdin)"
@@ -259,8 +264,6 @@ expect "the master decline key declines it too" "0|" "$(new_push)"
 git -C "$REPO" config checks.guardrails.pre-push-content.declined false
 expect "the entry's own key beats the master key" 1 "$(new_push | head -c 1)"
 
-# A working-tree file named exactly like a pushed SHA made git read the bare
-# revision as ambiguous and exit 128, refusing the push.
 new_repo
 base_sha="$(git -C "$REPO" rev-parse HEAD)"
 commit_text notes.md $'line one\nline two\nclean addition\n' "clean"

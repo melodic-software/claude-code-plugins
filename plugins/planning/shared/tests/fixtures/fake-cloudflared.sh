@@ -1,16 +1,6 @@
 #!/usr/bin/env bash
-# Stands in for cloudflared in the shared session's tests, serving nothing and running until stopped:
-#   tunnel --no-autoupdate --url URL          prints a quick-tunnel banner with a new trycloudflare.com
-#                                             address on stderr, the way cloudflared 2026.9.3 does
-#   tunnel --no-autoupdate run --token-file F a named tunnel: prints "Registered tunnel connection" with
-#                                             the fields connection/observer.go logs once F is readable,
-#                                             and exits 1 when it is not; first "Generated Connector ID: <uuid>"
-#                                             (FAKE_CF_CONNECTOR, else a new one), as cmd/cloudflared/tunnel/configuration.go logs it
-# Either form exits 2 when TUNNEL_TOKEN, TUNNEL_TOKEN_FILE, CLOUDFLARE_API_TOKEN or CF_API_TOKEN reaches it:
-# tunnel.py must not pass them on.
-#   FAKE_CF_DELAY  seconds before the banner or the connection line (default 0)
-#   FAKE_CF_NOURL  when set, never print an address or a connection
-#   FAKE_CF_ARGS   when set, append the arguments to this file, one run per line
+# Stderr as https://github.com/cloudflare/cloudflared/blob/2026.9.3/connection/observer.go and
+# https://github.com/cloudflare/cloudflared/blob/2026.9.3/cmd/cloudflared/tunnel/configuration.go log it
 [[ -n "${FAKE_CF_ARGS:-}" ]] && printf '%s\n' "$*" >>"$FAKE_CF_ARGS"
 if [[ -n "${TUNNEL_TOKEN:-}${TUNNEL_TOKEN_FILE:-}${CLOUDFLARE_API_TOKEN:-}${CF_API_TOKEN:-}" ]]; then
   echo "fake-cloudflared: a token variable was inherited" >&2

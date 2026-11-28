@@ -1,7 +1,3 @@
-/**
- * Terminal output helpers — process.stdout/stderr instead of console.*
- */
-
 /** @param {unknown[]} args */
 function formatArgs(args) {
   return args

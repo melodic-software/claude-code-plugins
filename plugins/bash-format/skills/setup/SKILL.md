@@ -1,5 +1,5 @@
 ---
-description: "Verify bash-format's prerequisites and which formatter and linter its hooks run here, and register its git pre-commit entries. Use when: 'set up bash-format', 'configure bash-format', 'is bash-format working', 'which linter does bash-format run', shell lint or formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only verification, default) | check inspect (read-only) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
+description: "Verify bash-format prerequisites and shell hooks (check [inspect]), or resolve and register git pre-commit entries (apply [install-git-hooks])."
 argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
@@ -220,9 +220,10 @@ findings on the lines the commit adds. A decline of the earlier single entry car
 entries" names the files to remove, which you remove with your edit tools on the user's yes.
 
 A remote entry stays in the committed `lefthook.yml`, so stop it in one clone by skipping its job,
-`bash-format-remote-<entry>`, in the clone's untracked `lefthook-local.yml`; a failing remote job prints
-that skip, and the [adoption
-path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md#when-a-remote-job-breaks)
+`bash-format-remote-<entry>`, in the clone's gitignored lefthook local config, written as lefthook's
+docs say at the time (pointer: [lefthook-local](https://lefthook.dev/examples/lefthook-local/) and
+[skip](https://lefthook.dev/configuration/skip/)); a failing remote job prints that skip, and the
+[adoption path](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/check-placement/adopting-git-hooks.md#when-a-remote-job-breaks)
 says when to use it and how to drop it.
 
 When the user does not want an entry in this clone, run
@@ -282,8 +283,7 @@ That reply states the words "already configured" as written here, beside any sum
 
 ## Next
 
-- /toolchain:setup apply bash, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants
-  a tool the plugin ships no adapter for; /toolchain:lint then runs it on request.
+- Repository wants a tool the plugin ships no adapter for (drafted commands ready): /toolchain:setup apply bash.
 - A hook stage over its time budget in `setup check inspect`: /performance:target.
 
 ## What this skill does not do
@@ -299,8 +299,9 @@ That reply states the words "already configured" as written here, beside any sum
 ## Gotchas
 
 - **`ENAMETOOLONG` when grepping the plugin cache.** Installed plugins run from a
-  deeply nested, cache-isolated path. Piping a `grep`/`rg` over the long absolute
-  path to `hooks/hook-utils.sh` (or another bundled file) can spawn-fail with
+  long, nested cache path (its layout:
+  [find plugins on disk](https://code.claude.com/docs/en/plugins/loading#find-plugins-on-disk)).
+  Piping a `grep`/`rg` over the long absolute path to `hooks/hook-utils.sh` (or another bundled file) can spawn-fail with
   `ENAMETOOLONG` on some hosts. Read the file directly rather than passing the full
   cache path on the command line.
 - **`check` PASS ≠ every shell edit is covered.** When `CLAUDE_PROJECT_DIR` is set

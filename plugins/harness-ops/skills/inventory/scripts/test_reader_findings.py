@@ -33,12 +33,10 @@ import parser_reader as pr
 from test_inventory import AGENT_SRC, _tool
 from test_parser_reader import _require_live
 
-# AGENT_SRC binds xt="Edit", yt="Agent".
 PROBE = (
     'var SP={agentType:"spread-probe",whenToUse:"s",source:"built-in",'
     'disallowedTools:[yt,...pY],getSystemPrompt:()=>""};'
 )
-# The initializer the reader keeps when it misses a later write.
 INITIAL = (["Agent", "Edit", "Artifact"], "literal")
 PARTIAL = (["Agent"], "partial")
 
@@ -91,12 +89,6 @@ class TestOpenFindings(unittest.TestCase):
         with inv.use_reader(type(self).reader):
             return _probe(prelude)
 
-    # Finding 3: the regex reader does not model mutation of the spread
-    # array, so the literal keeps the initializer. The parser reader counts
-    # a member write, a mutating method call, and a call the array is passed
-    # to unless it follows the callee's parameter and finds it unchanged, so
-    # the list reads as partial: fixed there.
-    #
     # https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5934412887
 
     def test_finding_3_push(self) -> None:
@@ -161,8 +153,6 @@ class TestOpenFindings(unittest.TestCase):
             ("Object.assign(pY,[xt])", INITIAL),
             ("new G(pY)", INITIAL),
             ("t`${pY}`", INITIAL),
-            # #5828 review: a member chain as a tagged-template tag, a `new`
-            # callee or an optional call, and through call/apply/bind.
             ("pY.pop`x`", INITIAL),
             ("new pY.constructor(1)", INITIAL),
             ("pY.pop?.()", INITIAL),
@@ -255,7 +245,6 @@ class TestOpenFindings(unittest.TestCase):
             ("gn(1,{hook:!1})", False),
             ('gn(1,{hook:(x)=>x==="Edit"})', False),
             ('gn(1,{hook:(x,i,a)=>a.push("B")})', True),
-            # A getter: reading `hook` runs it and yields the pushing callback.
             ('gn(1,{get hook(){return(x,i,a)=>a.push("B")}})', True),
         ):
             with self.subTest(use=use):
@@ -290,8 +279,6 @@ class TestOpenFindings(unittest.TestCase):
             'Array["prototype"].includes=' + patch + ';pY.includes("x")',
             "const{prototype:AP}=Array;AP.includes=" + patch + ';pY.includes("x")',
             "var OP=Object.prototype;OP.zz=" + patch + ";pY.zz()",
-            # The second #5891 verifier's probes, which the reachability
-            # guard missed; the sink rule sees the write of the name.
             "var A=Array;A.prototype.includes=" + patch + ';pY.includes("x")',
             "(0,Array).prototype.includes=" + patch + ';pY.includes("x")',
             "globalThis.Array.prototype.includes=" + patch + ';pY.includes("x")',
@@ -314,8 +301,6 @@ class TestOpenFindings(unittest.TestCase):
             + '});pY.includes("x")',
             "var Q=[].__proto__;Q.includes=" + patch + ';pY.includes("x")',
             "var Q=Object.getPrototypeOf([]);Q.includes=" + patch + ';pY.includes("x")',
-            # The third #5891 verifier's probes: F.prototype replaced through
-            # a reference to F, so F.prototype is not F's own object.
             'function F(){}Object.defineProperty(F,"prototype",{value:Array.prototype});'
             "F.prototype.includes=" + patch + ';pY.includes("x")',
             'function F(){}F["proto"+"type"]=Array.prototype;F.prototype.includes='
@@ -326,29 +311,22 @@ class TestOpenFindings(unittest.TestCase):
             + ';pY.includes("x")',
             "function F(){}function s(o){o.prototype=Array.prototype}s(F);"
             "F.prototype.includes=" + patch + ';pY.includes("x")',
-            # `Object.create` itself can be replaced, so its result is no fresh object.
             "Object.create=()=>Array.prototype;var o=Object.create(null);o.includes="
             + patch
             + ';pY.includes("x")',
-            # A compound assignment on an alias coerces the array first.
             'var a=pY;Array.prototype.toString=function(){this.push("B");return""};a+=""',
-            # A template-literal key names the method as a string does.
             "Object.defineProperty(Array.prototype,`includes`,{value:"
             + patch
             + '});pY.includes("x")',
-            # Reflect.set writes onto its receiver, not its target.
             'Reflect.set({},"includes",' + patch + ',Array.prototype);pY.includes("x")',
-            # F.prototype.constructor is F, so it can replace F.prototype.
             "function F(){}F.prototype.constructor.prototype=Array.prototype;"
             "F.prototype.includes=" + patch + ';pY.includes("x")',
-            # A derived class's `this` is what `super()` returned.
             "class B0{constructor(){return Array.prototype}}"
             "class X extends B0{constructor(){super();this.includes="
             + patch
             + '}}new X;pY.includes("x")',
             "var X=class extends function(){return Array.prototype}{constructor(){"
             "super();this.includes=" + patch + '}};new X;pY.includes("x")',
-            # Code built from a string, which no rule sees into.
             "(0,eval)('Array.prototype.includes=function(){this.push(\"B\");return!0}');"
             'pY.includes("x")',
             "Function('Array.prototype.includes=function(){this.push(\"B\");return!0}')();"
@@ -357,7 +335,6 @@ class TestOpenFindings(unittest.TestCase):
             'pY.includes("x")',
             "globalThis.eval('Array.prototype.includes=function(){this.push(\"B\");return!0}');"
             'pY.includes("x")',
-            # A write whose key names nothing can write `includes` too.
             'function s(o,k,v){o[k]=v}s(Array.prototype,"inc"+"ludes",'
             + patch
             + ');pY.includes("x")',
@@ -456,7 +433,6 @@ class TestOpenFindings(unittest.TestCase):
             True, caller, 'function g(a,b){b.push("B")}export{g};'
         )
         self.assert_across_modules(True, caller, "export function g(a,b){b.pop()}")
-        # A `g` with no `export` of its own stays partial too.
         self.assert_across_modules(True, caller, "function g(a,b){}")
 
     def test_an_imported_callee_binds_the_exports_own_local(self) -> None:
@@ -548,17 +524,12 @@ class TestOpenFindings(unittest.TestCase):
         see with the namespace in hand, so the list reads partial."""
         named = 'import{pY}from"/a.js";var c=[...pY];'
         for module in (
-            # A namespace read by name: a method call passes it as `this`.
             'import.meta.require("/a.js").f();',
             '(import.meta.require("/a.js")?.f)();',
-            # Destructuring: a rest element takes every export.
             'var{q,...o}=await import("/a.js");o.pY.push("B");',
             'var o={...await import("/a.js")};',
-            # import.meta must be read only by name.
             'import.meta.require=(p)=>Q;var x=import.meta.require("/a.js").q;',
             'var m=import.meta;var x=m.require("/a.js").q;',
-            # A record: a computed read, an escape, `||`, an accessor, a
-            # second write, a method call.
             'var e={names:import.meta.require("/a.js")};e.names[k].push("B");',
             'var e={names:import.meta.require("/a.js")};f(e);',
             'var e={names:import.meta.require("/a.js")},x=e||0;',
@@ -566,11 +537,9 @@ class TestOpenFindings(unittest.TestCase):
             'var e={names:import.meta.require("/a.js")};e={};',
             'var e={names:import.meta.require("/a.js"),f(){return this.names}};e.f();',
             'var e={names:import.meta.require("/a.js"),f(){return this.names}};(e?.f)();',
-            # Promise.all: a rest element, a local `Promise`, no array pattern.
             'var[...r]=await Promise.all([import("/a.js")]);',
             'var Promise={all:(a)=>a};var[{q}]=await Promise.all([import("/a.js")]);',
             'var r=await Promise.all([import("/a.js")]);r[0][k].push("B");',
-            # A promise not awaited directly.
             'var p=import("/a.js");',
         ):
             with self.subTest(module=module):
@@ -589,8 +558,6 @@ class TestOpenFindings(unittest.TestCase):
         self.assert_across_modules(
             True, named, loader, 'Object.defineProperty(Q,"then",{});'
         )
-        # Await reads the promise's `constructor`; a record read of a key
-        # the literal lacks reads Object.prototype.
         getter = '{get(){for(var k in this.names)this.names[k].push("B")}}'
         self.assert_across_modules(
             True,
@@ -612,16 +579,10 @@ class TestOpenFindings(unittest.TestCase):
             reexport + 'then(r){for(var k in this)this[k].push&&this[k].push("B")}',
             awaited,
         )
-        # An `export*` can bring in a `then` the module does not list.
         self.assert_across_modules(
             True, reexport + 'f(){}export*from"/d.js";', awaited, "export var then;"
         )
 
-    # The third #5891 verifier: the engine looks names up on the prototypes
-    # for a spread and for a method building a new array, and a read the
-    # writes op deems safe still looks its key up, so a patch of any of them
-    # runs code the walk does not see.
-    #
     # https://github.com/melodic-software/claude-code-plugins/issues/5640#issuecomment-5960777823
 
     def test_a_patched_iterator_leaves_a_spread_partial(self) -> None:
@@ -752,13 +713,10 @@ class TestOpenFindings(unittest.TestCase):
             'import{runInThisContext as r}from"vm";r(s);',
             'import*as V from"node:vm";var k="runIn"+"ThisContext";V[k](s);',
             'var vm=require("vm");g(vm);',
-            # A new context still reaches this realm through
-            # `this.constructor.constructor`.
             'import{runInNewContext as r}from"node:vm";r(s);',
             'var vm=require("vm");vm.runInContext(s,vm.createContext({}));',
             'import{Script}from"vm";new Script(s).runInNewContext();',
             'import*as V from"node:vm";new V.SourceTextModule(s);',
-            # A load whose specifier is no literal may be node:vm.
             'const s="node:vm",k="runInThisContext";const V=await import(s);V[k](c);',
         ):
             with self.subTest(module=module):
@@ -779,8 +737,6 @@ class TestOpenFindings(unittest.TestCase):
             parser=PARTIAL,
         )
 
-    # #5901 slice 6: `Function(...)` builds a function from strings and runs
-    # none of its body; only a call runs it. The shapes are 2.1.310's.
     LODASH_ROOT = 'var root=Function("return this")();'
 
     def test_a_constant_function_body_that_patches_nothing_clears(self) -> None:
@@ -821,8 +777,6 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(module=module):
                 self.assert_across_modules(True, named, self.LODASH_ROOT, module)
 
-    # #5901 slice 9: protobufjs's `inquire` on 2.1.310, which evaluates the
-    # identifier `require` and loads `moduleName` with it.
     INQUIRE = (
         'function inquire(moduleName){try{var mod=moduleName==="long"?Yvr():'
         'moduleName==="buffer"?require("buffer"):moduleName==="fs"?require("fs"):'
@@ -865,7 +819,6 @@ class TestOpenFindings(unittest.TestCase):
         for module in (
             self.INQUIRE.replace("/^/", "/^r?/"),
             'eval("' + "a" * 40 + '!".replace(/(a+)+$/,"x"));',
-            # Folds to `require` and spaces, which parses, but is too long.
             self.INQUIRE.replace('"quire"', '"quire' + " " * 300 + '"'),
         ):
             with self.subTest(module=module[:80]):
@@ -905,12 +858,9 @@ class TestOpenFindings(unittest.TestCase):
             'var n=import.meta.require.call(0,"/a.js");for(var k in n)n[k].push("B");',
             'var n=await import(s);for(var k in n)n[k].push&&n[k].push("B");',
             "var n=require(s);",
-            # #5970 Codex: a destructured or aliased `import.meta`.
             'const{require:r}=import.meta;var n=r("/a.js");for(var k in n)n[k].push("B");',
             'var m=import.meta,n=m["req"+"uire"]("/a.js");for(var k in n)n[k].push("B");',
             'var{require:r}=globalThis;var n=r("/a.js");for(var k in n)n[k].push("B");',
-            # #5640: a computed key that is or may be `require`. The push
-            # takes no computed read, which would count on its own.
             'const k="require";var n=module[k]("/a.js");Object.values(n).forEach((v)=>v.push("B"));',
             'var n=globalThis["req"+"uire"]("/a.js");Object.values(n).forEach((v)=>v.push("B"));',
             'const k=c?"require":"foo";const{[k]:r}=globalThis;var n=r("/a.js");Object.values(n).forEach((v)=>v.push("B"));',
@@ -920,15 +870,11 @@ class TestOpenFindings(unittest.TestCase):
         for module in (
             'var x=require("/c.js").q,t=typeof require,p=require.resolve("/c.js");',
             "function f(require){return 1}var o={require:1};",
-            # A computed key known to be no `require`.
             'var k="other";f(Q[k]);',
         ):
             with self.subTest(module=module):
                 self.assert_across_modules(False, named, module)
 
-    # #5901 slice 5: Bun's runtime chunk exports `import.meta.require` for
-    # other modules to load files with, and lodash tests `w.require` before
-    # calling it. The shapes are 2.1.310's; the runtime chunk is /b.js.
     RUNTIME = (
         "var Ce,x,$r,Ua,S,vn,ovi;"
         "var Fe=import.meta.require;export{Ce,x,$r,Ua,S,vn,ovi,Fe};"
@@ -997,9 +943,6 @@ class TestOpenFindings(unittest.TestCase):
             table=False,
         )
 
-    # #5901 slice 7: the runtime chunk's helpers define on objects they are
-    # given. Each quoted shape is 2.1.310's, the rest Bun's runtime source;
-    # the chunk is /b.js.
     HELPERS = (
         "var k=Object.create;"
         "var{getPrototypeOf:l,defineProperty:f,getOwnPropertyNames:m}=Object;"
@@ -1084,11 +1027,6 @@ class TestOpenFindings(unittest.TestCase):
         ):
             with self.subTest(importer=importer):
                 self.assert_across_modules(True, self.HELPERS, importer, self.INCLUDES)
-
-    # #5901 slice 8: a write whose key may be any name, or a prototype swap,
-    # on a receiver made fresh in its own function. The spread trusts
-    # `@@iterator` and `next`, which such a write on a prototype would patch.
-    # The `Qs` shape is the one #9995 quotes from 2.1.310.
 
     def test_a_computed_write_on_a_fresh_local_object_clears(self) -> None:
         """A receiver bound once to a literal, `Object.create(...)` or `new`
@@ -1200,13 +1138,6 @@ class TestOpenFindings(unittest.TestCase):
             with self.subTest(module=module):
                 self.assert_across_modules(True, self.SPREAD, replace, module)
 
-    # yallist's iterator: `e.prototype[Symbol.iterator]=...` in an exported
-    # function. 2.1.314 wraps it as `x(function(a,$O){$O.exports=...})`; the
-    # wrapper is left out so the pin holds only the iterator write's hit. A
-    # function declaration's `prototype` is writable and the function is
-    # exported, so the write may land on any object even when the one caller
-    # passes the module's own class: the write stays a sink of `@@iterator`,
-    # and the spread reads partial.
     YALLIST = (
         "function Y(){}"
         "var R=function(e){e.prototype[Symbol.iterator]=function*(){"
@@ -1446,11 +1377,6 @@ class TestOpenFindings(unittest.TestCase):
             parser=INITIAL,
         )
 
-    # Finding 5: the regex reader's `_written_elsewhere` scans raw source for
-    # shadowing declarations, so `let pY` inside quoted text hides the
-    # function's write to the outer `pY`. The parser reader resolves the
-    # write to the outer binding, so the list reads as partial: fixed there.
-
     def assert_text_shadows_only_for_regex(self, inner: str) -> None:
         prelude = 'var pY=[xt,"Artifact"];function f(){' + inner + 'pY=["B"]}f();'
         self.assert_pinned(prelude, INITIAL, ["Agent", "B"], parser=PARTIAL)
@@ -1494,8 +1420,6 @@ class TestOpenFindings(unittest.TestCase):
         cases = (
             ("function h(x){x=1}", "Use …", "Use REAL"),
             ("function h(){x=1}", "Use …", "Use …"),
-            # A function declaration of the parameter's name replaces it
-            # (#5828 verifier F3); the regex reader's `Use REAL` is wrong.
             ("function x(){}", "Use REAL", "Use …"),
         )
         for nested, regex, parser in cases:

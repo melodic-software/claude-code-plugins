@@ -1,9 +1,3 @@
-// pr-review-main.yml's collect-trusted-text job reads the PR's trusted text once per
-// run (outage posture element 6). Each leg takes that read only when it is this
-// run attempt's, read at the leg's main commit for its PR and head, with the
-// bytes the job's sha256 names; anything else, a missing artifact included,
-// leaves the leg to read its own. The job and the edges to it never fail the
-// run or skip a leg.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -36,8 +30,6 @@ const CONTEXT = `${JSON.stringify({ pr: { number: PR, head_sha: HEAD, base_sha: 
 
 const secondsAgo = (seconds) => Math.floor(Date.now() / 1000) - seconds;
 
-// A main checkout with one commit, the shared read's context.json and its
-// sha256 taken here with node's crypto, and the leg's matching values.
 function harness() {
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-shared-"));
   const base = path.join(dir, ".base");
@@ -99,7 +91,6 @@ test("a leg takes the shared read only when its hash, main commit, PR, head and 
       assert.equal(own.taken, null, reason);
       assert.match(own.stdout, new RegExp(`^the shared trusted PR text is not used \\(${reason}\\); this leg reads its own$`, "m"), reason);
     }
-    // A 20-minute limit: a read 19 minutes old is taken, 21 minutes old is not.
     assert.equal(h.run({ SHARED_READ_AT: String(secondsAgo(19 * 60)) }).out, "shared=true\n", "a read inside the age limit is taken");
     const stale = h.run({ SHARED_READ_AT: String(secondsAgo(21 * 60)) });
     assert.equal(stale.out, "", "a stale read is not taken");
@@ -117,7 +108,6 @@ test("a leg takes the shared read only when its hash, main commit, PR, head and 
         assert.match(own.stdout, new RegExp(`\\(${reason}\\); this leg reads its own$`, "m"), reason);
       }
     }
-    // A hash over a file naming another PR still leaves the leg its own read.
     const other = CONTEXT.replace(`"number": ${PR}`, '"number": 8');
     writeFileSync(h.shared, other);
     const named = h.run({ SHARED_SHA256: createHash("sha256").update(other).digest("hex") });
@@ -157,7 +147,6 @@ test("each leg reads its own text unless the shared read was taken, from the col
     })) {
       assert.equal(envOf(take, key), value, `${job}: ${key}`);
     }
-    // The age limit is set once, for the whole workflow.
     assert.equal(envOf(take, "SHARED_TEXT_MAX_AGE_MINUTES"), undefined, job);
     assert.match(text, /^env:\n(?: {2}#.*\n)* {2}SHARED_TEXT_MAX_AGE_MINUTES: "[1-9][0-9]*"$/m);
     assert.equal(envOf(download, "path"), "${{ runner.temp }}/pr-review-main-shared-text", job);
@@ -169,7 +158,6 @@ test("each leg reads its own text unless the shared read was taken, from the col
       assert.ok(admits(ifOf(take), context), `${job}: take runs`);
     }
     assert.ok(!admits(select, { steps: { ...reviewed.steps, shared: { outputs: { shared: "true" } } } }), `${job}: no own read once taken`);
-    // A failed or missing shared read downloads nothing.
     const downloads = (outputs, attempt = "1") => admits(ifOf(download), { ...reviewed, github: { run_attempt: attempt }, needs: { [TEXT]: { outputs } } });
     assert.ok(downloads({ sha256: "f".repeat(64), "run-attempt": "1" }), job);
     assert.ok(!downloads({ sha256: "", "run-attempt": "1" }), job);
@@ -183,8 +171,6 @@ const triggered = { result: "success", outputs: { "run-attempt": "1", proceed: "
 test("every leg needs the collect-trusted-text job and still runs when it failed, was skipped or left no hash", () => {
   const needs = (job) => /^ {4}needs: \[(.*)\]$/m.exec(jobText(job))?.[1].split(", ") ?? [];
   for (const job of LEGS) assert.ok(needs(job).includes(TEXT), job);
-  // Without a status function GitHub adds success(), which a failed
-  // collect-trusted-text job would fail; each leg's gate starts with its own.
   for (const job of LEGS) assert.ok(/^(?:\S+ != '[a-z-]+' && )?!cancelled\(\) && /.test(jobGate(job)), `${job}: ${jobGate(job)}`);
   for (const result of ["failure", "skipped", "success"]) {
     const text = { result, outputs: {} };
@@ -198,9 +184,8 @@ test("every leg needs the collect-trusted-text job and still runs when it failed
 test("the collect-trusted-text job never fails the run, and runs only where this attempt's check-trigger job starts the legs", () => {
   const job = jobText(TEXT);
   assert.match(job, /^ {4}continue-on-error: true$/m);
-  assert.match(job, /^ {4}permissions:\n {6}contents: read #.*\n {6}pull-requests: read #.*\n {4}outputs:/m);
+  assert.match(job, /^ {4}permissions:\n {6}contents: read\n {6}pull-requests: read\n {4}outputs:/m);
   assert.doesNotMatch(job, /secrets\.|run-claude-cli|exit 1/);
-  // Each step that can fail carries its own continue-on-error, so the job ends green.
   for (const s of stepsOf(TEXT)) {
     if (s.name === "Report the kill switch") continue;
     assert.match(s.text, /^ {8}continue-on-error: true$/m, s.name);
@@ -212,7 +197,6 @@ test("the collect-trusted-text job never fails the run, and runs only where this
   }
   assert.ok(!runs({ ...triggered, result: "failure" }));
   assert.ok(!runs(triggered, { ...upstreamRun, ref: "refs/heads/x" }));
-  // The read runs only under the legs' kill switch and upstream status.
   const report = step(TEXT, "Report the kill switch");
   const script = /^ {8}run: \|\n((?: {10}.*\n)+)/m.exec(`${report}\n`)[1].replace(/^ {10}/gm, "");
   const dir = mkdtempSync(path.join(tmpdir(), "pr-review-main-text-switch-"));
@@ -232,7 +216,6 @@ test("the collect-trusted-text job never fails the run, and runs only where this
     rmSync(dir, { recursive: true, force: true });
   }
   assert.equal(ifOf(step(TEXT, "Select the trusted PR text")), "steps.switch.outputs.proceed == 'true'");
-  // A hash leaves the job only for bytes that uploaded after a clean scan.
   assert.equal(ifOf(step(TEXT, "Upload the trusted PR text")), "(steps.select.outcome == 'success') && steps.scan.outputs.clean == 'true'");
   assert.equal(ifOf(step(TEXT, "Record what was read")), "steps.upload.outcome == 'success'");
   for (const [output, from] of [["sha256", "hash"], ["main-sha", "hash"], ["pr-number", "hash"], ["head-sha", "hash"], ["read-at", "hash"]]) {
@@ -259,7 +242,6 @@ test("the collect-trusted-text job's record holds only fixed shapes, hashing the
     assert.match(lines["main-sha"], /^[0-9a-f]{40}$/);
     assert.equal(lines["pr-number"], String(PR));
     assert.equal(lines["head-sha"], HEAD);
-    // The read time is when the uploaded file was written, in epoch seconds.
     utimesSync(h.shared, 1767225600, 1767225600);
     assert.equal(Object.fromEntries(run({}).trim().split("\n").map((line) => line.split("=")))["read-at"], "1767225600");
     assert.equal(run({ PR_NUMBER: "7; echo x" }), "");

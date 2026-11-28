@@ -1,18 +1,9 @@
-// pr-refine.yml's record-passes job: one refine-pass notice per planned pass,
-// and a refine-failed warning for each failed one, which monitor signal 13
-// counts as a pr-refine hold (signals.mjs HOLD_NOTICES). The reason is a
-// closed set, a job name and its result or `unwired`, so the finding's
-// fingerprint stays put.
 import { pathToFileURL } from "node:url";
 import { markLaneHold } from "../lib/lane-hold-marker.mjs";
 
 const FAILED = new Set(["failure", "cancelled"]);
 const REFINE_FAILED = "::warning title=refine-failed::";
 
-// One pass's outcome from its jobs' results ({ job: result }, in run order),
-// and its push job's pushed commit and skip reason; null results mean the
-// workflow has no jobs for the pass. A `*-fallback` job that succeeded
-// recovers the failures of the jobs before it.
 export function passOutcome({ results, pushedCommit = "", skipReason = "" }) {
   if (results === null) return { outcome: "failed", reason: "unwired" };
   const jobs = Object.entries(results);
@@ -24,8 +15,6 @@ export function passOutcome({ results, pushedCommit = "", skipReason = "" }) {
   return { outcome: "none", reason: null };
 }
 
-// The workflow-command lines for every planned pass, in plan order; a plan
-// job that failed planned none, and is itself the failed pass.
 export function passRecords({ planResult = "success", passes, files, seconds, wiring }) {
   if (planResult === "failure") return [`${REFINE_FAILED}pass=plan reason=plan-failure`];
   return passes.flatMap((pass) => {
@@ -36,8 +25,6 @@ export function passRecords({ planResult = "success", passes, files, seconds, wi
   });
 }
 
-// A pass's env prefix: fix-docs reads FIX_DOCS_RESULTS, FIX_DOCS_PUSHED and
-// FIX_DOCS_SKIP.
 export const envPrefix = (pass) => pass.toUpperCase().replaceAll("-", "_");
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

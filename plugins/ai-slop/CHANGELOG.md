@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.21.11] - 2026-11-28
+
+### Changed
+
+- Trimmed skill frontmatter descriptions (`audit`: 1,018 -> 343 chars, `setup`: 472 -> 139 chars; total 1,490 -> 482 chars, saving 1,008 chars) while preserving read-only default, guarded fix mode, AI-writing tell categories, triggers, and code-comment exclusion.
+
+## [0.21.10] - 2026-11-27
+
+### Changed
+
+- Synced shared `reference/detector-findings.md` with `portability-ok` annotations from `docs/contracts/detector-findings/README.md` and annotated surviving ecosystem specifics under ADR 0101 (#17746); no behavior change.
+
+## [0.21.9] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.21.8] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [0.21.7] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+- Shared detector-findings contract synced where this plugin carries it: it registers `code-tidying/remove-comments/rule-glossary-candidate`; no other change to this plugin.
+
+## [0.21.6] - 2026-11-25
+
+### Changed
+
+- The detector-findings reference links the organization's `REVIEW.md` on melodic-software/standards main as the live severity-crosswalk instance.
+
 ## [0.21.5] - 2026-11-24
 
 ### Changed

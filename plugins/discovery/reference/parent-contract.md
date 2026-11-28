@@ -595,7 +595,10 @@ after the explorer stops re-reading files it already read. Change the number onl
 those, and change it here and in every definition it names together.
 
 *Measured, one machine.* Procedure:
-`python3 plugins/discovery/scripts/turns-to-complete.py --root ~/.claude/projects`, with
+`python3 plugins/discovery/scripts/turns-to-complete.py --sources-file '<sources file>' --redact-identifiers '<names>'`
+(reads session-flow's store through `session-flow`'s `scripts/dispatches.py` when `session-flow` is
+installed and collected, covering every source in `--sources-file`; falls back to local sources
+when `session-flow` or its store is absent; `--root DIR` reads one projects directory), with
 `--since YYYY-MM-DD` to narrow the window. It counts distinct assistant message ids per
 `subagents/agent-*.jsonl` and flags a run at or above `--ceiling` (default 40, also applied to
 the 30-turn verifier). Scope: this one machine's local transcripts, 2026-09-23 to 2026-09-29, 32

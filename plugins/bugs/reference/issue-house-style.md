@@ -8,7 +8,11 @@ the repository the issue lives in, right before the write.
 
 1. **Find the doc.** When that repository is the current checkout, the doc is `issue-tracker.md`
    in its standards root: `docs/standards/`, unless `.claude/standards.yaml` at the git top level
-   sets `standards_dir`. When the issue lives in another repository, use the default in step 3.
+   sets `standards_dir`. Without it there, and when the checkout's
+   `docs/conventions/source-control.yaml` names a `standards_repository`, the doc is the
+   `issue-tracker.md` that repository's standards index routes to, on its `main` (the standards
+   contract's org layer; `gh api repos/<owner>/<repo>/contents/<path>?ref=main` reads it). When the
+   issue lives in another repository, use the default in step 3.
 2. **Apply it.** Follow its "Filing an issue" and "Issue titles" sections. A field the calling
    skill leaves to triage stays with triage, whatever the doc lists. Name in the run's report any
    other part the filing path cannot set, never drop it silently.

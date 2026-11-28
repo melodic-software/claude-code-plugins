@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-test-tmp-cleanup.sh.
-#
-# Self-contained and cwd-independent: builds a throwaway git repository with
-# fixture *.test.sh files, runs the checker against it, and
-# asserts on exit code and output. The SUT resolves the repository root
-# relative to its own location, so the fixture carries a copy of it under
-# scripts/ and every case commits its files so `git ls-files` sees them.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,8 +9,6 @@ SUT_SRC="$SCRIPT_DIR/check-test-tmp-cleanup.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SCRIPT_DIR/lib/fixture-tree.sh"
 
-# The fixture bodies name the command without spelling it in one piece, so this
-# suite is not itself a temp-creating suite the checker would flag.
 MK="mk"'temp'
 
 # shellcheck disable=SC2016  # the fixture body must reach the file unexpanded
@@ -27,7 +18,6 @@ write_offender() { printf 'd=$(%s -d)\nrm -rf "$d"\n' "$MK" >"$1"; }
 write_fixture_user() { printf 'fixture_tree::build f\nln -s /usr/bin/%s f/bin/\n' "$MK" >"$1"; }
 write_comment_only() { printf '# uses %s somewhere else\necho hi\n' "$MK" >"$1"; }
 
-# JS fixtures: a folder under os.tmpdir() with and without a removal hook.
 write_js_offender() { printf 'const d = mkdtempSync(join(tmpdir(), "x-"));\n' >"$1"; }
 write_js_unbound() { printf 'after(() => {});\nconst f = join(mkdtempSync(join(tmpdir(), "x-")), "f");\n' >"$1"; }
 write_js_hooked() { printf 'after(() => rmSync(d));\nconst d = mkdtempSync(join(tmpdir(), "x-"));\n' >"$1"; }
@@ -35,8 +25,6 @@ write_js_helper() { printf 'import { tempDir } from "../lib/test-tmp.mjs";\ncons
 write_js_bare_beside_helper() { printf 'import { tempDir } from "../lib/test-tmp.mjs";\nconst d = mkdtempSync(join(tmpdir(), "x-"));\n' >"$1"; }
 write_js_under_root() { printf 'after(() => {});\nconst d = join(mkdtempSync(join(root, "x-")), "f");\n' >"$1"; }
 
-# mk_repo <out-var>: a repo with one clean suite and one comment-only suite.
-# The builder assigns through a nameref, which shellcheck cannot follow.
 mk_repo() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --git || return 1
@@ -46,9 +34,6 @@ mk_repo() {
   write_comment_only "$dir/plugins/p/comment.test.sh"
 }
 
-# run_case <label> <expected-rc> <setup> [<must-name>...]
-# <setup> runs inside the fixture root before everything is committed; each
-# <must-name> must appear in the output of a failing run.
 run_case() {
   local label="$1" expected="$2" setup="$3"
   shift 3
@@ -102,7 +87,6 @@ run_case "a JS suite that imports the helper and still makes a bare tmpdir folde
 run_case "JS suites with a removal hook, the helper, or a folder under a cleaned root pass" 0 \
   "$(declare -f write_js_hooked write_js_helper write_js_under_root); write_js_hooked plugins/p/h.test.mjs; write_js_helper plugins/p/t.test.js; write_js_under_root plugins/p/r.test.mjs"
 
-# Findings on stderr only.
 repo=""
 if mk_repo repo; then
   write_offender "$repo/plugins/p/bad.test.sh"

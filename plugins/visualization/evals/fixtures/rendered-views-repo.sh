@@ -21,9 +21,6 @@ case "${here}" in
 *) ;;
 esac
 
-# The eval workspace sits inside the run's temporary home, which is itself a repository, so a
-# repository above the workspace is expected there. Allow only that one; refuse a workspace that
-# is already a repository and any other enclosing repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   tmp="$(cd "${TMPDIR:-/nonexistent}" 2>/dev/null && pwd -P || true)"
@@ -72,7 +69,7 @@ diagram-target-excalidraw-file)
   printf 'diagram_target: excalidraw-file\n' >docs/conventions/visualization.local.yaml
   g add README.md .gitignore
   ;;
-*) # personal-file; the mode was checked above
+*)
   printf 'docs/conventions/rendered-views.local.yaml\n' >.gitignore
   printf 'medium: file\n' >docs/conventions/rendered-views.local.yaml
   g add README.md .gitignore

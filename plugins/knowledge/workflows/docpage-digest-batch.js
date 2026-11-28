@@ -17,21 +17,12 @@ if (typeof input === 'string') {
 }
 if (!input || typeof input !== 'object' || Array.isArray(input)) input = {}
 
-// Design choice: every page fans out one agent per digest unit plus both arms, so 20 pages keeps
-// one launch finishable; the rest come back deferred for a relaunch.
 const PAGE_CAP = 20
 const SEVERITY = ['PASS', 'PASS-WITH-FINDINGS', 'FAIL', 'BLOCKED']
 const FINDING_SEVERITY = ['high', 'medium', 'low']
 const REQUIRED_GATES = ['check-fences-exact.py', 'check-snippets.py', 'check-prose-terms.py', 'check-sources-parity.py']
 const CONDITIONAL_GATES = ['check-html-rows.py']
 
-// A page URL reaches agents that hold Bash, which single-quote it (SKILL.md "Slug guard"), so
-// after the host it carries no quote, backslash, `$`, backtick, whitespace, bash metacharacter
-// (| & ; ( ) < >), brace, or the glob characters `*`, `[` and `]`. The glob character `?` is
-// kept for query strings. Basis for the metacharacter set:
-// https://www.gnu.org/software/bash/manual/html_node/Definitions.html ("metacharacter").
-// `&` goes with them, so a URL with two query parameters is rejected. `%` is kept in the path
-// and query, so a percent escape such as `%27` passes: the shell reads it as plain text.
 const SHELL_SAFE_URL = /^https:\/\/[A-Za-z0-9.-]+(:\d{1,5})?([/?#][A-Za-z0-9._~:/?#=%+,@-]*)?$/
 function urlRejection(u) {
   if (typeof u !== 'string' || !/^https:\/\//.test(u)) return 'not-https'
@@ -63,8 +54,6 @@ function isPublicUrl(u) {
     (a === 198 && (b === 18 || b === 19)) || (a === 192 && b === 0 && c === 0))
 }
 
-// SHA-256 (FIPS 180-4) over ASCII text, in plain JS: a workflow script has no crypto API. Anything
-// outside ASCII throws; the URL allowlist keeps it out, so a throw means that allowlist changed.
 function sha256(text) {
   const K = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -166,18 +155,13 @@ const PLAN = PAGES.map(url => {
   return { canonical, slug, slugTaken }
 })
 if (deferred.length) log('pages: ' + deferred.length + ' past the cap of ' + PAGE_CAP + ' per run were not started; relaunch with the deferred list')
-// Design choice: a default of 4 leaves session subagent slots for sibling work (SKILL.md
-// Phase 3), and 16 bounds a caller's override.
 const MAX_CONCURRENT = Number.isInteger(input.maxConcurrent) ? Math.min(16, Math.max(1, input.maxConcurrent)) : 4
 const B_REASON = 'the batch path has no cross-vendor arm: codex:codex-rescue returns raw stdout, which cannot carry a structured verdict'
 
-// Role variants as /multi-agent:route emits them. Every stage here runs once
-// per page or per unit, so all of them read the fan-out variant; the fallback
-// names opus so a frontier session never fans out on its own model. FRONTIER keeps `best`
-// for Claude Code before v2.1.321, where it names Fable
-// (https://code.claude.com/docs/en/model-config#version-history).
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODELS = ['inherit', 'opus', 'sonnet', 'haiku', 'fable', 'best']
+// Before Claude Code v2.1.321, `best` resolves to Fable.
+// https://code.claude.com/docs/en/model-config#version-history
 const FRONTIER = ['fable', 'best']
 const FALLBACK_ROLES = {
   worker: { fanout: { model: 'opus', effort: 'medium' } },
@@ -219,8 +203,6 @@ const SLUG = /^[a-z0-9][a-z0-9-]{0,30}-[0-9a-f]{8}$/
 const UNIT = /^\d{2}-[a-z0-9][a-z0-9-]{0,39}$/
 const LINES = /^\d{1,6}-\d{1,6}$/
 const MAX_UNITS = 100
-// A profile mapping is passed only as one of these aliases, the floor for source-reading agents; any
-// other name, a pinned model ID or haiku, is recorded mapped and unenforced.
 const PASSABLE = ['opus', 'sonnet']
 const MODEL_NAME = /^(opus|sonnet|haiku|claude-(opus|sonnet|haiku|fable)-[0-9]+(-[0-9]+)*(-[0-9]{8})?)$/
 
@@ -385,9 +367,6 @@ async function slot(fn) {
   }
 }
 
-// Reads one raw reply before its parser does, and on purpose without the parser's strictness: a
-// FAIL, a high finding or a false gate counts in any shape, so a malformed reply cannot hide one
-// behind a retry. Notes stay free text and count for nothing.
 function scanReply(raw, saw) {
   const gateResultKey = key => /^(pass|passed|ok|result|status|\d+|check-.*)$/.test(key)
   const textRules = text => {
@@ -452,11 +431,6 @@ async function call(stage, prompt, o, parse) {
   return { code: stage + '-' + last, saw }
 }
 
-// ---- the deciders ----
-// A workflow script cannot read the filesystem, so everything here is what agents reported. The
-// best a page reaches is claimed; scripts/verify-batch-page.py reads the disk after the workflow
-// returns, and only that script writes verified. ev holds only parser records and script-owned
-// facts from this run.
 const PAGE = Object.freeze({ CLAIMED: 'claimed', UNVERIFIED: 'unverified', FAILED: 'failed' })
 const AWAITING = 'unverified: awaiting-check'
 const unverified = code => record({ status: PAGE.UNVERIFIED, code, verification: 'unverified: ' + code })

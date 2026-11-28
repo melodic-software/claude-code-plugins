@@ -23,7 +23,7 @@ function chromium(dir) {
     ...[['..'], ['..', 'lib', 'node_modules'], ['node_modules']].map(up => () =>
       createRequire(realpathSync(join(dirname(onPath('playwright-cli')), ...up, '@playwright', 'cli', 'package.json')))('playwright-core')),
   ];
-  for (const t of tries) { try { const m = t(); if (m?.chromium) return m.chromium; } catch { /* next */ } }
+  for (const t of tries) { try { const m = t(); if (m?.chromium) return m.chromium; } catch {} }
   console.error(`capture.mjs: playwright-core not found; ${REMEDY}.`);
   process.exit(2);
 }

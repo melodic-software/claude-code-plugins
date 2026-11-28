@@ -21,7 +21,6 @@ function scratch(prefix) {
   return dir;
 }
 
-/** A directory holding probe.mjs (prints isMainModule for itself) and runner.mjs (imports the probe). */
 function fixture() {
   const dir = scratch("main-module-");
   writeFileSync(

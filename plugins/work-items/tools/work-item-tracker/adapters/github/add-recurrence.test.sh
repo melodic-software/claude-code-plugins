@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
-# Offline: add-recurrence against a gh stub that keeps the item's comments in a JSON file,
-# applies each call's --jq filter to it, and appends a POSTed comment to it.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 
@@ -80,7 +78,6 @@ run "github:o/r#9" --source-link "https://github.com/o/r/actions/runs/2" --note 
 assert_eq "another link is recorded" "true" "$(jq -r '.recorded' <<<"$OUT")"
 assert_eq "another link posts once more" "2" "$(posts)"
 
-# Anyone can comment on a public repository: a marker an outsider posted records nothing.
 OTHER="https://github.com/o/r/actions/runs/3"
 jq -c --arg b "<!-- work-item-recurrence v1 {\"source_link\":\"$OTHER\"} -->" \
   '. + [{id: 50, body: $b, author_association: "NONE", user: {login: "x", type: "User"}}]' \

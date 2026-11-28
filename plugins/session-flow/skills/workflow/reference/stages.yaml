@@ -1,0 +1,190 @@
+stages:
+  - id: interview
+    name: Interview
+    group: Shape
+    flag: optional
+    entry: planning:interview
+    inbound: the first stage; a session starts here or is placed here by /session-flow:workflow
+  - id: explore
+    name: Explore
+    group: Shape
+    flag: conditional
+    entry: discovery:explore
+    note: a detour the interview calls when a question turns on what the code does now
+  - id: research
+    name: Research
+    group: Shape
+    flag: conditional
+    entry: discovery:research
+    note: a detour the interview calls when a question rests on an external claim
+  - id: prd
+    name: PRD
+    group: Shape
+    flag: conditional
+    entry: planning:prd
+    note: a detour the interview calls when product intent is unsettled
+  - id: design
+    name: Design
+    group: Build
+    entry: planning:design
+  - id: plan
+    name: Plan
+    group: Build
+    entry: planning:plan
+    note: includes the stress-test (/planning:devils-advocate), which the plan dispatches itself
+  - id: decompose
+    name: Decompose
+    group: Build
+    flag: conditional
+    entry: work-items:decompose
+  - id: implement
+    name: Implement
+    group: Build
+    entry: implementation:implement
+  - id: test
+    name: Test
+    group: Check
+    entry: testing:write
+  - id: review
+    name: Review
+    group: Check
+    entry: review:quality-gate
+  - id: verify
+    name: Verify outcome
+    group: Check
+    entry: verification:confirm
+  - id: retrospective
+    name: Retrospective
+    group: Retro
+    flag: optional
+    entry: session-flow:retro
+
+ship:
+  name: PR lifecycle
+  group: Ship
+  runs-after: verify
+  steps: [prep, create, monitor CI, merge]
+  entry: source-control:pull-request
+
+off-ladder: [anytime, operator, session, pr]
+
+aliases:
+  retro: retrospective
+
+loop-backs:
+  - from: any
+    to: interview
+    reason: a question at the behavior level goes back to the interview, and explore, research and the PRD return to the interview that called them (steps.md, the level each stage decides; stages 2-4)
+  - from: any
+    to: explore
+    reason: explore is a detour any stage calls when a question turns on what the code does now (steps.md, stages 2-4)
+  - from: any
+    to: research
+    reason: research is a detour any stage calls when a question rests on an external claim (steps.md, stages 2-4)
+  - from: any
+    to: design
+    reason: a question at the interface level goes back to design (steps.md, the level each stage decides)
+  - from: any
+    to: plan
+    reason: a question at the file level goes back to the plan (steps.md, the level each stage decides)
+  - from: any
+    to: implement
+    reason: a failing test, review finding, missed outcome or codified lesson is fixed in the build
+  - from: verify
+    to: test
+    reason: a failing mechanical check goes back to the test stage to diagnose it to root cause (steps.md, Test)
+  - from: corrections:codify
+    to: toolchain:ratchet
+    reason: existing violations of a codified rule are held at today's count while they are cleaned up
+  - from: performance:protect
+    to: toolchain:ratchet
+    reason: a protected counter's CI ceiling is the ratchet's job
+
+skips:
+  - from: implement
+    to: review
+    reason: implement validates with the build and tests after each logical block, so the test stage runs inside it (steps.md, Implement)
+  - from: planning:wayfind
+    to: work-items:decompose
+    reason: a closed map has resolved the design decisions a plan holds; the owner's Q531 closes it to prd, decompose or work (#12477)
+  - from: planning:wayfind
+    to: planning:plan
+    reason: a map closed on a set of build items has the same decisions resolved, so it goes to a plan and then decompose (#15784)
+  - from: app-control:drive
+    to: verification:confirm
+    reason: the drive's evidence is what the outcome judgment reads
+  - from: architecture:improve
+    to: testing:write
+    reason: an agreed candidate's module needs characterization tests before the refactor
+  - from: architecture:map-components
+    to: architecture:improve
+    reason: a mapped module's interface friction goes to the architecture pass, not the ladder's design
+  - from: architecture:map-context
+    to: architecture:improve
+    reason: one repository on the context gets its own module-level pass
+  - from: architecture:map-landscape
+    to: architecture:improve
+    reason: a module-design question goes to the architecture pass
+  - from: bugs:write
+    to: debugging:debug
+    reason: a written bug with an unknown root cause is diagnosed before any design or plan (workflow SKILL.md, bug intake)
+  - from: bugs:write
+    to: implementation:implement
+    reason: a report that names its root cause is an already-diagnosed item (workflow SKILL.md, bug intake)
+  - from: debugging:analyze-profile
+    to: debugging:debug
+    reason: a mechanism found in a bug goes to the debug loop
+  - from: debugging:analyze-profile
+    to: performance:goal
+    reason: a mechanism found in a performance target goes to the performance goal
+  - from: debugging:debug
+    to: verification:confirm
+    reason: the debug loop lands the fix with its regression test
+  - from: discovery:read-docs
+    to: planning:plan
+    reason: a page that settles the approach leaves no design question open
+  - from: discovery:trace-intent
+    to: planning:plan
+    reason: with no design question open the plan reads the recovered intent
+  - from: overengineering:realign
+    to: verification:confirm
+    reason: a realigned finding stays open until the landed change is verified
+  - from: performance:climb
+    to: performance:verify
+    reason: the climb's keep-or-revert loop measures every attempt; verify re-derives the result
+  - from: performance:go-faster
+    to: performance:goal
+    reason: a measured finding becomes a numbered performance target
+  - from: performance:goal
+    to: performance:snapshot
+    reason: a goal's baseline is captured before any change
+  - from: performance:target
+    to: performance:goal
+    reason: a chosen target becomes a performance goal
+  - from: performance:target
+    to: toolchain:ratchet
+    reason: a counter growing with the repository is held by a ratchet
+  - from: playwright:playwright
+    to: verification:confirm
+    reason: a UI change driven and checked here goes to the outcome judgment
+  - from: playwright:playwright
+    to: playwright:demo-video
+    reason: a driven flow becomes a demo video for the pull request
+  - from: prototype:build-generator
+    to: verification:confirm
+    reason: the harvested artifact is checked against what the user approved
+  - from: testing:fix-failing
+    to: verification:confirm
+    reason: all green after the regression pass goes to the outcome judgment
+  - from: testing:run-e2e
+    to: verification:confirm
+    reason: passing scenarios go to the outcome judgment
+  - from: user-interface:design
+    to: user-interface:write-css
+    reason: a set interface direction is built directly
+  - from: user-interface:design
+    to: user-interface:write-animation
+    reason: a set interface direction is built directly
+  - from: user-interface:design
+    to: user-interface:audit
+    reason: a built pass is judged before it ships

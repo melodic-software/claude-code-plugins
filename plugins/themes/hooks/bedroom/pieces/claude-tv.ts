@@ -3,6 +3,7 @@ import type { EngineInterface, Timer } from 'claude-code'
 import { ctxOf } from '../core/context.js'
 import type { Ctx, On, Piece } from '../core/piece.js'
 import { hasStarted } from '../core/render.js'
+import { isModEnabled } from '../core/settings.js'
 import { failed } from '../core/telemetry.js'
 
 /**
@@ -27,7 +28,6 @@ export function zoneOf(percent: number, was: number): number {
 }
 
 let working = false
-/** The main turn running, from its turn.start to its turn.complete. */
 let turn: string | undefined
 let hold: Timer | undefined
 let zone = 0
@@ -80,18 +80,22 @@ function measured($: EngineInterface, percent: number | undefined): void {
 /** Its hooks wait on nothing: the turn's first model call comes after them, and a Stop is noted before any await. */
 export function hooks(on: On): void {
   on('turn.start', ($, e, next) => {
+    if (!isModEnabled()) return next(e)
     if (e.agentId === undefined) turnStarted($, e.turnId)
     return next(e)
   })
   on('turn.complete', ($, e, next) => {
+    if (!isModEnabled()) return next(e)
     if (e.agentId === undefined) turnEnded($, e.turnId)
     return next(e)
   })
   on('session.stop', ($, e, next) => {
+    if (!isModEnabled()) return next(e)
     stopped($)
     return next(e)
   })
   on('session.measure', ($, e, next) => {
+    if (!isModEnabled()) return next(e)
     measured($, e.context.percent)
     return next(e)
   })

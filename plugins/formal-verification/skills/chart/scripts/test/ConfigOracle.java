@@ -40,8 +40,6 @@ public class ConfigOracle {
   public static void main(String[] args) throws Exception {
     Field table = ModelConfig.class.getDeclaredField("configTbl");
     table.setAccessible(true);
-    // TLC keeps the comment depth in a static field and never resets it, so a config that ends
-    // inside a nested comment would change how the next config in this JVM reads.
     Field depth = Class.forName("tla2sany.parser.TLAplusParserTokenManager").getDeclaredField("bracketCount");
     depth.setAccessible(true);
     BufferedReader in = new BufferedReader(new InputStreamReader(System.in, StandardCharsets.UTF_8));

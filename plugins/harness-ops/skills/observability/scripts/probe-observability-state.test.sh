@@ -1,46 +1,4 @@
 #!/usr/bin/env bash
-# The script exists to reproduce, from a bundled file, what pre-compute lines
-# used to compute inline (#1687). The OTEL cases therefore assert TWO things: the
-# script's output against the expected literal, and the script's output against
-# the ORIGINAL inline one-liner run in the same environment. The second assertion
-# is the byte-for-byte equivalence claim, checked rather than reasoned about.
-# The hook-events line has no inline original any more: it reads a whole root
-# (sessions/*.jsonl plus the shared file) that the pre-compute line never did,
-# so its cases assert the literal alone.
-#
-# Coverage:
-#   --hook-events
-#     - present files → `<N> events` summed across sessions/*.jsonl and the
-#       shared hook-events.jsonl; nothing → the EMPTY sentence verbatim
-#     - path resolves under the git toplevel, and under the working directory
-#       when not inside a repo
-#     - --root moves the root; an unexpanded `${user_config...}` placeholder and
-#       an empty value read as the default; an uncontained root is INVALID
-#     - no env override (the line it replaces had none), so CC_OTEL_STORE must
-#       not steer it
-#   --otel-store
-#     - CC_OTEL_STORE used verbatim when set; an EMPTY value falls through
-#     - one line per store file, in fixed order, `<name>:<bytes>B` / `<name>:absent`
-#     - mixed present/absent across the three files
-#     - cold tier `cold:<bytes>B (<n> files)` / `cold:absent`; `last-prune:` with
-#       hour or day age from the stamp, `never` when absent or unparsable
-#     - `prune-task:` from a stubbed schtasks: n/a off Windows, missing,
-#       provisioned only for the full launcher signature under pwsh, disabled,
-#       hand-registered, stale path (backslash and XML-quoted forms too),
-#       unrecognized action, a UNC path never tested, no action text printed
-#   --pipeline
-#     - six fixed lines; guard ok / absent / operator-edited / not a checkout;
-#       newest session by mtime; shared count; prune-pending age WARN; option
-#       defaults for unexpanded placeholders; the probe never writes the guard
-#   - a CRLF-terminated git toplevel does not leak a stray CR into the path
-#   - mode validation: missing, unknown, and conflicting arguments all exit 3
-#
-# PATH-stubs `git` so no real repository state is touched.
-#
-# Every case runs in THIS shell, never a `( … )` subshell: an assertion inside a
-# subshell increments a copy of the failure counter and the run would report
-# green with a failing case in it. Environment scoping is therefore explicit
-# set/unset around each case rather than subshell containment.
 # test-scope: plugins/harness-ops/skills/observability/SKILL.md
 
 set -uo pipefail
@@ -61,13 +19,11 @@ fail() {
 }
 assert_contains() { if [[ "$3" == *"$2"* ]]; then pass "$1"; else fail "$1" "contains: $2" "$3"; fi; }
 
-# --- The OTEL pre-compute line this script replaced, verbatim ----------------
 ORIG_OTEL="$TMP/original-otel-store.sh"
 cat >"$ORIG_OTEL" <<'ORIG'
 d="${CC_OTEL_STORE:-$(git rev-parse --show-toplevel 2>/dev/null || pwd)/.claude/observability/otel}"; for f in cc-logs.json cc-metrics.json cc-traces.json; do if [[ -f "$d/$f" ]]; then echo "$f:$(wc -c < "$d/$f" 2>/dev/null || echo 0)B"; else echo "$f:absent"; fi; done 2>/dev/null || echo "unknown"
 ORIG
 
-# --- Stubs -------------------------------------------------------------------
 STUB="$TMP/stub"
 mkdir -p "$STUB"
 cat >"$STUB/git" <<'SH'
@@ -89,10 +45,6 @@ SH
 chmod +x "$STUB/git"
 export PATH="$STUB:$PATH"
 
-# --- Fixtures ----------------------------------------------------------------
-# WIRED: a checkout whose hook log root holds two session files (2 + 1 lines),
-# a shared file (4 lines), a healthy guard, and whose OTEL store holds two of
-# three files.
 WIRED="$TMP/wired"
 mkdir -p "$WIRED/.git" "$WIRED/.observability/claude/sessions" "$WIRED/.claude/observability/otel"
 printf '*\n' >"$WIRED/.observability/claude/.gitignore"
@@ -114,9 +66,6 @@ ALTSTORE="$TMP/altstore"
 mkdir -p "$ALTSTORE"
 printf 'xy' >"$ALTSTORE/cc-metrics.json"
 
-# Expected byte/line counts come from `wc` itself, not from GNU-shaped literals.
-# BSD `wc` left-pads its output (`       10`) where GNU does not, and the script
-# must keep emitting whatever the host's `wc` produces.
 wc_c() { wc -c <"$1"; }
 
 WIRED_EVENTS="$(cat "$WIRED"/.observability/claude/sessions/*.jsonl "$WIRED/.observability/claude/hook-events.jsonl" | wc -l) events"
@@ -137,7 +86,6 @@ run_both() {
   assert_eq "$label (matches the original inline line byte-for-byte)" "$orig" "$got"
 }
 
-# --- --hook-events ------------------------------------------------------------
 export STUB_GIT_TOPLEVEL="$WIRED"
 assert_eq "hook log present → events summed across session files and the shared file" \
   "$WIRED_EVENTS" "$(bash "$SCRIPT" --hook-events 2>/dev/null)"
@@ -172,7 +120,6 @@ assert_eq "CRLF toplevel is stripped (--hook-events)" "$WIRED_EVENTS" \
   "$(bash "$SCRIPT" --hook-events 2>/dev/null)"
 unset STUB_GIT_CRLF
 
-# The replaced line had no env override; CC_OTEL_STORE must not steer this mode.
 export CC_OTEL_STORE="$ALTSTORE"
 assert_eq "CC_OTEL_STORE does not steer --hook-events" "$WIRED_EVENTS" \
   "$(bash "$SCRIPT" --hook-events 2>/dev/null)"
@@ -198,7 +145,6 @@ else
   fail "a linked worktree fixture could be created" ".git file" "absent"
 fi
 
-# --- --otel-store -------------------------------------------------------------
 run_both "store under the git toplevel: mixed present/absent, fixed order" \
   --otel-store "$ORIG_OTEL" "$WIRED_STORE_LINES"
 
@@ -225,7 +171,6 @@ assert_eq "CRLF toplevel is stripped (--otel-store)" "$WIRED_STORE_LINES" \
   "$(bash "$SCRIPT" --otel-store 2>/dev/null | head -n 3)"
 unset STUB_GIT_CRLF
 
-# Cold tier, last-prune and prune-task lines follow the three original lines.
 export STUB_GIT_TOPLEVEL="$WIRED"
 assert_eq "no cold dir and no stamp → cold:absent, last-prune:never" \
   "$(printf 'cold:absent\nlast-prune:never')" "$(bash "$SCRIPT" --otel-store 2>/dev/null | sed -n 4,5p)"
@@ -249,9 +194,6 @@ printf 'garbage\n' >"$COLD/.last-prune"
 assert_eq "unparsable stamp reads as never" "last-prune:never" "$(bash "$SCRIPT" --otel-store 2>/dev/null | sed -n 5p)"
 unset CC_OTEL_STORE
 
-# The prune-task line. A stub schtasks prints $STUB_SCHTASKS_XML, or fails like a
-# missing task when that is unset; it refuses any other argv. It sits first on
-# PATH, so Git Bash finds it before System32's schtasks.exe.
 cat >"$STUB/schtasks" <<'SH'
 #!/usr/bin/env bash
 [[ "$*" == "/query /tn ClaudeCodeOtelPrune /xml" ]] || { echo "unexpected argv: $*" >&2; exit 9; }
@@ -266,7 +208,6 @@ task_xml() {
   printf '      <Command>%s</Command>\n' "$1"
   printf '      <Arguments>%s</Arguments>\n    </Exec>\n  </Actions>\n</Task>' "$2"
 }
-# The provisioning launcher's argument, XML-escaped as schtasks exports it.
 LAUNCHER="-NoProfile -Command &quot;\$plugin = 'harness-ops@example-marketplace'; &amp; { \
 \$index = Join-Path \$root 'plugins/installed_plugins.json'; \
 \$prune = Join-Path \$entry.installPath 'skills/observability/otel/prune-otel-store.sh' } *&gt;&gt; \$log&quot;"
@@ -312,7 +253,6 @@ assert_eq "prune-task: no text from the action reaches the line" "prune-task:sta
 unset STUB_SCHTASKS_XML
 OSTYPE="$HOST_OSTYPE"
 
-# --- --pipeline ---------------------------------------------------------------
 export STUB_GIT_TOPLEVEL="$WIRED"
 P_OUT="$(bash "$SCRIPT" --pipeline --enabled true --keep-sessions 5 2>/dev/null)"
 assert_eq "pipeline: six lines" "6" "$(printf '%s\n' "$P_OUT" | wc -l | tr -d ' ')"
@@ -378,16 +318,10 @@ export STUB_GIT_TOPLEVEL="$ENVELOPED"
 P_OUT="$(bash "$SCRIPT" --pipeline 2>/dev/null)"
 assert_contains "pipeline: per-session envelope rows are counted apart from the event-log switch" \
   "envelope: 3 row(s) from the audit hooks, outside the switch; event log: off;" "$P_OUT"
-# Every line of the shared file is a sink envelope in the legacy shape (no
-# `source` marker), so the tier counts the file whole.
 printf '{"event":"PostToolUse","hook":"d"}\n{"event":"Stop","hook":"e"}\n' >"$ENVELOPED/.observability/claude/hook-events.jsonl"
 P_OUT="$(bash "$SCRIPT" --pipeline 2>/dev/null)"
 assert_contains "pipeline: the shared file's legacy envelopes join the count" \
   "envelope: 5 row(s) from the audit hooks, outside the switch; event log: off;" "$P_OUT"
-# --observed is the pre-compute form: no caller there holds an option value, so
-# the sixth line stops at the observed count and names the call that renders
-# the option tier instead of printing manifest defaults. Option flags passed
-# alongside are ignored, so a stray flag cannot smuggle a default back in.
 P_OUT="$(bash "$SCRIPT" --pipeline --observed --enabled true 2>/dev/null)"
 assert_eq "pipeline --observed: still six lines" "6" "$(printf '%s\n' "$P_OUT" | wc -l | tr -d ' ')"
 assert_contains "pipeline --observed: the sixth line carries the envelope count and points at the re-run" \
@@ -397,8 +331,6 @@ if [[ "$P_OUT" != *"event log:"* ]]; then
 else
   fail "pipeline --observed: no option tier is printed" "no event log: text" "$P_OUT"
 fi
-# The sink rotates the shared file to hook-events.jsonl.1 at its size cap; both
-# files are the hook log, so a rotation must not drop rows from any count.
 printf '{"event":"Stop","hook":"f"}\n{"event":"Stop","hook":"g"}\n{"event":"Stop","hook":"h"}\n' >"$ENVELOPED/.observability/claude/hook-events.jsonl.1"
 P_OUT="$(bash "$SCRIPT" --pipeline 2>/dev/null)"
 assert_contains "pipeline: the rotated .1 joins the shared count" \
@@ -409,13 +341,6 @@ assert_eq "--hook-events: the rotated .1 joins the total" "9 events" \
   "$(bash "$SCRIPT" --hook-events 2>/dev/null)"
 unset STUB_GIT_TOPLEVEL
 
-# --- The skill's own pre-compute lines -----------------------------------------
-# A ${user_config.*} value renders in plain skill content only; a shell line
-# that carries one either re-parses the rendered value or, left unrendered,
-# fails on the `.` in the parameter name, and one failed line aborts the whole
-# invocation. So no pre-compute command may reference user_config at all, and
-# each command that invokes the probe must exit 0 with the probe's own output
-# under the one substitution the harness does make, ${CLAUDE_PLUGIN_ROOT}.
 SKILL_MD="$SCRIPT_DIR/../SKILL.md"
 PLUGIN_ROOT="$(cd "$SCRIPT_DIR/../../.." && pwd)"
 # shellcheck disable=SC2016  # the literal placeholder text is the thing matched
@@ -432,8 +357,6 @@ while IFS= read -r line; do
   out="$(bash -c "$cmd" 2>&1)"
   rc=$?
   label="SKILL.md pre-compute line ${line%%:*} runs to the probe's own output"
-  # A line may chain two probe calls, each with its own fallback that ends in
-  # "unknown" ("unknown", "event count unknown", "pipeline unknown").
   if [[ $rc -eq 0 && -n "$out" ]] && ! grep -qE '(^| )unknown$' <<<"$out"; then
     pass "$label"
   else
@@ -443,7 +366,6 @@ done < <(grep -E '!`[^`]*probe-observability-state\.sh' "$SKILL_MD")
 assert_eq "SKILL.md carries the two probe-invoking pre-compute lines this case guards" "2" "$probe_lines"
 unset STUB_GIT_TOPLEVEL
 
-# --- Mode validation ----------------------------------------------------------
 out="$(bash "$SCRIPT" 2>&1)"
 rc=$?
 assert_eq "no mode exits 3" "3" "$rc"

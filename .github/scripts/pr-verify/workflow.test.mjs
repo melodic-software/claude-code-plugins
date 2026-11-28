@@ -1,13 +1,4 @@
-// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
-// pr-verify.yml's ordering rules, from its concurrency comment and the
-// README's "Verifier verdict" section: GitHub cancels an older pending run in the same concurrency group, so a cancelled
-// run must leave no verdict. The upload is therefore each job's only artifact
-// step, it runs after the verdict file is written, and only when writing it
-// succeeded; the group is per PR and head, never cancelling a running judgment.
-// The key job judges first; the subscription job repeats it on the other
-// credential only when the key job hands the judgment on, and the fallback
-// job repeats it on the central fallback token only when the subscription job
-// hands it on, so one job per run writes a verdict.
+// test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/* .github/scripts/pr-review-main/write-verdict.mjs .github/scripts/lib/trusted-actors.mjs lib/publish-gate.mjs .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -18,6 +9,7 @@ import { tempDir } from "../../../lib/test-tmp.mjs";
 import { admits } from "../lib/gate-expression.mjs";
 import { HELD_REASON, HELD_STEP, main, packReads } from "./resolve-pr.mjs";
 import { workflowText } from "../lib/workflow-text.mjs";
+import { assertPerHeadUnlessUpstreamCancelled } from "../lib/workflow-run-group.mjs";
 import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-verify.yml", import.meta.url), "utf8");
@@ -40,30 +32,18 @@ const list = (block, key) => {
   const body = new RegExp(`^ {10}${key}: \\|\\n((?: {12}.*\\n?)+)`, "m").exec(block)?.[1] ?? "";
   return body.split("\n").map((line) => line.trim()).filter(Boolean);
 };
-// The most chunks a head is judged in: chunk-diff.sh's one MAX_CHUNKS, and
-// each job holds a judge step for every one (the slot tests below).
 const chunkScript = readFileSync(new URL("./chunk-diff.sh", import.meta.url), "utf8");
 const CEILING = Number(/^MAX_CHUNKS=\$\{MAX_CHUNKS:-([1-9][0-9]*)\}$/m.exec(chunkScript)?.[1]);
-const SLOTS = Array.from({ length: CEILING }, (_, i) => i + 1);
 const PIN = /^melodic-software\/ci-workflows\/\.github\/actions\/([a-z-]+)@main/;
-// Each later leg's lane record names why the leg before it did not judge:
-// select-model-credential's fallback-reason, from the previous job's
-// next-reason (credential-legs.test.mjs holds it to the expressions before).
 const FALLBACK_REASON = "${{ steps.credential.outputs.fallback-reason }}";
 const FB_REASON = FALLBACK_REASON;
 const FALLBACK = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
-// The one credential action every leg calls, and its call in each job.
 const SELECT = /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/select-model-credential@main/m;
-// check-intent's reads, which the subscription job's resolver takes through
-// env only (resolve-pr.mjs takeReads).
 const CARRIED = "          CARRIED: ${{ needs.check-intent.outputs.reads }}";
 const STANDARDS_REF = "          ref: ${{ needs.check-intent.outputs.standards-sha }}";
 const CARRY_ENV = ["          CONTEXT_FILE: ${{ github.workspace }}/pr-verify-data/context.json", CARRIED];
 const NOT_CARRIED = " && steps.pr.outputs.carried != 'true'";
-// The key job's credit gate, read inside its credential call: a key it
-// held off runs no pre-judge setup.
 const KEY_SKIP = " && steps.credential.outputs.key-skipped != 'true'";
-// The key's credit-stop marker, which only the key job writes and uploads.
 const MARKER_STEPS = ["Write the key's credit-stop marker", "Scan the key's credit-stop marker for credentials", "Upload the key's credit-stop marker"];
 const PROBE_STEPS = ["Write the key's probing marker", "Scan the key's probing marker for credentials", "Upload the key's probing marker"];
 const DEFER_STEPS = ["Read the defer override from the base config", "Check the token budget", "Note the deferral"];
@@ -78,23 +58,16 @@ const CREDENTIAL = {
 };
 const others = (job) => JOBS.filter((id) => id !== job).map((id) => CREDENTIAL[id]);
 const keyGate = () => /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(jobText(KEY))?.[1].replace(/\s+/g, " ").trim();
-// A branch filter pattern per GitHub's filter pattern cheat sheet: `*` stops
-// at `/`, `**` matches any character including `/`. Every other character is
-// taken literally, so a pattern using `?`, `+`, `[]` or `!` needs more here.
 const glob = (pattern) => {
   const literal = pattern.replace(/[.+?^$()|[\]{}\\]/g, "\\$&");
   return new RegExp("^" + literal.replace(/\*\*|\*/g, (star) => (star === "**" ? ".*" : "[^/]*")) + "$");
 };
 const REPO = "melodic-software/claude-code-plugins";
-// Each verdict job's outputs for wake-pr-merge: the verdict only once it uploaded.
 const WAKE_OUTPUTS = [
-  "      # For wake-pr-merge: the pull request, and the verdict once it uploaded.",
   "      pr-number: ${{ steps.pr.outputs.pr-number }}",
   "      verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}",
 ];
-// A job output read from each chunk's step, chunk 1's id being `first`.
-const chainOf = (build, first) => [first, ...SLOTS.slice(1).map((k) => `${first}-${k}`), `${first}-spec`].map(build).join(" || ");
-// Every leg check of a job left no clean handoff: "&& steps.<leg>-k.outcome != 'success'" for each slot and the spec.
+const chainOf = (build, first) => [first, `${first}-chunks`, `${first}-spec`].map(build).join(" || ");
 const legsClear = (first) => chainOf((id) => `steps\\.${id}\\.outcome != 'success'`, first).replaceAll(" || ", " && ");
 const upstreamRun = (overrides = {}) => ({
   github: {
@@ -106,11 +79,6 @@ const upstreamRun = (overrides = {}) => ({
   },
 });
 
-// upload-fail-index's "Split the names" step, run with a stand-in gh that
-// answers the run's artifacts read with `held`, after failing its first
-// `failFirst` reads (all of them with `fail`), and a stand-in sleep that
-// records each wait, returning its exit status, the outputs it wrote, the
-// reads made and the waits.
 const ACTION = readFileSync(new URL("../../actions/upload-fail-index/action.yml", import.meta.url), "utf8");
 const splitNames = (names, held, { total, fail = false, failFirst = 0 } = {}) => {
   const script = /\n {6}run: \|\n([\s\S]*?)\n {4}- name: /.exec(ACTION)[1].replace(/^ {8}/gm, "");
@@ -142,14 +110,10 @@ const splitNames = (names, held, { total, fail = false, failFirst = 0 } = {}) =>
 test("a FAIL index never replaces or keeps a name its run already holds", () => {
   const names = ["pr-verify-index-pr-41", `pr-verify-index-sha-${"a".repeat(40)}`, "pr-verify-index-ref-0123456789abcdef"];
   assert.equal(splitNames(names, []).outputs, `retention-days=90\n${names.map((n, i) => `n${i + 1}=${n}`).join("\n")}\n`);
-  // A re-run attempt: an earlier attempt's index name fails the step, so no
-  // new FAIL outlives that index, and nothing replaces it.
   const rerun = splitNames(names, [names[0], "pr-verify-41-x-fail"]);
   assert.notEqual(rerun.status, 0);
   assert.doesNotMatch(rerun.outputs, /^n\d+=/m);
-  // Another name the run holds (the verdict's own) uploads every index.
   assert.equal(splitNames(names, ["pr-verify-41-x-fail"]).outputs, `retention-days=90\n${names.map((n, i) => `n${i + 1}=${n}`).join("\n")}\n`);
-  // A read that fails or does not hold its count, three times, uploads nothing.
   const failed = splitNames(names, [], { fail: true });
   assert.notEqual(failed.status, 0);
   assert.deepEqual([failed.reads, failed.waits], [3, ["5", "10"]]);
@@ -157,12 +121,10 @@ test("a FAIL index never replaces or keeps a name its run already holds", () => 
   const short = splitNames(names, [names[0]], { total: 2 });
   assert.notEqual(short.status, 0);
   assert.deepEqual([short.reads, short.waits], [3, ["5", "10"]]);
-  // A read that fails twice and then holds its count uploads every index.
   const third = splitNames(names, [], { failFirst: 2 });
   assert.equal(third.status, 0);
   assert.deepEqual([third.reads, third.waits], [3, ["5", "10"]]);
   assert.equal(third.outputs, `retention-days=90\n${names.map((n, i) => `n${i + 1}=${n}`).join("\n")}\n`);
-  // A retried read that then shows a held name still fails the step.
   assert.notEqual(splitNames(names, [names[1]], { failFirst: 1 }).status, 0);
   assert.doesNotMatch(ACTION, /overwrite/);
   assert.equal((ACTION.match(/uses: actions\/upload-artifact@/g) ?? []).length, 13);
@@ -172,9 +134,6 @@ test("a FAIL index never replaces or keeps a name its run already holds", () => 
 test("the verdict is each job's only artifact upload but the key job's probing and credit-stop markers, and follows the written verdict", () => {
   for (const job of JOBS) {
     const uploads = STEPS[job].filter((s) => /uses: actions\/upload-artifact@/.test(s.text));
-    // The lane-hold marker is told by its artifact name, never its step name:
-    // exactly one upload names lane-hold-pr-verify, only after Note the hold
-    // ran (when no judge ran), with the fixed path that step wrote.
     const markers = uploads.filter((s) => input(s.text, "name") === "lane-hold-pr-verify");
     assert.equal(markers.length, 1, `${job}: one lane-hold marker upload`);
     const [marker] = markers;
@@ -191,11 +150,7 @@ test("the verdict is each job's only artifact upload but the key job's probing a
     );
     assert.ok(uploads.filter((s) => s !== marker).every((s) => !String(input(s.text, "name")).startsWith("lane-hold-")), job);
     assert.ok(index("Judge the pull request", job) >= 0 && index("Write the verdict", job) > index("Judge the pull request", job), job);
-    // The written verdict is scanned just before it uploads, and uploads only on the scan's clean output.
     assert.ok(index("Scan the upload for credentials", job) > index("Write the verdict", job), job);
-    // A FAIL's index uploads before the scan, and the verdict is scanned and
-    // uploads only when it is no FAIL or every index uploaded
-    // (write-verdict.mjs failIndexNames).
     assert.equal(index("Upload the FAIL index", job), index("Write the verdict", job) + 1, job);
     assert.equal(index("Scan the upload for credentials", job), index("Upload the FAIL index", job) + 1, job);
     assert.equal(index("Upload the verdict", job), index("Scan the upload for credentials", job) + 1, job);
@@ -218,26 +173,15 @@ test("the verdict is each job's only artifact upload but the key job's probing a
       new RegExp(`^ {8}if: >-\\n {10}\\(!cancelled\\(\\) && ${indexed}\\) && steps\\.scan-upload\\.outputs\\.clean == 'true'$`, "m"),
       job,
     );
-    // The verdict step names the retention (write-verdict.mjs retentionDays).
     assert.equal(input(step("Upload the verdict", job), "retention-days"), "${{ steps.verdict.outputs.retention-days }}", job);
-    // A pass's retention follows this job's resolver (resolve-pr.mjs relinkedSince).
     assert.match(step("Write the verdict", job), /^ {10}RELINK_SINCE_HEAD: \$\{\{ steps\.pr\.outputs\.relink-since-head \}\}$/m, job);
-    // Only a job with the index step may write a FAIL (write-verdict.mjs FAIL_INDEX).
     assert.match(step("Write the verdict", job), /^ {10}FAIL_INDEX: "1"$/m, job);
-    // A verdict needs a judge step that succeeded, which run-claude-cli never
-    // reports with a lane-class, so a credit stop writes none.
     assert.match(step("Write the verdict", job), /^ {8}if: \$\{\{ !cancelled\(\) && \(/m, job);
   }
   assert.doesNotMatch(text, /actions\/upload-artifact\/merge|gh api .*artifacts.* -X (POST|PUT)|actions\/cache/);
   assert.doesNotMatch(text, /uses: actions\/download-artifact@/);
 });
 
-// The resolver reads only, and skips on its own reads a run whose head is
-// judged, moved past, a draft, red for anything a person's approval does not
-// lift, or not the lanes App's; so it runs before the trigger gate, whose
-// reads then go only to a run the resolver would judge. The agree step runs
-// only after the gate proceeds, so a gate refusal ends the run without a
-// judgment and without a mismatch error.
 test("the resolver runs before the trigger gate, and the agree step only after the gate proceeds", () => {
   for (const job of JOBS) {
     assert.ok(index("Resolve the pull request", job) < index("Check the trigger", job), job);
@@ -248,14 +192,11 @@ test("the resolver runs before the trigger gate, and the agree step only after t
     for (const name of DEFER_STEPS) {
       assert.equal(index(name, job) !== -1, job === KEY, `${job}: only the first leg defers (${name})`);
     }
-    // Every judging step hangs off agree, and so does the missing-verdict failure.
     assert.match(step("Fail without a verdict", job), /steps\.agree\.outcome == 'success'/, job);
   }
 });
 
 test("pr-merge.yml gives the gate an Actions token for the verdict reads only", () => {
-  // babysit_verify_evidence.py reads BABYSIT_VERIFY_GH_TOKEN; the lane token
-  // the gate runs gh with holds no Actions permission.
   const merge = readFileSync(new URL("../../workflows/pr-merge.yml", import.meta.url), "utf8");
   const job = /\n  merge:\n([\s\S]*?)\n  [a-z-]+:\n/.exec(merge)[1];
   assert.match(job, /\n {6}actions: read\n/);
@@ -264,18 +205,23 @@ test("pr-merge.yml gives the gate an Actions token for the verdict reads only", 
   assert.match(gate, /\n {10}BABYSIT_VERIFY_GH_TOKEN: \$\{\{ github\.token \}\}\n/);
 });
 
-test("the concurrency group is per PR and head and never cancels a running judgment", () => {
-  const group = /^concurrency:\n  group: (.*)\n  cancel-in-progress: (.*)$/m.exec(text);
-  assert.ok(group, "a top-level concurrency block");
-  assert.match(group[1], /workflow_run\.pull_requests\[0\]\.number/);
-  assert.match(group[1], /workflow_run\.head_sha/);
-  assert.equal(group[2], "false");
+test("the concurrency group is per PR and head unless the upstream was cancelled, and never cancels a running judgment", () => {
+  assertPerHeadUnlessUpstreamCancelled(text, "pr-verify");
 });
 
-// The judgment on ci-workflows' run-claude-cli (docs/conventions/pr-pipeline/README.md,
-// Funding: pr-verify takes the pr-verify role), under the launcher's input
-// contract (its action.yml: managed settings while sudo works, then runner
-// isolation) and the deny rules that keep the model on its data files.
+test("a cancelled upstream's run admits no job, so its own group costs no verdict", () => {
+  const { ids, jobIf } = wf;
+  const skippedNeeds = Object.fromEntries(ids.map((other) => [other, { result: "skipped", outputs: {} }]));
+  for (const conclusion of ["success", "failure"]) {
+    assert.equal(admits(jobIf(KEY), { ...upstreamRun({ conclusion }), needs: skippedNeeds, vars: {} }), true, `a ${conclusion} upstream admits ${KEY}`);
+  }
+  const cancelled = { ...upstreamRun({ conclusion: "cancelled" }), needs: skippedNeeds, vars: {} };
+  for (const id of ids) {
+    assert.equal(admits(jobIf(id), cancelled), false, id);
+  }
+  assert.deepEqual(ids, [...JOBS, "wake-pr-merge"]);
+});
+
 test("each job judges on run-claude-cli as the pr-verify role with its one secret", () => {
   const pins = new Set();
   for (const job of JOBS) {
@@ -305,7 +251,6 @@ test("each job judges on run-claude-cli as the pr-verify role with its one secre
 });
 
 test("each secret appears only in its own job", () => {
-  // The subscription job may ask only whether the fallback token is set.
   const seen = (job) => (job === SUB ? jobText(job).replaceAll(`secrets.${FALLBACK} != ''`, "") : jobText(job));
   for (const job of JOBS) {
     const [, own] = CREDENTIAL[job];
@@ -317,9 +262,6 @@ test("each secret appears only in its own job", () => {
   assert.doesNotMatch(text, /secrets: inherit|toJSON\(secrets\)/);
 });
 
-// A failed upstream run reaches resolve-pr, which judges it only when it
-// failed on nothing but holds an approving review of the head lifts, the
-// `do-not-merge` label, or both (heldOnly).
 const TRIGGER_GATE = [
   "github.ref == 'refs/heads/main'",
   "&& github.event.workflow_run.event == 'pull_request'",
@@ -339,18 +281,9 @@ test("the key job runs on main for a same-repository pull_request run that passe
   assert.ok(!admits(keyGate(), withSwitch("true")));
 });
 
-// ci-workflows select-model-credential's key call with key-job reads
-// check-key-credit's history inline (gate.cjs at the pinned SHA):
-// key-skipped is `true` only while the newest credit-stop marker this job
-// uploaded is inside the window; any failure of the read runs the key, as
-// before the gate. It spends one artifact-list call, so it runs only for a
-// head the resolver would judge: a run that skips there (a judged head, a
-// draft, a run red for anything but a hold) spends none.
 const GATED_SETUP = ["Resolve the verifier's model", "Apply the Claude managed settings", "Isolate the runner", "Write the prompt and schema"];
 test("the credit gate runs in the key job after the resolver, the trigger gate and the reads hand-on, and only then", () => {
   assert.doesNotMatch(text, /check-key-credit@/);
-  // Its own step under continue-on-error and a 2-minute limit: a read that
-  // fails or hangs leaves next-leg empty, and the key judges.
   const gate = step("Read the key's credit history");
   assert.match(gate, /^ {8}id: credit$/m);
   assert.match(gate, /^ {8}if: steps\.agree\.outcome == 'success'$/m);
@@ -359,7 +292,6 @@ test("the credit gate runs in the key job after the resolver, the trigger gate a
   assert.match(gate, SELECT);
   assert.equal(input(gate, "leg"), "start");
   assert.doesNotMatch(gate, /secrets\./);
-  // The key call runs whatever the read chose; only whether the key is set reaches it.
   const key = step("Check the credential");
   assert.match(key, /^ {8}if: steps\.agree\.outcome == 'success'$/m);
   assert.match(key, SELECT);
@@ -373,9 +305,7 @@ test("the credit gate runs in the key job after the resolver, the trigger gate a
     assert.ok(index(before) >= 0 && index(before) < index("Read the key's credit history"), before);
   }
   for (const after of GATED_SETUP) assert.ok(index(after) > index("Check the credential"), after);
-  // The marker's name carries the key-job input, the key job's id.
   assert.equal(input(gate, "key-job"), KEY);
-  // The window's default lives only in the action: an empty variable is its 1 hour.
   assert.equal(input(gate, "window-hours"), "${{ vars.KEY_CREDIT_WINDOW_HOURS }}");
   assert.equal(input(gate, "reset-at"), "${{ vars.KEY_CREDIT_RESET_AT }}");
 });
@@ -383,18 +313,12 @@ test("the credit gate runs in the key job after the resolver, the trigger gate a
 test("a key the credit gate skipped runs no pre-judge setup, no judge and no verdict failure, and hands on", () => {
   const SKIPPED = KEY_SKIP;
   for (const name of GATED_SETUP) assert.match(step(name), new RegExp(`^ {8}if: steps\\.agree\\.outcome == 'success'${SKIPPED.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"), name);
-  // Every judge step needs the credential step's present=true, which a held key sets false.
   assert.match(step("Judge the pull request"), /^ {8}if: steps\.credential\.outputs\.present == 'true'$/m);
   const fail = /^ {8}if: (.*)$/m.exec(step("Fail without a verdict"))[1];
   assert.ok(fail.startsWith(`always() && steps.agree.outcome == 'success'${SKIPPED} && `), fail);
   assert.match(jobText(KEY), /^ {6}next-leg: \$\{\{ steps\.next\.outputs\.next-leg \}\}$/m);
 });
 
-// ci-workflows#973 (bc62beb): the gate reads one exact-name artifact, its
-// `marker` output, instead of record steps in run history, so nothing
-// carries a record forward and the key job uploads that name after a
-// credit-stop handoff (pr-review-cli.yml's key job does the same).
-// ci-workflows#980 (09cf6f2) adds the probing marker the next test covers.
 test("the key job uploads the gate's marker only after a credit-stop handoff, and nothing carries a record", () => {
   assert.match(step("Check the credential"), SELECT);
   assert.doesNotMatch(text, /Record the key's credit stop|origin-run/);
@@ -402,8 +326,6 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
   const writeStep = step(write);
   assert.match(writeStep, /^ {8}id: credit-marker$/m);
   const condition = /^ {8}if: (.*)$/m.exec(writeStep)[1];
-  // The upload writes it out so its retention row claims it; the write runs only
-  // while the gate's `marker` output equals it, so a contract change uploads none.
   const role = /^ {10}role: (\S+)$/m.exec(step("Read the key's credit history"))[1];
   const marker = `key-credit-stop-${role.toUpperCase().replaceAll("-", "_")}_CLAUDE_API_KEY`;
   assert.equal(marker, "key-credit-stop-PR_VERIFY_CLAUDE_API_KEY");
@@ -416,21 +338,17 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
   assert.match(scanStep, /^ {10}gate-path: \.base\/lib\/publish-gate\.mjs$/m);
   const uploadStep = step(upload);
   assert.match(uploadStep, /^ {8}if: \(always\(\) && steps\.credit-marker\.outcome == 'success'\) && steps\.credit-marker-scan\.outputs\.clean == 'true'$/m);
-  // The name the gate reads is the name the job uploads; the scan covers the same file.
   assert.equal(input(uploadStep, "name"), marker);
   assert.equal(input(uploadStep, "path"), "${{ runner.temp }}/key-credit-stop/run-id");
   assert.equal(input(scanStep, "path"), input(uploadStep, "path"));
   assert.equal(input(uploadStep, "retention-days"), "1");
   assert.equal(input(uploadStep, "if-no-files-found"), "error");
   for (const name of MARKER_STEPS) assert.match(step(name), /^ {8}continue-on-error: true$/m, name);
-  // Written after every judge step, then scanned, then uploaded.
   const judges = STEPS[KEY].map((s, i) => (/run-claude-cli@/.test(s.text) ? i : -1)).filter((i) => i >= 0);
   assert.ok(index(write) > Math.max(...judges));
   assert.equal(index(scan), index(write) + 1);
   assert.equal(index(upload), index(scan) + 1);
-  // Only the key job writes one: a subscription credit stop says nothing of the key.
   for (const job of [SUB, FB]) for (const name of MARKER_STEPS) assert.equal(index(name, job), -1, `${job} ${name}`);
-  // The skipped key leg still leaves its lane record, so leg counts compare.
   const report = step("Report the skipped key leg");
   assert.match(report, /^ {8}if: steps\.credential\.outputs\.key-skipped == 'true'$/m);
   assert.equal(input(report, "outcome"), "skipped");
@@ -440,18 +358,11 @@ test("the key job uploads the gate's marker only after a credit-stop handoff, an
   assert.equal(input(report, "handoff"), '"true"');
 });
 
-// ci-workflows#980 (09cf6f2): past a credit stop's window, the gate names this
-// run the probe in its `probing-marker` output, and later gates skip while that
-// artifact is fresh. pr-review-cli.yml's gate job at that SHA writes, scans and
-// uploads it right after the read; this key job does the same once its
-// credential check shows a judge step will start.
 test("the key job writes, scans and uploads the gate's probing marker once a judge step will start", () => {
   const probe = "key-credit-probing-PR_VERIFY_CLAUDE_API_KEY";
   const [write, scan, upload] = PROBE_STEPS;
   const writeStep = step(write);
   assert.match(writeStep, /^ {8}id: probe-marker$/m);
-  // Written only while the output equals the name the upload writes out, and the
-  // key is set: the first judge step's own term.
   const writeIf = /^ {8}if: (.*)$/m.exec(writeStep)[1];
   assert.equal(writeIf, `always() && steps.credit.outputs.probing-marker == '${probe}' && steps.credential.outputs.present == 'true'`);
   assert.match(step("Judge the pull request"), /^ {8}if: steps\.credential\.outputs\.present == 'true'$/m);
@@ -476,21 +387,14 @@ test("the key job writes, scans and uploads the gate's probing marker once a jud
   assert.equal(input(uploadStep, "retention-days"), "1");
   assert.equal(input(uploadStep, "if-no-files-found"), "error");
   for (const name of PROBE_STEPS) assert.match(step(name), /^ {8}continue-on-error: true$/m, name);
-  // Right after the model resolves, which follows the credential call, before any judge step.
   assert.ok(index("Check the credential") < index("Resolve the verifier's model"));
   assert.equal(index(write), index("Resolve the verifier's model") + 1);
   assert.equal(index(scan), index(write) + 1);
   assert.equal(index(upload), index(scan) + 1);
   assert.ok(index(upload) < index("Judge the pull request"));
-  // Only the key job probes: the other legs never pass the key.
   for (const job of [SUB, FB]) for (const name of PROBE_STEPS) assert.equal(index(name, job), -1, `${job} ${name}`);
 });
 
-// The trigger's branch filter matches the branch the pr-require-checks run ran
-// on (GitHub's events docs, workflow_run). A merge-queue run's branch is
-// gh-readonly-queue/main/... and a schedule or dispatch run's is main, so
-// neither starts a run that would only skip; every pull request branch still
-// reaches the gate.
 test("a same-repository pull_request run on a feature branch passes the trigger and the key job's gate", () => {
   const on = /^on:\n([\s\S]*?)\n(?=\S)/m.exec(text)?.[1] ?? "";
   assert.match(on, /^ {4}workflows: \[PR Require Checks\]$/m);
@@ -511,7 +415,6 @@ test("a same-repository pull_request run on a feature branch passes the trigger 
   for (const branch of ["main", "gh-readonly-queue/main/pr-123-0123456789abcdef0123456789abcdef01234567"]) {
     assert.ok(!triggers(branch), branch);
   }
-  // What the trigger still admits but pr-verify does not judge, the gate skips.
   assert.ok(!admits(keyGate(), upstreamRun({ conclusion: "cancelled" })));
   assert.ok(!admits(keyGate(), upstreamRun({ event: "push" })));
   assert.ok(!admits(keyGate(), upstreamRun({ head_repository: { full_name: "someone/fork" } })));
@@ -531,8 +434,6 @@ test("the subscription job runs only on a clean handoff, an empty key, a key the
       "&& needs.check-intent.outputs.next-leg == 'subscription'))",
     ].join(" "),
   );
-  // !cancelled() keeps a gate-skipped key job from skipping this one, so the
-  // key job's success is spelled out: a failed key job skips it.
   assert.doesNotMatch(gate, /always\(\)|failure\(\)|success\(\)/);
   const run = (key, overrides) => admits(gate, withNeeds({ [KEY]: key }, overrides));
   const handedOn = { "next-leg": "subscription" };
@@ -543,9 +444,6 @@ test("the subscription job runs only on a clean handoff, an empty key, a key the
   assert.ok(!run({ result: "skipped", outputs: {} }, { event: "push" }), "a run the trigger gate skips judges nothing");
   assert.ok(!run({ result: "skipped", outputs: {} }, { conclusion: "cancelled" }), "a run the trigger gate skips judges nothing");
   assert.match(job, /^ {4}runs-on: ubuntu-24\.04$/m);
-  // The key job's outputs reach only that if, the resolver's env and the
-  // record's fallback reason, which they pick between three literals; never a
-  // run: script.
   const steps = job.slice(job.indexOf("\n    steps:\n"));
   assert.deepEqual(
     steps.split("\n").filter((line) => line.includes("needs.")),
@@ -564,8 +462,6 @@ test("the subscription job runs only on a clean handoff, an empty key, a key the
       "",
     ].join("\n"),
   );
-  // The fallback job reads these: each a launcher output set after the step
-  // files are restored, or the denial check's.
   assert.equal(
     /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(job)?.[1],
     [
@@ -575,10 +471,9 @@ test("the subscription job runs only on a clean handoff, an empty key, a key the
       "",
     ].join("\n"),
   );
-  // The fallback job's only outputs are wake-pr-merge's.
   assert.equal(/^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(FB))?.[1], [...WAKE_OUTPUTS, ""].join("\n"));
   for (const id of JOBS) {
-    assert.match(jobText(id), /^ {4}permissions:\n {6}contents: read #.*\n {6}pull-requests: read #.*\n {6}actions: read #.*\n {4}[a-z]/m, id);
+    assert.match(jobText(id), /^ {4}permissions:\n {6}contents: read\n {6}pull-requests: read\n {6}actions: read\n {4}[a-z]/m, id);
   }
 });
 
@@ -586,8 +481,6 @@ test("the fallback job runs only on the subscription job's clean handoff, or its
   const job = jobText(FB);
   assert.match(job, /^ {4}needs: \[check-intent, check-intent-subscription\]$/m, "check-intent is a direct need, so its reads output resolves");
   const gate = gateOf(FB);
-  // An empty subscription token hands on as an empty key does, but only to a
-  // fallback token that is set (#13586).
   assert.equal(
     gate,
     [
@@ -597,8 +490,6 @@ test("the fallback job runs only on the subscription job's clean handoff, or its
       "&& needs.check-intent-subscription.outputs.next-leg == 'fallback'",
     ].join(" "),
   );
-  // The implicit success() needs every ancestor, so a key job the credit gate
-  // skipped would skip this job; the subscription job's success is spelled out.
   assert.doesNotMatch(gate, /always\(\)|failure\(\)|success\(\)/);
   const handedOn = { "next-leg": "fallback" };
   assert.ok(admits(gate, withNeeds({ [SUB]: { result: "success", outputs: handedOn } })));
@@ -633,20 +524,13 @@ test("the subscription job hands the judgment on only after a clean handoff, and
 
 test("the key job hands the judgment on only after a clean handoff or with no key", () => {
   const leg = step("Check the key leg");
-  // run-claude-cli's handoff: a credit stop, or auth with API status 401 or
-  // 402; a 403 is auth too but hands nothing off, so it fails the key job.
   assert.match(leg, /^ {8}if: steps\.judge\.outputs\.handoff == 'true'$/m);
   assert.match(leg, /^ {12}\$\{\{ steps\.judge\.outputs\.log-file \}\}$/m);
   assert.match(leg, /^ {10}LANE_CLASS: \$\{\{ steps\.judge\.outputs\.lane-class \}\}$/m);
   assert.match(leg, /write-verdict\.mjs check-key-leg\n/);
-  // It runs before the report, which reads its outcome, and its failure
-  // leaves the red to "Fail without a verdict" after the report.
   assert.match(leg, /^ {8}continue-on-error: true$/m);
   assert.ok(index("Check the key leg") === index("Judge the pull request") + 1);
   assert.ok(index("Report the judgment's outcome") === index("Check the key leg") + 1);
-  // The owner's signal to replace the key (auth) or rotate one in (a credit
-  // stop), printed before the denial check can stop the step. The class
-  // reaches the script through env, never interpolated.
   const run = /^ {8}run: \|\n((?: {10}.*\n?)+)/m.exec(leg)[1];
   assert.equal(run.split("\n")[0], '          case "$LANE_CLASS" in');
   assert.match(run, /^ {12}auth\) echo "::warning::the API refused the pr-verify role's API key \(PR_VERIFY_CLAUDE_API_KEY\), class auth; the owner must replace the secret" ;;$/m);
@@ -664,10 +548,8 @@ test("the key job hands the judgment on only after a clean handoff or with no ke
     assert.equal(input(credential, "credential-set"), `\${{ secrets.${CREDENTIAL[job][1]} != '' }}`, job);
     assert.ok(index("Check the credential", job) < index("Judge the pull request", job), job);
   }
-  // Each later leg's reason is the job before it's next-reason.
   assert.equal(input(step("Check the credential", SUB), "reason"), "${{ needs.check-intent.result == 'skipped' && 'no-key' || needs.check-intent.outputs.next-reason }}", "a key job the API-key switch skipped names no reason, so the reason is no-key");
   assert.equal(input(step("Check the credential", FB), "reason"), "${{ needs.check-intent-subscription.outputs.next-reason }}");
-  // The key and subscription jobs name the next leg from a clean handoff of any chunk, with no if:.
   for (const [job, legStep] of [[KEY, "key-leg"], [SUB, "sub-leg"]]) {
     const next = step("Pick the next leg", job);
     assert.match(next, SELECT, job);
@@ -675,7 +557,6 @@ test("the key job hands the judgment on only after a clean handoff or with no ke
     assert.equal(input(next, "state"), "${{ steps.credential.outputs.state }}", job);
     assert.equal(input(next, "handoff"), `\${{ (${chainOf((id) => `steps.${id}.outputs.handoff == 'true'`, "judge")}) && (${chainOf((id) => `steps.${id}.outputs.clean`, legStep)}) == 'true' }}`, job);
     assert.equal(input(next, "handoff-reason"), `\${{ ${chainOf((id) => `steps.${id}.outputs.handoff-reason`, "judge")} }}`, job);
-    // Only the lane-hold marker upload sits between it and the budget log.
     assert.equal(index("Pick the next leg", job), index("Log the API budget", job) - 2, job);
     assert.equal(input(STEPS[job][index("Log the API budget", job) - 1].text, "name"), "lane-hold-pr-verify", job);
   }
@@ -688,9 +569,6 @@ test("the subscription and fallback jobs are what scripts/sync-credential-legs.m
   assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
-// check-intent hands its reads on only from steps that finish before the
-// model runs, and the subscription job takes them only through env, then
-// still runs the trigger gate, whose head the agree step compares.
 test("the subscription and fallback jobs take check-intent's pre-judge reads and still run the trigger gate", () => {
   const carry = step("Hand the reads on");
   assert.ok(index("Hand the reads on") > index("Select the trusted PR text"), "after the trusted text");
@@ -702,8 +580,6 @@ test("the subscription and fallback jobs take check-intent's pre-judge reads and
   for (const expression of carry.match(/\$\{\{[^}]*\}\}/g)) {
     assert.match(expression, /^\$\{\{ (steps\.pr\.outputs\.[a-z-]+|github\.workspace) \}\}$/, expression);
   }
-  // Every key job output comes from a step before the judge or from the
-  // launcher's and the key-leg check's own outputs.
   const outputs = /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(KEY))[1];
   assert.match(outputs, /^ {6}reads: \$\{\{ steps\.carry\.outputs\.reads \}\}$/m);
   for (const job of [SUB, FB]) {
@@ -717,6 +593,13 @@ test("the subscription and fallback jobs take check-intent's pre-judge reads and
     assert.equal(index("Hand the reads on", job), -1, job);
   }
   assert.doesNotMatch(jobText(KEY), /CARRIED|outputs\.carried/);
+});
+
+test("every leg's resolver reads the standards commit and its writer records the list it judged with", () => {
+  for (const job of [KEY, SUB, FB]) {
+    assert.ok(step("Resolve the pull request", job).split("\n").includes("          STANDARDS_SHA: ${{ steps.standards.outputs.sha }}"), job);
+    assert.ok(step("Write the verdict", job).split("\n").includes("          STANDARDS_DIR: ${{ steps.standards.outputs.path }}"), job);
+  }
 });
 
 test("the subscription and fallback resolvers take check-intent's bundle in its own attempt and refuse it in another", async (t) => {
@@ -738,13 +621,16 @@ test("the subscription and fallback resolvers take check-intent's bundle in its 
   for (const job of [SUB, FB]) {
     const dir = tempDir("pr-verify-carry-");
     const values = {
+      "runner.temp": dir,
       "github.workspace": dir,
       "github.token": "t",
-      "github.event.workflow_run.id": "123",
       "needs.check-intent.outputs.reads": bundle,
       "steps.standards.outputs.path": standardsCheckout(),
+      "steps.standards.outputs.sha": "5".repeat(40),
     };
-    const env = { GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: path.join(dir, "out") };
+    const event = path.join(dir, "event.json");
+    writeFileSync(event, JSON.stringify({ workflow_run: { id: 123, run_attempt: 1, path: ".github/workflows/pr-require-checks.yml", event: "pull_request", status: "completed", conclusion: "success", head_sha: carry.headSha, repository: { full_name: REPO }, head_repository: { full_name: REPO } } }));
+    const env = { GITHUB_REPOSITORY: REPO, GITHUB_OUTPUT: path.join(dir, "out"), GITHUB_EVENT_PATH: event };
     const block = /^ {8}env:\n((?: {10}.*\n)+)/m.exec(step("Resolve the pull request", job))[1];
     for (const line of block.split("\n").filter((l) => /^ {10}[A-Z_]+: /.test(l))) {
       const [, key, raw] = /^ {10}([A-Z_]+): (.*)$/.exec(line);
@@ -772,7 +658,7 @@ test("the subscription and fallback resolvers take check-intent's bundle in its 
       throw new Error("stop after the first live read");
     };
     await main({ ...env, GITHUB_RUN_ATTEMPT: "2" }, { github: live }).catch(() => {});
-    assert.deepEqual(calls, [`GET /repos/${REPO}/actions/runs/123`], `${job}: another attempt's bundle reads the upstream run again`);
+    assert.equal(calls[0], `GET /repos/${REPO}/commits/${carry.headSha}/pulls?per_page=100&page=1`, `${job}: another attempt's bundle reads again from the payload's run`);
     assert.doesNotMatch(readFileSync(env.GITHUB_OUTPUT, "utf8"), /carried=true/, job);
   }
 });
@@ -792,10 +678,6 @@ test("the model reads only the data directory, with Read alone, and is told neve
   }
 });
 
-// The README's "Verifier verdict" section: each judging job lists the jobs of
-// the pr-require-checks run it was started by in pr-verify-data, read with the
-// job's own token after the gate, and the prompt names that file; the model
-// still reads that directory alone.
 test("each job writes the upstream run's jobs into the data directory the prompt names", () => {
   for (const job of JOBS) {
     const listing = step("List the upstream run's jobs", job);
@@ -803,9 +685,11 @@ test("each job writes the upstream run's jobs into the data directory the prompt
     assert.ok(index("List the upstream run's jobs", job) > index("Assert the gate and the resolver agree", job), job);
     assert.ok(index("List the upstream run's jobs", job) < index("Write the prompt and schema", job), job);
     assert.equal(input(listing, "GITHUB_TOKEN"), "${{ github.token }}", job);
-    assert.equal(input(listing, "UPSTREAM_RUN_ID"), "${{ github.event.workflow_run.id }}", job);
+    for (const name of ["Resolve the pull request", "List the upstream run's jobs"]) {
+      assert.equal(input(step(name, job), "UPSTREAM_RUN_ID"), undefined, `${job}: ${name}`);
+      assert.equal(input(step(name, job), "GITHUB_EVENT_PATH"), undefined, `${job}: ${name}`);
+    }
     assert.equal(input(listing, "JOBS_FILE"), "${{ github.workspace }}/pr-verify-data/upstream-jobs.json", job);
-    // The head's tree, written by the diff step from its blobless fetch, outside the data directory.
     const diff = step("Write the diff", job);
     assert.equal(input(listing, "HEAD_PATHS_FILE"), "${{ runner.temp }}/pr-verify-head-paths", job);
     assert.equal(input(diff, "HEAD_PATHS_FILE"), input(listing, "HEAD_PATHS_FILE"), job);
@@ -851,7 +735,6 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
     assert.equal(input(report, "credential"), "${{ steps.judge.outputs.credential }}", job);
 
     assert.equal(input(report, "step-timeout-minutes"), "22", job);
-    // The start time is taken right before the judge, so a timeout is told from other failures.
     assert.equal(input(report, "step-started-at"), "${{ steps.prompt.outputs.started-at }}", job);
     assert.ok(index("Write the prompt and schema", job) === index("Judge the pull request", job) - 1, job);
     assert.equal(STEPS[job].at(-1).name, "Fail without a verdict", job);
@@ -865,7 +748,6 @@ test("the outcome is reported whenever a judge ran to a final class, and a missi
   }
   assert.equal(input(step("Report the judgment's outcome", SUB), "fallback-reason"), FALLBACK_REASON);
   assert.equal(input(step("Report the judgment's outcome", FB), "fallback-reason"), FB_REASON);
-  // Only a hand-off spares the key job its red; an empty subscription token fails its job unless the fallback token takes over.
   assert.match(
     STEPS[KEY].at(-1).text,
     new RegExp(`^ {8}if: always\\(\\) && steps\\.agree\\.outcome == 'success' && steps\\.credential\\.outputs\\.key-skipped != 'true' && steps\\.verdict\\.outcome != 'success' && steps\\.credential\\.outputs\\.present != 'false' && ${legsClear("key-leg")}$`, "m"),
@@ -882,21 +764,11 @@ test("a handoff leaves one lane record per leg, the leg that handed off marked h
   assert.equal(/^ {8}if: (.*)$/m.exec(report)[1], REPORT_IF);
   assert.equal(input(report, "lane"), "pr-verify");
   assert.equal(input(report, "fallback-reason"), undefined);
-  // A key leg that is not clean hands nothing on, so the key job records the
-  // stop itself under the leg's own class, credit-stop or auth.
   assert.equal(input(report, "known-failure-class"), KEY_CLASS);
-  // A clean handoff records this leg with handoff true, a notice; a handoff
-  // the leg check refused stays an error.
   assert.equal(input(report, "handoff"), "${{ steps.judge.outputs.handoff == 'true' && steps.key-leg.outcome != 'failure' }}");
   assert.equal(input(step("Report the judgment's outcome", SUB), "handoff"), "${{ steps.judge.outputs.handoff == 'true' && steps.sub-leg.outcome != 'failure' }}");
-  // The subscription job, which runs exactly when the key job names it, and
-  // the fallback job, the same after the subscription job, each record why
-  // in fallback-reason, select-model-credential's reason from the job before
-  // it (credential-legs.test.mjs holds it to the expressions before).
   assert.match(jobText(SUB), /needs\.check-intent\.outputs\.next-leg == 'subscription'/);
   assert.match(jobText(FB), /needs\.check-intent-subscription\.outputs\.next-leg == 'fallback'/);
-  // No gate keys the subscription leg on the credit-stop class any more:
-  // run-claude-cli's handoff output is the one signal.
   for (const line of text.split("\n").filter((l) => /^\s+(- )?if: /.test(l) || /^\s+&& /.test(l))) {
     assert.doesNotMatch(line, /lane-class [!=]= 'credit-stop'/, line);
   }
@@ -913,7 +785,6 @@ test("the resolver reads the trusted-actor list from main in both jobs", () => {
     const block = step("Resolve the pull request", job);
     assert.match(block, /TRUSTED_ACTORS_PATH: \$\{\{ steps\.standards\.outputs\.path \}\}\/components\/trusted-actors\/trusted-actors\.json\n/, job);
     assert.match(block, /SPEC_FROM_BODY_APPS=\$\(yq '\.adoption\."spec-from-body-apps" \/\/ \[\] \| \.\[\]' \.base\/docs\/conventions\/pr-pipeline\.yaml\)\n/, job);
-    // The issue lane's web hosts, as admission reads them, so a split record holds under the same hosts.
     assert.match(block, /ISSUE_LANE_WEB_HOSTS=\$\(yq -o=json -I=0 '\(\.activities\."resolve-issue"\."web-access" \| select\(\.enabled == true\) \| \.domains\) \/\/ \[\]' \.base\/docs\/conventions\/pr-pipeline\.yaml\)\n/, job);
     assert.match(block, /BASELINE_FILE=\$\(yq '\.merge\."baseline-file" \/\/ ""' \.base\/docs\/conventions\/pr-pipeline\.yaml\)\n/, job);
     assert.match(block, /export VERIFY_AUTHORS LANE_IDENTITY SPEC_FROM_BODY_APPS ISSUE_LANE_WEB_HOSTS BASELINE_FILE\n/, job);
@@ -922,77 +793,124 @@ test("the resolver reads the trusted-actor list from main in both jobs", () => {
 });
 
 const judgeSpec = (job) => step("Judge the whole spec", job);
-const SPEC_IF = "fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.chunk-results.outcome == 'success'";
-const judgeId = (k) => (k === 1 ? "judge" : `judge-${k}`);
-const suffix = (k) => (k === 1 ? "" : `-${k}`);
-const judgeName = (k) => (k === 1 ? "Judge the pull request" : `Judge chunk ${k}`);
+const SPEC_IF = "fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.chunk-results.outcome == 'success' && steps.chunk-results.outputs.fail != 'true'";
 const legName = { [KEY]: "Check the key leg", [SUB]: "Check the subscription leg" };
 const legId = { [KEY]: "key-leg", [SUB]: "sub-leg" };
-const chain = (build) => [...SLOTS.map(build), build("spec")].join(" || ");
+const RUN_IDS = ["judge", "judge-chunks", "judge-spec"];
+const LEG_SUFFIX = ["", "-chunks", "-spec"];
+const chain = (build) => RUN_IDS.map(build).join(" || ");
+const LATER_IF = "steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= 2 && steps.judge.outcome == 'success' && steps.judge.outputs.handoff != 'true' && steps.chunk-fail.outputs.fail != 'true'";
+const PARALLELISM = Number(input(step("Write the prompt and schema"), "CHUNK_PARALLELISM")?.replaceAll('"', ""));
+const LEG_MINUTES = 15;
+const loopMinutes = (chunks) => 3 + Math.ceil((chunks - 1) / PARALLELISM) * (LEG_MINUTES + 1);
+const chunkOneLists = (block, job) => {
+  assert.deepEqual(list(block, "EXECUTION_FILES"), ["${{ steps.judge.outputs.execution-file }}"], job);
+  assert.deepEqual(list(block, "LOG_FILES"), ["${{ steps.judge.outputs.log-file }}"], job);
+  assert.deepEqual(list(block, "JUDGE_OUTCOMES"), ["${{ steps.judge.outcome }}"], job);
+  assert.equal(input(block, "CHUNKS_DIR"), "${{ steps.judge-chunks.outputs.results-dir }}", job);
+  assert.equal(input(block, "CHUNK_OUTCOMES"), "${{ steps.judge-chunks.outputs.chunk-outcomes }}", job);
+  assert.equal(input(block, "CHUNK_CLASSES"), "${{ steps.judge-chunks.outputs.chunk-classes }}", job);
+};
 
-test("the chunk ceiling is set once, in chunk-diff.sh, and a 3 MB diff fits under it", () => {
-  assert.ok(Number.isInteger(CEILING), "chunk-diff.sh sets MAX_CHUNKS");
+test("the chunk ceiling is set once, in chunk-diff.sh, and holds 3000 files at 40 a chunk", () => {
+  assert.equal(CEILING, 75);
   assert.doesNotMatch(text, /MAX_CHUNKS: /, "no step sets its own");
-  // 3 MB of whole files in chunks of MAX_DIFF_BYTES (chunk-diff.test.mjs splits one).
   const chunkBytes = Number(input(step("Write the diff"), "MAX_DIFF_BYTES").replaceAll('"', ""));
-  assert.ok(CEILING * chunkBytes >= 3000000, `${CEILING} chunks of ${chunkBytes} bytes`);
+  assert.equal(CEILING * chunkBytes, 22500000);
 });
 
-test("every job has one judge step per chunk, each repeating the first but for its chunk", () => {
+test("a counted fail a later chunk left before the others handed off holds the handoff and becomes the head's verdict, in every job", () => {
+  const ifOf = (name, job) => /^ {8}if: (.*)$/m.exec(step(name, job))[1].replace("fromJSON(steps.diff.outputs.chunks || '0') > 1", "true");
+  const steps = (fail) => ({
+    credential: { outputs: { present: "true" } },
+    diff: { outputs: { chunks: "3" } },
+    judge: { outcome: "success" },
+    "chunk-fail": { outputs: { fail: "false" } },
+    "judge-chunks": { outcome: "success", outputs: { handoff: "true" } },
+    "later-fail": { outputs: { fail } },
+  });
   for (const job of JOBS) {
-    const first = step("Judge the pull request", job);
-    assert.equal(STEPS[job].filter((s) => /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/run-claude-cli@/m.test(s.text)).length, SLOTS.length + 1, job);
-    // The ceiling is chunk-diff.sh's; no step sets its own.
-    assert.equal(input(step("Write the diff", job), "MAX_CHUNKS"), undefined, job);
-    assert.equal(input(first, "prompt-file"), "${{ runner.temp }}/pr-verify-prompt-1.md", job);
-    const bare = (block) => block.split("\n").filter((line) => !line.trim().startsWith("#")).filter((line) => !/^ +(- )?(name|id|if): /.test(line)).join("\n").trim();
-    for (const k of SLOTS.slice(1)) {
-      const judge = step(judgeName(k), job);
-      assert.equal(/^ {8}id: (.*)$/m.exec(judge)[1], judgeId(k), job);
-      assert.equal(bare(judge), bare(first).replace("pr-verify-prompt-1.md", `pr-verify-prompt-${k}.md`), `${job} chunk ${k}`);
-      const previous = judgeId(k - 1);
-      assert.equal(
-        /^ {8}if: (.*)$/m.exec(judge)[1],
-        `steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') >= ${k} && steps.${previous}.outcome == 'success' && steps.${previous}.outputs.handoff != 'true' && steps.chunk-fail${suffix(k - 1)}.outputs.fail != 'true'`,
-        `${job} chunk ${k}`,
-      );
-      const report = step(`Report chunk ${k}'s outcome`, job);
-      assert.equal(input(report, "outcome"), `\${{ steps.${judgeId(k)}.outcome }}`, job);
-      assert.equal(input(report, "step-started-at"), `\${{ steps.time-${k}.outputs.started-at }}`, job);
-      if (legId[job]) {
-        assert.equal(input(report, "handoff"), `\${{ steps.${judgeId(k)}.outputs.handoff == 'true' && steps.${legId[job]}${suffix(k)}.outcome != 'failure' }}`, `${job} chunk ${k}`);
-      }
-      assert.equal(input(step(`Upload chunk ${k}'s sealed transcript`, job), "job-id"), `\${{ github.job }}-${k}`, job);
+    assert.equal(index("Judge the later chunks", job) + 1, index("Check the later chunks for a fail", job), job);
+    const check = step("Check the later chunks for a fail", job);
+    assert.equal(ifOf("Check the later chunks for a fail", job), "steps.judge-chunks.outputs.handoff == 'true'", job);
+    assert.match(check, /^ {8}run: node \.base\/\.github\/scripts\/pr-verify\/write-verdict\.mjs later-fail$/m, job);
+    assert.equal(input(check, "CHUNKS_DIR"), "${{ steps.judge-chunks.outputs.results-dir }}", job);
+    assert.equal(input(check, "CHUNK_OUTCOMES"), "${{ steps.judge-chunks.outputs.chunk-outcomes }}", job);
+    assert.equal(input(check, "CHUNK_CLASSES"), "${{ steps.judge-chunks.outputs.chunk-classes }}", job);
+    const results = ifOf("Write the chunk results", job);
+    assert.ok(admits(results, { steps: steps("true") }), `${job}: the fail is written`);
+    assert.ok(!admits(results, { steps: steps("false") }), `${job}: a clean handoff writes nothing`);
+    if (legId[job]) {
+      const leg = ifOf(`${legName[job]}, later chunks`, job);
+      assert.ok(!admits(leg, { steps: steps("true") }), `${job}: no clean=true for the next leg`);
+      assert.ok(admits(leg, { steps: steps("false") }), `${job}: a clean handoff is checked`);
+      const report = input(step("Report the later chunks' outcome", job), "handoff");
+      assert.ok(!admits(report, { steps: { ...steps("true"), [`${legId[job]}-chunks`]: { outcome: "skipped" } } }), `${job}: not recorded as a handoff`);
+      assert.ok(admits(report, { steps: { ...steps("false"), [`${legId[job]}-chunks`]: { outcome: "success" } } }), `${job}: a clean handoff is recorded`);
+      const next = input(step("Pick the next leg", job), "handoff");
+      assert.ok(!admits(next, { steps: { ...steps("true"), [`${legId[job]}-chunks`]: { outcome: "skipped", outputs: {} } } }), `${job}: no next leg`);
     }
-    // 22 minutes a judge step and 15 for the
-    // rest of the job, within GitHub-hosted runners' 6-hour job limit
-    // (https://docs.github.com/en/actions/reference/limits).
-    const judges = [...jobText(job).matchAll(/^ {8}timeout-minutes: 22$/gm)].length;
-    assert.equal(judges, SLOTS.length + 1, job);
-    const total = Number(/^ {4}timeout-minutes: (\d+)$/m.exec(jobText(job))[1]);
-    assert.equal(total, judges * 22 + 15, job);
-    assert.ok(total <= 360, job);
   }
 });
 
-// A step run-claude-cli failed with no lane class, having left an execution
-// file, stopped on its credential scan, so its fail is still a judgment;
-// write-verdict counts nothing else of it. A step that timed out or never
-// started the CLI leaves that file empty and skips the verdict for a re-run.
-const judged = (id) => `(steps.${id}.outcome == 'success' || (steps.${id}.outcome == 'failure' && steps.${id}.outputs.lane-class == '' && steps.${id}.outputs.execution-file != ''))`;
+test("every job judges chunk 1, then every later chunk eight at once in one step", () => {
+  assert.equal(PARALLELISM, 8);
+  for (const job of JOBS) {
+    const first = step("Judge the pull request", job);
+    const later = step("Judge the later chunks", job);
+    const runs = STEPS[job].filter((s) => /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/run-(?:claude-cli|review-chunks)@/m.test(s.text)).map((s) => s.name);
+    assert.deepEqual(runs, ["Judge the pull request", "Judge the later chunks", "Judge the whole spec"], job);
+    assert.equal(input(step("Write the diff", job), "MAX_CHUNKS"), undefined, job);
+    assert.equal(input(first, "prompt-file"), "${{ runner.temp }}/pr-verify-prompts/prompt-1.md", job);
+    assert.match(later, /^ {8}uses: melodic-software\/ci-workflows\/\.github\/actions\/run-review-chunks@main$/m, job);
+    assert.match(later, /^ {8}id: judge-chunks$/m, job);
+    assert.equal(/^ {8}if: (.*)$/m.exec(later)[1], LATER_IF, job);
+    assert.equal(/^ {8}if: (.*)$/m.exec(step("Time the later chunks", job))[1], LATER_IF, job);
+    assert.equal(index("Time the later chunks", job) + 1, index("Judge the later chunks", job), job);
+    assert.equal(input(later, "prompt-dir"), "${{ runner.temp }}/pr-verify-prompts", job);
+    assert.equal(input(later, "chunk-first"), '"2"', job);
+    assert.equal(input(later, "chunk-last"), "${{ steps.diff.outputs.chunks }}", job);
+    assert.equal(input(later, "parallelism"), input(step("Write the prompt and schema", job), "CHUNK_PARALLELISM"), job);
+    assert.match(later, /^ {8}timeout-minutes: \$\{\{ fromJSON\(steps\.prompt\.outputs\.loop-minutes \|\| '1'\) \}\}$/m, job);
+    const bare = (block) =>
+      block
+        .split("\n")
+        .filter((line) => !line.trim().startsWith("#"))
+        .filter((line) => !/^ +(- )?(name|id|if|timeout-minutes|uses|prompt-file|prompt-dir|chunk-first|chunk-last|parallelism): /.test(line))
+        .join("\n")
+        .trim();
+    assert.equal(bare(later), bare(first), job);
+    const report = step("Report the later chunks' outcome", job);
+    assert.equal(input(report, "outcome"), "${{ steps.judge-chunks.outcome }}", job);
+    assert.equal(input(report, "step-started-at"), "${{ steps.time-chunks.outputs.started-at }}", job);
+    assert.equal(input(report, "step-timeout-minutes"), "${{ steps.prompt.outputs.loop-minutes }}", job);
+    if (legId[job]) {
+      assert.equal(input(report, "handoff"), `\${{ steps.judge-chunks.outputs.handoff == 'true' && steps.later-fail.outputs.fail != 'true' && steps.${legId[job]}-chunks.outcome != 'failure' }}`, job);
+    }
+    const transcript = step("Upload the later chunks' sealed transcript", job);
+    assert.equal(input(transcript, "execution-file"), "${{ steps.judge-chunks.outputs.transcript-file }}", job);
+    assert.equal(input(transcript, "job-id"), "${{ github.job }}-chunks", job);
+    assert.equal(input(step("Write the prompt and schema", job), "LEG_MINUTES"), `"${LEG_MINUTES}"`, job);
+    assert.equal(input(later, "leg-timeout-minutes"), `"${LEG_MINUTES}"`, job);
+    assert.equal([...jobText(job).matchAll(/^ {8}timeout-minutes: 22$/gm)].length, 2, job);
+    assert.equal(loopMinutes(CEILING), 163);
+    const total = Number(/^ {4}timeout-minutes: (\d+)$/m.exec(jobText(job))[1]);
+    assert.equal(total, 22 + loopMinutes(CEILING) + 22 + 15, job);
+    assert.ok(total < 360, job);
+  }
+});
+
+const judged = (id) => `(steps.${id}.outcome == 'success' || (steps.${id}.outcome == 'failure' && (steps.${id}.outputs.lane-class == '' || steps.${id}.outputs.lane-class == 'credential-stop') && steps.${id}.outputs.execution-file != ''))`;
 
 test("the verdict needs every chunk the diff has, and reads each chunk's files", () => {
   for (const job of JOBS) {
     const verdict = step("Write the verdict", job);
     assert.equal(
       /^ {8}if: (.*)$/m.exec(verdict)[1],
-      `\${{ !cancelled() && (${SLOTS.map((k) => `steps.chunk-fail${suffix(k)}.outputs.fail == 'true'`).join(" || ")} || steps.chunk-results.outcome == 'failure' || (${["steps.judge.outcome == 'success'", ...SLOTS.slice(1).map((k) => `(fromJSON(steps.diff.outputs.chunks || '0') < ${k} || steps.${judgeId(k)}.outcome == 'success')`), `(fromJSON(steps.diff.outputs.chunks || '0') < 2 || ${judged("judge-spec")})`].join(" && ")})) }}`,
+      `\${{ !cancelled() && (steps.chunk-fail.outputs.fail == 'true' || steps.chunk-results.outputs.fail == 'true' || steps.chunk-results.outcome == 'failure' || (steps.judge.outcome == 'success' && (fromJSON(steps.diff.outputs.chunks || '0') < 2 || (steps.judge-chunks.outcome == 'success' && ${judged("judge-spec")})))) }}`,
       job,
     );
-    for (const k of SLOTS) {
-      assert.ok(verdict.includes(`            \${{ steps.${judgeId(k)}.outputs.execution-file }}\n`), `${job} execution ${k}`);
-      assert.ok(verdict.includes(`            \${{ steps.${judgeId(k)}.outputs.log-file }}\n`), `${job} log ${k}`);
-    }
+    chunkOneLists(verdict, job);
     assert.equal(input(verdict, "CHUNKS"), "${{ steps.diff.outputs.chunks }}", job);
     assert.equal(input(verdict, "DIFF_DIR"), "${{ github.workspace }}/pr-verify-data/diff", job);
     assert.match(step("Write the diff", job), /^ {8}id: diff$/m, job);
@@ -1002,35 +920,46 @@ test("the verdict needs every chunk the diff has, and reads each chunk's files",
 
 test("a handoff from any chunk hands the whole judgment on, and a denial in any chunk stops it", () => {
   for (const job of [KEY, SUB]) {
-    for (const k of SLOTS) {
-      const name = k === 1 ? legName[job] : `${legName[job]}, chunk ${k}`;
-      const leg = step(name, job);
-      assert.match(leg, new RegExp(`^ {8}id: ${legId[job]}${k === 1 ? "" : `-${k}`}$`, "m"), job);
-      assert.match(leg, new RegExp(`^ {8}if: steps\\.${judgeId(k)}\\.outputs\\.handoff == 'true'$`, "m"), job);
-      for (const earlier of SLOTS.slice(0, k)) {
-        assert.ok(leg.includes(`            \${{ steps.${judgeId(earlier)}.outputs.log-file }}\n`), `${job} chunk ${k} reads chunk ${earlier}'s log`);
-      }
-    }
+    const first = step(legName[job], job);
+    assert.match(first, new RegExp(`^ {8}id: ${legId[job]}$`, "m"), job);
+    assert.match(first, /^ {8}if: steps\.judge\.outputs\.handoff == 'true'$/m, job);
+    const later = step(`${legName[job]}, later chunks`, job);
+    assert.match(later, new RegExp(`^ {8}id: ${legId[job]}-chunks$`, "m"), job);
+    assert.match(later, /^ {8}if: steps\.judge-chunks\.outputs\.handoff == 'true' && steps\.later-fail\.outputs\.fail != 'true'$/m, job);
+    assert.deepEqual(list(later, "LOG_FILES"), ["${{ steps.judge.outputs.log-file }}"], job);
+    assert.equal(input(later, "CHUNKS_DIR"), "${{ steps.judge-chunks.outputs.results-dir }}", job);
+    assert.equal(input(later, "CHUNK_OUTCOMES"), "${{ steps.judge-chunks.outputs.chunk-outcomes }}", job);
   }
   const outputs = (job) => /^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(job))[1];
-  const id = (k) => (k === "spec" ? "judge-spec" : judgeId(k));
-  const leg = (k) => (k === "spec" ? "-spec" : suffix(k));
-  // Any chunk's clean handoff names the next leg.
   for (const [job, legStep] of [[KEY, "key-leg"], [SUB, "sub-leg"]]) {
     const next = step("Pick the next leg", job);
-    assert.equal(input(next, "handoff"), `\${{ (${chain((k) => `steps.${id(k)}.outputs.handoff == 'true'`)}) && (${chain((k) => `steps.${legStep}${leg(k)}.outputs.clean`)}) == 'true' }}`, job);
-    assert.equal(input(next, "handoff-reason"), `\${{ ${chain((k) => `steps.${id(k)}.outputs.handoff-reason`)} }}`, job);
+    assert.equal(
+      input(next, "handoff"),
+      `\${{ (${chain((id) => `steps.${id}.outputs.handoff == 'true'`)}) && (${LEG_SUFFIX.map((s) => `steps.${legStep}${s}.outputs.clean`).join(" || ")}) == 'true' }}`,
+      job,
+    );
+    assert.equal(input(next, "handoff-reason"), `\${{ ${chain((id) => `steps.${id}.outputs.handoff-reason`)} }}`, job);
     assert.ok(outputs(job).includes("      next-leg: ${{ steps.next.outputs.next-leg }}\n"), job);
   }
 });
 
-test("the prompt step gives each chunk its own parts, and a lone chunk no note", () => {
+const PROMPT_STEP_READS = [
+  ".github/scripts/pr-verify/render-prompt.mjs",
+  ".github/scripts/pr-verify/prompt.md",
+  ".github/scripts/pr-verify/chunk-note.md",
+  ".github/scripts/pr-verify/write-verdict.mjs",
+  ".github/scripts/pr-review-main/write-verdict.mjs",
+  ".github/scripts/lib/trusted-actors.mjs",
+  "lib/publish-gate.mjs",
+];
+test("the prompt step gives each chunk its own parts and budget, a lone chunk no note, and the loop its step limit", () => {
   const run = /^ {8}run: \|\n((?: {10}.*\n?| *\n)+)/m.exec(step("Write the prompt and schema"))[1].replace(/^ {10}/gm, "");
   const write = (chunks, parts) => {
     const cwd = tempDir("pr-verify-prompt-");
-    const scripts = path.join(cwd, ".base/.github/scripts/pr-verify");
-    mkdirSync(scripts, { recursive: true });
-    for (const name of ["prompt.md", "chunk-note.md", "render-prompt.mjs"]) cpSync(new URL(`../pr-verify/${name}`, import.meta.url), path.join(scripts, name));
+    for (const file of PROMPT_STEP_READS) {
+      mkdirSync(path.dirname(path.join(cwd, ".base", file)), { recursive: true });
+      cpSync(new URL(`../../../${file}`, import.meta.url), path.join(cwd, ".base", file));
+    }
     for (const [k, count] of parts.entries()) {
       mkdirSync(path.join(cwd, `data/diff/chunk-${k + 1}`), { recursive: true });
       for (let n = 1; n <= count; n += 1) writeFileSync(path.join(cwd, `data/diff/chunk-${k + 1}/part-00${n}.patch`), "x\n");
@@ -1039,45 +968,52 @@ test("the prompt step gives each chunk its own parts, and a lone chunk no note",
       mkdirSync(path.join(cwd, "data/manifest"));
       for (const name of ["part-001.txt", "part-002.txt"]) writeFileSync(path.join(cwd, "data/manifest", name), "x\n");
     }
+    const output = path.join(cwd, "output");
     const result = spawnSync("bash", ["-euo", "pipefail", "-c", run], {
       cwd,
       encoding: "utf8",
-      env: { PATH: process.env.PATH, DATA: path.join(cwd, "data"), MODEL: "opus", CHUNKS: String(chunks), PROMPT_STEM: path.join(cwd, "prompt"), SCHEMA_FILE: path.join(cwd, "schema"), GITHUB_OUTPUT: path.join(cwd, "output") },
+      env: { PATH: process.env.PATH, DATA: path.join(cwd, "data"), MODEL: "opus", CHUNKS: String(chunks), PROMPT_STEM: path.join(cwd, "prompts", "prompt"), SCHEMA_FILE: path.join(cwd, "schema"), LEG_MINUTES: String(LEG_MINUTES), CHUNK_PARALLELISM: String(PARALLELISM), GITHUB_OUTPUT: output },
     });
-    assert.equal(result.status, 0, result.stderr);
-    return { cwd, prompt: (k) => readFileSync(path.join(cwd, `prompt-${k}.md`), "utf8") };
+    return { status: result.status, stderr: result.stderr + result.stdout, cwd, outputs: () => readFileSync(output, "utf8"), prompt: (k) => readFileSync(path.join(cwd, "prompts", `prompt-${k}.md`), "utf8") };
   };
-  const { cwd, prompt } = write(2, [2, 1]);
+  const two = write(2, [2, 1]);
+  assert.equal(two.status, 0, two.stderr);
+  const { cwd, prompt } = two;
   assert.ok(prompt(1).includes(`  - \`${cwd}/data/diff/chunk-1/part-001.patch\`\n  - \`${cwd}/data/diff/chunk-1/part-002.patch\`\n- `));
   assert.ok(prompt(1).includes(`  - \`${cwd}/data/manifest/part-001.txt\`\n  - \`${cwd}/data/manifest/part-002.txt\``));
   assert.ok(!prompt(1).includes("chunk-2/part"));
   assert.match(prompt(1), /chunk 1 of 2/);
   assert.match(prompt(2), /chunk 2 of 2/);
-  assert.ok(prompt(2).includes(`chunk-2/part-001.patch`));
-  // Past nine chunks, each chunk still gets its own prompt and parts.
-  const many = write(12, Array.from({ length: 12 }, () => 1));
-  assert.match(many.prompt(12), /chunk 12 of 12/);
-  assert.ok(many.prompt(12).includes(`  - \`${many.cwd}/data/diff/chunk-12/part-001.patch\`\n`));
-  assert.ok(!many.prompt(12).includes("chunk-1/part"));
-  assert.ok(many.prompt(10).includes(`chunk-10/part-001.patch`));
+  assert.match(prompt(1), /under 50000 characters/);
+  const many = write(CEILING, Array.from({ length: CEILING }, () => 1));
+  assert.equal(many.status, 0, many.stderr);
+  assert.match(many.prompt(75), /chunk 75 of 75/);
+  assert.ok(many.prompt(75).includes(`  - \`${many.cwd}/data/diff/chunk-75/part-001.patch\`\n`));
+  assert.ok(!many.prompt(75).includes("chunk-1/part"));
+  assert.match(many.prompt(75), /under 1333 characters/);
+  assert.match(many.outputs(), /^loop-minutes=163$/m);
+  assert.match(write(9, Array.from({ length: 9 }, () => 1)).outputs(), /^loop-minutes=19$/m);
+  assert.notEqual(write(100, [1]).status, 0);
   const one = write(1, [1]);
   assert.ok(!one.prompt(1).includes("data/manifest"));
   assert.ok(prompt(1).includes(`${cwd}/data/diff/chunk-N`) || prompt(1).includes(`relative to \`${cwd}/data\``));
-  for (const text of [prompt(1), prompt(2), one.prompt(1)]) {
-    assert.doesNotMatch(text, /DIFF_PARTS|CHUNK_NOTE|CHUNK_INDEX|CHUNK_COUNT|DATA_DIR|MANIFEST_PARTS|SPEC_FILE|SPEC_TEXT_FILE|PR_FILE|CONTEXT_FILE|JOBS_FILE/);
+  for (const body of [prompt(1), prompt(2), one.prompt(1)]) {
+    assert.doesNotMatch(body, /DIFF_PARTS|CHUNK_NOTE|CHUNK_INDEX|CHUNK_COUNT|CHUNK_BUDGET|DATA_DIR|MANIFEST_PARTS|SPEC_FILE|SPEC_TEXT_FILE|PR_FILE|CONTEXT_FILE|JOBS_FILE/);
   }
 });
 
-test("the whole-spec step runs only on a chunked head, after every chunk, and cannot read the diff", () => {
+test("the whole-spec step runs only on a chunked head with no counted fail, after every chunk, and cannot read the diff", () => {
   for (const job of JOBS) {
     const results = step("Write the chunk results", job);
     assert.equal(
       /^ {8}if: (.*)$/m.exec(results)[1],
-      ["steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success'", ...SLOTS.slice(1).map((k) => `(fromJSON(steps.diff.outputs.chunks || '0') < ${k} || steps.${judgeId(k)}.outcome == 'success')`), ...SLOTS.map((k) => `steps.chunk-fail${suffix(k)}.outputs.fail != 'true'`)].join(" && "),
+      "steps.credential.outputs.present == 'true' && fromJSON(steps.diff.outputs.chunks || '0') > 1 && steps.judge.outcome == 'success' && steps.chunk-fail.outputs.fail != 'true' && (steps.judge-chunks.outcome == 'success' || steps.judge-chunks.outcome == 'failure') && (steps.judge-chunks.outputs.handoff != 'true' || steps.later-fail.outputs.fail == 'true')",
       job,
     );
+    assert.match(results, /^ {8}id: chunk-results$/m, job);
     assert.match(results, /write-verdict\.mjs chunk-results$/m, job);
     assert.doesNotMatch(results, /continue-on-error/, job);
+    chunkOneLists(results, job);
     assert.equal(input(results, "PROMPT_FILE"), "${{ runner.temp }}/pr-verify-prompt-spec.md", job);
     assert.equal(input(results, "PROMPT_TEMPLATE"), ".base/.github/scripts/pr-verify/spec-prompt.md", job);
     assert.equal(input(results, "SCHEMA_FILE"), "${{ runner.temp }}/pr-verify-spec-schema.json", job);
@@ -1092,7 +1028,7 @@ test("the whole-spec step runs only on a chunked head, after every chunk, and ca
     const denied = list(judge, "disallowed-tools");
     assert.ok(denied.includes("Read(./pr-verify-data/diff/**)"), job);
     assert.deepEqual(denied.filter((rule) => rule !== "Read(./pr-verify-data/diff/**)"), list(step("Judge the pull request", job), "disallowed-tools"), job);
-    assert.ok(index("Write the chunk results", job) > index(`Upload chunk ${SLOTS.length}'s sealed transcript`, job), job);
+    assert.ok(index("Write the chunk results", job) > index("Upload the later chunks' sealed transcript", job), job);
     assert.ok(index("Upload the spec judgment's sealed transcript", job) < index("Write the verdict", job), job);
     assert.equal(input(step("Report the spec judgment's outcome", job), "step-started-at"), "${{ steps.time-spec.outputs.started-at }}", job);
     assert.equal(input(step("Upload the spec judgment's sealed transcript", job), "job-id"), "${{ github.job }}-spec", job);
@@ -1102,38 +1038,32 @@ test("the whole-spec step runs only on a chunked head, after every chunk, and ca
     assert.equal(input(verdict, "RESULTS_DIR"), "${{ github.workspace }}/pr-verify-data/chunk-results", job);
     assert.equal(input(verdict, "MANIFEST_DIR"), "${{ github.workspace }}/pr-verify-data/manifest", job);
     assert.equal(input(verdict, "FINAL_OUTCOME"), "${{ steps.judge-spec.outcome }}", job);
-    // Each chunk's step outcome, so a failed step's text is never written.
-    for (const block of [verdict, results]) assert.deepEqual(list(block, "JUDGE_OUTCOMES"), SLOTS.map((k) => `\${{ steps.${judgeId(k)}.outcome }}`), job);
-    // One budget: the results are cut to the size the diff's parts are.
     assert.equal(input(results, "PART_BYTES"), input(step("Write the diff", job), "PART_BYTES"), job);
   }
   for (const [job, name] of [[KEY, "Check the key leg, whole spec"], [SUB, "Check the subscription leg, whole spec"]]) {
     const leg = step(name, job);
     assert.match(leg, /^ {8}if: steps\.judge-spec\.outputs\.handoff == 'true'$/m, job);
     assert.equal(input(leg, "CHUNKS"), "${{ steps.diff.outputs.chunks }}", job);
-    for (const id of [...SLOTS.map(judgeId), "judge-spec"]) assert.ok(leg.includes(`            \${{ steps.${id}.outputs.log-file }}\n`), `${job} ${id}`);
+    assert.deepEqual(list(leg, "LOG_FILES"), ["${{ steps.judge.outputs.log-file }}", "${{ steps.judge-spec.outputs.log-file }}"], job);
+    assert.equal(input(leg, "CHUNKS_DIR"), "${{ steps.judge-chunks.outputs.results-dir }}", job);
+    assert.equal(input(leg, "CHUNK_OUTCOMES"), "${{ steps.judge-chunks.outputs.chunk-outcomes }}", job);
   }
 });
 
-test("after each judge a counted fail stops the slots and reaches the verdict step", () => {
+test("after chunk 1 a counted fail skips the later chunks and reaches the verdict step", () => {
   for (const job of JOBS) {
-    for (const k of SLOTS) {
-      const check = step(`Read chunk ${k}'s verdict`, job);
-      assert.match(check, new RegExp(`^ {8}id: chunk-fail${suffix(k)}$`, "m"), job);
-      assert.equal(/^ {8}if: (.*)$/m.exec(check)[1], `\${{ !cancelled() && ${judged(judgeId(k))} }}`, job);
-      assert.match(check, /^ {8}continue-on-error: true$/m, job);
-      assert.equal(input(check, "EXECUTION_FILE"), `\${{ steps.${judgeId(k)}.outputs.execution-file }}`, job);
-      assert.equal(input(check, "JUDGE_OUTCOME"), `\${{ steps.${judgeId(k)}.outcome }}`, job);
-      assert.equal(input(check, "LOG_FILE"), `\${{ steps.${judgeId(k)}.outputs.log-file }}`, job);
-      assert.equal(input(check, "CHUNK"), `"${k}"`, job);
-      assert.equal(input(check, "CHUNKS"), "${{ steps.diff.outputs.chunks }}", job);
-      assert.equal(input(check, "DIFF_DIR"), "${{ github.workspace }}/pr-verify-data/diff", job);
-      assert.equal(input(check, "MANIFEST_DIR"), "${{ github.workspace }}/pr-verify-data/manifest", job);
-      assert.match(check, /write-verdict\.mjs chunk-fail$/m, job);
-      const name = k === 1 ? "Judge the pull request" : `Judge chunk ${k}`;
-      assert.ok(index(`Read chunk ${k}'s verdict`, job) > index(name, job), job);
-      if (k < SLOTS.length) assert.ok(index(`Read chunk ${k}'s verdict`, job) < index(`Time chunk ${k + 1}`, job), job);
-    }
+    const check = step("Read chunk 1's verdict", job);
+    assert.match(check, /^ {8}id: chunk-fail$/m, job);
+    assert.equal(/^ {8}if: (.*)$/m.exec(check)[1], `\${{ !cancelled() && ${judged("judge")} }}`, job);
+    assert.match(check, /^ {8}continue-on-error: true$/m, job);
+    assert.equal(input(check, "EXECUTION_FILE"), "${{ steps.judge.outputs.execution-file }}", job);
+    assert.equal(input(check, "JUDGE_OUTCOME"), "${{ steps.judge.outcome }}", job);
+    assert.equal(input(check, "LOG_FILE"), "${{ steps.judge.outputs.log-file }}", job);
+    assert.equal(input(check, "CHUNK"), '"1"', job);
+    assert.equal(input(check, "CHUNKS"), "${{ steps.diff.outputs.chunks }}", job);
+    assert.match(check, /write-verdict\.mjs chunk-fail$/m, job);
+    assert.ok(index("Read chunk 1's verdict", job) > index("Judge the pull request", job), job);
+    assert.ok(index("Read chunk 1's verdict", job) < index("Time the later chunks", job), job);
     assert.match(step("Summarize the verdict", job), /^ {8}if: \$\{\{ !cancelled\(\) && steps\.verdict\.outcome == 'success' \}\}$/m, job);
   }
 });
@@ -1145,7 +1075,7 @@ test("the diff is folded at the line length the review reads whole: no step sets
 test("the report steps only record, so a broken one cannot stop the judgment", () => {
   for (const job of JOBS) {
     const reports = STEPS[job].filter((s) => /actions\/report-lane-outcome@/.test(s.text));
-    assert.equal(reports.length, SLOTS.length + 1 + (job === KEY ? 1 : 0), job);
+    assert.equal(reports.length, RUN_IDS.length + (job === KEY ? 1 : 0), job);
     for (const report of reports) {
       assert.match(report.text, /^ {8}continue-on-error: true$/m, `${job} ${report.name}`);
       assert.doesNotMatch(report.text, /^ {8}id: /m, `${job} ${report.name}`);
@@ -1154,9 +1084,6 @@ test("the report steps only record, so a broken one cannot stop the judgment", (
   assert.doesNotMatch(text, /steps\.report/);
 });
 
-// After the verdict jobs, one job holding only actions: write starts a
-// PR-scoped pr-merge run on a pass or pass-notes that uploaded, and nothing
-// else.
 const WAKE = "wake-pr-merge";
 test("wake-pr-merge runs after every verdict job, only on an uploaded pass, holding only actions: write and pull-requests: read", () => {
   const job = jobText(WAKE);
@@ -1173,7 +1100,15 @@ test("wake-pr-merge runs after every verdict job, only on an uploaded pass, hold
   assert.deepEqual([...block.matchAll(/^ {6}([a-z-]+): ([a-z]+)/gm)].map((m) => `${m[1]}: ${m[2]}`), ["actions: write", "pull-requests: read", "contents: read"]);
   const [tipUses, ...uses] = [...job.matchAll(/^ {8}uses: (\S+)/gm)].map((m) => m[1]);
   assert.match(tipUses, /^melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@main$/);
-  assert.deepEqual(uses, ["actions/checkout@v7", "./.base/.github/actions/log-api-budget"]);
+  assert.deepEqual(uses, ["actions/checkout@v7", "melodic-software/ci-workflows/.github/actions/download-standards@main", "./.base/.github/actions/log-api-budget"]);
+  assert.match(job, /\n {8}id: standards\n {8}if: steps\.pull\.outputs\.type == 'User'\n {8}continue-on-error: true\n {8}uses: \S+download-standards@main\n {8}with:\n {10}ref: \$\{\{ needs\.check-intent\.outputs\.standards-sha \}\}\n/);
+  assert.match(job, /\n {10}TRUSTED_ACTORS_PATH: \$\{\{ steps\.standards\.outputs\.path \}\}\/components\/trusted-actors\/trusted-actors\.json\n/);
+  assert.match(job, /- name: Read the passing pull request\n {8}id: pull\n {8}continue-on-error: true\n/);
+  for (const output of ["pr", "verdict", "answer"]) {
+    assert.match(job, new RegExp(`\\n {10}${output.toUpperCase()}: \\$\\{\\{ steps\\.pull\\.outputs\\.${output} \\}\\}\\n`), output);
+  }
+  assert.doesNotMatch(readScript(), /\$\{\{/);
+  assert.match(readScript(), /^\{ \. \.base\/\.github\/actions\/log-api-budget\/api-budget\.bash 2>\/dev\/null && api_budget_wrap_gh github-token; \} \|\| true$/m);
   assert.match(job, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {10}sparse-checkout-cone-mode: false\n/);
   assert.match(job, /^ {4}env:\n {6}API_BUDGET_TOKEN: github-token$/m);
   const script = wakeScript();
@@ -1183,47 +1118,70 @@ test("wake-pr-merge runs after every verdict job, only on an uploaded pass, hold
   assert.match(log, /^ {8}if: always\(\)$/m);
   assert.match(log, /^ {10}tokens: github-token$/m);
   assert.match(job, /^ {8}continue-on-error: true$/m);
-  // A failed wake job never fails the run: pr-merge counts a pass only from
-  // a run that ended success.
   assert.match(job, /^ {4}timeout-minutes: 5\n {4}continue-on-error: true\n {4}permissions:$/m);
 });
 
-// The wake step's script, from its `run: |` to the next step.
-const wakeScript = () =>
-  /- name: Wake pr-merge for this pull request\n[\s\S]*?\n {8}run: \|\n([\s\S]*?)(?=\n\n {6}- name: |$)/.exec(jobText(WAKE))[1].replace(/^ {10}/gm, "");
+const stepScript = (name) =>
+  new RegExp(`- name: ${name}\\n[\\s\\S]*?\\n {8}run: \\|\\n([\\s\\S]*?)(?=\\n {6}(?:# .*\\n {6})?- name: |\\n\\n {6}- name: |$)`).exec(jobText(WAKE))[1].replace(/^ {10}/gm, "");
+const readScript = () => stepScript("Read the passing pull request");
+const wakeScript = () => stepScript("Wake pr-merge for this pull request");
 
-// Run without the library (its checkout absent), so gh is the stand-in itself.
 const wake = (env) => {
-  const script = wakeScript();
   const dir = tempDir("wake-pr-merge-");
   const bin = path.join(dir, "bin");
   mkdirSync(bin);
   const args = path.join(dir, "args");
   writeFileSync(args, "");
-  // The stand-in answers an author read with GH_AUTHOR, fails it when that is
-  // unset, or prints GH_ERROR_BODY and fails, as gh does on an HTTP error.
+  const output = path.join(dir, "output");
+  writeFileSync(output, "");
+  const trusted = path.join(dir, "trusted-actors.json");
+  writeFileSync(trusted, JSON.stringify({ version: 1, actors: [{ id: 5, login: "owner", kind: "human" }, { id: 6, login: "helper[bot]", kind: "bot" }] }));
   writeFileSync(
     path.join(bin, "gh"),
-    `#!/bin/sh\necho "$@" >>'${args}'\nif [ "$1" = api ]; then [ -z "$GH_ERROR_BODY" ] || { printf '%s' "$GH_ERROR_BODY"; exit 1; }; [ -n "$GH_AUTHOR" ] || exit 1; echo "$GH_AUTHOR"; fi\n`,
+    `#!/bin/sh\nprintf '%s\\n' "$*" >>'${args}'\nif [ "$1" = api ]; then [ -z "$GH_ERROR_BODY" ] || { printf '%s' "$GH_ERROR_BODY"; exit 1; }; [ -n "$GH_AUTHOR" ] || exit 1; echo "$GH_AUTHOR"; fi\n`,
     { mode: 0o755 },
   );
-  const run = spawnSync("bash", ["--noprofile", "--norc", "-c", script], {
+  const { TRUSTED_ACTORS_PATH = trusted, ...rest } = env;
+  const base = { PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: REPO, GH_TOKEN: "t" };
+  const read = spawnSync("bash", ["--noprofile", "--norc", "-c", readScript()], { cwd: dir, env: { ...base, GITHUB_OUTPUT: output, ...rest }, encoding: "utf8" });
+  const outputs = Object.fromEntries(
+    readFileSync(output, "utf8")
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
+  );
+  const downloaded = outputs.type === "User";
+  const run = spawnSync("bash", ["--noprofile", "--norc", "-c", wakeScript()], {
     cwd: dir,
-    env: { PATH: `${bin}:${process.env.PATH}`, GITHUB_REPOSITORY: REPO, GH_TOKEN: "t", ...env },
+    env: {
+      ...base,
+      LANES_APP_ID: rest.LANES_APP_ID ?? "",
+      TRUSTED_ACTORS_PATH: downloaded ? TRUSTED_ACTORS_PATH : "/components/trusted-actors/trusted-actors.json",
+      PR: outputs.pr ?? "",
+      VERDICT: outputs.verdict ?? "",
+      ANSWER: outputs.answer ?? "",
+    },
     encoding: "utf8",
   });
-  return { status: run.status, stdout: run.stdout, gh: readFileSync(args, "utf8").split("\n").filter(Boolean) };
+  return { status: run.status, readStatus: read.status, stdout: read.stdout + run.stdout, outputs, downloaded, gh: readFileSync(args, "utf8").split("\n").filter(Boolean) };
 };
+
+const WAKE_READ = `api repos/${REPO}/pulls/41 --jq "\\(.user.id) \\(.user.type) \\(.auto_merge != null) \\([.labels[].name] | index("do-not-merge") != null) \\(.draft)"`;
+const WAKE_DISPATCH = `workflow run pr-merge.yml -R ${REPO} --ref main -f pr=41`;
+const WAKE_PASS = { KEY_PR: "41", KEY_VERDICT: "pass", LANES_APP_ID: "7" };
 
 test("wake-pr-merge dispatches pr-merge on main for the passing job's pull request", () => {
   for (const [env, pr] of [
-    [{ KEY_PR: "41", KEY_VERDICT: "pass" }, "41"],
-    [{ KEY_PR: "41", KEY_VERDICT: "", SUB_PR: "42", SUB_VERDICT: "pass-notes" }, "42"],
-    [{ KEY_PR: "41", SUB_PR: "41", FB_PR: "43", FB_VERDICT: "pass" }, "43"],
+    [{ KEY_PR: "41", KEY_VERDICT: "pass", LANES_APP_ID: "7", GH_AUTHOR: "7 Bot false false false" }, "41"],
+    [{ KEY_PR: "41", KEY_VERDICT: "", SUB_PR: "42", SUB_VERDICT: "pass-notes", LANES_APP_ID: "7", GH_AUTHOR: "7 Bot false false false" }, "42"],
+    [{ KEY_PR: "41", SUB_PR: "41", FB_PR: "43", FB_VERDICT: "pass", LANES_APP_ID: "7", GH_AUTHOR: "7 Bot false false false" }, "43"],
   ]) {
     const run = wake(env);
     assert.equal(run.status, 0);
-    assert.deepEqual(run.gh, [`workflow run pr-merge.yml -R ${REPO} --ref main -f pr=${pr}`]);
+    assert.deepEqual(run.gh, [
+      WAKE_READ.replace("/pulls/41 ", `/pulls/${pr} `),
+      `workflow run pr-merge.yml -R ${REPO} --ref main -f pr=${pr}`,
+    ]);
     assert.match(run.stdout, new RegExp(`::notice title=pr-verify wake::pr=${pr} `));
   }
 });
@@ -1236,32 +1194,85 @@ test("wake-pr-merge dispatches nothing on a fail, no verdict or a pull request n
   }
 });
 
-const WAKE_READ = `api repos/${REPO}/pulls/41 --jq "\\(.user.id) \\(.user.type) \\(.auto_merge != null) \\([.labels[].name] | index("do-not-merge") != null)"`;
-const WAKE_DISPATCH = `workflow run pr-merge.yml -R ${REPO} --ref main -f pr=41`;
-const WAKE_PASS = { KEY_PR: "41", KEY_VERDICT: "pass", LANES_APP_ID: "7" };
+test("the wake reads its pull request once, and downloads the trusted-actor list only for a User's", () => {
+  const user = wake({ ...WAKE_PASS, GH_AUTHOR: "5 User false false false" });
+  assert.equal(user.readStatus, 0);
+  assert.deepEqual(user.outputs, { pr: "41", verdict: "pass", answer: "5 User false false false", type: "User" });
+  assert.equal(user.downloaded, true);
+  for (const [why, env, type] of [
+    ["a Bot's", { ...WAKE_PASS, GH_AUTHOR: "7 Bot false false false" }, "Bot"],
+    ["a failed read", { ...WAKE_PASS, GH_ERROR_BODY: "502 Bad Gateway" }, undefined],
+    ["no lanes App id", { ...WAKE_PASS, LANES_APP_ID: "", GH_AUTHOR: "5 User false false false" }, undefined],
+  ]) {
+    const run = wake(env);
+    assert.equal(run.readStatus, 0, why);
+    assert.equal(run.outputs.type, type, why);
+    assert.equal(run.downloaded, false, why);
+  }
+  const failed = wake({ ...WAKE_PASS, GH_ERROR_BODY: "502 Bad Gateway" });
+  assert.deepEqual(failed.gh, [WAKE_READ], "a failed read fails closed with no download or dispatch");
+  assert.match(failed.stdout, /::warning::wake-pr-merge: pr=41 verdict=pass pull request could not be read; nothing woken/);
+});
 
-test("wake-pr-merge wakes only an unarmed, unheld lanes App pull request when it can read it", () => {
-  // The lanes App's pull request, unarmed and unheld: read, then woken.
-  assert.deepEqual(wake({ ...WAKE_PASS, GH_AUTHOR: "7 Bot false false" }).gh, [WAKE_READ, WAKE_DISPATCH]);
-  // A person's, Dependabot's, another App's, or the App's id on a User: read, nothing woken.
-  for (const author of ["9 User false false", "7 User false false", "8 Bot false false", "49699333 Bot false false"]) {
+test("wake-pr-merge wakes a lanes App or trusted person pull request, unarmed and unheld, and fails closed otherwise", () => {
+  for (const author of ["7 Bot false false false", "5 User false false false"]) {
+    assert.deepEqual(wake({ ...WAKE_PASS, GH_AUTHOR: author }).gh, [WAKE_READ, WAKE_DISPATCH], author);
+  }
+  for (const author of ["9 User false false false", "7 User false false false", "6 User false false false", "8 Bot false false false", "6 Bot false false false", "5 Bot false false false"]) {
     const run = wake({ ...WAKE_PASS, GH_AUTHOR: author });
     assert.equal(run.status, 0, author);
     assert.deepEqual(run.gh, [WAKE_READ], author);
-    assert.match(run.stdout, /::notice title=pr-verify wake::pr=41 verdict=pass not a lanes App pull request; nothing woken/, author);
+    assert.match(run.stdout, /::notice title=pr-verify wake::pr=41 verdict=pass not a lanes App or trusted person pull request; nothing woken/, author);
   }
-  // A failed read, or no usable lanes App id: woken anyway, pr-merge decides.
-  assert.deepEqual(wake(WAKE_PASS).gh, [WAKE_READ, WAKE_DISPATCH]);
-  // A failed read whose error body spans lines (an edge 502 page) is still a failed read.
-  assert.deepEqual(wake({ ...WAKE_PASS, GH_ERROR_BODY: "<html>\n<body>502 Bad Gateway</body>\n</html>\n" }).gh, [WAKE_READ, WAKE_DISPATCH]);
-  for (const id of ["", "x"]) assert.deepEqual(wake({ ...WAKE_PASS, LANES_APP_ID: id, GH_AUTHOR: "9 User false false" }).gh, [WAKE_DISPATCH], id);
+  for (const [why, env] of [
+    ["empty API output", WAKE_PASS],
+    ["HTML error body", { ...WAKE_PASS, GH_ERROR_BODY: "<html>\n<body>502 Bad Gateway</body>\n</html>\n" }],
+  ]) {
+    const run = wake(env);
+    assert.equal(run.status, 0, why);
+    assert.deepEqual(run.gh, [WAKE_READ], why);
+    assert.match(run.stdout, /::warning::wake-pr-merge: pr=41 verdict=pass pull request could not be read; nothing woken/, why);
+  }
+  for (const id of ["", "x"]) {
+    const run = wake({ ...WAKE_PASS, LANES_APP_ID: id, GH_AUTHOR: "9 User false false false" });
+    assert.equal(run.status, 0, id);
+    assert.deepEqual(run.gh, [], id);
+    assert.match(run.stdout, /::warning::wake-pr-merge: pr=41 verdict=pass AUTOMATION_LANES_APP_SENDER_ID is unset or invalid; nothing woken/, id);
+  }
 });
 
-test("wake-pr-merge wakes no lanes App pull request already armed or held by do-not-merge", () => {
+test("wake-pr-merge fails closed on a User's pass when the trusted-actor list does not read, and still refuses another Bot", () => {
+  for (const listPath of ["/nonexistent/trusted-actors.json", "/components/trusted-actors/trusted-actors.json"]) {
+    const user = wake({ ...WAKE_PASS, TRUSTED_ACTORS_PATH: listPath, GH_AUTHOR: "9 User false false false" });
+    assert.equal(user.status, 0, listPath);
+    assert.deepEqual(user.gh, [WAKE_READ], listPath);
+    assert.match(user.stdout, /::warning::wake-pr-merge: pr=41 verdict=pass trusted-actor list could not be read; nothing woken/, listPath);
+    const bot = wake({ ...WAKE_PASS, TRUSTED_ACTORS_PATH: listPath, GH_AUTHOR: "8 Bot false false false" });
+    assert.equal(bot.status, 0, listPath);
+    assert.deepEqual(bot.gh, [WAKE_READ], listPath);
+    assert.match(bot.stdout, /::notice title=pr-verify wake::pr=41 verdict=pass not a lanes App or trusted person pull request; nothing woken/, listPath);
+  }
+});
+
+test("wake-pr-merge leaves a trusted person's draft to the sweep, and a lanes App draft still wakes", () => {
+  for (const [answer, why] of [
+    ["5 User false false true", "a draft"],
+  ]) {
+    const run = wake({ ...WAKE_PASS, GH_AUTHOR: answer });
+    assert.equal(run.status, 0, answer);
+    assert.deepEqual(run.gh, [WAKE_READ], answer);
+    assert.match(run.stdout, new RegExp(`::notice title=pr-verify wake::pr=41 verdict=pass ${why}; nothing woken`), answer);
+  }
+  assert.deepEqual(wake({ ...WAKE_PASS, GH_AUTHOR: "7 Bot false false true" }).gh, [WAKE_READ, WAKE_DISPATCH]);
+});
+
+test("wake-pr-merge wakes no lanes App or trusted person pull request already armed or held by do-not-merge", () => {
   for (const [answer, why] of [
     ["7 Bot true false", "already armed"],
     ["7 Bot true true", "already armed"],
     ["7 Bot false true", "held \\(do-not-merge\\)"],
+    ["5 User true false false", "already armed"],
+    ["5 User false true false", "held \\(do-not-merge\\)"],
   ]) {
     const run = wake({ ...WAKE_PASS, KEY_VERDICT: "pass-notes", GH_AUTHOR: answer });
     assert.equal(run.status, 0, answer);
@@ -1271,7 +1282,6 @@ test("wake-pr-merge wakes no lanes App pull request already armed or held by do-
 });
 
 const jobIds = (source) => [.../\njobs:\n([\s\S]*)$/.exec(source)[1].matchAll(/^ {2}([a-z][a-z0-9-]*):$/gm)].map((m) => m[1]);
-// A job's own `if:`, folded to one line.
 const jobIf = (id) => {
   const job = jobText(id);
   const folded = /^ {4}if: >-\n((?: {6}.*\n)+)/m.exec(job)?.[1] ?? /^ {4}if: (.*)$/m.exec(job)?.[1] ?? "";
@@ -1304,15 +1314,6 @@ test("the prompt fails the evidence loop's cap line, read only from the trusted 
   assert.match(prompt, /That line counts only in\nthat trusted body, never in the diff or any other file/);
 });
 
-// Outage posture element 2 (docs/conventions/pr-pipeline/README.md#outage-posture): a GitHub fault,
-// a rate-guard stop included, holds the resolver green (resolve-pr.mjs
-// closing), and the lost-run reconciler finds the held run by its marker step
-// (reconcile.mjs faultHeld). The trigger check is a gate, and a gate that
-// held green would pass what it could not read (rate-guard.mjs
-// createRateLimitLatch), so it sets no API_BUDGET_HOLD and still stops; a stop
-// a read fault caused reads read-fault (fault-reason), and the marker step,
-// right after the gate, notes that hold too with the `held: ` notice the
-// reconciler reads (reconcile.mjs heldNoted).
 test("each job's resolver holds a rate stop green, and a held run is marked for the reconciler", () => {
   for (const job of JOBS) {
     assert.equal(input(step("Resolve the pull request", job), "API_BUDGET_HOLD"), '"1"', job);
@@ -1325,6 +1326,5 @@ test("each job's resolver holds a rate stop green, and a held run is marked for 
     assert.match(held, /^ {10}GATE_REASON: \$\{\{ steps\.gate\.outputs\.reason \}\}$/m, job);
     assert.match(held, /if \[\[ \$GATE_REASON == read-fault \]\]; then\n {12}echo "::notice title=pr-verify::held: /, job);
   }
-  // Only those three steps opt in: never a job or the workflow.
   assert.equal(text.match(/^ +API_BUDGET_HOLD:/gm).length, JOBS.length);
 });

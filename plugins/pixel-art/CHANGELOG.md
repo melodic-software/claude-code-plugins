@@ -3,6 +3,18 @@
 All notable changes to the `pixel-art` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.34] - 2026-11-28
+
+### Changed
+
+- Trimmed all six `pixel-art` skill frontmatter descriptions (`animate` 417 -> 324, `scene` 413 -> 350, `sprite` 409 -> 322, `tileset` 417 -> 315, `ui` 384 -> 335, `vfx` 406 -> 319 chars; total 2,446 -> 1,965 chars) while preserving engine layouts, probe recall, and sibling/non-pixel routing boundaries.
+
+## [0.7.33] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.7.32] - 2026-11-24
 
 ### Changed

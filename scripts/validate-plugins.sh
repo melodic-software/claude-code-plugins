@@ -1,31 +1,4 @@
 #!/usr/bin/env bash
-# Validate every plugin manifest and the marketplace catalog with the Claude Code CLI.
-#
-# Requires `claude` on PATH (npm install -g @anthropic-ai/claude-code). The
-# per-plugin pass catches a bad plugins/<name>/.claude-plugin/plugin.json; the
-# --strict repo-root pass validates the catalog manifest itself, where a bad
-# marketplace.json entry surfaces (it is not caught by per-plugin validation).
-# A plugin that ships a mod also gets `claude plugin test` (scripts/test-plugin-mods.sh),
-# which skips when the CLI predates mods.
-#
-#   scripts/validate-plugins.sh                    every plugin
-#   scripts/validate-plugins.sh --only "<names>"   the per-plugin pass for the
-#                                                  space-separated plugins only,
-#                                                  none when the list is empty;
-#                                                  every repository-wide check
-#                                                  (contracts, catalog, the
-#                                                  --strict catalog pass, mods)
-#                                                  still runs
-#
-# CI passes the plugins a diff touched: each per-plugin pass reads only its own
-# directory, so an untouched plugin's verdict is the one its last green run gave.
-# A name that is not a plugin directory is an error, not a quiet skip.
-#
-# CHECK_DATA_ROOT names the tree to validate when it is not the one holding this
-# script (scripts/check-affected.sh sets it when it runs from a merge-base copy
-# of the tooling). The helpers then still run from this script's tree, and each
-# step that would run code from the checked tree prints `SKIP <step> (...)`
-# instead of running.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)" || exit 1
@@ -35,8 +8,6 @@ cd "${CHECK_DATA_ROOT:-$SCRIPT_DIR/..}" || exit 1
 foreign=0
 [[ "$(pwd -P)" == "$(cd "$SCRIPT_DIR/.." && pwd -P)" ]] || foreign=1
 
-# runs_checked_code <step>: 0 to run a step that executes code from the checked
-# tree, which is only safe when that tree is this script's own.
 runs_checked_code() {
   ((foreign)) || return 0
   echo "SKIP $1 (runs code from the checked tree)"
@@ -70,10 +41,6 @@ if ! command -v node >/dev/null 2>&1; then
   echo "error: node not on PATH" >&2
   exit 2
 fi
-# A contract WARNING fails here too. scripts/validate-plugin-contracts.test.sh
-# asserts the shipping tree draws none, but the selection runs that suite only
-# when the change reaches it, so a warning a pull request introduces would
-# otherwise pass its own run and fail first in the merge queue (#6215).
 if ((foreign)) && [[ -n "${CHECK_SKIP_CONTRACTS-}" ]]; then
   echo "SKIP contract-validator ($CHECK_SKIP_CONTRACTS)"
 else
@@ -88,12 +55,8 @@ else
   fi
 fi
 bash "$SCRIPT_DIR/check-publisher-token-alignment.sh" || exit 1
-# Before the catalog, which groups by the category this generates.
 node "$SCRIPT_DIR/generate-marketplace.mjs" --check || exit 1
 node "$SCRIPT_DIR/generate-catalog.mjs" --check || exit 1
-# The cheatsheet generator imports scripts/cheatsheet-config.mjs from the tree it
-# checks; a byte-identical copy is this script's own code.
-# A checked tree whose generator differs expects that generator's output, so the step skips then too.
 if { cmp -s "$SCRIPT_DIR/cheatsheet-config.mjs" scripts/cheatsheet-config.mjs &&
   cmp -s "$SCRIPT_DIR/generate-cheatsheet.mjs" scripts/generate-cheatsheet.mjs; } ||
   runs_checked_code "cheatsheet drift"; then
@@ -103,12 +66,6 @@ if runs_checked_code "identity-prerequisites drift"; then
   node plugins/autonomy/skills/setup/scripts/generate-identity-prerequisites.mjs --check || exit 1
 fi
 
-# --- native-overlap registry: generated-view drift + freshness self-check ----
-#
-# The engine is Python, so the interpreter is resolved through
-# scripts/lib/python-probe.sh rather than a bare `python3` call: that probe
-# skips the Store's zero-length WindowsApps alias stub, which opens the
-# Microsoft Store or hangs instead of running an interpreter.
 if runs_checked_code "native-overlap registry"; then
   OVERLAP="plugins/harness-ops/skills/audit-native-overlap/scripts/overlap.py"
   OVERLAP_FLOOR="$(sed -n 's/^MIN_PYTHON = (\([0-9]*\), \([0-9]*\)).*/\1.\2/p' "$OVERLAP")"
@@ -124,13 +81,6 @@ if runs_checked_code "native-overlap registry"; then
 
   "$OVERLAP_PYTHON" "$OVERLAP" generate --check || exit 1
 
-  # Exit-3 policy, stated here because it is a decision and not an oversight: the
-  # self-check exits 0 ok / 1 broken / 3 degraded (2 stays argparse's usage
-  # error). Degraded means the data is stale-but-honest or a comparison was not
-  # locally decidable — an upstream release the registry does not own, or no
-  # `claude` on PATH. Neither is a defect this repo can fix by editing the store,
-  # and a chronically red gate on such a condition trains people to ignore it. So
-  # broken fails the gate and degraded prints its summary and passes.
   "$OVERLAP_PYTHON" "$OVERLAP" self-check
   overlap_status=$?
   if [[ $overlap_status -eq 1 ]]; then
@@ -149,13 +99,6 @@ if ! command -v claude >/dev/null 2>&1; then
   exit 2
 fi
 
-# --json (Claude Code >= 2.1.259) is one object: success, strict, target,
-# manifest, and contents[] of per-file errors, warnings, and notes. The
-# renderer exits 2 when stdout is not that object, and this loop then falls
-# back to the text command so a CLI older than the flag still validates.
-# The renderer also prints each per-file gatingHooks entry with hasCatch:
-# false as a warning row; that row never changes this script's exit status.
-# Basis: https://code.claude.com/docs/en/plugins/cli-reference#plugin-validate
 render_validate() {
   local dir="$1"
   shift
@@ -183,9 +126,6 @@ validate_one() {
   render_validate "$1"
 }
 
-# The per-plugin passes and the mod tests run as background jobs, one
-# per-plugin pass per CPU, with the mod tests beside them. Each job's output is
-# buffered and printed in start order, so the log reads as a serial run.
 failed=0
 buf="$(mktemp -d)" || exit 2
 trap 'rm -rf "$buf"' EXIT
@@ -195,7 +135,6 @@ spawn() {
   "$@" >"$buf/$n.out" 2>"$buf/$n.err" &
   pids[n]=$!
 }
-# collect <n>: wait for job n, print its output, and fold a failure into failed.
 collect() {
   wait "${pids[$1]}" || failed=1
   cat "$buf/$1.out"

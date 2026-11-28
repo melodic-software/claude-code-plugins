@@ -1,11 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/planning/surface/schema/questions.schema.json
-# The shared session end to end, CI-safe: the fake cloudflared stands in for the tunnel.
-#   bash tracer.test.sh
-# ensure-running -> two guests join over HTTP -> apply an open-round -> both answer -> the owner
-# sends -> watch.sh prints round-sent -> apply ack-round plus the next open-round -> restart ->
-# the guest link, the people and the answers are intact -> stop leaves nothing running.
-# Credentials reach curl through header files (-H @file), never its command line.
 # test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json plugins/planning/surface/schema/event.schema.json plugins/planning/surface/schema/ops.schema.json plugins/planning/surface/schema/responses.schema.json plugins/planning/surface/schema/visual.schema.json
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -20,7 +14,6 @@ bad() {
   echo "FAIL: $1"
   fail=$((fail + 1))
 }
-# verdict <status> <ok message> <failure message>: the status of the check just before it.
 verdict() { if [[ $1 == 0 ]]; then ok "$2"; else bad "$3"; fi; }
 
 py=$(command -v python3 || command -v python)
@@ -46,12 +39,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# The value of a Python expression over the last JSON line of stdin, bound to `j`.
 jget() { "$py" -c 'import json, sys; j = json.loads([x for x in sys.stdin.read().splitlines() if x.startswith("{")][-1]); v = eval(sys.argv[1]); print(v if isinstance(v, str) else json.dumps(v))' "$1"; }
-# POST JSON to the guest listener; $3 names a header file or is empty.
 post() { curl -s --noproxy '*' --max-time 10 -H 'Content-Type: application/json' ${3:+-H "@$3"} -d "$2" "${local_url}${1#/}"; }
 get() { curl -s --noproxy '*' --max-time 10 ${2:+-H "@$2"} "${local_url}${1#/}"; }
-header() { # file name value
+header() {
   (umask 077 && printf '%s: %s\n' "$2" "$3" >"$1")
 }
 

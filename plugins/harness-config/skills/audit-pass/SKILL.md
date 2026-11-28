@@ -1,5 +1,5 @@
 ---
-description: "Run one coordinated, resumable audit pass over a repo: a three-scope inventory, then each owning plugin's checks lane by lane, presence-gated, with findings persisted per lane and one human gate for the whole pass. Read-only unless --fix. Use when: 'audit pass', 'run one pass over this repo', 'coordinate the audit skills', 'audit this repo end to end', 'resume the audit', 'one reconciled findings report', 'sweep all three scopes', or a release needs one diffable findings artifact."
+description: "Run one coordinated, resumable audit pass over a repo: three-scope inventory, each owning plugin's checks lane by lane, findings persisted per lane with one human gate (read-only unless --fix) for one reconciled findings report/release artifact. Use when: 'audit pass', 'audit this repo end to end', 'resume the audit', or sweep all three scopes."
 argument-hint: "[target] [--repo <repo> ...] [--fix] [--opinion] [--postures] [--lanes <list>] [--resume]"
 user-invocable: true
 disable-model-invocation: false
@@ -346,7 +346,7 @@ step needs:
 4. **The main-session pass is the one that survives a lowered depth budget**, because it spawns from
    the top of the session rather than from inside a lane. A run that could verify no lane inline can
    usually still verify the assembled set, so `inline` per lane and a completed Phase 6 verification
-   is the ordinary shape on a depth-1 host, not a degraded one.
+   is the ordinary shape on a depth-1 host, not a degraded one. Where the depth limit comes from: [let subagents spawn their own subagents](https://code.claude.com/docs/en/sub-agents#let-subagents-spawn-their-own-subagents).
 
 ## Phase 6: Assemble, verify the assembled set, report
 

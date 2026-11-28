@@ -3,7 +3,6 @@
 # shellcheck disable=SC2016 # each snippet is single-quoted on purpose: in_repo evaluates it in an inner bash
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG CLAUDECODE AI_AGENT
-# Env-supplied config (a caller's core.hooksPath, say) would reach every repo below.
 unset GIT_CONFIG_PARAMETERS GIT_CONFIG_COUNT "${!GIT_CONFIG_KEY_@}" "${!GIT_CONFIG_VALUE_@}"
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -61,9 +60,55 @@ expect "filter keeps a finding on a changed line only" \
   'a.txt:4: x' \
   "$(in_repo "$R" pre-commit 'checks_changed_lines; printf "a.txt:1: x\na.txt:4: x\nother:4: x\n" | checks_filter_findings')"
 
-# An added line whose text starts "++ b/" prints as "+++ b/other" inside its
-# hunk; a removed "-- a/" line prints as "--- a/". Neither is a file header, so
-# the later hunks stay with the real file.
+new_repo; V="$REPO"
+printf 'one\ntwo\nthree\nfour\nfive\n' >"$V/moved.md"
+printf 'alpha\nbeta\ngamma\ndelta\nepsilon\n' >"$V/edited.md"
+printf 'x\ny\n' >"$V/chmod.sh"
+printf 'copy me\nplease\n' >"$V/orig.md"
+git -C "$V" add .
+git -C "$V" commit -q -m seed
+git -C "$V" mv moved.md dir-moved.md
+git -C "$V" mv edited.md dir-edited.md
+printf 'zeta\n' >>"$V/dir-edited.md"
+git -C "$V" mv chmod.sh dir-chmod.sh
+chmod +x "$V/dir-chmod.sh"
+git -C "$V" add --chmod=+x dir-chmod.sh
+git -C "$V" add dir-edited.md
+expect "pre-commit files: an exact rename is left out; an edited or mode-changed rename stays" \
+  $'dir-chmod.sh\ndir-edited.md' "$(in_repo "$V" pre-commit 'checks_files' | nul_list | sort)"
+expect "pre-commit files --include-exact-renames: the same bytes as git's --name-only list" \
+  "$(git -C "$V" -c core.quotePath=false diff --cached --no-color --no-ext-diff --name-only --diff-filter=ACMR -z -- | od -c)" \
+  "$(in_repo "$V" pre-commit 'checks_files --include-exact-renames' | od -c)"
+expect "worktree files --include-exact-renames: the exact rename is listed" $'dir-chmod.sh\ndir-edited.md\ndir-moved.md' \
+  "$(in_repo "$V" pre-commit 'checks_files --include-exact-renames' --worktree | nul_list | sort)"
+expect "pre-commit ranges: an edited rename counts only its edited line" $'dir-edited.md\t6\t6' \
+  "$(in_repo "$V" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
+expect "worktree files: an exact rename is left out" $'dir-chmod.sh\ndir-edited.md' \
+  "$(in_repo "$V" pre-commit 'checks_files' --worktree | nul_list | sort)"
+git -C "$V" commit -q -m moves
+expect "pre-push files: an exact rename in the pushed range is left out" $'dir-chmod.sh\ndir-edited.md' \
+  "$(printf 'refs/heads/main %s refs/heads/main %s\n' "$(git -C "$V" rev-parse HEAD)" "$(git -C "$V" rev-parse HEAD~1)" |
+    in_repo "$V" pre-push 'checks_files' origin url | nul_list | sort)"
+expect "pre-push ranges: an edited rename counts only its edited line" $'dir-edited.md\t6\t6' \
+  "$(printf 'refs/heads/main %s refs/heads/main %s\n' "$(git -C "$V" rev-parse HEAD)" "$(git -C "$V" rev-parse HEAD~1)" |
+    in_repo "$V" pre-push 'checks_changed_lines; cat "$CHECKS_TMP/ranges"' origin url)"
+cp "$V/orig.md" "$V/copied.md"
+printf 'edited\n' >>"$V/orig.md"
+git -C "$V" add copied.md orig.md
+git -C "$V" config diff.renames copies
+expect "copy fixture: git reports the copy as an exact copy" C100 \
+  "$(git -C "$V" diff --cached --name-status | cut -f1 | grep '^C')"
+expect "pre-commit files: an exact copy is still listed" $'copied.md\norig.md' \
+  "$(in_repo "$V" pre-commit 'checks_files' | nul_list | sort)"
+
+new_repo; N="$REPO"
+pad="$(printf '%*s' 60 '' | tr ' ' p)"
+for ((i = 1; i <= 1500; i++)); do printf 'x\n' >"$N/$pad$i.txt"; done
+git -C "$N" add .
+find "$N" -maxdepth 1 -name "${pad}1*.txt" -delete
+expect "files: a checks_files call inside a loop reading checks_files leaves both lists whole" "1500|888" \
+  "$(in_repo "$N" pre-commit 'outer=0 inner=0; while IFS= read -r -d "" f; do outer=$((outer + 1)); if ((outer == 1)); then CHECKS_MODE=worktree; while IFS= read -r -d "" g; do inner=$((inner + 1)); done < <(checks_files); CHECKS_MODE=pre-commit; fi; done < <(checks_files); echo "$outer|$inner"')"
+
 new_repo; H="$REPO"
 printf 'one\ntwo\n-- a/old\nfour\nfive\nsix\n' >"$H/f.txt"
 git -C "$H" add f.txt
@@ -81,6 +126,36 @@ git -C "$H" config diff.interHunkContext 5
 expect "pre-commit ranges: a diff.interHunkContext setting fuses no hunks" \
   $'f.txt\t2\t2\nf.txt\t5\t5\ng.txt\t1\t1' \
   "$(in_repo "$H" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
+
+new_repo; W="$REPO"
+printf 'if x; then\n# keep\nrun  a\nfi\nlast\n' >"$W/f.sh"
+printf '# from g\n' >"$W/g.sh"
+git -C "$W" add f.sh g.sh
+git -C "$W" commit -q -m seed
+printf 'if x; then\n    # keep\n    run a\nfi\n' >"$W/f.sh"
+git -C "$W" add f.sh
+expect "pre-commit ranges: without --skip-reindent a reindented line is added" $'f.sh\t2\t3' \
+  "$(in_repo "$W" pre-commit 'checks_changed_lines; cat "$CHECKS_TMP/ranges"')"
+expect "pre-commit ranges: --skip-reindent drops a reindent, not a change inside the line" $'f.sh\t3\t3' \
+  "$(in_repo "$W" pre-commit 'checks_changed_lines --skip-reindent; cat "$CHECKS_TMP/ranges"')"
+expect "pre-commit ranges: --skip-reindent writes to the file it names" $'f.sh\t3\t3|f.sh\t2\t3' \
+  "$(in_repo "$W" pre-commit 'checks_changed_lines --skip-reindent "$CHECKS_TMP/r2"; checks_changed_lines; printf "%s|%s" "$(cat "$CHECKS_TMP/r2")" "$(cat "$CHECKS_TMP/ranges")"')"
+printf 'x=1\n' >"$W/f.sh"
+git -C "$W" add f.sh
+git -C "$W" commit -q -m inner
+printf 'x = 1\n' >"$W/f.sh"
+git -C "$W" add f.sh
+expect "pre-commit ranges: --skip-reindent still adds a line whose inner whitespace changed" $'f.sh\t1\t1' \
+  "$(in_repo "$W" pre-commit 'checks_changed_lines --skip-reindent; cat "$CHECKS_TMP/ranges"')"
+printf 'if x; then\n# keep\nrun  a\nfi\nlast\n' >"$W/f.sh"
+git -C "$W" add f.sh
+git -C "$W" commit -q -m reseed
+printf 'last\nif x; then\n    # keep\n    # keep\n    # new\n    run b\nfi\n# from g\n' >"$W/f.sh"
+: >"$W/g.sh"
+git -C "$W" add f.sh g.sh
+expect "pre-commit ranges: a copy, a new or reworded line and a line from another file are added" \
+  $'f.sh\t4\t6\nf.sh\t8\t8' \
+  "$(in_repo "$W" pre-commit 'checks_changed_lines --skip-reindent; cat "$CHECKS_TMP/ranges"')"
 
 printf 'one\nTWO\nthree\nfour\nfive\n' >"$R/a.txt"
 expect "partly-staged: a file with unstaged changes is detected" yes \
@@ -113,9 +188,6 @@ expect "pre-commit on an unborn branch sees the first file" $'x.txt\t1\t1' \
 expect "worktree mode on an unborn branch sees the first file" 'x.txt' \
   "$(in_repo "$U" pre-commit 'checks_files' --worktree | nul_list | sort -u)"
 
-# --- binary content and the -diff attribute ---------------------------------------
-# A NUL in the first 8000 bytes makes a file binary whatever its attributes say;
-# a -diff attribute on a text file must not hide its lines.
 new_repo; B="$REPO"
 printf 'bin\0ary\nline\n' >"$B/blob.dat"
 printf 'text\n' >"$B/t.md"
@@ -133,13 +205,6 @@ printf 'loose\0bin\n' >"$B/loose.dat"
 expect "worktree ranges: an untracked binary file is dropped" no \
   "$(in_repo "$B" pre-commit 'checks_changed_lines; grep -q "^loose.dat" "$CHECKS_TMP/ranges" && echo yes || echo no' --worktree)"
 
-# The staged heads are read in one stream: the 8000-byte boundary, a blob that
-# ends in a NUL, two paths sharing one blob and a large blob between text files
-# must each be judged on its own bytes; a \001 byte and a text blob of exactly
-# 8000 bytes are text, and so is a UTF-8 file, whose multibyte characters must
-# not shift the byte count for the blobs after it, while bytes above \177 beside
-# a NUL are binary. A symlink is not a regular file, so its lines stay even when
-# its target text holds a NUL.
 new_repo; E="$REPO"
 printf 'text\n' >"$E/a.txt"
 { printf '%*s' 7999 '' | tr ' ' a; printf '\0\nmore\n'; } >"$E/edge.dat"
@@ -250,7 +315,7 @@ expect "pre-commit files in a merge: only the paths that differ from every paren
   "$(in_repo "$G" pre-commit 'checks_files' | nul_list)"
 expect "pre-commit files in a merge: nothing on stderr" "" \
   "$(in_repo "$G" pre-commit 'checks_files' 2>&1 >/dev/null)"
-MERGE_ALL=$'i.txt\nm.sh\nrr.txt\ns.txt'
+MERGE_ALL=$'i.txt\nm.sh\ns.txt'
 MERGE_FALLBACK='failed while listing the paths this merge changes, so every staged path is checked'
 merge_fallback() {
   local list
@@ -273,6 +338,8 @@ expect "pre-commit files in a merge: the same list from a subdirectory" 's.txt' 
   "$(in_repo "$G/sub" pre-commit 'checks_files' | nul_list)"
 expect "worktree files in a merge: every path changed against HEAD" "$MERGE_ALL" \
   "$(in_repo "$G" pre-commit 'checks_files' --worktree | nul_list | sort)"
+expect "a failing git in a merge with --include-exact-renames lists the exact rename too" $'i.txt\nm.sh\nrr.txt\ns.txt' \
+  "$(in_repo "$G" pre-commit 'git() { case " $* " in *" --no-renames "*) return 2 ;; esac; command git "$@"; }; checks_files --include-exact-renames' 2>/dev/null | nul_list | sort)"
 git -C "$G" commit -q --no-edit
 expect "pre-commit files after the merge commits: nothing on stderr" "" \
   "$(in_repo "$G" pre-commit 'checks_files' 2>&1 >/dev/null)"
@@ -342,11 +409,6 @@ expect "a failing awk in the binary test fails the hook" \
   "1|checks: awk exited 2 while testing the changed files for binary content, so this change was not fully checked; fix that failure, then commit again" \
   "$(in_repo_failing "$F" pre-commit 'blob_end' 'checks_changed_lines; exit 0')"
 
-# --- re-staging a rewrite ----------------------------------------------------------
-# Windows caps a command line at 32,767 characters, so checks_restage must never
-# put the file list on git's argv. Every path below ends in .txt, and the stub
-# git fails any call whose arguments hold more than two of them, with or
-# without `--`, so a long list cannot pass by luck.
 ARGV_SHIMS="$WORK/argv-shims"
 mkdir "$ARGV_SHIMS"
 # shellcheck disable=SC2016 # $@, $a and $n expand when the stub runs
@@ -359,7 +421,6 @@ git -C "$S" add outside.txt
 git -C "$S" commit -q -m seed
 set_paths=(-lead.txt "a b.txt" r1.txt r2.txt same.txt)
 rewrote=(-lead.txt "a b.txt" r1.txt r2.txt)
-# An LF in a name is Linux-only; Git for Windows cannot create one.
 lf_name=$'lf\nname.txt'
 if printf 'x\n' >"$S/$lf_name" 2>/dev/null; then
   set_paths+=("$lf_name")
@@ -500,7 +561,6 @@ git -C "$P" branch -q -u origin/main
 expect "pre-push: no stdin ranges the branch against its upstream" "$base_sha $topic_sha" \
   "$(in_repo "$P" pre-push 'cat "$CHECKS_TMP/push-ranges"' origin url </dev/null)"
 
-# A SHA-256 repository's pre-push records carry a 64-digit zero id.
 REMOTE256="$WORK/remote256.git"
 if git init -q --bare --object-format=sha256 -b main "$REMOTE256" 2>/dev/null; then
   S="$WORK/s256"
@@ -580,8 +640,6 @@ expect "pre-commit reader: reads the index, not the unstaged edit" $'one\ncommit
 expect "pre-commit reader: a symlink in the index is not a regular file" no \
   "$(in_repo "$Q" pre-commit 'checks_regular_file link && echo yes || echo no')"
 
-# --- bash 3.2 syntax lint ---------------------------------------------------------
-# Constructs newer than bash 3.2 (macOS /bin/bash). Comments are skipped.
 lint_32() {
   grep -nE '^[^#]*(declare -A|local -A|mapfile|readarray|\$\{[A-Za-z_]+(,,|\^\^)|;;&|\|&|&>>|\[\[ -v |local -n|declare -n|coproc|wait -n|\$\{[A-Za-z_]+\[-1\]\})' "$1"
 }

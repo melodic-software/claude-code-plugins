@@ -1,0 +1,32 @@
+{
+  "skill": "playbooks:repo-sweep",
+  "plugin": "playbooks",
+  "skill_dir": "plugins/playbooks/skills/repo-sweep",
+  "ranking_note": "Backfilled probe set for playbooks:repo-sweep (resumable hygiene catalog sweep over one repo in one draft PR). playbooks:update sets disable-model-invocation: true and does not compete.",
+  "competitors": [
+    "playbooks:boris",
+    "playbooks:fable-5"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "let's sweep this repository with the hygiene catalog and open a draft PR"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "plan the repo hygiene sweep and recommend which catalog entries apply"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "run the next unticked step in our ongoing hygiene sweep"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "continue the repo sweep from where the PR checklist left off"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "inspect our previous sweep step and file any skill bugs we hit"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "walk the hygiene playbook through this repo committing each step separately"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "start a resumable hygiene playbook sweep for this repository"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "pick up the next sweep step after /clear"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "audit what went wrong in the previous repo sweep step"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "launch the catalog selector UI and set up the sweep branch for this repo"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "how does Boris use git worktrees and hooks in Claude Code"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "load Fable 5.2 operating doctrine for this session"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "how do I design a SKILL.md with hub and spoke files"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "find stale branches across all twenty repositories in my fleet"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "refresh the vendored upstream baseline in the playbooks plugin"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "fix the failing integration test in auth_spec.ts"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "give me Boris's Claude Code tips on loops and permissions"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "load the Sonnet 5.5 model adaptation chapter"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "what are the 9 skill categories for authoring skills"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "delete merged local branches across every repo in my ghq tree"}
+  ]
+}

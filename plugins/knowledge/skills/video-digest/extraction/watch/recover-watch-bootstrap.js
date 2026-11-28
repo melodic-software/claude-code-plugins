@@ -236,7 +236,6 @@ export function resolveWorkArtifacts(workDir, captionClass = "manual-and-auto") 
 export const RECOVER_USAGE =
   "Usage: node watch/recover-watch-bootstrap.js <slice-dir> <workDir> <framesDir> <contactSheetsDir>";
 
-/** Frames per contact sheet, matching the 4x4 cell grid the sheets on disk were built with. */
 const FRAMES_PER_CONTACT_SHEET = 16;
 
 /**
@@ -272,8 +271,6 @@ export function downsampleSelectedFrames(selected, targetFrameCount) {
  * @param {string[]} argv
  */
 export async function recoverWatchBootstrapCli(argv) {
-  // Validate BEFORE resolving: `path.resolve(undefined)` throws a TypeError,
-  // so resolving first would make this usage branch unreachable.
   const [sliceDirArg, workDirArg, framesDirArg, contactSheetsDirArg] = argv.slice(2, 6);
   if (!sliceDirArg || !workDirArg || !framesDirArg || !contactSheetsDirArg) {
     writeStderr(RECOVER_USAGE);

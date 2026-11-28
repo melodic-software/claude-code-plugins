@@ -1,5 +1,5 @@
 ---
-description: "Recheck bundled multi-agent role defaults against upstream pointers (`defaults`), sweep repository model/effort/subagent/workflow prose (`repo`), or recheck benchmark registry rows for reachability, dates, coverage and current-model testing (`registry`) with a proposed diff to the shipped benchmark registry. Proposes only; never edits a repository file in its default modes (registry mode records per-machine audit history in the plugin data directory; an explicit apply request there opens a PR in the marketplace repository only). Use when: 'are the routing defaults current', 'audit the role map', 'recheck model defaults', 'recheck the benchmark registry', 'audit benchmark sources', 'did the workflow guidance change', or 'new model released, check the defaults'."
+description: "Audit bundled multi-agent role defaults vs upstream pointers (`defaults`), repo workflow guidance (`repo`), or benchmark registry sources (`registry`); proposes only, never edits in default modes (explicit `registry` apply opens a marketplace PR only). Use when: 'audit the role map', 'are the routing defaults current', 'recheck model defaults'."
 argument-hint: "[<role>|fanout|repo|registry]"
 user-invocable: true
 disable-model-invocation: false
@@ -33,9 +33,6 @@ for reachability, page date and age, work-type coverage, and whether each board
 tests current models, then proposes a diff to `${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json`. A
 manual `registry` recheck always runs, whatever `vendors.routing`,
 `vendors.trials`, or `vendors.auto_delegation` switches say.
-Each completed `registry` run also records every row's promotion-check outcomes in this machine's
-plugin data directory, outside any repository; that history is the only thing a read-only mode
-writes, and it lets a later run propose a `support-only` row `permanent`.
 
 The `defaults` and `repo` evidence passes run as the `multi-agent:drift-audit`
 workflow when workflows are available: one finder per owner (or per area in
@@ -87,9 +84,6 @@ web access, and page text never enters this session.
      build `currentModels` (mapping `claude`, `codex`, `gemini` to their listed
      current model ids) so the judge can test `tests_current_models`; otherwise
      omit `currentModels`.
-     With `currentModels`, also build `imageVendors`: the vendors among them whose
-     `external-agents models` output marks image support (never `claude`). An image-only row
-     needs current models from those vendors only.
 4. **Level (`defaults` and `repo` modes).** Run
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/read-verification.sh" --plugin multi-agent --skill audit-defaults`
    and copy its line into the report
@@ -112,17 +106,6 @@ web access, and page text never enters this session.
      `asOf` is today's date as `YYYY-MM-DD`, used to compute page age in days.
      `maxConcurrent` is clamped to 1-16, default 4. An `error: "missing-rows"`
      return means step 3 printed no valid rows.
-     Pass `imageVendors` in `args` too when step 3 built it.
-   - `registry` mode, after the workflow returns: when its `historyRecords` is non-empty, write
-     that array with the Write tool to a file in a new temporary directory and run
-     `node ${CLAUDE_SKILL_DIR}/scripts/registry-history.mjs record --input <that file> --user-file '${user_config.role_map_file}'`.
-     It appends this audit to the per-machine history
-     ([`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md)
-     "Registry audit history") and prints `promotions` (with the audit dates behind each),
-     `pending` rows with their reason, and a `diff` of `status: support-only -> permanent` lines
-     for shipped rows that passed every check across `vendors.promotion_audits` audits spanning
-     `vendors.promotion_days` days. An exit 2 naming the data directory means this machine keeps no
-     history: report it and propose no promotion.
 6. **Main-thread sources (`defaults` and `repo` modes).** The result's `unreadSources` lists pointers no
    workflow stage can read, such as the bundled `/workflow-authoring` skill.
    Load that skill with the Skill tool when it is in the skill listing and
@@ -154,8 +137,8 @@ return saved results is in
    the list of distinct sources to read.
 2. Read each URL pointer's anchored section by the
    [fetch-route rungs](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/contracts/upstream-drift/README.md#the-rungs)
-   (rung 1, fresh bytes; WebFetch is rung 2, degraded because it truncates
-   long pages silently). Read the `/workflow-authoring`
+   (rung 1, fresh bytes; WebFetch is rung 2, which that contract calls degraded; how WebFetch
+   reads a page: [WebFetch tool behavior](https://code.claude.com/docs/en/tools-reference#webfetch-tool-behavior)). Read the `/workflow-authoring`
    pointer as in step 6 above. Done when every source is marked read or unread.
 3. Judge each default `current` (the cited section states the value or the
    rule it follows from), `drifted` (name the value the source now supports),
@@ -197,9 +180,6 @@ file:line with the reason, then any `skippedAreas` by name.
 `${CLAUDE_PLUGIN_ROOT}/reference/benchmarks.json` (shipped rows only) in one fenced `diff` block, or
 `No changes proposed.` State how many rows were read and how many were not, any
 `skippedRows`, and every label in `nulls`.
-Show each row's `tests_required_vendors` and `error_range` beside `tests_current_models`. Put the `registry-history.mjs`
-promotion lines in the same diff block, after the workflow's hunks, and list each promotion's
-audit dates as its evidence and each `pending` row with its reason.
 
 `defaults` and `repo` modes: state how many sources were read and how many were
 not, and name every label in `nulls`.

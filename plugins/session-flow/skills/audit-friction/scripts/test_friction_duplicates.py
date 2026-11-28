@@ -1,9 +1,3 @@
-"""Contract test for the `duplicates_dropped` total `friction.py mine` reports.
-
-`aggregate` sums each stored record's `friction.duplicates_dropped`, and `render_mine` prints the
-total in its summary line. A record without a `friction` block, or without the field, adds nothing.
-"""
-
 from __future__ import annotations
 
 import importlib.util
@@ -31,6 +25,6 @@ def test_aggregate_sums_duplicates_dropped_and_mine_prints_it():
     assert data["duplicates_dropped"] == 5
     data["window"] = {"since": "2026-09-01", "until": "2026-09-30"}
     data["projects_roots"] = [{"root": "<projects-root>", "via": "default"}]
-    data["wsl_distros_unchecked"] = []
+    data["header"] = []
     data["warnings"] = []
     assert "5 duplicate result records dropped." in module.render_mine(data)

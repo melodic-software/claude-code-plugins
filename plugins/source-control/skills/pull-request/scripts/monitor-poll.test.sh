@@ -15,8 +15,6 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
 
-# The watch runs from a directory outside every checkout; <checkout> names a checkout whose one
-# GitHub remote is acme/app, so the repository can come only from <checkout>.
 CHECKOUT="$TEST_TMPDIR/checkout" OUTSIDE="$TEST_TMPDIR/outside"
 git init -q "$CHECKOUT"
 git -C "$CHECKOUT" remote add origin https://github.com/acme/app.git
@@ -118,9 +116,6 @@ assert_contains "an unreadable baseline: the watch completes" "$out" "PR #5 MERG
 assert_not_contains "an unreadable baseline file falls back to record-only (a)" "$out" "a: pass"
 assert_not_contains "an unreadable baseline file falls back to record-only (b)" "$out" "b: pass"
 
-# A readable baseline the script did not write: rows in `gh pr checks` shape, and correct-looking
-# lines with no snapshot marker. Either must fail closed to record-only plus a full scan, never
-# re-emit finished checks as new.
 printf 'a\tpass\t1m\thttps://x/1\nb\tpass\t1m\thttps://x/2\n' >"$TEST_TMPDIR/malformed"
 out=$(run_poll --baseline "$TEST_TMPDIR/malformed")
 assert_exit "a malformed baseline: the watch runs to the merge and exits 0" 0 "$?"

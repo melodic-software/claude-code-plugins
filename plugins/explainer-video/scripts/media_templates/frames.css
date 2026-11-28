@@ -1,8 +1,5 @@
 /* GENERATED from lib/media-render/media_templates/frames.css by scripts/sync-shared-copies.sh. Do not edit this copy:
    edit the canonical source, then rerun the script. */
-/* Bundled frame stylesheet. The page size and the bottom padding that keeps the caption band clear are
-   injected by media_templates.page from the caller's frame settings. Sizes are CSS pixels on a 1920x1080 page
-   captured at 2x: the smallest text, 32px, is 14.8px tall once the frame is scaled to an 888px-wide player. */
 :root {
   --bg: #0f1117; --panel: #181b24; --fg: #e8eaf0; --muted: #9aa3b5; --accent: #7aa2f7;
   --add-bg: #12301f; --add-fg: #9ee6b0; --del-bg: #3a1619; --del-fg: #ffadb3;

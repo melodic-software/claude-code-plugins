@@ -166,7 +166,6 @@ function specTrust(opts) {
 const unset = (raw) => raw === null || raw === "" || raw.startsWith("${user_config.");
 const isPatternList = (v) => Array.isArray(v) && v.every((p) => typeof p === "string" && p.length > 0);
 
-/** The user layer: {verdict, patterns} with undefined for unset, and the notes for invalid values. */
 function userLayer(opts, notes) {
   const layer = {};
   if (!unset(opts.verdict)) {
@@ -186,7 +185,6 @@ function userLayer(opts, notes) {
   return layer;
 }
 
-/** The repository layer as committed at opts.ref: {verdict, patterns} for each key that passed the schema check. */
 function repositoryLayer(opts, notes) {
   if (opts.ref === null) {
     notes.push("INFO repository layer skipped: no --ref names the default branch");

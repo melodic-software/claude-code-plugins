@@ -18,17 +18,12 @@ inputs:
     description: Path to the event payload file.
     required: false
     default: ${{ github.event_path }}
-  trusted-actors-path:
-    description: >
-      Path to the trusted-actor list, read from the base-SHA checkout so a PR
-      cannot change the list it is judged by.
-    required: false
-    default: .base/.github/standards/trusted-actors/trusted-actors.json
   standards-path:
     description: >
       A melodic-software/standards checkout (download-standards' `path`
-      output), checked out before any head code ran. When set, the list is
-      read from it and trusted-actors-path is ignored.
+      output), checked out before any head code ran. The trusted-actor list
+      is read from it only: unset, or without the list,
+      the action fails closed.
     required: false
     default: ""
   pr-number:
@@ -170,6 +165,22 @@ inputs:
       The single-select option id of app-field-id that starts the lane.
     required: false
     default: ""
+  bot-sender-ids:
+    description: >
+      With require-pr false, bot ids (comma- or space-separated positive
+      integers) whose sender, of type Bot, the actor check admits beside the
+      pool require-kind picks: the intake lane's github-actions[bot] and
+      lanes App. Re-runners are still held to that pool. Malformed stops the
+      run with list-unreadable.
+    required: false
+    default: ""
+  issue-author:
+    description: >
+      `true`, with require-pr false: an issues event starts the lane only
+      when its action is `opened` and its sender is the issue's author. Any
+      other issues event stops with untrusted-actor.
+    required: false
+    default: ""
   fault-reason:
     description: >
       `true` writes reason `read-fault` for a stop a read GitHub failed to
@@ -223,7 +234,6 @@ runs:
       env:
         EVENT_NAME: ${{ inputs.event-name }}
         EVENT_PATH: ${{ inputs.event-path }}
-        TRUSTED_ACTORS_PATH: ${{ inputs.trusted-actors-path }}
         STANDARDS_DIR: ${{ inputs.standards-path }}
         PR_NUMBER: ${{ inputs.pr-number }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
@@ -245,6 +255,8 @@ runs:
         APP_FIELD_ID: ${{ inputs.app-field-id }}
         APP_FIELD_OPTION: ${{ inputs.app-field-option }}
         REQUIRE_PR: ${{ inputs.require-pr }}
+        BOT_SENDER_IDS: ${{ inputs.bot-sender-ids }}
+        ISSUE_AUTHOR: ${{ inputs.issue-author }}
         FAULT_REASON: ${{ inputs.fault-reason }}
         REPOSITORY: ${{ github.repository }}
       run: node "$GITHUB_ACTION_PATH/check-trusted-trigger.mjs"

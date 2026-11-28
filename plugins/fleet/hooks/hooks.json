@@ -1,0 +1,17 @@
+{
+  "description": "At every session start, resume, /clear, compaction and fork, adds the list of live Claude Code sessions on every fleet lane to the session's context: lanes from ~/.config/fleet/fleet.json, each queried with its own claude agents --json. Prints nothing when no peer is live and no lane is broken.",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.sh\" \"${CLAUDE_PLUGIN_ROOT}/hooks/peer-list.mjs\"; ${PPID:+exit}; powershell -NoProfile -ExecutionPolicy Bypass -File \"${CLAUDE_PLUGIN_ROOT}/lib/node-or-skip.ps1\" \"${CLAUDE_PLUGIN_ROOT}/hooks/peer-list.mjs\"",
+            "timeout": 13,
+            "statusMessage": "Listing live fleet peers..."
+          }
+        ]
+      }
+    ]
+  }
+}

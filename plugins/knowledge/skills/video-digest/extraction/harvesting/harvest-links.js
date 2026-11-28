@@ -1,12 +1,3 @@
-/**
- * Link-harvest utilities shared across source adapters. Metadata harvest itself
- * is adapter-owned: callers invoke the owning adapter's `harvestLinks`, which
- * composes these utilities for its source's metadata shape.
- *
- * On-screen URLs are captured during skill-side frame reads and merged separately.
- * Heatmap is null-tolerant — optional context only, never required.
- */
-
 /** @typedef {import('./models.js').HarvestedLink} HarvestedLink */
 /** @typedef {import('./models.js').HarvestSource} HarvestSource */
 

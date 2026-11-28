@@ -19,7 +19,6 @@ describe("textBlockers", () => {
     ["a Blocked by heading's list, up to the next heading", "### Blocked by:\n- #1\n- #2\n## Next\n- #3", [1, 2]],
     ["a heading's list item URL", `## Blocked by\n- ${URL}/9`, [9]],
     ["a repeated number once", "Blocked by: #12\n## Depends on\n- #12", [12]],
-    // #8994's and #8989's shape: prose names the blocker too, and only the line counts.
     [
       "only the line, not prose that mentions issues",
       "## Problem\n\n#8753 makes it skip. #7613 adds the disclosure.\n\n## Criterion moved from #8753\n\n- One.\n\nBlocked by: #8753\n\n<!-- work-items:born-triaged -->\n",
@@ -204,8 +203,6 @@ describe("writeEdges", () => {
   });
 
   test("a 422 that names a cycle skips that edge with a notice, writes the rest and deletes nothing", async () => {
-    // HITL reversed #13198 -> #13197; a re-triage's verdict still names the
-    // old order, and GitHub refuses the edge that would close the cycle.
     const fake = fakeGitHub({ issues: { 12: open(12), 13: open(13) } });
     const lines = [];
     const github = async (method, path, body) => {
@@ -238,8 +235,6 @@ describe("writeEdges", () => {
   });
 
   test("the edge write is marked safe to resend once, and a 422 on an edge that landed counts as the run's own", async () => {
-    // A first copy GitHub applied but answered 5xx for: the resend is refused
-    // and the edge is there, so a later miss deletes it with the rest.
     const listed = [];
     const options = [];
     const github = async (method, path, body, headers, opts) => {

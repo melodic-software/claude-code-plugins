@@ -33,7 +33,6 @@ ZW = re.compile(r"[​‌‍﻿]")
 LANG = re.compile(r"(?:language|lang)-([\w+-]+)")
 GLYPHS = re.compile("[\\s#¶§\U0001f517​-‍﻿]*")
 HIDDEN = re.compile(r"sr-only|visually-hidden|screen-reader-text")
-# no end tag follows these, so a hidden one has no text to drop
 VOID = {"area", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
 
 
@@ -144,7 +143,6 @@ class Conv(HTMLParser):
             self.pre = max(0, self.pre - 1)
             fence = "```"
             if self.fence is not None:
-                # widen past the longest backtick run so a ``` line inside cannot close it
                 body = "".join(self.out[self.fence + 1 :])
                 run = max(map(len, re.findall("`+", body)), default=0)
                 fence = "`" * max(3, run + 1)

@@ -36,7 +36,6 @@ case "${here}" in
 *) ;;
 esac
 
-# A file under $HOME is written only when $HOME is not the real home of the user running this.
 home_file() {
   local real
   real="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f6 || true)"
@@ -49,10 +48,6 @@ home_file() {
 }
 
 if [[ "${repo}" == true ]]; then
-  # The eval workspace sits inside the run's temporary home, which is itself a repository, so a
-  # repository above the workspace is expected there. Allow only that one; refuse a workspace that
-  # is already a repository and any other enclosing repository. Then stop git from walking up past
-  # this directory, so every git call below lands in the nested repository created here.
   unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
   if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
     tmp="$(cd "${TMPDIR:-/nonexistent}" 2>/dev/null && pwd -P || true)"
@@ -223,9 +218,9 @@ MD
 fi
 
 case "${mode}" in
-setup-existing | setup-both) config_path=.claude/codebase-health.md ;;
-setup-new) config_path=docs/conventions/codebase-health.md ;;
-*) config_path= ;;
+setup-existing | setup-both) config_path=.claude/codebase-health.md; doc_glob='docs/**/*.md' ;;
+setup-new) config_path=docs/conventions/codebase-health.md; doc_glob='guides/**/*.md' ;;
+*) config_path=; doc_glob= ;;
 esac
 
 if [[ -n "${config_path}" ]]; then
@@ -242,14 +237,17 @@ paths:
         "200":
           description: ok
 YAML
-  cat >"${config_path}" <<'MD'
+  {
+    cat <<'MD'
 # codebase-health configuration
 
 ## documentation
 
 **primary-sources:**
 
-- `docs/**/*.md`
+MD
+    printf -- "- \`%s\`\n" "${doc_glob}"
+    cat <<'MD'
 - `README.md`
 
 **verification-sources:**
@@ -272,6 +270,7 @@ YAML
 - claim: "The OpenAPI info.version matches package.json version"
   - verify-via: "Read contracts/ledger.openapi.yaml info.version and package.json version"
 MD
+  } >"${config_path}"
 fi
 
 if [[ "${mode}" == setup-both ]]; then

@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""The seeded session for the resume-accuracy eval: the reads a real resume makes of
-the newest handoff and the history every arm's writer resumes from.
-
-Stdlib only; Python 3.10+.
-"""
 
 from __future__ import annotations
 
@@ -79,8 +74,6 @@ def _grep(
 def _section_span(
     lines: list[str], title: str, until: str | None = None
 ) -> tuple[int, int]:
-    """1-based start line of `## title` and the line count up to the next heading
-    (or up to `## until`)."""
     start = lines.index(f"## {title}") + 1
     ends = (
         i

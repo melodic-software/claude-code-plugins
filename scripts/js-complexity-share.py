@@ -89,7 +89,6 @@ def registry_key(rel: str, plain: set[str], clusters) -> str | None:
 
 def is_test(rel: str) -> bool:
     parts = rel.split("/")
-    # A plugin's own name is not a directory role: plugins/evals/lib is production.
     dirs = parts[2:-1] if parts[0] == "plugins" else parts[:-1]
     return not TEST_DIRS.isdisjoint(dirs) or TEST_NAME.search(parts[-1]) is not None
 
@@ -122,8 +121,6 @@ def production_files(registry: str) -> list[str]:
         seen.add(digest)
         if key:
             seen.add(key)
-        # Copies collapse across test and production files alike; the test
-        # split comes after.
         if not is_test(rel):
             kept.append(rel)
     return kept
@@ -144,9 +141,6 @@ def main() -> int:
     files = production_files(args.registry)
     if not files:
         return fail("no production JavaScript file in scope.")
-    # -i -1: exit 0 whatever lizard's own warning threshold says, so a nonzero
-    # exit means lizard failed. The ./ prefix keeps a file named like an
-    # option (-o.js) a file.
     result = subprocess.run(
         [lizard, "--csv", "-i", "-1", *(f"./{rel}" for rel in files)],
         capture_output=True,

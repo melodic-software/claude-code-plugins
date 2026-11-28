@@ -1,21 +1,3 @@
-// The report jobs of pr-run-activity-read.yml and -write.yml. A report job
-// whose run did not succeed or recorded a failed GitHub API call puts its
-// section in one comment per workflow run on the pull request (the
-// lane-run-report kind of lib/pr-messages): the activity's outcome, the
-// commits it pushed and each GitHub API call that failed. A clean report job
-// writes its report to the job summary only. No model runs here, but the run
-// job that carried the failure rows shared RUNNER_TEMP with one, so every row
-// is checked again, a forged outcome or commit renders as unknown or none,
-// and no count the run job carried is shown. A secondary rate limit's refusal is retried once after its
-// retry-after (a minute when absent, when it is at most MAX_WAIT_SECONDS,
-// https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api#about-secondary-rate-limits).
-// A failure to post warns with GitHub's answer, writes the report to the job
-// summary instead, and never fails the job.
-//
-// Env: LANE, ACTIVITY, RUN_ID, GITHUB_RUN_ATTEMPT, MODEL_RUNG, LEG (the read
-// runner's fallback input; empty for the write runner), PULL, REPOSITORY, GITHUB_SERVER_URL,
-// RUN_RESULT, ACT_OUTCOME, PUSHED_COMMIT, READ_LANE, API_FAILURES (the run
-// job's api-failures output), GITHUB_TOKEN (pull-requests: write), GITHUB_STEP_SUMMARY.
 import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -36,15 +18,8 @@ const TEMPLATED = /^\/[A-Za-z0-9/_.{}*-]{1,200}$/;
 const NAME = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const OUTCOMES = new Set(["success", "failure", "cancelled", "skipped"]);
 const COMMITS = /^(?:[0-9a-f]{40}|none \(read lane\)|none recorded)$/;
-// Well inside the report job's 10-minute timeout.
 export const MAX_WAIT_SECONDS = 300;
 
-// The seconds to wait before one more try when GitHub's refusal is a secondary
-// rate limit (a 403 or 429 naming it, or carrying retry-after, with primary
-// quota left), else undefined. The client's rate latch stops every call until
-// that time (rate-guard.mjs SIGNALS, the minute when no time is given), so a
-// wait past MAX_WAIT_SECONDS is not taken: its retry could never be sent. A
-// primary limit's reset can be an hour away.
 export function secondaryWait(error) {
   const detail = typeof error?.detail === "string" ? error.detail : "";
   if (!SIGNALS.statuses.includes(error?.status) || /x-ratelimit-remaining=0\b/.test(detail)) return undefined;
@@ -56,10 +31,6 @@ export function secondaryWait(error) {
 
 const LEGS = new Map([["", "base"], ...["handoff", "credit-stop", "no-key", "fallback"].map((leg) => [leg, leg])]);
 
-// Only GitHub REST path words (REST_PATH_WORDS) may appear in the comment.
-// The model shares RUNNER_TEMP, so any other segment could be planted text (a
-// key split across rows): it renders as *, and the owner/name pair after
-// repos as {repo}.
 export function templatePath(path) {
   const parts = path.split("/").slice(1);
   const out = [];
@@ -84,10 +55,6 @@ const validRow = (row) =>
   row.status >= 0 &&
   row.status <= 599;
 
-// A 404 on a tag-ref lookup means the tag does not exist yet
-// (check-trusted-trigger.mjs readDefaultBranchTip), not a failure, so
-// failureRows neither lists it nor counts it as dropped:
-// https://docs.github.com/en/rest/git/refs#get-a-reference
 const TAG_REF = /^(\/api\/v3)?\/repos\/\{repo\}\/git\/ref\/tags(\/\*)+$/;
 const expectedMiss = (row) => row.method === "GET" && row.status === 404 && TAG_REF.test(row.path);
 
@@ -107,8 +74,6 @@ function foldRows(candidates, before = 0) {
   return { rows, dropped: before + skipped };
 }
 
-// The carried rows that have the recorded shape, each distinct row once, at
-// most MAX_ROWS, each path as its template (templatePath); dropped counts the rest and the run job's own dropped count.
 export function failureRows(text) {
   let carried;
   try {

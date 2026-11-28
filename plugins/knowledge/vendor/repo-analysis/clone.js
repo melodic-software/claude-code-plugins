@@ -1,10 +1,3 @@
-/**
- * Shallow clone of a repository URL: hardened for an untrusted repository by
- * default, or run in the user's own git environment when the caller asks.
- *
- * Node builtins only.
- */
-
 import { spawn, spawnSync } from "node:child_process";
 import { rmSync } from "node:fs";
 import fs from "node:fs/promises";
@@ -13,10 +6,6 @@ import path from "node:path";
 
 export const CLONE_TIMEOUT_MS = 120_000;
 
-/**
- * The command-line config of a hardened clone: no credential helper, https as
- * the only transport, and symbolic links checked out as plain files.
- */
 const HARDENED_GIT_ARGS = [
   "-c",
   "credential.helper=",
@@ -82,8 +71,6 @@ export async function shallowCloneGitHubRepo(
   if (inheritGitEnvironment) {
     return runClone({ ...run, gitArgs: [], env: env ? { ...process.env, ...env } : process.env, ownGroup: false });
   }
-  // Never throws: a home that cannot be made fails this clone (never one without
-  // isolation), and one that cannot be removed leaves the clone's result standing.
   const isolatedHome = await fs
     .mkdtemp(path.join(os.tmpdir(), "harvest-clone-home-"))
     .catch(() => null);
@@ -99,14 +86,6 @@ export async function shallowCloneGitHubRepo(
   }
 }
 
-/**
- * The parent's environment without any `GIT_*` variable or a variable the table
- * sets (names compared upper-cased), then the fixed hardening table.
- *
- * @param {string} isolatedHome
- * @param {string} emptyConfig
- * @returns {NodeJS.ProcessEnv}
- */
 function hardenedEnv(isolatedHome, emptyConfig) {
   const table = {
     GIT_CONFIG_GLOBAL: emptyConfig,
@@ -145,15 +124,12 @@ function hardenedEnv(isolatedHome, emptyConfig) {
 function runClone({ url, destDir, spawnFn, timeoutMs, onStderr, gitArgs, env, ownGroup }) {
   return new Promise((resolve) => {
     const args = [...gitArgs, "clone", "--depth", "1", "--single-branch"];
-    // Track before spawning: a signal between spawn and tracking would otherwise
-    // take the default exit and leave the detached clone running.
     const tracker = ownGroup ? trackCloneGroup() : { add: () => {}, untrack: () => {} };
     /** @type {import("node:child_process").ChildProcess} */
     let child;
     try {
       child = spawnFn("git", [...args, "--", url, destDir], {
         stdio: ["ignore", "ignore", onStderr ? "pipe" : "ignore"],
-        // Its own process group on POSIX, so a timeout can signal the remote helpers too.
         detached: ownGroup && process.platform !== "win32",
         env,
       });
@@ -183,7 +159,6 @@ function runClone({ url, destDir, spawnFn, timeoutMs, onStderr, gitArgs, env, ow
   });
 }
 
-/** Live detached clone children, whose groups the parent kills if it dies first. */
 const liveCloneGroups = new Set();
 
 /** The signals whose default exit a listener would remove. */
@@ -199,7 +174,6 @@ function killLiveCloneGroups() {
     try {
       rmSync(home, { recursive: true, force: true });
     } catch {
-      // A home that cannot be removed must not stop the exit.
     }
   }
   liveHomes.clear();
@@ -208,8 +182,8 @@ function killLiveCloneGroups() {
 /** @param {NodeJS.Signals} signal */
 function exitOnSignal(signal) {
   killLiveCloneGroups();
-  // A signal listener removes Node's default exit, so drop ours and re-raise the
-  // signal: the parent then dies the conventional way (128 + signal number).
+  // A signal listener removes Node's default exit: drop ours and re-raise, so the parent dies by the signal.
+  // https://nodejs.org/api/process.html#signal-events
   removeParentHandlers();
   process.kill(process.pid, signal);
 }
@@ -227,7 +201,6 @@ function removeParentHandlers() {
   for (const [signal, listener] of signalListeners) process.off(signal, listener);
 }
 
-/** Clones being spawned or live; the parent handlers exist while this is non-zero. */
 let trackedClones = 0;
 
 /**

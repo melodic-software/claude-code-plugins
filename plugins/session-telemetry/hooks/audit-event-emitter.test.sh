@@ -1,13 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for audit-event-emitter.sh (session-telemetry plugin). Black-box.
-#
-# The emitter serves seven audit rows from one script, dispatching on the
-# payload's hook_event_name, so the suite is a table over those rows: each row's
-# telemetry `hook` id, `hook_event`, `status` and `data.subject` are asserted
-# from one loop, and so are its kill switch, its unwired behavior and its
-# missing-required-field skip. What a row does BEYOND that table — the
-# privacy reductions, the InstructionsLoaded session_start filter, and the
-# UserPromptExpansion second store — follows the table in its own section.
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,17 +10,10 @@ trap 'rm -rf "$TEST_TMPDIR"' EXIT
 source "$HOOK_DIR/session-telemetry-test-helpers.sh"
 unset CLAUDE_PROJECT_DIR
 
-# A non-git project root, so hook::repo_root answers PROJ itself and the
-# InstructionsLoaded row's path reduction is deterministic. The
-# UserPromptExpansion row writes its second store under a per-case project.
 PROJ="$TEST_TMPDIR/proj"
 mkdir -p "$PROJ/.claude/rules"
 : >"$PROJ/.claude/rules/x.md"
 
-# --- The row table ----------------------------------------------------------
-# Tab-separated: id, switch suffix, payload, hook id, hook_event, status,
-# data.subject, and a payload that reaches the row with its required field
-# missing. `%PROJ%` expands to the fixture project root.
 ROWS=(
   $'api-error\tAPI_ERROR_AUDIT\t{"session_id":"sess-1","hook_event_name":"StopFailure","error":"rate_limit"}\tapi-error-audit\tStopFailure\terror\trate_limit\t{"hook_event_name":"StopFailure"}'
   $'config-change\tCONFIG_CHANGE_AUDIT\t{"session_id":"sess-1","hook_event_name":"ConfigChange","source":"project_settings"}\tconfig-change-audit\tConfigChange\tok\tproject_settings\t{"hook_event_name":"ConfigChange"}'
@@ -45,8 +29,6 @@ for row in "${ROWS[@]}"; do
   n=$((n + 1))
   IFS=$'\t' read -r id switch payload hook_id event status subject missing <<<"$row"
   payload="${payload//%PROJ%/$PROJ}"
-  # Each row gets its own project root so the UserPromptExpansion second store
-  # cannot be confused with another case's.
   rowproj="$TEST_TMPDIR/rowproj-$id"
   mkdir -p "$rowproj/.claude/rules"
   : >"$rowproj/.claude/rules/x.md"
@@ -94,7 +76,6 @@ expect_no_envelope "no hook_event_name → no envelope" \
   "$HOOK" '{"session_id":"sess-1","error":"rate_limit"}' \
   "$TEST_TMPDIR/no-event.json" CLAUDE_PROJECT_DIR="$PROJ"
 
-# --- Privacy: the tool rows never carry a command body ----------------------
 for probe in "PostToolUseFailure tool-failure" "PermissionDenied permission-denied"; do
   read -r pev pid <<<"$probe"
   TELP="$TEST_TMPDIR/$pid.privacy.json"
@@ -121,7 +102,6 @@ for probe in "PostToolUseFailure tool-failure" "PermissionDenied permission-deni
   fi
 done
 
-# --- InstructionsLoaded: path reduction and the session_start filter --------
 TELB="$TEST_TMPDIR/il-outside.json"
 OUTSIDE="$TEST_TMPDIR/elsewhere/private-dir/CLAUDE.md"
 if emit_envelope "$HOOK" \
@@ -154,7 +134,6 @@ else
   bad "instructions-loaded: session_start opt-in did not emit"
 fi
 
-# --- UserPromptExpansion: the second store, written without a sink ----------
 EXP='{"hook_event_name":"UserPromptExpansion","command_name":"/research","expansion_type":"slash_command"}'
 
 PROJS="$TEST_TMPDIR/exp-store"
@@ -176,10 +155,6 @@ else
   bad "second store not written (unconditional, no sink)"
 fi
 
-# --- The emitter's envelope, through the sink, is a conforming record --------
-# The emitter produces envelopes, not records; the record shape is the sink's.
-# Run the pair end to end so a row this plugin's own producer causes is
-# asserted against the schema session-log-lib.sh documents, on both routes.
 PROJE="$TEST_TMPDIR/emitter-record"
 mkdir -p "$PROJE"
 env HOOK_TELEMETRY_SINK="$HOOK_DIR/hook-telemetry-sink.sh" CLAUDE_PROJECT_DIR="$PROJE" \
@@ -212,7 +187,6 @@ else
   bad "emitter envelope → sink wrote no shared-file record at $LEGACY_REC"
 fi
 
-# expansion_type is optional: recorded when present, never gated on.
 PROJX="$TEST_TMPDIR/exp-noexp"
 mkdir -p "$PROJX"
 env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJX" \
@@ -241,9 +215,6 @@ env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJ2" \
 assert_eq "skill_usage_dir override used" "research" \
   "$(jq -r '.skill' "$PROJ2/telemetry/skills/skill-usage.jsonl" 2>/dev/null)"
 
-# An invalid override is visible and cannot escape the project. CLAUDE_PLUGIN_DATA
-# is isolated because the advisory goes through hook::notice_once, which persists
-# a once-per-session marker there.
 PROJB="$TEST_TMPDIR/exp-bad"
 mkdir -p "$PROJB"
 BADCFG_DATA="$TEST_TMPDIR/badcfg-data"
@@ -289,7 +260,6 @@ expect_no_envelope "skill-expansion: no command_name → no envelope" \
 assert_file_absent "skill-expansion: no command_name → no second store" \
   "$PROJN/.claude/observability/skill-usage.jsonl"
 
-# --- Every switch off: the emitter leaves before parsing the library --------
 PROJA="$TEST_TMPDIR/all-off"
 mkdir -p "$PROJA"
 expect_no_envelope "all switches off → no envelope" \

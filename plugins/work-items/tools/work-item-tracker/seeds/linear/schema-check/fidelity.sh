@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Prove the operation strings fed to validate.mjs are the adapter's own text, not a
-# paraphrase. Extracts each op from the SOURCE, whitespace-normalizes both sides, diffs.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 A="$(cd "$HERE/.." && pwd)"
@@ -8,9 +6,6 @@ C="$(cd "$HERE/../../../conformance/bindings" && pwd)"
 
 norm() { tr '\n' ' ' | tr -s ' ' | sed 's/^ //; s/ $//'; }
 
-# Pull the real WIT_LINEAR_ISSUE_FIELDS out of common.sh by sed-extracting the text of its
-# single-quoted assignment (nothing is executed): the readonly...= prefix and the surrounding
-# quotes are stripped, leaving the literal field-selection block.
 FIELDS="$(sed -n "/^readonly WIT_LINEAR_ISSUE_FIELDS='/,/^'$/p" "$A/common.sh" |
   sed "1s/^readonly WIT_LINEAR_ISSUE_FIELDS='//; \$s/^'$//")"
 echo "--- WIT_LINEAR_ISSUE_FIELDS as extracted from common.sh ---"
@@ -36,11 +31,6 @@ V="$HERE/validate.mjs"
 for e in "${LITERALS[@]}"; do
   f="${e%%|*}"
   lit="${e#*|}"
-  # BOTH ends, not one. Checking only that the literal is in the adapter proves nothing about
-  # what validate.mjs actually validated: it could hold a different — and still schema-valid —
-  # query, and both scripts would stay green while the adapter's real request went unchecked.
-  # The guarantee this script claims is "the thing validated IS the thing sent", which needs
-  # the literal to appear on both sides.
   in_src=0
   in_val=0
   grep -qF -- "$lit" "$f" && in_src=1
@@ -55,11 +45,6 @@ for e in "${LITERALS[@]}"; do
   fi
 done
 
-# The multi-line operations. These are the ones an eyeball skips, so they are checked by
-# whitespace-normalized containment rather than left to the printout above.
-# The adapter builds these inside double-quoted shell strings, so its `$` sigils are written
-# `\$` in the file while validate.mjs holds them bare. Strip that one escape before comparing,
-# or every multi-line entry mismatches on punctuation rather than on substance.
 unesc() { sed 's/\\\$/$/g'; }
 V_NORM="$(unesc <"$V" | norm)"
 
@@ -88,10 +73,6 @@ for e in "${MULTILINE[@]}"; do
   fi
 done
 
-# The SHARED field-selection block. Three of the read operations — fetch_issue,
-# list-items' issues walk and list-sub-items' children walk — interpolate this one template
-# rather than spelling their selections out, so an unchecked `F` leaves the highest-traffic
-# reads resting on nothing.
 fields_needle="$(printf '%s' "$FIELDS" | unesc | norm)"
 if [[ -z "$fields_needle" ]]; then
   bad=$((bad + 1))
@@ -106,6 +87,4 @@ fi
 
 echo
 echo "operations found verbatim on BOTH sides: $ok  mismatched: $bad"
-# Exit status, not just a printed count — a fidelity check that reports MISMATCH and exits 0
-# is read as success by every caller, which is the whole failure this script exists to catch.
 ((bad == 0)) || exit 1

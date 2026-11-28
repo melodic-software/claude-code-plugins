@@ -1,5 +1,5 @@
 ---
-description: "Check or set up the sql-server read-only MCP server: Node.js, the config file against its schema, the server copy in the plugin data directory, and a claude mcp add command per environment that names credentials by reference. Use when: 'set up sql-server', 'register a database for the agent', 'check my sql-server config', 'connect Azure SQL Database'. Actions: check (default) | apply."
+description: "Verify (check) or set up (apply) the sql-server read-only MCP server: Node.js, config schema, server copy, and per-environment registration."
 argument-hint: "[check|apply] --config <path> [--environment <name>]"
 user-invocable: true
 disable-model-invocation: true
@@ -89,7 +89,7 @@ Modify nothing in `check`.
 What was already in place, what changed (the server copy's version, each registration made), what
 was skipped or refused, and each FAIL with its remediation.
 
-## Boundaries
+## What this skill does not do
 
 - Never write a config file, a credential, or a project-scope registration.
 - Never print a credential value; the scripts print variable names only.

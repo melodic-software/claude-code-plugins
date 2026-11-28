@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
-# test-scope: plugins/harness-config/skills/audit-automation-gaps/context/enforcement-ladder.md plugins/harness-config/lib/yaml-subset.awk plugins/harness-config/lib/resolve-convention-home.sh
+# test-scope: plugins/harness-config/skills/audit-automation-gaps/context/enforcement-ladder.md plugins/harness-config/lib/yaml-subset.awk plugins/harness-config/lib/resolve-convention-home.sh plugins/harness-config/scripts/org-standards.sh
 # shellcheck disable=SC2016
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE
+unset STANDARDS_DIR
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,6 +24,8 @@ $2"; fi; }
 
 TMP="$(mktemp -d)"
 trap 'rm -rf -- "$TMP"' EXIT
+export HOME="$TMP/home"
+mkdir -p "$HOME"
 
 new_repo() {
   mkdir -p "$1"
@@ -149,6 +152,40 @@ assert_line "R: linked criteria file row" "$rows" "$(printf 'A hook that blocks 
 assert_no "R: unlinked file not read" "$rows" "docs/review/orphan.md"
 assert_eq "R: three review rows" 3 "$(grep -c $'\tautomated-review\t' <<<"$rows")"
 assert_line "R: files read named" "$(bash "$GEN" --root "$R")" "- review: 4 review-criteria file(s) read"
+
+mkdir -p "$TMP/org"
+printf -- '- Org rule.\n' >"$TMP/org/REVIEW.md"
+rows="$(STANDARDS_DIR="$TMP/org" bash "$GEN" --root "$R" --rows)"
+assert_line "O: org criteria row" "$rows" "$(printf 'Org rule.\tREVIEW.md in effect:1\tautomated-review\t4')"
+assert_line "O: repository criteria appended" "$rows" "$(printf 'Flag a retry loop with no cap.\tREVIEW.md in effect:5\tautomated-review\t4')"
+assert_no "O: an org layer with no standards index adds no standards row" "$rows" "org standards"
+
+mkdir -p "$TMP/org/docs/standards"
+printf -- '---\nstandards-contract: 1.3.1\n---\n\n| Surface | Applies when | File |\n|---|---|---|\n| testing | writing tests | testing.md |\n| gone | never | gone.md |\n' >"$TMP/org/docs/standards/README.md"
+printf -- '- Name each test for the behavior it checks.\n\nKeep fixtures beside the suite.\n' >"$TMP/org/docs/standards/testing.md"
+rows="$(STANDARDS_DIR="$TMP/org" bash "$GEN" --root "$R" --rows)"
+assert_line "S: each statement of a file the org layer's printed index lists is a row, labeled by its path in the org checkout" "$rows" \
+  "$(printf 'Name each test for the behavior it checks.\torg standards docs/standards/testing.md:1\tautomated-review\t4')"
+assert_line "S: a second statement of that file is its own row" "$rows" \
+  "$(printf 'Keep fixtures beside the suite.\torg standards docs/standards/testing.md:3\tautomated-review\t4')"
+assert_no "S: no row cites the org checkout's absolute path" "$rows" "$TMP/org"
+assert_line "S: the org standards files read are named, a listed file that is missing among them" \
+  "$(STANDARDS_DIR="$TMP/org" bash "$GEN" --root "$R")" \
+  "- review: 1 org standards file(s) read from the org layer's printed index (org-standards.sh index); unreadable: docs/standards/gone.md"
+ln -s "$TMP/org" "$TMP/org-link"
+rows="$(STANDARDS_DIR="$TMP/org-link" bash "$GEN" --root "$R" --rows)"
+assert_line "S: through a symbolic link to the org checkout, the row is still labeled by its path in the checkout" "$rows" \
+  "$(printf 'Name each test for the behavior it checks.\torg standards docs/standards/testing.md:1\tautomated-review\t4')"
+rm -r "$TMP/org/docs" "$TMP/org-link"
+
+U="$TMP/org-unreachable"
+new_repo "$U"
+mkdir -p "$U/docs/conventions"
+printf 'standards_repository: acme/standards\n' >"$U/docs/conventions/source-control.yaml"
+commit_all "$U"
+out="$(ORG_STANDARDS_CACHE="$TMP/org-cache" ORG_STANDARDS_GIT_BASE="$TMP/no-such-forge" bash "$GEN" --root "$U")"
+assert_line "U: an unreachable org layer is named, not dropped" "$out" \
+  "- review: the REVIEW.md in effect did not resolve (org-standards: cannot clone $TMP/no-such-forge/acme/standards.git; no org layer this run)"
 
 D="$TMP/records"
 new_repo "$D"

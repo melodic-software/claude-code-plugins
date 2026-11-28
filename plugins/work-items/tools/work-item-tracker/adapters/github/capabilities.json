@@ -14,11 +14,18 @@
     "list-sub-items": true,
     "label-provenance": true,
     "set-fields": true,
+    "set-native-status": true,
     "get-field-options": true,
     "get-statuses": true,
     "capabilities": true,
     "change-link": true,
-    "add-recurrence": true
+    "add-recurrence": true,
+    "put-artifact": true,
+    "list-artifacts": true,
+    "get-artifact": true,
+    "link-relates": true,
+    "unlink-relates": true,
+    "list-relates": true
   },
   "features": {
     "cross_repo_edges": true,

@@ -1,8 +1,3 @@
-"""Tests for transcript_reader on a sealed lane leg: a gzipped JSON array of stream-json messages.
-
-The fixture `lane-legs/leg.json` is hand-written; each test gzips it into tmp_path.
-"""
-
 from __future__ import annotations
 
 import gzip

@@ -1,5 +1,5 @@
 ---
-description: "Slowness diagnostic that never 'fixes', run before restarting or deleting: version, retention sweep, install bloat, hook/subagent fan-out, kernel-leak census. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'why is this session sluggish', 'my hooks are slowing everything down', 'too many subagents'. Upstream bugs: /harness-ops:known-issues. Stale files: /harness-ops:audit-install-state."
+description: "Read-only slowness diagnostic that never 'fixes' (run before restart/delete): version, retention, bloat, hook/subagent fan-out, kernel-leak. Use when 'Claude Code is slow', 'typing lags', sluggish session, machine freezes, slow hooks, or too many subagents. Not for bugs (/harness-ops:known-issues) or stale files (/harness-ops:audit-install-state)."
 argument-hint: "[--unattended] [--root <path>] [--session-id <id>] [--note <fact>]"
 user-invocable: true
 disable-model-invocation: false
@@ -9,7 +9,7 @@ metadata:
   cadence: continuous
 ---
 
-**Arguments.** `[--unattended] [--root <path>] [--session-id <id>] [--note <fact>]`. `--root` defaults to `$CLAUDE_CONFIG_DIR`, else `~/.claude`; pass the current session id via `--session-id` when known, and each operator fact via a repeated `--note`. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present. The skill takes it out before reading the rest: never pass it to the engine, whose parser does not accept it, and never read it as a root or a `--note` value; under it, make no `/doctor` suggestion and do not run it. The bare word `unattended` is not this flag: stop and name `--unattended`.
+**Arguments.** `[--unattended] [--root <path>] [--session-id <id>] [--note <fact>]`. `--root` defaults to the first local transcript source's configuration directory (the `transcript_sources_file` option), else `$CLAUDE_CONFIG_DIR`, else `~/.claude`; pass the current session id via `--session-id` when known, and each operator fact via a repeated `--note`. `--unattended`, anywhere in the arguments, is the caller declaring that nobody is present. The skill takes it out before reading the rest: never pass it to the engine, whose parser does not accept it, and never read it as a root or a `--note` value; under it, make no `/doctor` suggestion and do not run it. The bare word `unattended` is not this flag: stop and name `--unattended`.
 
 ## Purpose
 
@@ -23,7 +23,7 @@ out (see the boundary table). The engine's own phase timings are first-class evi
 walk that takes minutes is the cost the product's retention sweep pays on that tree; a
 `claude --version` probe that takes ten seconds is itself a finding.
 
-## Scope boundary
+## What this skill does not do
 
 | Question | Owner |
 |---|---|
@@ -97,8 +97,14 @@ the documented search for an unset variable is reported, not walked.
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-performance/scripts/audit_performance.py" \
   --session-id "<current-session-id-if-known>" \
   --note "<one operator fact; repeat the flag per fact>" \
-  --project-dir "${CLAUDE_PROJECT_DIR:-.}" > ./claude-performance-report.json
+  --project-dir "${CLAUDE_PROJECT_DIR:-.}" --sources-file '${user_config.transcript_sources_file}' --diagnostics-dir "${CLAUDE_PLUGIN_DATA}/diagnostics" > ./claude-performance-report.json
 ```
+
+`--sources-file` is the `transcript_sources_file` option (`''` when it still reads
+`${user_config.…}`): the configuration directory read is its first local source's, else
+`$CLAUDE_CONFIG_DIR`, else `~/.claude`. The report's `header` lists a local source whose projects
+directory cannot be listed as a gap, with its retry command, and `--diagnostics-dir` keeps it as a
+lookup diagnostics record; name each gap at the top of the report.
 
 Pass `--project-dir` whenever a project root is known, so project-scope hooks are counted; without
 it the hook inventory is a floor, not a total.
@@ -125,8 +131,8 @@ evidence supports and what it cannot distinguish. This report is one sample, not
 study.
 
 This engine never reads `history.jsonl` or transcript files, so it cannot report hook cost
-over past sessions. A `/doctor` session can read them, so a person who wants the transcript-derived
-history asks there. That is not time-sensitive: do not prepend it.
+over past sessions. A person who wants that history asks `/doctor` (what its checkup covers:
+[check your setup with `/doctor`](https://code.claude.com/docs/en/skills#check-your-setup-with-/doctor)). That is not time-sensitive: do not prepend it.
 
 **Clearing the first three does not end the audit.** A machine can have a current binary, a
 healthy sweep, and a modest fleet and still stall for a minute per tool call, because none of

@@ -3,6 +3,52 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1] - 2026-11-28
+
+### Changed
+
+- Trimmed `/fleet:reach` frontmatter description (495 -> 343 chars, -152 / -30.7%). It keeps the cross-host/cross-platform verbs (`run`, `prompt`, `query`, `message`, `start`) and WSL/Windows targeting. The quoted triggers are cut to three (`'run this on HOST'`, `'from WSL to Windows'`, `'remote agent'`) and the others are dropped. The exclusions are `ListAgents`/`SendMessage` and `/session-flow:continue-in-background`, and repository fleets now route to `/repo-fleet-hygiene:audit` only.
+
+## [0.7.0] - 2026-11-28
+
+### Added
+
+- Add the `peer_list_enabled` hook-enablement setting (default `false`) in `plugin.json`, `schemas/fleet.schema.json`, and `hooks/peer-list.mjs` via the shared in-process `lib/hook-enabled.mjs` helper so the SessionStart peer-list hook is opt-in and configurable per user or per repository.
+
+## [0.6.2] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [0.6.1] - 2026-11-26
+
+### Changed
+
+- `/fleet:reach` uses the `ssh_client` option's client for every hop to another machine, the same client the session-start peer list runs; unset, it keeps the platform's own (on WSL the Windows OpenSSH client).
+
+## [0.6.0] - 2026-11-26
+
+### Added
+
+- `hooks/peer-list.mjs` builds the list of live Claude Code sessions on every fleet lane from `~/.config/fleet/fleet.json` (contract: `docs/contracts/fleet-manifest/`). It runs only each lane's `claude agents --json`, with no shell, an absolute program path and the home folder as working folder: over ssh with batch mode, strict host keys and no forwarding (the client option `ssh_client` names, else the platform's own; on WSL the Windows OpenSSH client), through WSL interop, or through `wsl.exe -d <distro> --exec` after checking the distro is running. A lane whose manifest entry falls outside the safe sets is never run and prints as `not reached (unsafe manifest entry)`. Every printed field from a peer is stripped of escapes and control characters and capped. With no fleet.json it lists only its own lane, through the binary `CLAUDE_CODE_EXECPATH` names, when that file is named `claude`, `claude.exe` or a version number.
+- A SessionStart hook (`hooks/hooks.json`) adds that peer list to the context of every session on startup, resume, `/clear`, compaction and fork, and prints nothing when no peer is live and no lane is broken. A session that is not attended lists only its own lane.
+- Option `ssh_client`: the ssh client the peer list runs to reach another machine, an absolute path to a file named `ssh` or `ssh.exe`; empty uses the platform's own client, on WSL the Windows OpenSSH client.
+- Option `peer_query_timeout_seconds` (0 to 10, default 3): how long the peer list waits for each lane; 0 lists only the own lane.
+- `peer-list.mjs --preview [--manifest <file>]` prints the list the hook would add, as text.
+
+## [0.5.4] - 2026-11-26
+
+### Changed
+
+- `fleet:reach`, its relay reference, the README and the eval cases name one side of a machine by host and platform (windows, wsl, linux or macos) instead of *lane*, which the marketplace glossary keeps for a pipeline worker. Three eval cases are renamed to match: `reach-peer-tools-stay-on-platform`, `reach-same-machine-windows-platform` and `reach-same-repo-session-picks-platform`.
+
+## [0.5.3] - 2026-11-25
+
+### Fixed
+
+- `fleet:reach` warns that Git Bash rewrites a POSIX path such as `/tmp/x` in a `wsl.exe` argument to a Windows path, and says to write it with a leading `//`.
+
 ## [0.5.2] - 2026-11-24
 
 ### Fixed

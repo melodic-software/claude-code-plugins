@@ -8,7 +8,7 @@ git init -q -b main .
 git config user.email eval@example.invalid
 git config user.name eval
 
-land() { # land <author> <email> <date> <branch> <file> <subject>
+land() {
   export GIT_AUTHOR_NAME="$1" GIT_AUTHOR_EMAIL="$2" GIT_AUTHOR_DATE="$3" GIT_COMMITTER_DATE="$3"
   git checkout -q -b "$4" main
   printf '%s\n' "$6" >"$5"

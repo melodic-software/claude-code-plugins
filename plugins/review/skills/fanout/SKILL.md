@@ -1,5 +1,5 @@
 ---
-description: "Breadth review: fans a change out to many reviewers at once (this plugin's reviewer agents, the project's per-concern criteria docs, orchestrator review plugins) and merges their findings into one deduplicated, severity-ranked report on disk. Use when asked for a breadth review of a change (every reviewer at once, every angle or side, one combined ranked report), or to 'fix the review findings' (the fix action applies the merged set of persisted findings)."
+description: "Breadth review: fans a change to many reviewers (agents, criteria docs, review plugins) into one combined, deduplicated, severity-ranked report on disk; fix applies persisted findings. Use for a breadth review (every reviewer, angle, or side at once) or 'fix the review findings'. Not for one lens: /review:quality-gate."
 argument-hint: "[run-everything|fix] [--yes] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
@@ -64,8 +64,8 @@ flag does not change them.
 
 **`fanout_diversity` (run-everything and its fallback only).** It sets how the leaf fan-out
 spreads: `lens` runs one reviewer agent per concern, `model` sends one review prompt to each
-distinct fan-out model tier, and `codex` runs the `lens` roster with the Codex reviewer as the
-model-diversity panel in place of those tiers
+distinct fan-out model, and `codex` runs the `lens` roster with the Codex reviewer as the
+model-diversity panel in place of those fan-out models
 ([context/run-everything-mode.md](context/run-everything-mode.md) steps 3 and 5). The default
 mode does not read it. Resolve it before step 5, lowest layer first: the
 default `lens`; the user option `${user_config.fanout_diversity}` (a literal, unexpanded

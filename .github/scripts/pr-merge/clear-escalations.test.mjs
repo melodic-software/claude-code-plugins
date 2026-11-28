@@ -1,15 +1,9 @@
-// Expected values come from the needs-human recheck acceptance criteria and report-escalation.sh's
-// comment format: an App-set needs-human on a PR escalated as workflow-staged
-// comes off within one sweep once main stages no .github/workflows/ change into
-// the head, with one comment naming the reason and the head; a label a person
-// set, a reason that still holds, a label a person added back, a marker a
-// person wrote, and a person speaking after the escalation all keep it. Per the
-// owner decision on #8387, a bot account speaking after the label (AI review,
-// another lane) does not keep it.
+// test-scope: .github/workflows/*.yml
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
-import { main, MENDED_OUTPUT, NATIVE_READS_PER_RUN, SESSION_CHECKS_PER_RUN } from "./clear-escalations.mjs";
+import { workflowText } from "../lib/workflow-text.mjs";
+import { main, MENDED_OUTPUT, NATIVE_READS_PER_RUN, REQUIRED_SUITE_MARKER, SESSION_CHECKS_PER_RUN } from "./clear-escalations.mjs";
 import { refusalBody, unblockHold } from "./enable-auto-merge.mjs";
 import { unblockStops } from "./merge-holds.mjs";
 import { escalationActivity, escalationRoute, ROUTES } from "../pr-unblock/escalation-routes.mjs";
@@ -26,8 +20,8 @@ const HEAD = "b".repeat(40);
 const KEY = "c".repeat(40);
 const ENV = { GITHUB_REPOSITORY: REPO, KILL_SWITCH: "proceed", TRACKER_CONFIG: "/nonexistent/work-items.yaml" };
 
-const escalationBody = (reason) =>
-  `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${KEY} -->\nThe pr-unblock lane stopped on this pull request and needs a person: why.\n\n- Reason: \`${reason}\`\n- Resume key: \`${KEY}\` (the head the lane stopped on)\n`;
+const escalationBody = (reason, codeLabel = "Lane code") =>
+  `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n<!-- pr-unblock resume-key=${KEY} -->\n### pr-unblock / report-escalation\nHeld for a person: why.\n\n- ${codeLabel}: \`${reason}\`\n- Resume key: \`${KEY}\` (the head the lane stopped on)\n- To resume: deal with the reason above.\n`;
 const labeled = (actor, at) => ({ event: "labeled", actor, label: { name: "needs-human" }, created_at: at });
 const commented = (user, body, at, updatedAt = at) => ({ event: "commented", user, actor: user, body, created_at: at, updated_at: updatedAt });
 const escalated = (reason = "workflow-staged", { user = BOT, at = "2026-10-18T10:00:05Z" } = {}) => commented(user, escalationBody(reason), at);
@@ -36,7 +30,7 @@ const REQUIRED_SUITES = [500, 501];
 const check = (name, conclusion, { id = 1, slug = "github-actions", suite = 500 } = {}) => ({ id, name, status: "completed", conclusion, app: { slug }, check_suite: { id: suite } });
 const RED = [check("test-node", "failure")];
 const threadPage = (nodes, hasNextPage = false) => ({ nodes, pageInfo: { hasNextPage, endCursor: hasNextPage ? "next" : null } });
-function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"], sessionNumbers = [], statuses = [], keyStatuses = [], sessionThreads = [], edits = [] }) {
+function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = false, pullFiles = [], reviewComments = [], reviews = [], threadsFail = false, reviewThreads = () => threadPage([]), author, headChecks = [], evidence = () => null, numbers = [7], headRepo = REPO, reader, listed = ["needs-human"], labels = ["needs-human"], sessionNumbers = [], statuses = [], keyStatuses = [], sessionThreads = [], edits = [], mergeBase, dotGithub = {} }) {
   const calls = [];
   const known = (number) => numbers.includes(number) || sessionNumbers.includes(number);
   const checks = async (method, path) => {
@@ -55,8 +49,9 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
     if (path === `/repos/${REPO}/actions/workflows/pr-require-checks.yml/runs?head_sha=${HEAD}&per_page=100`) {
       return { workflow_runs: REQUIRED_SUITES.map((id) => ({ id: id * 10, check_suite_id: id })) };
     }
-    assert.equal(path, `/repos/${REPO}/commits/${HEAD}/check-runs?filter=all&per_page=100&page=1`);
-    return { check_runs: headChecks };
+    const page = Number(new RegExp(`^/repos/${REPO}/commits/${HEAD}/check-runs\\?filter=all&per_page=100&page=(\\d+)$`).exec(path)?.[1]);
+    assert.ok(page >= 1, path);
+    return { check_runs: headChecks.slice((page - 1) * 100, page * 100) };
   };
   const reads = [];
   const verify = async (pull, rung) => {
@@ -83,7 +78,14 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
       return { number: Number(number), state: "open", user: author, base: { ref: "main", sha: MAIN }, head: { sha: HEAD, ref: "feat/x", repo: { full_name: headRepo } }, labels: labels.map((name) => ({ name })), mergeable };
     }
     if (method === "GET" && route === `/repos/${REPO}/compare/${HEAD}...${MAIN}`) {
-      return { files: mainFiles };
+      return { files: mainFiles, ...(mergeBase && { merge_base_commit: { sha: mergeBase } }) };
+    }
+    const dotRef = new RegExp(`^/repos/${REPO}/contents/\\.github\\?ref=([0-9a-f]{40})$`).exec(path)?.[1];
+    if (method === "GET" && dotRef !== undefined) {
+      if (!(dotRef in dotGithub)) {
+        throw new Error(`GET ${path} failed with status 404`);
+      }
+      return structuredClone(dotGithub[dotRef]);
     }
     if (method === "GET" && route === `/repos/${REPO}/pulls/7/files`) {
       return path.endsWith("page=1") ? pullFiles : [];
@@ -139,6 +141,13 @@ test("an App-set needs-human whose workflow-staged reason cleared comes off with
   assert.match(comment.body.body, /`workflow-staged`/);
   assert.match(comment.body.body, new RegExp(`\`${HEAD}\``));
   assert.deepEqual(removal, { method: "DELETE", path: `/repos/${REPO}/issues/7/labels/needs-human`, body: undefined });
+});
+
+test("a hold comment that labels its lane code `- Reason:` clears the same way", async () => {
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), commented(BOT, escalationBody("workflow-staged", "Reason"), "2026-10-18T10:00:05Z")] });
+  assert.equal((await run(w)).code, 0);
+  assert.equal(w.writes()[0].body.body.split("\n")[0], `<!-- pr-pipeline needs-human-cleared reason=workflow-staged head=${HEAD} -->`);
+  assert.equal(w.writes().length, 2, "the cleared comment, then the label removal");
 });
 
 test("main's tip the job resolved with git ls-remote (MAIN_TIP_SHA) is used, not read again; any other value reads it", async () => {
@@ -223,10 +232,6 @@ test("a person's comment, review, or review comment after the label keeps it", a
   }
 });
 
-// GitHub's timeline carries no event for a reply inside an existing review
-// thread: on #10526 and #10533 every reply-only review a person submitted is
-// absent from issues/<n>/timeline (no `reviewed`, no `line-commented`), while
-// pulls/<n>/comments lists the reply and pulls/<n>/reviews its review.
 const BOT_THREAD = { id: 101, user: ACTIONS_BOT, body: "Finding.", pull_request_review_id: 201, created_at: "2026-10-18T09:00:00Z", updated_at: "2026-10-18T09:00:00Z" };
 const reply = (user, at, updatedAt = at) => ({ id: 102, user, body: "Wait on this.", pull_request_review_id: 202, in_reply_to_id: 101, created_at: at, updated_at: updatedAt });
 const BOT_REVIEW = { id: 201, user: ACTIONS_BOT, state: "COMMENTED", body: "**claude-review**: 1 inline finding(s)", submitted_at: "2026-10-18T09:00:00Z" };
@@ -335,12 +340,6 @@ test("a label for a reason now routed to a failing status: fix-ci comes off on a
   }
 });
 
-// Per the owner decision of 2026-10-25, feedback-not-landed needs no person
-// once the head moved off its resume key and no review thread the lane
-// replied to is left unresolved, and, per the owner's later direction on the
-// security finding, a trusted push moved it or both review lanes read the new
-// head clean: a lanes App push alone never clears it (tests below the trusted
-// move). GraphQL names the lanes App bot without the `[bot]` REST adds.
 const LANE_AUTHOR = { __typename: "Bot", login: "melodic-automation-lanes" };
 const PERSON_AUTHOR = { __typename: "User", login: "kyle-sexton" };
 const reviewThread = (isResolved, authors, totalCount = authors.length) => ({ isResolved, comments: { totalCount, nodes: authors.map((author) => ({ author })) } });
@@ -390,9 +389,6 @@ test("feedback-not-landed stays when a person spoke after the label, on the time
   }
 });
 
-// The security finding on #10252: a fix-ci label came off with no CI result
-// read. Only a failed GitHub Actions check on the current head other than
-// ci-status clears it; ci-status itself fails on the label, so it is skipped.
 test("a fix-ci label comes off only while the head's own checks read failed", async () => {
   const timeline = [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")];
   for (const [label, headChecks, cleared] of [
@@ -414,6 +410,44 @@ test("a fix-ci label comes off only while the head's own checks read failed", as
     assert.equal(w.writes().at(-1)?.method === "DELETE", cleared, label);
     assert.ok(w.calls.filter((call) => call.token === "checks").length <= 2, label);
   }
+});
+
+const requiredRunsReads = (w) => w.calls.filter((call) => call.path.startsWith(`/repos/${REPO}/actions/workflows/pr-require-checks.yml/runs?`)).length;
+const RECORDED = JSON.parse(readFileSync(new URL("./fixtures/clear-escalations-head-check-runs.json", import.meta.url), "utf8")).check_runs;
+const LIVE_SUITE = 124682814960;
+const LABELED_SUITE = 124682695859;
+const isMarker = (run) => run.name === REQUIRED_SUITE_MARKER.name;
+
+test("the Mark Lanes check run names pr-require-checks' suites, so the workflow-runs read is skipped", async () => {
+  const timeline = [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")];
+  for (const [label, headChecks, cleared, reads] of [
+    ["recorded head: Test Selection (0) failed in the live suite, beside a cancelled and a labeled-event suite", RECORDED, true, 0],
+    ["recorded head listed oldest first", [...RECORDED].reverse(), true, 0],
+    ["recorded labeled-event suite alone: its skipped Mark Lanes still names it, and only its CI Status failed", RECORDED.filter((run) => run.check_suite.id === LABELED_SUITE), false, 0],
+    ["recorded head without the live suite's Mark Lanes: its failure is not pr-require-checks'", RECORDED.filter((run) => !(isMarker(run) && run.check_suite.id === LIVE_SUITE)), false, 0],
+    ["recorded head with its failure moved to the Windows workflow's suite: no pr-require-checks job fails", RECORDED.map((run) => (run.conclusion === "failure" && run.name !== "CI Status" ? { ...run, check_suite: { id: 124682814962 } } : run)), false, 0],
+    ["recorded head with every Mark Lanes from another app: the workflow-runs read decides", RECORDED.map((run) => (isMarker(run) ? { ...run, app: { slug: "someone-else" } } : run)), false, 1],
+    ["hand-built, no live shape: no Mark Lanes run, red in a listed suite", RED, true, 1],
+    ["hand-built, no live shape: no Mark Lanes run, green", [check("test-node", "success")], false, 1],
+  ]) {
+    const w = world({ timeline, headChecks });
+    const { code } = await run(w);
+    assert.equal(code, 0, label);
+    assert.equal(w.writes().at(-1)?.method === "DELETE", cleared, `${label}: cleared`);
+    assert.equal(requiredRunsReads(w), reads, `${label}: pr-require-checks runs reads`);
+  }
+});
+
+test("the suite marker is pr-require-checks.yml's only Mark Lanes job, and it has no needs", () => {
+  const dir = new URL("../../workflows/", import.meta.url);
+  const workflow = workflowText(readFileSync(new URL("pr-require-checks.yml", dir), "utf8"));
+  const job = workflow.job(REQUIRED_SUITE_MARKER.job);
+  assert.equal(/^ {4}name: (.*)$/m.exec(job)?.[1], REQUIRED_SUITE_MARKER.name, "the mark-lanes job carries the marker's check-run name");
+  assert.doesNotMatch(job, /^ {4}needs:/m, "mark-lanes starts with the run, so its check run exists before any job can fail");
+  const named = readdirSync(dir)
+    .filter((file) => /\.ya?ml$/.test(file))
+    .flatMap((file) => [...readFileSync(new URL(file, dir), "utf8").matchAll(/^ {4}name: (.*)$/gm)].filter((match) => match[1].trim() === REQUIRED_SUITE_MARKER.name).map(() => file));
+  assert.deepEqual(named, ["pr-require-checks.yml"], "no other workflow job carries the marker's name");
 });
 
 test("a reason still held for a person keeps the label beside a fail-routed one", async () => {
@@ -747,9 +781,6 @@ test("a hold marker from github-actions[bot] with no lane footer, or from anothe
   }
 });
 
-// check-signed-commits' escalation comment, as its report job posts it with
-// GITHUB_TOKEN: SIGNED_COMMITS_HOLD on the first line. Its label write adds no
-// `labeled` event when a lane escalation already put the label on.
 const signedHold = (user, at, updatedAt = at) =>
   commented(user, `${SIGNED_COMMITS_HOLD}\nLane commit check: these commits are not GitHub-verified, so no lane continues on this pull request until a human reviews them.\n\n- \`${KEY}\``, at, updatedAt);
 
@@ -787,8 +818,6 @@ test("check-signed-commits' hold a person lifted by unlabeling no longer keeps a
   assert.deepEqual(edited.writes(), [], "edited after the unlabel");
 });
 
-// pr-verify's stop on a withheld fail, as verify-notes.mjs posts it with
-// GITHUB_TOKEN under a label already on, which adds no `labeled` event.
 const credentialHold = (user, at, updatedAt) => commented(user, `${CREDENTIAL_HOLD}\nReason: \`security\`\n\npr-verify withheld its fail at head \`${"a".repeat(40)}\`.`, at, updatedAt);
 
 test("pr-verify's credential stop keeps the label a clearing escalation would take off, until a person lifts it", async () => {
@@ -805,11 +834,6 @@ test("pr-verify's credential stop keeps the label a clearing escalation would ta
   assert.ok(!forgedLogs.some((line) => line.includes("for a credential")), "the marker from a person is not the hold");
 });
 
-// enable-auto-merge's own person refusal comment (refusalBody), then its
-// label: under merge.lane-prs native the only writer of a lanes App PR's
-// pr-merge label. #10090's shape: a risk hold on unbound reviews at the head
-// the PR still has. Reader answers use babysit_verify_evidence.py's own
-// constants (FAIL, MISSING, UNREADABLE, the `unreadable:` reviews answer).
 const UNBOUND = "pr-merge's gate holds it on its risk score (evidence-unbound:claude-review: not bound: rerun-not-allowed)";
 const SECURITY = "pr-merge's gate holds it on its risk score (security-finding: 1 open CRITICAL finding)";
 const REPEATED = "pr-merge's gate refuses its verifier verdict (verify:repeated-fail)";
@@ -817,7 +841,6 @@ const TOO_OLD = "pr-merge's gate refuses its verifier verdict (verify:too-old)";
 const UNTRUSTED = "pr-merge's lane does not take its issue link (untrusted-provenance)";
 const UNTRUSTED_SPEC = "pr-merge's gate refuses its verifier verdict (verify:untrusted-spec)";
 const COST = "pr-merge's gate holds it on its risk score (cost-review-required: infra/main.tf)";
-// Labels enable-auto-merge set before #9826 made these lane causes.
 const SPEC_CHANGED = "pr-merge's gate refuses its verifier verdict (verify:spec-changed)";
 const NATIVE = { LANE_PRS: "native" };
 const nativeEscalated = (reason, head = HEAD) => mergeEscalated(refusalBody(true, reason, head, "needs-human"));
@@ -873,9 +896,6 @@ test("enable-auto-merge's label comes off when the reader now reads a refusal th
     [SPEC_CHANGED, refusing("verify:earlier-fail")],
     [UNBOUND, (pull) => ({ ...clean(pull), reviews: "evidence-unbound:claude-review: not bound: rerun-allowed" })],
     [SPEC_CHANGED, reviewsNow("evidence-unbound:claude-review: not bound: rerun-allowed")],
-    // Owner rule 2026-10-27: the repeated-FAIL cap and an old pull request
-    // hold for the lanes, so their labels come off at the head where the
-    // reader still refuses them (#10134's shape).
     [REPEATED, refusing("verify:repeated-fail")],
     [TOO_OLD, refusing("verify:too-old")],
   ]) {
@@ -1004,8 +1024,6 @@ test("a pr-merge person comment not in enable-auto-merge's exact shape, or edite
   }
 });
 
-// Main's head-moved rule (#9826): no read; enable-auto-merge judges the new
-// head and labels it again only for a cause a person must clear.
 test("enable-auto-merge's refusal at an old head comes off as head-moved without a read", async () => {
   const w = world({ timeline: nativeEscalated(SECURITY, OLD), author: BOT, evidence: clean });
   await run(w, NATIVE);
@@ -1090,7 +1108,7 @@ test("labels past the read cap are read on a later run", async () => {
   assert.deepEqual([...read].sort((a, b) => a - b), numbers);
 });
 
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -1208,8 +1226,6 @@ const REVIEWER_AUTHOR = { __typename: "Bot", login: "github-actions" };
 const severityThread = (severity) => ({ ...reviewThread(false, [REVIEWER_AUTHOR]), opening: { nodes: [{ body: `Finding.\n\n${severity}\n\nclaude-lane: claude-security-review` }] } });
 const WAITING = `a push no trusted person made moved the head; waiting for clean review lanes at ${HEAD}`;
 
-// An open SUGGESTION or IMPORTANT finding is reported, not held: only a
-// CRITICAL one holds (owner decision on #11020).
 test("feedback-not-landed comes off after a lanes App push once both review lanes read the new head clean, an open SUGGESTION or IMPORTANT thread included", async () => {
   for (const [severity, jobs] of [
     ["severity: SUGGESTION", STATUS_JOBS],
@@ -1348,9 +1364,6 @@ test("workflow-staged stays when the activity page does not reach back to the la
   assert.deepEqual(w.writes(), []);
 });
 
-// The activity API ignores `page`: each next page is the Link rel="next"
-// cursor (merge-holds.mjs branchActivity). `rows` split into pages of 100;
-// `link` decides whether page n names page n + 1.
 const pagedReader = (rows, link = (n, pages) => n + 1 < pages.length) => {
   const pages = Array.from({ length: Math.max(1, Math.ceil(rows.length / 100)) }, (_, n) => rows.slice(n * 100, n * 100 + 100));
   return async (method, path) => {
@@ -1431,7 +1444,7 @@ const CI_FIX = ["ci-fix-round-cap", "ci-fix-empty", "ci-fix-invalid", "ci-fix-no
 
 test("a ci-fix stop comes off once a trusted push moved the head and no check but ci-status fails there", async () => {
   for (const reason of CI_FIX) {
-    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(reason)], reader: readerFor() });
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(reason)], headChecks: GREEN, reader: readerFor() });
     await run(w, TRUST_ENV);
     assert.equal(w.writes().length, 2, reason);
     assert.match(w.writes()[0].body.body, new RegExp(`reason=${reason} head=${HEAD}`));
@@ -1451,19 +1464,89 @@ test("a ci-fix stop stays while a check fails, runs, or none has passed at the h
     [...GREEN, run_("test-go", null, 4)],
     [],
   ]) {
-    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], reader: readerFor({ checkRuns }) });
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], headChecks: checkRuns, reader: readerFor({ checkRuns }) });
     await run(w, TRUST_ENV);
     assert.deepEqual(w.writes(), [], JSON.stringify(checkRuns));
   }
-  const unmoved = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], reader: readerFor({ pushes: [pushedBy(STRANGER)] }) });
+  const unmoved = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], headChecks: GREEN, reader: readerFor({ pushes: [pushedBy(STRANGER)] }) });
   await run(unmoved, TRUST_ENV);
   assert.deepEqual(unmoved.writes(), []);
 });
 
 test("a ci-fix stop passes with a neutral check at the head", async () => {
-  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], reader: readerFor({ checkRuns: [...GREEN, run_("pr-unblock / publish-feedback", "neutral", 4)] }) });
+  const neutral = [...GREEN, run_("pr-unblock / publish-feedback", "neutral", 4)];
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], headChecks: neutral, reader: readerFor({ checkRuns: neutral }) });
   await run(w, TRUST_ENV);
   assert.equal(w.writes().at(-1)?.method, "DELETE");
+});
+
+const CHECK_RUNS_AT_HEAD = `/repos/${REPO}/commits/${HEAD}/check-runs?`;
+const REQUIRED_RUNS_AT_HEAD = `/repos/${REPO}/actions/workflows/pr-require-checks.yml/runs?head_sha=${HEAD}&`;
+
+test("a ci-fix stop reads the head's check runs once a run, whichever check judges it, and its verdict holds", async () => {
+  const unreadReader = (calls) => {
+    const inner = readerFor({ calls });
+    return async (method, path) => {
+      if (path.startsWith(CHECK_RUNS_AT_HEAD)) {
+        calls.push(path);
+        throw new Error("HTTP 502");
+      }
+      return inner(method, path);
+    };
+  };
+  for (const [label, headChecks, cleared, readerOf = (calls) => readerFor({ calls, checkRuns: headChecks })] of [
+    ["failing", RED, true],
+    ["cancelled", [check("test-node", "cancelled")], true],
+    ["passing", GREEN, true],
+    ["unread", new Error("HTTP 502"), false, unreadReader],
+  ]) {
+    const readerCalls = [];
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], headChecks, reader: readerOf(readerCalls) });
+    const { code } = await run(w, TRUST_ENV);
+    assert.equal(code, 0, label);
+    assert.equal(w.writes().at(-1)?.method === "DELETE", cleared, `${label}: cleared`);
+    const paths = [...w.calls.map((call) => call.path), ...readerCalls];
+    const checkRunReads = paths.filter((path) => path.startsWith(CHECK_RUNS_AT_HEAD)).length;
+    const requiredReads = label === "unread" ? 0 : 1;
+    assert.equal(paths.filter((path) => path.startsWith(REQUIRED_RUNS_AT_HEAD)).length, requiredReads, `${label}: pr-require-checks runs read ${requiredReads} time(s)`);
+    if (label === "unread") {
+      assert.ok(checkRunReads <= 2, `${label}: a failed check-runs read is tried again once, no more: ${checkRunReads}`);
+    } else {
+      assert.equal(checkRunReads, 1, `${label}: check runs read once`);
+    }
+  }
+});
+
+test("a check-runs read that failed once is tried again for the next check of the same head", async () => {
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], headChecks: GREEN, reader: readerFor() });
+  const checks = w.checks;
+  let failed = 0;
+  w.checks = async (method, path) => {
+    if (path.startsWith(CHECK_RUNS_AT_HEAD) && failed === 0) {
+      failed += 1;
+      throw new Error("HTTP 502");
+    }
+    return checks(method, path);
+  };
+  const { code } = await run(w, TRUST_ENV);
+  assert.equal(code, 0);
+  assert.equal(failed, 1, "the first check-runs read failed");
+  assert.equal(w.writes().at(-1)?.method, "DELETE", "the retried read finds the head green and the label comes off");
+});
+
+test("a needs-human ci-fix stop and a needs-session stop judged at one head share one check-runs read a run", async () => {
+  const keyStatuses = [status("failure", ACTIONS_BOT, "2026-10-18T10:00:01Z", laneContext("ci-fix-escalated"))];
+  const timeline = [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated"), sessionLabeled(BOT, "2026-10-18T10:00:01Z"), stopped("ci-fix-escalated", KEY)];
+  const readerCalls = [];
+  const w = world({ timeline, sessionNumbers: [8], keyStatuses, headChecks: GREEN, reader: readerFor({ calls: readerCalls }) });
+  const { code, logs } = await run(w, TRUST_ENV);
+  assert.equal(code, 0);
+  assert.deepEqual(
+    w.writes().filter((call) => call.method === "DELETE").map((call) => call.path),
+    [`/repos/${REPO}/issues/7/labels/needs-human`, `/repos/${REPO}/issues/8/labels/needs-session`],
+    logs.join("\n"),
+  );
+  assert.equal([...w.calls.map((call) => call.path), ...readerCalls].filter((path) => path.startsWith(CHECK_RUNS_AT_HEAD)).length, 1);
 });
 
 test("a protected-path or own-patch stop stays, even once the PR is mergeable after a trusted move with everything green", async () => {
@@ -1575,9 +1658,24 @@ test("a workflow-staged keep line names main's SHA and the first workflow file i
     const { logs } = await run(w);
     assert.ok(logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN} changes ${named}`), logs.join("\n"));
   }
-  const cut = world({ timeline: inlineTimeline(), mainFiles: Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` })) });
+  const many = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` }));
+  const cut = world({ timeline: inlineTimeline(), mainFiles: many });
   const { logs } = await run(cut);
   assert.ok(logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN}'s file listing against it may be cut short`), logs.join("\n"));
+});
+
+test("past the compare API's 300-file list, workflow-staged reads .github/workflows' tree at main's merge base and tip", async () => {
+  const many = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` }));
+  const BASE = "3".repeat(40);
+  const listing = JSON.parse(readFileSync(new URL("./fixtures/contents-listing.json", import.meta.url), "utf8")).dotGithub;
+  const tree = (changes) => listing.map((entry) => (entry.name in changes ? { ...entry, sha: changes[entry.name] } : entry));
+  const same = world({ timeline: inlineTimeline(), mainFiles: many, mergeBase: BASE, dotGithub: { [BASE]: listing, [MAIN]: tree({ scripts: "9".repeat(40) }) } });
+  await run(same);
+  assert.equal(same.writes().at(-1)?.method, "DELETE", "an unchanged workflows tree takes the label off");
+  const moved = world({ timeline: inlineTimeline(), mainFiles: many, mergeBase: BASE, dotGithub: { [BASE]: listing, [MAIN]: tree({ workflows: "8".repeat(40) }) } });
+  const kept = await run(moved);
+  assert.ok(kept.logs.includes(`clear-escalations: #7 kept: workflow-staged still holds at ${HEAD}: main ${MAIN} changes .github/workflows`), kept.logs.join("\n"));
+  assert.ok(!moved.writes().some((write) => write.method === "DELETE"), "a changed workflows tree keeps the label");
 });
 
 test("a person's reply or review on the second page of either listing keeps it", async () => {
@@ -1654,10 +1752,6 @@ test("a person's comment written before the label and edited after it, or in the
   }
 });
 
-// The session-builder queue label (#11087): report-escalation.sh puts
-// needs-session on before its lane-stopped comment for a fail-routed reason
-// whose escalation-routes.json entry names it, and its `clear` mode posts
-// success over the stop's failing status when a same-head retry lands.
 const sessionLabeled = (actor, at = "2026-10-18T10:00:00Z") => ({ event: "labeled", actor, label: { name: "needs-session" }, created_at: at });
 const stopBody = (reason, head = HEAD, activity = escalationActivity(reason)) =>
   `<!-- pr-unblock:lane-stopped activity=${activity} -->\nThe pr-unblock lane stopped \`${activity}\` on this pull request: why. The lane labels it \`needs-session\` for a session builder, who makes the change this lane cannot, and the run ends in a failing \`pr-unblock/${activity}\` status on the head the lane gated.\n\n- Reason: \`${reason}\`\n- Head: \`${head}\`\n- Run: https://github.com/${REPO}/actions/runs/1\n`;
@@ -1717,11 +1811,6 @@ test("a needs-session a person added, or one with no lane stop since it went on,
   }
 });
 
-// The new-head lift (#11200): a stop's status sits on the stop's head, so a
-// push leaves nothing that marks the new head mended. The label comes off
-// when the head is none of the stops' heads, the new head carries no failing
-// status for their activities, and its checks pass; ci-status, which the
-// label keeps red, is not counted.
 const NEW_HEAD_GREEN = [check("test-node", "success"), check("ci-status", "failure", { id: 2 })];
 const laneContext = (reason) => `pr-unblock/${escalationActivity(reason)}`;
 

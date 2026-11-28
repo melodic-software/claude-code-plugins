@@ -3,7 +3,7 @@
 
     registry-filter.py --root <dir> [--registry <file>]... [--zero-floor] [< report.json]
 
-Reads a `code-metrics/v2` document on stdin and prints it back with every
+Reads a `code-metrics/v3` document on stdin and prints it back with every
 clone group the registries sanction moved out of `measures[]` and into
 `excluded[]`. Design thread T8: deliberate replication a repository declares
 about itself is an EXCLUSION derived from that declaration, not a suppression
@@ -88,7 +88,6 @@ def read_registry(path: str) -> list[Entry]:
 
 
 def sanctions_plain(entry: str, paths: list[str]) -> bool:
-    """True when this plain line accounts for every instance of the group."""
     suffix = "/" + entry
     if not all(path == entry or path.endswith(suffix) for path in paths):
         return False
@@ -97,7 +96,6 @@ def sanctions_plain(entry: str, paths: list[str]) -> bool:
 
 
 def sanctions_cluster(canonical: str, members: list[str], paths: list[str]) -> bool:
-    """True when this cluster line accounts for every instance of the group."""
     directories = set()
     for path in paths:
         if path != canonical and not any(
@@ -128,7 +126,6 @@ def find_sanction(
     registries: list[tuple[str, list[Entry]]],
     root: str,
 ) -> tuple[str, int, str] | None:
-    """The registry file, line number and line text that account for a group."""
     for registry_path, entries in registries:
         for entry in entries:
             if sanctions(entry, instances, root):
@@ -163,15 +160,6 @@ def filter_document(
 
 
 def floor_summary(document: dict[str, Any]) -> dict[str, Any]:
-    """State a zero the summary would otherwise omit.
-
-    `report.py summarize` derives `duplicated_lines` and `clone_groups` from
-    the surviving clone-group rows, so a run whose every group was excluded
-    carries neither key. Zero measured duplication is a measurement and is
-    printed as one, but only when a duplication collector actually ran: a run
-    that measured nothing keeps its "Measured nothing" headline instead of an
-    unearned zero.
-    """
     measured = any(
         row.get("measure") == "duplication" and row.get("status") in ("ok", "partial")
         for row in document.get("run") or []
@@ -180,7 +168,7 @@ def floor_summary(document: dict[str, Any]) -> dict[str, Any]:
         summary = document.setdefault("summary", {})
         summary.setdefault("duplicated_lines", 0)
         summary.setdefault("clone_groups", 0)
-        summary.setdefault("by_lane", {})
+        summary.setdefault("by_language", {})
         summary.setdefault("by_directory", {})
     return document
 

@@ -58,8 +58,6 @@ class RecordAdvisoryRoundTests(unittest.TestCase):
         )
 
     def test_each_round_gets_the_next_monotonic_sequence(self) -> None:
-        # The ledger serializes with sorted keys, so the persisted sequence is
-        # the only write order a post-rollover reader can reconstruct.
         entry: dict[str, object] = {}
         record(entry, OLDER, ["c"])
         record(entry, HEAD, ["c"])
@@ -68,8 +66,6 @@ class RecordAdvisoryRoundTests(unittest.TestCase):
         self.assertEqual(rounds[HEAD]["sequence"], 2)
 
     def test_the_sequence_continues_past_pre_sequence_rounds(self) -> None:
-        # A legacy round without a sequence neither blocks recording nor
-        # collides with the new numbering.
         entry: dict[str, object] = {
             "advisory_fix_rounds": {
                 "count": 1,
@@ -86,8 +82,6 @@ class RecordAdvisoryRoundTests(unittest.TestCase):
         self.assertIn("non_convergence_tripwire", result)
 
     def test_the_recorded_round_arms_the_tripwire_at_record_time(self) -> None:
-        # The worker recording round N learns immediately that N-1 was also
-        # all-(c) -- it does not have to wait for the next snapshot to find out.
         entry: dict[str, object] = {}
         record(entry, OLDER, ["c"])
         result = record(entry, HEAD, ["c", "c"])
@@ -130,7 +124,6 @@ class RecordRerunTests(unittest.TestCase):
         rerun(mutation_ledger, BUILD)
         with self.assertRaisesRegex(ledger.FlakeCapReached, "flake cap"):
             rerun(mutation_ledger, BUILD)
-        # A different check at the same head still has its own rerun.
         self.assertEqual(rerun(mutation_ledger, LINT_CI)["count_after"], 1)
 
     def test_a_dry_run_records_nothing(self) -> None:

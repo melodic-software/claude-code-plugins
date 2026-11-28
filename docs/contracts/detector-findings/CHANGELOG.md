@@ -4,6 +4,12 @@ Notable changes to the detector-findings contract (SemVer). Changing a producer-
 the coexistence obligations, or an enforceability verdict is a major bump; additive guidance or a new
 adopter row is a minor bump; docs-only clarification is a patch.
 
+## [3.12.0] - 2026-11-25
+
+**Minor, additive.** New adopter row `code-tidying/remove-comments/rule-glossary-candidate`: a domain
+term an ADR-candidate comment uses that the consumer's glossary lacks, SUGGESTION, not
+auto-applicable. No existing row, producer-owned field's rule or enforceability verdict moves.
+
 ## [3.11.0] - 2026-11-19
 
 **Minor, additive.** Each detector plugin now reads its own bundled copy of this contract, so "Where
@@ -357,7 +363,7 @@ moves, no coexistence obligation changes, and no enforceability verdict changes.
   it. That link resolves only inside the marketplace checkout, and every current adopter fetches
   this contract over `raw.githubusercontent.com` at run time, so a producer reading the contract the
   way the contract tells it to could not follow it.
-  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  ADR 0018
   makes the plugin the encapsulation boundary for citation: name the public invocation, never a path
   into another plugin's private tree. The sentence now reads "which `/review:fanout` names under
   'Shared inputs'", keeping the section name so a reader in this checkout still lands in the right

@@ -3,6 +3,66 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.15] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across all 4 `docs-naming` skills (2,364 -> 1,187 chars, -1,177 / -49.8%): `audit-file-names` (486 -> 345), `generate-file-name-gate` (677 -> 380, routing auditing to `audit-file-names` and renaming to `realign-file-names`), `realign-file-names` (470 -> 325), and `setup` (731 -> 137, `disable-model-invocation: true`), while preserving read-only/per-file-acceptance/no-overwrite safety postures and sibling exclusions.
+
+## [0.9.14] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [0.9.13] - 2026-11-27
+
+### Fixed
+
+- **`audit-file-names` composes the plan's home in the emitter.** The skill had the model build the plan path by hand, so a run's trace never showed where the path came from. With no `--out`, `emit-findings.sh` now composes `<memory root>/docs-hygiene/<branch slug>/file-names.md` itself (memory root `.work` unless `--memory-root` names another) and prints it on a `home` line.
+
+## [0.9.12] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.9.11] - 2026-11-26
+
+### Fixed
+
+- **`audit-file-names` lists each report site.** The emitter printed only the report-site total, so a reply could credit one file with every report site. It now prints one `report` line per report site (file, line, finding id), and the skill lists the sites from those lines and never attaches the total to one file.
+
+## [0.9.10] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [0.9.9] - 2026-11-26
+
+### Changed
+
+- The emitted file-name gate's failure summary is self-contained: it says to rename each offender to the rule or exempt it in the `file_names` configuration and re-emit the gate, instead of pointing at the script's header comment.
+
+## [0.9.8] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+## [0.9.7] - 2026-11-24
+
+### Fixed
+
+- `/docs-naming:audit-file-names` now states the same site counts on every run. The emitter prints one line per finding with its site count, tier breakdown, review count and generated files. It then prints a total line with the sweep's site count, the sites by action and the report-site total. The emitter counts all of these from the sweep, and the skill quotes those lines instead of adding up sites itself.
+
+## [0.9.6] - 2026-11-24
+
+### Fixed
+
+- `realign-file-names` presents an already-accepted finding (its block, review sites and form table) before applying it.
+
 ## [0.9.5] - 2026-11-24
 
 ### Fixed

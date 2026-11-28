@@ -22,8 +22,6 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 import babysit_classify as bc
 
-# The caller's own posting identity, shared by every fixture that exercises
-# self-authored classification rows.
 SELF = bc.normalize_self_logins(["me[bot]"])
 
 
@@ -47,10 +45,6 @@ class IsBotTests(unittest.TestCase):
 
 class ActorKindTests(unittest.TestCase):
     def test_configured_login_outranks_user_typename(self) -> None:
-        # A bot account GitHub misreports as a `User` (no `[bot]` suffix) is a bot
-        # when named in extra_bot_logins: the operator's declaration wins over the
-        # structural signal, matching `is_bot`. This is the one case the field
-        # documents itself for, so `actor_kind` must not settle it as human first.
         config = bc.FeedbackConfig(extra_bot_logins=frozenset({"svc-account"}))
         item = {
             "author": {"login": "svc-account", "__typename": "User", "is_bot": False}
@@ -73,8 +67,6 @@ class ActorKindTests(unittest.TestCase):
 
 class SelfLoginTests(unittest.TestCase):
     def test_normalize_casefolds_and_keeps_bot_suffix(self) -> None:
-        # The self set is matched against a raw author login; stripping [bot]
-        # would collide a personal login with a same-stem bot posting identity.
         self.assertEqual(
             bc.normalize_self_logins(["Me", "Project-Bot[bot]", "", "  "]),
             frozenset({"me", "project-bot[bot]"}),
@@ -87,8 +79,6 @@ class SelfLoginTests(unittest.TestCase):
         self.assertFalse(bc.is_self_login("someone-else", selves))
 
     def test_empty_self_set_is_dormant(self) -> None:
-        # #497: an empty self set matches nobody, so every self-gated
-        # behavior stays off rather than misfiring.
         self.assertEqual(bc.normalize_self_logins([]), frozenset())
         self.assertFalse(bc.is_self_login("anyone", frozenset()))
 
@@ -263,11 +253,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
     covering PR-level findings."""
 
     def test_stale_pr_level_row_does_not_cover_open_thread_finding(self) -> None:
-        # The exact #642 fail-open: a fresh finding raised in an OPEN review
-        # thread, plus a stale classification pipe-row in a PR-level (non-thread)
-        # comment. A raw global count reports classified=1 >= findings=1 and the
-        # gate false-passes; per-surface credit confines the PR-level row to the
-        # (empty) PR-level finding bucket, so effective classified is 0 < 1.
         comments = [
             {
                 "author": "codex[bot]",
@@ -280,9 +265,7 @@ class EffectiveClassifiedTests(unittest.TestCase):
             },
         ]
         self.assertEqual(bc.count_findings(comments, SELF), 1)
-        # Raw counter still sees the stale row (documents the defect surface).
         self.assertEqual(bc.count_classified(comments, SELF), 1)
-        # Per-surface credit closes the fail-open.
         self.assertEqual(bc.count_effective_classified(comments, SELF), 0)
         self.assertLess(
             bc.count_effective_classified(comments, SELF),
@@ -290,10 +273,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
         )
 
     def test_pr_level_finding_and_pr_level_classification_still_pass(self) -> None:
-        # The D5-mandated flow: issue/review-summary findings answered by a
-        # detached PR-level classification. Both are non-thread, so they share a
-        # bucket and the classification credits normally -- restricting credit to
-        # threads would have permanently blocked this path.
         comments = [
             {
                 "author": "claude[bot]",
@@ -308,8 +287,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
         self.assertEqual(bc.count_effective_classified(comments, SELF), 2)
 
     def test_open_thread_finding_covered_by_in_thread_classification(self) -> None:
-        # A finding and its classification both carried in the same open thread
-        # balance within the thread bucket.
         comments = [
             {"author": "codex[bot]", "body": "[CRITICAL] a", "in_review_thread": True},
             {
@@ -321,9 +298,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
         self.assertEqual(bc.count_effective_classified(comments, SELF), 1)
 
     def test_thread_state_free_input_collapses_to_min(self) -> None:
-        # Convergence invariant: with no thread markers every comment is PR-level,
-        # so effective classified is min(classified, findings) -- what the bash
-        # degrade computes with its own cap.
         over = [
             {"author": "claude[bot]", "body": "CRITICAL a"},
             {
@@ -336,13 +310,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
         self.assertEqual(bc.count_effective_classified(over, SELF), 1)
 
     def test_inline_type_tag_is_bucketed_as_thread_on_reuse_path(self) -> None:
-        # The `--comments-json` reuse path is fed `fetch-all-pr-comments.sh`
-        # output, which tags inline review comments `type: "inline"` but carries
-        # no `in_review_thread` stamp. Honoring the tag keeps that path
-        # surface-aware: an inline finding + a detached PR-level (`type:
-        # "review"`) classification row must not cross-credit (#642 on the reuse
-        # path). Without the tag inference both share the non-thread bucket and
-        # the row false-passes the finding.
         comments = [
             {
                 "type": "inline",
@@ -361,9 +328,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
         self.assertEqual(bc.count_effective_classified(comments, SELF), 0)
 
     def test_explicit_stamp_wins_over_type_tag(self) -> None:
-        # An explicit `in_review_thread: false` (a live PR-level comment) is
-        # authoritative even if a stray `type` is present -- it is never
-        # re-inferred as a thread.
         self.assertEqual(
             bc.comment_surface(
                 {"in_review_thread": False, "type": "inline", "body": ""}
@@ -372,10 +336,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
         )
 
     def test_unsignaled_provenance_is_isolated_from_known_surfaces(self) -> None:
-        # Fail-closed defense: a finding bearing neither an `in_review_thread`
-        # stamp nor a `type` tag lands in the isolated unknown bucket, where a
-        # PR-level classification row cannot offset it, so the gate still blocks.
-        # (Production paths always signal; this guards a malformed snapshot.)
         comments = [
             {"author": "codex[bot]", "body": "[CRITICAL] unsignaled finding"},
             {"type": "review", "author": "me[bot]", "body": "| 1 | x | VALID | y |"},
@@ -385,8 +345,6 @@ class EffectiveClassifiedTests(unittest.TestCase):
         self.assertEqual(bc.count_effective_classified(comments, SELF), 0)
 
     def test_resolved_thread_contributes_to_neither_bucket(self) -> None:
-        # A resolved thread's finding and classification both drop (thread_is_open
-        # discount), so a fresh PR-level finding stays uncovered.
         comments = [
             {
                 "author": "codex[bot]",

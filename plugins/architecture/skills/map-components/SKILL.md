@@ -1,5 +1,5 @@
 ---
-description: "C4 component view of the modules inside one deployable, one directed arrow per internal build reference, each citing its declaration. Use when 'component diagram', 'what is inside this service', 'module dependencies', 'which way do the arrows point', 'layering of this deployable'. Skip for which repositories exist (map-landscape), all deployables (map-containers), or module-design friction (improve)."
+description: "C4 component view of a deployable's modules: one arrow per internal build reference, citing its declaration. Use for 'component diagram', 'what is inside this service', 'module dependencies', arrow direction, or layering. Not for repos (/architecture:map-landscape), deployables (/architecture:map-containers), module design (/architecture:improve)."
 argument-hint: "[container] [--group-by directory|namespace|layer] [--layers <list>] [--dialect likec4|c4-plantuml]"
 user-invocable: true
 disable-model-invocation: false
@@ -106,8 +106,8 @@ reached by following internal edges. A test project (the node's `test` field) is
 not a deployable: its references are not counted toward a project's indegree, so
 `Api.Tests` referencing `Api` leaves `Api` a root, and it is never listed as a
 choice. A stray manifest is not a deployable either: a project no internal edge
-touches, in an ecosystem that no linked project and no .NET project shares (a
-tooling `package.json`, a requirements file beside a .NET tree). It is not a
+touches, in an ecosystem that no linked project and no .NET project shares (a <!-- portability-ok: R6 kept-adapter operation - render-components.sh grouping rules -->
+tooling `package.json`, a requirements file beside a .NET tree). It is not a <!-- portability-ok: R6 kept-adapter operation - render-components.sh grouping rules -->
 choice, it is not counted as outside the container, and the report says how many
 were set aside. `--container` charts one anyway. A Node workspace root draws no
 edge to its members and shares their ecosystem, so it is not set aside: a plain Node
@@ -124,7 +124,7 @@ all of them.
 `--group-by` is `directory` (the default), `namespace`, or `layer`.
 
 - `directory` groups by the parent of the project's own directory, one level up:
-  `src/Api/Api.csproj` and `src/Domain/Domain.csproj` both group under `src`.
+  `src/Api/Api.csproj` and `src/Domain/Domain.csproj` both group under `src`. <!-- portability-ok: R6 kept-adapter operation - render-components.sh grouping rules -->
   A project directly under the root, or one folder down, groups under `.`.
 - `namespace` groups by the containing namespace: the node's `namespace` field
   (`RootNamespace`, else `AssemblyName`, from the project file), else the project

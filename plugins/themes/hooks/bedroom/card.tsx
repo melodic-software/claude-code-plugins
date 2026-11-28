@@ -16,17 +16,12 @@ import { DEFAULT_STATE } from './scene/lib.ts'
 /** The settings card's rows are named this, then a count: a new row for each `/bedroom`, so the card stands at the transcript's end. */
 export const CARD_ROW = 'bedroom-card'
 const card = atom({ plugin: 'themes', key: 'bedroom-card' } as const, {}, { shape: 'bedroom-card-1' })
-/** Whether a card is up, kept beside the atom so a click in the room with no card up writes nothing more than before. */
 let isCardOpen = false
-/** Text typed into a title field and not yet set, so a redraw of the card (the minute's tick, another press) keeps it. */
 const drafts: Partial<Record<TitleKey, string>> = {}
 
-/** How far the card's buttons move dim, glass, blur and the sound's volume, inside the range each command takes. */
 const STEPS = { dim: { by: 10, most: 80 }, glass: { by: 10, most: 95 }, blur: { by: 4, most: 40 }, volume: { by: 10, most: 100 } } as const
 type Stepped = keyof typeof STEPS
-/** The steps on the look row; volume sits beside the sound button. */
 const LOOK: readonly Stepped[] = ['dim', 'glass', 'blur']
-/** The settings the look row turns on and off, each with the words that do it. */
 const TOGGLES = ['signal', 'hall'] as const
 /** The time row's order: from the earliest morning light to the latest evening. The phases' own order (PHASES) is the shader's. */
 export const TIME_ORDER = ['predawn', 'dawn', 'morning', 'noon', 'golden', 'dusk', 'evening', 'night'] as const
@@ -67,7 +62,6 @@ export const EVENT_BUTTONS = [
   { key: 'event-door', label: 'door', words: 'hall light' },
   { key: 'event-bolt', label: 'bolt', words: 'weather strike' },
 ] as const
-/** The switches changing after a press on the card, each with the timer that ends it: their buttons draw dim, and a press on one does nothing. */
 const changing = new Map<Switch, { cancel: () => void }>()
 
 /** Forgets what was typed into a title's field once the title is set. */
@@ -75,14 +69,12 @@ export function forgetDraft(key: string): void {
   delete drafts[key as TitleKey]
 }
 
-/** A stepped setting as its command takes it: dim and glass in percent, blur and volume as they are. */
 function amountOf($: EngineInterface, name: Stepped): number {
   const saved = ctxOf($).saved
   if (name === 'volume') return volumeOf(saved)
   return name === 'dim' ? Math.round(saved.dim * 100) : name === 'glass' ? Math.round(saved.glass * 100) : saved.blur
 }
 
-/** The words a step presses: volume is a word of /bedroom sound. */
 const wordsOf = (name: Stepped, amount: number): string => (name === 'volume' ? `sound volume ${amount}` : `${name} ${amount}`)
 
 /** Draws the card again from the module's settings: only the hooks that read the atom redraw, never the room. No answer, or one that is the status line, clears the last one. */
@@ -91,7 +83,6 @@ export async function refreshCard($: EngineInterface, said?: string, status?: st
   await update($, card, was => ({ ...was, seen: (was.seen ?? 0) + 1, said: said === undefined || said === status ? undefined : said }))
 }
 
-/** A press on the card: the command with those words, its answer shown on the card. */
 async function press($: EngineInterface, words: string): Promise<void> {
   let said: string
 
@@ -104,7 +95,6 @@ async function press($: EngineInterface, words: string): Promise<void> {
   await refreshCard($, said, describe(ctxOf($)))
 }
 
-/** Moves a stepped setting one step, through the same command; a step past either end does nothing. */
 async function step($: EngineInterface, name: Stepped, way: 1 | -1): Promise<void> {
   const now = amountOf($, name)
   const next = Math.min(STEPS[name].most, Math.max(0, now + way * STEPS[name].by))
@@ -114,12 +104,10 @@ async function step($: EngineInterface, name: Stepped, way: 1 | -1): Promise<voi
   }
 }
 
-/** Shows or hides the four title fields or the sound bank, each on the two rows the time and the weather leave; one at a time. */
 async function togglePanel($: EngineInterface, panel: 'titles' | 'sounds'): Promise<void> {
   await update($, card, was => ({ ...was, titles: panel === 'titles' && was.titles !== true, sounds: panel === 'sounds' && was.sounds !== true, seen: (was.seen ?? 0) + 1 }))
 }
 
-/** Runs a press on the card that changes these switches, their buttons inactive until each has changed. */
 async function pressChanging($: EngineInterface, words: string, keys: readonly Switch[]): Promise<void> {
   for (const key of keys) {
     changing.get(key)?.cancel()

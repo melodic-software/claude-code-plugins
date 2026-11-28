@@ -1,28 +1,9 @@
-/**
- * Shared source-adapter conformance suite: asserted once against the contract
- * here, star-imported into a thin per-adapter test file each adapter owns
- * (the SQLAlchemy dialect-suite shape). Per-adapter files supply only
- * source-specific fixtures and assertions; every contract-generic invariant
- * lives here so a new adapter inherits the full surface by composing
- * {@link describeSourceAdapterContract}.
- *
- * Declared-attribute shapes (hosts, extractorArgs, allowedExtractors,
- * errorPatterns tables, captionClass, transcriptStrategy, capabilities) are
- * asserted through `validateAdapter` — the single runtime authority — rather
- * than restated assertion-by-assertion. Behavioral invariants the validator
- * cannot see (claim/queue agreement, canonicalization idempotence, path-safe
- * slice keys, harvest well-formedness) are asserted directly. `acquire` is
- * I/O-bearing and stays per-adapter (fixture-driven, offline); its declared
- * arity is enforced by `validateAdapter`.
- */
-
 import { describe, expect, it } from "vitest";
 
 import { validateAdapter } from "./adapter-contract.js";
 
 /** @import { SourceAdapter, SourceMetadata } from './adapter-contract.js' */
 
-/** Mirror of the shared slug derivation's path-safety invariant for slice keys. */
 const SAFE_SLICE_KEY_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 /**
@@ -86,8 +67,6 @@ export function describeSourceAdapterContract(adapter, fixtures) {
         expect(claim?.sliceKey, url).toBe(sliceKey);
         expect(typeof claim?.canonicalUrl, url).toBe("string");
         expect(SAFE_SLICE_KEY_PATTERN.test(String(claim?.sliceKey)), url).toBe(true);
-        // Pre-acquisition (queue lane) and diverging-metadata calls must both
-        // resolve to the URL's key.
         expect(adapter.extractSliceKey(url, null), url).toBe(sliceKey);
         expect(
           adapter.extractSliceKey(url, { id: "divergent0", title: "", description: "" }),
@@ -104,8 +83,6 @@ export function describeSourceAdapterContract(adapter, fixtures) {
         expect(recanonical, canonicalUrl).not.toBeNull();
         expect(recanonical?.sliceKey, canonicalUrl).toBe(sliceKey);
         expect(recanonical?.canonicalUrl, canonicalUrl).toBe(canonicalUrl);
-        // The queue gate and the slice key agree on the canonical form too, so
-        // every entry path resolves the same slice by construction.
         expect(adapter.acceptForEnqueue(canonicalUrl), canonicalUrl).toEqual({
           ok: true,
           key: sliceKey,

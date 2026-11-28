@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for how imports.sh reads an import path. Expected values come
-# from https://code.claude.com/docs/en/memory#import-additional-files (read
-# 2026-11-04): a backslash keeps a space in the path, a bare space ends the path,
-# and a path wrapped in quotes is not imported.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,5 +1,3 @@
-# user-experience team file fixture: re-rank a bundled row, add an installed skill, disable two
-# routes (one listed twice) and deny two names (one listed twice).
 version: 1
 routing:
   version: 1

@@ -1,5 +1,5 @@
 ---
-description: "Module-design vocabulary for architecture findings, and the checks built on it. Use when: 'what is a deep module', 'what is a seam', 'deep vs shallow module', 'what is the deletion test', 'leverage and locality', 'module design vocabulary', 'which word do we use for X in architecture findings'. Scanning a codebase for friction is /architecture:improve."
+description: "Module-design vocabulary and checks for architecture findings (deep vs shallow modules, seams, interfaces, adapters, deletion test; reads no code). Use for 'what is a deep module', 'what is a seam', 'leverage and locality', module design vocabulary, or which word fits architecture findings. Not for codebase scans: /architecture:improve."
 argument-hint: "[term or question]"
 user-invocable: true
 disable-model-invocation: false
@@ -35,4 +35,5 @@ Scans a codebase for shallow modules and seam leaks, named in these terms.
 
 - The project's glossary wins for domain nouns only. An architecture idea keeps the term defined
   here even when the glossary has a near-synonym for it.
-- A subagent may lack the Skill tool. Brief it with the definitions themselves, not the skill name.
+- Brief a subagent with the definitions themselves, not the skill name. Which tools a subagent
+  holds: [available tools](https://code.claude.com/docs/en/sub-agents#available-tools).

@@ -1,10 +1,5 @@
 # shellcheck shell=bash
-# The banner's last line is the caller's own rather than the end of its comment
-# block: each script's `--help` output is its published contract, and several of
-# them stop short of that end.
-#
-# The functions that run the interpreter read `PY`, which cm_require_python
-# sets through python-resolve.sh, a file the caller sources.
+# PY is set by cm_require_python through python-resolve.sh, which the caller sources.
 # shellcheck disable=SC2154
 
 CM_ENTRY_LIB_DIR="$(cd "${BASH_SOURCE[0]%/*}" && pwd)"
@@ -14,13 +9,10 @@ cm_usage_banner() {
     printf '%s\n' "$2" >&2
     return
   fi
-  # One sed rather than a range print piped into a strip: the `-e` fragments
-  # give the braces the newlines a BSD sed wants around them.
   sed -n -e "2,${2}{" -e 's/^# \{0,1\}//' -e p -e '}' "$1" >&2
 }
 
-# JSON and ARGS are consumed by the sourcing script, not here. The caller
-# passes its own path: inside this function BASH_SOURCE[0] is this file.
+# JSON and ARGS are consumed by the sourcing script, not here.
 # shellcheck disable=SC2034
 cm_entry_args() {
   local file="$1" last="$2"
@@ -88,10 +80,6 @@ cm_resolve_config() {
 }
 
 cm_anchor_document() {
-  # The root is the repository's top level, else the working directory. `-W`
-  # (Git Bash) gives the Windows path the interpreter reports; elsewhere `-P`
-  # gives the physical path, the one `git` and the interpreter's own working
-  # directory report, so the two compare.
   local document="$1" kind="directory" root top anchored
   root="$(pwd -W 2>/dev/null || pwd -P)"
   if top="$(git rev-parse --show-toplevel 2>/dev/null)" && top="${top%$'\r'}" && [[ -n "$top" ]]; then

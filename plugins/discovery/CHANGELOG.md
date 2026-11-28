@@ -1,5 +1,121 @@
 # Changelog: discovery plugin
 
+## [3.5.1] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across 6 `discovery` skills (3,151 -> 1,844 chars, -1,307 / -41.5%): `blindspot` (377 -> 315), `explore` (462 -> 348), `read-docs` (722 -> 344), `research` (510 -> 350), `setup` (580 -> 140, `disable-model-invocation: true`), and `trace-intent` (500 -> 347), while preserving all modes, safety postures, and sibling exclusions.
+
+## [3.5.0] - 2026-11-28
+
+### Added
+
+- Adopt the shared rendered-views token layer (`reference/html-tokens.css`), chrome theme toggle, and branding overrides (palette, type stacks, logo slot, and `branding` `userConfig` option) in the blindspot HTML view.
+
+## [3.4.0] - 2026-11-28
+
+### Added
+
+- Added the `webfetch_truncation_enabled` per-hook on/off setting (default `true`) in `userConfig` and `docs/conventions/discovery.yaml` for `hooks/webfetch-truncation.mjs`, resolved through `lib/hook-enabled.mjs` with user-over-repository precedence per the hook-enablement convention.
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
+## [3.3.1] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [3.3.0] - 2026-11-27
+
+### Changed
+
+- `scripts/turns-to-complete.py` reads per-dispatch turn rows across every collected fleet source through `session-flow`'s `scripts/dispatches.py` when `session-flow` is installed and has a store, falling back to local sources when `session-flow` or its store is absent, with the report header naming which source was read.
+
+## [3.2.1] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
+## [3.2.0] - 2026-11-27
+
+### Added
+
+- `turns-to-complete.py --sources-file FILE` reads a JSON file of transcript sources: Claude Code configuration directories on this host and on hosts reached over ssh. Empty, only this host's configuration directory is read.
+- `turns-to-complete.py` markdown passes through a publish redactor over the `--sources-file` sources: host names become stable `<host-N>` placeholders, and usernames, IP addresses, emails, home paths and secrets typed ones. The plugin now vendors the gitleaks rules (`vendor/gitleaks/`) the redactor reads. `--redact-identifiers` adds comma-separated names and paths to replace with `<identifier>`. A sources file that is missing or unusable, or secret rules that do not load, stop the output with exit 2 and nothing published.
+
+### Changed
+
+- `turns-to-complete.py` without `--root` reads the projects directory of each local source in `--sources-file` (unset, `CLAUDE_CONFIG_DIR`, else `~/.claude`), parses transcripts through the shared transcript reader, and opens its report with a header naming a source whose projects directory cannot be listed, with the command that retries it. `--diagnostics-dir` keeps that gap as a lookup diagnostics record. The header also names each source of the sources file on another host, which it does not read, so its counts are this host's only.
+- A `--sources-file` path, and a local source's `config_dir` in it, starting with `~` are read from the home directory; a missing sources file prints its warning once per run.
+- The shared redactor copy (`redact.py`) can leave report field names its caller lists unredacted; this plugin lists none, so its redaction is unchanged.
+
+### Fixed
+
+- Redacting a secret at the end of a line no longer joins the next line onto the redacted one.
+- A secret whose gitleaks rule marks only part of it, such as a base64 JWT, a Teams webhook URL or a Kubernetes Secret's later data values, is redacted whole; only line breaks and a trailing quote, space or semicolon are kept.
+
+## [3.1.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [3.1.0] - 2026-11-26
+
+### Changed
+
+- Shared `view-builder.mjs` and `html-escape.mjs` synced: an interactive page's policy adds `img-src data:` and `font-src data:`, and both validator profiles admit a base64 `data:` URL in two places only, a PNG or JPEG as the `.rv-logo` rule's one `background-image`, and a WOFF2, WOFF, TTF or OTF font inside `@font-face`. Every other `url(`, scheme and URL-bearing attribute is still refused. Pages built today look the same; no other change to this plugin.
+
+## [3.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+## [2.3.0] - 2026-11-26
+
+### Added
+
+- The plugin carries the standards contract binding (`reference/standards-contract.md`, contract 1.3.1) and the standards reader (`scripts/org-standards.sh`). `/discovery:research` judges Project fit against the consuming project's standards, resolved through the contract's Resolution ladder, personal subscriptions included; a loaded file that cites shipped concept ids follows the contract's "Adopted shipped concepts" rule, with `/engineering-concepts:lookup` (if enabled).
+
+## [2.2.24] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [2.2.23] - 2026-11-26
+
+### Changed
+
+- The `discovery:explorer` agent points at the subagent frontmatter reference for what the harness does at `maxTurns`, the same pointer its sibling agents carry, instead of describing the stop itself.
+
+## [2.2.22] - 2026-11-26
+
+### Changed
+
+- **`/discovery:blindspot`, `/discovery:explore` and `/discovery:research` drop the "unsure where this leaves the work" `## Next` bullet.** `/session-flow:workflow` stays the fallback when no bullet matches.
+
+## [2.2.21] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+## [2.2.20] - 2026-11-25
+
+### Changed
+
+- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
+
 ## [2.2.19] - 2026-11-24
 
 ### Changed
@@ -2282,7 +2398,7 @@ Applied from the 2026-09 prompt-audit against Claude Fable 5.1 (docs/specs/promp
   resolved against nothing.** The return-payload sentence named `agents/explorer.md`,
   `agents/researcher.md` and `agents/intent-tracer.md`, whose implied base is the
   plugin root while their real base is `reference/`, the defect class
-  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  retired ADR 0018 (treat the plugin as the encapsulation boundary for skill citation)'s
   correction 1 names. All three now carry `${CLAUDE_PLUGIN_ROOT}/`, the form the
   next sentence of the same paragraph already uses for the three dispatch docs.
   This file is not fetched from outside the plugin, so the anchored form resolves

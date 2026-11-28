@@ -1,5 +1,5 @@
 ---
-description: "CI code-review lane for a GitHub pull request. High-signal correctness and maintainability findings only, scoped out of security when a security lane exists. When the bundled code-review skill resolves in this session, prefer it for a session-driven review of the current diff or a named PR; this skill for the CI lane a reusable workflow runs on one PR. Use when: 'CI code review', 'claude-review lane', '/review:code-review', or a reusable workflow invokes the org code-review plugin command."
+description: "CI code-review lane for a GitHub PR: high-signal correctness and maintainability criteria (excludes security if a dedicated lane exists). If bundled code-review resolves in this session, prefer it for local diff/PR passes. Use when: 'CI code review', 'claude-review lane', '/review:code-review', or a reusable workflow invokes the org command."
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(gh pr diff:*)", "Bash(gh pr view:*)", "Bash(gh pr comment:*)", "Bash(gh pr review:*)", "Read", "Glob", "Grep"]
@@ -124,6 +124,23 @@ and maintainability. Where `REVIEW.md` splits review scope across lanes, follow
 that split: it scopes security review to the dedicated security lane wherever
 one runs, and folds security findings back into this lane where none does.
 
+**Which `REVIEW.md`.** The criteria in effect are the organization's
+`REVIEW.md` with the repository's appended, per the "Review criteria:
+`REVIEW.md`" section of
+[`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](../../reference/standards-contract.md).
+When the prompt has a line starting `REVIEW CRITERIA:`, the file it names is
+those composed criteria: read it in place of the repository's `REVIEW.md`, and
+everything this skill says of `REVIEW.md` applies to it. A line starting
+`ORG STANDARDS:` names the organization's standards folder. When it holds
+`citations.tsv`, open a criteria citation only from that file (each line the
+citation, a tab, then `<path>#<heading>`; read the path as written, and treat
+a citation it lacks as unresolved), never from the criteria text, and read its
+`docs/standards/README.md` as the org layer's printed index, following each
+row's `File` as written. Without `citations.tsv` the folder is the raw org
+checkout: resolve an organization citation against it, and find its index
+through its `.claude/standards.yaml`, else `docs/standards/README.md`.
+Without either line, read the repository's `REVIEW.md` as before.
+
 **Coding standards and contributing guides.** Read a root `CODING_STANDARDS.md`
 and `CONTRIBUTING.md` when present, as review criteria with the same standing
 as `REVIEW.md`. `REVIEW.md`, `CODING_STANDARDS.md` and `CONTRIBUTING.md` are
@@ -145,6 +162,11 @@ with no recorded reason to replace it, is an advisory finding that cites the
 entry. With
 no such row, report nothing about paved paths. A row whose file does not exist
 goes in the summary comment as an unresolved citation.
+
+**Adopted shipped concepts.** A standards file this lane reads that cites
+shipped concept ids follows the binding's "Adopted shipped concepts"
+paragraph, with `/engineering-concepts:lookup` (if enabled); otherwise apply
+each entry as written.
 
 **Closing issue.**
 

@@ -1,41 +1,22 @@
 #!/usr/bin/env bash
-# Deterministic gate for a /discovery:research coverage ledger.
-#
-# The ledger enumerates a bounded corpus one row per item, each with the depth
-# criterion that counts as covering THAT item, and a Done box. This gate decides
-# whether every box is marked — deterministically, with NO model involvement, so
-# the verdict survives a context that would rather be finished. The research
-# outcome gate cites this exit status rather than a reading of the table.
-#
 # Exit 0 = every row's Done box is marked (status=complete)
 # Exit 1 = at least one row is unmarked (status=incomplete)
 # Exit 2 = the ledger cannot be graded — missing, empty, no table, no rows, no
 #          Done column, a short row, or a Done cell that is neither marked nor
 #          unmarked — plus usage errors. FAIL CLOSED: a ledger this gate cannot
 #          read is never reported as complete.
-#
-# Usage:
-#   bash check-coverage-complete.sh <ledger-path>
-#   bash check-coverage-complete.sh --help
-#   ./check-coverage-complete.sh <ledger-path>
-#
-# Python twin (same exit contract): check-coverage-complete.py — use when the
-# Bash tool cannot run this form but python3 is reachable.
-#
-# Ledger shape (the Done column is located by header name, not by position, so
-# adding a column ahead of it does not silently change what is graded):
-#
-#   | # | Corpus item | Depth criterion | Done |
-#   |---|-------------|-----------------|------|
-#   | 1 | <item>      | <criterion>     | [x]  |
-#
-# Output (stdout, greppable): `rows=<n> unmarked=<m> status=<complete|incomplete>`
-# On status=incomplete each unmarked row is named on stderr.
 
 set -uo pipefail
 
 usage() {
-  sed -n '/^# Deterministic gate/,/^# Output/ s/^# \{0,1\}//p' "${BASH_SOURCE[0]}"
+  cat <<'EOF'
+Deterministic gate for a /discovery:research coverage ledger.
+Usage: check-coverage-complete.sh <ledger-path>
+  <ledger-path>  markdown ledger whose table has a Done column ([x] marked)
+Output: rows=<n> unmarked=<m> status=<complete|incomplete>
+Exit: 0 every row's Done box is marked; 1 at least one row is unmarked;
+2 the ledger cannot be graded, or a usage error (fail closed).
+EOF
 }
 
 ledger=""

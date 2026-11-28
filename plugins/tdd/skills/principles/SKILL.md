@@ -1,5 +1,5 @@
 ---
-description: "Answers test design questions from authoritative TDD sources (Beck, Khorikov), producing WHY reasoning to improve test design decisions. Use when: 'should I mock this', 'four pillars of a good test', 'red green refactor', 'classical vs london school', 'test doubles', 'testing anti-patterns', 'resistance to refactoring', 'code coverage', 'observable behavior', 'humble object', 'integration test', 'test pyramid', 'output vs state vs communication test', 'property-based testing', 'characterization test', 'legacy code'. Not for HOW to run tests in the project (use the project's own test tooling and workflow for that)."
+description: "Test design WHY (Beck, Khorikov): TDD, four pillars, refactoring resistance, Classical vs London, test doubles, observable behavior, Humble Object, test pyramid, integration/property/characterization, output/state/communication tests, coverage, legacy code, anti-patterns. Use when 'should I mock this', 'red green refactor'. Not for running tests."
 argument-hint: "[question or concept]"
 user-invocable: true
 disable-model-invocation: false
@@ -87,6 +87,6 @@ Puts the test-design reasoning into the tests themselves.
 - Expected-value provenance and test-value taxonomy: /testing:test-value.
 - Mutation-testing principles and coverage limits: /mutation-testing:principles.
 
-## Scope boundary
+## What this skill does not do
 
 This skill is **knowledge** (WHY behind testing decisions), not **workflow** (HOW to run tests). For running, filtering, or scaffolding tests, use your project's own test tooling, conventions, and workflow skills. This skill informs the design decisions those workflows execute.

@@ -74,7 +74,6 @@
 # TEST_JUDGE_CMD (the hooks' seam) replaces `claude`.
 set -uo pipefail
 
-# The sweep runs this script as the judge command to read each run's cost.
 if [[ -n "${CAL_JUDGE_INNER:-}" ]]; then
   out="$("$CAL_JUDGE_INNER" "$@")"
   rc=$?
@@ -90,7 +89,6 @@ SKILL=plugins/testing/skills/test-value/SKILL.md
 CALMD=plugins/testing/skills/audit/evals/judge-calibration/calibration.md
 ARMS="sonnet-low sonnet-medium sonnet-high sonnet-xhigh opus-low opus-medium opus-high haiku-low haiku-medium haiku-high"
 
-# FNR == 1 of the labels: col[] by header name, R[1..nr] the rater columns;
 # need() exits 2 naming a missing column.
 # shellcheck disable=SC2016 # an awk program
 AWK_LIB='
@@ -113,28 +111,22 @@ function header(names,   i, k, n) {
 BEGIN { FS = "\t"; Z = 1.959964; split("FLAG PASS UNKNOWN", L, " ") }
 '
 
-# marks <labels>: calibration.md's holdout-only lines, in the labels' repository.
 marks() {
   local top
   top="$(git -C "$(cd "$(dirname "$1")" && pwd -P)" rev-parse --show-toplevel 2>/dev/null)" || return 0
   grep -E '^holdout-only: [0-9a-f]+$' "$top/$CALMD" 2>/dev/null
 }
 
-# holdout <labels>: 1, saying so on stderr, when a prompt change limits
-# scoring to holdout rows.
 holdout() {
   [[ -n "$(marks "$1")" ]] || return 0
   echo "holdout rows only: calibration.md has a holdout-only line" >&2
   echo 1
 }
 
-# section1 <top> <commit>: section 1 of test-value/SKILL.md at <commit>, the
-# span judge::section1 appends to the judge prompt.
 section1() {
   git -C "$1" show "$2:$SKILL" 2>/dev/null | awk '/^## 1\. /{f=1} f&&/^## /&&!/^## 1\. /{exit} f'
 }
 
-# prompt_commits <top>: every commit that changed the judge's system prompt.
 prompt_commits() {
   local c
   git -C "$1" log --format=%H -- "$PROMPT"
@@ -255,12 +247,8 @@ now() {
   printf '%s' "${t/,/.}"
 }
 
-# arm <labels> <dir> <runs file>: one judge pass over every case, one line
-# per row: id, verdict, the ledger's model and effort, reason. Appends each
-# run's cost and wall seconds to <runs file>.
 arm() {
   local labels="$1" dir="$2" runs="$3" fx id t target s n rows names lines info r tid test ord name kh o hit t0
-  # fd 3: the judge and scanner children inherit stdin and may read it.
   while IFS= read -r fx <&3; do
     t="$TMPD/repo"
     rm -rf "${t:?}" "$DATA/verdicts"
@@ -305,7 +293,6 @@ arm() {
   done 3< <(awk -F'\t' 'NR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next } !seen[$c["file"]]++ { print $c["file"] }' "$labels")
 }
 
-# judge_env: the hooks' judge library, pointed at a scratch data directory.
 judge_env() {
   TMPD="$(mktemp -d)" || return 2
   trap 'rm -rf "${TMPD:?}"' EXIT
@@ -315,14 +302,11 @@ judge_env() {
   source "$HOOK_DIR/scanner-run.sh"
   # shellcheck source=../../../../hooks/judge-lib.sh
   source "$HOOK_DIR/judge-lib.sh"
-  # No session limit on calibration runs: every case gets its reservation.
   unset CLAUDE_PLUGIN_OPTION_TEST_JUDGE_SESSION_RUNS
   export CAL_JUDGE_INNER="${TEST_JUDGE_CMD:-claude}" CAL_COST_LOG="$TMPD/cost"
   TEST_JUDGE_CMD="$SELF"
 }
 
-# run_arm <labels> <model> <effort> <name>: sweep/<name>.tsv and .runs.tsv;
-# false when a verdict came from another model or effort.
 run_arm() {
   local labels="$1" m="$2" e="$3" swdir
   swdir="$(cd "$(dirname "$labels")" && pwd -P)/sweep"

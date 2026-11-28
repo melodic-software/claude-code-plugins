@@ -55,6 +55,29 @@ test("traceOnlyFailure takes a run whose one failed job is Test Selection, faile
   assert.equal(traceOnlyFailure({ run: { conclusion: "success" }, jobs: [trace] }), false);
 });
 
+test("traceOnlyFailure takes trace matrix shards that each failed first at the trace step, and no other failed job", () => {
+  const run = { conclusion: "failure" };
+  const shard = (index, steps = [...SETUP, ["Trace the changed suites", "failure"]]) => job(`Test Selection (${index})`, "failure", steps);
+  assert.equal(traceOnlyFailure({ run, jobs: [shard(0), job("Test Selection (1)", "success"), shard(2), job("CI Status", "failure")] }), true);
+  assert.equal(traceOnlyFailure({ run, jobs: [shard(0), shard(1, [["Check out", "success"], ["Install", "failure"]])] }), false, "one shard failed before the trace");
+  assert.equal(traceOnlyFailure({ run, jobs: [shard(0), job("Lint", "failure")] }), false, "another lane failed too");
+  assert.equal(traceOnlyFailure({ run, jobs: [job("Test Selection (x)", "failure", [...SETUP, ["Trace the changed suites", "failure"]])] }), false, "not a shard index");
+});
+
+test("readTrace joins the shard directories a multi-artifact download writes, and refuses a download with none", (t) => {
+  const dir = scratch(t);
+  for (const [name, suite] of [["selection-trace-1-1-0", "a.test.sh"], ["selection-trace-1-1-1", "b.test.sh"]]) {
+    mkdirSync(join(dir, name));
+    writeFileSync(join(dir, name, "gaps.tsv"), `${suite}\tx.sh\tselects no suite\n`);
+    writeFileSync(join(dir, name, "suites.tsv"), `${suite}\t1\t3\t1\n`);
+    writeFileSync(join(dir, name, "verdicts.tsv"), "x.sh\tselects no suite\n");
+  }
+  const joined = readTrace(dir);
+  assert.deepEqual(joined.suites.map(([suite]) => suite), ["a.test.sh", "b.test.sh"]);
+  assert.deepEqual(traceGaps(joined).gaps, [{ suite: "a.test.sh", file: "x.sh" }, { suite: "b.test.sh", file: "x.sh" }]);
+  assert.equal(readTrace(scratch(t)).reason, "test-scope-invalid");
+});
+
 test("readTrace refuses a carriage return, a short row and a symbolic link as test-scope-invalid", (t) => {
   assert.equal(readTrace(traceDir(t, { gaps: "a.test.sh\tx.sh\tselects no suite\r\n", suites: "a.test.sh\t0\t3\t1\n" })).reason, "test-scope-invalid");
   assert.equal(readTrace(traceDir(t, { gaps: "a.test.sh\tx.sh\n", suites: "a.test.sh\t0\t3\t1\n" })).reason, "test-scope-invalid");
@@ -171,9 +194,23 @@ test("planDeclarations declares each read once in the suite, and refuses every g
   assert.equal(plan([{ suite: "t/a.test.sh", file: "x.sh" }], { changed: { "t/a.test.sh": "removed" } }).reason, "test-scope-not-all-gaps");
   assert.equal(plan([{ suite: "t/a.test.sh", file: "x.sh" }], { base: [] }).reason, "test-scope-not-all-gaps", "a read the PR adds is not at the base");
   assert.equal(plan([{ suite: "t/a.test.sh", file: "x.sh" }], { head: { "t/a.test.sh": "# test-scope: x.sh\n", "x.sh": "" } }).reason, "test-scope-not-all-gaps", "already declared");
-  assert.equal(plan([{ suite: ".github/s/a.test.sh", file: "x.sh" }], { changed: { ".github/s/a.test.sh": "modified" } }).reason, "test-scope-not-all-gaps");
   assert.equal(plan([{ suite: "t/a.test.sh", file: "../x.sh" }]).reason, "test-scope-invalid");
   assert.equal(plan([{ suite: "t/a.test.sh", file: "x/*.sh" }]).reason, "test-scope-invalid");
+});
+
+const planIn = (suite, read = "x.sh") => plan([{ suite, file: read }], { changed: { [suite]: "modified" }, base: [read], head: { [suite]: "// A.\nimport x;\n", [read]: "" } });
+
+test("planDeclarations declares in a .github suite outside workflows, and refuses workflows, lane-grants and CODEOWNERS paths", () => {
+  const suite = ".github/scripts/pr-review-main/write-verdict.test.mjs";
+  const [file] = planIn(suite, "plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py").files;
+  assert.equal(file.path, suite);
+  assert.equal(file.after, "// A.\n// test-scope: plugins/source-control/skills/babysit-prs/scripts/babysit_merge_settings.py\nimport x;\n");
+  assert.ok(planIn(".github/actions/collect-base-activity/collect-base-activity.test.mjs").files);
+  for (const refused of [".github/workflows/x.test.mjs", ".github/workflows/x.yml", ".GitHub/Workflows/x.test.mjs", ".github/lane-grants.json", ".github/lane-grants.test.mjs", "t/Lane-Grants.test.mjs", ".github/CODEOWNERS", "CODEOWNERS"]) {
+    const { reason, why } = planIn(refused);
+    assert.equal(reason, "test-scope-not-all-gaps", refused);
+    assert.match(why, /is not a suite the lane may declare in$/, refused);
+  }
 });
 
 test("build writes a patch that applies to the head and that apply-patch's content rule admits, CRLF kept", async (t) => {
@@ -231,11 +268,18 @@ function locateApi({ pull = {}, commits = [{ commit: { message: "feat: x" } }], 
       return { workflow_runs: runs };
     }
     if (path.startsWith("/repos/o/r/actions/runs/9/jobs")) {
-      return { jobs };
+      const page = Number(new URL(path, "https://api.example").searchParams.get("page"));
+      return { jobs: jobs.slice((page - 1) * 100, page * 100) };
     }
     throw new Error(`unexpected ${method} ${path}`);
   };
 }
+
+test("locate reads a run's jobs past three pages, as a wide test-selection matrix lists them", async (t) => {
+  const shards = Array.from({ length: 349 }, (_, index) => job(`Test Selection (${index})`, "success"));
+  const jobs = [...shards, job("Test Selection (349)", "failure", [...SETUP, ["Trace the changed suites", "failure"]])];
+  assert.equal(await locateWith(t, locateApi({ jobs })), "run-id=9\nrun-attempt=2\n");
+});
 
 async function locateWith(t, api, scope = { apply: true }) {
   const out = join(scratch(t), "output");

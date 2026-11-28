@@ -1,5 +1,5 @@
 ---
-description: "Transcript, links and repository-applicability recommendations from one public YouTube or X (Twitter) video. Use when the user gives a youtube.com, youtu.be, x.com or twitter.com video URL or asks to watch or digest a video or talk, to fetch only its transcript, to queue videos for later, or to resume a digest. Auth-walled courses go to /knowledge:course-digest."
+description: "Transcript, links, and repository recommendations from one public YouTube or X/Twitter video. Use when: 'digest this video', 'fetch only its transcript', 'queue videos for later', given a youtube.com/youtu.be/x.com/twitter.com URL, or resuming a talk digest. Not for auth-walled courses: /knowledge:course-digest."
 argument-hint: "<watch [<url>|<n>]|<url>|queue <url>...|queue list|transcript <url>|resume <slug>>"
 user-invocable: true
 disable-model-invocation: false
@@ -12,7 +12,7 @@ allowed-tools: ["Bash(node ${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/
 ## Pre-computed context
 
 ```!
-node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --asr-python "${user_config.asr_python}"
+node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --asr-python '${user_config.asr_python}'
 ```
 
 If the report above did not run or shows no readiness lines, run that command by hand before any
@@ -284,7 +284,7 @@ The skill needs **Git Bash on Windows** (its frontmatter sets `shell: bash`) and
 [Node `import.meta.dirname`](https://github.com/nodejs/node/blob/main/doc/api/esm.md#importmetadirname).
 
 Verify before starting (stop and route to the fix path on failure). The readiness report is
-`node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --asr-python "${user_config.asr_python}"`;
+`node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/preflight.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}" --asr-python '${user_config.asr_python}'`;
 run it by hand when the pre-computed context did not run. It also prints where the dependencies
 install. `--data-dir` is the relocation override: pass another directory to both `setup-deps.mjs`
 and `run.mjs` when the default is not writable.
@@ -295,10 +295,11 @@ report of every tool the plugin declares; name it beside the preflight when a pr
 1. **video-extraction deps**. `node "${CLAUDE_PLUGIN_ROOT}/skills/video-digest/extraction/setup-deps.mjs" --data-dir "${CLAUDE_PLUGIN_DATA}"`.
    Installs the pipeline's node dependencies into `${CLAUDE_PLUGIN_DATA}` (persists across plugin
    updates); idempotent. Safe to re-run, and re-run after a plugin update.
-2. **yt-dlp**, required for all actions. Floor **2026.6**. Install: `winget install yt-dlp.yt-dlp`
-   (Windows), `brew install yt-dlp` (macOS), `pip install -U "yt-dlp[default,curl-cffi]"` or
-   distro package (Linux). X acquisition in particular tracks yt-dlp closely. See
-   `reference/sources/x.md`.
+2. **yt-dlp**, required for all actions. Floor **2026.6**. Install through the platform's package
+   manager or pip with the extras below; for each route's current command, read the yt-dlp wiki's
+   [Third-party package managers](https://github.com/yt-dlp/yt-dlp/wiki/Installation#third-party-package-managers)
+   and [With pip](https://github.com/yt-dlp/yt-dlp/wiki/Installation#with-pip). X acquisition in
+   particular tracks yt-dlp closely. See `reference/sources/x.md`.
 3. **ffmpeg**, required for `watch` only (scene-detect frame extraction). Floor 7.1+.
 4. **ImageMagick 7**, required for `watch` only (contact sheets). `magick -version`
 
@@ -312,8 +313,8 @@ manager, or one of the fallbacks below.
 - **Distro package below the floor** (ffmpeg and ImageMagick on long-term-support distros often
   are): use the project's own prebuilt release from its download page, or conda-forge through
   micromamba, which installs into a user directory without root. Prefer a release build to a
-  nightly: a nightly ffmpeg prints a git revision instead of a version, so no floor check can read
-  it.
+  nightly, since the floor check reads only a release version number (builds:
+  [ffmpeg download](https://ffmpeg.org/download.html#get-packages)).
 - **yt-dlp from pip**: install the `default` and `curl-cffi` extras, not bare `yt-dlp`; a run
   without them met the bot check where one with them did not. The skill already passes a
   JavaScript runtime (`--js-runtimes node`). What each extra provides and which runtime YouTube
@@ -322,8 +323,9 @@ manager, or one of the fallbacks below.
 - A tool installed outside the system path must be on `PATH` for the shell that runs `run.mjs`.
 
 **Use the newest safe release.** The floors are minimums, not targets. Before a run, compare each
-tool with its latest stable release and upgrade when a newer one exists, yt-dlp above all, because
-YouTube changes break older releases quickly. Upgrade only when both hold: the release comes from
+tool with its latest stable release and upgrade when a newer one exists, yt-dlp above all (each
+install route's update step: its README's [Update](https://github.com/yt-dlp/yt-dlp#update)).
+Upgrade only when both hold: the release comes from
 the project's own channel or a well-known distribution (PyPI, conda-forge, the OS package manager,
 the project's releases page) over verified TLS, checked against a published checksum where one
 exists; and its release notes and security advisories (the project's GitHub Security Advisories,

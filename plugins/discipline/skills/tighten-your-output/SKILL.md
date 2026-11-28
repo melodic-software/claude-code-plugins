@@ -1,5 +1,5 @@
 ---
-description: "Re-anchors terseness discipline (markdown in fewer words without semantic loss, code in fewer lines when readability holds), then audits the work in flight for avoidable verbosity and tightens it. Use when: 'tighten your output', 'tighten this', 'too verbose', 'say it in fewer words', 'this is bloated', 'trim the code', 'simpler form', 'cut the wordiness', 'be more concise', or at conversation start on prose- or code-heavy work."
+description: "Re-anchor terseness discipline (tighten markdown in fewer words without semantic loss, cut wordiness, simpler code form in fewer lines if readability holds), audit work in flight for avoidable verbosity/bloat, tighten this output. Use when 'tighten your output', 'too verbose', 'trim the code', say fewer words, bloated, conversation start."
 user-invocable: true
 disable-model-invocation: false
 metadata:

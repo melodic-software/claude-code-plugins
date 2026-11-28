@@ -1,5 +1,5 @@
 ---
-description: "Ground an approach in how a Dometrain course teaches it, via the Dometrain MCP server, and cite lessons with timestamped deep links. Use when: 'implementing', 'designing', 'reviewing', or 'debugging' anything covered by a Dometrain course: C#/.NET, ASP.NET Core, EF Core, testing, design patterns, architecture, messaging, databases, cloud/DevOps, TypeScript, or AI development. Plain how-to or design questions on these topics qualify without naming Dometrain."
+description: "Ground an approach in Dometrain courses via Dometrain MCP with timestamped deep links (C#/.NET, ASP.NET Core, EF Core, testing, patterns, architecture, messaging, databases, cloud/DevOps, TypeScript, AI). Use when 'implementing', 'designing', or 'debugging'/reviewing these topics, even without naming Dometrain. Not for setup: /dometrain:setup."
 argument-hint: "[grounding query]"
 user-invocable: true
 disable-model-invocation: false
@@ -9,6 +9,8 @@ metadata:
   workflow-stage: research
   summary: Ground an approach in how a Dometrain course teaches it, with lesson links
 ---
+
+<!-- portability-scope: ecosystem=dometrain - R3 declared-ecosystem surface (Dometrain course catalog) -->
 
 ## Purpose
 

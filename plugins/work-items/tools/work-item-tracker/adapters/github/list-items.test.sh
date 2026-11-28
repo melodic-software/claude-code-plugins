@@ -2,16 +2,14 @@
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/* plugins/work-items/tools/work-item-tracker/lib/* docs/conventions/work-items.yaml
 set -uo pipefail
+unset RUNNER_TEMP GITHUB_ACTIONS
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-items.sh"
+FIXTURES="$(dirname "$S")/fixtures"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
 assert_usage_error "$S" --state bogus
 
-# --- the envelope reports truncation at the declared ceiling ---
-# Runs a fixture copy of the adapter whose manifest declares a ceiling of 2, so a
-# three-row listing is past it. The stub logs gh's argv: the adapter must ask for
-# one row past the ceiling, or it cannot tell "exactly 2" from "more than 2".
 if command -v jq >/dev/null 2>&1; then
   FIX="$(mktemp -d)"
   trap 'rm -rf "$FIX"' EXIT
@@ -43,23 +41,18 @@ EOF
     "$(jq -r '[.items[].created_at] | join(",")' <<<"$OUT")"
   assert_contains "createdAt is requested" "$(cat "$FIX/argv")" "url,createdAt"
 
-  # gh returns a milestone as an object or null; a row carries the title, the name a
-  # cordoned-milestones list holds.
   OUT="$(PATH="$FIX/bin:$PATH" GH_STUB_ARGV="$FIX/argv" GH_STUB_LIST="$(jq -cn --argjson a "$(row 1)" --argjson b "$(row 2)" \
     '[$a + {milestone: {number: 1, title: "After zero", description: "d", dueOn: null}}, $b + {milestone: null}]')" \
     bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
   assert_eq "each row carries its milestone title, or null" '["After zero",null]' "$(jq -c '[.items[].milestone]' <<<"$OUT")"
   assert_contains "milestone is requested" "$(cat "$FIX/argv")" "createdAt,milestone"
 
-  # --label goes to gh, so GitHub filters before the ceiling counts.
   : >"$FIX/argv"
   PATH="$FIX/bin:$PATH" GH_STUB_ARGV="$FIX/argv" GH_STUB_LIST="[$(row 1)]" \
     bash "$FIX/adapters/github/list-items.sh" --repo o/r --label "area: ci" >/dev/null
   assert_contains "--label reaches gh issue list" "$(cat "$FIX/argv")" "--label area: ci --limit 3"
   assert_usage_error "$S" --label
 
-  # A labeled read goes through GitHub search, which returns at most 1000 results, so
-  # 1000 labeled rows cannot prove the listing complete; 1000 unlabeled rows can.
   jq '.limits.list_items_max = 1000' "$(dirname "$S")/capabilities.json" >"$FIX/adapters/github/capabilities.json"
   jq -cn '[range(1; 1001) | {number: ., title: "t", state: "OPEN", assignees: [], labels: [],
     issueType: null, blockedBy: {nodes: []}, url: "https://github.com/o/r/issues/\(.)"}]' >"$FIX/thousand.json"
@@ -70,9 +63,6 @@ EOF
     bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
   assert_eq "1000 unlabeled rows at a 1000 ceiling → truncated:false" "false" "$(jq -c '.truncated' <<<"$OUT")"
 
-  # --- a session that refuses GraphQL (CLAUDE_CODE_REMOTE=true) reads REST ---
-  # The stub serves page N of the issues endpoint from page-N.json and an item's
-  # blockers from deps-<n>.json, and logs every call.
   REST="$FIX/rest"
   mkdir -p "$REST/bin"
   cat >"$REST/bin/gh" <<'EOF'
@@ -95,13 +85,13 @@ EOF
     CLAUDE_CODE_REMOTE=true WORK_ITEM_TRACKER_BINDING="$REST/binding.json" PATH="$REST/bin:$PATH" \
       GH_STUB_ARGV="$REST/argv" GH_STUB_REST="$REST" bash "$FIX/adapters/github/list-items.sh" --repo o/r "$@"
   }
-  issue() { # <number> <total_blocked_by>
+  issue() {
     jq -cn --argjson n "$1" --argjson b "$2" '{number: $n, title: "t\($n)", state: "open",
       assignees: [{login: "a"}], labels: [{name: "l"}], type: {name: "Bug"},
       html_url: "https://github.com/o/r/issues/\($n)", created_at: "2026-03-01T10:00:00Z",
       issue_dependencies_summary: {blocked_by: 0, total_blocked_by: $b}}'
   }
-  blocker() { # <state> <state_reason or null> [<label>]
+  blocker() {
     jq -cn --arg s "$1" --argjson r "$2" --arg l "${3:-}" \
       '{state: $s, state_reason: $r, labels: (if $l == "" then [] else [{name: $l}] end)}'
   }
@@ -129,7 +119,6 @@ EOF
     "$(jq -c '.items[0] | {state, assignees, labels, type, url, created_at}' <<<"$OUT")"
   assert_eq "REST session: under the ceiling → truncated:false" "false" "$(jq -c '.truncated' <<<"$OUT")"
 
-  # The label is a REST query parameter, so the 1000-result search cap does not apply.
   rest_list --label "area: ci" >/dev/null
   assert_contains "REST session: --label reaches the issues endpoint" "$(cat "$REST/argv")" "labels=area: ci"
 
@@ -138,8 +127,6 @@ EOF
   assert_eq "REST session: each row carries its milestone title, or null" '["After zero",null]' \
     "$(jq -c '[.items[].milestone]' <<<"$(rest_list)")"
 
-  # A full page fetches the next; one row past the ceiling marks the listing truncated.
-  # Each row carries a 2 KB body, so a page is past Linux's 128 KiB limit on one argument.
   jq '.limits.list_items_max = 150' "$(dirname "$S")/capabilities.json" >"$FIX/adapters/github/capabilities.json"
   jq -cn '[range(1; 101) | {number: ., title: "t", state: "open", assignees: [], labels: [], body: ("x" * 2048),
     html_url: "u", created_at: "2026-03-01T10:00:00Z", issue_dependencies_summary: {total_blocked_by: 0}}]' >"$REST/page-1.json"
@@ -149,6 +136,78 @@ EOF
   assert_contains "REST session: a full page fetches page 2" "$(cat "$REST/argv")" "-f page=2"
   assert_eq "REST session: past the ceiling → truncated:true" "true" "$(jq -c '.truncated' <<<"$OUT")"
   assert_eq "REST session: past the ceiling keeps the ceiling's worth" "150" "$(jq '.items | length' <<<"$OUT")"
+
+  cp "$FIXTURES/gh-issue-native-status-rest.json" "$REST/page-1.json"
+  OUT="$(rest_list)"
+  assert_eq "REST session: surfaces native_status Backlog, In review, and null for pre-preview issues" \
+    '["Backlog","In review",null]' "$(jq -c '[.items[].native_status]' <<<"$OUT")"
+
+  DUAL="$FIX/dual"
+  mkdir -p "$DUAL/bin"
+  cat >"$DUAL/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$GH_STUB_ARGV"
+if [[ "$1 $2" == "issue list" ]]; then
+  jq -c '[.[] | {number, title, state: (.state | ascii_upcase), assignees, labels, issueType: .type, blockedBy: {nodes: []}, url: .html_url, createdAt: .created_at, milestone}]' "$GH_STUB_FIXTURE"
+elif [[ "$1" == "api" && "$*" == *"repos/o/r/issues"* ]]; then
+  if [[ -n "${GH_STUB_REST_DIR:-}" ]]; then
+    page=1
+    for a in "$@"; do
+      case "$a" in page=*) page="${a#page=}" ;; *) : ;; esac
+    done
+    cat "$GH_STUB_REST_DIR/page-$page.json"
+  else
+    cat "$GH_STUB_REST_FILE"
+  fi
+else
+  exit 90
+fi
+EOF
+  chmod +x "$DUAL/bin/gh"
+  : >"$DUAL/argv"
+  OUT="$(PATH="$DUAL/bin:$PATH" GH_STUB_ARGV="$DUAL/argv" GH_STUB_FIXTURE="$FIXTURES/gh-issue-native-status-rest.json" \
+    GH_STUB_REST_FILE="$FIXTURES/gh-issue-native-status-rest.json" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
+  assert_eq "gh issue list path: surfaces native_status via REST enrichment" \
+    '["Backlog","In review",null]' "$(jq -c '[.items[].native_status]' <<<"$OUT")"
+
+  jq 'map(del(.status))' "$FIXTURES/gh-issue-native-status-rest.json" >"$DUAL/unenrolled.json"
+  OUT="$(PATH="$DUAL/bin:$PATH" GH_STUB_ARGV="$DUAL/argv" GH_STUB_FIXTURE="$FIXTURES/gh-issue-native-status-rest.json" \
+    GH_STUB_REST_FILE="$DUAL/unenrolled.json" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
+  assert_eq "gh issue list path: un-enrolled repo degrades cleanly to native_status null" \
+    '[null,null,null]' "$(jq -c '[.items[].native_status]' <<<"$OUT")"
+
+  mkdir -p "$DUAL/pr-only"
+  jq -cn '[range(1; 101) | {number: (5000 + .), pull_request: {url: "u"}}]' >"$DUAL/pr-only/page-1.json"
+  cp "$FIXTURES/gh-issue-native-status-rest.json" "$DUAL/pr-only/page-2.json"
+  : >"$DUAL/argv"
+  OUT="$(PATH="$DUAL/bin:$PATH" GH_STUB_ARGV="$DUAL/argv" GH_STUB_FIXTURE="$FIXTURES/gh-issue-native-status-rest.json" \
+    GH_STUB_REST_DIR="$DUAL/pr-only" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
+  assert_eq "gh issue list path: PR-only page 1 advances to page 2 and annotates native_status" \
+    '["Backlog","In review",null]' "$(jq -c '[.items[].native_status]' <<<"$OUT")"
+  assert_contains "gh issue list path: PR-only page 1 fetches page 2" "$(cat "$DUAL/argv")" "page=2"
+
+  mkdir -p "$DUAL/pr-heavy"
+  jq -cn '[range(1; 99) | {number: (6000 + .), pull_request: {url: "u"}}] + [
+    {number: 19449, title: "a", state: "open", status: {id: 2, name: "Backlog", category: "backlog"}},
+    {number: 19535, title: "b", state: "open", status: {id: 8, name: "In review", category: "started"}}
+  ]' >"$DUAL/pr-heavy/page-1.json"
+  jq -cn '[range(1; 100) | {number: (7000 + .), pull_request: {url: "u"}}] + [
+    {number: 136, title: "c", state: "open", status: {id: 3, name: "Todo", category: "planned"}}
+  ]' >"$DUAL/pr-heavy/page-2.json"
+  jq -cn '[{number: 99999, title: "should-not-fetch", state: "open", status: {id: 3, name: "Todo", category: "planned"}}]' \
+    >"$DUAL/pr-heavy/page-3.json"
+  jq '.limits.list_items_max = 3' "$(dirname "$S")/capabilities.json" >"$FIX/adapters/github/capabilities.json"
+  : >"$DUAL/argv"
+  OUT="$(PATH="$DUAL/bin:$PATH" GH_STUB_ARGV="$DUAL/argv" GH_STUB_FIXTURE="$FIXTURES/gh-issue-native-status-rest.json" \
+    GH_STUB_REST_DIR="$DUAL/pr-heavy" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
+  assert_eq "gh issue list path: PR-heavy page 1 does not overcount PRs against limit and annotates page 2" \
+    '["Backlog","In review","Todo"]' "$(jq -c '[.items[].native_status]' <<<"$OUT")"
+  assert_eq "gh issue list path: stops once all requested issue numbers are covered (does not fetch page 3)" \
+    "0" "$(grep -c 'page=3' "$DUAL/argv" || true)"
 fi
 
 [[ $FAILED -eq 0 ]] || exit 1

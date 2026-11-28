@@ -1,13 +1,11 @@
-// Runs the action's skill-staging `run:` script against a throwaway base
-// checkout and reads the outputs it appends to GITHUB_OUTPUT. Expected values
-// come from the contract (pr-run-activity.md, "Skill activities" and
-// "prepare: merge-base"): a writing skill gets the signed-commit tool and the
-// instruction to commit; a merge-base skill runs on run-claude-cli alone.
+// test-scope: lib/org-standards.sh
 // test-scope: .github/actions/resolve-config/package.json .github/scripts/apply-patch/* plugins/skill-quality/*
 // test-scope: .github/scripts/*.mjs docs/conventions/pr-pipeline.yaml .github/workflows/pr-run-activity-write.yml
 // test-scope: .github/actions/resolve-config/* .github/scripts/intake-triage/* .github/scripts/pr-unblock/*
 // test-scope: .github/scripts/pr-verify/* .github/scripts/work-resolve-issue/package.json docs/upstream/*
 // test-scope: .github/actions/check-born-triaged/check-born-triaged.mjs .github/actions/check-wip-cap/check-wip-cap.mjs
+// test-scope: plugins/work-items/skills/triage/schemas/ci-verdict.schema.json
+// test-scope: plugins/work-items/skills/triage/scripts/check-ci-verdict.mjs
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
@@ -22,6 +20,7 @@ import { LIMITS, UNPLAIN_PATTERN, VERDICT_KEYS } from "../../scripts/pr-unblock/
 import { VERDICTS } from "../../scripts/pr-unblock/review-dependency.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { loads, stage as stageClosure } from "./stage-closure.mjs";
+import { STANDARDS_FIXTURE } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
@@ -33,16 +32,10 @@ const ACTION = new URL("./action.yml", import.meta.url);
 const REPO_ROOT = path.join(import.meta.dirname, "../../..");
 const COMMIT_TOOL = "mcp__github_file_ops__commit_files";
 const COMMIT_SENTENCE = "commit every repository file you changed";
-// commit_files takes each file's mode from disk, so a skill that commits
-// through it marks new scripts executable first.
 const CHMOD_RULE = "Bash(chmod +x *)";
 const CHMOD_SENTENCE =
   "run chmod +x on every new or changed file that starts with #! or ends in .sh, because the commit takes each file's mode from disk, then commit";
 
-// Every write lane denies the shell commands that can print a file or the
-// environment, read-only ones that need no allow rule
-// (https://code.claude.com/docs/en/permissions#read-only-commands) among
-// them, and Read of process files and of the checkout's git directory.
 const WORKSPACE = "/home/runner/work/repo/repo";
 const SHELL_DENIED = [
   "Bash(echo *)",
@@ -155,8 +148,6 @@ function stage(overrides) {
   const result = spawnSync("bash", ["-e", "-c", skillScript()], { env, encoding: "utf8" });
   const text = readFileSync(output, "utf8");
   const args = /^claude-args=(.*)$/m.exec(text)?.[1] ?? "";
-  // The --allowedTools list itself, split at the top-level commas.
-  // claude-code-action reads a `\"` inside the quoted list as a literal quote.
   const allowed = (/--allowedTools "((?:[^"\\]|\\.)*)"/.exec(args)?.[1] ?? "").replaceAll('\\"', '"').split(/,(?![^(]*\))/);
   const denied = ((/--disallowedTools "((?:\\.|[^"\\])*)"/.exec(args)?.[1] ?? "").replaceAll('\\"', '"')).split(",").filter(Boolean);
   const prompt = /^prompt<<(\S+)\n([\s\S]*?)\n\1$/m.exec(text)?.[2] ?? "";
@@ -178,19 +169,17 @@ function runnerScripts() {
 test("every module and file a runner's script activity loads resolves in the staged base-script layout", () => {
   const scripts = runnerScripts();
   assert.ok(scripts.includes(".github/scripts/pr-unblock/report-escalation.sh"), scripts.join(" | "));
-  const copy = skillScript(/^\s+- name: Copy the script's base directory$/);
-  const runs = ["read", "write"].map((kind) => {
-    const workflow = readFileSync(path.join(REPO_ROOT, `.github/workflows/pr-run-activity-${kind}.yml`), "utf8");
-    return /^\s+("\$RUNNER_TEMP\/base-script\/[^\n]*")$/m.exec(workflow)?.[1];
-  });
-  assert.ok(runs[0] && runs[0] === runs[1], `both runners run the script by one path: ${runs.join(" | ")}`);
+  const copy = skillScript(/^\s+id: script$/);
   const missing = {};
   for (const script of scripts) {
     const runTemp = mkdtempSync(path.join(root, "script-"));
-    const env = { PATH: process.env.PATH, SCRIPT: script, SCRIPT_DIR: path.join(runTemp, "base-script"), BASE_PATH: REPO_ROOT, RUNNER_TEMP: runTemp, GITHUB_ACTION_PATH: import.meta.dirname };
+    const output = path.join(runTemp, "github-output");
+    writeFileSync(output, "");
+    const env = { PATH: process.env.PATH, SCRIPT: script, SCRIPT_DIR: path.join(runTemp, "base-script"), BASE_PATH: REPO_ROOT, RUNNER_TEMP: runTemp, GITHUB_ACTION_PATH: import.meta.dirname, GITHUB_OUTPUT: output };
     const result = spawnSync("bash", ["-e", "-c", copy], { env, encoding: "utf8" });
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    const entry = spawnSync("bash", ["-c", `printf %s ${runs[0]}`], { env, encoding: "utf8" }).stdout;
+    const entry = /^script-path=(.+)$/m.exec(readFileSync(output, "utf8"))?.[1];
+    assert.ok(entry, `the copy step names ${script}'s staged path`);
     const seen = new Set();
     const walk = (file) => {
       if (seen.has(file)) return;
@@ -201,6 +190,22 @@ test("every module and file a runner's script activity loads resolves in the sta
     walk(entry);
   }
   assert.deepEqual(missing, {});
+});
+
+test("both runners run the script at the path the action's own output names, never a layout of their own", () => {
+  const action = readFileSync(ACTION, "utf8");
+  assert.match(action, /^ {2}script-path:\n(?: {4}.*\n)*? {4}value: \$\{\{ steps\.script\.outputs\.script-path \}\}$/m);
+  const { parse } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("yaml");
+  for (const kind of ["read", "write"]) {
+    const workflow = readFileSync(path.join(REPO_ROOT, `.github/workflows/pr-run-activity-${kind}.yml`), "utf8");
+    const steps = Object.values(parse(workflow).jobs).flatMap((job) => job.steps ?? []);
+    const stage = steps.find((step) => step.id === "stage");
+    assert.match(stage?.uses ?? "", /\/\.github\/actions\/collect-base-activity$/, kind);
+    const act = steps.find((step) => step.id === "act-script");
+    assert.equal(act?.env?.STAGED_SCRIPT, "${{ steps.stage.outputs.script-path }}", kind);
+    assert.match(act.run, /^"\$STAGED_SCRIPT"$/m, kind);
+    assert.doesNotMatch(act.run, /base-script/, `${kind} names no staging layout`);
+  }
 });
 
 test("a data file a module loads from outside its directory is staged alone, and every file beside the module", () => {
@@ -306,11 +311,9 @@ test("a staged declare-test-scope reads the base config through resolve-config's
   const script = ".github/scripts/pr-unblock/declare-test-scope.mjs";
   stageClosure(REPO_ROOT, script, dest);
   const { testScopeFromBase } = await import(pathToFileURL(path.join(dest, script)).href);
-  assert.equal(typeof (await testScopeFromBase(REPO_ROOT)).apply, "boolean");
+  assert.equal(typeof (await testScopeFromBase(REPO_ROOT, STANDARDS_FIXTURE)).apply, "boolean");
 });
 
-// #8595: the lanes run the latest CLI, so the comment above shell_denied
-// records the last swept version and points at the release procedure.
 test("the shell deny set names its last swept CLI version and a procedure heading that exists", () => {
   const action = readFileSync(ACTION, "utf8");
   const comment = /((?:^ *#.*\n)+) *shell_denied=\(/m.exec(action)?.[1] ?? "";
@@ -412,8 +415,6 @@ test("a listed check gets a no-argument wrapper that runs the base copy against 
   );
 });
 
-// #8310: self-checks are the skill's own advisory checks; the skill runs
-// them through the same wrapper as checks, and the runner does not rerun them.
 test("a self-check gets the same no-argument wrapper as a check", () => {
   const { status, allowed, args, workspace, checksDir } = withChecks(undefined, {}, {
     "self-checks": ["scripts/check-x.sh --check"],
@@ -430,9 +431,6 @@ test("a self-check gets the same no-argument wrapper as a check", () => {
   );
 });
 
-// #9096: apply-issue-patch makes each new or changed script executable (the
-// issue row's script-exec-bit), so only an issue lane's patch run tells the
-// checks to judge the tree with that bit set; a run that commits sets it itself.
 const SCRIPT_EXEC_BIT = "export CHECK_AFFECTED_SCRIPT_EXEC_BIT=1";
 test("only an issue lane's patch run gets a wrapper that sets the script exec bit", () => {
   const issuePatch = withChecks(["scripts/check-x.sh --check"], { EFFECT: "read", CAN_COMMIT: "false", ISSUE_NUMBER: "7" }, { "applied-by": { patch: "apply-issue-patch" } });
@@ -465,9 +463,6 @@ test("checks and self-checks each get a wrapper, and a script in both fails red"
   }
 });
 
-// #8310: check-affected.sh passes shellcheck and markdownlint the configs beside
-// its copy, and run-ruff.sh reads its pin from .github/requirements-ci.txt there;
-// without them the lane's shellcheck reports what CI's does not and ruff skips.
 test("a listed check's copy carries the base's shellcheck, markdownlint and ruff-pin files", () => {
   mkdirSync(path.join(base, ".github"), { recursive: true });
   writeFileSync(path.join(base, ".shellcheckrc"), "external-sources=true\n");
@@ -486,6 +481,25 @@ test("a listed check's copy carries the base's shellcheck, markdownlint and ruff
     rmSync(path.join(base, ".shellcheckrc"));
     rmSync(path.join(base, ".markdownlint-cli2.jsonc"));
     rmSync(path.join(base, ".github", "requirements-ci.txt"));
+  }
+});
+
+test("a listed check's copy takes the standards org layer's lint configs the base does not keep", () => {
+  const org = mkdtempSync(path.join(root, "org-"));
+  writeFileSync(path.join(org, ".shellcheckrc"), "enable=require-double-brackets\n");
+  writeFileSync(path.join(org, ".markdownlint-cli2.jsonc"), '{ "config": { "MD041": false } }\n');
+  mkdirSync(path.join(base, "lib"), { recursive: true });
+  cpSync(path.join(REPO_ROOT, "lib", "org-standards.sh"), path.join(base, "lib", "org-standards.sh"));
+  try {
+    const { status, checksDir } = withChecks(["scripts/check-x.sh --check"], { STANDARDS_DIR: org });
+    assert.equal(status, 0);
+    assert.equal(readFileSync(path.join(checksDir, ".shellcheckrc"), "utf8"), "enable=require-double-brackets\n");
+    assert.equal(
+      readFileSync(path.join(checksDir, ".markdownlint-cli2.jsonc"), "utf8"),
+      '{ "config": { "MD041": false } }\n',
+    );
+  } finally {
+    rmSync(path.join(base, "lib"), { recursive: true, force: true });
   }
 });
 
@@ -527,8 +541,6 @@ test("a listed check's copy carries the base's code-tidying comment-lint files",
   }
 });
 
-// A skill that commits runs its checks, fixes and re-runs them before it
-// commits, since the checks read the working tree (#8319 review).
 test("a committing skill with checks is told to commit after the checks and their fixes", () => {
   const { status, args, allowed } = withChecks(["scripts/check-x.sh --check"]);
   assert.equal(status, 0);
@@ -537,9 +549,6 @@ test("a committing skill with checks is told to commit after the checks and thei
   assert.match(systemPrompt, /Run the checks before you commit: run them, fix, run them again, then commit/);
 });
 
-// #8319 review: a check's wrapper gets the verify-script wrapper's
-// environment, so the check and what it runs never hold the GitHub token or
-// load system, global, hook or fsmonitor git config.
 test("a listed check's wrapper drops the GitHub token and pins git config", () => {
   const script =
     '#!/usr/bin/env bash\necho "gh=${GH_TOKEN-unset} github=${GITHUB_TOKEN-unset} global=$GIT_CONFIG_GLOBAL system=$GIT_CONFIG_NOSYSTEM hooks=$(git config core.hooksPath) fsmonitor=$(git config core.fsmonitor)"\n';
@@ -619,10 +628,6 @@ test("a listed verify-script gets one wrapper rule on a read-only copy that runs
   );
 });
 
-// A chained `; echo "$?"` needs approval the dontAsk lane cannot give, so the
-// wrapper reports the script's exit status itself and the prompt says so. The
-// same sentence steers the run off the compound commands, pipes and
-// interpreter one-liners the lane denied in runs 39092789214 and 39092790956.
 const RUN_ALONE =
   "Bash runs only the wrappers named in these instructions, each as its own command (a verification wrapper prints the script's exit status): use Read, Grep and Glob to inspect files and Edit or Write to change them, never cd, ;, &&, a pipe or an interpreter one-liner.";
 test("the verify-script wrapper prints the script's exit status and exits with it", () => {
@@ -636,10 +641,6 @@ test("the verify-script wrapper prints the script's exit status and exits with i
   assert.equal(run.stderr, "exit status: 3\n");
 });
 
-// check-skill.sh runs each skill's scripts/*.test.sh, and the runner's
-// /home/runner/.claude is read-only (#8027), so its wrapper alone gives the
-// script a fresh, writable HOME and CLAUDE_CONFIG_DIR; another verify-script
-// keeps the caller's HOME.
 test("only the check-skill.sh wrapper runs with a fresh, writable HOME and CLAUDE_CONFIG_DIR", () => {
   const skillQuality = path.join(base, "plugins", "skill-quality", "scripts");
   mkdirSync(skillQuality, { recursive: true });
@@ -684,8 +685,6 @@ test("the verify-script wrapper refuses a path outside the checkout", () => {
   }
 });
 
-// The wrapper unsets the GitHub token in the script's own environment. This
-// does not hide it from an ancestor's /proc/<pid>/environ.
 test("the verify-script wrapper runs the script without GH_TOKEN or GITHUB_TOKEN and keeps the rest of the environment", () => {
   mkdirSync(path.join(base, "plugins", "vtest", "scripts"), { recursive: true });
   writeFileSync(
@@ -722,7 +721,6 @@ function withLaneTools() {
   writeFileSync(path.join(dir, "outside.test.sh"), "echo outside\n");
   spawnSync("ln", ["-s", path.join(dir, "outside.test.sh"), path.join(workspace, "tests", "link.test.sh")]);
   spawnSync("ln", ["-s", dir, path.join(workspace, "out")]);
-  // Without NODE_TEST_CONTEXT, which turns a nested node --test's report off.
   const { NODE_TEST_CONTEXT, ...parentEnv } = process.env;
   const run = (name, args, env = {}) =>
     spawnSync(path.join(staged.verifyDir, "bin", name), args, {
@@ -744,9 +742,6 @@ test("the lane tools get wrapper rules, and the commit grant gains delete_files"
   assert.ok(!allowed.some((rule) => /^Bash\((python3|bash|node|git)[ )]/.test(rule)), allowed.join(" | "));
 });
 
-// The issue lane lists skill-quality's two checks (#7840). check-skill.sh runs
-// each skill's scripts/*.test.sh from the checkout, so a fixture skill whose
-// test prints the tokens and fails shows what that test saw.
 const SKILL_TOOLS = ["plugins/skill-quality/scripts/check-skill.sh", "plugins/skill-quality/scripts/check-evals-quality.sh"];
 test("skill-quality's checks get wrapper rules, and check-skill runs a skill's test scripts without the GitHub token", () => {
   spawnSync("cp", ["-R", new URL("plugins/skill-quality", REPO).pathname, path.join(base, "plugins")]);
@@ -956,8 +951,6 @@ test("git-mv-rm refuses an absolute path, a .. segment, a path through a link ou
   assert.throws(() => statSync(path.join(dir, "taken.txt")));
 });
 
-// git reads a path argument as a pathspec, so a glob or a `:(...)` magic
-// prefix would reach files the path check never saw.
 test("git-mv-rm treats every path literally: a glob removes nothing else and magic is refused", () => {
   const { status, run, git, workspace } = withLaneTools();
   assert.equal(status, 0);
@@ -1205,10 +1198,6 @@ test("an unknown prepare mode fails red before any output", () => {
   assert.equal(args, "");
 });
 
-// pr-run-activity.md, "Skill activities": a write skill gets no web tools
-// unless its activity sets web-access. Rule forms from
-// code.claude.com/docs/en/permissions#webfetch: `WebFetch(domain:*)` matches
-// every domain and also opens the sandbox to it; `domain:<host>` one host.
 function withWebAccess(webAccess, overrides = {}) {
   const dir = mkdtempSync(path.join(root, "web-"));
   const file = path.join(dir, "resolved.json");
@@ -1259,7 +1248,6 @@ function readDocsRules(env) {
 test("web-access with any domain allows the read-docs scripts and points their files at the scratch directory", () => {
   const { status, allowed, denied, args, jobEnv, env } = withWebAccess({ enabled: true, domains: "any" });
   assert.equal(status, 0);
-  // Both the bare and the double-quoted path, since a rule matches the path as written.
   assert.deepEqual(wrapperRules(allowed), readDocsRules(env));
   assert.deepEqual(ownDenied(denied, env), [`Edit(/${env.DOCS_DIR}/**)`, `Write(/${env.DOCS_DIR}/**)`]);
   for (const name of ["fetch-docs.sh", "fetch-docs-generic.sh", "docs-cache.sh", "html2md.py"]) {
@@ -1486,6 +1474,52 @@ test("run-claude-cli: a read skill without ci-context gets no Bash, Edit or Writ
   assert.ok(!run.allowedTools.some((rule) => /^(Bash|Edit|Write)/.test(rule)), run.allowedTools.join(" | "));
   for (const rule of ["Read(//proc/**)", ...GIT_DENIED]) assert.ok(run.deniedTools.includes(rule), `${rule} in ${run.deniedTools.join(" | ")}`);
   assert.doesNotMatch(run.preamble, /context file/);
+});
+
+function verdictBase() {
+  const dir = mkdtempSync(path.join(root, "verdict-base-"));
+  cpSync(base, dir, { recursive: true });
+  cpSync(path.join(REPO_ROOT, "plugins/work-items/skills/triage/schemas"), path.join(dir, "plugins/work-items/skills/triage/schemas"), { recursive: true });
+  mkdirSync(path.join(dir, "docs/conventions"), { recursive: true });
+  cpSync(path.join(REPO_ROOT, "docs/conventions/pr-pipeline.yaml"), path.join(dir, "docs/conventions/pr-pipeline.yaml"));
+  return dir;
+}
+const VERDICT = { "applied-by": { "triage-verdict": "post-triage" } };
+
+test("run-claude-cli: a verdict-mode skill keeps exactly the read tools and writes its schema with the base's dimension keys", () => {
+  const schemaDir = path.join(mkdtempSync(path.join(root, "verdict-schema-")), "lane-verdict-schema");
+  const run = launch({ BASE_PATH: verdictBase(), SKILL: "work-items:triage", ISSUE_NUMBER: "7", RESOLVED: launchResolved({ args: "--ci", ...VERDICT }), VERDICT_SCHEMA_DIR: schemaDir });
+  assert.equal(run.status, 0, run.stdout);
+  assert.deepEqual(run.tools.toSorted(), ["Glob", "Grep", "Read", "Skill"]);
+  assert.deepEqual(run.allowedTools.toSorted(), ["Glob", "Grep", "Skill(work-items:triage)"]);
+  assert.ok(!run.allowedTools.some((rule) => /^(Bash|Edit|Write|Agent|WebFetch|WebSearch)/.test(rule)), run.allowedTools.join(" | "));
+  const schema = JSON.parse(readFileSync(path.join(schemaDir, "verdict.schema.json"), "utf8"));
+  assert.deepEqual(schema.properties.size, { type: "string", enum: ["small", "medium", "large"] });
+  assert.deepEqual(schema.properties.complexity, { type: "string", enum: ["low", "medium", "high"] });
+  assert.deepEqual(schema.properties.uncertainty, { type: "string", enum: ["known", "knowable", "unknown"] });
+  assert.equal(schema.additionalProperties, false);
+  const { default: Ajv } = createRequire(new URL("../resolve-config/package.json", import.meta.url))("ajv");
+  assert.equal(typeof new Ajv({ strict: true }).compile(schema), "function");
+  assert.ok(run.preamble.includes(`the issue file is ${WORKSPACE}/.lane/scratch/issue.json`), run.preamble);
+  assert.match(run.preamble, /Your verdict is your structured output/);
+  assert.equal(run.promptFile, "Call the Skill tool with skill work-items:triage and args --issue 7 --ci, then follow the skill instructions to the end.\n");
+});
+
+test("run-claude-cli: verdict mode fails red outside an issue lane's read skill, or with no schema or dimension map", () => {
+  const schemaDir = path.join(mkdtempSync(path.join(root, "verdict-schema-")), "lane-verdict-schema");
+  const verdictRun = (overrides, extra = {}) =>
+    launch({ BASE_PATH: verdictBase(), SKILL: "work-items:triage", ISSUE_NUMBER: "7", RESOLVED: launchResolved({ args: "--ci", ...VERDICT, ...extra }), VERDICT_SCHEMA_DIR: schemaDir, ...overrides });
+  for (const [overrides, extra] of [[{ ISSUE_NUMBER: "" }, {}], [{}, { "applied-by": { "triage-verdict": "post-triage", patch: "apply-patch" } }]]) {
+    const run = verdictRun(overrides, extra);
+    assert.notEqual(run.status, 0);
+    assert.match(run.stdout, /::error::triage-verdict: only an issue lane's read skill with no prepare mode hands on a verdict/);
+  }
+  const noSchema = verdictBase();
+  rmSync(path.join(noSchema, "plugins/work-items/skills/triage/schemas"), { recursive: true });
+  assert.match(verdictRun({ BASE_PATH: noSchema }).stdout, /::error::triage-verdict: the skill ships no schemas\/ci-verdict\.schema\.json/);
+  const noMap = verdictBase();
+  writeFileSync(path.join(noMap, "docs/conventions/pr-pipeline.yaml"), "models: {}\n");
+  assert.match(verdictRun({ BASE_PATH: noMap }).stdout, /::error::triage-verdict: the base's dimension map does not give size, complexity and uncertainty option keys/);
 });
 
 function launchResolved(extra) {
@@ -1935,9 +1969,6 @@ test("run-claude-cli: web-access with a malformed host, or a research plugin mis
   }
 });
 
-// tidy on the launcher (#8485): an issue lane's patch skill gets the entry and
-// its passes and no other skill, their plugins under .lane/ beside its own, the
-// tidy scripts' rules, and the cutoffs and turn budget in the preamble.
 const TIDY = {
   entry: "code-tidying:tidy-diff",
   passes: ["docs-hygiene:write-for-agents", "ai-slop:audit"],
@@ -2086,11 +2117,6 @@ test("run-claude-cli: the dependency verdict schema matches the verdict job's ve
   assert.ok(run.deniedTools.includes("WebFetch") && run.deniedTools.includes("WebSearch"), run.deniedTools.join(" | "));
 });
 
-// The launcher validates structured output against draft-07
-// (https://code.claude.com/docs/en/agent-sdk/structured-outputs), as Ajv's
-// default class does: a bare @-mention, a fence or an HTML comment in a reason
-// or evidence item fails the schema, a URL, a scoped package or a backticked
-// handle passes.
 test("run-claude-cli: the dependency verdict schema rejects a bare @-mention and passes URLs and scoped packages", () => {
   const run = launchDependency({ web: false });
   assert.equal(run.status, 0, run.stdout);

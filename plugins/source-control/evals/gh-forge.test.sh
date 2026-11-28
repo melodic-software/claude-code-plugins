@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Tests for the eval fixture forge (fixtures/gh-forge): install.sh in a throwaway repository, then the gh stand-in it
-# installs. Expected values come from GitHub's mergeStateStatus enum (UNSTABLE: mergeable with a
-# non-passing commit status) and gh's `pr checks` source (the --json path exits 0 whatever the
-# checks say; the table exits 1 when one failed).
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,8 +10,6 @@ source "$SCRIPT_DIR/../scripts/test-helpers.sh"
 
 command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 
-# make_forge <dir> [install.sh options...]: a repository with main and a head branch one commit
-# ahead, given an offline forge serving PR 7 from them.
 make_forge() {
   local repo="$TEST_TMPDIR/$1"
   shift
@@ -160,7 +153,6 @@ assert_exit "pr comment: exit 0" 0 "$?"
 assert_eq "pr comment: the call is recorded" \
   '{"command":"pr comment","pr":7,"args":["7","--body-file","-"]}' "$(tail -n 1 "$CALLS")"
 
-# The eval sandbox holds .git read-only and a fetch opens FETCH_HEAD for writing before it reads anything.
 READONLY="$TEST_TMPDIR/readonly"
 make_forge readonly --no-pr
 chmod -R a-w "$READONLY/.git"
@@ -179,7 +171,6 @@ assert_eq "--no-pr: pr list is empty before create" "0" "$(run_gh "$CREATE" pr l
 printf 'Refs: #5\n\n## Summary\n\nx\n' >"$TEST_TMPDIR/body.md"
 out=$(run_gh "$CREATE" pr create --draft --head feat/x --title "feat: y" --body-file "$TEST_TMPDIR/body.md" 2>&1)
 assert_eq "pr create: prints the new PR's URL" "https://github.com/eval-fixture/app/pull/7" "$out"
-# Before the pr view below: that read is recorded too, as the last line.
 assert_eq "pr create: the call is recorded" '"pr create"' "$(tail -n 1 "$CREATE_FORGE/calls.jsonl" | jq -c .command)"
 assert_eq "pr create: the body file is kept for a grader" "$(cat "$TEST_TMPDIR/body.md")" "$(cat "$CREATE_FORGE/pr-body.md")"
 assert_eq "pr create: the PR then reads as an open draft with the given title" "true feat: y" \

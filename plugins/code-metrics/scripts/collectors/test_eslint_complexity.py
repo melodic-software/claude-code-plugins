@@ -45,8 +45,6 @@ def make_stub(
     )
 
 
-# ESLint's own wording, verbatim from a live run with no configuration file
-# anywhere above the target (fixtures/tool-output/eslint-no-config.txt).
 NO_CONFIG_LINE = "ESLint couldn't find an eslint.config.(js|mjs|cjs) file."
 
 
@@ -130,7 +128,7 @@ class EslintComplexityAdapterTests(unittest.TestCase):
             self.assertIsNone(row["end_line"])
             self.assertEqual(row["labels"], ["start-line-only"])
             self.assertEqual(row["collector"], "eslint-complexity")
-            self.assertEqual(row["lane"], "typescript")
+            self.assertEqual(row["language"], "typescript")
 
     def test_collect_reports_unparsable_output_as_exit_3(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

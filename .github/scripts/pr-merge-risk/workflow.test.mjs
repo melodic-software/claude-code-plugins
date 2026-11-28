@@ -1,8 +1,4 @@
 // test-scope: scripts/sync-credential-legs.mjs scripts/credential-legs/*
-// pr-rate-merge-risk.yml's controls (#13657), pinned on the file's text:
-// the run-name the arm side matches, a read-only job token, no pull request
-// code, base-side scripts only, one credential per leg job (#13586), the
-// model's tool cage, and the names the arm side reads.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { readFileSync } from "node:fs";
@@ -10,6 +6,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { workflowText } from "../lib/workflow-text.mjs";
+import { assertPerHeadUnlessUpstreamCancelled } from "../lib/workflow-run-group.mjs";
 import { ARTIFACT_PREFIX, RATING_WORKFLOW_PATH, runTitle } from "../pr-merge/merge-risk-line.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-rate-merge-risk.yml", import.meta.url), "utf8");
@@ -36,7 +33,7 @@ test("the workflow grants nothing, its three jobs are the three legs, and each j
   assert.match(text, /\npermissions: \{\}\n/);
   assert.deepEqual(wf.ids, Object.values(LEGS));
   for (const id of Object.values(LEGS)) {
-    assert.match(job(id), /\n {4}cache-mode: read\n {4}permissions:\n {6}contents: read # [^\n]+\n {6}pull-requests: read # [^\n]+\n {6}actions: read # [^\n]+\n {4}(?:outputs|steps):/, id);
+    assert.match(job(id), /\n {4}cache-mode: read\n {4}permissions:\n {6}contents: read\n {6}pull-requests: read\n {6}actions: read\n {4}(?:outputs|steps):/, id);
   }
   assert.doesNotMatch(text, /^ +[a-z-]+: write\b/m);
   assert.doesNotMatch(text, /id-token|request-lane-token|create-github-app-token/);
@@ -67,15 +64,12 @@ test("each leg holds one credential, in its presence check and its rating step a
     const rate = step(id, "Rate the pull request");
     assert.deepEqual([...rate.matchAll(/secrets\.([A-Z_]+)/g)].map(([, name]) => name), [secret], id);
     assert.match(rate, new RegExp(`\\n {10}${input}: \\$\\{\\{ secrets\\.${secret} \\}\\}\\n`), id);
-    // Beyond its own, a job may only ask whether the fallback token is set.
     const others = [...job(id).matchAll(/secrets\.([A-Z_]+)( != '')?/g)].filter(([, name]) => name !== secret);
     assert.deepEqual(others.map(([whole]) => whole), leg === "subscription" ? ["secrets.FALLBACK_CLAUDE_CODE_OAUTH_TOKEN != ''"] : [], id);
   }
   assert.match(step(LEGS.subscription, "Rate the pull request"), /\n {10}fallback-ready: \$\{\{ steps\.credential\.outputs\.fallback-ready \}\}\n/);
 });
 
-// credential-legs.test.mjs holds every start and credential decision to the
-// conditions before select-model-credential; this pins their shape.
 test("each leg starts only after the one before named it as the next leg, and a handoff is no failure", () => {
   assert.match(job(LEGS.subscription), /\n {4}needs: rate-merge-risk\n/);
   assert.match(job(LEGS.subscription), /&& needs\.rate-merge-risk\.result == 'success'\n {6}&& needs\.rate-merge-risk\.outputs\.next-leg == 'subscription'\n {4}runs-on:/);
@@ -85,18 +79,11 @@ test("each leg starts only after the one before named it as the next leg, and a 
   for (const id of Object.values(LEGS)) {
     assert.match(step(id, "Fail without a rating"), /if: always\(\) && steps\.checker\.outcome == 'success' && steps\.credential\.outputs\.present == 'true' && steps\.rating\.outcome != 'success' && steps\.rate\.outputs\.handoff != 'true'\n/, id);
   }
-  // The key leg reads its credit history in its own step, under
-  // continue-on-error and a 2-minute limit, so a read that fails or hangs runs
-  // the key; its credential call skips a key whose credit stop is recent, and
-  // the job marks a new one.
   const credit = step(LEGS.key, "Read the key's credit history");
   assert.match(credit, /\n {8}id: credit\n/);
   assert.match(credit, /\n {8}continue-on-error: true\n {8}timeout-minutes: 2\n/);
   assert.match(credit, /\n {10}leg: start\n {10}role: pr-verify\n {10}key-job: rate-merge-risk\n/);
   assert.match(credit, /\n {10}probe-minutes: "0"\n/);
-  // The key leg decides its credential right after the resolver lets the head
-  // through, before the trigger check, and only a key that runs goes on to
-  // the trigger check and the reads after it.
   const keyOrder = [...stepsOf(LEGS.key).keys()];
   assert.deepEqual(keyOrder.slice(keyOrder.indexOf("Resolve the pull request"), keyOrder.indexOf("Check the trigger") + 1), ["Resolve the pull request", "Read the key's credit history", "Check the credential", "Report the skipped key leg", "Check the trigger"]);
   assert.match(credit, /\n {8}if: steps\.pr\.outputs\.proceed == 'true'\n/);
@@ -121,16 +108,12 @@ test("the subscription and fallback legs are what scripts/sync-credential-legs.m
   assert.equal(run.status, 0, run.stdout + run.stderr);
 });
 
-// A step runs only when every step its if: requires ran: a conjunction (no
-// `||`) of terms, where `steps.X.outcome == 'success'`, `steps.X.outputs.Y ==
-// '<value>'` and `steps.X.outputs.Y != ''` each need X to have run.
 const requires = (id) => {
   const ifs = new Map();
   for (const block of stepsOf(id).values()) {
     const sid = /^ {8}id: (\S+)$/m.exec(block)?.[1];
     if (sid) ifs.set(sid, /^ {8}if: (.*)$/m.exec(block)?.[1] ?? "");
   }
-  // The steps a condition requires, transitively.
   return (start) => {
     const seen = new Set();
     const walk = (cond, at) => {
@@ -159,9 +142,6 @@ test("in every leg, no model or upload step runs unless the resolver and the tri
       for (const gate of ["pr", "gate", "agree"]) assert.ok(deps.has(gate), `${id}: ${name} requires step ${gate}`);
     }
   }
-  // The trigger check runs only on the resolver's proceed (in the key leg,
-  // also only for a key that runs), and the agreement step only on the
-  // trigger check's.
   for (const id of Object.values(LEGS)) {
     assert.match(step(id, "Check the trigger"), /\n {8}if: steps\.pr\.outputs\.proceed == 'true'(?: && steps\.credential\.outputs\.present == 'true')?\n/, id);
     assert.match(step(id, "Assert the gate and the resolver agree"), /\n {8}if: steps\.gate\.outputs\.proceed == 'true'\n/, id);
@@ -197,20 +177,30 @@ test("the rating runs under dontAsk on the data directory and the review plugin'
       "WebSearch",
       "mcp__*",
     ]);
-    // None may name the workspace or the home whole: the workspace sits under it.
     assert.ok(!denied.some((rule) => ["Read(~/**)", "Read(./**)", "Read(//**)", "Read"].includes(rule)));
     assert.deepEqual(list(rate, "plugin-dirs"), [".lane/plugins/review"]);
-    assert.match(rate, /CLAUDE_CODE_SUBAGENT_MODEL_FORCE: \$\{\{ steps\.checker\.outputs\.force \}\}/);
-    // The managed settings and the isolation come first.
+    assert.match(rate, /\n {10}CLAUDE_CODE_SUBAGENT_MODEL_FORCE: \$\{\{ steps\.data\.outputs\.chunks == '1' && steps\.checker\.outputs\.force \|\| '' \}\}\n/, "the checker model is forced on a one-chunk diff only");
     const order = [...stepsOf(id).keys()];
     assert.ok(order.indexOf("Apply the Claude managed settings") < order.indexOf("Isolate the runner"), id);
     assert.ok(order.indexOf("Isolate the runner") < order.indexOf("Rate the pull request"), id);
     assert.match(step(id, "Stage the review plugin"), /chmod -R a-w \.lane\/plugins\/review/);
   }
-  // merge-risk's frontmatter allowed-tools pre-approves bare Read once the
-  // skill runs, so these deny rules, not the allow list, bound what it reads.
   assert.match(readFileSync(new URL("../../../plugins/review/skills/merge-risk/SKILL.md", import.meta.url), "utf8"), /^allowed-tools: \[[^\]]*"Read"/m);
-  assert.match(text, /allow rules do not bound Read once the skill runs/);
+});
+
+test("every leg cuts the diff with no size refusal, runs every chunk's agents at once, and checks the rating against the parts it cut", () => {
+  for (const id of Object.values(LEGS)) {
+    const data = step(id, "Write the rating's data");
+    assert.doesNotMatch(data, /MAX_DIFF_BYTES/, id);
+    const coverage = /\n {10}COVERAGE_FILE: (.+)\n/.exec(data)?.[1];
+    assert.ok(coverage, id);
+    assert.equal(/\n {10}COVERAGE_FILE: (.+)\n/.exec(step(id, "Write the rating"))?.[1], coverage, id);
+    assert.match(step(id, "Rate the pull request"), /\n {10}CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS: \$\{\{ steps\.data\.outputs\.agents \}\}\n/, id);
+    const prompt = step(id, "Write the prompt and schema");
+    assert.match(prompt, /\n {10}CHUNKS: \$\{\{ steps\.data\.outputs\.chunks \}\}\n {10}RATER_MODEL: \$\{\{ steps\.models\.outputs\.model \}\}\n {10}CHECKER_MODEL: \$\{\{ steps\.checker\.outputs\.model \}\}\n/, id);
+    assert.match(prompt, /node \.base\/\.github\/scripts\/pr-merge-risk\/prompt\.mjs\n/, id);
+    assert.match(step(id, "Write the rating"), /\n {10}CHUNKS: \$\{\{ steps\.data\.outputs\.chunks \}\}\n {10}CHECKER_MODEL: \$\{\{ steps\.checker\.outputs\.model \}\}\n/, id);
+  }
 });
 
 test("the names the arm side reads match merge-risk-line.mjs", () => {
@@ -232,4 +222,8 @@ test("the trigger is pr-verify's, judged only for a successful same-repository p
     assert.match(job(id), /github\.ref == 'refs\/heads\/main'\n {6}&& github\.event\.workflow_run\.event == 'pull_request'\n {6}&& github\.event\.workflow_run\.conclusion == 'success'\n {6}&& github\.event\.workflow_run\.head_repository\.full_name == github\.repository\n/, id);
   }
   assert.match(text, /cancel-in-progress: false\n/);
+});
+
+test("the concurrency group is per PR and head unless the upstream was cancelled, whose run judges nothing", () => {
+  assertPerHeadUnlessUpstreamCancelled(text, "pr-rate-merge-risk");
 });

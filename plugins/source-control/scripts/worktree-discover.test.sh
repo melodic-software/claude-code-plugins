@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for worktree-discover.sh. Black-box: throwaway git fixtures
-# (git environment and global config isolated by test-helpers.sh, a ghq stand-in,
-# a temporary HOME) run from a directory outside every repository, with
-# assertions on the TSV rows and exit codes. No network.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -30,7 +26,6 @@ mkrepo() {
   git -C "$1" commit -q -m seed
 }
 
-# git's own spelling of a checkout path, so the 8.3 and drive forms match.
 top() { git -C "$1" rev-parse --show-toplevel; }
 
 FLEET="$T/fleet"
@@ -57,8 +52,6 @@ chmod +x "$GHQ"
 RC=0
 OUT=""
 ERR=""
-# run_disc <global config> <ghq bin> [args...]: from a non-repository cwd, with
-# a HOME holding no fleet config unless a case writes one.
 run_disc() {
   local global="$1" ghq="$2"
   shift 2
@@ -68,7 +61,6 @@ run_disc() {
   ERR="$(cat "$T/err")"
 }
 
-# rows <kind> <path>: the rows of that kind for that path.
 rows() { printf '%s\n' "$OUT" | awk -F'\t' -v k="$1" -v p="$2" '$1 == k && $2 == p'; }
 
 run_disc "$GLOBAL" "$T/bin/no-ghq" --repo-dir "$A"
@@ -112,13 +104,10 @@ assert_eq "user-global fleet config names a repository" $'repo\t'"$C"$'\t0' "$(r
 run_disc "$GLOBAL" "$T/bin/no-ghq" --repo-dir "$A"
 assert_eq "named repositories replace the configured scope" "" "$(rows repo "$C")"
 
-# The project-scoped config outranks the user-global one, as in the fleet audit.
 mkrepo "$FLEET/github.com/o/e"
 E="$(top "$FLEET/github.com/o/e")"
 mkdir -p "$T/proj/.claude"
 git config --file "$T/proj/.claude/repo-fleet-hygiene.conf" fleet.repo "$E"
-# The skill passes the project directory as a flag: the Bash tool's environment
-# carries no CLAUDE_PROJECT_DIR, which run_disc reproduces.
 run_disc "$GLOBAL" "$T/bin/no-ghq" --project-dir "$T/proj"
 assert_eq "project fleet config names a repository" $'repo\t'"$E"$'\t0' "$(rows repo "$E")"
 assert_eq "project fleet config shadows the user-global one" "" "$(rows repo "$C")"
@@ -137,7 +126,6 @@ run_disc "$GLOBAL" "$T/bin/no-ghq" --project-dir
 assert_exit "--project-dir without a value is a usage error" 2 "$RC"
 rm -f "$T/home/.claude/repo-fleet-hygiene.conf"
 
-# A repository found only by the root scan has its own root resolved and scanned.
 mkrepo "$FLEET/github.com/o/d"
 D="$(top "$FLEET/github.com/o/d")"
 ROOT3="$T/root3"
@@ -151,8 +139,6 @@ assert_eq "an owner found by the scan contributes its root" $'root\t'"$ROOT3"$'\
 assert_eq "that root is scanned" $'worktree\t'"$ROOT3/d-wt3"$'\t'"$D" "$(rows worktree "$ROOT3/d-wt3")"
 git -C "$D" worktree remove --force "$ROOT/d-wt" >/dev/null 2>&1
 
-# A worktree below a root but not its direct child (inside another worktree's
-# .work/, or under a plain directory) is listed from its repository's registration.
 git -C "$A" worktree add -q -b wnest "$ROOT/a-wt/.work/nested" >/dev/null 2>&1
 mkdir -p "$ROOT/group"
 git -C "$B" worktree add -q -b wdeep "$ROOT/group/b-deep" >/dev/null 2>&1
@@ -170,7 +156,6 @@ git -C "$A" worktree remove --force "$ROOT/a-wt/.work/nested" >/dev/null 2>&1
 git -C "$B" worktree remove --force "$ROOT/group/b-deep" >/dev/null 2>&1
 rmdir "$ROOT/group" "$ROOT/a-wt/.work"
 
-# A path holding a tab cannot be a TSV field: skipped, with a warning.
 TABBED="$ROOT/tab"$'\t'"wt"
 if git -C "$A" worktree add -q -b wtab "$TABBED" >/dev/null 2>&1; then
   run_disc "$GLOBAL" "$T/bin/no-ghq" --repo-dir "$A"
@@ -182,7 +167,6 @@ else
   skip_case "a directory name holding a tab is not creatable on this host"
 fi
 
-# Rungs below the git key: the plugin option, then the plugin data directory.
 printf '%s' "$T/opt-root" >"$T/fallback"
 # shellcheck disable=SC2016
 printf '%s' '${user_config.worktree_root}' >"$T/fallback-unset"
@@ -200,7 +184,6 @@ assert_exit "no rung resolves: exits 3" 3 "$RC"
 assert_contains "no rung resolves: says so" "$ERR" "no worktree root resolved"
 assert_eq "no rung resolves: repositories are still listed" $'repo\t'"$B"$'\t1' "$(rows repo "$B")"
 
-# Read-only: a retired alias is read, never rewritten or dropped.
 git -C "$A" config melodic.worktreeroot "$ROOT"
 run_disc /dev/null "$T/bin/no-ghq" --repo-dir "$A"
 assert_eq "retired alias still answers" $'root\t'"$ROOT"$'\tgit-config' "$(rows root "$ROOT")"
@@ -214,8 +197,6 @@ assert_exit "--repo-dir without a value is a usage error" 2 "$RC"
 run_disc /dev/null "$T/bin/no-ghq" --data-root-file "$T/missing"
 assert_exit "a missing root file is a usage error" 2 "$RC"
 
-# A git older than 2.36 rejects `worktree list -z`: fail closed, naming the
-# floor and the installed version, rather than reporting 0 linked worktrees.
 OLD_GIT_BIN="$T/old-git-bin"
 mkdir -p "$OLD_GIT_BIN"
 {
@@ -236,11 +217,6 @@ assert_contains "the old-git failure names the floor" "$ERR" "git >= 2.36.0"
 assert_contains "the old-git failure names the installed version" "$ERR" "git version 2.35.0"
 assert_eq "the old-git failure prints no inventory" "" "$OUT"
 
-# --- --remove-input-files deletes the handed files and their dir (#8212) ---
-# The status block writes its two input files into a mktemp dir; the helper owns
-# their removal so the block needs no rm and no exit-status variable.
-# mkinputs <dir> <data root>: the two files the skill writes, the plugin option
-# left unconfigured.
 mkinputs() {
   mkdir -p "$1"
   # shellcheck disable=SC2016 # the literal unexpanded token is the point
@@ -266,7 +242,6 @@ run_disc /dev/null "$T/bin/no-ghq" --repo-dir "$B" --fallback-root-file "$inputs
 assert_exit "--remove-input-files: no root still exits 3" 3 "$RC"
 assert_eq "--remove-input-files: input dir removed after a non-zero exit" absent "$(dir_state "$inputs")"
 
-# The trap is armed when the flag is parsed, so a later usage error cleans up.
 inputs="$T/inputs-usage"
 mkinputs "$inputs" "$T/data"
 run_disc /dev/null "$T/bin/no-ghq" --fallback-root-file "$inputs/worktree-root" \
@@ -274,7 +249,6 @@ run_disc /dev/null "$T/bin/no-ghq" --fallback-root-file "$inputs/worktree-root" 
 assert_exit "--remove-input-files: unknown flag still exits 2" 2 "$RC"
 assert_eq "--remove-input-files: input dir removed after a later usage error" absent "$(dir_state "$inputs")"
 
-# The files are read after parsing, so an unreadable one before the flag is removed too.
 inputs="$T/inputs-newline"
 mkinputs "$inputs" "$T/data"$'\n'
 run_disc /dev/null "$T/bin/no-ghq" --data-root-file "$inputs/data-root" \
@@ -297,9 +271,6 @@ run_disc /dev/null "$T/bin/no-ghq" --repo-dir "$B" --fallback-root-file "$inputs
   --data-root-file "$inputs/data-root"
 assert_file_exists "without --remove-input-files the input files stay" "$inputs/data-root"
 
-# The status.md block end to end under zsh, where `status=$?` aborts: the bare
-# helper call exits with the helper's code and leaves no temp directory.
-# run_zsh_block <inputs dir>: the block, run by zsh from a non-repository cwd.
 run_zsh_block() {
   # shellcheck disable=SC2016 # zsh expands the positional parameters
   (cd "$UNRELATED" && HOME="$T/home" GIT_CONFIG_GLOBAL=/dev/null REPO_FLEET_GHQ_BIN="$T/bin/no-ghq" \
@@ -322,5 +293,46 @@ if command -v zsh >/dev/null 2>&1; then
 else
   skip_case "zsh not available: the status block's zsh run is not exercised"
 fi
+
+RESOLVE="$SCRIPT_DIR/worktree-root-resolve.sh"
+OUTSIDE_HOME="$T/inc-home"
+CHEZMOI_REPO="$OUTSIDE_HOME/.local/share/chezmoi"
+CHEZMOI_WT_ROOT="$OUTSIDE_HOME/.local/share/chezmoi-worktrees"
+REL_WT_ROOT="$T/rel-wt-root"
+mkdir -p "$OUTSIDE_HOME/.config/git" "$CHEZMOI_WT_ROOT" "$REL_WT_ROOT"
+mkrepo "$CHEZMOI_REPO"
+CHEZMOI_TOP="$(top "$CHEZMOI_REPO")"
+git -C "$CHEZMOI_TOP" worktree add -q -b feat/chezmoi-wt "$CHEZMOI_WT_ROOT/chezmoi-wt1" >/dev/null 2>&1
+
+printf '[worktreeroot]\n\tpath = ~/.local/share/chezmoi-worktrees\n' >"$OUTSIDE_HOME/.config/git/chezmoi.gitconfig"
+printf '[worktreeroot]\n\tpath = %s\n' "$REL_WT_ROOT" >"$OUTSIDE_HOME/.config/git/rel.gitconfig"
+INC_GLOBAL="$OUTSIDE_HOME/.config/git/config"
+{
+  printf '[worktreeroot]\n\tpath = %s\n' "$ROOT"
+  printf '[includeIf "gitdir:~/.local/share/chezmoi/"]\n\tpath = ~/.config/git/chezmoi.gitconfig\n'
+  printf '[includeIf "gitdir:/nonexistent-repo/"]\n\tpath = rel.gitconfig\n'
+  printf '[includeIf "gitdir:/missing-file/"]\n\tpath = does-not-exist.gitconfig\n'
+} >"$INC_GLOBAL"
+
+ALL_ROOTS="$(cd "$UNRELATED" && HOME="$OUTSIDE_HOME" GIT_CONFIG_GLOBAL="$INC_GLOBAL" GIT_CONFIG_NOSYSTEM=1 \
+  bash "$RESOLVE" --all)"
+assert_exit "worktree-root-resolve --all exits 0" 0 "$?"
+assert_contains "--all includes the global root" "$ALL_ROOTS" "$ROOT"
+assert_contains "--all includes the tilde-expanded includeIf root" "$ALL_ROOTS" "$CHEZMOI_WT_ROOT"
+assert_contains "--all includes the relative-path includeIf root" "$ALL_ROOTS" "$REL_WT_ROOT"
+
+bash "$RESOLVE" --all --repo-dir "$A" >/dev/null 2>&1
+assert_exit "--all combined with --repo-dir is usage (exit 2)" 2 "$?"
+
+OUT="$(cd "$UNRELATED" && HOME="$OUTSIDE_HOME" GIT_CONFIG_GLOBAL="$INC_GLOBAL" GIT_CONFIG_NOSYSTEM=1 \
+  REPO_FLEET_GHQ_BIN="$T/bin/no-ghq" bash "$DISCOVER" 2>"$T/err")"
+RC=$?
+assert_exit "discover with includeIf root outside ghq exits 0" 0 "$RC"
+assert_eq "discover emits the conditional includeIf root" \
+  $'root\t'"$CHEZMOI_WT_ROOT"$'\tgit-config' "$(rows root "$CHEZMOI_WT_ROOT")"
+assert_eq "discover finds the worktree under the conditional root" \
+  $'worktree\t'"$CHEZMOI_WT_ROOT/chezmoi-wt1"$'\t'"$CHEZMOI_TOP" "$(rows worktree "$CHEZMOI_WT_ROOT/chezmoi-wt1")"
+assert_eq "discover registers the outside-ghq owning repo" \
+  $'repo\t'"$CHEZMOI_TOP"$'\t1' "$(rows repo "$CHEZMOI_TOP")"
 
 [[ $FAILED -eq 0 ]] || exit 1

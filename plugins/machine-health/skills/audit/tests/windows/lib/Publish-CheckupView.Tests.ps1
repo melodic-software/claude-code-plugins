@@ -1,11 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/Publish-CheckupView.ps1 -- the orchestrator's
-decision page step: build through node, prune only after a built page, and
-note the outcome in the report. node is mocked at Invoke-NativeCommand.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Publish-CheckupView.ps1'

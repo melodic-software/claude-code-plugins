@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# create-item — Gitea / Forgejo adapter (provider `gitea`).
-# Scaffolded by /work-items:onboard-adapter; the provider mapping below is written
-# against POST /repos/{owner}/{repo}/issues and Gitea's `CreateIssueOption`.
-#
-# Contract: tools/work-item-tracker/CONTRACT.md — "Verbs", "Adapter contract",
-# "JSON output contract", "Exit codes".
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -32,7 +26,7 @@ while [[ $# -gt 0 ]]; do
     --type) TYPE="$2" ;;
     --parent) PARENT="$2" ;;
     --blocked-by) BLOCKED_BY="$2" ;;
-    *) REPO="$2" ;; # --repo, the only flag left
+    *) REPO="$2" ;;
     esac
     shift 2
     ;;
@@ -41,9 +35,6 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -n "$TITLE" ]] || wit_usage_error "--title is required"
 
-# --parent asks for a sub-item link. Gitea's Issue has no parent field and this
-# adapter's manifest declares sub_items=false, so honoring it is impossible — and
-# accepting it silently would report a created item whose stated parent does not exist.
 [[ -z "$PARENT" ]] ||
   wit_usage_error "--parent is unsupported: gitea has no native sub-item link (capabilities.json features.sub_items=false)"
 
@@ -61,9 +52,6 @@ wit_gitea_scope_in_scope "$REPO" ||
   wit_usage_error "$REPO is not in config.gitea.scopes (the declared write scope)"
 wit_gitea_scope_parts "$REPO"
 
-# Every --blocked-by id is validated before the item is created. The edges are written
-# in a second request, so a malformed id discovered afterwards would leave a created
-# item whose declared blockers were never linked — an item that then looks ready.
 BLOCKERS=()
 if [[ -n "$BLOCKED_BY" ]]; then
   IFS=',' read -r -a BLOCKERS <<<"$BLOCKED_BY"
@@ -74,11 +62,6 @@ if [[ -n "$BLOCKED_BY" ]]; then
   done
 fi
 
-# Gitea's CreateIssueOption takes label IDs (`labels: []int64`), not label names — a
-# real divergence from GitHub's API, and one that fails silently if ignored (a name
-# array is simply not accepted). Resolve names to ids against the repo's label set, and
-# refuse an unknown name rather than dropping it: a work item filed without its
-# priority or type label is invisible to the very tiers that would have selected it.
 LABEL_IDS='[]'
 if [[ -n "$LABELS" ]]; then
   wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/labels?page=1&limit=$WIT_GITEA_PAGE_SIZE"
@@ -87,15 +70,6 @@ if [[ -n "$LABELS" ]]; then
   ALL_LABELS="$WIT_GITEA_BODY"
   PAGE=2
   LABELS_TRUNCATED=0
-  # This handler calls ctx.SetTotalCountHeader (routers/api/v1/repo/label.go), so when the
-  # header is present it decides when the list is exhausted. That matters more here than in
-  # list-items: gitea clamps `limit` to `[api] MAX_RESPONSE_ITEMS` (stock 50), so on an
-  # instance whose cap is below config.gitea.page_size the page-length heuristic alone stops
-  # after page 1. A label past that point is then indistinguishable from a nonexistent one,
-  # and the operator is told to create a label that already exists. SEEN/-n mirror
-  # list-items: an empty header means "no count sent", never zero. LABEL_GOT carries the row
-  # count of the page just fetched, seeded from page 1, and is what the short-page fallback
-  # tests.
   LABEL_SEEN="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || LABEL_SEEN=0
   LABEL_GOT="$LABEL_SEEN"
   LABEL_TOTAL="$WIT_GITEA_TOTAL_COUNT"
@@ -105,12 +79,6 @@ if [[ -n "$LABELS" ]]; then
     else
       ((LABEL_GOT < WIT_GITEA_PAGE_SIZE)) && break
     fi
-    # Bounded like every other paginated loop in this adapter: a server that keeps answering
-    # a full page would otherwise spin forever with ALL_LABELS growing without limit. Measured
-    # against labels ACTUALLY FETCHED rather than `PAGE * page_size`, which diverge under the
-    # clamp: with page_size 100 against a cap of 50 the requested arithmetic declares
-    # truncation after 500 labels, and here that is not merely a short answer — it makes every
-    # label in rows 501-1000 read as nonexistent and refused.
     if ((LABEL_SEEN > WIT_GITEA_LIST_ITEMS_MAX)); then
       LABELS_TRUNCATED=1
       break
@@ -118,35 +86,19 @@ if [[ -n "$LABELS" ]]; then
     wit_gitea_http GET "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/labels?page=$PAGE&limit=$WIT_GITEA_PAGE_SIZE"
     wit_gitea_require_ok "listing labels in $REPO (page $PAGE)"
     wit_gitea_require_array "listing labels in $REPO (page $PAGE)"
-    # Accumulator on stdin, page in argv: the reverse puts an unboundedly growing array on
-    # jq's command line, and past ARG_MAX the exec fails outright — leaving ALL_LABELS empty,
-    # which here means every requested label reads as nonexistent and is refused.
     ALL_LABELS="$(jq -c --argjson page "$WIT_GITEA_BODY" '. + $page' <<<"$ALL_LABELS")" || {
       printf 'create-item.sh: could not accumulate label page %s for %s\n' "$PAGE" "$REPO" >&2
       exit "$EX_INTERNAL"
     }
     LABEL_GOT="$(jq 'length' <<<"$WIT_GITEA_BODY" 2>/dev/null)" || LABEL_GOT=0
     LABEL_SEEN=$((LABEL_SEEN + LABEL_GOT))
-    # An empty page ends the walk whatever the header claimed — a count that never gets
-    # satisfied must not turn into an unbounded loop.
     ((LABEL_GOT == 0)) && break
     PAGE=$((PAGE + 1))
   done
-  # Organization-wide labels are usable on this repo's issues and are not in the repo label
-  # list. `GetLabelsByRepoID` backs /repos/{o}/{r}/labels with `WHERE repo_id = ?`, so an org
-  # label never appears there — but `NewIssueWithIndex` accepts any label whose
-  # `OrgID == repo.OwnerID`, and get-item reports org labels in `.labels[]`. A user-owned repo has no org and answers 404 here, which is
-  # not an error — it just means there are no org labels to merge.
   wit_gitea_http GET "/orgs/$WIT_GITEA_OWNER/labels?page=1&limit=$WIT_GITEA_PAGE_SIZE"
   if [[ "$WIT_GITEA_STATUS" != "404" ]]; then
     wit_gitea_require_ok "listing organization labels for $WIT_GITEA_OWNER"
     wit_gitea_require_array "listing organization labels for $WIT_GITEA_OWNER"
-    # Same walk as the repo labels above, and deliberately the SAME SHAPE: this endpoint sets
-    # X-Total-Count too, so the header decides. A largest-page-seen heuristic would be wrong
-    # twice over — it always spends one extra request (the page that establishes the baseline
-    # can never be shorter than it), and against same-sized consecutive pages it walks to the
-    # ceiling and reports a truncation that has not happened, turning a genuinely-missing
-    # label name into a misleading "the label list was truncated" message.
     ORG_PAGE="$WIT_GITEA_BODY"
     ORG_TOTAL="$WIT_GITEA_TOTAL_COUNT"
     ORG_SEEN=0
@@ -179,10 +131,6 @@ if [[ -n "$LABELS" ]]; then
   MISSING="$(jq -rcn --arg names "$LABELS" --argjson all "$ALL_LABELS" \
     '[($names | split(",") | .[] | select(length > 0)) as $n | select([$all[].name] | index($n) | not) | $n]')"
   if [[ "$MISSING" != "[]" ]]; then
-    # The ceiling changes what "not found" is allowed to mean. Unlike list-items, where
-    # truncation just returns fewer items, stopping early here makes an unseen label
-    # indistinguishable from a nonexistent one — and telling someone to create a label
-    # that already exists sends them to do the wrong thing. Say which case this is.
     if ((LABELS_TRUNCATED)); then
       printf 'create-item.sh: label(s) not found in the first %s labels of %s: %s — the label list was truncated at the declared ceiling, so these may exist beyond it; narrow --labels or raise the ceiling rather than re-creating them\n' \
         "$WIT_GITEA_LIST_ITEMS_MAX" "$REPO" "$MISSING" >&2
@@ -196,9 +144,6 @@ if [[ -n "$LABELS" ]]; then
     '[($names | split(",") | .[] | select(length > 0)) as $n | ($all[] | select(.name == $n) | .id)]')"
 fi
 
-# --type is accepted and cannot be honored: Gitea has no issue-type registry, so the
-# normalized `type` is structurally null for this provider. Said on stderr rather than
-# dropped silently, because a caller that set a type deserves to know it did not stick.
 [[ -z "$TYPE" ]] ||
   printf 'create-item.sh: --type is ignored: gitea has no native issue-type axis (normalized type is always null)\n' >&2
 
@@ -214,9 +159,6 @@ NUMBER="$(jq -r '.number' <<<"$CREATED")"
   exit "$EX_INTERNAL"
 }
 
-# Blocker edges are a separate call per edge; Gitea has no create-with-dependencies
-# form. A failure here exits non-zero rather than reporting the item as created-and-
-# linked, so the caller learns the graph is incomplete.
 for b in ${BLOCKERS[@]+"${BLOCKERS[@]}"}; do
   wit_require_gitea_id "$b"
   wit_gitea_http POST "/repos/$WIT_GITEA_OWNER/$WIT_GITEA_REPO/issues/$NUMBER/dependencies" \
@@ -225,16 +167,6 @@ for b in ${BLOCKERS[@]+"${BLOCKERS[@]}"}; do
   wit_gitea_require_ok "linking $REPO#$NUMBER as blocked by $b"
 done
 
-# The count is a READ-BACK: by here the issue EXISTS and its blocker edges are written.
-# The helper exits on transport/HTTP failure, but inside $( ) that only ends the
-# subshell, so its code is propagated here.
-#
-# The read still has to fail the verb: the contract's item object requires
-# blocked_by_count, and there is no honest value to substitute — 0 is the frontier lie
-# this adapter counts open blockers to avoid. So propagate the read's own code, keeping
-# the seam's status vocabulary intact (8 stays "unavailable, back off", 4 stays auth).
-# What non-zero must not mean here is "nothing happened": name the created id on stderr
-# so a retry re-reads the item instead of filing a second one.
 BBC="$(wit_gitea_blocked_by_count "$WIT_GITEA_OWNER" "$WIT_GITEA_REPO" "$NUMBER")" || {
   RC=$?
   printf 'create-item.sh: gitea:%s#%s WAS CREATED (blocker edges written); only its open-blocker count could not be read — re-read it with get-item, do not create it again\n' \

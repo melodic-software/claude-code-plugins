@@ -1,7 +1,3 @@
-// The Work status writer over the live models.issue-status: one POST of the
-// state's option name, checked against the mapped option id; a write that
-// does not land throws, so the caller's run fails rather than leave the field
-// wrong. Option ids are written by hand from the org field.
 // test-scope: .github/actions/resolve-config/package.json
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -9,6 +5,7 @@ import { test } from "node:test";
 
 import { parse } from "yaml";
 
+import { standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 import { postOptionNames, RESTART_GAP_MS, StatusWriteError, statusWriter, writeState } from "./write-status.mjs";
 
 const CONFIG = parse(readFileSync(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url), "utf8")).models[
@@ -108,7 +105,7 @@ function fieldWorld(option, setter, labels = []) {
   };
   return { github, posts, put, steps, labels: () => labels };
 }
-const writerOver = (github, env = { BASE_PATH: ROOT }, sleep = async () => {}) => statusWriter({ env, github, repository: "o/r", sleep });
+const writerOver = (github, env = { BASE_PATH: ROOT, STANDARDS_DIR: standardsCheckout() }, sleep = async () => {}) => statusWriter({ env, github, repository: "o/r", sleep });
 
 test("statusWriter set writes a state once per issue in a process, and skips one `fields` shows", async () => {
   const w = fieldWorld(null);
@@ -188,9 +185,6 @@ test("statusWriter restart from agent-ready leaves a field a person moved elsewh
   assert.equal(moved.posts().length, 0);
 });
 
-// The lanes token broker refuses the issue lane's token while the issue
-// carries a status label other than agent-ready (#16149): an issue form's
-// needs-triage stayed on #16000 and #16001 after admission set the field.
 test("statusWriter set to agent-ready removes the issue's other status labels before the write, and keeps every other label", async () => {
   const app = 337595936;
   const formLeftover = fieldWorld(86380003, app, ["needs-triage", "area: security"]);
@@ -320,7 +314,7 @@ test("statusWriter set answers the field write when the agent-ready label remova
       return w.github(method, path, body);
     };
     const logs = [];
-    const { set } = await statusWriter({ env: { BASE_PATH: ROOT }, github, repository: "o/r", log: (line) => logs.push(line) });
+    const { set } = await statusWriter({ env: { BASE_PATH: ROOT, STANDARDS_DIR: standardsCheckout() }, github, repository: "o/r", log: (line) => logs.push(line) });
     assert.equal((await set(7, "confirmed")).outcome, "written", String(status));
     assert.equal(logs.some((line) => line.includes("`agent-ready` label was not removed")), warned, logs.join("\n"));
   }
@@ -466,13 +460,13 @@ test("statusWriter set with keepHold throws and writes nothing when the field ca
   assert.ok(!calls.some(([method, path]) => method === "POST" && path.endsWith("/issue-field-values")));
 });
 
-test("statusWriter with an unreadable trusted-actor list still writes a plain set, and throws on every field read", async () => {
+test("statusWriter with no standards checkout reads neither list, the base's copies included, so every call throws and writes nothing", async () => {
   const w = fieldWorld(null);
-  const { set, leaveAgentReady } = await writerOver(w.github, { BASE_PATH: ROOT, TRUSTED_ACTORS_PATH: "/nonexistent-trusted-actors.json" });
-  assert.equal((await set(7, "needs-human")).outcome, "written", "a plain set needs only the config");
-  await assert.rejects(() => set(8, "needs-triage", { keepHold: true }), (error) => error instanceof StatusWriteError && /could not be read/.test(error.message));
+  const { set, leaveAgentReady } = await writerOver(w.github, { BASE_PATH: ROOT });
+  await assert.rejects(() => set(7, "needs-human"), (error) => error instanceof StatusWriteError && /vocabulary is missing/.test(error.message));
+  await assert.rejects(() => set(8, "needs-triage", { keepHold: true }), StatusWriteError);
   await assert.rejects(() => leaveAgentReady(9, "needs-triage"), StatusWriteError);
-  assert.deepEqual(w.posts().map(([, path]) => path), ["/repos/o/r/issues/7/issue-field-values"]);
+  assert.equal(w.posts().length, 0);
 });
 
 test("statusWriter with no readable config throws on every call and writes nothing", async () => {
@@ -489,7 +483,6 @@ test("statusWriter leaveAgentReady throws when the field cannot be read", async 
   await assert.rejects(() => leaveAgentReady(7, "needs-triage"), (error) => error instanceof StatusWriteError && /could not be read/.test(error.message));
 });
 
-// A POST that takes a batch only when GitHub's options, in `spelled`, hold every name.
 function optionPoster(spelled) {
   const posts = [];
   const post = async (batch) => {

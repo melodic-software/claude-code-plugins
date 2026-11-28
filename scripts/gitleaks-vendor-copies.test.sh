@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# The gitleaks rules each carrier vendors match the session-flow copy vendor_gitleaks_rules.py writes, byte for
-# byte. The check lives here because no plugin may cite another's private files.
 # test-scope: plugins/session-flow/vendor/gitleaks/* plugins/corrections/tools/findings-buffer/vendor/gitleaks/* plugins/explainer-video/vendor/gitleaks/* plugins/evals/vendor/gitleaks/*
 set -uo pipefail
 

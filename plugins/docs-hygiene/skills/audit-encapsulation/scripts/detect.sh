@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# This script is a candidate enumerator, not a violation adjudicator. Exit 1
-# means candidates exist after mechanical filters — not that those hits are
-# illegal. Classify via the skill's filter taxonomy before treating any hit as
-# a violation. Do not hard-gate CI on this exit code alone.
 # Exit: 0 no candidates, 1 candidates exist, 2 environment error.
 set -euo pipefail
 
@@ -263,7 +259,6 @@ scan_scope() {
       "$pattern" "${SCOPE_DIRS[@]}" 2>/dev/null || true
   fi
   if [[ ${#SCOPE_FILES[@]} -gt 0 ]]; then
-    # -H forces the file prefix even when only one file exists.
     grep -EHnoI "$pattern" "${SCOPE_FILES[@]}" 2>/dev/null || true
   fi
 }

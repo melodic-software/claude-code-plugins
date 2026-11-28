@@ -48,16 +48,12 @@ import sys
 from functools import lru_cache
 from pathlib import Path
 
-# `from __future__ import annotations` needs 3.7; the .test.sh wrapper parses
-# this tuple to pick an interpreter.
+# `from __future__ import annotations` needs Python 3.7:
+# https://docs.python.org/3/library/__future__.html
 MIN_PYTHON = (3, 7)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# PATH:SPEC. The lookbehind keeps a token that continues a URL, an
-# `owner/repo:` prefix or a longer word from matching from its middle; the
-# lookahead stops `file.md:12.5`, `file.md:12:3` and `file.md:12abc` from
-# reading as line 12.
 CITATION = re.compile(
     r"(?<![\w./@:~-])"
     r"(?P<path>[\w.@-]+(?:/[\w.@-]+)*)"
@@ -65,7 +61,6 @@ CITATION = re.compile(
     r"(?![\w.:/-]*\w)"
 )
 
-# A fence may sit inside a block quote (`> ````) or open a list item (`- ````).
 FENCE = re.compile(r"^(?:\s*>)*\s*(?:(?:[-*+]|\d+[.)])\s+)?(`{3,}|~{3,})")
 
 RECORD_PREFIXES = ("docs/adr/", "docs/upstream/", ".changes/")

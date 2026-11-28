@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Version-guard boundary for the native sub-issue/dependency surface: below
-# 2.94 is refused, 2.94 and above is accepted. Stub gh on PATH; no network.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,7 +7,7 @@ source "$SCRIPT_DIR/gh-version.sh"
 source "$SCRIPT_DIR/../tests/lib.sh"
 
 STUB_BIN="$(mktemp -d)"
-NOGH="$(mktemp -d)" # left empty: the "gh absent from PATH" case
+NOGH="$(mktemp -d)"
 trap 'rm -rf "$STUB_BIN" "$NOGH"' EXIT
 
 cat >"$STUB_BIN/gh" <<'EOF'
@@ -56,5 +54,39 @@ assert_eq "an unset CLAUDE_CODE_REMOTE is not" "1" "$?"
 
 PATH="$NOGH" wit_gh_has_native_surface
 assert_eq "missing gh fails closed" "1" "$?"
+
+ART_OK="$STUB_BIN/art-ok"
+mkdir -p "$ART_OK"
+cat >"$ART_OK/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'USAGE\n  gh issue artifact <command> [flags]\n'
+EOF
+chmod +x "$ART_OK/gh"
+PATH="$ART_OK:$PATH" wit_gh_has_issue_artifact
+assert_eq "gh with issue artifact subcommand → 0" "0" "$?"
+
+ART_COBRA="$STUB_BIN/art-cobra"
+mkdir -p "$ART_COBRA"
+cat >"$ART_COBRA/gh" <<'EOF'
+#!/usr/bin/env bash
+printf 'Work with GitHub issues.\nUSAGE\n  gh issue <command> [flags]\n'
+EOF
+chmod +x "$ART_COBRA/gh"
+PATH="$ART_COBRA:$PATH" wit_gh_has_issue_artifact
+assert_eq "old gh cobra fallback help for unknown subcommand → 1" "1" "$?"
+
+ART_FAIL="$STUB_BIN/art-fail"
+mkdir -p "$ART_FAIL"
+cat >"$ART_FAIL/gh" <<'EOF'
+#!/usr/bin/env bash
+echo 'unknown command "artifact" for "gh issue"' >&2
+exit 1
+EOF
+chmod +x "$ART_FAIL/gh"
+PATH="$ART_FAIL:$PATH" wit_gh_has_issue_artifact
+assert_eq "gh exiting non-zero on artifact --help → 1" "1" "$?"
+
+PATH="$NOGH" wit_gh_has_issue_artifact
+assert_eq "missing gh → wit_gh_has_issue_artifact returns 1" "1" "$?"
 
 [[ $FAILED -eq 0 ]] || exit 1

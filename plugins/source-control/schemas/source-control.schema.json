@@ -27,6 +27,33 @@
       "default": true,
       "description": "When true, a /source-control:pull-request run, or a pr-unblock address-feedback round, that pushes a change making an open pull request's body stale (what changed, verification, the Left out: line) rewrites those sections in place, so the body describes the current head. false leaves the body as it was."
     },
+    "pr_body_format_gate": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the guardrails plugin's block-body-format-violation hook refuses a pull request body that breaks the format this repository declares (pr_body_required_sections, and the opener rule where linkage_gate_uses_pattern matches a workflow). false turns that refusal off; a repository that declares no format is never judged."
+    },
+    "issue_body_required_sections": {
+      "description": "The issue-body format: each issue kind this repository accepts, named by a lowercase id, mapped to the headings that kind requires. The guardrails plugin's block-body-format-violation hook refuses a gh issue create or GitHub MCP issue create whose body completes no declared kind: a required heading (## or ###) missing, empty, or answered _No response_. none declares no format; unset declares none either. A closed value: the winning layer's mapping is taken whole.",
+      "oneOf": [
+        { "enum": ["none"] },
+        {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "issue_body_format_gate": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the guardrails plugin's block-body-format-violation hook refuses an issue body that completes no kind issue_body_required_sections declares. false turns that refusal off; a repository that declares no issue format is never judged."
+    },
     "evidence_inline_max_captures": {
       "type": "integer",
       "minimum": 0,
@@ -229,12 +256,12 @@
     "trusted_actors_source": {
       "enum": ["repository", "standards"],
       "default": "repository",
-      "description": "Where /source-control:babysit-prs, the pr-merge lane gate and the pull-request ready check read the trusted-actors list and the Dependabot policy. standards reads components/trusted-actors/trusted-actors.json and components/dependabot-policy/policy.json from the repository standards_repository names, at the one commit its main names when the process first reads it. repository, or unset, reads the repository's own .github/standards copies. Any other value, or standards without a valid standards_repository, reads neither, so the lane adopts nothing."
+      "description": "Where /source-control:babysit-prs, the pr-merge lane gate and the pull-request ready check read the trusted-actors list. standards reads components/trusted-actors/trusted-actors.json from the repository standards_repository names, at the one commit its main names when the process first reads it. repository, or unset, reads the repository's own .github/standards copy. Any other value, or standards without a valid standards_repository, reads neither list and no Dependabot policy, so the lane adopts nothing. Setting standards widens which pull requests the babysit lane adopts and merges unattended in that repository: set it only where the repository's owner has approved that through their own approval process."
     },
     "standards_repository": {
       "type": "string",
       "pattern": "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$",
-      "description": "owner/repo of the standards repository trusted_actors_source: standards reads, for the source-control readers above and for the guardrails merge guard and the review loosened-check reader. Required with that value; ignored otherwise. Unset or invalid with standards: the source-control readers adopt nothing, the merge guard runs unchecked with a warning, and the review reader gives no reason."
+      "description": "owner/repo of the standards repository. Set, /source-control:babysit-prs and the pr-merge lane gate read the Dependabot policy (components/dependabot-policy/policy.json) from it, at the one commit its main names when the process first reads it, whatever trusted_actors_source says. Unset, no Dependabot policy is read (never the repository's own .github/standards copy), so the lane merges no Dependabot update. Set but not an owner/repo pair, the policy read fails and the lane merges no Dependabot update. The trusted-actors list comes from it only with trusted_actors_source: standards, for the source-control readers above and for the guardrails merge guard and the review loosened-check reader; that value requires it. Unset or invalid with standards: the source-control readers adopt nothing, the merge guard runs unchecked with a warning, and the review reader gives no reason."
     },
     "org_settings_repo": {
       "type": "string",

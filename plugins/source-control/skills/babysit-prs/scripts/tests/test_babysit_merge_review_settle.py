@@ -31,7 +31,6 @@ import babysit_postmerge
 from repo_config_fake import RepoConfigFake
 
 HEAD = "a" * 40
-# The base compare the freshness hold reads for an otherwise-ready PR.
 UP_TO_DATE = {"status": "ahead", "ahead_by": 1, "behind_by": 0}
 STALE = "b" * 40
 REVIEWER = "chatgpt-codex-connector"
@@ -42,8 +41,6 @@ SETTLE = merge.ReviewSettleConfig(
     reviewer_logins=frozenset({REVIEWER}), settle_seconds=600
 )
 
-# Protected base needing one approving review and no required status contexts,
-# so nothing but the hold under test can block an otherwise-clean PR.
 RULES = [{"type": "pull_request", "parameters": {"required_approving_review_count": 1}}]
 
 
@@ -111,10 +108,6 @@ class SettleHarness(unittest.TestCase):
             if args[:2] == ["pr", "view"]:
                 base = pr if pr is not None else _pr()
                 if check_starts is not None:
-                    # Every entry shares one check identity by default, which is
-                    # what a re-run actually looks like: `classify_checks` would
-                    # dedupe these to the newest, so a hold reading its output
-                    # instead of the raw rollup loses the original timestamp.
                     base = dict(
                         base,
                         statusCheckRollup=[
@@ -194,7 +187,6 @@ class UnconfiguredIsInert(SettleHarness):
 
 class HoldFiresWhileAReviewIsDue(SettleHarness):
     def test_young_head_with_no_current_head_review_blocks(self) -> None:
-        # #1594's exact shape: head 4m40s old, reviewer's round landed 26s later.
         result = self._evaluate(reviews=[_review(STALE)])
         self.assertFalse(result["ready"])
         blockers = self._settle_blockers(result)
@@ -205,8 +197,6 @@ class HoldFiresWhileAReviewIsDue(SettleHarness):
         self.assertFalse(result["reviewSettle"]["currentHeadReview"])
 
     def test_a_review_of_another_head_does_not_clear_the_hold(self) -> None:
-        # The stale review is by the configured reviewer but on the previous
-        # head -- the case a login-only check would wrongly treat as reviewed.
         result = self._evaluate(reviews=[_review(STALE, state="APPROVED")])
         self.assertEqual(result["reviewSettle"]["state"], "settling")
 
@@ -225,8 +215,6 @@ class HoldClearsWithoutAddedLatency(SettleHarness):
         self.assertEqual(result["_commit_reads"], [])
 
     def test_inline_review_comment_on_this_head_also_clears_it(self) -> None:
-        # Codex posts its findings as inline review comments; those carry the
-        # commit id too and are evidence the reviewer saw this head.
         inline = [
             {
                 "id": 7,
@@ -276,11 +264,6 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         self.assertEqual(result["_commit_reads"], [])
 
     def test_a_head_returning_to_a_checked_sha_still_holds(self) -> None:
-        # Force-push A -> B -> A, with no review of A at all. Check runs live on
-        # the SHA, so A's original runs are still in the rollup even though the
-        # re-push draws a fresh review. Reading the oldest of them would call a
-        # brand-new head settled and merge straight through the window. This is
-        # the reason the clock takes the newest timestamp rather than the oldest.
         result = self._evaluate(
             reviews=[],
             check_starts=["2026-07-26T18:00:00Z", "2026-07-26T21:45:00Z"],
@@ -325,7 +308,6 @@ class ServerClockIsPreferredOverCommitMetadata(SettleHarness):
         self.assertEqual(result["reviewSettle"]["headAgeSeconds"], 220)
 
     def test_a_status_context_contributes_its_created_at(self) -> None:
-        # StatusContext rollup entries carry `createdAt`, not `startedAt`.
         result = self._evaluate(
             reviews=[],
             pr=_pr(
@@ -407,10 +389,6 @@ class ARestoredHeadIsNotItsOwnEarlierReview(SettleHarness):
         self.assertEqual(result["reviewSettle"]["state"], "settling")
 
     def test_no_check_starts_leaves_no_floor_which_is_the_stated_residual(self) -> None:
-        # When the restored head mints no fresh runs there is no server-observed
-        # bound to compare against, so the earlier review still clears the hold.
-        # safety.md scopes exactly this case; the test pins it so the residual
-        # is a decision on record rather than an accident.
         result = self._evaluate(
             reviews=[_review(HEAD, submitted_at="2001-01-01T00:00:00Z")],
             check_starts=[],
@@ -487,8 +465,6 @@ class ReviewCorpusIsFetchedOnce(unittest.TestCase):
             )
         self.assertEqual(reviews_mock.call_count, 1)
         self.assertEqual(review_comments_mock.call_count, 1)
-        # Call counts alone would still pass if the tier were handed a corpus it
-        # could not read, so assert it reached its verdict on the injected one.
         self.assertEqual(
             result["autopilotMergeTier"]["distinctBotApproval"]["author"],
             "approver-bot",
@@ -543,9 +519,6 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
         self.assertIn("must be non-empty", out)
 
     def test_nonpositive_and_nonnumeric_windows_are_refused(self) -> None:
-        # `-inf` is passed `=`-joined: argparse reads a bare `-inf` as an option
-        # token and exits before the gate's own validation runs, so the joined
-        # form is what actually exercises the check under test.
         for value in ("0", "-5", "abc", "nan", "inf"):
             with self.subTest(value=value):
                 code, out = self._run(
@@ -566,9 +539,6 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
         self.assertIn("at least one second", out)
 
     def test_sub_second_windows_are_refused_rather_than_truncated_to_zero(self) -> None:
-        # A positive window that converts to zero seconds passes a bare
-        # greater-than-zero test and then holds nothing, which is precisely the
-        # active-looking inert configuration the paired-flag rule forbids.
         for value in ("0.008", "1e-9"):
             with self.subTest(value=value):
                 code, out = self._run(
@@ -581,8 +551,6 @@ class PairedConfigurationIsFailClosed(unittest.TestCase):
                 self.assertIn("at least one second", out)
 
     def test_a_valid_pair_reaches_evaluate_as_seconds(self) -> None:
-        # Without this, dropping the `* 60` conversion or the `settle=settle`
-        # argument entirely would leave every other test in this file green.
         captured: dict[str, Any] = {}
 
         def fake_evaluate(*args: Any, **kwargs: Any) -> dict[str, Any]:
@@ -811,8 +779,6 @@ class SettleConfigUnit(unittest.TestCase):
         self.assertIsNone(merge.parse_github_timestamp("   "))
 
 
-# The tracker's human-gated label read an autonomous gate makes: stubbed so
-# no test reads GitHub.
 _role_label = mock.patch.object(
     babysit_postmerge, "_role_label", return_value="needs-human"
 )

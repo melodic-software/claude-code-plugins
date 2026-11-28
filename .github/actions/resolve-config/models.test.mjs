@@ -1,9 +1,4 @@
 // test-scope: .github/actions/resolve-config/package.json
-// The `models` block: schema, cross-checks, resolution, the arguments and
-// settings a profile becomes, and what the live config gives every model run.
-// The live expectations are written by hand: --model opus and 75 turns for a
-// skill activity no route names, and --model opus with --max-turns 60 for
-// pr-verify.yml.
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -12,6 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import { parse, stringify } from "yaml";
 
+import { standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 import { main } from "./resolve-config.mjs";
 import { modelArgs, modelSettings, neededFacts, Rejection, resolve, resolveRoute } from "./resolve.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -22,14 +18,14 @@ const read = (relative) => readFileSync(join(ROOT, relative), "utf8");
 const json = (relative) => JSON.parse(read(relative));
 const CONFIG_PATH = "docs/conventions/pr-pipeline.yaml";
 const SCHEMA_PATH = "docs/conventions/pr-pipeline/pr-pipeline.schema.json";
-const VOCABULARY_PATH = ".github/standards/github-actions-conventions/vocabulary.json";
+const VOCABULARY_PATH = ".github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json";
 const OWN = {
   schema: json(SCHEMA_PATH),
   laneRules: json(".github/actions/resolve-config/lane-rules.json"),
   effectGrants: json(".github/actions/resolve-config/effect-grants.json"),
   activityRules: json(".github/actions/resolve-config/activity-rules.json"),
 };
-const TRUSTED_ACTORS_PATH = ".github/standards/trusted-actors/trusted-actors.json";
+const TRUSTED_ACTORS_PATH = ".github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json";
 const ROLE_MAP_PATH = "plugins/multi-agent/reference/defaults.yaml";
 const LIVE = {
   ...OWN,
@@ -501,8 +497,6 @@ test("live config: verify-pr keeps --model opus and 60 turns at effort high", ()
   assert.equal(modelSettings(models), "");
 });
 
-// Both review lanes run Opus at effort high, 75 turns (#11503, Capability tiers
-// rules 3 and 4); triage moves to Sonnet at effort medium with 30 turns.
 for (const [route, profile, args] of [
   ["review-code", "pr-review", "--model opus --max-turns 75 --effort high"],
   ["review-security", "pr-review", "--model opus --max-turns 75 --effort high"],
@@ -518,8 +512,6 @@ for (const [route, profile, args] of [
   });
 }
 
-// #13657 (owner decision Q1): the merge-risk rater's model and effort, and its
-// checker's model through subagent-model, come from the route.
 test("live config: merge-risk resolves the rater's model and effort and the checker's model", () => {
   const models = resolveRoute(LIVE, { route: "merge-risk", configPath: CONFIG_PATH });
   assert.equal(models.profile, "merge-risk");
@@ -834,7 +826,7 @@ function readOutputs(path) {
 
 function routeEnv(extra = {}) {
   const base = mkdtempSync(join(scratch, "base-"));
-  for (const relative of [CONFIG_PATH, SCHEMA_PATH, VOCABULARY_PATH, TRUSTED_ACTORS_PATH, ROLE_MAP_PATH]) {
+  for (const relative of [CONFIG_PATH, SCHEMA_PATH, ROLE_MAP_PATH]) {
     mkdirSync(dirname(join(base, relative)), { recursive: true });
     writeFileSync(join(base, relative), read(relative));
   }
@@ -842,6 +834,7 @@ function routeEnv(extra = {}) {
   writeFileSync(output, "");
   return {
     BASE_PATH: base,
+    STANDARDS_DIR: standardsCheckout(),
     MODEL_ROUTE: "verify-pr",
     OUTPUT_PATH: join(base, "resolved.json"),
     GITHUB_OUTPUT: output,
@@ -943,8 +936,6 @@ test("main writes applied-by-patch as the activity that applies the selected one
   assert.equal(outputs["applied-by-patch"], applier);
 });
 
-// Canned answers in the shapes recorded live on pr-pipeline-sandbox#167
-// (REST issue-field-values and the GraphQL field events, 2026-10-18).
 const fieldRow = (field, option) => ({
   issue_field_id: field,
   data_type: "single_select",
@@ -957,7 +948,7 @@ const fieldEvent = (type, field, actor) => ({
   issueField: { fullDatabaseId: String(field) },
 });
 const FIELD_ROWS = [fieldRow(15462270, 27053567), fieldRow(48625720, 85127653), fieldRow(48625721, 85127654)];
-async function mainOnIssue(events, splitChild = "false", fieldValues = FIELD_ROWS, labels = ["agent-ready"]) {
+async function mainOnIssue(events, splitChild = "false", fieldValues = FIELD_ROWS, labels = ["agent-ready"], extra = {}) {
   const env = routeEnv({
     MODEL_ROUTE: "",
     LANE: "work-resolve-issue",
@@ -965,6 +956,7 @@ async function mainOnIssue(events, splitChild = "false", fieldValues = FIELD_ROW
     EVENT_NAME: "issues",
     REPOSITORY: "o/r",
     APPLIED_BY_SUPPORTED: "patch work-outcome",
+    ...extra,
   });
   writeFileSync(join(env.BASE_PATH, CONFIG_PATH), TUNED.config);
   const issue = { number: 7, updated_at: "2026-10-18T00:00:00Z", labels: [] };
@@ -1023,8 +1015,12 @@ test("main on an issue reads its trusted Work status as its status label", async
   assert.equal(held.outputs["skip-reason"], "awaiting-human");
 });
 
-// The field's REST value and its newest event disagreeing is usually a read
-// racing a write, so both are read once more; a second disagreement fails.
+test("main with no standards checkout fails red: neither list is read from the base", async () => {
+  const status = { ...fieldEvent("IssueFieldAddedEvent", 48484079, LISTED), value: "agent-ready" };
+  const { code } = await mainOnIssue([status], "false", [...FIELD_ROWS, fieldRow(48484079, 84879220)], [], { STANDARDS_DIR: "" });
+  assert.equal(code, 1);
+});
+
 test("main on an issue reads a disagreeing Work status once more", async () => {
   const events = [
     fieldEvent("IssueFieldAddedEvent", 15462270, LISTED),
@@ -1088,8 +1084,6 @@ test("fieldSetters fails on an issue with no event list", async () => {
   }
 });
 
-// The shapes as GraphQL answered them on 2026-11-06: option names
-// as values, a bot's login without `[bot]`, and a removal with no value.
 test("fieldEvents reads each event's field, actor, time and values, oldest first", async () => {
   const { fieldEvents, fieldSetters } = await import("./resolve-config.mjs");
   const bot = { __typename: "Bot", login: "melodic-automation-lanes", databaseId: 337595936 };

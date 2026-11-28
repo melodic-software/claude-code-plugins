@@ -5,6 +5,51 @@ topology, the escalation contract, the capability-tier vocabulary, or any loop-l
 major bump, and additive guidance is a minor bump. A new model release re-audits the capability-tier
 table (§3); drift found by that audit is recorded here.
 
+## [21.0.1] - 2026-11-28
+
+Patch. An implementation fix the Cross-lane PR hold now states; no topology, escalation-contract
+mechanism, capability-tier or §4 invariant changed.
+
+- **Eval release takes only its own label.** pr-merge's eval release removes `do-not-merge` only
+  when the newest label event and an eval reason line are by the same listed human or by the lanes
+  App, the line posted within 10 minutes after the label. A label a person or a lane added for
+  another reason stays, even when an eval-only reason line follows it.
+- **Person holds record their reason.** work-resolve-issue posts a `reason=person` line on every
+  lane PR it holds for a person, eval-gated or not, so a later eval-only reason line cannot
+  release it.
+
+## [21.0.0] - 2026-11-27
+
+Major. The Cross-lane PR hold narrows to one mechanism; no topology, escalation-contract mechanism
+or capability-tier changed.
+
+- **One hold.** The `do-not-merge` label is the only cross-lane PR hold. A body hold line, a
+  "do not merge" phrase and a member's veto comment hold nothing; a lane that needs a hold labels
+  the pull request, at creation where it opens one.
+
+## [20.5.0] - 2026-11-24
+
+Minor. Additive guidance; no topology, escalation-contract mechanism, capability-tier or §4
+invariant changed.
+
+- **Lane output format.** New [`lane-output-format.md`](lane-output-format.md) sets one shape for
+  what a lane posts on a PR comment, check run, step summary and live step log: a heading, a plain
+  verdict line, at most five bullets, and the lane-outcome record where the surface carries it,
+  with a length limit per surface. Lanes adopt it the next time their posting code changes
+  ([#18863](https://github.com/melodic-software/claude-code-plugins/issues/18863)).
+
+## [20.4.0] - 2026-11-24
+
+Minor. The Cross-lane PR hold gains a release reason; no topology, escalation-contract mechanism,
+capability-tier or §4 invariant changed.
+
+- **Eval hold, compare run cannot start.** With no record at the head, pr-merge's release step also
+  lifts an eval hold when, for every plugin whose skill, agent or context text the PR changes (or,
+  when it changes none, every plugin it changes), the
+  newest compare run naming the PR, its head and that plugin as its target reads back as trusted
+  and ran its `Compare Cannot Start: compare-refused` job to success. The PR merges first and owes
+  the default-branch run in `docs/review/evals.md`. A missing record alone still releases nothing.
+
 ## [20.3.0] - 2026-11-22
 
 Minor. One posting-lanes row gains an effect; no topology, escalation-contract mechanism,
@@ -753,7 +798,7 @@ The second half of the defect 9.0.1 closed, recorded open at the time and now cl
   table cell as the same shape in the same file, needing its own pass. It is the same failure for
   the same reason: the link resolves only inside this marketplace checkout, and a lane running with
   `source-control` installed has no such path on disk.
-  [ADR 0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)
+  ADR 0018
   makes the plugin the encapsulation boundary for citation. The cell now reads "merge lane over
   `/source-control:babysit-prs`", which resolves for an installed reader and still names the skill
   the lane wraps. The table is still a live consumer list; nothing about the lane, its tier, or its
@@ -769,8 +814,8 @@ by its public invocation instead of by a filesystem path into another plugin's t
   `../../../plugins/claude-ops/skills/lanes/SKILL.md` for the "Never pass a body as an `@path`
   string" section. That link resolves only inside this marketplace checkout; a lane running with
   `claude-ops` installed has no such path on disk, and the rule the paragraph declares itself bound
-  by was unreachable exactly where it binds. [ADR
-  0018](../../adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md) makes
+  by was unreachable exactly where it binds. ADR
+  0018 makes
   the plugin the encapsulation boundary for citation: name the public invocation, never a path into
   another plugin's private tree. The citation is now `/claude-ops:lanes` plus the same section name,
   which resolves for an installed reader and still locates the section for a reader in this

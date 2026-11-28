@@ -54,6 +54,11 @@
       "type": "object",
       "additionalProperties": { "enum": ["off", "light", "standard", "strict"] },
       "description": "Per-skill verification level, keyed by skill name (for example research); an entry beats this file's verification value."
+    },
+    "webfetch_truncation_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Repository default for the WebFetch truncation PostToolUse hook. An explicit userConfig value for this key wins over this repository setting per docs/contracts/hook-enablement/README.md."
     }
   }
 }

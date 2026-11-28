@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for quote-check.sh.
-#
-# Every case runs on page snapshots through QUOTE_CHECK_FIXTURE_DIR, so no case
-# touches the network. The snapshots go through the real fetch-docs.sh and
-# docs-cache.sh, so a change to either that breaks the check fails here.
 # test-scope: plugins/instruction-placement/scripts/fetch-docs.sh
 # test-scope: plugins/instruction-placement/scripts/docs-cache.sh
 

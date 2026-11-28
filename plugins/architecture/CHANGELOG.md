@@ -3,6 +3,91 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.1.5] - 2026-11-28
+
+### Changed
+
+- Backfilled invocation probe sets (`probes/improve-layout.json`, `probes/enforce-boundaries.json`, `probes/principles.json`) and trimmed 14 skill frontmatter descriptions (6,421 -> 4,550 chars across changed skills, -1,871c / -29.1%: `adr` 654 -> 345, `enforce-boundaries` 412 -> 331, `improve` 557 -> 348, `improve-layout` 566 -> 345, `map-components` 403 -> 349, `map-containers` 392 -> 348, `map-context` 352 -> 331, `map-data` 473 -> 348, `map-deployment` 364 -> 339, `map-events` 404 -> 348, `map-flow` 468 -> 349, `map-landscape` 358 -> 300, `principles` 354 -> 338, `setup` 664 -> 131) with zero body changes. Sibling exclusions in the `map-*` descriptions name their targets as fully qualified `/architecture:<skill>` routes, `adr` keeps its skip when no alternative was weighed, and `improve` names its `conventions` lens, with a positive probe for it in `probes/improve.json`.
+
+## [7.1.4] - 2026-11-28
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
+## [7.1.3] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [7.1.2] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
+## [7.1.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [7.1.0] - 2026-11-26
+
+### Changed
+
+- Shared `view-builder.mjs` and `html-escape.mjs` synced: an interactive page's policy adds `img-src data:` and `font-src data:`, and both validator profiles admit a base64 `data:` URL in two places only, a PNG or JPEG as the `.rv-logo` rule's one `background-image`, and a WOFF2, WOFF, TTF or OTF font inside `@font-face`. Every other `url(`, scheme and URL-bearing attribute is still refused. Pages built today look the same; no other change to this plugin.
+
+## [7.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+- Shared `enforcement-ladder.md` copy synced where this plugin carries it: citations of retired ADRs repointed or unlinked; no other change to this plugin.
+
+## [6.1.3] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [6.1.2] - 2026-11-26
+
+### Changed
+
+- Shared `html-chrome.html` synced: its palette, type stacks and per-scheme roles are now kept equal to the marketplace's shared token layer, it gains an `--accent` role set to the existing clay value, and its header no longer rules out a team or user theme override. Pages look the same; no other change to this plugin.
+
+## [6.1.1] - 2026-11-26
+
+### Changed
+
+- `/architecture:principles` gotchas point at the subagent docs' available-tools section for which tools a subagent holds, instead of stating that a subagent may lack the Skill tool.
+
+## [6.1.0] - 2026-11-25
+
+### Added
+
+- The plugin carries the shared one-way and two-way door definition at `reference/one-way-doors.md`, generated from `lib/one-way-doors.md`.
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+- `/architecture:adr`'s admission test now requires all three parts: a real alternative was weighed, the decision is a one-way door by the shared definition (or matches an `adr_extra_triggers` entry), and its reason is not visible in the code. A two-way door never earns a record, however surprising; its reason belongs beside the code or setting, or in the pull request. `audit` checks records against the same three parts.
+- `adr_extra_triggers` entries now name decisions the team treats as one-way doors; they no longer stand in for the other two parts.
+
+## [6.0.10] - 2026-11-24
+
+### Changed
+
+- `/architecture:improve` names four successors in its Next section; the boundaries-lens codify route stays in its routing table.
+
 ## [6.0.9] - 2026-11-24
 
 ### Changed

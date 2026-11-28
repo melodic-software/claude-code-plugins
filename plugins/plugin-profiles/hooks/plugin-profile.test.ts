@@ -45,8 +45,8 @@ const resetPreview = (folders: ResetRow[] = [{ file: '/p/.claude/settings.local.
   }),
 })
 
-const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?: Out; clearDry?: Out; clear?: Out; resetDry?: Out; reset?: Out; reloadHangs?: boolean; noPane?: boolean } = {}) => {
-  const w = { runs: [] as string[][], envs: [] as (Record<string, string> | undefined)[], asks: [] as { question: string; options: string[] }[], headers: [] as string[], logs: [] as string[], commands: [] as string[], registered: [] as string[], panes: [] as string[], closed: [] as string[] }
+const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?: Out; clearDry?: Out; clear?: Out; resetDry?: Out; reset?: Out; reloadHangs?: boolean; noPane?: boolean; moduleOff?: boolean } = {}) => {
+  const w = { enablement: [] as string[][], runs: [] as string[][], envs: [] as (Record<string, string> | undefined)[], asks: [] as { question: string; options: string[] }[], headers: [] as string[], logs: [] as string[], commands: [] as string[], registered: [] as string[], panes: [] as string[], closed: [] as string[] }
   const up = new Set<string>()
   on('ui.open', ($: unknown, e: { id: string }) => {
     w.panes.push(e.id)
@@ -61,6 +61,10 @@ const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?:
   on('ui.panes', () => ({ value: [...up].map(id => ({ id, title: id, isShown: true, isFocused: true, isPlaced: !cli.noPane })) }))
   on('process.run', ($: unknown, e: { argv: readonly string[]; init?: { env?: Record<string, string> } }) => {
     const args = e.argv.slice(2)
+    if (e.argv[1]?.endsWith('/lib/hook-enablement.mjs')) {
+      w.enablement.push([...args])
+      return { value: { stdout: '', stderr: '', isStdoutTruncated: false, isStderrTruncated: false, exitCode: cli.moduleOff ? 1 : 0 } }
+    }
     w.runs.push([...args])
     w.envs.push(e.init?.env)
     const out =
@@ -97,13 +101,13 @@ const world = (on: any, answers: string[], cli: { dry?: Out; apply?: Out; list?:
   })
   on('command.run', ($: unknown, e: { command: string }) => {
     w.commands.push(e.command)
-    // A reload that unloads this module never answers the call that queued it.
     if (cli.reloadHangs) return new Promise(() => undefined)
     return { text: `ran ${e.command}` }
   })
   on('ui.focus', { plugin: '*' }, () => ({ value: {} }))
   on('session.start', () => ({ cwd: '/p' }))
   on('session.id', () => ({ value: 'own-session' }))
+  on('session.root', () => ({ value: '/p' }))
   on('turn.complete', () => ({ text: '' }))
   return w
 }
@@ -141,6 +145,16 @@ test('session.start registers /plugin-profile', async ($, on) => {
   const w = world(on, [])
   await $.session.start({ cwd: '/p' } as any)
   expect(w.registered).toEqual(['plugin-profile'])
+  expect(w.enablement).toEqual([['plugin_profile_module_enabled', 'true', '--settings', '--root', '/p']])
+})
+
+test('plugin_profile_module_enabled off: session.start registers no command, reloads nothing and finishes no switch', async ($, on) => {
+  const w = world(on, [], { moduleOff: true })
+  await $.session.start({ cwd: '/p' } as any)
+  await settle()
+  expect(w.registered).toEqual([])
+  expect(w.runs).toEqual([])
+  expect(w.commands).toEqual([])
 })
 
 test('#16818: /plugin-profile answers before any pick, so no wait on the person counts against its hook budget', async ($, on) => {

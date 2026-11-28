@@ -1,5 +1,3 @@
-// Runs workflows/fix-until-green.js against stubbed workflow hooks (agent,
-// parallel, pipeline, phase, log, args) and asserts what it dispatches.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -11,7 +9,6 @@ const source = readFileSync(join(here, '..', 'workflows', 'fix-until-green.js'),
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
 const body = source.replace(/^export const meta\b/m, 'const meta')
 
-// Banned by the bundled /workflow-authoring skill's determinism rules; the test enforces the same list.
 for (const banned of ['Date.now(', 'Math.random(', 'new Date()']) {
   test(`script does not call ${banned}`, () => assert.ok(!source.includes(banned)))
 }
@@ -25,8 +22,6 @@ const allowed = prompt => JSON.parse(prompt.match(/<data name="allowed-files">\n
 const data = (prompt, name) => { const m = prompt.match(new RegExp('<data name="' + name + '">\\n([\\s\\S]*?)\\n</data>')); return m ? JSON.parse(m[1]) : undefined }
 const requested = prompt => { const m = prompt.match(/<data name="requested-files">\n([\s\S]*?)\n<\/data>/); return m ? JSON.parse(m[1]) : [] }
 
-// runs[i] answers run:i; the last entry repeats. Fixers fix the first allowed
-// file, checks find no weakening, and the final verifier agrees it is green.
 function makeReply(runs, over = {}) {
   return (prompt, o) => {
     const label = o.label || ''
@@ -563,7 +558,6 @@ test('command and failure text reach prompts inside a fence they cannot close', 
   for (const c of calls) assert.equal((c.prompt.match(/<\/data>/g) || []).length, (c.prompt.match(/<data name=/g) || []).length)
 })
 
-// One test file and one source file in one group, so both are allowed edits.
 const TEST_AND_SRC = [red(fail('a.test.js', 1, ['src/a.js'])), GREEN]
 const sawBoth = { passed: true, weakened: [], head: SHA, changedFiles: ['a.test.js', 'src/a.js'] }
 

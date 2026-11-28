@@ -72,7 +72,7 @@ contract, an explicit invocation argument, or an optional namespaced skill invoc
 ([`docs/plugin-philosophy.md`](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/plugin-philosophy.md)).
 The `work-items` tracker seam's CLI is that plugin's internal
 surface, so this skill does not invoke it directly, and it names no tracker's commands
-([ADR 0060](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0060-abstract-provider-details-in-skills-behind-consumer-conventions-and-adapters.md)).
+([skills and agents review rules](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/review/skills-and-agents.md)).
 In priority order:
 
 1. **`/work-items:track view <promoted id>`**, invoked via the Skill tool when the `work-items`

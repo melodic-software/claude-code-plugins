@@ -123,8 +123,6 @@ function Import-ElevatedResult {
             $merged.Add($result)
         }
     }
-    # A matrix check the run did not dispatch (switched off, or deferred by cadence)
-    # still gets the elevated reading.
     foreach ($id in $elevatedById.Keys) {
         if (-not $imported.Contains($id)) {
             $imported.Add($id)

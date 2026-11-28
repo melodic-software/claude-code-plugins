@@ -26,9 +26,6 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from unittest import mock
 
-# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
-# fixtures' identity writes into the caller's repository
-# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -108,7 +105,6 @@ class QuarantineGh:
     def __init__(self, base: Any) -> None:
         self.base = base
         self.logs: dict[int, str] = {}
-        # Issue numbers whose body was edited after filing.
         self.edited: set[int] = set()
 
     def __call__(
@@ -138,7 +134,6 @@ class QuarantineGh:
 class AffectedBase(CheckCase):
     def setUp(self) -> None:
         super().setUp()
-        # The last green full run's commit (below) is on main.
         self.gh.on_main.add(OTHER_SHA)
         self.fake = QuarantineGh(self.gh)
         for module in (pm, pm.policy):
@@ -151,8 +146,6 @@ class AffectedBase(CheckCase):
         )
         self.affected_calls = patcher.start()
         self.addCleanup(patcher.stop)
-        # merge.quarantine-days and red-main.confirm-wait-minutes at their
-        # defaults (QuarantineDaysConfig and ConfirmWaitConfig read them).
         patcher = mock.patch.object(
             pm.policy,
             "read_config_at",
@@ -164,7 +157,6 @@ class AffectedBase(CheckCase):
         self.read_config = patcher.start()
         self.addCleanup(patcher.stop)
         self.gh.add_runs("post-merge-detect-silent-revert.yml", "push", canary_run(21))
-        # The last green full run before the red one, at OTHER_SHA.
         self.gh.add_runs(
             "pr-require-checks.yml",
             "schedule",
@@ -217,8 +209,6 @@ class AffectedBase(CheckCase):
 
 class AffectedSet(AffectedBase):
     def test_a_newer_green_run_on_a_commit_not_on_main_is_ignored(self) -> None:
-        # A run on a tag named main reports `head_branch: main`; its commit
-        # (and the plan script it would run) is not main's.
         self.gh.add_runs(
             "pr-require-checks.yml",
             "workflow_dispatch",
@@ -257,7 +247,6 @@ class AffectedSet(AffectedBase):
         self.assertIn(
             "comment on this issue rather than editing it", " ".join(body.split())
         )
-        # No label and no assignee: intake triage hands it to a lane.
         self.assertFalse(any(a.startswith("labels[]=") for a in post))
         self.assertNotIn("babysit-merge-demotion", body)
         self.assertFalse(any(a.startswith("assignees[]=") for a in post))
@@ -284,7 +273,6 @@ class AffectedSet(AffectedBase):
         )
 
     def test_a_leg_that_passed_outright_on_attempt_1_is_excused(self) -> None:
-        # A person's whole-run re-run: attempt 1 failed elsewhere, this leg passed.
         self.red_dispatch(bash_log((FLAKY, False)))
         self.gh.jobs[(11, 1)] = [
             failed_job(110, "Lint Repo", "Aggregate hygiene results"),
@@ -414,14 +402,11 @@ class AffectedSet(AffectedBase):
         self.assertIn(f"body={pm.QUARANTINE_NOTE}{SIGHTING}", post)
 
     def test_the_answer_says_when_its_quarantine_excuse_ends(self) -> None:
-        # The lane room keeps an answer only until then: the quarantine
-        # issue's creation plus the default 7 quarantine days.
         self.quarantine_issue(FLAKY, "2026-10-10T09:00:00Z")
         self.red_dispatch(bash_log((FLAKY, False)))
         report = self.check().report()
         self.assertEqual(report["failures"], [])
         self.assertEqual(report["excusesExpireAt"], "2026-10-17T09:00:00+00:00")
-        # A baseline failure excused by a live quarantine ends the same way.
         self.gh.issues.clear()
         self.quarantine_issue(FLAKY, "2026-10-10T10:00:00Z")
         self.red_baseline()
@@ -430,7 +415,6 @@ class AffectedSet(AffectedBase):
         self.assertEqual(report["excusesExpireAt"], "2026-10-17T10:00:00+00:00")
 
     def test_an_answer_nothing_excuses_has_no_excuse_end(self) -> None:
-        # A suite with no quarantine issue yet is excused with no end.
         self.red_dispatch(bash_log((FLAKY, False)))
         report = self.check().report()
         self.assertEqual(report["failures"], [])
@@ -445,7 +429,6 @@ class AffectedSet(AffectedBase):
                 self.assertTrue(pm.is_gate_suite(suite))
 
     def test_expiry_restores_demotion(self) -> None:
-        # Filed 8 days before the check's 2026-10-12T11:00Z; the default is 7.
         self.quarantine_issue(FLAKY, "2026-10-04T10:00:00Z")
         self.red_dispatch(bash_log((FLAKY, False)))
         verdict = self.check()
@@ -462,8 +445,6 @@ class AffectedSet(AffectedBase):
     def test_raising_quarantine_days_at_the_red_sha_does_not_lengthen_it(
         self,
     ) -> None:
-        # 7 days at the last green run's commit, 30 at the red one: the issue
-        # filed 8 days ago has expired, so the suite demotes.
         self.quarantine_days_at({OTHER_SHA: 7, LATER_SHA: 30})
         self.quarantine_issue(FLAKY, "2026-10-04T10:00:00Z")
         self.red_dispatch(bash_log((FLAKY, False)))
@@ -471,14 +452,12 @@ class AffectedSet(AffectedBase):
         self.assertEqual([f.signal for f in verdict.failures], ["dispatch"])
 
     def test_a_lowered_quarantine_days_at_the_red_sha_shortens_it(self) -> None:
-        # 30 at the base, 3 at the red commit: the issue filed 4 days ago expired.
         self.quarantine_days_at({OTHER_SHA: 30, LATER_SHA: 3})
         self.quarantine_issue(FLAKY, "2026-10-08T10:00:00Z")
         self.red_dispatch(bash_log((FLAKY, False)))
         self.assertEqual([f.signal for f in self.check().failures], ["dispatch"])
 
     def test_quarantine_days_agreeing_at_both_shas_still_excuses(self) -> None:
-        # 10 at both: the issue filed 8 days ago is still open.
         self.quarantine_days_at({OTHER_SHA: 10, LATER_SHA: 10})
         self.quarantine_issue(FLAKY, "2026-10-04T10:00:00Z")
         self.red_dispatch(bash_log((FLAKY, False)))
@@ -498,8 +477,6 @@ class AffectedSet(AffectedBase):
         ]
 
     def test_expiry_restores_demotion_when_the_baseline_was_red_too(self) -> None:
-        # A persistent failure is in the baseline as well; its expired
-        # quarantine still demotes.
         self.quarantine_issue(FLAKY, "2026-10-04T10:00:00Z")
         self.red_baseline()
         self.red_dispatch(bash_log((FLAKY, False)))
@@ -522,7 +499,6 @@ class AffectedSet(AffectedBase):
         self.assertEqual(verdict.quarantines, ())
 
     def test_a_marker_the_title_does_not_name_excuses_nothing(self) -> None:
-        # A writer moved another suite's issue onto this suite by its marker.
         self.quarantine_issue(
             FLAKY,
             "2026-10-12T00:00:00Z",
@@ -571,8 +547,6 @@ class AffectedSet(AffectedBase):
         self.assertEqual((report["issues"], report["comments"]), ([], [501]))
 
     def test_a_quarantine_issue_someone_else_opened_counts_for_nothing(self) -> None:
-        # An outsider's expired issue would demote, and an open one would take
-        # the sighting: it is neither, so the filers' own issue is filed.
         self.quarantine_issue(FLAKY, "2026-10-01T09:00:00Z")
         self.gh.issues[-1]["user"] = {"login": "outsider"}
         self.red_dispatch(bash_log((FLAKY, False)))
@@ -601,10 +575,6 @@ class AffectedSet(AffectedBase):
         self.assertEqual([f.signal for f in self.check().failures], ["dispatch"])
 
     def test_a_leg_listing_no_failed_step_demotes(self) -> None:
-        # A pin of the safe answer: with no failed step listed (the jobs API
-        # can answer a completed job with no steps or a cut list), no suite
-        # can be named, so an out-of-set failure excuses nothing. The full
-        # list keeps the quarantine excuse.
         cases = {
             "no steps": ([], ["dispatch"]),
             "a list cut before the suite step": (
@@ -792,9 +762,6 @@ class LaneRerunOutsideAWindow(AffectedBase):
     def test_a_red_a_later_green_schedule_run_settled_gets_no_rerun_when_every_merge_is_settled(
         self,
     ) -> None:
-        # Every lane merge carries the identity's settled marker, so no
-        # merge lists the full runs; the probe still lists the lookback's
-        # schedule runs, and the green one descending from run 11 settles it.
         self.gh.merged = [identity_merge(number=7002)]
         self.gh.pin_comments = [
             {
@@ -857,8 +824,6 @@ class LaneRerunOutsideAWindow(AffectedBase):
         return verdict.report(), len(listings)
 
     def test_the_verdicts_listing_answers_the_lookback_with_one_read_less(self) -> None:
-        # A lane merge at 10:00 checked at 12:00: the verdict lists from the
-        # merge, which covers the lookback from 10:15 (12:00 less 105 minutes).
         later = datetime(2026, 10, 12, 12, 0, tzinfo=UTC)
         for why, head in [("in the merge's window", LATER_SHA), ("outside it", HEAD_SHA)]:
             with self.subTest(why):
@@ -880,8 +845,6 @@ class LaneRerunOutsideAWindow(AffectedBase):
     def test_a_run_in_progress_when_listed_is_listed_again_and_its_red_found(
         self,
     ) -> None:
-        # Listed in progress by the verdict, then red before the lookback is
-        # read: the lane's one re-run is still marked, from a second listing.
         later = datetime(2026, 10, 12, 12, 0, tzinfo=UTC)
         self.gh.merged = [identity_merge(number=7002)]
         self.lane_red(
@@ -918,7 +881,6 @@ class LaneRerunOutsideAWindow(AffectedBase):
         self.assertGreaterEqual(len(listings), 2)
 
     def test_a_lookback_older_than_the_listing_is_listed_again(self) -> None:
-        # Checked at 11:00, the lookback starts at 09:15, before the merge.
         self.gh.merged = [identity_merge(number=7002)]
         self.lane_red(bash_log((TOUCHED, False)), created_at="2026-10-12T10:30:00Z")
         report, listings = self.lane_check_at(self.NOW, reuse=True)
@@ -926,14 +888,10 @@ class LaneRerunOutsideAWindow(AffectedBase):
         self.assertEqual([(r["runId"]) for r in report["reruns"]], [11])
 
     def test_a_red_run_off_the_branch_gets_no_rerun(self) -> None:
-        # Run 11 on a tag named main: its commit is not on refs/heads/main.
         self.lane_red(bash_log((TOUCHED, False)), head_sha=FORK_SHA)
         self.assertEqual(self.lane_reruns(self.lane_check()), [])
 
     def test_an_out_of_set_red_gets_no_rerun_and_files_no_quarantine(self) -> None:
-        # The alert's --judge-run already excuses and quarantines it. A lane
-        # merge is judged, so the verdict carries quarantines, but run 11's
-        # head lacks it.
         self.gh.merged = [identity_merge(number=7002)]
         self.lane_red(bash_log((FLAKY, False)), head_sha=HEAD_SHA)
         verdict = self.lane_check()
@@ -951,7 +909,6 @@ class LaneRerunOutsideAWindow(AffectedBase):
         )
 
     def test_a_red_just_inside_the_lookback_is_marked(self) -> None:
-        # The default lookback: confirm-wait-minutes (55) plus 50.
         self.lane_red(bash_log((TOUCHED, False)), created_at=self.created(104))
         self.assertEqual(self.lane_reruns(self.lane_check()), [(11, True)])
 
@@ -960,7 +917,6 @@ class LaneRerunOutsideAWindow(AffectedBase):
         self.assertEqual(self.lane_reruns(self.lane_check()), [])
 
     def test_the_lookback_follows_a_raised_confirm_wait(self) -> None:
-        # At 60 the lookback is 110 minutes, so a 106-minute-old red is marked.
         self.read_config.return_value.confirm_wait_minutes = 60
         self.lane_red(bash_log((TOUCHED, False)), created_at=self.created(106))
         self.assertEqual(self.lane_reruns(self.lane_check()), [(11, True)])
@@ -976,8 +932,6 @@ class LaneRerunOutsideAWindow(AffectedBase):
         self.assertEqual(self.lane_reruns(self.lane_check()), [])
 
     def test_without_the_lane_flag_nothing_is_marked(self) -> None:
-        # Local babysit judges the other App's merge, whose window run 11
-        # is not in (its head lacks the merge), and adds no lane re-run.
         self.lane_red(bash_log((TOUCHED, False)), head_sha=OTHER_SHA)
         verdict = self.lane_check(lane_merges_only=False)
         self.assertEqual(self.lane_reruns(verdict), [])
@@ -1000,7 +954,6 @@ class AffectedSuites(unittest.TestCase):
     of it, over the paths `green..red` changed, in a local clone holding
     both; a window that changes the selector itself has no set."""
 
-    # Prints the tree it runs in (`tree.txt`) and the paths it was given.
     PLAN = (
         "#!/usr/bin/env bash\n"
         '[[ "$1" == -- ]] || exit 2\n'
@@ -1024,8 +977,6 @@ class AffectedSuites(unittest.TestCase):
         return self.git(self.root, "rev-parse", "HEAD")
 
     def setUp(self) -> None:
-        # The machine's global config signs commits (commit.gpgsign) through a
-        # key the fixture cannot reach, which fails `git commit` under load.
         env = mock.patch.dict(
             os.environ, {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
         )
@@ -1038,8 +989,6 @@ class AffectedSuites(unittest.TestCase):
         self.git(self.root, "init", "-q")
         self.git(self.root, "config", "user.email", "t@example.com")
         self.git(self.root, "config", "user.name", "t")
-        # Repo-local, as in test_prune_babysit_worktrees.py: a global
-        # commit.gpgsign would sign every fixture commit with the machine's key.
         self.git(self.root, "config", "commit.gpgsign", "false")
         self.green = self.commit(
             {pm.PLAN_SCRIPT: self.PLAN, "tree.txt": "green"}, "green"
@@ -1059,7 +1008,6 @@ class AffectedSuites(unittest.TestCase):
         self.assertEqual(self.git(self.root, "worktree", "list").count("\n"), 0)
 
     def test_a_suite_the_window_adds_is_in_the_set(self) -> None:
-        # The green tree lacks it, so its plan cannot pick it.
         red = self.commit({"plugins/x/tests/test_new.py": "def test(): 0"}, "add")
         self.assertIn(
             "plugins/x/tests/test_new.py", pm.affected_suites(self.green, red)
@@ -1123,8 +1071,6 @@ class SuiteFailures(unittest.TestCase):
     def test_an_advisory_line_inside_another_suites_block_excuses_nothing(
         self,
     ) -> None:
-        # FLAKY's own output prints TOUCHED's advisory warning, with the
-        # nonce guessed wrong or copied from an older run.
         for forged in (advisory(TOUCHED, "f" * 16), advisory(TOUCHED, "")):
             with self.subTest(forged):
                 log = bash_log((FLAKY, False), (TOUCHED, False), inside={FLAKY: forged})
@@ -1133,8 +1079,6 @@ class SuiteFailures(unittest.TestCase):
                 )
 
     def test_a_nonce_line_inside_a_block_is_not_the_runners(self) -> None:
-        # A suite prints its own nonce line and a warning carrying it; only
-        # the runner's line, before any block, sets the nonce.
         forged = f"Advisory nonce: {'e' * 16}"
         log = bash_log(
             (FLAKY, False), (TOUCHED, False), inside={FLAKY: forged}
@@ -1143,7 +1087,6 @@ class SuiteFailures(unittest.TestCase):
         self.assertEqual(pm.suite_failures(log, "bash"), frozenset({FLAKY, TOUCHED}))
 
     def test_bash_drops_an_advisory_suite_from_a_titled_warning(self) -> None:
-        # run-plugin-tests.sh's suite_annotate titles each warning by its suite.
         titled = advisory(TOUCHED).replace(
             "::warning::", f"::warning title={TOUCHED}::", 1
         )
@@ -1151,8 +1094,6 @@ class SuiteFailures(unittest.TestCase):
         self.assertEqual(pm.suite_failures(log, "bash"), frozenset({FLAKY}))
 
     def test_a_real_leg_log_names_only_runner_suites(self) -> None:
-        # Job 119563204870: the ui suite's own output prints `FAIL: <file>`
-        # lines, and the runner's stderr `FAIL: <suite>` lands inside them.
         log = (FIXTURES / "job-log-bash-ui-fail.txt").read_text(encoding="utf-8")
         self.assertEqual(
             pm.suite_failures(log, "bash"),
@@ -1204,7 +1145,6 @@ class SuiteFailures(unittest.TestCase):
         self.assertIsNone(pm.suite_failures(log, "python"))
 
     def test_a_forged_summary_and_call_line_credit_no_other_suite(self) -> None:
-        # A failing test's captured output, printed by the real suite.
         inside = (
             "1 passed in 0.10s\n"
             f"{STAMP}python -m pytest -q -- pu/test_pu.py\n"
@@ -1218,8 +1158,6 @@ class SuiteFailures(unittest.TestCase):
         self.assertIsNone(pm.suite_failures(log, "python"))
 
     def test_a_log_with_no_runner_framing_credits_a_forged_suite_nothing(self) -> None:
-        # The unframed leg: the forged summary closes the real suite, and the
-        # forged call line would take its real failure.
         log = "\n".join(
             STAMP + line
             for line in [

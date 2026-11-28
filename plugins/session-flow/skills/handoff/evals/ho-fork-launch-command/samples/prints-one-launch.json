@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "cd /project/guide && claude \"$(cat /project/guide/.work/handoffs/link-check.prompt.txt)\""
+    }
+  ],
+  "fail": [
+    {
+      "answer": "cd /project/guide && claude \"Check the links in guide.md\""
+    },
+    {
+      "answer": "claude \"$(cat /project/guide/.work/handoffs/link-check.prompt.txt)\""
+    },
+    {
+      "answer": "cd /project/guide && claude \"$(cat /project/guide/check.prompt.txt)\"\ncd /project/guide && claude \"$(cat /project/guide/check.prompt.txt)\""
+    }
+  ]
+}

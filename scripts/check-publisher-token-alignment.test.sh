@@ -12,7 +12,6 @@ PUBLISHER_TOKEN='@melodic-software/[a-z-]+'
 write_org() { printf '# org tokens\nfleet-id %s\n' "$1" >"$TMP/org.txt"; }
 write_port() { printf '# --- ACTIVE ---\n%s\n# --- STAGED ---\n# staged\n' "$1" >"$TMP/port.txt"; }
 
-# run <expected-exit> <name>: run the script against the fixtures in $TMP.
 run() {
   local expected="$1" name="$2" status
   LAST_OUTPUT="$(

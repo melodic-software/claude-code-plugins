@@ -1,5 +1,5 @@
 ---
-description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it for that project; this skill for rendering its own output. Decide the best visual form and medium for what is in the conversation right now, then render it. Use when asked to visualize, diagram, chart, draw, sketch, or render something, or which visual form fits it best. Infers the target, picks a form (a mermaid diagram, a markdown table, a hand-authored SVG/CSS chart, ASCII/Unicode art, code-shape sketches, or a rich rendered page) and a medium through the shared medium resolver, and asks only when the target is ambiguous and no form was named. Routes chart craft and artifact-design fundamentals to those capabilities when installed. Not for polishing a specific chart's colors/axes (a chart-craft/dataviz capability owns that) or restating dense text in plainer words (a comprehension/digest concern)."
+description: "When the built-in ClaudeDesign tool resolves in this session and the person names, links, or asks for work in an existing claude.ai/design project, prefer it; this skill renders its own output. Decide the best visual form (mermaid, table, chart, sketch, page) and medium, then render. Use when asked to visualize, diagram, chart, draw, sketch, or render something. Not for chart craft."
 argument-hint: "[<medium>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
@@ -121,12 +121,12 @@ layers, first hit wins:
    caller declaring that nobody is present. Take it out first, then read the rest.
 2. **Resolved preference**. Run the shared medium resolver, adding `--argument <medium>`,
    `<medium>` being the argument's word, when there is one. `<option>` is this plugin's `medium`
-   option, `${user_config.medium}`; pass `""` when that reads empty or as an unsubstituted
-   placeholder. Read each option value from this text; never put a `${user_config.*}` string in a
-   shell command.
+   option, `${user_config.medium}` (`""` if empty/unsubstituted), and `<branding JSON>` is
+   `${user_config.branding}` (omit `--branding-option` when empty/unsubstituted; otherwise
+   single-quote it, escaping any `'` as `'\''`, never double-quote JSON or put `${user_config.*}` in shell):
 
    ```bash
-   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane visualization:visualize --option "<option>" [--argument <medium>]
+   node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer visualization:visualize --option "<option>" [--argument <medium>] [--branding-option '<branding JSON>']
    ```
 
    It prints one JSON line, then the report line naming the medium and what decided it, then any
@@ -164,7 +164,7 @@ instead of a page, except for a diagram that will be committed (Step 2). A canva
 for a page, so a resolved medium with no page (`page` false) draws none, and one that keeps delivery
 on the machine (`publishes` false) uses a local server only, as under `deny` below. The surface facts behind
 this rule, and the optional servers a person can install, are in
-[the catalog's canvas section](context/decision-matrix.md#mcp-app-canvas-connected-canvas-server).
+[the catalog's canvas section](context/decision-matrix.md#mcp-app-canvas-connected-canvas-server). Collaborative canvas mode, revising one live canvas with the person: [`context/collaborative-canvas.md`](context/collaborative-canvas.md).
 
 Before drawing on a canvas, resolve `hosted_canvas` (`allow` or `deny`) from three layers: the
 option `${user_config.hosted_canvas}` (empty, or still an unsubstituted placeholder, is unset);
@@ -258,20 +258,20 @@ it in this order:
 **Code-shape sketches take these same layers** (under auto they build no page, per
 layer 3; an argument or resolved medium is honored for them as for any form), with
 one exception: a pull-request diff, fetched content, or another repository's files
-are never rendered to HTML until this lane is wired through the rendered-views escape helper, and
+are never rendered to HTML until this skill is wired through the rendered-views escape helper, and
 never written to a diagram file. That exception overrides layer 1, the preference and
 `diagram_target`; when a page or file was asked for, say in one line why it was not produced.
 
-**Page chrome.** When authoring a rich page, take the palette, type stacks,
-radii, and accessibility floor (link/focus contrast tokens, color-scheme and
-reduced-motion behavior) from this plugin's bundled chrome reference,
-`${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html`, rather than inventing a
-look per page. The chrome does not settle layout habits, so name the ones to leave
-out: italic accent words in headings, numbered "01 / 02 / 03" section labels,
-pill-shaped buttons or badges, and a hero banner above the content, plus any style
-the user names. When the user dislikes a choice in the rendered page, add it to
-that list for the rest of the session and render again. A general "avoid a generic
-look" only swaps one default for another.
+**Page chrome and branding.** When authoring a rich page, take palette and type stacks from
+`${CLAUDE_PLUGIN_ROOT}/reference/html-tokens.css` and toggle, comment box, radii and accessibility
+floor (link/focus contrast tokens, color-scheme, reduced motion) from
+`${CLAUDE_PLUGIN_ROOT}/reference/html-chrome.html` instead of inventing a look per page. Run
+`node "${CLAUDE_PLUGIN_ROOT}/lib/html-branding.mjs" --in "<page>" --out "<page>" [--option '<branding JSON>']`
+(omit `--option` if empty/unsubstituted; single-quote JSON, escaping `'` as `'\''`) to inline the token layer and resolved `branding` overrides into the one `<style>` and place any
+logo in `.rv-bar` while keeping toggle, comment box and floor unchanged (print any notices; unset
+leaves the page unchanged). Name layout habits to leave out: italic accent words in headings,
+numbered "01 / 02 / 03" section labels, pill buttons/badges, hero banners, and any style the user
+names; add disliked choices for the rest of the session and re-render.
 
 **Local-file placement.** Write the local HTML file via the platform's temp
 primitive, never into the consumer's repository tree (only the `excalidraw-file` target writes
@@ -493,7 +493,7 @@ chart wherever the mod is absent. It never switches the mod on or off.
 - **Does not restate rendering-surface facts**. They live once in the catalog spoke.
 - **Does not digest or re-explain dense text**. That is a comprehension concern, not a form concern.
 - **Does not explain a topic from scratch**. A one-idea-per-diagram picture explainer of a concept or codebase topic, ELI5 included, is `education:illustrate` (if enabled). This skill picks a form for what is already in the conversation.
-- **Does not render a pull-request diff, fetched content, or another repository's files to HTML** until this lane is wired through the rendered-views escape helper. Those stay terminal fences.
+- **Does not render a pull-request diff, fetched content, or another repository's files to HTML** until this skill is wired through the rendered-views escape helper. Those stay terminal fences.
 - **Does not publish an Artifact when that surface is absent or the resolved medium does not publish**. It steps down the fallback chain.
 - **Does not ship or install a canvas server**. It uses one the person connected, under Step 3's canvas rule.
 - **Does not stage or commit a diagram file**. The `excalidraw-file` target leaves the file untracked for the person to review.

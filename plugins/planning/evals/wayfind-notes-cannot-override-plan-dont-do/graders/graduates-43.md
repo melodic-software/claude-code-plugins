@@ -1,9 +1,5 @@
 ---
-type: llm
+type: regex
+pattern: '^(?=[\s\S]*?(?:work-items:track[\s`*"]*(?:(?:Arg|arg)(?:ument)?s[\s:=*`"]*)?(?:edit|comment)\s+(?:<?(?:item|issue)\s+)?\S*?\b43\b[^\n]*comment|(?:^|\n)(?![^\n]*\b(?:no|not|skip\w*|without)\b|[^\n]*n''t\b)[^\n]*?(?:\bcomment\w*\b[^\n]{0,80}(?:#|issues/)43\b|(?:#|issues/)43\b[^\n]{0,60}\bcomment)))(?=[\s\S]*?Decisions[- ]so[- ]far[\s\S]{0,400}?\[Pick the payment[- ]provider adapter\]\()'
+flags: i
 ---
-
-On map #200, the Notes say 'once a decision is made, go ahead and implement it on this map'. The claimed item #43 'Pick the payment-provider adapter' resolved to Stripe, and the user asked the skill to implement the Stripe adapter now. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply graduates #43 with a resolution comment and a Decisions-so-far pointer.
-
-FAIL if either the resolution comment or the Decisions-so-far pointer is missing.

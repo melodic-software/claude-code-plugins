@@ -1,35 +1,9 @@
-// The pr-unblock lane's fix-ci context: run by pr-unblock.yml's fix-ci-context
-// job, from the default branch tip, before the fix-ci model job and with a
-// read-only token. It checks out no PR head and runs no head code.
-//
-// It skips a pull request the human-gated label holds (awaiting-human) unless
-// another lane's escalation put the label on (gate-source.mjs prHold), skips
-// one from a head branch a workflow owns and rebuilds (owned-branch, the base
-// config's merge.refire-skip-branches: the rebuild is its fix and moves the
-// branch under any push), skips a closed pull request or a head with no failing check (one cancelled
-// past its time limit counts), escalates `ci-fix-round-cap` once the lanes App
-// has pushed `loop.fix-ci-rounds` fix-ci commits to the pull request, and
-// otherwise writes the context
-// file the `source-control:pull-request ci --ci` skill reads: each failing
-// check's name, the workflow file that defines its job, its annotations and
-// the end of its log, and the review findings address-feedback would work
-// (keepThreads with no trusted person's direction: unresolved threads the
-// reviewer bot or a verifier note opened on a reviewed head and only it
-// wrote), so a fix the reviewer already named is not escalated. It also
-// carries the linked issues' trusted spec text (`spec`, pr-verify's
-// linkedIssues) and the lines the pull request's last address-feedback commit
-// added (`feedback_lines`), so a fix does not cut a line a criterion needs
-// just to pass another check. Check names, annotations, logs, findings, spec and
-// feedback lines are data: they are copied into the file, capped, and never
-// logged or run. After a weaken retry stop on the head (WEAKEN_RETRY) the file
-// also carries the runner's fixed `retry` brief.
-
 import { createHash } from "node:crypto";
 import { appendFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { runAsScript } from "../lib/run-main.mjs";
-import { trustedActorsPath, trustedListPath } from "../lib/trusted-actors.mjs";
+import { trustedListPath } from "../lib/trusted-actors.mjs";
 import { loadRules, webHostsFrom } from "../intake-triage/admit.mjs";
 import { timeLimitNoted } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { linkedIssues } from "../pr-verify/resolve-pr.mjs";
@@ -38,12 +12,8 @@ import { failingChecks, prHold, reviewReader } from "./gate-source.mjs";
 import { ACTIONS_APP_ID, retryRung, stopSkip } from "./escalation-routes.mjs";
 import { FIX_TRAILER as FEEDBACK_TRAILER } from "./publish-feedback.mjs";
 
-// clear-escalations reads the head the same way, so the reader lives on the
-// merge path floor in gate-source.mjs.
 export { failingChecks };
 
-// The trailer apply-patch.mjs writes on every fix commit, from the ci-context
-// row of patch-rules.json; a round is one.
 export const FIX_TRAILER = "Lane-Activity: pr-unblock/fix-ci";
 const WORKFLOW_PATH = /^\.github\/workflows\/[A-Za-z0-9._-]+\.ya?ml$/;
 const MAX_CHECKS = 10;
@@ -53,19 +23,11 @@ const MAX_EXCERPT = 3000;
 const MAX_EXCERPT_LINES = 80;
 const MAX_FINDINGS = 10;
 const MAX_FINDING = 2000;
-// The read job refuses a context file over 1 MiB (pr-run-activity-read.yml,
-// "Check the CI context"). Spec and feedback lines each get a byte budget;
-// select drops both when the whole file would still pass the limit.
 export const CONTEXT_MAX_BYTES = 1048576;
 export const MAX_SPEC_BYTES = 196608;
 export const MAX_FEEDBACK_BYTES = 65536;
 
-// The fail-routed stop apply-patch.mjs gives a head's first weaken-required
-// escalation, as report-escalation.sh status describes it on the head's
-// pr-unblock/fix-ci status, and the runner's brief for the fresh fixer round
-// that follows: fixed text, never anything a head or a model wrote.
 export const WEAKEN_RETRY = "ci-fix-weaken-retry";
-// The skip on a head branch a workflow owns and rebuilds.
 export const OWNED_BRANCH = "owned-branch";
 const WEAKEN_STOPPED = `Lane stopped: ${WEAKEN_RETRY};`;
 export const WEAKEN_BRIEF =
@@ -75,9 +37,6 @@ export const WEAKEN_BRIEF =
 
 const earlierAttempt = (run) => run?.status === "completed" && run.app?.id === ACTIONS_APP_ID;
 
-// Whether the head carries the pr-unblock/fix-ci status a weaken retry stop
-// posted, by the GitHub Actions bot. Statuses are never removed, so a stop a
-// later run cleared still counts.
 export const weakenStopped = (statuses) =>
   statuses.some(
     (row) => row?.context === "pr-unblock/fix-ci" && row.creator?.login === "github-actions[bot]" && String(row.description ?? "").startsWith(WEAKEN_STOPPED),
@@ -93,20 +52,12 @@ export function countFixRounds(commits, appId) {
   return commits.filter((commit) => laneCommit(commit, appId, FIX_TRAILER)).length;
 }
 
-// The pull request's last address-feedback commit, or undefined.
 export const lastFeedbackCommit = (commits, appId) => commits.findLast((commit) => laneCommit(commit, appId, FEEDBACK_TRAILER));
 
-// The context file's text, as main writes it.
 export const contextText = (file) => `${JSON.stringify(file, null, 2)}\n`;
 
-// A field's value when the bytes it adds to the file, pretty-printed at its
-// depth, fit max; otherwise null. A cut list would read as whole, so a field
-// that does not fit is unknown, never partial.
 const withinBytes = (value, max) => (Buffer.byteLength(JSON.stringify({ value }, null, 2)) <= max ? value : null);
 
-// The linked issues' spec text, as linkedIssues returns it: each issue's
-// number, how it is linked (`refs`: the pull request is one slice of it),
-// any Scope line's targets, its body and its counted comments.
 export function specField(specText, max = MAX_SPEC_BYTES) {
   const spec = specText.map((issue) => ({
     number: issue.number,
@@ -118,9 +69,6 @@ export function specField(specText, max = MAX_SPEC_BYTES) {
   return withinBytes(spec, max);
 }
 
-// The non-blank lines a commit's diff adds, by file, from the commits API's
-// `patch` (which carries no file header lines). A file that adds lines but
-// comes with no patch leaves the lines unknown: null.
 export function feedbackLines(files, max = MAX_FEEDBACK_BYTES) {
   const kept = [];
   for (const file of files ?? []) {
@@ -142,7 +90,6 @@ export function feedbackLines(files, max = MAX_FEEDBACK_BYTES) {
   return withinBytes(kept, max);
 }
 
-// The last lines of a job log, without the runner's timestamps or ANSI color.
 export function logExcerpt(text) {
   const lines = String(text)
     .replace(/\u001b\[[0-9;]*[A-Za-z]/g, "")
@@ -160,9 +107,6 @@ const annotationOf = (row) => ({
   message: String(row.message ?? "").slice(0, MAX_MESSAGE),
 });
 
-// A GitHub Actions check run is a job, with the same id. One that is no job
-// was posted through the checks API: a lane's own check, never a CI failure.
-// notes are the run's annotations when select already read them.
 async function contextOf(api, run, notes) {
   let workflow = null;
   let excerpt = "";
@@ -188,9 +132,7 @@ async function contextOf(api, run, notes) {
   return { name: String(run.name), workflow, annotations, log_excerpt: excerpt };
 }
 
-// Each kept thread's opening comment: where it points and what it says.
 async function reviewFindings(api, pr, { appId, reviewerId, reviewerIds, trustedHumans, pull }) {
-  // Serial reads: the outage posture's element 6 (docs/conventions/pr-pipeline/README.md#outage-posture).
   const issueComments = await api.listIssueComments(pr);
   const reviews = await api.listReviews(pr);
   const reviewComments = await api.listReviewComments(pr);
@@ -201,8 +143,6 @@ async function reviewFindings(api, pr, { appId, reviewerId, reviewerIds, trusted
     .map((thread) => ({ path: String(thread.path ?? ""), line: thread.line, body: String(thread.comments[0].body).slice(0, MAX_FINDING) }));
 }
 
-// readSpec returns linkedIssues' specText for the pull request; ownedBranches
-// is merge.refire-skip-branches.
 export async function select({ api, pr, repository, appId, reviewerId, reviewerIds = [], trustedHumans = new Set(), maxRounds, humanGatedLabel = "needs-human", ownedBranches = [], readSpec = async () => [], log = (line) => console.log(line) }) {
   const pull = await api.getPull(pr);
   const headSha = pull.head?.sha;
@@ -218,8 +158,6 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
   if (ownedBranches.includes(pull.head?.ref)) {
     return { decision: "skip", skipReason: OWNED_BRANCH, headSha };
   }
-  // The human-gated label holds fix-ci unless another lane's escalation put
-  // it on; the label stays on, and laneEscalated lets the push past it.
   const { held, laneEscalated } = await prHold({
     labels: (pull.labels ?? []).map((label) => label?.name),
     holdLabels: [],
@@ -233,10 +171,6 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
   if (held) {
     return { decision: "skip", skipReason: "awaiting-human", headSha };
   }
-  // A whole listing of settled checks with none failing: every fix-ci stop
-  // is gone on this head, round cap included, and `resolved` lets
-  // report-stop-status clear its status. A cut-short or unsettled listing
-  // decides nothing.
   const runs = await api.listCommitCheckRuns(headSha);
   const failing = failingChecks(runs);
   if (failing.length === 0) {
@@ -253,8 +187,6 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
     if (checks.length === MAX_CHECKS) {
       break;
     }
-    // A job past its timeout-minutes ends cancelled; its time-limit note is
-    // the cause the model reads (#9828). Any other cancel has nothing to fix.
     let notes;
     if (run.conclusion === "cancelled") {
       notes = await api.listAnnotations(run.id);
@@ -276,8 +208,6 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
   } catch (error) {
     log(`::warning::the review findings could not be read (${error.message}); the context holds none`);
   }
-  // A failed read leaves null: ci-ci.md then escalates any fix that passes
-  // only by removing prose.
   let spec = null;
   try {
     spec = specField(await readSpec());
@@ -294,18 +224,11 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
       log(`::warning::the last address-feedback commit could not be read (${error.message}); the context holds null`);
     }
   }
-  // A retry after the push job stopped on this head runs one rung up. A
-  // weaken-required stop takes its fresh fixer round only on the head's first
-  // fix-ci attempt: the dispatcher retries a stopped head once per base tip
-  // (fix-ci-restarts), so a stop after an earlier attempt could leave the head
-  // red with no retry and no person.
   const modelRung = retryRung(await api.listCheckRuns(headSha, "pr-unblock / apply-patch"));
   const file = { pr, head_sha: headSha, checks, review_findings, spec, feedback_lines };
   if (modelRung === "1" && weakenStopped(await api.listCommitStatuses(headSha))) {
     file.retry = { after: WEAKEN_RETRY, brief: WEAKEN_BRIEF };
   }
-  // Some fields are capped by count and length, not bytes, and text that
-  // escapes long in JSON (control characters) can push them past the limit.
   if (Buffer.byteLength(contextText(file)) > CONTEXT_MAX_BYTES) {
     file.spec = null;
     file.feedback_lines = null;
@@ -317,16 +240,11 @@ export async function select({ api, pr, repository, appId, reviewerId, reviewerI
 
 const basePath = (env) => env.BASE_PATH || ".base";
 
-// One of the base checkout's resolve-config readers, run on the base config.
-// A config the resolver refuses throws, so the job fails before any context
-// is written.
 async function fromBase(reader, env) {
   const resolveConfig = await import(new URL("../../actions/resolve-config/resolve-config.mjs", import.meta.url).href);
   return resolveConfig[reader]({ BASE_PATH: basePath(env), STANDARDS_DIR: env.STANDARDS_DIR });
 }
 
-// merge.refire-skip-branches: OWNED_BRANCHES (a JSON list) when set, else the
-// base config's.
 async function ownedBranchesOf(env) {
   if (env.OWNED_BRANCHES === undefined) {
     return fromBase("ownedBranchesFromBase", env);
@@ -338,8 +256,6 @@ async function ownedBranchesOf(env) {
   return list;
 }
 
-// The issue lane's web hosts, which pr-verify.yml hands linkedIssues as
-// ISSUE_LANE_WEB_HOSTS: that value when set, else the base config's.
 async function webHostsOf(env) {
   return env.ISSUE_LANE_WEB_HOSTS === undefined ? fromBase("issueLaneWebHostsFromBase", env) : webHostsFrom(env.ISSUE_LANE_WEB_HOSTS);
 }
@@ -348,16 +264,12 @@ export async function main(env, { api, actions, log = (line) => console.log(line
   need(env, ["GITHUB_TOKEN", "GITHUB_REPOSITORY", "GITHUB_OUTPUT", "PR_NUMBER", "APP_SENDER_ID", "CONTEXT_FILE"]);
   const pr = positive(env.PR_NUMBER, "PR_NUMBER");
   const appId = positive(env.APP_SENDER_ID, "APP_SENDER_ID");
-  // The base config's resolved loop caps, as dispatch.mjs reads its limits.
   const maxRounds = positive(env.FIX_CI_ROUNDS ?? (await fromBase("loopFromBase", env))["fix-ci-rounds"], "FIX_CI_ROUNDS");
   const ownedBranches = await ownedBranchesOf(env);
-  // The base checkout's list, the one address-feedback reads.
-  const trustedActors = trustedListPath(env, env.TRUSTED_ACTORS || trustedActorsPath(basePath(env)));
+  const trustedActors = trustedListPath(env, env.TRUSTED_ACTORS);
   const reviewerId = reviewerIdFrom(trustedActors);
   const reviewerIds = reviewerIdsFrom(env.REVIEWER_IDS);
   const trustedHumans = trustedHumansFrom(trustedActors);
-  // The review lanes' findings and hold comments count only when bound to
-  // their runs, read with ARTIFACT_READ_TOKEN (address-feedback.mjs withLaneBinding).
   const fetch = api ? undefined : await guardedFetch();
   const client = withLaneBinding(
     api ??
@@ -371,9 +283,6 @@ export async function main(env, { api, actions, log = (line) => console.log(line
     actions ?? laneReader(env, { fetch }),
   );
   const humanGatedLabel = humanGatedLabelFrom(env.TRACKER_CONFIG || `${basePath(env)}/docs/conventions/work-items.yaml`);
-  // linkedIssues takes check-trusted-trigger's github(method, path, body)
-  // client: one that throws on GraphQL errors, and one that keeps them for
-  // its Refs read.
   const graphql = (keepErrors) => async (_method, _path, body) => {
     const answer = await client.graphqlAnswer(body);
     if (!keepErrors && Array.isArray(answer?.errors) && answer.errors.length > 0) {
@@ -381,8 +290,6 @@ export async function main(env, { api, actions, log = (line) => console.log(line
     }
     return answer;
   };
-  // linkedIssues' inputs as pr-verify's resolve-pr.mjs main builds them, the
-  // lanes App's bot id as laneAppId. Read here, so a failure leaves null.
   const readSpec = async () => {
     const taskList = loadRules(fileURLToPath(new URL("../../actions/resolve-config/admission-rules.json", import.meta.url)))["task-list"];
     const webHosts = await webHostsOf(env);
@@ -400,9 +307,6 @@ export async function main(env, { api, actions, log = (line) => console.log(line
   output("head-sha", result.headSha);
   output("escalation-reason", result.escalationReason ?? "");
   output("context-sha256", sha256);
-  // fix-ci-not-run's check (a stop's own skip, so the head's fix-ci runs
-  // record it), and whether apply-patch may push past the human-gated label
-  // a lane escalation put on.
   output("skip-reason", result.decision === "skip" ? result.skipReason : result.decision === "escalate" ? stopSkip(result.escalationReason) : "");
   output("lane-escalated", String(result.laneEscalated === true));
   output("model-rung", result.modelRung ?? "");

@@ -35,8 +35,8 @@ pattern. Name the terms in the report.
 Resolve `transcript_scope` once, as
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md)
 describes. The user option is `${user_config.transcript_scope}`; a literal, unexpanded
-placeholder means unset, which counts as `worktree`. Claude Code writes each user option into this
-text when the skill loads, so read it here and never put it, or a placeholder, in a shell command.
+placeholder means unset, which counts as `worktree`. We read each user option from this text, where Claude Code
+substitutes it ([reference a saved value](https://code.claude.com/docs/en/plugins-reference#reference-a-saved-value)), so read it here and never put it, or a placeholder, in a shell command.
 
 The repository value is read only when the git root is neither `$HOME` nor an ancestor of it, and
 only when `<git root>/docs/conventions/session-flow.yaml` exists (look with Glob or Read); when the
@@ -69,25 +69,44 @@ of that name or the `type:` label of that name (`type: bug` for `Bug`), ignoring
 ## Step 3: List directories, scan, widen
 
 List a scope's directories with
-`bash "${CLAUDE_PLUGIN_ROOT}/scripts/transcript_dirs.sh" --scope <worktree|repo|all>`. It applies
-the scope ladder and prints one directory per line, plus a `gap:` line on stderr when it had to
-skip candidates. Scan them with the bundled script, Python 3.10 or newer (with none, say so and
-continue with Step 5's sources alone):
+`bash "${CLAUDE_PLUGIN_ROOT}/scripts/transcript_dirs.sh" --scope <worktree|repo|all> --sources-file '${user_config.transcript_sources_file}'`.
+It applies the scope ladder over the projects directory of each local source the sources file
+lists (with none, this host's configuration directory) and prints one directory per line. On
+stderr it prints a `gap:` line when it had to skip candidates, and a `Gap:` line, with its retry
+command, for a local source whose projects directory cannot be listed. Scan them with the bundled
+script, Python 3.10 or newer (with none, say so and continue with Step 5's sources alone):
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/recall/scripts/recall_scan.py" \
   --dir '<directory>' --dir '<directory>' \
-  --term '<term>' --term '<term>' \
-  --skip-session "${CLAUDE_CODE_SESSION_ID}"
+  --term '<term>' --term '<term>' --scope <worktree|repo|all> \
+  --skip-session "${CLAUDE_CODE_SESSION_ID}" --data-dir "${CLAUDE_PLUGIN_DATA}" \
+  --sources-file '${user_config.transcript_sources_file}' --redact-identifiers '${user_config.redact_identifiers}'
 ```
+
+An option still reading `${user_config.…}`, and running outside the Bash sandbox, go as
+`/session-flow:audit-sessions` Options and Step 1 say: the scan holds the per-host reader lock for
+its whole read. Another reader holding it is waited for up to the host's
+`lock_timeout_s`; then the scan reads nothing, prints that `busy` or `lock_timeout` gap with its
+retry command and exits 1. `--data-dir` adds the prompts the audit-sessions store holds from
+`history.jsonl` whose session has no transcript (`"history": true`, `file` `history.jsonl`): only a
+prompt whose project is one of the `--dir` directories, every one with `--scope all`, so pass
+the scope those directories came from. It also adds
+the store's header: each collection gap with its retry command and each source past half its
+`cleanupPeriodDays` without a collection free of gaps. With no store yet it adds neither.
 
 Each directory and each term is one single-quoted argument. Write a single quote inside a value
 as `'\''`, and never put a value inside a command string or leave it unquoted. The scan reads only
 the directories named, prints one JSON line per matching user or assistant message (`session`,
 `file`, `time`, `role`, `term`, `snippet`), redacts every snippet before printing it, and prints a
-`scanned:` line and, when it hit a bound, a `capped:` line on stderr. Exit 1 means redaction
-failed closed and nothing was printed: report that the transcript source is unavailable and go on
-with Step 5. Exit 2 names the argument it refused.
+`scanned:` line and, when it hit a bound, a `capped:` line on stderr. Snippets and paths pass the
+publish redactor (`${CLAUDE_PLUGIN_ROOT}/scripts/publish.py`); the stderr header lines stay verbatim so a retry runs as
+printed. Open the report with every `Gap:` and `Stale:` line, the lookup's and the store's; a
+report that goes into an issue, a PR or a committed file passes through
+`python3 "${CLAUDE_PLUGIN_ROOT}/scripts/publish.py"` with the same two options first. Exit 1 is a lock gap and nothing was read: report it with its
+retry and go on with Step 5. Exit 2 means the publish redactor failed closed and nothing was
+printed (report that the transcript source is unavailable and go on with Step 5), or names the
+argument it refused.
 
 Widen only when a scope returns no match, in this order:
 
@@ -200,7 +219,7 @@ number, item id or document path, with any quoted transcript text placed last on
 - **Still open**: other unresolved items and tracker entries.
 
 A source that came back with nothing is reported as coming back with nothing, since that absence
-is a result in its own right. Transcripts age out on a schedule Claude Code sets, so history older
+is a result in its own right. Transcripts age out on the schedule [`cleanupPeriodDays`](https://code.claude.com/docs/en/settings-reference#cleanupperioddays) sets, so history older
 than the oldest surviving transcript can show up only in git, pull requests, the tracker and postmortems; when
 the oldest transcript read is recent, say so.
 

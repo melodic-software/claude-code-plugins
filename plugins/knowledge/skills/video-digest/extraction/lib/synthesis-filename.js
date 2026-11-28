@@ -1,7 +1,3 @@
-/**
- * Semantic synthesis PNG naming helpers (vision-gated promotion).
- */
-
 import path from "node:path";
 
 import { capSlug } from "../transcript/derive-video-slug.js";
@@ -153,7 +149,5 @@ export function deriveSemanticNameFromGapNote(gapNote, reserved = new Set()) {
  * @returns {boolean}
  */
 export function isStubQualityAuditNote(note) {
-  // Every known stub token ("ok", "pass", "reviewed", "looks good", ...) is
-  // shorter than 20 chars, so the length floor subsumes a token check.
   return note.trim().toLowerCase().length < 20;
 }

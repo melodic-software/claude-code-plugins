@@ -67,7 +67,6 @@ POSIX_CLASS = re.compile(r"\[:(\w+):\]")
 
 
 def _rewrite_set(pattern: str, i: int) -> tuple[int, str]:
-    """Copy the set opening at `i`, expanding POSIX classes; return the index after it."""
     out = ["["]
     i += 1
     if pattern.startswith("^", i):
@@ -93,7 +92,6 @@ def _rewrite_set(pattern: str, i: int) -> tuple[int, str]:
 
 def normalize(pattern: str) -> str:
     out: list[str] = []
-    # Scoped (?i: groups to close, per open group; [0] is the whole pattern.
     scoped = [0]
     i = 0
     while i < len(pattern):
@@ -192,7 +190,7 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
-    import tomllib  # 3.11+, gated above
+    import tomllib
 
     try:
         config = tomllib.loads(read_source(args.source).decode("utf-8"))

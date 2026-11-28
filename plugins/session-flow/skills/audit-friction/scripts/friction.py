@@ -4,44 +4,44 @@
 
     friction.py mine --data-dir D [--since YYYY-MM-DD] [--until YYYY-MM-DD] [--days N] [--project TEXT]
                      [--session ID ...] [--source DIR ...] [--save-baseline] [--out FILE] [--format json|md]
-                     [--retention-days N] [--excerpt-chars N] [--excerpt-words N]
+                     [--retention-days N] [--excerpt-chars N] [--excerpt-words N] [--lock-name NAME]
     friction.py cause --friction FILE [--merge FILE] [--out FILE] [--format json|md]
     friction.py estimate --inventory FILE [--probes N] [--format json|md]
     friction.py diff --current FILE (--baseline FILE | --data-dir D) [--format json|md]
 
 `mine` filters stored session records (default: the last 7 days, every project) and aggregates their
 `friction` blocks into one file: counts per event key and side, a class hint per key, command shapes,
-secondary performance signals and the events themselves. `--source DIR` first runs the audit-sessions
-collector over DIR (laid out like `~/.claude/projects`) into its own store under
-`D/audit-friction/sources/`, so the machine store never mixes in another directory's sessions; the
-retention and excerpt options pass through to that collect. `mine` also lists the projects roots (the
-machine store's row is the collector's default root, since the store does not record its root), and warns about a sibling tree the default run skipped: under WSL a Windows user's
-`<automount root>/<drive>/Users/*/.claude/projects`, on Windows a running WSL distribution's
-`\\\\wsl$\\<distro>\\home\\*\\.claude\\projects` (a stopped distribution is listed as unchecked, never
-started). `AUDIT_FRICTION_SIBLING_GLOBS`, when set, replaces that detection with its own
-`os.pathsep`-separated glob patterns; empty turns it off.
+secondary performance signals and the events themselves. `--source DIR` first collects DIR (a
+`projects` directory laid out like `~/.claude/projects`, or the configuration directory holding
+one) into the one audit-sessions store as the local source `dir-<hash of its path>`; the retention
+and excerpt options pass through to that collect, whose retention prunes only that source. `mine` also lists the projects roots (each stored
+source's, from its records' provenance, then each `--source`), and its `header`
+(`transcript_sources.store_header`): each gap the store's last collections left, with its retry
+command, and each source the `--sources-file` lists that has gone past half its
+`cleanupPeriodDays` without a collection free of gaps, so a source the store does not hold is named
+there.
 `cause` maps each denial and approved prompt to the permission rules that could match it, read from
 `permission-merge.sh` output. `estimate` sizes each verification mode from a claim inventory, with token and wall-clock ranges.
 `diff` compares a run with a baseline, per session and per active hour.
 
 Reads the store only, never a transcript. Prints one JSON envelope (or markdown with --format md) on
 stdout; exit 0 pass, 1 warning, 2 error. Stdlib only; Python 3.10+.
+
+Markdown is published output: it passes through the publish redactor (`publish.publisher` over
+`--sources-file` and `--redact-identifiers`), and when that fails closed nothing is printed and the
+exit is 2.
 """
 
 from __future__ import annotations
 
 import argparse
-import configparser
 import fnmatch
-import glob
-import hashlib
 import json
 import math
-import os
 import re
-import subprocess
 import sys
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -50,7 +50,10 @@ COLLECTOR = SKILL_DIR.parents[1] / "scripts"
 sys.path.insert(0, str(COLLECTOR))
 
 import census  # noqa: E402  (the plugin's session store helpers)
-import collect  # noqa: E402  (the machine store's projects root)
+import collect  # noqa: E402  (the store writer)
+import publish  # noqa: E402  (beside collect.py)
+import transcript_run  # noqa: E402  (beside collect.py)
+import transcript_sources  # noqa: E402  (beside collect.py)
 
 MINE_SCHEMA = "audit-friction.mine/v1"
 CAUSE_SCHEMA = "audit-friction.cause/v1"
@@ -58,17 +61,9 @@ ESTIMATE_SCHEMA = "audit-friction.estimate/v1"
 DIFF_SCHEMA = "audit-friction.diff/v1"
 EVENT_LIMIT = 2000
 TOP = 25
-# Verification sizing: claims per blind verifier batch and recommendations per challenge agent.
 BATCH = 12
 CHALLENGE_BATCH = 3
 WAVE = 8
-# Verification usage as (low, high) ranges around one measured run of this audit (2026-10-09, Claude
-# Code 2.1.296): a fact-check workflow of 50 agents, 5.53M tokens and 1 h 59 m, and one probe agent
-# running 17 headless cases in 0.12M tokens and 64 min. Verify spent 3.26M over 32 batch agents (0.10M
-# each) and Challenge 1.95M over 16 (0.12M each); pilot and ledger took 0.32M together. The run was 8
-# sequential steps (pilot, 6 waves of 8, ledger), about 15 min each. Probes took 7K tokens and 3.8 min
-# per case. The range widths are judgment. Recheck: remeasure from a run's workflow totals when the
-# verifier agents, their model, or the batch sizes above change.
 AGENT_TOKENS = (100_000, 125_000)
 FIXED_TOKENS = 320_000
 STEP_MINUTES = (12, 18)
@@ -86,20 +81,25 @@ CLASS_HINTS = (
 )
 RULE_LINE = re.compile(r"^effective (allow|ask|deny) scopes=(\S+) precedence_basis=\S+ (.+)$")
 RULE_SPEC = re.compile(r"^([\w*.-]+)(?:\((.*)\))?$", re.S)
-MACHINE_VIA = "machine store, collector default root; the store does not record the root it was collected from"
 SHAPE_FLAGS_MISS = frozenset({"cd-prefix", "env-prefix", "compound", "substitution", "heredoc", "multiline"})
 
 
-def emit(schema: str, status: str, summary: str, data: dict, code: int, fmt: str = "json", md: str = "") -> int:
+def unpublished(text: str) -> str:
+    raise RuntimeError("markdown reached output without the publish redactor")
+
+
+def emit(
+    schema: str, status: str, summary: str, data: dict, code: int, fmt: str = "json", md: str = "",
+    md_out: Callable[[str], str] = unpublished,
+) -> int:
     if fmt == "md":
-        print(md or summary)
+        print(md_out(md or summary))
     else:
         print(json.dumps({"schema": schema, "status": status, "summary": summary, "data": data}, indent=2))
     return code
 
 
 def _cell(value: object) -> str:
-    """A markdown table cell, its pipes escaped."""
     return str(value).replace("|", "\\|")
 
 
@@ -120,102 +120,27 @@ def _ts(value: object) -> float | None:
         return None
 
 
-def source_store(data_dir: Path, source: Path) -> Path:
-    digest = hashlib.sha256(str(source.resolve()).encode("utf-8")).hexdigest()[:12]
-    return data_dir / "audit-friction" / "sources" / f"s-{digest}"
+def collect_source(data_dir: Path, entry: transcript_sources.SourceEntry, since: str, args: argparse.Namespace) -> dict:
+    """Collect one `--source` directory, and only it; a gap's `retry_argv` reaches it again through `--config-dir`."""
+    argv = ["--data-dir", str(data_dir), "--config-dir", entry.config_dir, "--source", entry.name, "--since", since]
+    for flag in ("retention_days", "excerpt_chars", "excerpt_words", "lock_name"):
+        if getattr(args, flag) is not None:
+            argv += ["--" + flag.replace("_", "-"), str(getattr(args, flag))]
+    status, summary, data, _code = collect.collect_command(collect.collect_args(argv))
+    return {"status": status, "summary": summary, "gaps": data.get("gaps", [])}
 
 
-def collect_source(data_dir: Path, source: Path, since: str, options: list[str]) -> tuple[Path, dict]:
-    target = source_store(data_dir, source)
-    done = subprocess.run(
-        [sys.executable, str(COLLECTOR / "collect.py"), "collect", "--data-dir", str(target),
-         "--projects-root", str(source), "--since", since, *options],
-        capture_output=True, text=True, encoding="utf-8", timeout=3600,
-    )
-    try:
-        envelope = json.loads(done.stdout)
-    except ValueError:
-        envelope = {"status": "error", "summary": done.stderr.strip()[-400:]}
-    return target, envelope
-
-
-def _root_key(path: str) -> str:
-    """One spelling per projects root, so a `--source` given as `\\\\wsl.localhost\\...` matches `\\\\wsl$\\...`."""
-    text = os.path.normcase(os.path.realpath(path)).rstrip("\\/")
-    return text.replace("\\\\wsl.localhost\\", "\\\\wsl$\\")
-
-
-def _wsl_automount_root(conf: str = "/etc/wsl.conf") -> str:
-    """The Windows drives' mount root inside WSL: `[automount] root` in /etc/wsl.conf, else /mnt/."""
-    parser = configparser.ConfigParser()
-    try:
-        parser.read(conf, encoding="utf-8")
-        root = parser.get("automount", "root", fallback="/mnt/")
-    except (configparser.Error, UnicodeDecodeError):
-        root = "/mnt/"
-    return root.strip().strip("\"'") or "/mnt/"
-
-
-def _wsl_exe() -> str | None:
-    """wsl.exe by its System32 path: a bare name would let CreateProcess run a `wsl.exe` from the current directory."""
-    path = os.path.join(os.environ.get("SystemRoot") or "C:\\Windows", "System32", "wsl.exe")
-    return path if os.path.isfile(path) else None
-
-
-def _wsl_distros(*flags: str) -> list[str]:
-    exe = _wsl_exe()
-    if exe is None:
-        return []
-    try:
-        done = subprocess.run([exe, "--list", "--quiet", *flags], capture_output=True, timeout=30)
-    except (OSError, subprocess.SubprocessError):
-        return []
-    if done.returncode != 0:
-        return []
-    raw = done.stdout
-    # wsl.exe writes UTF-16LE unless told otherwise; accept either.
-    text = raw.decode("utf-16-le", errors="replace") if b"\x00" in raw else raw.decode("utf-8", errors="replace")
-    names = (line.strip().lstrip("\ufeff") for line in text.splitlines())
-    return [name for name in names if name]
-
-
-def sibling_patterns() -> tuple[list[str], list[str]]:
-    """Glob patterns for a projects tree the other side of a WSL boundary keeps, and the distributions
-    left unchecked because they are stopped (opening their path could start them)."""
-    override = os.environ.get("AUDIT_FRICTION_SIBLING_GLOBS")
-    if override is not None:
-        return [p for p in override.split(os.pathsep) if p], []
-    if sys.platform == "win32":
-        running = _wsl_distros("--running")
-        stopped = [d for d in _wsl_distros() if d not in running]
-        patterns = [glob.escape("\\\\wsl$\\" + d) + home + "\\.claude\\projects" for d in running for home in ("\\home\\*", "\\root")]
-        return patterns, stopped
-    # WSL registers its Windows-interop binfmt entry under this name (a suffixed variant matches too).
-    if glob.glob("/proc/sys/fs/binfmt_misc/WSLInterop*"):
-        return [str(Path(_wsl_automount_root()) / "*" / "Users" / "*" / ".claude" / "projects")], []
-    return [], []
-
-
-def sibling_roots(read: list[str]) -> tuple[list[str], list[str]]:
-    """Sibling projects trees not among the roots read, and the stopped distributions not checked."""
-    patterns, stopped = sibling_patterns()
-    seen = {_root_key(r) for r in read}
-    found = []
-    for pattern in patterns:
-        for match in sorted(glob.glob(pattern)):
-            key = _root_key(match)
-            if os.path.isdir(match) and key not in seen and not any(_same_dir(match, r) for r in read):
-                seen.add(key)
-                found.append(match)
-    return found, stopped
-
-
-def _same_dir(a: str, b: str) -> bool:
-    """Whether two spellings name one directory, which also catches a case-insensitive mount under WSL."""
-    try:
-        return os.path.samefile(a, b)
-    except OSError:
-        return False
+def stored_roots(records: list[dict], skip: set[str]) -> list[dict]:
+    """Each stored source's projects root, from its records' provenance."""
+    roots: dict[str, str] = {}
+    for record in records:
+        origin = record.get("provenance")
+        if not isinstance(origin, dict):
+            continue
+        name, config = origin.get("source"), origin.get("config_dir")
+        if isinstance(name, str) and isinstance(config, str) and name not in skip:
+            roots.setdefault(name, str(Path(config) / "projects"))
+    return [{"root": root, "via": f"source {name}"} for name, root in sorted(roots.items())]
 
 
 def selected(record: dict, since: float, until: float, project: str | None, sessions: set[str]) -> bool:
@@ -238,7 +163,6 @@ def aggregate(records: list[dict]) -> dict:
     shapes: Counter = Counter()
     flags: Counter = Counter()
     perf: Counter = Counter()
-    # (side, event key) -> next tool -> {count, ok, failed, unknown}, from the stored events (capped per session).
     next_tools: dict[tuple[str, str], dict[str, dict[str, int]]] = defaultdict(dict)
     events, dropped, duplicates, active_s, turns = [], 0, 0, 0, 0
     classes = Counter(census.session_class(r) for r in records)
@@ -248,7 +172,6 @@ def aggregate(records: list[dict]) -> dict:
         turns += (record.get("human") or {}).get("turns") or 0
         perf["usage_limit_notices"] += (record.get("rate_limit") or {}).get("usage_limit_notices") or 0
         stop_hooks = record.get("stop_hooks") or {}
-        # Matching Stop hooks run in parallel: the wait is each stop's slowest hook, the plain sum is process time.
         perf["stop_hook_wait_ms"] += stop_hooks.get("wait_ms_total") or 0
         perf["stop_hook_ms"] += stop_hooks.get("ms_total") or 0
         if not isinstance(friction, dict):
@@ -322,9 +245,7 @@ def render_mine(data: dict) -> str:
         "",
         "Projects roots: " + "; ".join(f"{r['root']} ({r['via']})" for r in data["projects_roots"]) + ".",
     ]
-    if data["wsl_distros_unchecked"]:
-        lines.append("Stopped WSL distributions, not checked for a projects tree: "
-                     + ", ".join(data["wsl_distros_unchecked"]) + ".")
+    lines[2:2] = transcript_sources.report_header_md(data["header"])
     lines += [f"\nWarning: {w}" for w in data["warnings"]]
     lines += [
         "",
@@ -355,7 +276,7 @@ def render_mine(data: dict) -> str:
     return "\n".join(lines)
 
 
-def cmd_mine(args: argparse.Namespace) -> int:
+def cmd_mine(args: argparse.Namespace, md_out: Callable[[str], str]) -> int:
     data_dir = Path(args.data_dir)
     now = datetime.now(timezone.utc)
     try:
@@ -363,35 +284,21 @@ def cmd_mine(args: argparse.Namespace) -> int:
         until = _day(args.until) + timedelta(days=1) if args.until else now + timedelta(seconds=1)
     except ValueError:
         return emit(MINE_SCHEMA, "error", "--since and --until take YYYY-MM-DD", {}, 2)
-    stores, sources, warnings = [data_dir], [], []
-    options = [part for flag in ("retention_days", "excerpt_chars", "excerpt_words") if getattr(args, flag) is not None
-               for part in ("--" + flag.replace("_", "-"), str(getattr(args, flag)))]
+    sources, warnings = [], []
     for source in args.source or []:
-        if not Path(source).is_dir():
-            return emit(MINE_SCHEMA, "error", f"--source is not a directory: {source}", {"source": source}, 2)
-        store, envelope = collect_source(data_dir, Path(source), since.strftime("%Y-%m-%d"), options)
-        sources.append({"source": source, "store": str(store), "status": envelope.get("status"), "summary": envelope.get("summary")})
-        if envelope.get("status") == "error":
-            warnings.append(f"source {source}: {envelope.get('summary')}")
-            continue
-        stores.append(store)
-    # The store does not record which root filled it, so this row names the collector's default, not a root known read.
-    roots = [{"root": str(collect.default_projects_root()), "via": MACHINE_VIA}]
+        entry = collect.dir_source(source) if Path(source).is_dir() else None
+        if entry is None:
+            return emit(MINE_SCHEMA, "error", f"--source holds no projects directory: {source}", {"source": source}, 2)
+        outcome = collect_source(data_dir, entry, since.strftime("%Y-%m-%d"), args)
+        sources.append({"source": source, "name": entry.name, **outcome})
+        if outcome["status"] != "pass":
+            warnings.append(f"source {source}: {outcome['summary']}")
+    try:
+        records, skipped = census.load_records(data_dir)
+    except FileNotFoundError as exc:
+        return emit(MINE_SCHEMA, "error", str(exc), {"data_dir": str(data_dir)}, 2)
+    roots = stored_roots(records, {s["name"] for s in sources})
     roots += [{"root": s["source"], "via": "--source"} for s in sources if s["status"] != "error"]
-    siblings, stopped = sibling_roots([r["root"] for r in roots])
-    for sibling in siblings:
-        warnings.append(f"sibling projects tree not read: {sibling}; add it with --source \"{sibling}\"")
-    records, skipped = [], 0
-    for store in stores:
-        try:
-            found, bad = census.load_records(store)
-        except FileNotFoundError as exc:
-            if store == data_dir:
-                return emit(MINE_SCHEMA, "error", str(exc), {"data_dir": str(data_dir)}, 2)
-            warnings.append(str(exc))
-            continue
-        records += found
-        skipped += bad
     wanted: set[str] = set(args.session or ())
     chosen = [r for r in records if selected(r, since.timestamp(), until.timestamp(), args.project, wanted)]
     unmined = sum(1 for r in chosen if not isinstance(r.get("friction"), dict))
@@ -400,8 +307,7 @@ def cmd_mine(args: argparse.Namespace) -> int:
                    "project": args.project, "sessions_filter": sorted(wanted)},
         "sources": sources,
         "projects_roots": roots,
-        "sibling_roots_unread": siblings,
-        "wsl_distros_unchecked": stopped,
+        "header": transcript_sources.store_header(census.store_dir(data_dir), args.sources),
         "skipped_records": skipped,
         "records_without_friction": unmined,
         **aggregate(chosen),
@@ -421,7 +327,7 @@ def cmd_mine(args: argparse.Namespace) -> int:
     data["written"] = written
     summary = f"{sum(r['count'] for r in data['rows'])} friction events over {data['sessions']} sessions"
     status, code = ("warning", 1) if warnings else ("pass", 0)
-    return emit(MINE_SCHEMA, status, summary, data, code, args.format, render_mine(data))
+    return emit(MINE_SCHEMA, status, summary, data, code, args.format, render_mine(data), md_out)
 
 
 def load_payload(path: str) -> dict:
@@ -479,7 +385,7 @@ def cause_hint(kind: str, cause: str | None, flags: set[str], matched: list[dict
     return "rule-unmatched"
 
 
-def cmd_cause(args: argparse.Namespace) -> int:
+def cmd_cause(args: argparse.Namespace, md_out: Callable[[str], str]) -> int:
     try:
         data = load_payload(args.friction)
         rules = parse_rules(Path(args.merge).read_text(encoding="utf-8")) if args.merge else []
@@ -520,10 +426,10 @@ def cmd_cause(args: argparse.Namespace) -> int:
         md.append("| " + " | ".join(_cell(c) for c in cells) + " |")
     status, code = ("pass", 0) if args.merge else ("warning", 1)
     summary = f"{len(rows)} cause groups" + ("" if args.merge else "; no --merge input, so no rule was matched")
-    return emit(CAUSE_SCHEMA, status, summary, out, code, args.format, "\n".join(md))
+    return emit(CAUSE_SCHEMA, status, summary, out, code, args.format, "\n".join(md), md_out)
 
 
-def cmd_estimate(args: argparse.Namespace) -> int:
+def cmd_estimate(args: argparse.Namespace, md_out: Callable[[str], str]) -> int:
     try:
         inventory = json.loads(Path(args.inventory).read_text(encoding="utf-8"))
     except (OSError, ValueError) as exc:
@@ -537,12 +443,11 @@ def cmd_estimate(args: argparse.Namespace) -> int:
     def mode(verify: list, challenge: list, probes: int) -> dict:
         agents = math.ceil(len(verify) / BATCH) + math.ceil(len(challenge) / CHALLENGE_BATCH)
         waves = math.ceil(agents / WAVE) if agents else 0
-        steps = waves + 2 if agents else 0  # the pilot and the ledger run alone, before and after the waves
+        steps = waves + 2 if agents else 0
         fixed = FIXED_TOKENS if agents else 0
         return {
             "claims_checked": len(verify), "verifier_agents": agents, "waves": waves, "probe_cases": probes,
             "tokens": [agents * a + fixed + probes * p for a, p in zip(AGENT_TOKENS, PROBE_TOKENS)],
-            # Probes run beside the fact-check, so the longer of the two sets the wall-clock time.
             "minutes": [max(steps * s, probes * p) for s, p in zip(STEP_MINUTES, PROBE_MINUTES)],
         }
 
@@ -562,10 +467,10 @@ def cmd_estimate(args: argparse.Namespace) -> int:
         md.append(f"| {name} | {m['claims_checked']} | {m['verifier_agents']} | {m['waves']} | {m['probe_cases']} | "
                   f"{m['tokens'][0] / 1e6:.2f}M-{m['tokens'][1] / 1e6:.2f}M | {m['minutes'][0]}-{m['minutes'][1]} min |")
     summary = f"{len(claims)} claims, {len(consequential)} consequential"
-    return emit(ESTIMATE_SCHEMA, "pass", summary, data, 0, args.format, "\n".join(md))
+    return emit(ESTIMATE_SCHEMA, "pass", summary, data, 0, args.format, "\n".join(md), md_out)
 
 
-def cmd_diff(args: argparse.Namespace) -> int:
+def cmd_diff(args: argparse.Namespace, md_out: Callable[[str], str]) -> int:
     try:
         current = load_payload(args.current)
         baseline_path = args.baseline
@@ -608,7 +513,7 @@ def cmd_diff(args: argparse.Namespace) -> int:
                   f"{r['baseline_per_session']} | {r['current_per_session']} | {r['delta']:+} |")
     status, code = ("warning", 1) if worse else ("pass", 0)
     return emit(DIFF_SCHEMA, status, f"{len(rows)} keys compared, {len(worse)} new or more frequent", data, code,
-                args.format, "\n".join(md))
+                args.format, "\n".join(md), md_out)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -625,9 +530,9 @@ def main(argv: list[str] | None = None) -> int:
     mine.add_argument("--save-baseline", action="store_true")
     mine.add_argument("--out")
     mine.add_argument("--format", choices=("json", "md"), default="json")
-    # Passed to the collect --source runs, so a source store keeps the machine store's limits.
     for flag in ("--retention-days", "--excerpt-chars", "--excerpt-words"):
         mine.add_argument(flag, type=int)
+    mine.add_argument("--lock-name", type=transcript_run.checked_lock_name, help="collect.py's --lock-name for each --source collect")
     mine.set_defaults(func=cmd_mine)
     cause = sub.add_parser("cause")
     cause.add_argument("--friction", required=True)
@@ -647,13 +552,23 @@ def main(argv: list[str] | None = None) -> int:
     group.add_argument("--data-dir")
     diff.add_argument("--format", choices=("json", "md"), default="json")
     diff.set_defaults(func=cmd_diff)
+    for command in (mine, cause, estimate, diff):
+        command.add_argument("--sources-file", default="", help="the transcript_sources_file option, whose identifiers markdown redacts")
+        command.add_argument("--redact-identifiers", default="", help="the redact_identifiers option: more names and paths markdown redacts")
     try:
         args = parser.parse_args(argv)
     except SystemExit as exc:
         if exc.code == 0:
             raise
         return emit("audit-friction/v1", "error", "bad arguments", {}, 2)
-    return args.func(args)
+    md_out = unpublished
+    args.sources = transcript_sources.load_reported(args.sources_file)
+    if args.format == "md":
+        try:
+            md_out = publish.publisher(args.sources_file, args.redact_identifiers, sources=args.sources).redact
+        except publish.PublishError as exc:
+            return emit("audit-friction/v1", "error", str(exc), {}, 2)
+    return args.func(args, md_out)
 
 
 if __name__ == "__main__":

@@ -30,37 +30,20 @@ const LINK_SEGMENT_NOISE = new Set(["www", "index", "html", "status", "watch"]);
 
 const TERM_MAX_LENGTH = 60;
 
-/**
- * Lowercase and strip every non-alphanumeric character — the comparison key
- * under which "Claude Code", "claude-code", and "clawed code" become
- * comparable word-run keys.
- *
- * @param {string} text
- * @returns {string}
- */
 function normalizeKey(text) {
   return text.toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
-/**
- * @param {string} token - raw whitespace-delimited token
- * @returns {string} token with surrounding punctuation stripped (internal
- *   `-_.@#&+` kept — they are part of handles, slugs, and version names)
- */
 function stripEdgePunctuation(token) {
   return token.replace(/^[^A-Za-z0-9@#]+/, "").replace(/[^A-Za-z0-9+]+$/, "");
 }
 
-/**
- * @param {string} word
- * @returns {boolean} the word alone is proper-noun-shaped evidence
- */
 function isProperNounShaped(word) {
   if (word.length < 2 || word.length > TERM_MAX_LENGTH) return false;
   if (word.startsWith("@") || word.startsWith("#")) return true;
-  if (/[A-Za-z]/.test(word) && /\d/.test(word)) return true; // large-v3, GPT-5
-  if (/^[A-Z]{2,}$/.test(word)) return true; // API, NPX
-  if (/[a-z][A-Z]/.test(word)) return true; // CamelCase / mixed: GitHub, npX
+  if (/[A-Za-z]/.test(word) && /\d/.test(word)) return true;
+  if (/^[A-Z]{2,}$/.test(word)) return true;
+  if (/[a-z][A-Z]/.test(word)) return true;
   if (/^[A-Z][a-z'’-]+$/.test(word) && word.length >= 3) {
     return !STOPWORDS.has(word.toLowerCase());
   }
@@ -91,10 +74,6 @@ export function buildRepairLexicon(description, harvestedLinks = [], title = "")
   for (const text of [title, description]) {
     const tokens = (text ?? "").split(/\s+/).map(stripEdgePunctuation).filter(Boolean);
 
-    // Runs of consecutive capitalized words form phrases ("Claude Code") — the
-    // multi-word shape single-token extraction misses. Phrases go in FIRST so
-    // the author's spaced phrasing wins a key collision with a compacted form
-    // of the same name (e.g. the "#ClaudeCode" hashtag).
     /** @type {string[]} */
     let run = [];
     const flushRun = () => {
@@ -178,13 +157,6 @@ export function osaDistance(a, b) {
   return dp[rows - 1][cols - 1];
 }
 
-/**
- * Length-scaled fuzzy-match bound. Short keys must match exactly — fuzzy
- * repair on short words is where false positives live.
- *
- * @param {number} keyLength - normalized key length
- * @returns {number}
- */
 function fuzzyThreshold(keyLength) {
   if (keyLength < 5) return 0;
   if (keyLength <= 8) return 1;
@@ -221,14 +193,6 @@ function compileLexicon(lexicon) {
  * @property {number} replacementCount
  */
 
-/**
- * Repair one text against a compiled lexicon.
- *
- * @param {string} text
- * @param {LexiconEntry[]} entries
- * @param {number} maxWordCount
- * @returns {RepairResult}
- */
 function repairTextCompiled(text, entries, maxWordCount) {
   const parts = text.split(/(\s+)/);
   /** @type {number[]} */
@@ -248,7 +212,7 @@ function repairTextCompiled(text, entries, maxWordCount) {
       const core = stripEdgePunctuation(windowText);
       if (!core) continue;
       const windowKey = normalizeKey(core);
-      if (windowKey.length < 4) continue; // never fuzzy/case-rewrite tiny fragments
+      if (windowKey.length < 4) continue;
 
       /** @type {LexiconEntry|null} */
       let exact = null;

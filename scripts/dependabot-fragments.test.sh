@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for dependabot-fragments.sh, driven through its CLI against a
-# throwaway repository whose history holds Dependabot squash merges.
 # test-scope: .github/workflows/release-generate-dependabot-changelog-fragments.yml .github/dependabot.yml
 set -uo pipefail
 
@@ -28,7 +26,6 @@ fixture() {
   git_test_config "$dir" commit -qm base
 }
 commit() { git_test_config "$1" add -A && git_test_config "$1" commit -qm "$2"; }
-# dependabot_merge <dir> <message>: a squash merge as Dependabot authors it.
 dependabot_merge() (
   export GIT_AUTHOR_NAME='dependabot[bot]' GIT_AUTHOR_EMAIL='49699333+dependabot[bot]@users.noreply.github.com'
   commit "$1" "$2"
@@ -80,8 +77,6 @@ else
 fi
 rm -rf "$f"
 
-# A merge from before the plugin's flip bumped the plugin itself; one that added
-# its own fragment needs no second one.
 fixture f
 printf 'x\n' >>"$f/plugins/beta/server/package-lock.json"
 dependabot_merge "$f" "build(deps): Bump zod in /plugins/beta/server (#11)"
@@ -101,7 +96,6 @@ else
 fi
 rm -rf "$f"
 
-# A plugin whose CHANGELOG.md takes no em dash gets a hyphen in its place.
 fixture f
 printf 'plugins/alpha/CHANGELOG.md\n' >"$f/scripts/em-dash-purged-paths.txt"
 commit "$f" "purge"
@@ -115,11 +109,6 @@ else
 fi
 rm -rf "$f"
 
-# The workflow starts on a push to main that changes a manifest Dependabot
-# bumps under plugins/, and the hourly-to-push move holds only while that
-# filter covers every one: each manifest in every plugins/ directory
-# .github/dependabot.yml names must match a `paths:` pattern. A directory or
-# manifest the filter misses waits for the safety-net schedule.
 wf="$SELF_DIR/../.github/workflows/release-generate-dependabot-changelog-fragments.yml"
 patterns=()
 mapfile -t patterns < <(awk '/^  push:/{p=1; next} p && /^  [a-z_]+:/{p=0} p && /^      - /{sub(/^      - /, ""); gsub(/\x27/, ""); print}' "$wf")
@@ -131,12 +120,6 @@ mapfile -t dirs < <(awk '
   /^    directory: \/plugins\//{print e " " $2}
   in_dirs && /^      - \/plugins\//{print e " " $2}
 ' "$SELF_DIR/../.github/dependabot.yml")
-# A looser count of every /plugins/ path value outside comments, in any layout
-# (a directory: value, a block-list item, a flow-list item). When the awk above
-# stops matching a layout, its list falls short of this count and the test fails
-# instead of silently checking fewer directories.
-# Both keys are Dependabot's "directories or directory" option, in
-# https://docs.github.com/en/code-security/dependabot/working-with-dependabot/dependabot-options-reference.
 expected="$(awk '!/^[[:space:]]*#/{n += gsub(/(^|[[:space:][,"])\/plugins\//, "&")} END{print n + 0}' "$SELF_DIR/../.github/dependabot.yml")"
 missed="" checked=0
 for entry in "${dirs[@]}"; do
@@ -165,8 +148,6 @@ else
   fail "push paths miss:${missed:- none} (patterns: ${patterns[*]:-none}; ${#dirs[@]} of $expected plugins/ directories collected, $checked files)"
 fi
 
-# The job runs a push only when it carries a Dependabot commit, matched by the
-# author the script itself walks.
 email="$(grep -o '49699333+dependabot[^>]*' "$SCRIPT" | head -1 | sed 's/\\//g')"
 if [[ "$email" == '49699333+dependabot[bot]@users.noreply.github.com' ]] &&
   grep -qF "contains(github.event.commits.*.author.email, '$email')" "$wf" &&

@@ -1,0 +1,5 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/session-flow/schemas/session-flow.schema.json
+written_against: session-flow@10.2.1
+implementation_route: factory
+provenance:
+  implementation_route: chosen (default local)

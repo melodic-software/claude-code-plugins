@@ -3,7 +3,6 @@ import { applyHarnessGating } from './gating.mjs'
 import {
   loadBoundRecords,
   loadManifest,
-  loadUsage,
   mergeTeamRegistryRows,
   normalizeModels,
   readJson,
@@ -177,7 +176,6 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
   const registry = validateRegistry(readJson(opts.registry, 'registry'))
   const manifestById = loadManifest(opts.manifest)
   const modelsByVendor = normalizeModels(readJson(opts.models, 'models'))
-  const usageByVendor = loadUsage(opts.usage)
 
   const notes = []
   const mergedRows = mergeTeamRegistryRows(registry, opts.registry, notes)
@@ -266,6 +264,8 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
     gatedVendors,
     effectiveVendorOrder,
     taskType: opts.taskType,
+    taskClass: opts.taskClass,
+    heavyEffort: opts.heavyEffort,
     notes,
   })
   if (provenPick) {
@@ -278,18 +278,14 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
 
   const clusters = clusterSources(leadingEvaluations, notes)
   if (basis === 'default' && clusters.length >= 2) {
-    const effectiveTiebreak = opts.tiebreakSet ? opts.tiebreak : settings.tiebreak
     const consensus = resolveConsensus({
       clusters,
       leadingEvaluations,
       modelsByVendor,
-      usageByVendor,
       failedOutcomes,
       claudeDefaultModel,
       claudeVersion,
       claudeEffort,
-      effectiveVendorOrder,
-      effectiveTiebreak,
       taskType: opts.taskType,
       notes,
     })
@@ -345,7 +341,6 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
 
   if (basis === 'default' && trialsActive) {
     const trialPick = selectActiveTrial({
-      recordsBySource,
       modelsByVendor,
       skippedSilentVendors,
       unavailableInUseVendors,
@@ -354,6 +349,7 @@ export function assembleDecision({ opts, defaults, settings, nowDate, pluginRoot
       failedOutcomes,
       taskType: opts.taskType,
       taskClass: opts.taskClass,
+      heavyEffort: opts.heavyEffort,
       notes,
     })
     if (trialPick) {

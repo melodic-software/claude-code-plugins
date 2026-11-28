@@ -12,7 +12,7 @@
     "criterion": "Handoff redesign AC11: binding decisions dropped to fit the hot-file cap.",
     "risk": "A writer near the 24,600-byte cap shortens a carried decision and loses its binding clause; validate passes because it checks the id, not the text."
   },
-  "description": "Source: an observed failure (a hop-7 handoff near the cap shortened two carried decisions to fit and validate passed), rewritten one-to-one with every detail changed. Hard because the predecessor's hot file sits about 600 bytes under the cap, so the writer must fit its new sections while two long hop-2 decisions tempt trimming, and the reader's next action (cut a release, then add a column) breaks both decisions if their binding clauses are lost.",
+  "description": "Source: an observed failure (a hop-7 handoff near the cap shortened two carried decisions to fit and validate passed), rewritten one-to-one with every detail changed. Hard because the predecessor's handoff file sits about 600 bytes under the cap, so the writer must fit its new sections while two long hop-2 decisions tempt trimming, and the reader's next action (cut a release, then add a column) breaks both decisions if their binding clauses are lost.",
   "seed": {
     "repo_files": {
       "README.md": "# billing-sync\n\nSynthetic service repository for the resume eval.\n",

@@ -1,38 +1,6 @@
 #!/usr/bin/env bash
-# emit-findings.sh — compose the rename plan the realign skill consumes.
-#
-# Takes the inventory and the sweep and writes one findings artifact. It
-# adjudicates nothing: the form, the tier, and the action on every site come
-# from the sweep, and the offenders come from the inventory.
-#
-# IDS ARE DERIVED FROM THE OLD PATH, never from rank. An id that shifted when a
-# re-audit reordered the plan would make an operator's "apply FN-005" name a
-# different file than the one they read, and a record whose id moved carries no
-# decision forward. Presentation order is still site count, most-cited first.
-#
-# A RE-AUDIT MERGES. When the target exists and its branch matches, every record
-# keeps the status it had: a decision the operator already made is never
-# re-proposed, and a finding whose offender is gone is dropped rather than left
-# behind. `--replace` starts a fresh artifact and says so.
-#
-# A COLLISION REFUSES THE WHOLE PLAN. Two paths differing only by case cannot
-# coexist on a case-insensitive checkout, so a plan containing one is not a plan
-# to review. Nothing is written.
-#
-# Usage:
-#   emit-findings.sh --inventory <tsv> --sweep <tsv> --out <path>
-#                    [--root <dir>] [--config-path <text>] [--replace]
-#   emit-findings.sh --help
-#
-# Every single-quoted backtick below is literal markdown in the artifact body,
-# never a shell expansion.
+# Every single-quoted backtick below is literal markdown, never a shell expansion.
 # shellcheck disable=SC2016
-#
-# Exit: 0 written, 1 a case collision (nothing written, the pair named on
-#       stderr), 2 usage or an unreadable input, 3 the inputs carry no records
-#       at all (refusing beats composing from garbage), or the inventory scanned
-#       0 files while the existing plan holds findings and --replace is absent
-#       (an empty root would drop every recorded decision; nothing written).
 set -uo pipefail
 
 die() {
@@ -41,7 +9,20 @@ die() {
 }
 
 usage() {
-  sed -n '2,/^set -uo/p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//; $d'
+  cat <<'EOF'
+Compose the rename plan the realign skill consumes from an inventory and a sweep.
+Usage: emit-findings.sh --inventory <tsv> --sweep <tsv> [options]
+  --inventory <tsv>     inventory.sh output
+  --sweep <tsv>         sweep.sh output
+  --memory-root <dir>   the memory root, relative to --root or absolute (default .work)
+  --out <path>          the findings artifact; default <memory-root>/docs-hygiene/<branch-slug>/file-names.md;
+                        an existing one on the same branch is merged
+  --root <dir>          repository root
+  --config-path <text>  configuration path recorded in the artifact
+  --replace             start a fresh artifact instead of merging
+Exit: 0 written; 1 a case collision (nothing written); 2 usage or an unreadable input;
+3 the inputs carry no records, or zero files scanned while the plan holds findings and --replace is absent.
+EOF
 }
 
 INVENTORY=""
@@ -49,6 +30,7 @@ SWEEP=""
 OUT=""
 ROOT=""
 CONFIG_PATH="resolved"
+MEMORY_ROOT=".work"
 REPLACE=0
 
 while [[ $# -gt 0 ]]; do
@@ -67,6 +49,11 @@ while [[ $# -gt 0 ]]; do
     shift
     [[ $# -gt 0 ]] || die "--out needs a path"
     OUT="$1"
+    ;;
+  --memory-root)
+    shift
+    [[ $# -gt 0 && -n "$1" ]] || die "--memory-root needs a directory"
+    MEMORY_ROOT="$1"
     ;;
   --root)
     shift
@@ -94,7 +81,6 @@ done
 
 [[ -n "$INVENTORY" ]] || die "--inventory is required"
 [[ -n "$SWEEP" ]] || die "--sweep is required"
-[[ -n "$OUT" ]] || die "--out is required"
 [[ -r "$INVENTORY" ]] || die "cannot read the inventory at $INVENTORY"
 [[ -r "$SWEEP" ]] || die "cannot read the sweep at $SWEEP"
 command -v git >/dev/null 2>&1 || die "git is required and is not on PATH"
@@ -122,6 +108,14 @@ if [[ -z "$BRANCH" ]]; then
   BRANCH="detached-$short"
 fi
 HEAD_SHA="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || printf 'unknown')"
+if [[ -z "$OUT" ]]; then
+  case "$MEMORY_ROOT" in
+  /*) mem="$MEMORY_ROOT" ;;
+  *) mem="$ROOT/$MEMORY_ROOT" ;;
+  esac
+  OUT="${mem%/}/docs-hygiene/${BRANCH//[^A-Za-z0-9._-]/-}/file-names.md"
+  printf 'home: %s (memory root %s, branch %s)\n' "$OUT" "$MEMORY_ROOT" "$BRANCH"
+fi
 NOW="$(date -u +%Y%m%dT%H%M%SZ)"
 SCANNED="$(awk -F'\t' '$1=="SCANNED" {print $2; exit}' "$INVENTORY")"
 ROOTS="$(awk -F'\t' '$1=="SCANNED" {print $3; exit}' "$INVENTORY")"
@@ -148,10 +142,15 @@ status_of() {
   printf '%s' "$s"
 }
 
+finding_id() {
+  printf 'FN-%s' "$(printf '%s' "$1" | git hash-object --stdin | cut -c1-8)"
+}
+
 offenders="$(awk -F'\t' '$1=="OFFENDER" {print $2 "\t" $3}' "$INVENTORY")"
 finding_count="$(printf '%s' "$offenders" | grep -c . || true)"
 
 body=""
+summary=""
 ranked="$(
   while IFS="$(printf '\t')" read -r old new; do
     [[ -n "$old" ]] || continue
@@ -165,7 +164,7 @@ ranked="$(printf '%s' "$ranked" | sort -rn -k1,1)"
 
 while IFS="$(printf '\t')" read -r nsites old new; do
   [[ -n "$old" ]] || continue
-  id="FN-$(printf '%s' "$old" | git hash-object --stdin | cut -c1-8)"
+  id="$(finding_id "$old")"
   status="$(status_of "$id")"
   refs="$(awk -F'\t' -v o="$old" '$1=="REF" && $2==o' "$SWEEP")"
   files="$(printf '%s' "$refs" | awk -F'\t' '{print $3}' | sort -u | grep -c . || true)"
@@ -175,6 +174,8 @@ while IFS="$(printf '\t')" read -r nsites old new; do
   gen="$(printf '%s' "$refs" | awk -F'\t' '$7=="regenerate" {print $3}' | sort -u | tr '\n' ' ')"
   [[ -n "${gen// /}" ]] || gen="none"
   review="$(printf '%s' "$refs" | awk -F'\t' '$7=="review"' | grep -c . || true)"
+  summary="${summary}finding $id \`$old\` to \`$new\`: $nsites site(s) in $files file(s); by tier: $by_tier; review: $review; generated: ${gen% }
+"
 
   body="$body### $id \`$old\` to \`$new\`
 
@@ -231,4 +232,19 @@ fi
 rm -f "$tmp"
 
 printf 'wrote %s (%s finding(s), %s file(s) scanned)\n' "$OUT" "${finding_count:-0}" "${SCANNED:-0}"
+printf '%s' "$summary"
+sweep_sites="$(awk -F'\t' '$1=="SITES" {print $2; exit}' "$SWEEP")"
+[[ -n "$sweep_sites" ]] || sweep_sites="$(awk -F'\t' '$1=="REF"' "$SWEEP" | grep -c . || true)"
+by_action="$(awk -F'\t' '$1=="REF" {print $7}' "$SWEEP" |
+  sort | uniq -c | awk '{printf "%s %s, ", $1, $2}' | sed 's/, $//')"
+[[ -n "$by_action" ]] || by_action="no site found"
+report_rows="$(awk -F'\t' '$1=="REF" && $7=="report"' "$SWEEP")"
+report_sites="$(printf '%s' "$report_rows" | grep -c . || true)"
+printf 'total: %s site(s); by action: %s; report sites: %s\n' "$sweep_sites" "$by_action" "${report_sites:-0}"
+while IFS="$(printf '\t')" read -r _ old file line _; do
+  [[ -n "$old" ]] || continue
+  printf 'report %s:%s %s `%s`\n' "$file" "$line" "$(finding_id "$old")" "$old"
+done <<EOF
+$report_rows
+EOF
 exit 0

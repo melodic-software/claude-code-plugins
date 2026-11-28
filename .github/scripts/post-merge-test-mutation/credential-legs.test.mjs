@@ -1,15 +1,3 @@
-// post-merge-test-mutation.yml picks each leg's credential through
-// ci-workflows' select-model-credential, fetched at the pin the workflow
-// names. This truth table drives the workflow's own conditions and inputs for
-// both chains (generate and triage) through every combination of the chain's
-// upstream gate and same-repo term, the credit gate's verdict, secrets set or
-// empty, a step failing before the credential, before the leg or after it
-// (the key job's and the later legs' each on its own), and every launcher
-// outcome run-claude-cli's own handoffReason can produce, and holds each state
-// to the expressions the workflow used before the action (quoted from
-// 5599e627fc): the same jobs start, and each leg runs its model or not, fails
-// for want of a token or not, and gets the same fallback-ready and
-// fallback-reason.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -26,9 +14,6 @@ const TOKEN = "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN";
 const FALLBACK = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
 const SAME_REPO = "github.event.workflow_run.head_repository.full_name == github.repository";
 
-// Each chain's own upstream term, as the old conditions wrote it, and the
-// context that makes it true or false, under the old job ids (prep, mutate)
-// and the new ones (check-range, run-mutants) the workflow reads now.
 const CHAINS = {
   generate: {
     upstream: "needs.prep.outputs.proceed == 'true'",
@@ -47,7 +32,6 @@ const CHAINS = {
   },
 };
 
-// The old conditions and reasons, at 5599e627fc.
 const OLD = (stage) => {
   const [key, sub] = [stage, `${stage}-subscription`];
   const head = `!cancelled() && ${CHAINS[stage].upstream} && ${SAME_REPO}`;
@@ -60,18 +44,11 @@ const OLD = (stage) => {
   };
 };
 
-// Where a step fails in a leg job: the key job's own, the later legs' shared.
 const failOf = (s, legName) => (legName === "key" ? s.keyFail : s.legFail);
 
-// A leg's run step starts only on a model that runs and when no step between
-// the credential and it failed; its handoff is the launcher's. Its lane
-// record, which carries the fallback reason, runs only when it did.
 const legRan = (model, failAt) => model && failAt !== "before-run";
 const ran = (model, failAt, outcome) => (legRan(model, failAt) ? { handoff: outcome.handoff, "handoff-reason": outcome.reason } : { handoff: "", "handoff-reason": "" });
 
-// What a leg did: whether its model runs, whether it failed for want of a
-// token, and, when its model ran, the fallback-ready it passed the launcher
-// and the fallback reason its record names.
 const record = (failAt, { model, failed, ready, reason }) => ({
   model,
   failed,
@@ -93,7 +70,6 @@ function oldChain(stage, s) {
   if (runs(o.key, ctx)) {
     out.started.push(key);
     const checked = s.keyFail !== "before-credential";
-    // present: whether the key is set; run: that, unless the gate skipped it.
     const present = checked ? String(s.key) : "";
     const model = checked && s.key && ctx[`needs.key-credit.outputs.skip-${stage}-key`] !== "true";
     const leg = ran(model, s.keyFail, s.keyOutcome);
@@ -103,7 +79,6 @@ function oldChain(stage, s) {
   const checked = s.legFail !== "before-credential";
   if (runs(o.sub, ctx)) {
     out.started.push(sub);
-    // With both tokens empty the step exits 1 before it writes an output.
     const failed = checked && !s.sub && !s.fallback;
     const present = checked && !failed ? String(s.sub) : "";
     const ready = checked && !failed ? String(s.fallback) : "";
@@ -123,8 +98,6 @@ function oldChain(stage, s) {
 
 const prefixed = (prefix, map) => Object.fromEntries(Object.entries(map).map(([k, v]) => [`${prefix}.${k}`, v]));
 
-// One leg job as the workflow now runs it: the credential call, the no-token
-// stop, the leg, and the next-leg call, each from the workflow's own inputs.
 function newLeg(id, legName, ctx, failAt, outcome) {
   const call = wf.step(id, "credential");
   assert.equal(call.inputs.leg, legName, `${id} credential leg`);
@@ -154,8 +127,6 @@ function newLeg(id, legName, ctx, failAt, outcome) {
   return result;
 }
 
-// The lane record's fallback reason (the step has no id, so it is found by
-// name) and the launcher's fallback-ready, from the workflow's own inputs.
 const recordInput = (id) => {
   const steps = wf.job(id).split(/\n(?= {6}- name: )/).filter((step) => step.startsWith("      - name: Record the leg\n"));
   assert.equal(steps.length, 1, `${id} Record the leg`);
@@ -196,12 +167,8 @@ function newChain(stage, s) {
   return out;
 }
 
-// A step failing after the leg reads, for the credential decisions, as no
-// failure: the next-leg call runs on !cancelled() either way.
 const FAILS = ["before-credential", "before-run", "after-run"];
 
-// A closed upstream gate or another repository starts no leg, so one launcher
-// outcome each is enough there.
 function* states() {
   for (const head of ["open", "closed", "other-repo"])
     for (const gate of ["ok", "skip", "failed"])

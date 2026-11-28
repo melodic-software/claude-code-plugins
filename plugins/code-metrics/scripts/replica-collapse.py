@@ -3,7 +3,7 @@
 
     replica-collapse.py [--prefix <git show-prefix>] [--registry <file>]... [< report.json]
 
-Reads a `code-metrics/v2` document on stdin and prints it back with every set
+Reads a `code-metrics/v3` document on stdin and prints it back with every set
 of per-file or per-function rows that a registry line sanctions collapsed
 into one row. A repository that vendors one file into several plugins
 measures that file's functions once per copy, and every copy over a reference
@@ -18,7 +18,7 @@ made root-relative through `--prefix` (the `git rev-parse --show-prefix` of
 the directory the audit ran from) and written with forward slashes, is that
 line or ends with `/` plus that line. Rows collapse together when they share
 the registry line, the function name, the start and end line, the collector,
-the lane, and every measured value, and sit under distinct carrying prefixes;
+the language, and every measured value, and sit under distinct carrying prefixes;
 two rows whose numbers differ are two different files whatever the registry
 says, and both stay. Clone-group rows (`instances[]`) are never touched; they
 belong to `registry-filter.py`.
@@ -80,7 +80,6 @@ def root_relative(path: str, prefix: str) -> str:
 
 
 def carrier(rootrel: str, entry: str) -> str | None:
-    """The prefix in front of a registry line, or None when it is not this line."""
     if rootrel == entry:
         return ""
     if rootrel.endswith("/" + entry):
@@ -91,7 +90,6 @@ def carrier(rootrel: str, entry: str) -> str | None:
 def registry_match(
     rootrel: str, registries: list[tuple[str, list[tuple[int, str]]]]
 ) -> tuple[str, int, str, str] | None:
-    """The first registry line a root-relative path belongs to, with its carrier."""
     for registry_path, entries in registries:
         for number, entry in entries:
             where = carrier(rootrel, entry)
@@ -124,7 +122,7 @@ def collapse(
             row.get("start_line"),
             row.get("end_line"),
             row.get("collector"),
-            row.get("lane"),
+            row.get("language"),
             json.dumps(row.get("values") or {}, sort_keys=True),
         )
         first_index.setdefault(key, index)

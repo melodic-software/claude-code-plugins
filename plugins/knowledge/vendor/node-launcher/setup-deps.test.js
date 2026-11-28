@@ -17,7 +17,6 @@ function sandbox() {
   return dir;
 }
 
-/** A package directory whose package.json carries `setupDeps`. */
 function fixturePackage(setupDeps) {
   const dir = sandbox();
   fs.writeFileSync(path.join(dir, "package.json"), JSON.stringify({ name: "fixture", setupDeps }));
@@ -35,7 +34,6 @@ function streams() {
   return io;
 }
 
-/** What setup leaves behind once npm has installed the shared packages. */
 function markInstalled(data) {
   fs.mkdirSync(path.join(data, "node_modules", "@melodic", "video-digestion"), { recursive: true });
 }
@@ -61,7 +59,6 @@ describe("installPackageDeps", () => {
     assert.match(fs.readFileSync(path.join(data, ".fixture.stamp"), "utf8"), /^[0-9a-f]{64}$/);
     assert.equal(io.out, `fixture extraction deps installed to ${path.join(data, "node_modules")}.\n`);
 
-    // The recorded stamp is what makes the next run skip npm.
     markInstalled(data);
     const rerun = streams();
     installPackageDeps({ packageDir: pkg, dataDir: data, env: {}, stdout: rerun.stdout, spawn: rerun.spawnWith(0) });

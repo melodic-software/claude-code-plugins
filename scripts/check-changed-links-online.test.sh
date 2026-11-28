@@ -1,13 +1,8 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2319 # check reads the status of the condition on the line above it
-# Cases for scripts/check-changed-links-online.sh against a throwaway repository
-# and a stub lychee. The stub's --dump prints a fixed list standing in for
-# lychee's extraction (which skips code spans and fenced blocks); the cases
-# check which of those links the script keeps, what it hands the online run,
-# and how it maps lychee's exit codes onto the check-script contract.
 # test-scope: scripts/check-changed-links-online.sh
 set -uo pipefail
-unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
+unset GIT_DIR GIT_WORK_TREE GIT_CONFIG RUNNER_TEMP
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -40,9 +35,6 @@ printf '| a | <https://fixture.test/f> |\n' >"$repo/scripts/fixtures/hooks-lifec
 g add -A
 g commit -q -m change
 
-# The stub: --dump prints STUB_DUMP and records the files it was given; any
-# other run records its arguments and input, prints STUB_REPORT and exits
-# STUB_EXIT.
 stub="$TMP_ROOT/lychee"
 cat >"$stub" <<'EOF'
 #!/usr/bin/env bash
@@ -58,15 +50,23 @@ exit "${STUB_EXIT:-0}"
 EOF
 chmod +x "$stub"
 
-# What lychee's parser would extract from docs/a.md at head: no code span URL.
 dump=$'https://kept.test/a\nhttps://new.test/page#section\nhttps://wiki.test/Rule_(programming)\nhttps://host.test/\nhttps://fixture.test/f'
 
-# run [VAR=value ...] -- <script args>: the script in the repo with the stub.
+standards="$TMP_ROOT/standards"
+mkdir -p "$standards" "$TMP_ROOT/bin"
+: >"$standards/lychee.toml"
+cat >"$TMP_ROOT/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$TMPDIR/gh-calls"
+printf 'from = "api"\n'
+EOF
+chmod +x "$TMP_ROOT/bin/gh"
+
 run() {
   local envs=()
   while [[ $1 != -- ]]; do envs+=("$1"); shift; done
   shift
-  (cd "$repo" && env LYCHEE="$stub" STUB_DUMP="$dump" "${envs[@]}" bash "$SCRIPT" "$@")
+  (cd "$repo" && env PATH="$TMP_ROOT/bin:$PATH" LYCHEE="$stub" STUB_DUMP="$dump" STANDARDS_DIR="$standards" "${envs[@]}" bash "$SCRIPT" "$@")
 }
 check() { if [[ $1 == 0 ]]; then pass "$2"; else bad "$2" "${3:-}"; fi; }
 
@@ -85,8 +85,8 @@ out="$(run -- "$base" 2>"$TMP_ROOT/err")"
 check $? "a clean online run exits 0" "$out $(cat "$TMP_ROOT/err")"
 [[ $out == *"3 added or changed external link(s) resolve"* ]]
 check $? "a clean run states its result on stdout" "$out"
-grep -qx -- '--config' "$TMP_ROOT/args" && grep -qx 'lychee.toml' "$TMP_ROOT/args" && ! grep -qx -- '--offline' "$TMP_ROOT/args"
-check $? "the online run reads lychee.toml with the network on" "$(cat "$TMP_ROOT/args")"
+grep -qx -- '--config' "$TMP_ROOT/args" && grep -qx "$standards/lychee.toml" "$TMP_ROOT/args" && ! grep -qx -- '--offline' "$TMP_ROOT/args"
+check $? "the online run reads standards' lychee.toml with the network on" "$(cat "$TMP_ROOT/args")"
 [[ "$(cat "$TMP_ROOT/input")" == $'<https://host.test/>\n<https://new.test/page#section>\n<https://wiki.test/Rule_(programming)>' ]]
 check $? "the online run's input is the kept links as autolinks" "$(cat "$TMP_ROOT/input")"
 
@@ -141,8 +141,6 @@ run -- >/dev/null 2>&1
 [[ $? -eq 2 ]]
 check $? "a missing base ref is a usage error (exit 2)"
 
-# A file moved and edited in one change is a rename to git; its new path still
-# goes to lychee --dump, and only its added line counts.
 moved_base="$(g rev-parse HEAD)"
 mkdir -p "$repo/docs/guide"
 g mv docs/a.md docs/guide/a.md
@@ -152,8 +150,6 @@ out="$(run STUB_DUMP=$'https://kept.test/a\nhttps://moved.test/m#f' -- --list "$
 grep -qx 'docs/guide/a.md' "$TMP_ROOT/dump-args" && [[ $out == 'https://moved.test/m#f' ]]
 check $? "a moved and edited file's added link is kept" "out=$out args=$(cat "$TMP_ROOT/dump-args")"
 
-# A link to this repository's base branch is skipped only when its path exists
-# at HEAD: it resolves once the change merges.
 g branch -f trunk
 printf 'Own [adr](https://github.com/o/r/blob/trunk/docs/guide/a.md#x), [gone](https://github.com/o/r/blob/trunk/docs/gone.md).\n' >>"$repo/docs/guide/a.md"
 g commit -q -am self
@@ -165,16 +161,40 @@ out="$(run SELF_REPO=other/r STUB_DUMP="$dump" -- --list trunk)"
 [[ $out == "$(LC_ALL=C sort <<<"$dump")" ]]
 check $? "a link to another repository is kept" "out=$out"
 
-run STANDARDS_DIR="$TMP_ROOT/standards" -- --list "$base" >/dev/null
-grep -qx "$TMP_ROOT/standards/lychee.toml" "$TMP_ROOT/dump-args"
-check $? "with no lychee.toml here, the standards checkout's is the ruleset" "$(cat "$TMP_ROOT/dump-args")"
-run STANDARDS_DIR="$TMP_ROOT/standards" LYCHEE_CONFIG=own.toml -- --list "$base" >/dev/null
-grep -qx own.toml "$TMP_ROOT/dump-args" && ! grep -q standards "$TMP_ROOT/dump-args"
-check $? "LYCHEE_CONFIG wins over the standards checkout" "$(cat "$TMP_ROOT/dump-args")"
+configs() { grep -x -A1 -- '--config' "$TMP_ROOT/dump-args" | grep -vx -- '--config' | grep -vx -- '--'; }
+
+run -- --list "$base" >/dev/null
+[[ "$(configs)" == "$standards/lychee.toml" ]]
+check $? "with no lychee.toml here, the standards checkout's is the only config" "$(configs)"
 : >"$repo/lychee.toml"
-run STANDARDS_DIR="$TMP_ROOT/standards" -- --list "$base" >/dev/null
-grep -qx lychee.toml "$TMP_ROOT/dump-args" && ! grep -q standards "$TMP_ROOT/dump-args"
-check $? "this repository's own lychee.toml wins over the standards checkout" "$(cat "$TMP_ROOT/dump-args")"
+run -- --list "$base" >/dev/null
+[[ "$(configs)" == "$standards/lychee.toml"$'\n'lychee.toml ]]
+check $? "this repository's own lychee.toml is layered after the standards checkout's" "$(configs)"
+run LYCHEE_CONFIG=own.toml -- --list "$base" >/dev/null
+[[ "$(configs)" == own.toml ]]
+check $? "LYCHEE_CONFIG is a complete override, read alone" "$(configs)"
 rm "$repo/lychee.toml"
+
+out="$(run STANDARDS_DIR="$TMP_ROOT/no-standards" -- --list "$base" 2>&1)"
+rc=$?
+[[ $rc -eq 2 && $out == *"has no lychee.toml"* ]]
+check $? "a standards checkout without lychee.toml exits 2" "rc=$rc out=$out"
+
+mkdir -p "$repo/docs/conventions"
+printf 'standards_repository: example-org/standards\n' >"$repo/docs/conventions/source-control.yaml"
+rm -f "$TMP_ROOT/gh-calls"
+run STANDARDS_DIR= -- --list "$base" >/dev/null
+first="$(configs | head -n 1)"
+grep -qxE 'api( -i)? -H Accept: application/vnd\.github\.raw repos/example-org/standards/contents/lychee\.toml' "$TMP_ROOT/gh-calls"
+check $? "with no standards checkout, standards_repository's lychee.toml is read through the API" "$(cat "$TMP_ROOT/gh-calls" 2>&1)"
+[[ "$(configs | wc -l)" -eq 1 && $first == *.toml && $first != "$standards"/* ]]
+check $? "the API-read standards file is the config" "$(configs)"
+rm "$repo/docs/conventions/source-control.yaml"
+
+rm -f "$TMP_ROOT/gh-calls"
+out="$(run STANDARDS_DIR= -- --list "$base" 2>&1)"
+rc=$?
+[[ $rc -eq 2 && $out == *"no standards_repository"* && ! -e $TMP_ROOT/gh-calls ]]
+check $? "no standards checkout and no standards_repository exits 2 without an API read" "rc=$rc out=$out"
 
 test_harness::report

@@ -22,14 +22,7 @@ from pathlib import Path
 from typing import Any
 
 ENV = "BABYSIT_RUN_CACHE"
-# The oldest shared value that can change during a run, and the oldest
-# artifact listing the verdict reader judges on (judgment): pr-verify is not a
-# required check, so a queued entry whose FAIL lands mid-run must be held
-# before the merge queue can land it. enable-auto-merge's reader lifts the
-# listing bound (`evidence --shared-listing`): ci-status runs the reader again
-# in the merge queue instead.
 MAX_AGE = timedelta(minutes=2)
-# What gh reads its credentials from: these variables and hosts.yml.
 CREDENTIAL_ENV = (
     "GH_TOKEN",
     "GITHUB_TOKEN",
@@ -50,7 +43,6 @@ def _path() -> Path | None:
 
 
 def _load(path: Path) -> dict[str, Any] | None:
-    """The file's contents, {} when malformed, None when it could not be read."""
     try:
         text = path.read_text(encoding="utf-8")
     except OSError:
@@ -62,13 +54,6 @@ def _load(path: Path) -> dict[str, Any] | None:
     return data if isinstance(data, dict) else {}
 
 
-# This process's parse of the file, by path, with the stat it was read at. A
-# memo is current only while the stat matching means the file is unchanged:
-# pr-merge.yml runs its gate processes one after another, and every writer
-# renames a new file into place (`put`, carry-run-cache.mjs), so another
-# process's write brings a new inode. A writer that rewrote the file in place
-# within one mtime tick at the same size, or a gate process running beside
-# this one, would be served the stale parse.
 _memo: dict[str, tuple[tuple[int, int, int, int], dict[str, Any]]] = {}
 
 
@@ -77,10 +62,6 @@ def _stamp(stat: os.stat_result) -> tuple[int, int, int, int]:
 
 
 def _read(path: Path) -> dict[str, Any] | None:
-    """The file's contents ({} with no file), parsed again only when it changed
-    on disk, or None when it exists but could not be read. Only a parse is
-    kept, so a failed read is tried again. The result is shared: callers copy
-    before changing or serving it."""
     key = str(path)
     try:
         stamp = _stamp(path.stat())
@@ -98,7 +79,6 @@ def _read(path: Path) -> dict[str, Any] | None:
     return data
 
 
-# The open `track()` lists.
 _trackers: list[list[datetime]] = []
 
 
@@ -175,7 +155,6 @@ def put(section: str, key: str, value: Any, at: datetime | None = None) -> None:
     except OSError:
         _memo.pop(str(path), None)
         return
-    # The parse keeps what was written apart from the caller's `value`.
     entries[key] = json.loads(json.dumps(entries[key]))
     _memo[str(path)] = (stamp, data)
 

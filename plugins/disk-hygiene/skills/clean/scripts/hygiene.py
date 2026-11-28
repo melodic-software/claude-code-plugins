@@ -8,7 +8,6 @@ import base64
 import ctypes
 import datetime as dt
 import fnmatch
-import functools
 import hashlib
 import json
 import os
@@ -35,11 +34,14 @@ _SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
+import data_root_state  # noqa: E402  (path set above; plugin-bundled module)
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+import hint_conditions  # noqa: E402  (path set above; plugin-bundled module)
+import policy_cascade  # noqa: E402  (path set above; plugin-bundled module)
 import investigated_catalog  # noqa: E402  (sibling module; a record is a hint only)
 import deep_inventory  # noqa: E402  (path set above; sibling module)
 import ranking_signals  # noqa: E402  (sibling module; a rank orders review only)
-import yaml_subset  # noqa: E402  (path set above; plugin-bundled module)
+import yaml_subset  # noqa: E402, F401  (re-exported for callers/tests)
 
 MIN_PYTHON = (3, 11)
 SCHEMA_VERSION = 1
@@ -296,7 +298,6 @@ def load_json(path: Path) -> dict[str, Any]:
 
 
 def catalog_paths() -> tuple[Path, Path]:
-    """``catalog.json`` and ``CATALOG.md`` under the authorized data root."""
     data_root = Path(DATA_ROOT_OVERRIDE or "")
     return (
         state_output_path(data_root / "catalog.json"),
@@ -322,11 +323,6 @@ def annotate_investigated_catalog(snapshot: dict[str, Any]) -> None:
 
 
 def catalog_target_is_positional(snapshot: dict[str, Any]) -> bool:
-    """True for a root-children scan or a scan of the user home directory.
-
-    Only there does "no protection and no hint" mark a loose root-level entry
-    as out of place.
-    """
     if snapshot.get("root_children_mode"):
         return True
     home = user_home()
@@ -339,7 +335,6 @@ def catalog_target_is_positional(snapshot: dict[str, Any]) -> bool:
 
 
 def write_text_atomic(path: Path, text: str) -> None:
-    """Replace ``path`` whole or leave it as it was."""
     temporary = path.with_name(f"{path.name}.{secrets.token_hex(4)}.tmp")
     try:
         temporary.write_text(text, encoding="utf-8")
@@ -364,16 +359,15 @@ def _data_root() -> Path:
     return Path(DATA_ROOT_OVERRIDE).expanduser().resolve(strict=False)
 
 
+def _data_root_obj() -> data_root_state.DataRoot:
+    return data_root_state.DataRoot(_data_root(), plugin_root=PLUGIN_ROOT)
+
+
 def state_output_path(path: Path) -> Path:
-    data_root = _data_root()
-    path = path.expanduser().resolve(strict=False)
-    if is_within(path, PLUGIN_ROOT):
-        raise HygieneError(
-            "generated state must not be written inside the plugin install directory"
-        )
-    if not is_within(path, data_root):
-        raise HygieneError("generated state must stay inside the data root")
-    return path
+    try:
+        return _data_root_obj().state_output_path(path)
+    except data_root_state.DataRootError as exc:
+        raise HygieneError(str(exc)) from exc
 
 
 def state_input_path(path: Path) -> Path:
@@ -383,21 +377,18 @@ def state_input_path(path: Path) -> Path:
     snapshot, plan, path list or VCS evidence read from anywhere else could drop
     a protection the scan recorded.
     """
-    data_root = _data_root()
-    path = path.expanduser().resolve(strict=False)
-    if not is_within(path, data_root):
-        raise HygieneError("engine inputs must be read from inside the data root")
-    return refuse_engine_owned(path, data_root)
+    try:
+        return _data_root_obj().state_input_path(path)
+    except data_root_state.DataRootError as exc:
+        raise HygieneError(str(exc)) from exc
 
 
 def refuse_engine_owned(path: Path, data_root: Path) -> Path:
     """Refuse a resolved file argument naming the data root or engine-owned state."""
-    relative = os.path.relpath(os.path.normcase(path), os.path.normcase(data_root))
-    if engine_grammar.is_engine_owned(relative):
-        raise HygieneError(
-            "a file argument must not name the data root or engine-owned state"
-        )
-    return path
+    try:
+        return data_root_state.DataRoot(data_root).refuse_engine_owned(path)
+    except data_root_state.DataRootError as exc:
+        raise HygieneError(str(exc)) from exc
 
 
 def model_output_path(value: str) -> Path:
@@ -406,17 +397,7 @@ def model_output_path(value: str) -> Path:
 
 
 def close_clean_runs(ended: Path | None = None) -> None:
-    """Delete the calling session's run marker if this step ends it or it timed out.
-
-    The belt writes one marker per session under ``clean-runs`` when it admits
-    a step, naming the file whose writing ends the run (``ends_with``). A step
-    that writes that file, or a preview that ends the run on its plan, passes
-    it as ``ended``. Only the marker of the session Claude Code names in
-    ``CLAUDE_CODE_SESSION_ID`` is read, so no session ends another's run.
-    Best effort: a marker left in place, with no session id included, holds
-    the belt until its idle timeout, the fail-closed direction, and never
-    changes a result.
-    """
+    """Delete the calling session's run marker if this step ends it or it timed out."""
     session_id = os.environ.get("CLAUDE_CODE_SESSION_ID")
     if not DATA_ROOT_OVERRIDE or not session_id:
         return
@@ -425,13 +406,11 @@ def close_clean_runs(ended: Path | None = None) -> None:
     try:
         if runs.is_symlink() or not runs.is_dir():
             return
-        with engine_grammar.run_marker_lock(runs):
+        with data_root_state.run_marker_lock(runs):
             info = marker.lstat()
             if not stat.S_ISREG(info.st_mode):
                 return
-            close = (
-                time.time() - info.st_mtime >= engine_grammar.RUN_IDLE_TIMEOUT_SECONDS
-            )
+            close = time.time() - info.st_mtime >= data_root_state.RUN_IDLE_TIMEOUT_SECONDS
             if not close and ended is not None:
                 recorded = json.loads(marker.read_text(encoding="utf-8"))["ends_with"]
                 close = isinstance(recorded, str) and os.path.normcase(
@@ -454,135 +433,31 @@ def os_key() -> str:
     )
 
 
-def glob_matches(subject: str, pattern: str) -> bool:
-    """Case-insensitive glob match, on every platform.
-
-    One matcher for every glob the engine evaluates — hints, consumer
-    protection globs, the baseline protected-name globs, and the protection
-    re-checks in the preview, verify, and apply lanes — so discovery and
-    protection cannot disagree about what a name is.
-    `fnmatch.fnmatch` is not that matcher: its case folding follows the host
-    platform, so its verdict would change with where the scan runs.
-
-    Casefolding is the safe direction for both roles. A protection glob that
-    matches more can only keep more, and on Windows and macOS the filesystem is
-    case-insensitive anyway, so a case-sensitive protection glob was a hole
-    rather than a precision. A hint that matches more can only surface more for
-    triage — hints are discovery signals, never cleanup verdicts. This also
-    aligns globs with `has_protected_name`, which has always casefolded.
-    """
-    return fnmatch.fnmatchcase(subject.casefold(), pattern.casefold())
-
-
-_ABSOLUTE_GLOB = re.compile(r"^(?:[A-Za-z]:[\\/]|/|\\\\)")
-
-
-def protection_glob_pattern(entry: Any) -> str | None:
-    """The glob string from a protection entry, or None when the shape is unusable."""
-    if isinstance(entry, str) and entry:
-        return entry
-    if isinstance(entry, dict):
-        pattern = entry.get("glob")
-        if isinstance(pattern, str) and pattern:
-            return pattern
-    return None
-
-
-def protection_glob_entry(entry: Any) -> dict[str, str] | None:
-    """A usable protection entry as ``{glob}`` or ``{glob, reason}``, else None.
-
-    ``reason`` is kept only when it is a non-empty string, because a snapshot's
-    policy block is JSON read back from disk and is not re-validated.
-    """
-    pattern = protection_glob_pattern(entry)
-    if pattern is None:
-        return None
-    reason = entry.get("reason") if isinstance(entry, dict) else None
-    if isinstance(reason, str) and reason:
-        return {"glob": pattern, "reason": reason}
-    return {"glob": pattern}
-
-
-def merge_protection_matches(matches: Iterable[dict[str, str]]) -> list[dict[str, str]]:
-    """Matched protection entries, deduplicated and sorted by glob then reason."""
-    unique = {(match["glob"], match.get("reason", "")): match for match in matches}
-    return [unique[key] for key in sorted(unique)]
-
-
-def protection_matches_field(
-    matches: Iterable[dict[str, str]],
-) -> dict[str, list[dict[str, str]]]:
-    """The optional ``protection_matches`` sibling field, empty when nothing matched.
-
-    Every lane that reports the ``consumer-protected-path`` blocker spreads this
-    into the record it already emits, so a record with no consumer match keeps
-    exactly the shape it had before.
-    """
-    merged = merge_protection_matches(matches)
-    return {"protection_matches": merged} if merged else {}
-
-
-def protection_glob_is_absolute(pattern: str) -> bool:
-    """True for an absolute POSIX, drive-letter, or UNC glob."""
-    return bool(_ABSOLUTE_GLOB.match(pattern))
-
-
-def consumer_protection_matches(
-    path: Path, target: Path, globs: Iterable[Any]
-) -> list[dict[str, str]]:
-    """The consumer protection entries that cover *path*, empty when none do.
-
-    A relative glob matches the path relative to the scan target. A glob that
-    starts with ``/``, a drive letter, or ``\\\\`` (UNC) matches
-    ``path.as_posix()``, so a standing overlay can protect a tree regardless of
-    which parent is scanned. An absolute glob is also tried with ``\\`` read as
-    ``/`` on both the glob and the path, so a native Windows or UNC spelling
-    covers the forward-slash subject.
-
-    Every covering entry is returned, not the first: ``{"glob": ...}`` as
-    written in the policy, plus ``"reason"`` when an object entry carried one,
-    sorted and deduplicated.
-    """
-    try:
-        relative = path.relative_to(target).as_posix()
-    except ValueError:
-        relative = path.as_posix()
-    absolute = path.as_posix()
-    absolute_subjects = (absolute, absolute.replace("\\", "/"))
-    matches: list[dict[str, str]] = []
-    for entry in globs:
-        match = protection_glob_entry(entry)
-        if match is None:
-            continue
-        pattern = match["glob"]
-        if protection_glob_is_absolute(pattern):
-            patterns = (pattern, pattern.replace("\\", "/"))
-            covered = any(
-                glob_matches(subject, candidate)
-                for subject in absolute_subjects
-                for candidate in patterns
-            )
-        else:
-            covered = glob_matches(relative, pattern)
-        if covered:
-            matches.append(match)
-    return merge_protection_matches(matches)
+glob_matches = policy_cascade.glob_matches
+protection_glob_pattern = policy_cascade.protection_glob_pattern
+protection_glob_entry = policy_cascade.protection_glob_entry
+merge_protection_matches = policy_cascade.merge_protection_matches
+protection_matches_field = policy_cascade.protection_matches_field
+protection_glob_is_absolute = policy_cascade.protection_glob_is_absolute
+consumer_protection_matches = policy_cascade.consumer_protection_matches
 
 
 def _validate_protection_glob_entry(entry: Any) -> None:
-    if protection_glob_pattern(entry) is None:
-        raise HygieneError(
-            "protection globs must be non-empty strings or {glob, reason} objects"
-        )
-    if not isinstance(entry, dict):
-        return
-    if not set(entry) <= {"glob", "reason"}:
-        raise HygieneError("protection glob objects may only carry glob and reason")
-    if "reason" in entry and not (isinstance(entry["reason"], str) and entry["reason"]):
-        raise HygieneError("protection glob reason must be a non-empty string")
+    try:
+        policy_cascade._validate_protection_glob_entry(entry)
+    except policy_cascade.PolicyError as exc:
+        raise HygieneError(str(exc)) from exc
 
 
 def is_within(path: Path, parent: Path) -> bool:
+    if (
+        os.name != "nt"
+        and isinstance(path, PurePosixPath)
+        and isinstance(parent, PurePosixPath)
+    ):
+        child, root = str(path), str(parent)
+        if child[:1] == root[:1] == "/" and "//" not in (child[:2], root[:2]):
+            return child == root or child.startswith(root.rstrip("/") + "/")
     try:
         return os.path.commonpath(
             [os.path.normcase(path), os.path.normcase(parent)]
@@ -704,10 +579,21 @@ def windows_drive_roots() -> list[Path]:
     return [Path(f"{chr(65 + index)}:\\") for index in range(26) if mask & (1 << index)]
 
 
-def has_protected_name(path: Path, exact_names: set[str]) -> bool:
+class _CasefoldedNames(frozenset):
+    """Marker frozenset whose elements are already casefolded."""
+
+
+def _casefold_names(exact_names: Iterable[str]) -> _CasefoldedNames:
+    if isinstance(exact_names, _CasefoldedNames):
+        return exact_names
+    return _CasefoldedNames(value.casefold() for value in exact_names)
+
+
+def has_protected_name(path: Path, exact_names: Iterable[str]) -> bool:
     name = path.name.casefold()
+    folded = _casefold_names(exact_names)
     return (
-        name in {value.casefold() for value in exact_names}
+        name in folded
         or name.startswith("ntuser.dat")
         or any(
             glob_matches(name, pattern) for pattern in baseline_protected_name_globs()
@@ -715,22 +601,38 @@ def has_protected_name(path: Path, exact_names: set[str]) -> bool:
     )
 
 
-def has_protected_path_component(path: Path, exact_names: set[str]) -> bool:
+def has_protected_path_component(path: Path, exact_names: Iterable[str]) -> bool:
+    folded = _casefold_names(exact_names)
     return any(
-        has_protected_name(candidate, exact_names)
+        has_protected_name(candidate, folded)
         for candidate in (path, *path.parents)
         if candidate.parent != candidate
     )
 
 
-def _windows_env_roots() -> list[Path]:
-    """The OS-install roots the environment names, absolute, skipping the unset.
+_MACOS_SYSTEM_ROOTS: tuple[Path, ...] = tuple(
+    Path(value) for value in ("/System", "/Library", "/Applications", "/private")
+)
+_LINUX_SYSTEM_ROOTS: tuple[Path, ...] = tuple(
+    Path(value)
+    for value in (
+        "/bin",
+        "/boot",
+        "/dev",
+        "/etc",
+        "/lib",
+        "/proc",
+        "/run",
+        "/sbin",
+        "/sys",
+        "/usr",
+        "/var",
+    )
+)
 
-    Shared by system_roots(), os_drive_markers(), and
-    volume_root_os_owned_names(): they disagree about the per-volume metadata
-    names, never about which environment variables point at the OS install, so
-    naming them once keeps that half from drifting.
-    """
+
+def _windows_env_roots() -> list[Path]:
+    """The OS-install roots the environment names, absolute, skipping the unset."""
     return [
         Path(value).absolute()
         for value in (
@@ -746,38 +648,18 @@ def _windows_env_roots() -> list[Path]:
 def system_roots(
     platform_key: str | None = None, windows_roots: list[Path] | None = None
 ) -> list[Path]:
-    roots: list[Path] = []
     current_platform = platform_key or os_key()
     if current_platform == "windows":
-        roots.extend(_windows_env_roots())
+        roots: list[Path] = _windows_env_roots()
         drive_roots = (
             windows_roots if windows_roots is not None else windows_drive_roots()
         )
         for drive_root in drive_roots:
             roots.extend(drive_root / name for name in WINDOWS_VOLUME_SYSTEM_NAMES)
-    elif current_platform == "macos":
-        roots.extend(
-            Path(value)
-            for value in ("/System", "/Library", "/Applications", "/private")
-        )
-    else:
-        roots.extend(
-            Path(value)
-            for value in (
-                "/bin",
-                "/boot",
-                "/dev",
-                "/etc",
-                "/lib",
-                "/proc",
-                "/run",
-                "/sbin",
-                "/sys",
-                "/usr",
-                "/var",
-            )
-        )
-    return roots
+        return roots
+    if current_platform == "macos":
+        return list(_MACOS_SYSTEM_ROOTS)
+    return list(_LINUX_SYSTEM_ROOTS)
 
 
 def os_drive_markers(
@@ -805,7 +687,6 @@ def os_drive_markers(
 
 
 def is_volume_root(path: Path) -> bool:
-    """True for a filesystem or drive root — a path that is its own parent."""
     return path.parent == path
 
 
@@ -845,8 +726,6 @@ def is_os_managed_target(
     return False
 
 
-# The device path, not DiskImage.Number, tells a VHD (a physical drive with
-# partitions) from an optical image (.iso/.img, a CD-ROM device with one volume).
 WINDOWS_DISK_IMAGE_PROBE = r"""
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
@@ -878,8 +757,6 @@ def windows_disk_image_mounts(path: Path) -> list[str] | None:
         check=False,
         env={**os.environ, "DISK_HYGIENE_IMAGE": str(path)},
     )
-    # Exit code and sentinel only: Windows PowerShell writes CLIXML progress
-    # records to a redirected stderr even on success.
     lines = [line.strip() for line in run.stdout.splitlines() if line.strip()]
     if run.returncode != 0 or not lines or lines[0] not in {"attached", "detached"}:
         raise ValueError(
@@ -951,9 +828,12 @@ def virtual_disk_attachment(path: Path) -> list[str] | None:
 def hard_protection(
     path: Path,
     target: Path,
-    exact_names: set[str],
+    exact_names: Iterable[str],
     known_linux_mounts: set[Path] | None = None,
+    *,
+    known_system_roots: tuple[Path, ...] | list[Path] | None = None,
 ) -> list[str]:
+    folded_names = _casefold_names(exact_names)
     reasons: list[str] = []
     if path == target:
         reasons.append("target-root")
@@ -988,251 +868,74 @@ def hard_protection(
                 reasons.append("target-is-mount-point")
         if current == target:
             break
-        if has_protected_name(current, exact_names):
+        if has_protected_name(current, folded_names):
             reasons.append("baseline-protected-name")
         if current.name.casefold() in VCS_NAMES:
             reasons.append("vcs-metadata")
         current = current.parent
-    if any(is_within(path.absolute(), root.absolute()) for root in system_roots()):
+    roots = (
+        known_system_roots
+        if known_system_roots is not None
+        else system_roots()
+    )
+    path_abs = path.absolute()
+    if any(is_within(path_abs, root.absolute()) for root in roots):
         reasons.append("os-managed-root")
     return sorted(set(reasons))
 
 
-def _pointer_token(text: str) -> str | None:
-    begin, end = CONVENTION_HOME_MARKERS
-    token = None
-    in_region = False
-    for line in text.splitlines():
-        marker = line.strip()
-        if marker == begin:
-            in_region = True
-        elif marker == end and in_region:
-            return token or ""
-        elif in_region and token is None:
-            match = re.search(r"`([^`]*)`", line)
-            if match:
-                token = match.group(1)
-    return None
-
-
-def convention_home(project_dir: Path) -> Path:
-    """The project's convention home, read from its pointer region.
-
-    AGENTS.md is read first and CLAUDE.md when AGENTS.md has no closed region;
-    the first backticked token in the region is the home, and no region or a
-    token outside the segment grammar means ``docs/conventions``. Looser than
-    the marketplace's ``lib/resolve-convention-home.sh``, which fails on a
-    second pointer line, an unclosed region or a symlinked home.
-    """
-    for name in ("AGENTS.md", "CLAUDE.md"):
-        try:
-            text = (project_dir / name).read_text(encoding="utf-8-sig")
-        except (OSError, UnicodeError):
-            continue
-        token = _pointer_token(text)
-        if token is None:
-            continue
-        segments = token.rstrip("/").split("/")
-        if token and all(
-            CONVENTION_HOME_SEGMENT.fullmatch(segment)
-            and segment not in (".", "..")
-            and segment.rstrip(".").casefold() != ".git"
-            for segment in segments
-        ):
-            return project_dir.joinpath(*segments)
-        break
-    return project_dir.joinpath(*DEFAULT_CONVENTION_HOME)
-
-
-def user_policy_path(raw: str | None, warnings: list[str]) -> Path | None:
-    """The file the ``policy_file`` userConfig option names, or None when unset."""
-    value = (raw or "").strip()
-    if not value or value.startswith("${user_config."):
-        return None
-    path = Path(value).expanduser()
-    if not path.is_absolute():
-        warnings.append(
-            f"the {POLICY_FILE_OPTION} option {value!r} is not an absolute path, "
-            "so it supplies no layer"
-        )
-        return None
-    if not path.is_file():
-        warnings.append(
-            f"the {POLICY_FILE_OPTION} option names {path}, which is not a file, "
-            "so it supplies no layer"
-        )
-    return path
-
-
-def _same_file(first: Path, second: Path) -> bool:
-    try:
-        return os.path.samefile(first, second)
-    except OSError:
-        return False
-
-
-def _dual_read(
-    layer: str, new: Path | None, old: Path, destination: str, warnings: list[str]
-) -> list[Path]:
-    has_new = new is not None and new.is_file()
-    has_old = old.is_file() and not (
-        has_new and new is not None and _same_file(old, new)
-    )
-    if has_new and has_old:
-        warnings.append(
-            f"{old} is the old {layer} policy and is not read because {new} "
-            f"supplies that layer; move any setting it still holds to {new} and "
-            f"delete it ({POLICY_SETUP_COMMAND})"
-        )
-    if has_new and new is not None:
-        return [new]
-    if has_old:
-        warnings.append(
-            f"{old} is the old {layer} policy, still read as that layer; move it "
-            f"to {destination} ({POLICY_SETUP_COMMAND})"
-        )
-        return [old]
-    return []
-
-
-def old_policy_paths(project_dir: Path | None) -> dict[str, Path]:
-    """The pre-cascade policy files, by the layer each stands in for."""
-    paths = {"userConfig": Path.home() / ".claude" / POLICY_FILE_NAME}
-    if project_dir is not None:
-        paths["team"] = project_dir / ".claude" / POLICY_FILE_NAME
-    return paths
-
-
-def standing_policy_paths(
-    project_dir: Path | None,
-    user_policy: str | None = None,
-    warnings: list[str] | None = None,
-) -> list[Path]:
-    """The standing layers in order: userConfig, team, personal.
-
-    While no new file supplies the userConfig or team layer, its old
-    ``.claude/disk-hygiene.json`` is read in its place, and each old file found
-    adds one warning.
-    """
-    warnings = [] if warnings is None else warnings
-    old = old_policy_paths(project_dir)
-    user = user_policy_path(user_policy, warnings)
-    layers = _dual_read(
-        "userConfig",
-        user,
-        old["userConfig"],
-        str(user)
-        if user is not None
-        else f"the file the {POLICY_FILE_OPTION} userConfig option names",
-        warnings,
-    )
-    if project_dir is not None:
-        home = convention_home(project_dir)
-        team = home / TEAM_POLICY_NAME
-        if _same_file(old["team"], old["userConfig"]):
-            layers.append(team)
-        else:
-            layers += _dual_read("team", team, old["team"], str(team), warnings)
-        personal = home / PERSONAL_POLICY_NAME
-        if personal.is_file():
-            layers.append(personal)
-    unique: dict[Path, Path] = {}
-    for path in layers:
-        if path.is_file():
-            unique.setdefault(path.resolve(), path)
-    return list(unique.values())
+convention_home = policy_cascade.convention_home
+user_policy_path = policy_cascade.user_policy_path
+_same_file = policy_cascade.same_file
+old_policy_paths = policy_cascade.old_policy_paths
+standing_policy_paths = policy_cascade.standing_policy_paths
+repository_policy_paths = policy_cascade.repository_policy_paths
 
 
 def baseline_policy() -> dict[str, Any]:
-    baseline = load_json(BASELINE_POLICY)
-    if baseline.get("version") != SCHEMA_VERSION:
-        raise HygieneError("unsupported baseline policy version")
-    threshold = baseline.get("os_temp_recommendation_threshold_bytes")
-    if isinstance(threshold, bool) or not isinstance(threshold, int) or threshold < 1:
-        raise HygieneError(
-            "baseline os_temp_recommendation_threshold_bytes must be a positive integer"
-        )
-    return {
-        "version": SCHEMA_VERSION,
-        "protected_exact_names": list(baseline.get("protected_exact_names", [])),
-        "protected_name_globs": list(baseline.get("protected_name_globs", [])),
-        "disk_image_name_globs": list(baseline.get("disk_image_name_globs", [])),
-        "os_temp_recommendation_threshold_bytes": threshold,
-        "hints": list(baseline.get("hints", [])),
-        "additional_protected_path_globs": [],
-        "hint_sources": {},
-        "rules": [],
-        "elevation": "never",
-        "policy_sources": ["baseline"],
-        "policy_warnings": [],
-    }
+    try:
+        return policy_cascade.baseline_policy(BASELINE_POLICY)
+    except policy_cascade.PolicyError as exc:
+        raise HygieneError(str(exc)) from exc
 
 
 def baseline_protected_names() -> set[str]:
-    """Bundled protected names only — validation paths must never depend on
-    ambient standing policy; an approved snapshot stays previewable even if a
-    standing file is later edited or malformed."""
-    return set(baseline_policy()["protected_exact_names"])
+    """Bundled protected names only, served from the cached immutable baseline."""
+    try:
+        return set(policy_cascade.baseline_protected_names(BASELINE_POLICY))
+    except policy_cascade.PolicyError as exc:
+        raise HygieneError(str(exc)) from exc
 
 
-@functools.lru_cache(maxsize=1)
+def snapshot_protected_exact_names(snapshot: dict[str, Any]) -> frozenset[str]:
+    """Union of cached baseline exact names and snapshot policy exact names."""
+    try:
+        return policy_cascade.snapshot_protected_exact_names(
+            snapshot, baseline_path=BASELINE_POLICY
+        )
+    except policy_cascade.PolicyError as exc:
+        raise HygieneError(str(exc)) from exc
+
+
 def baseline_protected_name_globs() -> tuple[str, ...]:
-    """Bundled protected-name PATTERNS, for the names that vary per installation.
-
-    A cloud-sync root's name embeds the tenant — Microsoft documents the
-    OneDrive for Business sync root as ``OneDrive - <organization name>`` — so
-    no exact name can cover it, and a consumer cannot cover it either:
-    ``additional_protected_path_globs`` relative globs match a path relative to
-    the scan target, so they protect such a root only when the target happens
-    to be its parent. An absolute glob (``/``, a drive letter, or UNC) matches the
-    absolute path and does not need that parent, but it still cannot name a
-    tenant-specific OneDrive folder the overlay does not know. Protection that
-    must hold for every target without a known absolute path ships in the
-    baseline, which is why this reads the bundled file directly rather than
-    taking policy as a parameter — exactly as ``baseline_protected_names``
-    does on the validation lanes.
-
-    Matched casefolded through ``fnmatchcase`` rather than ``fnmatch``, whose
-    case folding follows the host platform; a protection whose verdict depends
-    on where it runs is not a protection.
-
-    Cached because ``has_protected_name`` runs at every ancestor of every entry
-    of a walk bounded at MAX_SNAPSHOT_ENTRIES entries, and the bundled file is
-    a build-time constant.
-    """
-    return tuple(baseline_policy()["protected_name_globs"])
+    try:
+        return policy_cascade.baseline_protected_name_globs(BASELINE_POLICY)
+    except policy_cascade.PolicyError as exc:
+        raise HygieneError(str(exc)) from exc
 
 
-@functools.lru_cache(maxsize=1)
 def baseline_disk_image_name_globs() -> tuple[str, ...]:
-    """Bundled disk-image name patterns, read from the baseline like the protected globs."""
-    return tuple(baseline_policy()["disk_image_name_globs"])
+    try:
+        return policy_cascade.baseline_disk_image_name_globs(BASELINE_POLICY)
+    except policy_cascade.PolicyError as exc:
+        raise HygieneError(str(exc)) from exc
 
 
 def is_virtual_disk_name(name: str) -> bool:
-    """True when a file name is a virtual-disk image (``*.vhdx``, ``*.vmdk``, ...).
-
-    A disk image holds a whole machine or volume: it is sparse or dynamically
-    sized, is usually held open by a hypervisor or WSL, and its name says
-    nothing about whether the guest inside is disposable. Matched casefolded
-    through ``glob_matches``, so ``DISK.VMDK`` and ``ext4.vhdx`` both hit.
-    """
-    return any(glob_matches(name, glob) for glob in baseline_disk_image_name_globs())
-
-
-def repository_policy_paths(project_dir: Path | None) -> set[Path]:
-    """The policy files a repository controls, which may not opt into elevation."""
-    if project_dir is None:
-        return set()
-    home = convention_home(project_dir)
-    return {
-        path.resolve()
-        for path in (
-            project_dir / ".claude" / POLICY_FILE_NAME,
-            home / TEAM_POLICY_NAME,
-            home / PERSONAL_POLICY_NAME,
-        )
-    }
+    try:
+        return policy_cascade.is_virtual_disk_name(name, baseline_path=BASELINE_POLICY)
+    except policy_cascade.PolicyError as exc:
+        raise HygieneError(str(exc)) from exc
 
 
 def load_policy(
@@ -1240,215 +943,51 @@ def load_policy(
     project_dir: Path | None = None,
     user_policy: str | None = None,
 ) -> dict[str, Any]:
-    result = baseline_policy()
-    warnings: list[str] = []
-    overlays = (
-        [overlay_path]
-        if overlay_path is not None
-        else standing_policy_paths(project_dir, user_policy, warnings)
-    )
-    repository = (
-        repository_policy_paths(project_dir) if overlay_path is None else set()
-    )
-    for path in overlays:
-        apply_policy_overlay(
-            result, path, project_scope=path.resolve() in repository
+    try:
+        return policy_cascade.load_policy(
+            overlay_path,
+            project_dir,
+            user_policy,
+            baseline_path=BASELINE_POLICY,
+            standing_paths_fn=standing_policy_paths,
         )
-    result["policy_warnings"].extend(warnings)
-    for rule in result["rules"]:
-        if "class" in rule:
-            rule["hint_ids"] = [
-                hint["id"]
-                for hint in result["hints"]
-                if hint.get("class") == rule["class"]
-            ]
-            rule["hint_sources"] = {
-                hint_id: result["hint_sources"].get(hint_id, "baseline")
-                for hint_id in rule["hint_ids"]
-            }
-    return result
+    except policy_cascade.PolicyError as exc:
+        raise HygieneError(str(exc)) from exc
 
 
 def load_overlay(path: Path) -> dict[str, Any]:
-    """A policy file: YAML for the convention-home layers, JSON otherwise."""
-    if path.suffix.casefold() not in (".yaml", ".yml"):
-        return load_json(path)
     try:
-        value = yaml_subset.load(str(path))
-    except (OSError, UnicodeError, yaml_subset.YamlSubsetError) as exc:
-        raise HygieneError(f"cannot read YAML {path}: {exc}") from exc
-    if not isinstance(value, dict):
-        raise HygieneError(f"YAML root must be a mapping: {path}")
-    return value
+        return policy_cascade.load_overlay(path)
+    except policy_cascade.PolicyError as exc:
+        raise HygieneError(str(exc)) from exc
 
 
 def apply_policy_overlay(
     result: dict[str, Any], overlay_path: Path, project_scope: bool = False
 ) -> None:
-    """Layer one overlay onto ``result``; a failing layer changes nothing.
-
-    ``elevation`` is the one field that loosens rather than adds, so a
-    repository-controlled file may set it only to ``never``; opting into
-    ``uac-prompt`` takes the userConfig policy file or an explicit --policy.
-    """
-    overlay = load_overlay(overlay_path)
-    version = overlay.get("version")
-    if isinstance(version, bool) or version not in OVERLAY_VERSIONS:
-        raise HygieneError(f"policy version must be 1 or 2: {overlay_path}")
-    allowed = {
-        "version",
-        "disabled_hint_ids",
-        "additional_hints",
-        "additional_protected_path_globs",
-    }
-    if version == 2:
-        allowed.update({"rules", "elevation"})
-    unknown = sorted(set(overlay) - allowed)
-    if unknown:
-        raise HygieneError(
-            f"unknown policy fields in {overlay_path}: {', '.join(unknown)}"
+    try:
+        policy_cascade.apply_policy_overlay(
+            result, overlay_path, project_scope=project_scope
         )
-    disabled = overlay.get("disabled_hint_ids", [])
-    additions = overlay.get("additional_hints", [])
-    protections = overlay.get("additional_protected_path_globs", [])
-    if not isinstance(disabled, list) or not isinstance(protections, list):
-        raise HygieneError("disabled_hint_ids and protection globs must be arrays")
-    if not all(isinstance(value, str) and value for value in disabled):
-        raise HygieneError("policy IDs must be non-empty strings")
-    for item in protections:
-        _validate_protection_glob_entry(item)
-    if not isinstance(additions, list):
-        raise HygieneError("additional_hints must be an array")
-    known_ids = {hint.get("id") for hint in result["hints"]}
-    for hint in additions:
-        validate_hint(hint)
-        if hint["id"] in known_ids:
-            raise HygieneError(
-                f"additional hint ID already exists ({overlay_path}): {hint['id']}"
-            )
-        known_ids.add(hint["id"])
-    disabled_set = set(disabled)
-    merged_hints = [
-        hint
-        for hint in (*result["hints"], *additions)
-        if hint["id"] not in disabled_set
-    ]
-    rules = validate_rules(overlay.get("rules", []), merged_hints, overlay_path)
-    elevation = overlay.get("elevation", result["elevation"])
-    if not isinstance(elevation, str) or elevation not in ELEVATION_VALUES:
-        raise HygieneError(
-            f"elevation must be one of {', '.join(ELEVATION_VALUES)}: {overlay_path}"
-        )
-    if project_scope and "elevation" in overlay and elevation != "never":
-        raise HygieneError(
-            "elevation can be opted into only from the userConfig policy file or "
-            f"an explicit --policy, not a project policy: {overlay_path}"
-        )
-    result["hints"] = [
-        hint for hint in result["hints"] if hint.get("id") not in disabled_set
-    ]
-    result["hints"].extend(additions)
-    result["hint_sources"].update({hint["id"]: str(overlay_path) for hint in additions})
-    result["additional_protected_path_globs"].extend(protections)
-    result["rules"].extend(rules)
-    result["elevation"] = elevation
-    result["policy_sources"].append(str(overlay_path))
+    except policy_cascade.PolicyError as exc:
+        raise HygieneError(str(exc)) from exc
 
 
-HINT_ENTRY_TYPES = ("file", "directory", "link", "other")
-HINT_CLASSES = ("superseded-version", "backup", "empty", "temp", "crash-dump")
+HINT_ENTRY_TYPES = policy_cascade.HINT_ENTRY_TYPES
+HINT_CLASSES = policy_cascade.HINT_CLASSES
 MAX_EMPTY_DIRECTORY_PATHS = 200
 
 
 def validate_rules(
     rules: Any, hints: list[dict[str, Any]], overlay_path: Path
 ) -> list[dict[str, Any]]:
-    """Validate an overlay's `rules` and normalize each `match` to `hint_ids`.
-
-    A rule matches on hint id or on a hint class, which resolves to the ids of
-    the merged hints carrying it. A rule naming an id or a class that no merged
-    hint carries is rejected so a typo cannot silently preselect nothing.
-    """
-    hint_ids = {hint["id"] for hint in hints}
-    if not isinstance(rules, list):
-        raise HygieneError(f"rules must be an array: {overlay_path}")
-    normalized = []
-    for index, rule in enumerate(rules):
-        if not isinstance(rule, dict):
-            raise HygieneError(f"each rule must be an object: {overlay_path}")
-        unknown = sorted(
-            set(rule) - {"match", "preselect", "min_age_days", "min_age_basis"}
-        )
-        if unknown:
-            raise HygieneError(
-                f"unknown rule fields in {overlay_path}: {', '.join(unknown)}"
-            )
-        match = rule.get("match")
-        if not isinstance(match, dict) or len(match) != 1:
-            raise HygieneError(
-                f"rule match must be an object with exactly one of hint_id, hint_ids or class: {overlay_path}"
-            )
-        match_class = match.get("class")
-        if "class" in match:
-            if match_class not in HINT_CLASSES:
-                raise HygieneError(
-                    f"rule match class must be one of {', '.join(HINT_CLASSES)}: {overlay_path}"
-                )
-            ids = [h["id"] for h in hints if h.get("class") == match_class]
-            if not ids:
-                raise HygieneError(
-                    f"rule match class matches no hint ({overlay_path}): {match_class}"
-                )
-        elif "hint_id" in match:
-            ids = [match["hint_id"]]
-        elif (
-            "hint_ids" in match
-            and isinstance(match["hint_ids"], list)
-            and match["hint_ids"]
-        ):
-            ids = match["hint_ids"]
-        else:
-            raise HygieneError(
-                f"rule match must be a hint_id string, a non-empty hint_ids array or a class: {overlay_path}"
-            )
-        if not all(isinstance(value, str) and value for value in ids):
-            raise HygieneError(
-                f"rule hint IDs must be non-empty strings: {overlay_path}"
-            )
-        missing = sorted(set(ids) - hint_ids)
-        if missing:
-            raise HygieneError(
-                f"rule names unknown hint ID ({overlay_path}): {', '.join(missing)}"
-            )
-        if not isinstance(rule.get("preselect"), bool):
-            raise HygieneError(f"rule preselect must be a boolean: {overlay_path}")
-        entry: dict[str, Any] = {
-            "hint_ids": ids,
-            "preselect": rule["preselect"],
-            "source": str(overlay_path),
-            "index": index,
-        }
-        if match_class is not None:
-            entry["class"] = match_class
-        if "min_age_days" in rule:
-            days = rule["min_age_days"]
-            if isinstance(days, bool) or not isinstance(days, int) or days < 0:
-                raise HygieneError(
-                    f"rule min_age_days must be a non-negative integer: {overlay_path}"
-                )
-            entry["min_age_days"] = days
-        if "min_age_basis" in rule:
-            if rule["min_age_basis"] not in RULE_MIN_AGE_BASES:
-                raise HygieneError(
-                    f"rule min_age_basis must be one of {', '.join(RULE_MIN_AGE_BASES)}: {overlay_path}"
-                )
-            entry["min_age_basis"] = rule["min_age_basis"]
-        normalized.append(entry)
-    return normalized
+    try:
+        return policy_cascade.validate_rules(rules, hints, overlay_path)
+    except policy_cascade.PolicyError as exc:
+        raise HygieneError(str(exc)) from exc
 
 
 def entry_age_ns(entry: dict[str, Any], key: str) -> int:
-    """An entry's timestamp on one basis; a snapshot without it falls back to mtime."""
     return entry.get(key, entry["mtime_ns"])
 
 
@@ -1457,12 +996,6 @@ def rule_age_facts(
     unknown_paths: Iterable[str],
     basis: str = "mtime",
 ) -> tuple[dict[str, int], set[str]]:
-    """Newest descendant timestamp per directory, and every path with a coverage gap.
-
-    An ancestor of an unknown path is itself unknown: the walk never saw what
-    changed beneath it. Not-walked entries count as unknown alongside
-    `unknown_paths`.
-    """
     newest: dict[str, int] = {}
     incomplete: set[str] = set()
     key = f"{basis}_ns"
@@ -1648,41 +1181,10 @@ def apply_in_flight_refs(
 
 
 def validate_hint(hint: Any) -> None:
-    if not isinstance(hint, dict):
-        raise HygieneError("each additional hint must be an object")
-    required = {"id", "os", "kind", "pattern", "confidence_ceiling", "reason"}
-    if not required <= set(hint) or set(hint) - required - {"entry_types", "class"}:
-        raise HygieneError(
-            "each additional hint must contain exactly id/os/kind/pattern/confidence_ceiling/reason "
-            "and optionally entry_types and class"
-        )
-    if "class" in hint and hint["class"] not in HINT_CLASSES:
-        raise HygieneError(f"hint class must be one of {', '.join(HINT_CLASSES)}")
-    if "entry_types" in hint:
-        entry_types = hint["entry_types"]
-        if (
-            not isinstance(entry_types, list)
-            or not entry_types
-            or not all(value in HINT_ENTRY_TYPES for value in entry_types)
-        ):
-            raise HygieneError(
-                "hint entry_types must be a non-empty array containing file/directory/link/other"
-            )
-    if hint["kind"] not in {"name_glob", "path_glob"}:
-        raise HygieneError(f"unsupported hint kind: {hint['kind']}")
-    if hint["confidence_ceiling"] not in TIERS:
-        raise HygieneError(
-            f"unsupported confidence ceiling: {hint['confidence_ceiling']}"
-        )
-    if not isinstance(hint["os"], list) or not all(
-        value in {"all", "windows", "linux", "macos"} for value in hint["os"]
-    ):
-        raise HygieneError(
-            "hint os must be an array containing all/windows/linux/macos"
-        )
-    for field in ("id", "pattern", "reason"):
-        if not isinstance(hint[field], str) or not hint[field]:
-            raise HygieneError(f"hint {field} must be a non-empty string")
+    try:
+        policy_cascade.validate_hint(hint)
+    except policy_cascade.PolicyError as exc:
+        raise HygieneError(str(exc)) from exc
 
 
 def matching_hints(
@@ -1710,11 +1212,6 @@ def matching_hints(
 
 
 def allocated_size_from_stat(info: os.stat_result) -> int | None:
-    """Cheap on-disk allocation when the platform exposes it; else unknown.
-
-    Returns null rather than inventing a figure. A missing allocated size is
-    itself a size signal ("we do not know") and must not collapse to zero.
-    """
     blocks = getattr(info, "st_blocks", None)
     if blocks is None:
         return None
@@ -1791,7 +1288,6 @@ def metadata(
 
 
 def entry_logical_file_bytes(entry: dict[str, Any]) -> int:
-    """Snapshot-recorded logical bytes for a non-directory entry; 0 if unknown."""
     if entry.get("kind") == "directory":
         return 0
     size = entry.get("logical_size")
@@ -1813,7 +1309,6 @@ def entry_reclaimable_local_bytes(entry: dict[str, Any]) -> int | None:
 
 
 def reclaimable_local_bytes(entries: list[dict[str, Any]]) -> int:
-    """Sum of per-entry reclaimable local bytes across an inventory."""
     return sum(
         value
         for entry in entries
@@ -1831,16 +1326,6 @@ def entry_is_empty_directory(
     parents_with_children: set[str] | None = None,
     unknown_paths: set[str] | None = None,
 ) -> bool:
-    """True when a walked directory has no inventoried descendants.
-
-    Truncated (`not-walked`) directories are unknown, not empty — their
-    `logical_size` is null. A walked parent whose only children were cut off by
-    `--max-depth` can still show `logical_size` 0; requiring no snapshot
-    descendants keeps that case out of the empty-directory tidiness count so
-    zero-byte residue stays visible without mislabeling uninventoried trees.
-    Directories whose scandir failed (or that appear in ``unknown_paths``) are
-    likewise unknown: a coverage gap is not empty residue.
-    """
     if entry.get("kind") != "directory":
         return False
     qualifiers = entry.get("size_qualifiers") or []
@@ -1870,20 +1355,10 @@ def entry_is_empty_directory(
 
 
 def child_rollup_name(relative: str) -> str:
-    """The immediate-child segment a snapshot-relative path belongs to."""
     return relative.split("/", 1)[0]
 
 
 def child_rollup_bytes(entry: dict[str, Any]) -> int:
-    """The bytes one immediate child contributes to the target's walked total.
-
-    Mirrors ``scan_tree``'s own accumulation exactly: a walked directory's
-    ``logical_size`` is already its recursive subtotal, a file contributes its
-    recorded logical size, and a link or special entry contributes nothing
-    because the walk never traverses one. Keeping the two rules identical is
-    what makes the roll-up sum to ``target_logical_bytes`` when every immediate
-    child was walked.
-    """
     if entry.get("kind") == "directory":
         size = entry.get("logical_size")
         return int(size) if isinstance(size, int) else 0
@@ -1893,7 +1368,6 @@ def child_rollup_bytes(entry: dict[str, Any]) -> int:
 
 
 def empty_child_rollup_bucket() -> dict[str, Any]:
-    """The per-child accumulator, in one place so its shape cannot drift."""
     return {
         "self": None,
         "descendants": 0,
@@ -1955,11 +1429,6 @@ def children_rollup(
 def accumulate_child_rollup(
     totals: dict[str, dict[str, Any]], entry: dict[str, Any]
 ) -> None:
-    """Fold one inventory record into its immediate child's accumulator.
-
-    Keeps only the child's own kind and logical size, never the record, so a
-    caller that feeds records one at a time need not retain them.
-    """
     relative = entry.get("path")
     if not isinstance(relative, str) or not relative or relative == ".":
         return
@@ -2024,11 +1493,6 @@ def child_rollup_rows(
 
 
 def inventory_parent_paths(paths: Iterable[str]) -> set[str]:
-    """Return every inventory path that has at least one inventoried descendant.
-
-    Built in one linear pass over ``paths`` so empty-directory counting stays
-    O(entries) rather than O(directories × entries).
-    """
     parents: set[str] = set()
     for path in paths:
         if not isinstance(path, str):
@@ -2045,11 +1509,6 @@ def empty_directory_paths(
     *,
     error_paths: Iterable[str] | None = None,
 ) -> list[str]:
-    """Sorted paths of walked empty directories in a snapshot inventory.
-
-    ``error_paths`` are scan-error relatives that must not count as empty even
-    when they were recorded with ``logical_size`` 0 and no descendants.
-    """
     by_path = {
         entry["path"]: entry
         for entry in entries
@@ -2077,7 +1536,6 @@ def empty_directory_count(
 
 
 def empty_file_count(entries: list[dict[str, Any]]) -> int:
-    """Count inventoried regular files whose recorded logical size is 0."""
     return sum(
         1
         for entry in entries
@@ -2269,7 +1727,6 @@ def os_autoclean_advisory(
         effective = (
             state["enabled"] is True
             and state["temporary_files_cleanup"] is True
-            # Cadence 0 = "during low free disk space", which may never fire.
             and (state["cadence_days"] or 0) > 0
         )
         if zone["logical_bytes"] >= threshold:
@@ -2356,7 +1813,6 @@ def large_scan_reasons(target: Path) -> list[str]:
 
 
 def top_level_entry_count(target: Path) -> tuple[int | None, str | None]:
-    """Count immediate children only — a cheap probe that never recurses."""
     try:
         with os.scandir(target) as iterator:
             return sum(1 for _ in iterator), None
@@ -2390,7 +1846,6 @@ def directory_has_child(directory: Path) -> bool:
 def volume_root_os_owned_names(
     platform_key: str | None = None,
 ) -> set[str]:
-    """Basenames the volume-root guard treats as OS-owned at a drive/FS root."""
     current = platform_key or os_key()
     if current == "windows":
         names: Iterable[str] = (
@@ -2415,7 +1870,6 @@ def volume_root_os_owned_file_name_matches(
     name: str,
     platform_key: str | None = None,
 ) -> bool:
-    """Whether a volume-root FILE basename is OS-owned on this platform."""
     current = platform_key or os_key()
     folded = name.casefold()
     if current == "windows":
@@ -2428,12 +1882,10 @@ def volume_root_os_owned_file_name_matches(
 
 
 def volume_root_home_container_name(platform_key: str | None = None) -> str:
-    """The volume-root directory that holds user homes on this platform."""
     return "home" if (platform_key or os_key()) == "linux" else "Users"
 
 
 def root_child_listing_fields(info: os.stat_result | None) -> dict[str, Any]:
-    """Additive listing facts for an admitted or skipped root child."""
     if info is None:
         return {}
     if stat.S_ISDIR(info.st_mode):
@@ -2455,7 +1907,6 @@ def root_child_listing_fields(info: os.stat_result | None) -> dict[str, Any]:
 def root_children_skipped_reason_counts(
     skipped: list[dict[str, Any]],
 ) -> dict[str, int]:
-    """Stdout grouping of withheld root children, reason → count."""
     counts = Counter(
         reason
         for item in skipped
@@ -2465,7 +1916,6 @@ def root_children_skipped_reason_counts(
 
 
 def withheld_home_container_note(skipped: list[dict[str, Any]]) -> str:
-    """Sentence naming the current user's home when its container is withheld."""
     names = {
         item["name"].casefold()
         for item in skipped
@@ -2502,11 +1952,11 @@ def root_child_skip_reason(
     On any volume root, OS-managed or not (a Windows Dev Drive), mirrors the
     volume-root guard (OS-owned / hidden / system / reparse) and fails closed
     on anything ambiguous (#2588). Regular files use the same admission ladder
-    as directories; non-regular types are withheld as
+    as directories on every target; other types are withheld as
     ``not-regular-file-or-directory``. On a target that is not a volume root
-    (#4221), only directories can be selected, and hidden and
-    OS-owned-by-volume-name children stay selectable so a depth-1 home audit
-    can re-inventory approved directories without walking the rest of the home.
+    (#4221), hidden and OS-owned-by-volume-name children stay selectable so a
+    depth-1 home audit can re-inventory approved directories and loose files
+    in one snapshot without walking the rest of the home.
     """
     try:
         info = path.lstat()
@@ -2518,8 +1968,8 @@ def root_child_skip_reason(
         return "cloud-placeholder"
     is_dir = stat.S_ISDIR(info.st_mode)
     is_reg = stat.S_ISREG(info.st_mode)
-    if not strict_volume_root and not is_dir:
-        return "not-a-directory"
+    if not strict_volume_root and not (is_dir or is_reg):
+        return "not-regular-file-or-directory"
     name = path.name
     if name in {".", ".."} or not name:
         return "invalid-name"
@@ -2573,9 +2023,9 @@ def enumerate_root_children(
     """List immediate children into admitted vs skipped buckets.
 
     Enumerates the target once and never recurses. On a volume root,
-    OS-managed or not, admitted entries are regular files or directories that
-    cleared every root-children exclusion. On any other target, admitted
-    entries are directories only. ``strict_volume_root`` keeps the OS-owned /
+    OS-managed or not, or any other target, admitted entries are regular files
+    or directories that cleared every root-children exclusion.
+    ``strict_volume_root`` keeps the OS-owned /
     hidden / system ladder that every volume root needs; a target that is not
     a volume root drops those so approved home children stay selectable.
     """
@@ -2631,7 +2081,6 @@ def normalize_root_child_selection(
     skipped: list[dict[str, Any]] | None = None,
     case_sensitive: bool | None = None,
 ) -> list[str]:
-    """Map a human selection onto admitted basenames; reject anything else."""
     if not selected:
         raise HygieneError(
             "--root-children requires an explicit --root-child selection; "
@@ -2698,7 +2147,8 @@ def scan_tree(
     truncated: list[str] = []
     unwalked_reasons: dict[str, str] = {}
     repositories, repo_errors = discover_enclosing_git(target)
-    exact_names = set(policy["protected_exact_names"])
+    exact_names = _casefold_names(policy["protected_exact_names"])
+    known_system_roots = tuple(root.absolute() for root in system_roots())
     known_mounts, mount_error = linux_mount_points()
     if mount_error:
         errors.append({"path": ".", "error": mount_error})
@@ -2733,7 +2183,13 @@ def scan_tree(
                 unwalked_reasons[child.name] = "root-child-unselected"
                 continue
             relative = path.relative_to(target).as_posix()
-            protections = hard_protection(path, target, exact_names, known_mounts)
+            protections = hard_protection(
+                path,
+                target,
+                exact_names,
+                known_mounts,
+                known_system_roots=known_system_roots,
+            )
             if path.name.casefold() in VCS_NAMES:
                 repositories.append(path.parent.resolve())
             consumer_matches = consumer_protection_matches(
@@ -2847,6 +2303,9 @@ def scan_tree(
     review_ranking: dict[str, Any] | None = None
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
+        hint_conditions.apply(
+            entries, policy["hints"], target, user_home(), set(truncated) | error_paths
+        )
         apply_rules(entries, policy.get("rules", []), set(truncated) | error_paths)
         apply_in_flight_refs(entries, target, in_flight_refs or [])
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)
@@ -2916,11 +2375,6 @@ def scan_tree(
 
 
 def bytecode_module_names(directory: Path) -> list[str] | None:
-    """Module names a ``__pycache__`` holds bytecode for, from one scandir.
-
-    ``None`` means the directory could not be listed, which is not the same as
-    holding no bytecode.
-    """
     try:
         with os.scandir(directory) as iterator:
             names = [entry.name for entry in iterator]
@@ -2950,8 +2404,6 @@ def annotate_stdlib_shadowing(
     except (OSError, ValueError):
         return []
     prefix = "" if home_relative == "." else f"{home_relative}/"
-    # The home prefix comes from Path.home() while entry paths come from
-    # scandir names, and on Windows the two may differ only in case.
     fold = str.casefold if sys.platform == "win32" else str
     folded_prefix = fold(prefix)
     children: dict[str, dict[str, Any]] = {}
@@ -2959,16 +2411,14 @@ def annotate_stdlib_shadowing(
         path = entry["path"]
         if fold(path).startswith(folded_prefix) and "/" not in path[len(prefix) :]:
             children[path[len(prefix) :]] = entry
-    # Built-in modules resolve before sys.path is searched, so sys.py or
-    # time.py in the home directory never shadows them.
+    # The default sys.meta_path tries the built-in finder before the import-path finder.
+    # https://docs.python.org/3/reference/import.html#the-meta-path
     stdlib = sys.stdlib_module_names - set(sys.builtin_module_names)
     shadows: dict[str, dict[str, Any]] = {}
     for name, entry in children.items():
         stem, dot, suffix = name.rpartition(".")
-        # A case-insensitive filesystem imports Random.py for `import random`.
         stem = fold(stem)
         if (
-            # Python follows a symlinked module source.
             entry.get("kind") in ("file", "link")
             and dot
             and fold(suffix) == "py"
@@ -3116,14 +2566,6 @@ def entry_map(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
 
 
 def subtree_names(relative: str, names: Iterable[str]) -> set[str]:
-    """The snapshot paths that ARE ``relative`` or sit beneath it.
-
-    One containment rule for every lane that asks "what did the scan record for
-    this candidate" — the preview's and handoff-verify's expected-path sets and
-    the apply lane's removal list — so the three cannot disagree about a
-    candidate's extent. Prefix matching is on the "/"-terminated name, so a
-    sibling like ``cache-old`` is never read as a child of ``cache``.
-    """
     return {
         name for name in names if name == relative or name.startswith(relative + "/")
     }
@@ -3132,12 +2574,6 @@ def subtree_names(relative: str, names: Iterable[str]) -> set[str]:
 def overlaps_accepted_path(
     candidate: PurePosixPath, accepted: list[PurePosixPath]
 ) -> bool:
-    """Whether ``candidate`` is, contains, or sits under an already-accepted path.
-
-    One overlap rule for the two lanes that build an approved set (plan
-    candidates and handoff paths), so neither can admit a pair the other would
-    reject.
-    """
     return any(
         candidate == prior or candidate in prior.parents or prior in candidate.parents
         for prior in accepted
@@ -3145,13 +2581,6 @@ def overlaps_accepted_path(
 
 
 def overlaps_truncated(relative: str, truncated_paths: set[str]) -> bool:
-    """Whether ``relative`` is, contains, or lives under a truncated scan path.
-
-    Either direction disqualifies: a truncated ancestor means this path's own
-    subtree was never inventoried, and a truncated descendant means part of it
-    was not. Shared by preview and handoff-verify, which must agree on which
-    candidates the snapshot cannot speak for.
-    """
     return any(
         name == relative
         or name.startswith(relative + "/")
@@ -3161,13 +2590,6 @@ def overlaps_truncated(relative: str, truncated_paths: set[str]) -> bool:
 
 
 def snapshot_protection_globs(snapshot: dict[str, Any]) -> list[dict[str, str]]:
-    """Consumer protection entries a snapshot's policy recorded.
-
-    Read from the snapshot rather than from live policy on purpose: an approved
-    snapshot must stay previewable under the protections it was scanned with.
-    Each entry is ``{glob}`` or ``{glob, reason}``; other shapes are dropped so
-    the validation lanes cannot differ on a hand-edited policy block.
-    """
     entries = (
         protection_glob_entry(entry)
         for entry in snapshot.get("policy", {}).get(
@@ -3301,13 +2723,6 @@ def inline_plan(
     paths: list[str],
     entries: dict[str, dict[str, Any]],
 ) -> tuple[dict[str, Any], Path]:
-    """Build the plan a ``preview --tier --path`` call names, and its fixed path.
-
-    Its candidates are all unmanaged, with fixed prose: the audit report carries
-    the evidence, as it does for a manual-handoff list. The caller names no
-    output, so the plan lands only beside the snapshot, under a name of the
-    engine's own.
-    """
     if tier is None or not paths:
         raise HygieneError("preview needs --tier and --path together, without --plan")
     approved = validate_handoff_paths(
@@ -3476,7 +2891,6 @@ def same_stat_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
 
 
 def same_object_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
-    """Compare stable object identity without mutable directory size/timestamps."""
     return all(
         (
             stat.S_ISDIR(info.st_mode) and entry.get("kind") == "directory",
@@ -3488,7 +2902,6 @@ def same_object_identity(info: os.stat_result, entry: dict[str, Any]) -> bool:
 
 
 def same_open_object(left: os.stat_result, right: os.stat_result) -> bool:
-    """Compare stable identity fields for two observations of one object."""
     return all(
         (
             left.st_dev == right.st_dev,
@@ -3499,7 +2912,6 @@ def same_open_object(left: os.stat_result, right: os.stat_result) -> bool:
 
 
 def same_removal_identity(path: Path, entry: dict[str, Any]) -> bool:
-    """Allow expected directory metadata churn while preserving object identity."""
     return same_identity(path, entry)
 
 
@@ -3517,7 +2929,6 @@ def marker_exists(path: Path, errors: list[str]) -> bool:
 def discover_current_repositories(
     target: Path, candidate: Path
 ) -> tuple[list[Path], list[str]]:
-    """Rediscover enclosing and nested repository markers from live state."""
     marker_roots: set[Path] = set()
     errors: list[str] = []
     current = candidate if candidate.is_dir() else candidate.parent
@@ -3622,8 +3033,6 @@ def run_git(repo: Path, *arguments: str) -> subprocess.CompletedProcess[str]:
     if not git:
         raise HygieneError("git-not-found")
     environment = os.environ.copy()
-    # `git status` may otherwise refresh the index and write an optional
-    # lock/index update. Evidence collection is a read-only handoff operation.
     environment["GIT_OPTIONAL_LOCKS"] = "0"
     return subprocess.run(
         [git, "-C", str(repo), *arguments],
@@ -3651,8 +3060,6 @@ def verify_github_remote_head(
     repo: Path, remote: str, sha: str
 ) -> tuple[bool, dict[str, str]]:
     """Confirm one local head through the GitHub commits API, never by ref name."""
-    # Read the literal declaration rather than `git remote get-url`, which
-    # expands global `insteadOf` transport rewrites and can hide github.com.
     remote_url = run_git(repo, "config", "--get", f"remote.{remote}.url")
     if remote_url.returncode != 0 or not remote_url.stdout.strip():
         return False, {"sha": sha, "error": "remote-url-unverified"}
@@ -4021,7 +3428,6 @@ PLATFORM_BLOCKER = "execution-platform-unsupported"
 
 
 def execution_blockers() -> list[str]:
-    """Return reasons why the mutation lane cannot be proven safe on this host."""
     if os_key() != "linux":
         return [PLATFORM_BLOCKER]
     required = (os.open, os.stat, os.unlink, os.rmdir)
@@ -4050,8 +3456,6 @@ def windows_handle_state(path: Path) -> tuple[str, str | None]:
     ]
     create_file.restype = ctypes.c_void_p
     flags = FILE_FLAG_BACKUP_SEMANTICS if path.is_dir() else FILE_ATTRIBUTE_NORMAL
-    # A zero-access open skips the share check, so it succeeds on a held file.
-    # DELETE access with share mode 0 conflicts with any existing handle.
     handle = create_file(str(path), DELETE, 0, None, OPEN_EXISTING, flags, None)
     invalid = ctypes.c_void_p(-1).value
     if handle == invalid:
@@ -4065,7 +3469,13 @@ def windows_handle_state(path: Path) -> tuple[str, str | None]:
     return "clear", None
 
 
-def posix_handle_state(path: Path) -> tuple[str, str | None]:
+def posix_handle_state(
+    path: Path, open_paths: set[Path] | None = None
+) -> tuple[str, str | None]:
+    """Probe ``path`` (a directory's whole subtree) with one lsof run.
+
+    When ``open_paths`` is given, every name lsof reports is added to it.
+    """
     lsof = shutil.which("lsof")
     if not lsof:
         return "unverified", "lsof-not-found"
@@ -4080,24 +3490,25 @@ def posix_handle_state(path: Path) -> tuple[str, str | None]:
         return "unverified", "lsof-timeout"
     if run.stderr.strip():
         return "unverified", f"lsof-diagnostic: {run.stderr.strip()[:200]}"
-    if run.returncode == 0 and run.stdout.strip():
+    names = [Path(line[1:]) for line in run.stdout.splitlines() if line[:1] == "n"]
+    if run.returncode in (0, 1) and names:
+        if open_paths is not None:
+            open_paths.update(names)
         return "open", "lsof-reported-open-file"
     if run.returncode == 1 and not run.stdout.strip():
         return "clear", None
     return "unverified", f"lsof-exit-{run.returncode}"
 
 
-def handle_state(path: Path) -> tuple[str, str | None]:
-    return windows_handle_state(path) if os.name == "nt" else posix_handle_state(path)
+def handle_state(
+    path: Path, open_paths: set[Path] | None = None
+) -> tuple[str, str | None]:
+    if os.name == "nt":
+        return windows_handle_state(path)
+    return posix_handle_state(path, open_paths)
 
 
 def handle_state_contest_reason(state: str, detail: str | None) -> str | None:
-    """The contested reason a non-clear handle probe carries, or None when clear.
-
-    Shared by the two read-only verdict lanes (approved paths and emptied
-    containers) so an open handle, a denial, and an unverifiable probe cannot
-    be worded differently depending on which one observed it.
-    """
     if state == "clear":
         return None
     if state == "needs_elevation":
@@ -4206,14 +3617,12 @@ def snapshot_truncated_paths(snapshot: dict[str, Any]) -> set[str]:
 
 
 def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
-    baseline_exact_names = baseline_protected_names()
     target, known_mounts = resolve_snapshot_target(snapshot)
     entries = entry_map(snapshot)
     candidates = validate_plan(plan, entries)
     truncated_paths = snapshot_truncated_paths(snapshot)
-    exact_names = baseline_exact_names | set(
-        snapshot.get("policy", {}).get("protected_exact_names", [])
-    )
+    exact_names = _casefold_names(snapshot_protected_exact_names(snapshot))
+    known_system_roots = tuple(root.absolute() for root in system_roots())
     globs = snapshot_protection_globs(snapshot)
     root_children_sensitive = root_child_names_case_sensitive(snapshot.get("platform"))
 
@@ -4231,7 +3640,13 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
     for candidate in candidates:
         relative = candidate["path"]
         path = target.joinpath(*PurePosixPath(relative).parts)
-        blockers = hard_protection(path, target, exact_names, known_mounts)
+        blockers = hard_protection(
+            path,
+            target,
+            exact_names,
+            known_mounts,
+            known_system_roots=known_system_roots,
+        )
         blockers.extend(execution_blockers())
         if candidate["owner"] != "unmanaged":
             blockers.append("native-managed-report-only")
@@ -4263,7 +3678,13 @@ def preview(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
                 blockers.append("changed-since-scan")
             if name != relative:
                 blockers.extend(
-                    hard_protection(current, target, exact_names, known_mounts)
+                    hard_protection(
+                        current,
+                        target,
+                        exact_names,
+                        known_mounts,
+                        known_system_roots=known_system_roots,
+                    )
                 )
             matches = consumer_protection_matches(current, target, globs)
             if matches:
@@ -4376,22 +3797,6 @@ def removal_sort_key(relative: str) -> tuple[int, str]:
 def emptied_container_order(
     settled: Iterable[str], entries: dict[str, dict[str, Any]]
 ) -> list[str]:
-    """Inventoried directories the settled removals leave empty, deepest first.
-
-    ``settled`` is the set of paths that are being removed (or are already
-    gone). A snapshot directory qualifies when it is not itself part of that
-    removal, the scan actually walked it, and every one of its inventoried
-    immediate children is either removed or itself qualifies — the cascade.
-
-    Decision is one pass over the inventory in decreasing depth. Every parent is
-    strictly shallower than its children, so the pass reaches a container only
-    after each of its children has already been decided; no fixed-point loop is
-    involved and none needs a bound, which is what makes a cascade of any depth
-    resolve in a single round.
-
-    This names containers. It never removes one: the ordering is the part shared
-    with the apply lane, the mutation is not.
-    """
     removed: set[str] = set()
     for relative in settled:
         removed |= subtree_names(relative, entries)
@@ -4415,7 +3820,6 @@ def emptied_container_order(
 
 
 def lstat_failure_verdict(relative: str, exc: OSError) -> dict[str, Any]:
-    """The verdict for a path whose ``lstat`` raised ``exc``."""
     if isinstance(exc, FileNotFoundError):
         return {"path": relative, "verdict": "gone", "reasons": ["no-longer-present"]}
     reason = (
@@ -4435,14 +3839,6 @@ def verify_emptied_container(
     globs: list[dict[str, str]],
     truncated_paths: set[str],
 ) -> dict[str, Any]:
-    """Verdict for one container the approved removals would empty, read-only.
-
-    The categorical checks only. The VCS-evidence exception deliberately has no
-    counterpart here: ``validate_vcs_evidence`` admits repositories at or under
-    an approved path, and a container is always a strict ancestor of one, so
-    evidence never covers the container itself and tracked content keeps it
-    contested.
-    """
     path = target.joinpath(*PurePosixPath(relative).parts)
     drifted: set[str] = set()
     contested: set[str] = set()
@@ -4494,7 +3890,6 @@ def verify_emptied_container(
 
 
 def failed_vcs_evidence(blocker: str, **extra: str) -> dict[str, Any]:
-    """A failed VCS-evidence result: every gate failed, for one ``blocker``."""
     return {
         "status": "failed",
         "gates": {name: {"status": "failed"} for name in VCS_EVIDENCE_GATE_NAMES},
@@ -4508,19 +3903,10 @@ def handoff_verify(
     approved: list[str],
     vcs_evidence: dict[str, dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Re-run per-path revalidation for the manual handoff lane, read-only.
-
-    Deterministically reruns the engine's identity/reparse/protection/VCS/
-    handle checks against live state for each approved path and emits a
-    verdict — never a deletion. Platform execution blockers deliberately do
-    not apply: this subcommand exists exactly for the platforms where the
-    engine's own apply lane is unsupported.
-    """
     target, known_mounts = resolve_snapshot_target(snapshot)
     entries = entry_map(snapshot)
-    exact_names = baseline_protected_names() | set(
-        snapshot.get("policy", {}).get("protected_exact_names", [])
-    )
+    exact_names = _casefold_names(snapshot_protected_exact_names(snapshot))
+    known_system_roots = tuple(root.absolute() for root in system_roots())
     truncated_paths = snapshot_truncated_paths(snapshot)
     globs = snapshot_protection_globs(snapshot)
     verdicts: list[dict[str, Any]] = []
@@ -4548,7 +3934,11 @@ def handoff_verify(
                 verdicts.append(lstat_failure_verdict(relative, exc))
                 continue
             candidate_protections = hard_protection(
-                path, target, exact_names, known_mounts
+                path,
+                target,
+                exact_names,
+                known_mounts,
+                known_system_roots=known_system_roots,
             )
             truncated = overlaps_truncated(relative, truncated_paths)
             overlapping_truncations = {
@@ -4652,7 +4042,11 @@ def handoff_verify(
                         drifted.add("changed-since-scan")
                 if name != relative:
                     current_protections = hard_protection(
-                        current, target, exact_names, known_mounts
+                        current,
+                        target,
+                        exact_names,
+                        known_mounts,
+                        known_system_roots=known_system_roots,
                     )
                     if evidence_verified:
                         current_protections = evidence_adjusted_protections(
@@ -4738,12 +4132,6 @@ def handoff_verify(
 
 
 def handoff_verify_blocks(result: dict[str, Any]) -> bool:
-    """True when any approved path's verdict means "do not proceed".
-
-    `gone` is the terminal state verify-one-delete-one drives each approved path
-    to, so from the second round on at least one path reads `gone` while every
-    verdict is correct. Only `drifted` and `contested` block.
-    """
     return any(item["verdict"] not in {"clear", "gone"} for item in result["verdicts"])
 
 
@@ -4856,14 +4244,18 @@ def anchored_remove(
     target: Path,
     *,
     purge_protected: Callable[[Path], bool] | None = None,
+    resolved_parents: dict[str, Path] | None = None,
 ) -> None:
     parent_fd, name = open_anchored_parent(target_fd, relative, entries)
     try:
         current = os.stat(name, dir_fd=parent_fd, follow_symlinks=False)
-        expected_parent = target.joinpath(*PurePosixPath(relative).parts[:-1]).resolve(
-            strict=True
-        )
-        actual_parent = Path(f"/proc/self/fd/{parent_fd}").resolve(strict=True)
+        parent_parts = PurePosixPath(relative).parts[:-1]
+        cache = {} if resolved_parents is None else resolved_parents
+        key = "/".join(parent_parts)
+        if key not in cache:
+            cache[key] = target.joinpath(*parent_parts).resolve(strict=True)
+        expected_parent = cache[key]
+        actual_parent = Path(os.readlink(f"/proc/self/fd/{parent_fd}"))
         if actual_parent != expected_parent:
             raise HygieneError("anchored parent is no longer at its expected path")
         if entry["kind"] == "directory":
@@ -4911,7 +4303,6 @@ def anchored_remove(
 def protected_skip(
     path: str, detail: str, matches: Iterable[dict[str, str]] = ()
 ) -> dict[str, Any]:
-    """A ``protected`` skip record, with ``protection_matches`` when any matched."""
     return {
         "path": path,
         "outcome": "protected",
@@ -4920,19 +4311,46 @@ def protected_skip(
     }
 
 
-def handle_state_skip(relative: str, path: Path) -> dict[str, str] | None:
-    """The skip record for a path whose handle state is not ``clear``, or None."""
-    state, detail = handle_state(path)
+def candidate_handle_skips(
+    target: Path, relative: str, names: list[str]
+) -> dict[str, dict[str, str]]:
+    """Handle skips by entry name, from one probe of the whole candidate.
+
+    An entry is held when lsof names it or a path beneath it. A reported name
+    that maps to no entry, or an open verdict with no names, holds every entry.
+    """
+    reported: set[Path] = set()
+    path = target.joinpath(*PurePosixPath(relative).parts)
+    state, detail = handle_state(path, open_paths=reported)
     if state == "clear":
-        return None
+        return {}
     outcome = {"open": "locked", "needs_elevation": "needs-elevation"}.get(
         state, "handle-state-unverified"
     )
-    return {"path": relative, "outcome": outcome, "detail": detail or ""}
+    held = set(names)
+    if state == "open" and reported:
+        known = set(names)
+        root = path.resolve()
+        mapped: set[str] = set()
+        for open_path in reported:
+            if not is_within(open_path, root):
+                break
+            name = PurePosixPath(relative, *open_path.relative_to(root).parts)
+            if name.as_posix() not in known:
+                break
+            while name.as_posix() != relative:
+                mapped.add(name.as_posix())
+                name = name.parent
+            mapped.add(relative)
+        else:
+            held = mapped
+    return {
+        name: {"path": name, "outcome": outcome, "detail": detail or ""}
+        for name in held
+    }
 
 
 def removal_failure_skip(relative: str, exc: HygieneError | OSError) -> dict[str, str]:
-    """The skip record for an ``anchored_remove`` call that raised ``exc``."""
     if isinstance(exc, HygieneError):
         outcome = "changed-or-link"
     elif isinstance(exc, PermissionError):
@@ -4945,7 +4363,6 @@ def removal_failure_skip(relative: str, exc: HygieneError | OSError) -> dict[str
 def apply_nothing_removed_report(
     plan: dict[str, Any], target: Path, skipped: list[dict[str, Any]]
 ) -> dict[str, Any]:
-    """An apply report for a run that removed nothing and skipped every candidate."""
     return {
         "status": "completed-with-skips",
         "tier": plan["tier"],
@@ -4960,7 +4377,11 @@ def apply_nothing_removed_report(
     }
 
 
-def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]:
+def apply_plan(
+    snapshot: dict[str, Any],
+    plan: dict[str, Any],
+    fresh_preview: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     target = Path(snapshot["target"]).absolute()
     entries = entry_map(snapshot)
     candidates = validate_plan(plan, entries)
@@ -4972,7 +4393,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
             target,
             [protected_skip(item["path"], detail) for item in candidates],
         )
-    checked = preview(snapshot, plan)
+    checked = fresh_preview or preview(snapshot, plan)
     if checked["status"] != "ready-for-explicit-approval":
         by_path = {item["path"]: item for item in checked["candidates"]}
         return apply_nothing_removed_report(
@@ -5001,14 +4422,16 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
         os.close(target_fd)
         raise HygieneError(mount_error)
     globs = snapshot_protection_globs(snapshot)
+    exact_names = _casefold_names(snapshot_protected_exact_names(snapshot))
+    known_system_roots = tuple(root.absolute() for root in system_roots())
     for candidate in candidates:
         candidate_path = target.joinpath(*PurePosixPath(candidate["path"]).parts)
         candidate_blockers = hard_protection(
             candidate_path,
             target,
-            baseline_protected_names()
-            | set(snapshot.get("policy", {}).get("protected_exact_names", [])),
+            exact_names,
             known_mounts,
+            known_system_roots=known_system_roots,
         )
         selected = removal_entries(candidate["path"], entries)
         if candidate["owner"] != "unmanaged":
@@ -5023,28 +4446,32 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                 )
             )
             continue
+        fresh_mounts, fresh_mount_error = linux_mount_points()
+        handle_skips = (
+            {}
+            if fresh_mount_error
+            else candidate_handle_skips(target, candidate["path"], selected)
+        )
+        resolved_parents: dict[str, Path] = {}
         for relative in selected:
             entry = entries[relative]
             path = target.joinpath(*PurePosixPath(relative).parts)
             if not same_removal_identity(path, entry) or is_linkish(path):
                 skipped.append({"path": relative, "outcome": "changed-or-link"})
                 continue
-            fresh_mounts, fresh_mount_error = linux_mount_points()
             if fresh_mount_error:
                 skipped.append(protected_skip(relative, "mount-state-unverified"))
                 continue
             fresh_protections = hard_protection(
                 path,
                 target,
-                baseline_protected_names(),
+                exact_names,
                 fresh_mounts,
+                known_system_roots=known_system_roots,
             )
             consumer_matches = consumer_protection_matches(path, target, globs)
             if consumer_matches:
                 fresh_protections.append("consumer-protected-path")
-            fresh_vcs = tracked_blocker(path, target)
-            if fresh_vcs:
-                fresh_protections.append(fresh_vcs)
             if fresh_protections:
                 skipped.append(
                     protected_skip(
@@ -5054,12 +4481,18 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
                     )
                 )
                 continue
-            handle_skip = handle_state_skip(relative, path)
-            if handle_skip:
-                skipped.append(handle_skip)
+            if relative in handle_skips:
+                skipped.append(handle_skips[relative])
                 continue
             try:
-                anchored_remove(target_fd, relative, entry, entries, target)
+                anchored_remove(
+                    target_fd,
+                    relative,
+                    entry,
+                    entries,
+                    target,
+                    resolved_parents=resolved_parents,
+                )
             except (HygieneError, OSError) as exc:
                 skipped.append(removal_failure_skip(relative, exc))
                 continue
@@ -5094,6 +4527,7 @@ def apply_plan(snapshot: dict[str, Any], plan: dict[str, Any]) -> dict[str, Any]
 
 
 INVENTORY_REPORT_KIND = "deep-inventory-report"
+MAX_SUMMARY_BOUNDED_ROWS = 50
 INVENTORY_VALIDATION_FAILED = 5
 INVENTORY_REPORTS_KEPT = 3
 INVENTORY_STEM = re.compile(r"inventory-\d{8}T\d{12}Z")
@@ -5132,7 +4566,6 @@ def process_alive(pid: int) -> bool:
 
 
 def sweep_orphaned_inventory_partials(directory: Path) -> None:
-    """Delete inventory partials whose writer PID is gone; legacy names stay."""
     for path in directory.iterdir():
         match = INVENTORY_PARTIAL.fullmatch(path.name)
         if match and not process_alive(int(match.group(1))):
@@ -5143,7 +4576,6 @@ def sweep_orphaned_inventory_partials(directory: Path) -> None:
 
 
 def prune_inventory_reports(directory: Path) -> None:
-    """Keep the newest completed reports, each a ``.jsonl`` with its ``.json``."""
     stems = sorted(
         (
             path.stem
@@ -5164,7 +4596,31 @@ def _exit_on_sigterm(signum: int, _frame: object) -> None:
     raise SystemExit(128 + signum)
 
 
-def run_inventory(target_arg: str, deep_flag: bool) -> int:
+def bounded_rows_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Summary fields naming every bounded-store row, largest first, capped."""
+    ordered = sorted(rows, key=lambda row: (-int(row.get("size") or 0), row["name"]))
+    return {
+        "bounded_row_count": len(rows),
+        "bounded_lower_bound_count": sum(
+            1 for row in rows if row["coverage"]["size_is_lower_bound"]
+        ),
+        "bounded_rows": [
+            {
+                "name": row["name"],
+                "size": row["size"],
+                "store_glob": row["coverage"]["store_glob"],
+                "entries_counted": row["coverage"]["entries_counted"],
+                "size_is_lower_bound": row["coverage"]["size_is_lower_bound"],
+            }
+            for row in ordered[:MAX_SUMMARY_BOUNDED_ROWS]
+        ],
+        "bounded_rows_truncated": len(rows) > MAX_SUMMARY_BOUNDED_ROWS,
+    }
+
+
+def run_inventory(
+    target_arg: str, deep_flag: bool, policy: dict[str, Any] | None = None
+) -> int:
     """List a target into a JSONL report under the data root, then validate it.
 
     Report only: nothing here deletes, and the summary is neither a snapshot
@@ -5173,8 +4629,13 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
     the walk finishes: an interrupted walk, SIGTERM included, leaves no partial
     report, and a partial whose writer died is swept on the next run. A run
     that passes validation keeps only the newest three reports. Deep is the default when the target is the
-    home directory.
+    home directory. Each known-large store the policy's
+    ``inventory_bounded_stores`` names is one bounded row, never a per-entry
+    walk, and the summary lists those rows: the report never calls such a
+    store, or a not-walked row, fully inventoried.
     """
+    if policy is None:
+        policy = baseline_policy()
     target_input = Path(target_arg).expanduser().absolute()
     if not target_input.is_dir() or has_linkish_component(target_input):
         raise HygieneError(
@@ -5194,6 +4655,8 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
     sweep_orphaned_inventory_partials(rows_path.parent)
     dispositions: dict[str, int] = {}
     failures: list[str] = []
+    bounded_rows: list[dict[str, Any]] = []
+    not_walked = 0
     partial = rows_path.with_name(
         f"{rows_path.name}.{os.getpid()}.{secrets.token_hex(4)}.tmp"
     )
@@ -5214,10 +4677,15 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
                 running=deep_inventory.running_paths(),
                 skip=frozenset({str(rows_path), str(summary_path), str(partial)}),
                 mounts=mounts,
+                bounded_stores=policy["inventory_bounded_stores"],
             ):
                 out.write(json.dumps(row, sort_keys=True) + "\n")
                 key = str(row.get("disposition"))
                 dispositions[key] = dispositions.get(key, 0) + 1
+                if "coverage" in row:
+                    bounded_rows.append(row)
+                elif row.get("category") == "not-walked":
+                    not_walked += 1
                 failures.extend(deep_inventory.validate_report([row]))
         os.replace(partial, rows_path)
     finally:
@@ -5234,10 +4702,19 @@ def run_inventory(target_arg: str, deep_flag: bool) -> int:
         "dispositions": dispositions,
         "validation_failures": failures,
         "mount_state_error": mount_error,
+        "fully_inventoried": not bounded_rows and not not_walked and not mount_error,
+        "not_walked_row_count": not_walked,
+        **bounded_rows_summary(bounded_rows),
+        "policy_sources": policy["policy_sources"],
         "note": (
             "Report only: rows are findings, never a deletion plan, and preview "
             "and apply do not accept this report. Removing a candidate goes "
-            "through scan, preview and apply with their confirmation gates."
+            "through scan, preview and apply with their confirmation gates. "
+            "A bounded row (bounded_rows, and a coverage field on the row) is a "
+            "known-large store summed without listing its entries; one with "
+            "size_is_lower_bound true was cut off by its entry budget or an "
+            "unreadable part. Neither it nor a not-walked row is inventoried: "
+            "report both as coverage gaps, never as clean or empty."
         ),
     }
     write_text_atomic(
@@ -5452,27 +4929,26 @@ class _RecycleProgressSink:
         def proceed(_this: int, *_arguments: Any) -> int:
             return _S_OK
 
-        # IUnknown, then IFileOperationProgressSink, in vtable order.
         slots = (
             (hr, (ptr, ctypes.POINTER(ptr)), query_interface),
-            (u32, (), reference_count),  # AddRef
-            (u32, (), reference_count),  # Release
-            (hr, (), proceed),  # StartOperations
-            (hr, (hr,), proceed),  # FinishOperations
-            (hr, (u32, ptr, ptr), proceed),  # PreRenameItem
-            (hr, (u32, ptr, ptr, hr, ptr), proceed),  # PostRenameItem
-            (hr, (u32, ptr, ptr, ptr), proceed),  # PreMoveItem
-            (hr, (u32, ptr, ptr, ptr, hr, ptr), proceed),  # PostMoveItem
-            (hr, (u32, ptr, ptr, ptr), proceed),  # PreCopyItem
-            (hr, (u32, ptr, ptr, ptr, hr, ptr), proceed),  # PostCopyItem
+            (u32, (), reference_count),
+            (u32, (), reference_count),
+            (hr, (), proceed),
+            (hr, (hr,), proceed),
+            (hr, (u32, ptr, ptr), proceed),
+            (hr, (u32, ptr, ptr, hr, ptr), proceed),
+            (hr, (u32, ptr, ptr, ptr), proceed),
+            (hr, (u32, ptr, ptr, ptr, hr, ptr), proceed),
+            (hr, (u32, ptr, ptr, ptr), proceed),
+            (hr, (u32, ptr, ptr, ptr, hr, ptr), proceed),
             (hr, (u32, ptr), pre_delete),
             (hr, (u32, ptr, hr, ptr), post_delete),
-            (hr, (u32, ptr, ptr), proceed),  # PreNewItem
-            (hr, (u32, ptr, ptr, ptr, u32, hr, ptr), proceed),  # PostNewItem
-            (hr, (u32, u32), proceed),  # UpdateProgress
-            (hr, (), proceed),  # ResetTimer
-            (hr, (), proceed),  # PauseTimer
-            (hr, (), proceed),  # ResumeTimer
+            (hr, (u32, ptr, ptr), proceed),
+            (hr, (u32, ptr, ptr, ptr, u32, hr, ptr), proceed),
+            (hr, (u32, u32), proceed),
+            (hr, (), proceed),
+            (hr, (), proceed),
+            (hr, (), proceed),
         )
         self._callbacks = [
             ctypes.WINFUNCTYPE(restype, ptr, *argtypes)(function)
@@ -5797,17 +5273,22 @@ def unlink_handoff_path(
         if tracked_waived
     ]
     git_metadata = {repository / GIT_METADATA_NAME for repository in repository_paths}
-    exact_names = baseline_protected_names() | set(
-        snapshot.get("policy", {}).get("protected_exact_names", [])
-    )
+    exact_names = _casefold_names(snapshot_protected_exact_names(snapshot))
+    known_system_roots = tuple(root.absolute() for root in system_roots())
     globs = snapshot_protection_globs(snapshot)
 
     def consumer_protected(path: Path) -> bool:
         return bool(consumer_protection_matches(path, target, globs))
 
-    def path_blockers(path: Path, mounts: set[Path]) -> list[str]:
+    def path_blockers(path: Path, mounts: set[Path], tracked: bool) -> list[str]:
         reasons = evidence_adjusted_protections(
-            hard_protection(path, target, exact_names, mounts),
+            hard_protection(
+                path,
+                target,
+                exact_names,
+                mounts,
+                known_system_roots=known_system_roots,
+            ),
             path,
             target,
             repository_paths,
@@ -5815,7 +5296,7 @@ def unlink_handoff_path(
         )
         if consumer_protected(path):
             reasons.append("consumer-protected-path")
-        if path not in git_metadata:
+        if tracked and path not in git_metadata:
             try:
                 vcs = tracked_blocker(path, target)
             except (OSError, subprocess.SubprocessError):
@@ -5828,7 +5309,7 @@ def unlink_handoff_path(
     if mount_error:
         return [], [protected_skip(relative, "mount-state-unverified")]
     candidate_blockers = path_blockers(
-        target.joinpath(*PurePosixPath(relative).parts), known_mounts
+        target.joinpath(*PurePosixPath(relative).parts), known_mounts, tracked=True
     )
     candidate_blockers += [
         blocker
@@ -5839,18 +5320,23 @@ def unlink_handoff_path(
         return [], [protected_skip(relative, ", ".join(candidate_blockers))]
     removed: list[dict[str, Any]] = []
     skipped: list[dict[str, str]] = []
-    for name in removal_entries(relative, entries):
+    selected = removal_entries(relative, entries)
+    fresh_mounts, fresh_mount_error = linux_mount_points()
+    handle_skips = (
+        {} if fresh_mount_error else candidate_handle_skips(target, relative, selected)
+    )
+    resolved_parents: dict[str, Path] = {}
+    for name in selected:
         entry = entries[name]
         path = target.joinpath(*PurePosixPath(name).parts)
         if not same_removal_identity(path, entry) or is_linkish(path):
             skipped.append({"path": name, "outcome": "changed-or-link"})
             continue
-        fresh_mounts, fresh_mount_error = linux_mount_points()
         if fresh_mount_error:
             skipped.append(protected_skip(name, "mount-state-unverified"))
             continue
         purge = entry["kind"] == "directory" and path in git_metadata
-        fresh_blockers = path_blockers(path, fresh_mounts)
+        fresh_blockers = path_blockers(path, fresh_mounts, tracked=False)
         if purge and not fresh_blockers:
             contents_blocker = opaque_contents_blocker(
                 path, target, globs, fresh_mounts
@@ -5859,9 +5345,8 @@ def unlink_handoff_path(
         if fresh_blockers:
             skipped.append(protected_skip(name, ", ".join(fresh_blockers)))
             continue
-        handle_skip = handle_state_skip(name, path)
-        if handle_skip:
-            skipped.append(handle_skip)
+        if name in handle_skips:
+            skipped.append(handle_skips[name])
             continue
         try:
             anchored_remove(
@@ -5871,6 +5356,7 @@ def unlink_handoff_path(
                 entries,
                 target,
                 purge_protected=consumer_protected if purge else None,
+                resolved_parents=resolved_parents,
             )
         except (HygieneError, OSError) as exc:
             skipped.append(removal_failure_skip(name, exc))
@@ -5891,13 +5377,6 @@ _PARSER_VALUE_TYPES = {"int": int}
 
 
 def _add_flag(command: argparse._ActionsContainer, flag: engine_grammar.Flag) -> None:
-    """Declare one grammar flag on a subparser.
-
-    A valueless flag is always ``store_true`` here even when the grammar marks
-    it required: that requirement is the guard's (it admits only the executing
-    ``apply`` form), while the engine keeps its own diagnostic for the flag's
-    absence rather than an argparse usage error.
-    """
     options: dict[str, Any] = {}
     if flag.help is not None:
         options["help"] = flag.help
@@ -5944,7 +5423,8 @@ def main(argv: list[str] | None = None) -> int:
         if sys.version_info < MIN_PYTHON:
             floor = ".".join(str(part) for part in MIN_PYTHON)
             raise HygieneError(f"disk-hygiene requires Python {floor} or newer")
-        close_clean_runs()
+        if args.command != "inventory":
+            close_clean_runs()
         if args.command == "scan":
             target_input = Path(args.target).expanduser().absolute()
             if not target_input.is_dir() or has_linkish_component(target_input):
@@ -6273,7 +5753,16 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         if args.command == "inventory":
-            return run_inventory(args.target, args.deep)
+            policy = load_policy(
+                Path(args.policy).expanduser().absolute() if args.policy else None,
+                Path(args.project_dir).expanduser().absolute()
+                if args.project_dir
+                else None,
+                args.user_policy,
+            )
+            for warning in policy["policy_warnings"]:
+                print(f"warning: {warning}", file=sys.stderr)
+            return run_inventory(args.target, args.deep, policy)
         snapshot = load_input_json(args.snapshot)
         if args.command == "catalog":
             entries = snapshot.get("entries")
@@ -6393,7 +5882,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.approval_token != checked["approval_token"]:
             raise HygieneError("approval token does not match the fresh preview")
         report_path = model_output_path(args.report)
-        report = apply_plan(snapshot, plan)
+        report = apply_plan(snapshot, plan, checked)
         write_json(report_path, report)
         close_clean_runs(report_path)
         return emit(report, 4 if report["skipped"] else 0)

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "# /planning:interview Checklist\n\n## Open-question register\n\n- Q1 | answered | round 1 | What is slow? | the reports page\n- Q2 | answered | round 1 | How long may a rendered report be cached? | proposal:: 15 minutes; was:: one hour; answer:: accepted: 15 minutes\n- Q3 | answered | round 2 | Who reads the reports? | account admins\n- Q4 | answered | round 2 | Which index is added? | proposal:: a composite index on account_id and created_at; was:: one index on account_id; answer:: accepted: a composite index on account_id and created_at\n",
+      "why": "both listed rows reconfirmed"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "# /planning:interview Checklist\n\n## Open-question register\n\n- Q1 | answered | round 1 | What is slow? | the reports page\n- Q2 | answered | round 1 | How long may a rendered report be cached? | proposal:: 15 minutes; was:: one hour; answer:: accepted: 15 minutes\n- Q3 | answered | round 2 | Who reads the reports? | account admins\n- Q4 | superseded-by-plan | round 2 | Which index is added? | plan proposes: a composite index on account_id and created_at; was: one index on account_id\n",
+      "why": "Q4 left superseded"
+    },
+    {
+      "answer": "# /planning:interview Checklist\n\n## Open-question register\n\n- Q1 | answered | round 1 | What is slow? | the reports page\n- Q2 | superseded-by-plan | round 1 | How long may a rendered report be cached? | plan proposes: 15 minutes; was: one hour\n- Q3 | answered | round 2 | Who reads the reports? | account admins\n- Q4 | superseded-by-plan | round 2 | Which index is added? | plan proposes: a composite index on account_id and created_at; was: one index on account_id\n",
+      "why": "approve cleared nothing"
+    },
+    {
+      "answer": "# /planning:interview Checklist\n\n## Open-question register\n\n- Q1 | answered | round 1 | What is slow? | the reports page\n- Q2 | answered | round 1 | How long may a rendered report be cached? | one hour\n- Q3 | answered | round 2 | Who reads the reports? | account admins\n- Q4 | answered | round 2 | Which index is added? | one index on account_id\n",
+      "why": "both rows restored instead of reconfirmed"
+    }
+  ]
+}

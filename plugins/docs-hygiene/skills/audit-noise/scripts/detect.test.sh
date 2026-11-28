@@ -730,8 +730,6 @@ if fixture_landed "$PORC_REPO" 'notes -> draft.md'; then
   assert_contains "untracked path containing ' -> ' is not split as a rename" "$porc_out" "notes -> draft.md"
 else
   # discriminating-skip-ok: regression guard for #3171's arrow gate, not a #3164
-  # discriminator — the -z read matches no arrow at all, so nothing here proves
-  # the fix under test.
   find "$PORC_REPO" -maxdepth 1 -name '*draft.md' -delete 2>/dev/null
   skip_case "filesystem rejects an arrow in a filename"
 fi
@@ -753,7 +751,6 @@ if fixture_landed "$PORC_REPO" 'back\-slash.md'; then
   assert_contains "backslash path is unescaped and discovered" "$bs_out" 'back\-slash.md'
 else
   # discriminating-skip-ok: regression guard for #3171's `\\` unescape, not a
-  # #3164 discriminator — the -z read never unescapes anything.
   find "$PORC_REPO" -maxdepth 1 -name '*slash.md' -delete 2>/dev/null
   skip_case "filesystem rejects a backslash in a filename"
 fi
@@ -1168,7 +1165,6 @@ if [[ -f "$SKILL_MD" ]]; then
       assert_contains "SKILL.md preview keeps a quoted .md path" "$skill_out" 'notes -> draft.md'
     else
       # discriminating-skip-ok: covers 0.20.1's preview grep, not this change; the
-      # ordinary-path assertion below still proves the grep was extracted and ran.
       skip_case "filesystem rejects an arrow in a filename (SKILL.md preview parity)"
     fi
     assert_contains "SKILL.md preview still keeps an ordinary .md path" "$skill_out" 'plain.md'
@@ -1194,7 +1190,6 @@ if fixture_landed "$ESC_REPO" "$nonascii_name"; then
   esc_discriminators=$((esc_discriminators + 1))
 else
   # discriminating-skip-ok: the control-byte case below proves the same escape
-  # class, and the guard after it fails outright if neither fixture landed.
   find "$ESC_REPO" -maxdepth 1 -name '*.md' ! -name 'spaced name.md' -delete 2>/dev/null
   skip_case "filesystem rejects a non-ASCII byte in a filename"
 fi
@@ -1208,7 +1203,6 @@ if fixture_landed "$ESC_REPO" "$tab_name"; then
   esc_discriminators=$((esc_discriminators + 1))
 else
   # discriminating-skip-ok: the non-ASCII case above proves the same escape
-  # class, and the guard below fails outright if neither fixture landed.
   find "$ESC_REPO" -maxdepth 1 -name '*here.md' -delete 2>/dev/null
   skip_case "filesystem rejects a tab in a filename"
 fi
@@ -1226,7 +1220,6 @@ if fixture_landed "$ESC_REPO" "$nonascii_name-renamed.md"; then
   assert_contains "escaped rename resolves to the new path" "$esc_rename_out" "$nonascii_name-renamed.md"
 else
   # discriminating-skip-ok: same escape class as the untracked cases above, which
-  # the esc_discriminators guard already covers.
   skip_case "filesystem rejects a non-ASCII byte in a renamed filename"
 fi
 
@@ -1250,8 +1243,6 @@ if fixture_landed "$NL_REPO" "$nl_name"; then
   assert_contains "newline-bearing path survives sort/dedup" "$nl_out" "Empirically observed in the newline file"
 else
   # discriminating-skip-ok: the tab and non-ASCII cases already prove the
-  # escape class; this pins the post-parse sort, which not every filesystem
-  # can hold a name for.
   skip_case "filesystem rejects a newline in a filename"
 fi
 

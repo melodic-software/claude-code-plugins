@@ -25,7 +25,7 @@ Universal artifact directory globs:
 
 - `**/bin/`, `**/obj/`, `**/build/`, `**/dist/`, `**/out/`, `**/target/`, `**/TestResults/`, `**/*.binlog`
 
-No build-system clean driver (e.g. `dotnet clean`): the universal artifact globs above already remove every output such a driver would delete, so running one first is pure overhead. It runs a full MSBuild evaluation (minutes on a large solution) that also re-creates `obj/` evaluation artifacts. One walk + rm is strictly faster and equally complete.
+No build-system clean driver (e.g. `dotnet clean`): the universal artifact globs above already remove every output such a driver would delete, so running one first is pure overhead. It runs a full MSBuild evaluation (minutes on a large solution) that also re-creates `obj/` evaluation artifacts. One walk + rm is strictly faster and equally complete. <!-- portability-ok: R6 kept-adapter operation - clean-common.sh and cleanup-paths.sh -->
 
 App-specific runtime output (application logs written outside the universal artifact dirs) is **not** swept generically, because no portable path exists. A consumer whose app writes logs to a non-artifact directory reclaims them through the `tree` tier (they are untracked/ignored) or their own gitignore + tooling.
 
@@ -68,7 +68,7 @@ Three classes:
 - `.azure-cli/`, `.aws/`, `.gcloud/`: cloud / CLI credential bundles
 - `.env*` (`.env`, `.env.local`, `.envrc`, `.envrc.local`, …), `**/*.local.json`, `**/*.local.jsonc`, `**/*.local.md`: local-only env / config overrides (gitignored by convention; `.env.example` is also matched and, being tracked, is never cleaned regardless)
 - `.vscode/`, `.idea/`: IDE user config (the regenerable `.vs/` cache is cleanable, see caches tier)
-- `**/*.csproj.user`, `**/*.suo`: .NET IDE user state (VS debug profile, sln docstates)
+- `**/*.csproj.user`, `**/*.suo`: .NET IDE user state (VS debug profile, sln docstates) <!-- portability-ok: R6 kept-adapter operation - clean-common.sh and cleanup-paths.sh -->
 - `.codex/config.toml`, `.codex/hooks.json`, `.codex/rules/`: Codex CLI config (only `.codex/logs/` is cleanable, see caches tier)
 
 ### Runtime dependencies (deleting breaks running tools / MCP servers / skills)

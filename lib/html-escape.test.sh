@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for lib/html-escape.mjs, driven through view-builder's report
-# profile as a page that renders pull-request text.
-#
-#   bash lib/html-escape.test.sh
-#
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
 
@@ -168,6 +163,11 @@ const hostileCss = [
   "body{background:u\\72l(//evil.example/p.gif)}",
   "@IMPORT url(//evil.example/x.css);",
   "body{width:expression(alert(1))}",
+  'body{background-image:image-set("https://evil.example/pixel.png" 1x)}',
+  "body{background-image:-webkit-image-set('//evil.example/pixel.png' 1x)}",
+  'body{background-image:IMAGE-SET("https://evil.example/pixel.png" 1x)}',
+  'body{background-image:image("https://evil.example/pixel.png")}',
+  'body{background-image:src("https://evil.example/pixel.png")}',
 ];
 for (const css of hostileCss) {
   const styled = stampPage(hand.replace("</head>", `<style>${css}</style></head>`));
@@ -198,11 +198,76 @@ const plainCss = validateRenderedPage(
 );
 check("plain CSS in a style element passes", plainCss.ok, plainCss.failures.join(","));
 
+const styledHand = (css) => validateRenderedPage(stampPage(hand.replace("</head>", `<style>${css}</style></head>`)));
+const png = "url(data:image/png;base64,iVBORw0KGgo=)";
+const jpeg = "url(data:image/jpeg;base64,/9j/4AAQ+A==)";
+const woff2 = "url(data:font/woff2;base64,d09GMgABAAA=)";
+const admittedCss = {
+  "quoted font stacks, attribute selectors and child combinators":
+    ":root { --mono: ui-monospace, 'SF Mono', Menlo, monospace; } :root[data-theme=\"dark\"] { color-scheme: dark; } section > p { margin: 0; }",
+  "a PNG in the logo slot": `.rv-logo { background-image: ${png}; }`,
+  "a JPEG in the logo slot after another rule": `body{margin:0}.rv-logo{background-image:${jpeg}}`,
+  "the logo slot inside a media block": `@media (prefers-color-scheme: dark) { .rv-logo { background-image: ${png} } }`,
+  "the logo slot after a comment": `/* brand */ .rv-logo{background-image:${png}}`,
+  "a WOFF2 font in @font-face": `@font-face { font-family: 'Brand Serif'; src: ${woff2}; }`,
+  "WOFF, TTF and OTF fonts in @font-face":
+    "p{margin:0}@font-face{font-family:Brand;src:url(data:font/woff;base64,d09GRg==),url(data:font/ttf;base64,AAEAAA==),url(data:font/otf;base64,T1RUTw==)}",
+};
+for (const [name, css] of Object.entries(admittedCss)) {
+  const verdict = styledHand(css);
+  check(`the validator admits ${name}`, verdict.ok, verdict.failures.join(","));
+}
+const refusedCss = {
+  "an image data URL outside the logo slot": `body{background-image:${png}}`,
+  "an image data URL on another logo property": `.rv-logo{background:${png}}`,
+  "an image data URL in a selector list with the logo slot": `p,.rv-logo{background-image:${png}}`,
+  "an image data URL on a descendant of the logo slot": `.rv-logo p{background-image:${png}}`,
+  "a logo slot nested in a style rule": `.evil{.rv-logo{background-image:${png}}}`,
+  "a font data URL behind a comment that fakes @font-face": `.x{/*}@font-face{*/background:${woff2}}`,
+  "a remote URL inside a comment": "/* url(//evil.example/x) */ p{margin:0}",
+  "a logo slot with a declaration before the image": `.rv-logo{color:red;background-image:${png}}`,
+  "a logo slot with a declaration after the image": `.rv-logo{background-image:${png};color:red}`,
+  "an SVG data URL in the logo slot": ".rv-logo{background-image:url(data:image/svg+xml;base64,PHN2Zz4=)}",
+  "a GIF data URL in the logo slot": ".rv-logo{background-image:url(data:image/gif;base64,R0lGODlh)}",
+  "a data URL that is not base64 in the logo slot": ".rv-logo{background-image:url(data:image/png,abc)}",
+  "a data URL with a parameter in the logo slot": ".rv-logo{background-image:url(data:image/png;charset=x;base64,AA==)}",
+  "a remote URL in the logo slot": ".rv-logo{background-image:url(https://evil.example/logo.png)}",
+  "a protocol-relative URL in the logo slot": ".rv-logo{background-image:url(//evil.example/logo.png)}",
+  "a blob URL in the logo slot": ".rv-logo{background-image:url(blob:x)}",
+  "a font data URL outside @font-face": `body{background:${woff2}}`,
+  "an image data URL in @font-face": `@font-face{font-family:Brand;src:${png}}`,
+  "a text/html data URL in @font-face": "@font-face{src:url(data:text/html;base64,PGI+)}",
+  "a font data URL that is not base64 in @font-face": "@font-face{src:url(data:font/woff2,abc)}",
+  "a remote URL in @font-face": "@font-face{src:url(https://evil.example/f.woff2)}",
+  "a remote URL beside a font data URL in @font-face": `@font-face{src:${woff2},url(//evil.example/f.woff2)}`,
+  "an uppercase URL in @font-face": "@font-face{src:URL(data:font/woff2;base64,AA==)}",
+  "an @import beside @font-face": `@import x;@font-face{src:${woff2}}`,
+  "a raw < inside a style body": "/* <img src=x> */ body{margin:0}",
+};
+for (const [name, css] of Object.entries(refusedCss)) {
+  check(`the validator refuses ${name}`, styledHand(css).failures.includes("style"), styledHand(css).failures.join(","));
+}
+const dataUrl = "data:image/png;base64,iVBORw0KGgo=";
+for (const attr of ["src", "href", "srcset", "poster", "background", "action", "formaction", "data", "cite", "xlink:href", "style"]) {
+  const verdict = validateRenderedPage(stampPage(hand.replace("<h1>", `<h1 ${attr}="${dataUrl}">`)));
+  check(`a data URL in a ${attr} attribute is refused`, verdict.failures.includes(`attr:${attr}`), verdict.failures.join(","));
+}
+const imgVerdict = validateRenderedPage(stampPage(hand.replace("</h1>", `</h1><img src="${dataUrl}" alt="logo">`)));
+check("an img element with a data URL is refused", imgVerdict.failures.includes("tag:img"), imgVerdict.failures.join(","));
+
 const tampered = page.replace("</body>", "<script>alert(1)</script></body>");
 check(
   "editing a stamped page to add a script is flagged",
   validateRenderedPage(tampered).failures.includes("tag:script"),
   validateRenderedPage(tampered).failures.join(","),
+);
+const smuggled = stampPage(
+  '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>t</title></head><body><!-- <style> -->unescaped "payload" & \'quotes\'</style> --></body></html>',
+);
+check(
+  "a comment-smuggled <style> cannot hide unescaped body text",
+  validateRenderedPage(smuggled).failures.includes("unescaped"),
+  validateRenderedPage(smuggled).failures.join(","),
 );
 
 const emptyVerdict = validateRenderedPage(buildPage({}));

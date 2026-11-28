@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# Self-contained tests for resolve-roles.sh: it ships inside the plugin, so the
-# suite must run wherever the plugin is installed. Assertions match substrings
-# of the resolver's compact JSON, so no JSON tool is needed.
-#
-# SC2016 is disabled file-wide: the single-quoted backticks are literal Markdown
-# fences written into fixtures, never shell expansions.
+# SC2016 is disabled file-wide: the single-quoted backticks are literal Markdown fences written into fixtures.
 # shellcheck disable=SC2016
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PROJECT_DIR
@@ -18,12 +13,11 @@ trap 'rm -rf "$T"' EXIT
 # shellcheck source=../lib/test-helpers.sh
 source "$SCRIPT_DIR/../lib/test-helpers.sh"
 
-# A fixture: <case>/repo is a git repository, <case>/home an empty home beside it.
 fixture() {
   mkdir -p "$T/$1/repo/.claude" "$T/$1/repo/docs/conventions" "$T/$1/home/.claude"
   git -C "$T/$1/repo" init -q
 }
-run() { # run <case> <args...>
+run() {
   local c="$1"
   shift
   "$SUT" --root "$T/$c/repo" --home "$T/$c/home" "$@" 2>"$T/$c.err"
@@ -60,7 +54,6 @@ printf 'schema: 1\nroles:\n  worker:\n    workloads:\n      mechanical:\n       
 out="$(run mechoptout worker --session-model opus --workload mechanical)"
 assert_contains "team layer restores inherit for mechanical work" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"fanout":{"model":"inherit","omit_model":true'
 
-# A consumer layer declares its own workload and sets per-role values for it.
 fixture declared
 printf 'schema: 1\nworkloads:\n  deep: true\nroles:\n  worker:\n    workloads:\n      deep:\n        model: opus\n        effort: high\n' >"$T/declared/repo/docs/conventions/multi-agent.yaml"
 out="$(run declared worker --session-model sonnet --workload deep)"
@@ -71,7 +64,6 @@ assert_contains "declared workload named in the output" "$out" '"workload":"deep
 out="$(run declared worker --session-model opus --workload mechanical)"
 assert_contains "declaring a workload keeps the bundled ones" "$out" '"single":{"model":"sonnet"'
 
-# The team layer is docs/conventions/multi-agent.yaml.
 fixture concern
 printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/concern/repo/docs/conventions/multi-agent.yaml"
 out="$(run concern worker --session-model opus)"
@@ -79,8 +71,6 @@ assert_contains "concern YAML: its value resolves from the team layer" "$out" '"
 assert_contains "concern YAML: the layer names the source of each value" "$out" '"source":{"model":"bundled","effort":"team"}'
 assert_contains "concern YAML: the team row names the YAML path" "$out" '"layer":"team","path":"'"$T/concern/repo/docs/conventions/multi-agent.yaml"'","state":"read"'
 
-# The retired team file .claude/multi-agent.yaml is not read, with the YAML or
-# without it.
 printf 'schema: 1\nroles:\n  worker:\n    effort: max\n' >"$T/concern/repo/.claude/multi-agent.yaml"
 out="$(run concern worker --session-model opus)"
 assert_contains "retired file beside the YAML: the YAML value wins" "$out" '"effort":"high","guarded":false}'
@@ -90,7 +80,6 @@ assert_contains "YAML absent: the bundled value resolves" "$out" '"source":{"mod
 assert_contains "YAML absent: the team row names the YAML as absent" "$out" '"layer":"team","path":"'"$T/concern/repo/docs/conventions/multi-agent.yaml"'","state":"absent"'
 assert_lacks "YAML absent: the retired file is not read" "$out" '"state":"read"'
 
-# A bound convention home moves the team YAML with it.
 fixture bound
 mkdir -p "$T/bound/repo/team-docs"
 printf '<!-- BEGIN GENERATED: convention-home -->\nConventions live in `team-docs`.\n<!-- END GENERATED: convention-home -->\n' >"$T/bound/repo/AGENTS.md"
@@ -98,15 +87,13 @@ printf 'schema: 1\nroles:\n  worker:\n    effort: xhigh\n' >"$T/bound/repo/team-
 out="$(run bound worker --session-model opus)"
 assert_contains "bound home: the YAML under the home is the team layer" "$out" '"effort":"xhigh","guarded":false}'
 
-# A declaration in one layer covers values set in another.
 fixture crosslayer
-printf 'schema: 1\nworkloads:\n  deep: true\n' >"$T/crosslayer/home/.claude/multi-agent.yaml"
-printf 'schema: 1\nroles:\n  verifier:\n    workloads:\n      deep:\n        effort: max\n' >"$T/crosslayer/repo/.claude/multi-agent.local.yaml"
-out="$(run crosslayer verifier --session-model opus --workload deep)"
-assert_contains "user-global declaration, personal override value" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"max"'
+printf 'schema: 1\nworkloads:\n  deep: true\n' >"$T/crosslayer/user.yaml"
+printf 'schema: 1\nroles:\n  verifier:\n    workloads:\n      deep:\n        effort: max\n' >"$T/crosslayer/repo/docs/conventions/multi-agent.local.yaml"
+out="$(run crosslayer verifier --session-model opus --workload deep --user-file "$T/crosslayer/user.yaml")"
+assert_contains "user-config declaration, personal override value" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"max"'
 assert_lacks "declared across layers: no undeclared note" "$out" 'undeclared'
 
-# An undeclared workload is reported and ignored, and cannot be resolved.
 fixture undeclared
 printf 'schema: 1\nroles:\n  worker:\n    workloads:\n      deep:\n        model: opus\n' >"$T/undeclared/repo/docs/conventions/multi-agent.yaml"
 out="$(run undeclared worker --session-model opus)"
@@ -115,7 +102,6 @@ run undeclared worker --session-model opus --workload deep >/dev/null
 assert_eq "undeclared workload exits 2" 2 "$?"
 assert_contains "undeclared workload error lists the declared ones" "$(cat "$T/undeclared.err")" "unknown workload 'deep' (declared: code research mechanical)"
 
-# A declaration takes true or false; false withdraws one, a bundled one included.
 fixture badecl
 printf 'schema: 1\nworkloads:\n  deep: yes\n  mechanical: false\n' >"$T/badecl/repo/docs/conventions/multi-agent.yaml"
 out="$(run badecl worker --session-model opus)"
@@ -124,18 +110,15 @@ assert_contains "withdrawn bundled workload: its bundled key is ignored" "$out" 
 run badecl worker --session-model opus --workload mechanical >/dev/null
 assert_eq "withdrawn workload exits 2" 2 "$?"
 
-# A declared name holds only letters, digits, `_` and `-`.
 fixture badname
 printf 'schema: 1\nworkloads:\n  "a b": true\n' >"$T/badname/repo/docs/conventions/multi-agent.yaml"
 out="$(run badname worker --session-model opus)"
 assert_eq "bad workload name still exits 0" 0 "$?"
 assert_contains "bad workload name rejected" "$out" "workloads.a b ignored: a workload name holds only letters, digits, _ and -, and does not start with -"
 
-# The route skill passes its second positional argument as the workload.
 out="$("$SCRIPT_DIR/../skills/route/scripts/route.sh" worker deep session=opus --root "$T/declared/repo" --home "$T/declared/home" 2>/dev/null)"
 assert_contains "route.sh passes a declared workload" "$out" '"workload":"deep"'
 
-# Names that differ only in `-` against `_H_` stay distinct workloads.
 fixture collide
 printf 'schema: 1\nworkloads:\n  a-b: true\n  a_H_b: false\nroles:\n  worker:\n    workloads:\n      a-b:\n        model: opus\n' >"$T/collide/repo/docs/conventions/multi-agent.yaml"
 out="$(run collide worker --session-model sonnet --workload a-b)"
@@ -144,7 +127,6 @@ printf 'schema: 1\nworkloads:\n  a-b: true\n  a_H_b: true\nroles:\n  worker:\n  
 out="$(run collide worker --session-model opus --workload a-b)"
 assert_contains "a-b keeps its own model beside a_H_b" "$out" '"single":{"model":"opus"'
 
-# A name starting with `-` would parse as an option in route.sh, so it is refused.
 fixture dashname
 printf 'schema: 1\nworkloads:\n  "-deep": true\n' >"$T/dashname/repo/docs/conventions/multi-agent.yaml"
 out="$(run dashname worker --session-model opus)"
@@ -165,14 +147,6 @@ printf 'schema: 1\nroles:\n  worker:\n    model: best\n' >"$T/bestrole/repo/docs
 out="$(run bestrole worker --session-model opus)"
 assert_lacks "best is not a role model: the layer's value is dropped" "$out" '"model":"best"'
 assert_contains "best is not a role model: the rejection is named" "$out" 'best'
-
-# Per-key override across layers, with the source layer named per value.
-fixture layered
-printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/layered/home/.claude/multi-agent.yaml"
-printf 'schema: 1\nroles:\n  worker:\n    model: sonnet\n' >"$T/layered/repo/.claude/multi-agent.local.yaml"
-out="$(run layered worker --session-model opus)"
-assert_contains "user-global effort and personal override model merge per key" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"high"'
-assert_contains "source names the layer per value" "$out" '"source":{"model":"personal-override","effort":"user-global"}'
 
 fixture newlayers
 printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/newlayers/user.yaml"
@@ -196,53 +170,37 @@ fixture oldonly
 printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/oldonly/home/.claude/multi-agent.yaml"
 printf 'schema: 1\nroles:\n  worker:\n    model: sonnet\n' >"$T/oldonly/repo/.claude/multi-agent.local.yaml"
 out="$(run oldonly worker --session-model opus --user-file '${user_config.role_map_file}')"
-assert_contains "old only: values apply" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"high"'
-assert_contains "old only: an unsubstituted option reads as unset" "$out" '"source":{"model":"personal-override","effort":"user-global"}'
-assert_contains "old only: the user file warning names the option and setup" "$out" "user-global: $T/oldonly/home/.claude/multi-agent.yaml is an old path, still read until it moves; /multi-agent:setup apply --migrate moves it to the file the role_map_file option names"
-assert_contains "old only: the personal warning names the new location" "$out" "personal-override: $T/oldonly/repo/.claude/multi-agent.local.yaml is an old path, still read until it moves; /multi-agent:setup apply --migrate moves it to $T/oldonly/repo/docs/conventions/multi-agent.local.yaml"
-assert_eq "old only: one warning per old file on stderr" 2 "$(grep -c 'is an old path' "$T/oldonly.err")"
+assert_contains "old only: old files are not read and bundled defaults apply" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"medium"'
+assert_contains "old only: source stays bundled" "$out" '"source":{"model":"bundled","effort":"bundled"}'
+assert_lacks "old only: no old-path warning emitted" "$out" 'old path'
+assert_eq "old only: no stderr warning" "" "$(cat "$T/oldonly.err")"
 
-fixture both
-printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/both/home/.claude/multi-agent.yaml"
-printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/both/user.yaml"
-printf 'schema: 1\nroles:\n  worker:\n    model: opus\n' >"$T/both/repo/.claude/multi-agent.local.yaml"
-printf 'schema: 1\nroles:\n  worker:\n    model: sonnet\n' >"$T/both/repo/docs/conventions/multi-agent.local.yaml"
-out="$(run both worker --session-model opus --user-file "$T/both/user.yaml")"
-assert_contains "both: the new files win" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"high"'
-assert_contains "both: the user warning names both files" "$out" "user-global: $T/both/home/.claude/multi-agent.yaml is an old path and not read, since $T/both/user.yaml supplies the layer"
-assert_contains "both: the personal warning names both files" "$out" "personal-override: $T/both/repo/.claude/multi-agent.local.yaml is an old path and not read, since $T/both/repo/docs/conventions/multi-agent.local.yaml supplies the layer"
-
-# Turning the guard off is the explicit opt-in to frontier fan-outs.
 fixture optout
 printf 'schema: 1\nfanout:\n  frontier_guard: false\n' >"$T/optout/repo/docs/conventions/multi-agent.yaml"
 out="$(run optout worker --session-model fable)"
 assert_contains "guard off: frontier fan-out inherits" "$out" '"fanout":{"model":"inherit","omit_model":true'
 
-# An explicit frontier alias is guarded too.
 fixture explicit
 printf 'schema: 1\nroles:\n  worker:\n    model: fable\n' >"$T/explicit/repo/docs/conventions/multi-agent.yaml"
 out="$(run explicit worker --session-model opus)"
 assert_contains "explicit fable worker: single keeps fable" "$out" '"single":{"model":"fable"'
 assert_contains "explicit fable worker: fan-out names opus" "$out" '"fanout":{"model":"opus","omit_model":false,"effort":"medium","guarded":true}'
 
-# A malformed layer is skipped and named; the others still apply.
 fixture malformed
 printf 'schema: 1\nroles:\n\tworker:\n' >"$T/malformed/repo/docs/conventions/multi-agent.yaml"
-printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/malformed/repo/.claude/multi-agent.local.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/malformed/repo/docs/conventions/multi-agent.local.yaml"
 out="$(run malformed worker --session-model opus)"
 assert_eq "malformed layer still exits 0" 0 "$?"
 assert_contains "malformed layer is named with its line" "$out" 'team layer skipped:'
 assert_contains "malformed layer state is skipped" "$out" '"layer":"team"'
 assert_contains "the personal override still applies" "$out" '"effort":"low"'
 
-# Wrong schema skips the layer.
 fixture schema
 printf 'schema: 2\nroles:\n  worker:\n    effort: low\n' >"$T/schema/repo/docs/conventions/multi-agent.yaml"
 out="$(run schema worker --session-model opus)"
 assert_contains "schema 2 layer skipped" "$out" 'does not declare schema: 1'
 assert_contains "bundled effort kept" "$out" '"effort":"medium"'
 
-# Non-alias model ids and unknown values are rejected per key.
 fixture reject
 printf 'schema: 1\nroles:\n  worker:\n    model: claude-opus-5-5\n    effort: turbo\n  judge:\n    model: opus\n' >"$T/reject/repo/docs/conventions/multi-agent.yaml"
 out="$(run reject all --session-model opus)"
@@ -250,7 +208,6 @@ assert_contains "full model id rejected" "$out" "roles.worker.model rejected: 'c
 assert_contains "unknown effort rejected" "$out" "roles.worker.effort rejected: 'turbo'"
 assert_contains "unknown role in a layer ignored" "$out" "unknown role 'judge'"
 
-# The verification level is not a role-map key, so the resolver passes over it.
 fixture level
 printf 'schema: 1\nverification: standard\nverification_skills:\n  audit-defaults: strict\nmode: fast\nfrontier: bogus\n' >"$T/level/repo/docs/conventions/multi-agent.yaml"
 out="$(run level all --session-model opus)"
@@ -271,25 +228,22 @@ else
 fi
 assert_contains "rejected keys fall back to the layer below" "$out" '"worker":{"role":"worker","single":{"model":"inherit","omit_model":true,"effort":"medium"'
 
-# The frontier list takes what the schema's pattern takes: no empty alias.
 fixture frontiercomma
 printf 'schema: 1\nfrontier: opus,\n' >"$T/frontiercomma/repo/docs/conventions/multi-agent.yaml"
 out="$(run frontiercomma worker --session-model opus)"
 assert_contains "trailing comma in frontier rejected" "$out" "frontier rejected: 'opus,'"
 assert_contains "rejected frontier keeps the bundled list" "$out" '"session_frontier":false'
 
-# Team and personal override are not read at a home root.
-mkdir -p "$T/homeroot/.claude"
+mkdir -p "$T/homeroot/docs/conventions"
 git -C "$T/homeroot" init -q
-printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/homeroot/.claude/multi-agent.local.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/homeroot/docs/conventions/multi-agent.local.yaml"
 out="$("$SUT" --root "$T/homeroot" --home "$T/homeroot" worker 2>/dev/null)"
 assert_contains "home root: personal override not applicable" "$out" 'not-applicable (home root)'
 assert_contains "home root: personal override value not applied" "$out" '"effort":"medium"'
 
-# A role resolving to haiku is not blocked, but gains a note pointing at the rubric.
 fixture haikurole
-printf 'schema: 1\nroles:\n  retrieval:\n    model: haiku\n' >"$T/haikurole/home/.claude/multi-agent.yaml"
-out="$(run haikurole all --session-model opus)"
+printf 'schema: 1\nroles:\n  retrieval:\n    model: haiku\n' >"$T/haikurole/user.yaml"
+out="$(run haikurole all --session-model opus --user-file "$T/haikurole/user.yaml")"
 assert_contains "user layer haiku retrieval: still resolves" "$out" '"retrieval":{"role":"retrieval","single":{"model":"haiku"'
 assert_contains "user layer haiku retrieval: noted" "$out" 'retrieval: resolves to haiku'
 assert_lacks "user layer haiku retrieval: other roles not noted" "$out" 'worker: resolves to haiku'
@@ -299,8 +253,8 @@ assert_contains "haiku session: inheriting role noted" "$out" 'worker: resolves 
 assert_lacks "haiku session: sonnet retrieval not noted" "$out" 'retrieval: resolves to haiku'
 
 fixture haikufan
-printf 'schema: 1\nfanout:\n  model: haiku\n' >"$T/haikufan/home/.claude/multi-agent.yaml"
-out="$(run haikufan all --session-model fable)"
+printf 'schema: 1\nfanout:\n  model: haiku\n' >"$T/haikufan/user.yaml"
+out="$(run haikufan all --session-model fable --user-file "$T/haikufan/user.yaml")"
 assert_contains "haiku fan-out model on a frontier session: guarded role noted" "$out" 'worker: resolves to haiku'
 
 out="$(run plain all --session-model opus)"
@@ -311,9 +265,6 @@ assert_contains "pointers lists each role's as_of" "$out" $'worker\tas_of\t2026-
 assert_contains "pointers lists the fan-out guard basis" "$out" $'fanout\tpointer\thttps://code.claude.com/docs/en/workflows#cost'
 assert_contains "pointers lists a role's per-value basis" "$out" $'verifier\tbasis_effort\tupstream'
 
-# Every shipped role records a basis per value: upstream with the pointer and
-# claim that state it, or judgment with a reason. A workloads.<w>.<field> value
-# records it as <w>_<field>.
 pointers="$out"
 for r in orchestrator worker verifier retrieval; do
   workload_fields="$(awk -f "$SCRIPT_DIR/yaml-subset.awk" "$SCRIPT_DIR/../reference/defaults.yaml" |
@@ -340,11 +291,9 @@ for r in orchestrator worker verifier retrieval; do
   done
 done
 
-# The resolved map carries each value's basis.
 out="$(run plain all --session-model opus)"
 assert_contains "worker basis: judgment model, upstream effort" "$out" '"worker":{"role":"worker","single":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"fanout":{"model":"inherit","omit_model":true,"effort":"medium","guarded":false},"source":{"model":"bundled","effort":"bundled"},"basis":{"model":"judgment","fanout_model":"judgment","effort":"upstream"}}'
 
-# A guarded fan-out model takes fanout.model's basis, not the role's.
 out="$(run plain worker --session-model fable)"
 assert_contains "guarded fan-out: the guard's model is not labeled with the role's basis" "$out" '"basis":{"model":"judgment","fanout_model":"unrecorded","effort":"upstream"}'
 fixture guardconfig
@@ -352,27 +301,24 @@ printf 'schema: 1\nroles:\n  worker:\n    model: fable\n' >"$T/guardconfig/repo/
 out="$(run guardconfig worker --session-model opus)"
 assert_contains "guarded consumer model: single config, fan-out the bundled guard" "$out" '"basis":{"model":"config","fanout_model":"unrecorded","effort":"upstream"}'
 
-# A bundled workload value carries its own basis, not the role's.
 out="$(run plain worker --session-model opus --workload mechanical)"
 assert_contains "mechanical workload: sonnet model has its own judgment basis" "$out" '"source":{"model":"bundled","effort":"bundled"},"basis":{"model":"judgment","fanout_model":"judgment","effort":"upstream"}'
 assert_contains "pointers lists the workload value's basis" "$pointers" $'worker\tbasis_mechanical_model\tjudgment'
 
-# A consumer value has basis config; a consumer layer cannot set a basis.
 fixture basisconfig
 printf 'schema: 1\nroles:\n  worker:\n    effort: high\n    basis_effort: upstream\n    basis_model: upstream\n' >"$T/basisconfig/repo/docs/conventions/multi-agent.yaml"
 out="$(run basisconfig worker --session-model opus)"
 assert_contains "consumer effort: basis config" "$out" '"source":{"model":"bundled","effort":"team"},"basis":{"model":"judgment","fanout_model":"judgment","effort":"config"}'
 assert_contains "consumer basis key ignored" "$out" 'roles.worker.basis_model ignored: provenance keys are read from the bundled layer only'
 
-# A bundled entry with no basis resolves as unrecorded.
 fixture nobasis
 printf 'schema: 1\nfrontier: fable\nfanout:\n  model: opus\nroles:\n  worker:\n    model: inherit\n    effort: medium\n' >"$T/nobasis/defaults.yaml"
 out="$(run nobasis worker --session-model opus --defaults "$T/nobasis/defaults.yaml")"
 assert_contains "no bundled basis: unrecorded" "$out" '"basis":{"model":"unrecorded","fanout_model":"unrecorded","effort":"unrecorded"}'
 
 out="$(run plain worker --session-model opus)"
-assert_contains "bundled vendors defaults emitted" "$out" '"vendors":{"routing":true,"trials":false,"auto_delegation":false,"tiebreak":[],"trials_prove":null,"trials_fail":null,'
-assert_contains "bundled vendors source layers recorded" "$out" '"source":{"routing":"bundled","trials":"bundled","auto_delegation":"bundled","tiebreak":null,"trials_prove":null,"trials_fail":null,'
+assert_contains "bundled vendors defaults emitted" "$out" '"vendors":{"routing":true,"trials":false,"auto_delegation":false,"trials_prove":null,"trials_fail":null,'
+assert_contains "bundled vendors source layers recorded" "$out" '"source":{"routing":"bundled","trials":"bundled","auto_delegation":"bundled","trials_prove":null,"trials_fail":null,'
 
 fixture vendorsvalid
 cat >"$T/vendorsvalid/user.yaml" <<'YAML'
@@ -381,9 +327,6 @@ vendors:
   routing: true
   trials: true
   auto_delegation: true
-  tiebreak:
-    - fewest-tokens
-    - vendor-order
   trials_prove: 3
   trials_fail: 2
   claude:
@@ -402,7 +345,6 @@ YAML
 cat >"$T/vendorsvalid/repo/docs/conventions/multi-agent.yaml" <<'YAML'
 schema: 1
 vendors:
-  tiebreak: [most-usage-left, vendor-order]
   codex:
     rank: 1
   claude:
@@ -412,7 +354,7 @@ out="$(run vendorsvalid worker --session-model opus --user-file "$T/vendorsvalid
 assert_eq "valid vendors block exits 0" 0 "$?"
 assert_lacks "valid vendors block produces no unknown key note" "$out" 'unknown key'
 assert_contains "valid vendors block has no notes" "$out" '"notes":[]'
-assert_contains "valid vendors block resolves layered values" "$out" '"vendors":{"routing":true,"trials":true,"auto_delegation":true,"tiebreak":["most-usage-left","vendor-order"],"trials_prove":3,"trials_fail":2,"promotion_audits":3,"promotion_days":30,"claude":{"in_use":true,"rank":2},"codex":{"in_use":true,"rank":1},"antigravity":{"in_use":false,"rank":3},"sources":{"terminal-bench":{"enabled":false}},"source":{"routing":"user-config","trials":"user-config","auto_delegation":"user-config","tiebreak":"team","trials_prove":"user-config","trials_fail":"user-config","promotion_audits":"bundled","promotion_days":"bundled","claude":{"in_use":"user-config","rank":"team"},"codex":{"in_use":"user-config","rank":"team"},"antigravity":{"in_use":"user-config","rank":"user-config"},"sources":{"terminal-bench":{"enabled":"user-config"}}}}'
+assert_contains "valid vendors block resolves layered values" "$out" '"vendors":{"routing":true,"trials":true,"auto_delegation":true,"trials_prove":3,"trials_fail":2,"claude":{"in_use":true,"rank":2},"codex":{"in_use":true,"rank":1},"antigravity":{"in_use":false,"rank":3},"sources":{"terminal-bench":{"enabled":false}},"source":{"routing":"user-config","trials":"user-config","auto_delegation":"user-config","trials_prove":"user-config","trials_fail":"user-config","claude":{"in_use":"user-config","rank":"team"},"codex":{"in_use":"user-config","rank":"team"},"antigravity":{"in_use":"user-config","rank":"user-config"},"sources":{"terminal-bench":{"enabled":"user-config"}}}}'
 if ! command -v node >/dev/null 2>&1; then
   pass "valid vendors output is valid JSON (skipped: no node)"
 elif printf '%s' "$out" | node -e 'JSON.parse(require("fs").readFileSync(0,"utf8"))' 2>/dev/null; then
@@ -442,8 +384,6 @@ fixture vendorsinvalid
 cat >"$T/vendorsinvalid/user.yaml" <<'YAML'
 schema: 1
 vendors:
-  tiebreak:
-    - fewest-tokens
   trials_fail: 2
 YAML
 cat >"$T/vendorsinvalid/repo/docs/conventions/multi-agent.yaml" <<'YAML'
@@ -451,9 +391,6 @@ schema: 1
 vendors:
   trials_fail: 1
   trials_prove: 0
-  tiebreak:
-    - vendor-order
-    - bogus-step
   claude:
     in_use: yes
     rank: high
@@ -464,28 +401,19 @@ assert_eq "invalid vendors keys still exit 0" 0 "$?"
 assert_contains "trials_fail: 1 is rejected" "$out" "team: vendors.trials_fail rejected: '1'"
 assert_contains "trials_fail falls back to lower layer" "$out" '"trials_fail":2'
 assert_contains "trials_prove: 0 is rejected" "$out" "team: vendors.trials_prove rejected: '0'"
-assert_contains "unknown tiebreak step is rejected" "$out" "team: vendors.tiebreak rejected: 'bogus-step'"
-assert_contains "rejected tiebreak keeps lower layer" "$out" '"tiebreak":["fewest-tokens"]'
 assert_contains "invalid in_use is rejected" "$out" "team: vendors.claude.in_use rejected: 'yes'"
 assert_contains "invalid rank is rejected" "$out" "team: vendors.claude.rank rejected: 'high'"
 assert_contains "unknown vendors key is ignored" "$out" "team: vendors.bogus ignored: unknown key"
 
-fixture vendorspromotion
-cat >"$T/vendorspromotion/user.yaml" <<'YAML'
+fixture vendorstiebreak
+cat >"$T/vendorstiebreak/repo/docs/conventions/multi-agent.yaml" <<'YAML'
 schema: 1
 vendors:
-  promotion_days: 45
+  tiebreak: [vendor-order]
 YAML
-cat >"$T/vendorspromotion/repo/docs/conventions/multi-agent.yaml" <<'YAML'
-schema: 1
-vendors:
-  promotion_audits: 5
-  promotion_days: 0
-YAML
-out="$(run vendorspromotion worker --session-model opus --user-file "$T/vendorspromotion/user.yaml")"
-assert_contains "promotion settings resolve per layer" "$out" '"promotion_audits":5,"promotion_days":45,'
-assert_contains "promotion settings record their layers" "$out" '"promotion_audits":"team","promotion_days":"user-config",'
-assert_contains "promotion_days: 0 is rejected" "$out" "team: vendors.promotion_days rejected: '0'"
+out="$(run vendorstiebreak worker --session-model opus)"
+assert_contains "vendors.tiebreak is ignored as unknown key" "$out" "team: vendors.tiebreak.0 ignored: unknown key"
+assert_lacks "vendors.tiebreak is not emitted in output" "$out" '"tiebreak"'
 
 printf '\n%d cases, %d failed\n' "$CASES" "$FAILED"
 ((FAILED == 0))

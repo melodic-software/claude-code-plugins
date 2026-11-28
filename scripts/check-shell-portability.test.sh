@@ -1,21 +1,5 @@
 #!/usr/bin/env bash
 # portability-scope: this suite IS check-shell-portability.sh's own fixture
-# corpus and necessarily contains, as literal test data, the GNU-only
-# constructs the gate detects (\b, unsuffixed sed -i, grep -P, etc.) — the
-# whole-file declaration this gate itself defines (see the script header's
-# escape #3), exercised on itself the way check-skill-portability.sh's own
-# STAGED-class self-reference exercises its sibling mechanism.
-#
-# Unit tests for check-shell-portability.sh. Synthetic cases run through
-# --paths mode with a minimal, class-scoped token list
-# (SHELL_PORTABILITY_TOKENS) built per test so a fixture is never coupled to
-# the shipping list's other active classes; two cases run against the REAL
-# shipped token list and the REAL corpus — the known-good markdown-gates.sh
-# reference implementation, and the shipping list's staged-class inertness —
-# to prove the shipping config, not just the mechanism.
-#
-# Assertion scaffolding lives in scripts/lib/test-harness.sh — repo tooling,
-# not a plugin library. See docs/contracts/shell-test-helpers/README.md.
 # shellcheck disable=SC2016  # fixture bodies are literal shell content in single quotes; expansion is never wanted
 set -uo pipefail
 
@@ -25,9 +9,6 @@ trap 'rm -rf "$TMP_ROOT"' EXIT
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)"
 SCRIPT="$SELF_DIR/check-shell-portability.sh"
-# The scanner engine the gate runs with `awk -f`. Named here so the cases at
-# the foot of this file can drive it on its own two operands, without the gate
-# around it, and so a syntax error in it fails a test rather than only a scan.
 SCAN_AWK="$SELF_DIR/lib/shell-portability-scan.awk"
 
 REAL_TOKENS="$REPO_ROOT/scripts/shell-portability-tokens.txt"
@@ -35,25 +16,17 @@ REAL_TOKENS="$REPO_ROOT/scripts/shell-portability-tokens.txt"
 
 # shellcheck source=lib/test-harness.sh
 . "$SELF_DIR/lib/test-harness.sh"
-# A fixture runs a COPY of the gate, so the builder stages scripts/lib/ with it:
-# without those, the copy dies on a missing source at line 1 and every assertion
-# below turns into the same opaque failure.
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-vars here is what tells it (SC2154) the names are written.
 fx="" TREE=""
 
-# scan_paths <tokens-file> <file>... — run the gate over explicit paths.
 scan_paths() {
   local tokens="$1"
   shift
   SHELL_PORTABILITY_TOKENS="$tokens" bash "$SCRIPT" --paths "$@"
 }
 
-# one_token_list <ere-pattern> — a temp token file with exactly one active
-# pattern, so a synthetic case is not coupled to any other class.
 one_token_list() {
   local f
   f="$(mktemp "$TMP_ROOT/f.XXXXXX")"
@@ -68,10 +41,6 @@ tmpsh() {
   printf '%s' "$f"
 }
 
-# expect_all_detected <tokens-file>: reads one fixture body per line from stdin
-# and asserts each one is reported. The loop variables are deliberately not
-# `local`, because `case` is a reserved word and `f`/`out` are the scratch
-# globals every case around this helper writes.
 expect_all_detected() {
   while IFS= read -r case; do
     f="$(tmpsh "$case")"
@@ -84,15 +53,6 @@ expect_all_detected() {
   done
 }
 
-# =============================================================================
-# Regex-escape classes (\b \< \> \s \S \w \W) — the exact near-miss family.
-# =============================================================================
-
-# --- literal \b fires, and awk actually resolves it (the repo's own sibling
-# token list documents that on gawk AND mawk/nawk, \b matches a literal
-# backspace BYTE, not a boundary, when used as a boundary anchor — verify the
-# LITERAL-TWO-CHARACTER-SEQUENCE form this gate uses is not silently inert
-# under whichever awk resolves on the runner) -------------------------------
 tok="$(one_token_list '\\b')"
 f="$(tmpsh "grep -Eq '\\brequire\\b' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -112,10 +72,6 @@ else
 fi
 rm -f "$f"
 
-# --- a pattern BUILT on one line and CONSUMED on another still fires. This
-# is the shape a grep/sed-same-line context requirement silently un-catches,
-# and it is live in this repo (instruction-scan.sh's I6_ERE/RATIONALE_ERE),
-# so the class deliberately stays bare — see the token file's note. ---------
 f="$(tmpsh "PAT=\"\\brequire\\b\"
 grep -Eq \"\$PAT\" \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -127,9 +83,6 @@ else
 fi
 rm -f "$f"
 
-# --- the mirror-image cost of staying bare: portable printf escape syntax
-# carrying the same two characters DOES fire (over-flag, the documented
-# direction), and `portability-ok:` is the recorded one-line escape for it --
 f="$(tmpsh "printf '\\bspinner-frame\\n'")"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   fail "printf '\\b' must still fire -- the class is bare by design"
@@ -158,10 +111,6 @@ for esc in '\\s' '\\S' '\\w' '\\W' '\\<' '\\>'; do
   fi
   rm -f "$f" "$tok"
 done
-
-# =============================================================================
-# grep -P / --perl-regexp
-# =============================================================================
 
 tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>'"'"'"`]|$)')"
 
@@ -197,9 +146,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- operator-terminated forms: no trailing whitespace before a control
-# operator, redirection, subshell close or quote must still be detected
-# (#1537; a whitespace-only boundary would miss these) ----------------------
 tok="$(one_token_list 'grep[^\n]*[[:space:]]-[A-Za-z]*P[A-Za-z]*([[:space:]|&;()<>'"'"'"`]|$)')"
 expect_all_detected "$tok" <<'CASES'
 x=$(grep -P)
@@ -207,10 +153,6 @@ grep -P|head -n1
 grep -P; echo done
 CASES
 rm -f "$tok"
-
-# =============================================================================
-# echo -e / sort -V
-# =============================================================================
 
 tok="$(one_token_list 'echo[[:space:]]+-[a-zA-Z]*e[a-zA-Z]*([[:space:]|&;()<>'"'"'"`]|$)')"
 
@@ -230,7 +172,6 @@ else
 fi
 rm -f "$f"
 
-# --- operator-terminated forms (#1537) --------------------------------------
 expect_all_detected "$tok" <<'CASES'
 x=$(echo -e)
 echo -e|cat
@@ -256,9 +197,6 @@ else
 fi
 rm -f "$f"
 
-# --- operator-terminated forms: no trailing whitespace before a control
-# operator, redirection, subshell close or quote must still be detected
-# (#1537; a whitespace-only boundary would miss exactly these three forms) --
 expect_all_detected "$tok" <<'CASES'
 x=$(sort -V)
 sort -V|head -n1
@@ -277,12 +215,6 @@ rm -f "$f" "$tok"
 
 tok="$(one_token_list 'sort[^;&|\n]*[[:space:]]['"'"'"]?--sort['"'"'"]?(=|[[:space:]]+)['"'"'"]?version([[:space:]|&;()'"'"'"`]|[<>]([^(]|$)|$)')"
 
-# --- every spelling of --sort's mandatory WORD: attached after `=` or handed
-# over as the next argv element, bare or shell-quoted, and terminated by a
-# control operator rather than whitespace. The quote may also wrap the WHOLE
-# option word rather than just its value -- the shell hands GNU sort the same
-# argument either way, so a pattern demanding whitespace immediately before
-# `--sort` reported these clean. -------------------------------------------
 expect_all_detected "$tok" <<'CASES'
 sort --sort=version "$file"
 sort --sort version "$file"
@@ -300,8 +232,6 @@ sort '--sort' version "$file"
 sort "--sort" "version" "$file"
 CASES
 
-# --- ...but `--sort=<key>` belongs to portable commands too: Git's own
-# version-aware tag ordering must not be reported as a GNU `sort` violation
 f="$(tmpsh 'git tag --sort=version:refname --list')"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "git tag --sort=version:refname is not flagged (no sort command, no WORD boundary)"
@@ -310,13 +240,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- an OPENING quote after a short-option cluster is not a word terminator
-# (#1546): the shell splices it into the same word. For `echo` that ends the
-# matter, because a non-cluster splice is simply printed -- bash prints
-# `echo -e"mail"` as the literal `-email` and `echo -e"mail\tX"` as
-# `-email\tX` with no escape interpretation. That is working portable code and
-# flagging it would be a false positive, so echo's continuation class is
-# limited to its own cluster letters (bash advertises `echo [-neE]`).
 f="$(tmpsh "$(printf '%s\n' \
   'echo -e"mail"' \
   'echo -e"mail\tX"')")"
@@ -327,10 +250,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...but the splice DOES keep the flag live when the content is option
-# letters, so grep and sort must still be flagged there (#1546). Verified on
-# bash: `grep -P"i" '\d'` matches a digit where the same grep without -P does
-# not, `grep -Px '.*\d.*'` likewise, and `sort -V"r"` reverse version-sorts.
 f="$(tmpsh "$(printf '%s\n' \
   'grep -P"x" file' \
   "grep -P'x' file" \
@@ -345,10 +264,6 @@ else
 fi
 rm -f "$f"
 
-# --- a splice that is neither empty nor option letters is not a cluster at
-# all, and for grep/sort it is not working code either (`grep -P"attern"` and
-# `sort -V"ersion"` both abort with `unknown option`), so a variable or a
-# multi-word value stays unflagged rather than guessing at its expansion.
 f="$(tmpsh "$(printf '%s\n' \
   'grep -P"$re" file' \
   'sort -V"$v" file' \
@@ -360,10 +275,6 @@ else
 fi
 rm -f "$f"
 
-# --- the segment scan stops at a command SEPARATOR, but a command
-# SUBSTITUTION in an earlier argument is not one: the outer command continues
-# past the closing paren, so excluding `(`/`)` from the gap hid a live GNU-only
-# option later on the same command (#1546).
 f="$(tmpsh "$(printf '%s\n' \
   'grep -e "$(printf pattern)" -P file' \
   'sort -k "$(printf 1)" -V file' \
@@ -377,8 +288,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...while a real separator still stops it, so the #1546 false positive
-# that motivated scoping the gap stays fixed.
 f="$(tmpsh "$(printf '%s\n' \
   "grep foo /dev/null; printf '%s\\\\n' -P|cat" \
   "sort /dev/null; printf '%s\\\\n' -V|cat")")"
@@ -389,11 +298,6 @@ else
 fi
 rm -f "$f"
 
-# --- an EMPTY quote pair is the one quoted form that must still match (#1546).
-# Quote removal deletes it, so the flag really is passed: on bash,
-# `printf '[%s]\n' -P'' pattern` prints `[-P]` then `[pattern]`, `grep -P'' '\d'`
-# matches a digit where a -P-less grep does not, and `echo -e'' 'a\tb'` emits a
-# real tab. Ignoring these was a false negative, not the accepted narrowing.
 f="$(tmpsh "$(printf '%s\n' \
   "grep -P'' pattern" \
   'sort -V"" file' \
@@ -409,9 +313,6 @@ else
 fi
 rm -f "$f"
 
-# --- REPEATED empty pairs are removed just the same, so the class is starred
-# rather than optional (#1546): `printf '[%s]\n' -P'''' pattern` prints `[-P]`
-# then `[pattern]`, exactly as the single-pair form does.
 f="$(tmpsh "$(printf '%s\n' \
   "grep -P'''' pattern" \
   'sort -V'"''"'"" file' \
@@ -425,12 +326,6 @@ else
 fi
 rm -f "$f"
 
-# --- a cluster letter AFTER a quoted pair is still part of the same word, so
-# letters and quoted chunks interleave rather than the letters having to come
-# first (#1546). Verified on bash: `grep -P"a"i '\d'` matches a digit where a
-# -P-less grep does not, `sort -V"r"f` reverse version-sorts, and
-# `echo -e"n"E 'a\tb'` consumes the whole word as the `-enE` option cluster
-# (nothing of it is printed).
 f="$(tmpsh "$(printf '%s\n' \
   'grep -P"x"i pattern file' \
   "grep -P'x'i pattern file" \
@@ -445,14 +340,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...but echo's cluster admits only its own letters, quoted or not (#1546).
-# `help echo` advertises `echo [-neE]`, so any other letter makes the word an
-# unrecognized option that bash prints literally rather than a longer cluster
-# -- verified: `echo -em "a\tb"`, `echo -me "a\tb"` and
-# `echo -e"n"mail "a\tb"` each emit the option word followed by the literal
-# `a\tb`. All three are working portable code. grep and sort need no such
-# narrowing: an unrecognized cluster aborts them, so there is nothing working
-# to break.
 f="$(tmpsh "$(printf '%s\n' \
   "echo -e\"n\"mail 'a\\tb'" \
   "echo -em 'a\\tb'" \
@@ -464,7 +351,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...while every genuine [neE] cluster still is.
 f="$(tmpsh "$(printf '%s\n' \
   "echo -ne 'a\\tb'" \
   "echo -eE 'a\\tb'" \
@@ -478,10 +364,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...and the option scan stops at a shell command separator (#1546), the
-# same rule the mktemp -p token carries: a physical line is not a command, so
-# with `|` and `;` in the boundary a LATER command's option-shaped argument
-# was being attributed to an earlier grep/sort.
 f="$(tmpsh "$(printf '%s\n' \
   "grep foo /dev/null; printf '%s\\n' -P|cat" \
   "sort /dev/null; printf '%s\\n' -V|cat" \
@@ -494,10 +376,6 @@ else
 fi
 rm -f "$f"
 
-# --- a process substitution attached to an option word is the same shape as an
-# attached quote, not a redirection (#1546): the shell concatenates `<(`/`>(`
-# into the current word, so bash runs `echo -e<(printf x)` as the single
-# argument `-e/dev/fd/63` and prints it literally -- the flag never activates.
 f="$(tmpsh "$(printf '%s\n' \
   'echo -e<(printf x)' \
   'grep -P<(printf x) foo' \
@@ -511,8 +389,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...but a bare `<`/`>` still opens a REDIRECTION, which does terminate the
-# word, so the operator-terminated detections #1537 added must all survive.
 f="$(tmpsh "$(printf '%s\n' \
   'sort -V <file' \
   'sort -V >out' \
@@ -527,11 +403,6 @@ else
   fail "expected all 5 redirection forms flagged, got: $out"
 fi
 rm -f "$f"
-
-# =============================================================================
-# sed -i without a backup-suffix argument, standalone or ending a short-option
-# cluster (one token covers both), and --in-place (GNU long form) — #1513
-# =============================================================================
 
 tok="$(one_token_list '(^|[^[:alnum:]_"'\'"'"'\\])(\$?['\''"]|\\)*s(\$?['\''"]|\\)*e(\$?['\''"]|\\)*d(\$?['\''"]|\\)*([[:space:]]([^;&|()`\n]|[<>]\([^)]*\))*)?[[:space:]]+(\$?['\''"]|\\)*-[bEnrsuz]*i([[:space:]|&;()<>]|$)')"
 
@@ -551,10 +422,6 @@ else
 fi
 rm -f "$f"
 
-# --- the space-separated empty-suffix idiom (-i '' / -i "") is NOT the
-# portable form it looks like -- verified against a real GNU sed 4.9, that
-# exact invocation exits 2 (the empty string is consumed as sed's SCRIPT
-# argument, not as -i's suffix), so it must stay flagged, not be excused.
 f="$(tmpsh "sed -i '' 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "sed -i '' should fail -- it is GNU-incompatible despite looking BSD-safe, got success: $out"
@@ -571,11 +438,6 @@ else
 fi
 rm -f "$f"
 
-# --- an UNSUFFIXED -i ending a cluster whose other letters are not E: the
-# shape a literal '-i' substring search and an E-bearing cluster token both
-# read clean. GNU sed 4.9 --help documents -n/-b/-E/-r/-s/-u/-z as the
-# no-argument short options, so every one of these is the same GNU-only
-# unsuffixed in-place edit. --------------------------------------------------
 while IFS= read -r case; do
   f="$(tmpsh "$case")"
   if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -593,10 +455,6 @@ sed -bi 's/foo/bar/' "$file"
 sed -ui 's/foo/bar/' "$file"
 CASES
 
-# --- an ARGUMENT-taking letter does not build an option cluster: GNU accepts
-# -e's script attached, so `sed -ei` passes the script 'i' and edits nothing in
-# place. A letter outside the documented set is an unknown option sed rejects,
-# so neither shape has GNU-only behavior to report. -------------------------
 while IFS= read -r case; do
   f="$(tmpsh "$case")"
   if scan_paths "$tok" "$f" >/dev/null 2>&1; then
@@ -611,8 +469,6 @@ sed -fi 's/foo/bar/' "$file"
 sed -ni.bak '/keep/p' "$file"
 CASES
 
-# --- the command gap stops at a shell command separator: a physical line is
-# not a command, so a LATER command's option must not arm this token ---------
 while IFS= read -r case; do
   f="$(tmpsh "$case")"
   if scan_paths "$tok" "$f" >/dev/null 2>&1; then
@@ -627,7 +483,6 @@ sed -n 'p' "$file" && grep -i pattern "$file"
 sed -n 'p' "$file" | grep -si pattern
 CASES
 
-# --- a bare paren ends the gap because it ends the command that owns the flag
 f="$(tmpsh "foo=\$(sed -n 'p' \"\$a\") bar=\$(tool -i \"\$b\")")"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "a subshell close ends the gap -- tool's -i is not attributed to sed"
@@ -636,10 +491,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...but a PROCESS substitution is the one paren the shell does NOT make a
-# separate word: it expands to /dev/fd/N and concatenates onto the word it
-# touches, so the flag after it is still sed's own. Excluding a bare paren
-# without readmitting this shape dropped a genuine unsuffixed in-place call.
 while IFS= read -r case; do
   f="$(tmpsh "$case")"
   if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -653,9 +504,6 @@ sed -f <(gen_script) -i "$file"
 sed -f <(gen_script) -Ei "$file"
 CASES
 
-# --- a separator INSIDE a quoted run is ordinary data, not a command
-# boundary: the scanner neutralizes quoted separators before this matches, so
-# narrowing the gap must not un-catch a genuine call whose script carries one
 f="$(tmpsh "sed 'a;b' -Ei \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "sed 'a;b' -Ei should fail -- the ';' is inside the script, got success: $out"
@@ -664,8 +512,6 @@ else
 fi
 rm -f "$f"
 
-# --- the anchor is a sed COMMAND token: 'used' contains the three letters
-# 'sed', and an unanchored token reported this ordinary grep call ------------
 f="$(tmpsh "used=\"\$(grep -i pattern \"\$file\")\"")"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "an identifier containing 'sed' (used=) does not arm the token on a bare -i"
@@ -682,8 +528,6 @@ else
 fi
 rm -f "$f"
 
-# --- an indented invocation still matches (the non-identifier branch of the
-# command-token anchor, not the start-of-line branch) -----------------------
 f="$(tmpsh "  sed -Ei 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "indented sed -Ei should fail, got success: $out"
@@ -692,8 +536,6 @@ else
 fi
 rm -f "$f"
 
-# --- E/i need not be adjacent or the only letters in the cluster, but i must
-# be the cluster's LAST letter (GNU syntax is -i[SUFFIX]) -------------------
 f="$(tmpsh "sed -nEi 's/foo/bar/' \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "sed -nEi (E/i not adjacent, extra letter in cluster) should fail, got success: $out"
@@ -702,9 +544,6 @@ else
 fi
 rm -f "$f"
 
-# --- -iE is NOT the unsuffixed form: GNU's syntax is -i[SUFFIX], so the E is
-# an attached backup suffix (verified against GNU sed 4.9: `sed -iE ... f`
-# writes the backup `fE`), i.e. the dual-compatible shape -------------------
 f="$(tmpsh "sed -iE 's/foo/bar/' \"\$file\"")"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "sed -iE (E is an attached backup suffix, not a flag) is not flagged"
@@ -721,8 +560,6 @@ else
 fi
 rm -f "$f"
 
-# --- an attached EMPTY suffix is the same ambiguous shape as -i'' (deferred,
-# see the token file) -- must not be flagged -------------------------------
 f="$(tmpsh "sed -Ei'' 's/foo/bar/' \"\$file\"")"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "sed -Ei'' (attached empty suffix) is not flagged -- deferred ambiguous shape"
@@ -731,8 +568,6 @@ else
 fi
 rm -f "$f"
 
-# --- anchored to a sed mention on the line: bare -Ei from an unrelated tool
-# name is not itself sufficient (grep also has -E and -i, commonly combined)
 f="$(tmpsh "grep -Ei 'pattern' \"\$file\"")"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "grep -Ei (no 'sed' on the line) does not fire the sed-scoped token"
@@ -741,8 +576,6 @@ else
 fi
 rm -f "$f"
 
-# --- the anchor is a sed COMMAND token, not any occurrence of the three
-# characters: an identifier that merely contains 'sed' must not arm it ------
 f="$(tmpsh "used=\"\$(grep -Ei 'pattern' \"\$file\")\"")"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "an identifier containing 'sed' (used=) does not arm the sed-scoped token"
@@ -751,12 +584,6 @@ else
 fi
 rm -f "$f"
 
-# --- operator-terminated forms: no trailing whitespace before a control
-# operator, redirection, or subshell close must still be detected (#1545; a
-# whitespace-only boundary would miss these, the same false-negative class
-# as #1537's sort -V/grep -P/echo -e forms). Quotes
-# are NOT in this token's boundary (unlike the sibling tokens above) — see
-# the "sed -Ei'' must not be flagged" test above for why. --------------------
 expect_all_detected "$tok" <<'CASES'
 x=$(sed -Ei)
 sed -Ei|cat
@@ -782,8 +609,6 @@ else
 fi
 rm -f "$f"
 
-# --- an unrelated tool's own --in-place option (defined or forwarded by the
-# script itself) is not a GNU sed invocation and must not be flagged --------
 f="$(tmpsh "case \"\$1\" in --in-place) in_place=1 ;; esac")"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "a script's own --in-place option arm is not flagged (no sed command on the line)"
@@ -792,16 +617,12 @@ else
 fi
 rm -f "$f"
 
-# --- operator-terminated forms (#1545) --------------------------------------
 expect_all_detected "$tok" <<'CASES'
 x=$(sed --in-place)
 sed --in-place|cat
 sed --in-place; echo done
 CASES
 
-# --- the command gap stops at a shell command separator here too: the long
-# form got the identical narrowing as the cluster token, so it needs the
-# identical coverage -- a LATER command's --in-place must not arm this token
 while IFS= read -r case; do
   f="$(tmpsh "$case")"
   if scan_paths "$tok" "$f" >/dev/null 2>&1; then
@@ -816,10 +637,6 @@ sed -n 'p' "$file" && tool --in-place x
 sed -n 'p' "$file" | tool --in-place x
 CASES
 
-# --- ...but a PROCESS substitution is not a command boundary: the shell
-# concatenates it onto the word it touches, so the sed call owns the flag that
-# follows. Excluding a bare paren from the gap without readmitting this shape
-# silently dropped a genuine GNU-only call.
 f="$(tmpsh "sed -f <(gen_script) --in-place \"\$file\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "sed -f <(gen) --in-place should fail -- a process substitution is one word, got success: $out"
@@ -828,10 +645,6 @@ else
 fi
 rm -f "$f"
 rm -f "$tok"
-
-# =============================================================================
-# readlink -f / --canonicalize, auto-guarded by a co-located realpath attempt
-# =============================================================================
 
 tok="$(one_token_list 'readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)')"
 
@@ -851,11 +664,6 @@ else
 fi
 rm -f "$f"
 
-# --- mere co-location is not enough -- the guard requires an actual `||`
-# fallback relationship. Two unconditional statements (semicolon-separated,
-# no ||) both mentioning realpath/readlink on one line must still flag: the
-# GNU-only readlink -f call runs unconditionally regardless of what realpath
-# did, so there is no real fallback protecting it.
 f="$(tmpsh 'realpath -- "$1" >/dev/null; readlink -f -- "$1"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "realpath;readlink with no || fallback relationship should fail, got success: $out"
@@ -864,10 +672,6 @@ else
 fi
 rm -f "$f"
 
-# --- nor is a `||` enough on its own: the counterpart must sit at COMMAND
-# POSITION after it. A failure branch that merely PRINTS the portable form
-# names it inside a diagnostic string, so no portable command ever runs and
-# the GNU-only call must still flag (#1544).
 f="$(tmpsh 'realpath -- "$1" || echo "readlink -f is unavailable"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "a printed-only readlink counterpart should fail, got success: $out"
@@ -876,9 +680,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- the realpath guard is scoped to the readlink pattern, not the whole line
-# A line mentioning "realpath" for an unrelated reason must not blanket-excuse
-# a DIFFERENT active token's hit on that same line.
 tok="$(one_token_list "$(printf '%s\n%s' '\\b' 'readlink[[:space:]]+(-[A-Za-z]*f|--canonicalize)')")"
 f="$(tmpsh 'echo "realpath is a coreutils tool"; grep -Eq "\\bfoo\\b" "$file"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -887,10 +688,6 @@ else
   ok "the realpath guard is scoped to the readlink pattern, not the whole line"
 fi
 rm -f "$f" "$tok"
-
-# =============================================================================
-# date -d (GNU date-string parsing) -- #1510
-# =============================================================================
 
 tok="$(one_token_list 'date[[:space:]]+[^\n]*-d([[:space:]]|$)')"
 
@@ -910,7 +707,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- a comment merely naming date -d is not flagged (construct matching skips comments)
 tok="$(one_token_list 'date[[:space:]]+[^\n]*-d([[:space:]]|$)')"
 f="$(tmpsh '# GNU date -d and BSD date -j -f are mutually exclusive dialects.')"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
@@ -920,8 +716,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- "date" as a mere substring of an identifier (e.g. "candidate") followed
-# later by an unrelated -d flag on the same line must not fire.
 tok="$(one_token_list 'date[[:space:]]+[^\n]*-d([[:space:]]|$)')"
 f="$(tmpsh 'elif [[ "$candidate" == "$base" && -d "$candidate" ]]; then')"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
@@ -930,10 +724,6 @@ else
   fail "the candidate/-d false positive must not fire"
 fi
 rm -f "$f" "$tok"
-
-# =============================================================================
-# stat -c, auto-guarded by a co-located stat -f attempt -- #1510
-# =============================================================================
 
 tok="$(one_token_list 'stat[[:space:]]+[^\n]*-c')"
 
@@ -953,8 +743,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- mere co-location is not enough -- the guard requires an actual `||`
-# fallback relationship, mirroring the readlink/realpath guard's rigor.
 tok="$(one_token_list 'stat[[:space:]]+[^\n]*-c')"
 f="$(tmpsh "stat -f '%d' \"\$1\" >/dev/null; stat -c '%d' \"\$1\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -964,10 +752,6 @@ else
 fi
 rm -f "$f"
 
-# --- and the `stat -f` counterpart must sit at COMMAND POSITION after the
-# `||`, not merely somewhere to its right: a failure branch that only PRINTS
-# the BSD form runs no portable command at all, so suppressing the hit would
-# hide a real GNU-only call behind a fallback that does not exist (#1544).
 f="$(tmpsh "stat -c '%s' \"\$f\" || echo 'stat -f is unavailable'")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "a printed-only stat -f counterpart should fail, got success: $out"
@@ -976,9 +760,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...while the assignment/command-substitution shape the corpus really
-# uses for a fallback ladder stays guarded (lib/hook-utils.sh resolves through
-# `name=$(cmd) || name=$(fallback)`, replicated in 15 hook-utils.sh copies).
 f="$(tmpsh 'size=$(stat -c "%s" "$1") || size=$(stat -f "%z" "$1")')"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "a name=\$(stat -f ...) fallback after || is still recognized as a guard"
@@ -987,10 +768,6 @@ else
 fi
 rm -f "$f"
 
-# --- the guard must also stop at a command SEPARATOR. With another command
-# between the GNU call and the ||, the || belongs to that later command, so the
-# BSD form is not the GNU call's fallback and the unconditional GNU-only
-# invocation must still flag (#1544).
 f="$(tmpsh "stat -c '%s' \"\$f\"; true || stat -f '%z' \"\$f\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "a stat -f reached across a ; should fail, got success: $out"
@@ -999,9 +776,6 @@ else
 fi
 rm -f "$f"
 
-# --- a CONTROL & is a separator too: it backgrounds the GNU call and hands the
-# || to whatever follows, so in `... & true || stat -f ...` the || binds to
-# `true` and the BSD form never runs (#1544).
 f="$(tmpsh "stat -c '%s' \"\$f\" & true || stat -f '%z' \"\$f\"")"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
   fail "a stat -f reached across a background & should fail, got success: $out"
@@ -1010,8 +784,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...while `>&` and `&&` are NOT separators: a real ladder may redirect
-# with 2>&1, and `a && b || c` does still fall back to c when a fails.
 f="$(tmpsh 'size=$(stat -c "%s" "$1" 2>&1) || size=$(stat -f "%z" "$1")')"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "a 2>&1 redirection inside the ladder does not break the guard"
@@ -1020,9 +792,6 @@ else
 fi
 rm -f "$f"
 
-# --- a redirection may also sit between `stat` and its OWN option: it does not
-# change the argv stat receives, so this is the same BSD fallback and must not
-# be forced into a hand-written exemption (#1544).
 f="$(tmpsh 'size=$(stat -c "%s" "$f") || size=$(stat 2>/dev/null -f "%z" "$f")')"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
   ok "a redirection before the BSD fallback option is still recognized as a guard"
@@ -1048,8 +817,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- "stat" as a mere prefix of an identifier ("status") followed later by an
-# unrelated -c flag on the same line must not fire (git's own -c name=value).
 tok="$(one_token_list 'stat[[:space:]]+[^\n]*-c')"
 f="$(tmpsh 'run "safe alias" "git -c alias.st=status st" 0')"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
@@ -1059,9 +826,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- the stat -f guard is scoped to the stat -c pattern, not the whole line
-# A line mentioning "stat -f" for an unrelated reason must not blanket-excuse a
-# DIFFERENT active token's hit on that same line.
 tok="$(one_token_list "$(printf '%s\n%s' '\\b' 'stat[[:space:]]+[^\n]*-c')")"
 f="$(tmpsh 'echo "stat -f is the BSD form"; grep -Eq "\\bfoo\\b" "$file"')"
 if out="$(scan_paths "$tok" "$f" 2>&1)"; then
@@ -1071,30 +835,8 @@ else
 fi
 rm -f "$f" "$tok"
 
-# =============================================================================
-# !subst-replacement-ampersand — an UNQUOTED `&` in the REPLACEMENT half of a
-# `${var/pat/repl}` / `${var//pat/repl}` expansion.
-#
-# Since bash 5.2 that `&` expands to the text the pattern just matched, under
-# the `patsub_replacement` option that is on by default; macOS ships bash 3.2,
-# where the same character is an ordinary literal — the gate's own uncovered
-# platform, reached through a version rather than a utility. Every grammar
-# expectation below was measured against bash 5.3.15 before it was encoded,
-# never recalled; the first fixture is the real defect #2008 fixed in
-# plugins/guardrails/hooks/block-hook-bypass.sh, where a sentinel restored to
-# itself became a no-op and produced a live guardrails false positive.
-#
-# The class is implemented in the script rather than as an ERE (the `&` is
-# neutralized on both matching views before a pattern could see it), so these
-# fixtures activate it through its `!name` token line exactly as an ERE fixture
-# activates a pattern — activation stays data either way, which the inertness
-# case at the end of this section pins.
-# =============================================================================
-
 amptok="$(one_token_list '!subst-replacement-ampersand')"
 
-# amp_fires <label> <fixture-body> — the body is one line and must be reported
-# by THIS class, at file:line, so a silently inert rule cannot pass.
 amp_fires() {
   local label="$1" body="$2" f out
   f="$(tmpsh "$body")"
@@ -1107,7 +849,6 @@ amp_fires() {
   fi
   rm -f "$f"
 }
-# amp_clean <label> <fixture-body> — the body must be reported by nothing.
 amp_clean() {
   local label="$1" body="$2" f out
   f="$(tmpsh "$body")"
@@ -1119,89 +860,48 @@ amp_clean() {
   rm -f "$f"
 }
 
-# --- the exact shape that shipped the defect ------------------------------
 amp_fires 'the #2008 defect shape (quoted pattern, bare & replacement)' \
   'normalized="${normalized//"$soh"/&}"'
-# --- the non-global spelling is the same expansion -------------------------
 amp_fires 'the single-substitution ${var/pat/&} spelling' 'v="${v/X/&}"'
-# --- the `&` need not be the whole replacement, nor sit last ---------------
 amp_fires 'a bare & in the middle of a replacement' 'v="${v//X/p&q}"'
 amp_fires 'a doubled && replacement' 'v="${v//X/&&}"'
-# --- the replacement runs to the closing brace, so a `/` AFTER the separator
-# is replacement text. Bash ends the PATTERN at the FIRST unquoted, unescaped
-# `/` (`v=aXbXc; "${v//X/Y/Z}"` yields `aY/ZbY/Zc`), so a last-slash reading of
-# the grammar would report this line clean.
 amp_fires 'a replacement containing its own slash' 'v="${v//X/b&/c}"'
-# --- a correctly escaped or quoted ampersand EARLIER on the line does not
-# excuse a bare one after it: each occurrence is decided on its own.
 amp_fires 'a bare & after an escaped one' 'v="${v//X/\&&}"'
 amp_fires 'a bare & after a double-quoted one' 'v="${v//X/"&"&}"'
 amp_fires 'a bare & after a nested expansion' 'v="${v//X/${r}&}"'
-# --- nasty patterns: the separator search must survive a nested expansion, a
-# quoted slash and an escaped slash inside the pattern half.
 amp_fires 'a nested expansion in the pattern half' 'v="${v//${pat}/&}"'
 amp_fires 'a double-quoted slash inside the pattern' 'v="${v//"a/b"/&}"'
 amp_fires 'a backslash-escaped slash as the pattern' 'v="${v//\//&}"'
-# --- parameter spellings other than a plain name ---------------------------
 amp_fires 'an anchored ${var/#pat/&} substitution' 'v="${v/#X/&}"'
 amp_fires 'an array element substitution' 'v="${arr[@]//X/&}"'
 amp_fires 'a positional-parameter substitution' 'v="${1//X/&}"'
 amp_fires 'an unquoted expansion context' 'v=${v//X/&}'
 
-# --- the CORRECT form. `\&` is what the failure message recommends: the
-# backslash is removed on every bash (verified across BASH_COMPAT 32/42/44/50/
-# 51 and the default on 5.3.15), so it is a literal ampersand on both sides of
-# the 5.2 boundary.
 amp_clean 'a backslash-escaped \& replacement' 'n="${n//"$soh"/\&}"'
-# --- quoting also inhibits the replacement ("Quoting any part of string
-# inhibits replacement in the expansion of the quoted portion" — GNU Bash
-# Reference Manual, Shell Parameter Expansion), verified on 5.3.15 for both
-# quote characters. Neither is flagged; the failure message still steers to
-# `\&`, because the quoted spellings carry their own pre-4.3 quote-removal
-# divergence.
 amp_clean 'a double-quoted "&" replacement' 'v="${v//X/"&"}"'
 amp_clean 'a single-quoted &-replacement' "v=\"\${v//X/'&'}\""
-# --- the DELETION form has no replacement at all ---------------------------
 amp_clean 'the ${var//pat} deletion form' 'v="${v//X}"'
 amp_clean 'an empty replacement' 'v="${v//X/}"'
-# --- expansions whose operator is not `/` are not substitutions, however many
-# slashes and ampersands their word carries.
 amp_clean 'a :- default-value word containing a slash and an &' 'v="${v:-a/b/&}"'
 amp_clean 'a := assign-default word containing an &' 'v="${v:=a/b/&}"'
 amp_clean 'a # prefix-strip pattern' 'v="${v#*/}"'
 amp_clean 'a % suffix-strip pattern' 'v="${v%/*}"'
 amp_clean 'a substring expansion' 'v="${v:0:1}"'
 amp_clean 'a length expansion' 'v="${#v}"'
-# --- an `&` that is not in a substitution at all ---------------------------
 amp_clean 'an && control operator' 'a && b'
 amp_clean 'a backgrounding &' 'cmd &'
 amp_clean 'a 2>&1 file-descriptor duplication' 'printf x 2>&1'
 amp_clean 'a quoted & in ordinary text' 'echo "a & b"'
 amp_clean 'an & in the PATTERN half' 'v="${v//&/X}"'
-# --- a nested command substitution in the replacement is command text, where
-# `&` is ordinary shell syntax rather than a match reference.
 amp_clean 'an && inside a nested substitution in the replacement' 'v="${v//X/$(a && b)}"'
-# --- a single-quoted expansion is literal text: no expansion, no rule -------
 amp_clean 'the construct inside single quotes (no expansion at all)' "printf '%s' '\${v//X/&}'"
 
-# --- `#` straight after `${` is the LENGTH operator only while what follows it
-# could start a parameter name. A `/` cannot, so `${#//2/&}` is a substitution
-# on the positional-argument COUNT and is exactly this class. Measured on 5.3.15
-# with two positional parameters: `2` with patsub_replacement on, `&` with it
-# off. Review round on #2097 — the earlier unconditional bail on `#` reported
-# this shape clean, a false PASS on a literal `${var//pat/&}`.
 amp_fires 'a substitution on the ${#} positional-argument count' 'v="${#//2/&}"'
 amp_fires 'a single substitution on ${#}' 'v="${#/2/&}"'
 amp_clean 'a plain ${#} count' 'v="${#}"'
 amp_clean 'a ${##} length-of-$# expansion' 'v="${##}"'
 amp_clean 'a ${#arr[@]} array length' 'v="${#arr[@]}"'
 
-# --- a PROCESS SUBSTITUTION body is a command list, so its `&`/`&&` is shell
-# syntax and never a match reference. Measured on 5.3.15: `v=aXb;
-# "${v//X/<(a && b)}"` yields `a/dev/fd/63b` with patsub_replacement BOTH on and
-# off — zero version divergence, so flagging it was a false POSITIVE on portable
-# code, the direction this hard-error class must never take. Review round on
-# #2097.
 amp_clean 'an && inside a <( ) process substitution in the replacement' \
   'v="${v//X/<(cmd1 && cmd2)}"'
 amp_clean 'an && inside a >( ) process substitution in the replacement' \
@@ -1210,14 +910,11 @@ amp_clean 'a single & inside a process substitution in the replacement' \
   'v="${v//X/<(cmd1 & cmd2)}"'
 amp_clean 'a process substitution in the PATTERN half' \
   'v="${v//<(cmd1 && cmd2)/y}"'
-# ...and skipping the frame must not swallow a real hit that follows it, in
-# either half — the frame is stepped over, not treated as end of scan.
 amp_fires 'a bare & after a process substitution in the replacement' \
   'v="${v//X/<(cmd1 && cmd2)&}"'
 amp_fires 'a bare & replacement after a process substitution in the pattern' \
   'v="${v//<(cmd1 && cmd2)/&}"'
 
-# --- the class honors the SAME escapes every other class does -------------
 f="$(tmpsh 'v="${v//X/&}" # portability-ok: the sed-rule expansion is what this line wants')"
 if scan_paths "$amptok" "$f" >/dev/null 2>&1; then
   ok "a same-line portability-ok excuses an & hit"
@@ -1244,12 +941,8 @@ else
 fi
 rm -f "$f"
 
-# --- a comment-only line naming the construct is prose, not code -----------
 amp_clean 'a comment-only line naming the construct' '# never write ${var//pat/&} here'
 
-# --- a QUOTE-JOINED record spans physical lines, and the hit is attributed to
-# the physical line it actually sits on — the same per-line attribution the ERE
-# classes get, reached through the shared report path.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'msg="opened here\nv=${v//X/&}"\n' >"$f"
 if out="$(scan_paths "$amptok" "$f" 2>&1)"; then
@@ -1261,8 +954,6 @@ else
 fi
 rm -f "$f"
 
-# --- ACTIVATION IS DATA: with the `!name` line absent the class is inert, so a
-# fixture scoped to another class is never coupled to this one.
 tok="$(one_token_list '\\b')"
 f="$(tmpsh 'v="${v//X/&}"')"
 if scan_paths "$tok" "$f" >/dev/null 2>&1; then
@@ -1272,8 +963,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- and a token list holding ONLY the directive is a loaded config, not the
-# empty pattern set the gate fails closed on.
 f="$(tmpsh 'v="${v//X/y}"')"
 out="$(scan_paths "$amptok" "$f" 2>&1)"
 rc=$?
@@ -1284,8 +973,6 @@ else
 fi
 rm -f "$f"
 
-# --- an UNRECOGNIZED `!name` fails the run closed. Ignoring it would let one
-# typo silently disable a whole class while the run still reported clean.
 BADCLS="$(one_token_list '!no-such-class')"
 f="$(tmpsh 'v="${v//X/&}"')"
 out="$(scan_paths "$BADCLS" "$f" 2>&1)"
@@ -1297,10 +984,6 @@ else
 fi
 rm -f "$f" "$BADCLS"
 
-# --- the class remediation paragraph is SCOPED to a hit of this class. Printed
-# unconditionally it followed every `grep -P` / `sed -i` failure with advice
-# about an ampersand the developer never wrote — the mirror of the inertness
-# case above, and asserted in both directions for the same reason.
 f="$(tmpsh 'v="${v//X/&}"')"
 out="$(scan_paths "$amptok" "$f" 2>&1)"
 if [[ "$out" == *"!subst-replacement-ampersand names the one class"* ]]; then
@@ -1329,10 +1012,6 @@ else
   fail "expected the & class from the shipped list, got: $out"
 fi
 rm -f "$f" "$amptok"
-
-# =============================================================================
-# Opt-out annotation
-# =============================================================================
 
 tok="$(one_token_list '\\b')"
 
@@ -1366,7 +1045,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- whole-file portability-scope declaration excuses every hit ------------
 tok="$(one_token_list '\\b')"
 f="$(tmpsh '# portability-scope: this fixture IS a GNU-only-construct corpus, on purpose
 grep -Eq "\\bfoo\\b" "$file"
@@ -1378,10 +1056,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- a mere MENTION of the token (not a genuine comment-line declaration) --
-# does NOT exempt the file -- #1513: a doc-block sentence explaining the
-# mechanism, or a string literal containing the words, must not wrongly
-# excuse a real hit.
 tok="$(one_token_list '\\b')"
 f="$(tmpsh '# This script supports a whole-file portability-scope: <reason> declaration.
 grep -Eq "\\bfoo\\b" "$file"')"
@@ -1416,12 +1090,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# =============================================================================
-# awk operand disambiguation: a scanned file whose name is shaped like an
-# identifier=value assignment must not be silently dropped from the scan
-# (#1513)
-# =============================================================================
-
 tok="$(one_token_list '\\b')"
 fixture_tree::build fx --sut "$SCRIPT"
 printf 'grep -Eq "\\bfoo\\b" "$file"\n' >"$fx/FOO=bar.sh"
@@ -1434,18 +1102,6 @@ else
 fi
 rm -rf "$fx" "$tok"
 
-# =============================================================================
-# ...and the same for the TOKEN LIST operand, the worse half of #1513: an
-# unopened list means NO active patterns, so every file reports clean and awk
-# still exits 0 — the gate passing while gating nothing. This gate already
-# carried the guard; the assertion is added here alongside the twin's because
-# the guard now lives in one shared place (scripts/lib/token-scan.sh) and a
-# regression there must turn BOTH suites red, not just the one that was
-# historically missing it (#2914, finding 2).
-#
-# The path must be RELATIVE for this to bite: the gate cd's to its own parent,
-# and an absolute path begins with `/`, which awk can only read as a filename.
-# =============================================================================
 tok="$(one_token_list '\\b')"
 fixture_tree::build fx --sut "$SCRIPT"
 cp "$tok" "$fx/t=custom.txt"
@@ -1466,12 +1122,8 @@ else
 fi
 rm -rf "$fx" "$tok"
 
-# =============================================================================
-# Fail-closed behavior
-# =============================================================================
-
 BAD_TOKENS="$(mktemp "$TMP_ROOT/f.XXXXXX")"
-printf '%s\n' '(unterminated' >"$BAD_TOKENS" # unmatched '(' -- invalid ERE, awk faults
+printf '%s\n' '(unterminated' >"$BAD_TOKENS"
 f="$(tmpsh 'grep -Eq foo bar')"
 SHELL_PORTABILITY_TOKENS="$BAD_TOKENS" bash "$SCRIPT" --paths "$f" >/dev/null 2>&1
 if [[ "$?" -eq 2 ]]; then
@@ -1481,12 +1133,6 @@ else
 fi
 rm -f "$f" "$BAD_TOKENS"
 
-# --- a token list with NO active patterns fails closed (#3161) --------------
-#
-# This gate has refused an empty pattern set since #1513, but the guard moved
-# from the awk program into the shell when the list parsing was extracted, so it
-# is asserted here alongside the twin's — a regression in the shared path must
-# turn BOTH suites red, not just the one that was historically missing it.
 EMPTY_TOKENS="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 printf '# only comments\n#\n\n' >"$EMPTY_TOKENS"
 f="$(tmpsh 'grep -Eq foo bar')"
@@ -1527,16 +1173,12 @@ else
   fail "invalid base ref should exit 2"
 fi
 
-# =============================================================================
-# Scope resolution: --all excludes vendor/evals; skill .md is in scope (#2704)
-# =============================================================================
-
 fixture_tree::build fx --sut "$SCRIPT"
 mkdir -p "$fx/plugins/alpha/vendor" "$fx/plugins/alpha/skills/demo/evals" \
   "$fx/plugins/alpha/skills/demo/context"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/gate.sh"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/vendor/upstream.sh"
-printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/notes.md" # non-skill .md stays out
+printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/notes.md"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/skills/demo/SKILL.md"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/skills/demo/context/run.md"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/skills/demo/evals/adversarial.md"
@@ -1561,7 +1203,6 @@ else
 fi
 rm -rf "$fx"
 
-# --- diff-mode gates a changed skill markdown file (#2704) -----------------
 fixture_tree::build fx --sut "$SCRIPT"
 mkdir -p "$fx/plugins/alpha/skills/demo/context"
 out="$(
@@ -1582,7 +1223,6 @@ else
 fi
 rm -rf "$fx"
 
-# --- skill-md baseline grandfathers backlog; --paths still sees it (#2704) -
 fixture_tree::build fx --sut "$SCRIPT"
 mkdir -p "$fx/plugins/alpha/skills/demo"
 printf '%s\n' 'grep -Eq "\\bfoo\\b" "$file"' >"$fx/plugins/alpha/skills/demo/SKILL.md"
@@ -1630,13 +1270,10 @@ if [[ "$rc" -ne 0 ]] && grep -q "names a missing file" <<<"$out"; then
 else
   fail "missing baseline entry should fail under --all (rc=$rc): $out"
 fi
-# Restore a hot file, then move it under vendor/ (outside scannable set).
 mkdir -p "$fx/plugins/alpha/skills/demo"
 printf '%s\n' 'word-boundary \\b token' >"$fx/plugins/alpha/skills/demo/SKILL.md"
 mkdir -p "$fx/plugins/alpha/skills/demo/vendor"
 mv "$fx/plugins/alpha/skills/demo/SKILL.md" "$fx/plugins/alpha/skills/demo/vendor/SKILL.md"
-# Baseline still names the old (now missing) path — covered above. Point the
-# baseline at the vendor path to exercise the outside-scannable branch.
 printf '%s\n' 'plugins/alpha/skills/demo/vendor/SKILL.md' >"$fx/scripts/shell-portability-skill-md-baseline.txt"
 out="$(
   cd "$fx" &&
@@ -1651,7 +1288,7 @@ fi
 rm -rf "$fx"
 
 fixture_tree::build fx --sut "$SCRIPT"
-quoted_name="$(printf 'quoted-\303\251.sh')" # trailing U+00E9 byte -- non-ASCII, triggers Git quoting
+quoted_name="$(printf 'quoted-\303\251.sh')"
 out="$(
   cd "$fx" &&
     git_init_test_repo "$fx" &&
@@ -1673,18 +1310,12 @@ else
 fi
 rm -rf "$fx"
 
-# =============================================================================
-# The shipped token list against the REAL corpus
-# =============================================================================
-
-# --- the reference implementation this issue names as known-good is clean --
 if out="$(scan_paths "$REAL_TOKENS" "$REPO_ROOT/plugins/markdown-format/git-hooks/markdown-gates.sh" 2>&1)"; then
   ok "the shipped token list does not flag markdown-gates.sh's reference implementation"
 else
   fail "markdown-gates.sh must stay clean under the shipped token list, got: $out"
 fi
 
-# --- date -d and stat -c are now ACTIVE in the shipped list (#1510) --------
 f="$(tmpsh 'x=$(date -d "$s" +%s)')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "date -d should now be enforced by the shipped list, got success: $out"
@@ -1701,10 +1332,6 @@ else
 fi
 rm -f "$f"
 
-# --- both tokens match a whole command WORD, not any word ending in it: the
-# gap-scoping alone left "date"/"stat" unanchored on the left, so words merely
-# ENDING in them took the flag of a genuinely different command (#1544). A
-# path-qualified invocation is still the command itself and must stay flagged.
 f="$(tmpsh "$(printf '%s\n' \
   'validate -d config' \
   'update -d /tmp' \
@@ -1724,11 +1351,6 @@ else
 fi
 rm -f "$f"
 
-# --- -d takes a mandatory argument, so GNU accepts it ATTACHED, and --date is
-# its documented long spelling (`date --help`: `-d, --date=STRING`). A
-# whitespace-or-EOL-only tail matched neither (#1544). Likewise stat's
-# --format/--printf are the long spellings of -c (`stat --help`:
-# `-c  --format=FORMAT`), so the class was enforceable under one spelling only.
 f="$(tmpsh "$(printf '%s\n' \
   'date -d@0' \
   'date -d"$s" +%s' \
@@ -1745,10 +1367,6 @@ else
 fi
 rm -f "$f"
 
-# --- an attached -d argument may be a bare WORD, and `c` may sit inside a
-# short-option cluster (#1544). GNU documents a mandatory long-option argument
-# as mandatory for the short option too, so `date -u -dtomorrow +%Y` succeeds,
-# and `stat --help` documents `-L, --dereference` so `stat -Lc%s` succeeds.
 f="$(tmpsh "$(printf '%s\n' \
   'date -dtomorrow +%s' \
   'date -u -dyesterday' \
@@ -1763,8 +1381,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...but a LONGER flag whose name merely contains the letter must not be
-# read as that option. Both are real GNU flags that succeed in their own right.
 f="$(tmpsh "$(printf '%s\n' \
   'date --debug +%s' \
   'stat --dereference "$file"')")"
@@ -1775,8 +1391,6 @@ else
 fi
 rm -f "$f"
 
-# --- `d` may sit at the argument-taking end of a CLUSTER: GNU lists `-u, --utc`
-# beside `-d, --date=STRING`, and `date -ud tomorrow +%Y` succeeds (#1544).
 f="$(tmpsh "$(printf '%s\n' \
   'date -ud tomorrow +%s' \
   'date -ud@0')")"
@@ -1789,8 +1403,6 @@ else
 fi
 rm -f "$f"
 
-# --- the matched hyphen must BEGIN an argument, so a `-c` living inside a
-# filename passes no option and must not be reported (#1544).
 f="$(tmpsh "$(printf '%s\n' \
   'stat "$file-c"' \
   'stat foo-c')")"
@@ -1801,7 +1413,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...while an option that genuinely follows an operand still is.
 f="$(tmpsh 'stat "$f" -c %s')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a -c after an operand should still fail, got success: $out"
@@ -1810,9 +1421,6 @@ else
 fi
 rm -f "$f"
 
-# --- sort's long-form spellings are active in the SHIPPED list (not just the
-# isolated-token mechanism proven above): every flagged spelling on its own
-# line, plus Git's portable `--sort=<key>` which must stay clean -----------
 f="$(tmpsh "$(printf '%s\n' \
   'sort --version-sort "$file"' \
   'sort --sort=version "$file"' \
@@ -1830,10 +1438,6 @@ else
 fi
 rm -f "$f"
 
-# --- operator-terminated short-flag forms are active in the SHIPPED list too
-# (#1537): sort -V, grep -P, echo -e each widened to the same boundary
-# `--sort=WORD` already used, proven here against the real token list rather
-# than only the isolated-token mechanism above ------------------------------
 f="$(tmpsh "$(printf '%s\n' \
   'x=$(sort -V)' \
   'sort -V|head -n1' \
@@ -1850,7 +1454,6 @@ else
 fi
 rm -f "$f"
 
-# --- mktemp -p is now ACTIVE (#1527) ----------------------------------------
 f="$(tmpsh 't=$(mktemp -p "$d")')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "shipped list should flag mktemp -p now that it is active: $out"
@@ -1875,13 +1478,6 @@ else
 fi
 rm -f "$f"
 
-# --- attached-value and long-form parent-directory spellings (#1543). GNU
-# getopt takes -p's DIR joined to the cluster, and documents --tmpdir[=DIR] as
-# the equivalent; both are as BSD-incompatible as the whitespace-delimited form
-# a cluster-plus-whitespace boundary alone matched. The attached DIR is an
-# arbitrary string, so one whose first segment is alphabetic must flag exactly
-# like `-p/tmp` — verified against GNU coreutils 8.32, where
-# `mktemp -prel/sub name.XXXXXX` creates `rel/sub/name.XXXXXX`.
 f="$(tmpsh "$(printf '%s\n' \
   'mktemp -p/tmp name.XXXXXX' \
   'mktemp -prel/sub name.XXXXXX' \
@@ -1896,8 +1492,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...and the option scan stops at a shell command separator (#1543): a
-# physical line is not a command, so a later command's `-p` is not mktemp's.
 f="$(tmpsh 'tmp=$(mktemp); cp -p source "$tmp"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   ok "cp -p after a portable mktemp on the same line is not flagged"
@@ -1906,9 +1500,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...including the legacy backtick spelling of that substitution (#1543).
-# A closing backtick ends the substitution exactly as `)` ends `$(...)`, so in
-# the VAR=value-prefixed command below the `-p` is cp's, not mktemp's.
 f="$(tmpsh 'tmp=`mktemp` cp -p source target')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   ok "cp -p after a backtick-substituted portable mktemp is not flagged"
@@ -1917,8 +1508,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...without over-stopping: a `-p` INSIDE the backtick substitution is
-# mktemp's own and must keep flagging.
 f="$(tmpsh 'tmp=`mktemp -p "$d"`')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "mktemp -p inside a backtick substitution must still be flagged: $out"
@@ -1927,11 +1516,6 @@ else
 fi
 rm -f "$f"
 
-# --- both mktemp tokens are anchored to the COMMAND TOKEN (#1543): `-p` and
-# `--tmpdir` are GNU mktemp's flags, not a flag of every command whose name
-# merely contains "mktemp". The boundary is a shell WORD POSITION rather than
-# an enumeration of legal name characters -- `+` and `@` are as legal in a
-# command name as `-` and `.`, so any such enumeration is unfinishable.
 f="$(tmpsh "$(printf '%s\n' \
   'mktemp_wrapper -p /tmp' \
   'my_mktemp -p /tmp' \
@@ -1949,11 +1533,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...and the real command still flags at every position the anchor admits:
-# line start, after a separator, inside a substitution, reached by absolute
-# path (`/` is a path separator, not part of a name), and with the command
-# token itself quoted -- the shell strips those quotes and runs the same
-# GNU-only mktemp.
 f="$(tmpsh "$(printf '%s\n' \
   'mktemp -p /tmp' \
   'cd /tmp && mktemp -p sub' \
@@ -1970,7 +1549,6 @@ else
 fi
 rm -f "$f"
 
-# --- backslash-escaped command name is still a command position (#1551 class 3) ---
 f="$(tmpsh '\mktemp -p /tmp')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "backslash-escaped mktemp must still be flagged: expected failure, got success"
@@ -1979,13 +1557,6 @@ else
 fi
 rm -f "$f"
 
-# --- operator-terminated sed -Ei / --in-place forms are active in the
-# SHIPPED list too (#1545): both tokens end at a control operator, redirection
-# or subshell close, and -- like the `sort -V` / `grep -P` / `echo -e` classes
-# after #1546 -- not at a quote. Each token's own reason for excluding one is
-# recorded in shell-portability-tokens.txt; `--sort=WORD` (#1530) is the one
-# token that still admits a quote. Proven here against the real token list
-# rather than only the isolated-token mechanism above -----------------------
 f="$(tmpsh "$(printf '%s\n' \
   'x=$(sed -Ei)' \
   'sed -Ei|cat' \
@@ -2002,12 +1573,6 @@ else
 fi
 rm -f "$f"
 
-# --- both sed tokens' command gap, proven against the SHIPPED list rather than
-# an isolated copy. The isolated-token blocks above each build their own
-# pattern by hand, so one can silently drift from the token it claims to
-# cover -- the --in-place block did exactly that, keeping the pre-narrowing
-# `[^\n]*` gap and leaving the narrowing it was meant to prove untested.
-# A LATER command's flag must not arm either token...
 f="$(tmpsh "$(printf '%s\n' \
   "sed -n 'p' \"\$file\"; grep -Ei pattern \"\$file\"" \
   "sed -n 'p' \"\$file\" && tool --in-place x")")"
@@ -2018,8 +1583,6 @@ else
 fi
 rm -f "$f"
 
-# ...while a process substitution, which the shell folds into the word it
-# touches rather than making a command of its own, must leave the call visible
 f="$(tmpsh "$(printf '%s\n' \
   'sed -f <(gen_script) -i "$file"' \
   'sed -f <(gen_script) -Ei "$file"' \
@@ -2033,23 +1596,6 @@ else
 fi
 rm -f "$f"
 
-# =============================================================================
-# Quote-aware matching -- #1544
-#
-# The shapes below cover both defect directions: false positives, and the
-# gate failing OPEN, the worse direction -- a GNU-only call reaching a BSD
-# userland unreported. The gap still excludes separators; the matcher sees a
-# line whose QUOTED separators have been neutralized first, so a `;` in a
-# filename and a `;` between commands are not the same character to it.
-# =============================================================================
-
-# --- `--` (end-of-options) IS honored (#1562, via the #1551 word layer): a
-# flag-shaped word after the marker is an operand, so it is not reported.
-# The three capabilities whose absence got the feature withdrawn in #1544 are
-# what the word layer supplies: per-invocation scoping (the marker must sit
-# inside the matched extent, between the command word and its option),
-# resumed matching after a discarded occurrence, and quoted-word recognition
-# (quote removal hands the utility the same `--` in every spelling).
 f="$(tmpsh "$(printf '%s\n' \
   'stat -- -c' \
   'date -- -d' \
@@ -2066,10 +1612,6 @@ else
 fi
 rm -f "$f"
 
-# --- the marker is recognized inside the invocation that owns it, wherever
-# that invocation lives: a nested call whose own `--` precedes the flag-shaped
-# word is clean even inside a double-quoted substitution -- the shape a
-# partial implementation reported because the marker was invisible there.
 f="$(tmpsh 'printf "%s\n" "$(stat -- -c)"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   ok "a -- inside a quoted substitution demotes the nested option"
@@ -2078,12 +1620,6 @@ else
 fi
 rm -f "$f"
 
-# --- suppression is TRUSTED-input territory, so only a word that statically
-# unquotes to exactly `--` demotes. Everything ambiguous keeps reporting (the
-# over-flag direction): a quoted string that merely CONTAINS the marker is one
-# word; a variable could expand to anything; ANSI-C escape content is not
-# decoded; a redirection target is not an argv word; a marker inside a nested
-# frame belongs to the nested command, on both views.
 for line in \
   'stat "a -- b" -c %s' \
   'stat "-- x" -c %s' \
@@ -2103,9 +1639,6 @@ for line in \
   rm -f "$f"
 done
 
-# --- `--` demotes OPTIONS, not operands that were never options: the bare
-# regex-escape classes match pattern text, and a pattern operand after `--` is
-# still handed to grep as the same GNU-only regex.
 f="$(tmpsh "grep -- '\\bfoo' file")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a \\b pattern after -- should still fail, got success: $out"
@@ -2114,10 +1647,6 @@ else
 fi
 rm -f "$f"
 
-# --- and a later real invocation on the same line is never lost behind one:
-# a demoted occurrence is discarded and matching RESUMES, so the marker
-# suppresses its own invocation only. Without resume the whole line would be
-# suppressed, a fail-open.
 f="$(tmpsh "$(printf '%s\n' \
   'stat -- -c; stat -c "%s" "$g"' \
   'date -- -d; date -d tomorrow')")"
@@ -2130,7 +1659,6 @@ else
 fi
 rm -f "$f"
 
-# --- a real option before a -- is unambiguously an option.
 f="$(tmpsh "stat -c '%s' -- \"\$g\"")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a real -c before -- should still fail, got success: $out"
@@ -2139,11 +1667,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...even when a flag-shaped OPERAND after the marker pulls the greedy
-# match through it: the demotion discards the demoted word alone, and the
-# real option before the marker is still evaluated by the resumed match.
-# Blanking the whole extent silenced it -- the lint passed a live GNU-only
-# option because a same-named operand followed the `--`.
 for line in \
   'grep -P pattern -- -P' \
   'sort -V -- -V' \
@@ -2158,9 +1681,6 @@ for line in \
   rm -f "$f"
 done
 
-# --- an invocation wrapper still reaches the real BSD utility, so a ladder
-# through one is a genuine fallback. `command` is POSIX-specified; `env` and a
-# leading backslash reach the same utility.
 f="$(tmpsh "$(printf '%s\n' \
   'stat -c "%s" "$f" || command stat -f "%z" "$f"' \
   'stat -c "%s" "$f" || env stat -f "%z" "$f"')")"
@@ -2171,9 +1691,6 @@ else
 fi
 rm -f "$f"
 
-# --- the guard binds to the matched invocation, not to the line. The FIRST
-# call here is unconditional and must flag even though a guarded ladder for a
-# different operand follows it on the same line.
 f="$(tmpsh "stat -c '%s' \"\$a\"; stat -c '%s' \"\$b\" || stat -f '%z' \"\$b\"")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "an unguarded first call should fail, got success: $out"
@@ -2182,7 +1699,6 @@ else
 fi
 rm -f "$f"
 
-# --- the readlink/realpath ladder runs the other direction and must survive.
 f="$(tmpsh 'realpath "$1" 2>/dev/null || readlink -f "$1"')"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "the realpath || readlink -f ladder is still auto-guarded after segmentation"
@@ -2191,8 +1707,6 @@ else
 fi
 rm -f "$f"
 
-# --- a separator inside quotes is a filename character, not a control
-# operator, so the gap must not stop there and lose the option after it.
 f="$(tmpsh "$(printf '%s\n' \
   "stat 'name;part' -c '%s'" \
   "date 'a;b' -d @0")")"
@@ -2205,8 +1719,6 @@ else
 fi
 rm -f "$f"
 
-# --- a quoted command word is still that command. The mktemp tokens already
-# admitted a closing quote; date and stat did not, so these were all missed.
 f="$(tmpsh "$(printf '%s\n' \
   '"date" -d tomorrow' \
   '"date" --date=now' \
@@ -2221,8 +1733,6 @@ else
 fi
 rm -f "$f"
 
-# --- segmentation must not disturb the classes that legitimately live INSIDE
-# string literals: matching runs on the original text, never on the mask.
 f="$(tmpsh "$(printf '%s\n' \
   "grep -E '\\\\bword' file" \
   'sort -V list')")"
@@ -2235,17 +1745,6 @@ else
 fi
 rm -f "$f"
 
-# =============================================================================
-# Offset-anchored matching -- #1544
-#
-# The fallback guard has to apply to ONE invocation, not to the physical line:
-# a `||` further along must not excuse a call that cannot reach it. The guard
-# is anchored at the offset the construct matched, so SEG's existing separator
-# exclusions do the binding.
-# =============================================================================
-
-# --- an outer command `--` never suppresses a nested invocation: line-wide
-# `--` honoring would fail OPEN here.
 f="$(tmpsh 'printf -- "%s\n" "$(stat -c "%s" "$g")"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a nested stat -c under an outer -- should fail, got success: $out"
@@ -2254,8 +1753,6 @@ else
 fi
 rm -f "$f"
 
-# --- a trailing command inside the substitution takes over its exit status,
-# so the outer || is not the GNU call fallback.
 f="$(tmpsh 'x=$(stat -c "%s" "$g"; true) || stat -f "%z" "$g"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a substitution whose status comes from a later command should fail, got success: $out"
@@ -2264,8 +1761,6 @@ else
 fi
 rm -f "$f"
 
-# --- ... while the genuine substitution ladder, whose status IS the GNU call,
-# stays guarded in both the modern and the legacy backquote spelling.
 f="$(tmpsh 'x=$(stat -c "%s" "$g") || y=$(stat -f "%z" "$g")')"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "the substitution-wrapped stat ladder is still auto-guarded"
@@ -2282,8 +1777,6 @@ else
 fi
 rm -f "$f"
 
-# --- a closing backquote ends the command inside it, so a later command
-# option is not attributed to date/stat.
 f="$(tmpsh "$(printf '%s\n' \
   'stamp=`date +%s` test -d "$dir"' \
   'meta=`stat "$file"` tool -c x')")"
@@ -2294,8 +1787,6 @@ else
 fi
 rm -f "$f"
 
-# --- bash &>/&>> redirect both streams; the & is not a control operator, so
-# the ladder after it is still a ladder.
 f="$(tmpsh "$(printf '%s\n' \
   'stat -c "%s" "$g" &>/dev/null || stat -f "%z" "$g"' \
   'stat -c "%s" "$g" &>>log || stat -f "%z" "$g"')")"
@@ -2306,8 +1797,6 @@ else
 fi
 rm -f "$f"
 
-# --- ... but a real backgrounding & still hands the || to the next command,
-# so the backgrounded GNU call has no fallback.
 f="$(tmpsh 'stat -c "%s" "$g" & true || stat -f "%z" "$g"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a backgrounded GNU call should fail, got success: $out"
@@ -2316,7 +1805,6 @@ else
 fi
 rm -f "$f"
 
-# --- the guard reads a real -f as a real fallback...
 f="$(tmpsh 'stat -c "%s" "$g" || stat -f "%z" "$g"')"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "a real BSD -f counterpart is recognized as the fallback"
@@ -2325,12 +1813,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...and everything the guard reads in order to SUPPRESS a report is a
-# trusted input (#1562), so a fallback whose `-f` BSD getopt would never parse
-# as an option is rejected. FreeBSD/macOS stat(1): option parsing stops at the
-# first operand, `--` ends it explicitly, and `-f`/`-t` take an argument.
-# Every shape below would read as a guarded ladder and fail OPEN -- the
-# GNU-only call would ship with a "fallback" that runs no BSD stat at all.
 for line in \
   'stat -c "%s" "$g" || stat -- -f' \
   'stat -c "%s" "$g" || stat "--" -f' \
@@ -2348,10 +1830,6 @@ for line in \
   rm -f "$f"
 done
 
-# --- while every fallback spelling BSD getopt genuinely parses stays a real
-# ladder: a no-argument cluster letter before `f`, an attached format
-# argument, and a redirection between the command name and its option are all
-# the documented BSD invocation.
 for line in \
   'stat -c "%s" "$g" || stat -Lf "%z" "$g"' \
   'stat -c "%s" "$g" || stat -f%z "$g"' \
@@ -2366,10 +1844,6 @@ for line in \
   rm -f "$f"
 done
 
-# --- a detached `-t`/`-f` consumes the NEXT word as its argument, in both
-# directions: its argument is not an operand that ends option parsing
-# (above), and a `-f` sitting in the argument slot is timefmt content, not
-# the option the ladder needs.
 f="$(tmpsh 'stat -c "%s" "$g" || stat -t -f "%z" "$g"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a -f consumed by a detached -t must be rejected, got success: $out"
@@ -2378,20 +1852,6 @@ else
 fi
 rm -f "$f"
 
-# =============================================================================
-# Word structure the physical line hides -- #1544
-#
-# Three shapes where the run of characters the token gaps walk is not the run
-# the SHELL reads: an operand that is a whole command substitution, a separator
-# living inside a parameter expansion, and a command split across a
-# backslash-newline. Each let a real GNU-only option go unreported. A fourth is
-# the option WORD itself carrying quotes, which quote removal strips before the
-# utility ever sees argv.
-# =============================================================================
-
-# --- an option after a command-substitution OPERAND still belongs to the
-# command that owns it: GNU stat and date both accept options after operands,
-# and the token gap stopped at the `(` before reaching the flag.
 f="$(tmpsh "$(printf '%s\n' \
   'stat "$(get_file)" -c %s' \
   'date "$(get_when)" -d tomorrow' \
@@ -2405,9 +1865,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...while a ladder whose BSD side lives INSIDE a substitution is still a
-# real fallback. The collapsed view cannot see it, so the guard must keep
-# reading the uncollapsed line.
 f="$(tmpsh "$(printf '%s\n' \
   'stat -c %s "$f" || x=$(stat -f %z "$f")' \
   'x=$(stat -c %s "$f") || x=$(stat -f %z "$f")')")"
@@ -2418,8 +1875,6 @@ else
 fi
 rm -f "$f"
 
-# --- a separator inside an unquoted PARAMETER EXPANSION is data, not a control
-# operator, so it must not cut the command short of its own option.
 f="$(tmpsh "$(printf '%s\n' \
   'stat ${file:-name;part} -c %s' \
   'date ${when:-a;b} -d tomorrow')")"
@@ -2432,7 +1887,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...without swallowing a REAL separator that merely follows an expansion.
 f="$(tmpsh "$(printf '%s\n' \
   'stat "${file}"; tool -c x' \
   'date "${when}"; test -d "$dir"')")"
@@ -2443,7 +1897,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...and a substitution nested INSIDE an expansion is still command text.
 f="$(tmpsh 'x="${y:-$(stat -c %s "$f")}"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a stat -c inside an expansion default should fail, got success: $out"
@@ -2452,10 +1905,6 @@ else
 fi
 rm -f "$f"
 
-# --- quote removal hands the utility its documented option, so a QUOTED option
-# word is the same GNU-only call. The negatives that keep a `-c`/`-d` from
-# being read out of an operand (`stat "$file-c"`, `date --debug`) are asserted
-# above and unchanged.
 f="$(tmpsh "$(printf '%s\n' \
   'date "-d" tomorrow +%s' \
   'date -"d" tomorrow +%s' \
@@ -2470,9 +1919,6 @@ else
 fi
 rm -f "$f"
 
-# --- ...and the auto-guard reads a quoted flag as the same option, on BOTH
-# sides of the ladder. Admitting the quoted spelling in the token without
-# admitting it here reported every quoted-flag ladder as unguarded.
 f="$(tmpsh "$(printf '%s\n' \
   'stat "-c" %s "$f" || stat -f %z "$f"' \
   'stat -"c" %s "$f" || stat -f %z "$f"' \
@@ -2485,10 +1931,6 @@ else
 fi
 rm -f "$f"
 
-# --- a backslash-continued invocation is ONE command: the shell removes
-# `\<newline>` before tokenizing, so the option on the continuation line is the
-# command's own. Reported at the FIRST physical line, which is what keeps a
-# continuation from shifting the numbering of everything after it.
 f="$(tmpsh "$(printf '%s\n' \
   "date \\" \
   '  -d tomorrow +%s' \
@@ -2507,8 +1949,6 @@ else
 fi
 rm -f "$f"
 
-# --- a file whose LAST line ends in a continuation still has one command left
-# to report -- the buffer has to be flushed, not dropped.
 f="$(tmpsh "$(printf '%s\n' \
   "date \\" \
   "  -d @0 \\")")"
@@ -2521,8 +1961,6 @@ else
 fi
 rm -f "$f"
 
-# --- a COMMENT never continues: `#` runs to the newline, so a trailing
-# backslash there must not swallow the command below it into the comment.
 f="$(tmpsh "$(printf '%s\n' \
   "# explains date -d below \\" \
   'date -d tomorrow +%s')")"
@@ -2536,8 +1974,6 @@ else
 fi
 rm -f "$f"
 
-# --- an ESCAPED backslash at end of line quotes the backslash, not the
-# newline, so the next line is its own command.
 f="$(tmpsh "$(printf '%s\n' \
   "printf '%s' a\\\\" \
   'date -d @0')")"
@@ -2551,8 +1987,7 @@ else
 fi
 rm -f "$f"
 
-# --- a `portability-ok:` marker anywhere in the joined command excuses it: the
-# annotation belongs to the logical line, not to one physical fragment.
+# --- a `portability-ok:` marker anywhere in the joined command excuses it
 f="$(tmpsh "$(printf '%s\n' \
   "date \\" \
   '  -d @0 # portability-ok: dual-dialect helper')")"
@@ -2563,9 +1998,6 @@ else
 fi
 rm -f "$f"
 
-# --- an INLINE comment ends the shell code on its line, so a trailing backslash
-# there is comment text and joins nothing. Joining let the comment's own
-# annotation excuse the standalone GNU-only command below it.
 f="$(tmpsh "$(printf '%s\n' \
   "echo ok # portability-ok: unrelated \\" \
   'date -d tomorrow +%s')")"
@@ -2579,7 +2011,6 @@ else
 fi
 rm -f "$f"
 
-# --- a fallback that is commented out never runs, so it cannot be the guard.
 f="$(tmpsh 'stat -c "%s" "$f" # || stat -f "%z" "$f"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a commented-out stat -f fallback should fail, got success: $out"
@@ -2588,9 +2019,6 @@ else
 fi
 rm -f "$f"
 
-# --- masking a comment decides STRUCTURE only. Construct matching still runs on
-# the original text, so a construct named in an inline comment keeps reporting —
-# the documented over-flag, with `portability-ok:` as the escape.
 f="$(tmpsh 'echo ok # see date -d tomorrow')"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   fail "an inline comment naming date -d must still report"
@@ -2599,9 +2027,6 @@ else
 fi
 rm -f "$f"
 
-# --- a `!` outside a substitution or subshell still negates the command inside
-# it: the frame is one WORD of the negated pipeline, so on BSD the failing GNU
-# call is inverted to success and the `||` fallback never runs.
 f="$(tmpsh "$(printf '%s\n' \
   '! x=$(stat -c "%s" "$f") || stat -f "%z" "$f"' \
   '! x=`stat -c "%s" "$f"` || stat -f "%z" "$f"' \
@@ -2615,8 +2040,6 @@ else
 fi
 rm -f "$f"
 
-# --- and the negation INSIDE the frame, which the boundary rule already caught,
-# must keep flagging: it inverts the same status just one level down.
 f="$(tmpsh 'x=$(! stat -c "%s" "$f") || stat -f "%z" "$f"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a negation inside the substitution should fail, got success: $out"
@@ -2625,8 +2048,6 @@ else
 fi
 rm -f "$f"
 
-# --- a `!` that is a TEST operator rather than pipeline negation must not cost
-# a genuine ladder its guard.
 f="$(tmpsh '[[ ! -f "$x" ]] && stat -c "%s" "$f" || stat -f "%z" "$f"')"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "a ! inside a test does not read as pipeline negation"
@@ -2635,9 +2056,6 @@ else
 fi
 rm -f "$f"
 
-# --- a redirection may be ATTACHED to the command word, and a simple command
-# carries a redirection anywhere, so the option still reaches the utility. The
-# whitespace-after-the-name anchor alone let all three spellings through.
 f="$(tmpsh "$(printf '%s\n' \
   'date>/dev/null -d tomorrow' \
   'stat</dev/null -c %s "$f"' \
@@ -2651,8 +2069,6 @@ else
 fi
 rm -f "$f"
 
-# --- and the anchor still does the job it was added for: these are operands and
-# substrings, not options.
 f="$(tmpsh "$(printf '%s\n' \
   'git -c alias.x=status -c core.pager=cat log' \
   '[[ -d "$candidate" ]]' \
@@ -2666,8 +2082,6 @@ else
 fi
 rm -f "$f"
 
-# --- a subshell or brace group after the `||` executes the BSD fallback as its
-# first command, so it is a real ladder rather than a forced exemption.
 f="$(tmpsh "$(printf '%s\n' \
   "stat -c '%s' \"\$f\" || (stat -f '%z' \"\$f\")" \
   "stat -c '%s' \"\$f\" || { stat -f '%z' \"\$f\"; }")")"
@@ -2678,9 +2092,6 @@ else
 fi
 rm -f "$f"
 
-# --- a substitution frame hands the `||` the status of the call inside it only
-# when the frame is what the command position runs. Used as an ARGUMENT the
-# enclosing command decides, so the fallback never fires on the failing dialect.
 f="$(tmpsh "echo \"\$(stat -c '%s' \"\$f\")\" || stat -f '%z' \"\$f\"")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a substitution used as an argument should not guard, got success: $out"
@@ -2689,8 +2100,6 @@ else
 fi
 rm -f "$f"
 
-# --- and the assignment shapes real code uses, where the status IS the call, keep
-# their guard — including with a redirection inside the frame.
 f="$(tmpsh "$(printf '%s\n' \
   'x=$(stat -c "%s" "$f") || y=$(stat -f "%z" "$f")' \
   'x=$(stat -c "%s" "$1" 2>&1) || y=$(stat -f "%z" "$1")' \
@@ -2702,9 +2111,6 @@ else
 fi
 rm -f "$f"
 
-# --- `{` is a RESERVED WORD and opens a group only when a blank follows it, so
-# `|| {stat -f …` names a command `{stat` and runs no fallback at all. `(` is an
-# operator and needs no blank, so it keeps none.
 f="$(tmpsh "stat -c '%s' \"\$f\" || {stat -f '%z' \"\$f\"")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a brace with no following blank is not a group, got success: $out"
@@ -2713,8 +2119,6 @@ else
 fi
 rm -f "$f"
 
-# --- a simple command may carry a redirection before its NAME, and that does
-# not change which command a `!` negates or a `||` runs.
 f="$(tmpsh '! 2>/dev/null stat -c "%s" "$f" || stat -f "%z" "$f"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a negation behind a prefix redirection should fail, got success: $out"
@@ -2730,8 +2134,6 @@ else
 fi
 rm -f "$f"
 
-# --- the word after `:-` is an ordinary word, so a `}` inside quotes there is
-# data and must not end the expansion early.
 f="$(tmpsh 'stat ${f:-"};part"} -c %s')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a quoted brace inside an expansion should not hide the option, got success: $out"
@@ -2747,9 +2149,6 @@ else
 fi
 rm -f "$f"
 
-# --- `)` is a control operator, so a `#` straight after one opens a comment and
-# what follows is not shell code — including a `||` that would otherwise read as
-# a fallback ladder.
 f="$(tmpsh "(stat -c '%s' \"\$f\")# || stat -f '%z' \"\$f\"")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a comment after ) should not leave the || structural, got success: $out"
@@ -2758,11 +2157,6 @@ else
 fi
 rm -f "$f"
 
-# --- admitting a group opener must not weaken what the guard demands INSIDE it:
-# the fallback still has to be the command the group runs first, not merely a
-# string it prints. `|| ( true; stat -f ... )` stays flagged too — reaching a
-# fallback across a `;` is the line-wide behavior the per-occurrence anchoring
-# replaced, and widening it back is not worth a contrived spelling.
 f="$(tmpsh "$(printf '%s\n' \
   "stat -c '%s' \"\$f\" || { echo 'stat -f is unavailable'; }" \
   "stat -c '%s' \"\$f\" || ( true; stat -f '%z' \"\$f\" )")")"
@@ -2775,9 +2169,6 @@ else
 fi
 rm -f "$f"
 
-# --- an ARITHMETIC EXPANSION nested in a parameter expansion must not leave the
-# frame stack unbalanced: `$((` was read as a `$(` plus a stray `(`, the first
-# `)` popped the substitution, and everything after was blanked.
 f="$(tmpsh 'stat ${x:-$((1 | 2))} -c %s')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a nested arithmetic expansion should not hide the option, got success: $out"
@@ -2792,7 +2183,6 @@ else
   ok "an arithmetic expansion in an operand still leaves the option visible"
 fi
 rm -f "$f"
-# an inner group must not close the arithmetic expansion early
 f="$(tmpsh 'stat "$(( ((1)) + 2 ))" -c %s')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a nested paren group must not close the expansion early, got success: $out"
@@ -2801,9 +2191,6 @@ else
 fi
 rm -f "$f"
 
-# --- for an assignment-only command the status is the LAST substitution's, so a
-# sibling frame BESIDE the matched one takes ownership and the `||` never sees
-# the GNU call fail.
 f="$(tmpsh "x=\$(stat -c '%s' \"\$f\") y=\$(true) || stat -f '%z' \"\$f\"")"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a later sibling substitution owns the status, so this is no ladder: $out"
@@ -2811,7 +2198,6 @@ else
   ok "a later substitution BESIDE the matched frame breaks the ladder"
 fi
 rm -f "$f"
-# the same shape with no sibling frame is still a real ladder
 f="$(tmpsh "x=\$(stat -c '%s' \"\$f\") y=1 || stat -f '%z' \"\$f\"")"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "a plain assignment beside the frame leaves the ladder intact"
@@ -2819,7 +2205,6 @@ else
   fail "a non-substitution assignment must not break the ladder: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
 fi
 rm -f "$f"
-# a frame nested INSIDE the matched one is not a sibling
 f="$(tmpsh "x=\$(stat -c \"\$(fmt)\" \"\$f\") || stat -f '%z' \"\$f\"")"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "a frame nested inside the matched one does not take the status"
@@ -2828,8 +2213,6 @@ else
 fi
 rm -f "$f"
 
-# --- shell quote removal splices a quoted run out of the command WORD, so
-# `d"a"te`/`st"a"t` invoke the same GNU utilities and must not read clean.
 f="$(tmpsh 'd"a"te -d tomorrow')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a quote-spliced date command word should fail, got success: $out"
@@ -2844,8 +2227,6 @@ else
   ok "a quote-spliced stat command word is detected"
 fi
 rm -f "$f"
-# shell quote removal splices sed the same way (#2091): `"sed" -i` and `s"e"d
-# -ni` invoke GNU sed with no backup suffix and must not read clean.
 f="$(tmpsh "$(printf '%s\n' \
   '"sed" -i '\''s/x/y/'\'' file' \
   's"e"d -ni p file')")"
@@ -2864,8 +2245,6 @@ else
   ok "a quoted sed command word with --in-place is detected"
 fi
 rm -f "$f"
-# the guard must recognize the spliced spelling on BOTH rungs, or a real ladder
-# would newly report
 f="$(tmpsh "st\"a\"t -c '%s' \"\$f\" || st\"a\"t -f '%z' \"\$f\"")"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "a quote-spliced BSD fallback still reads as a real ladder"
@@ -2873,7 +2252,6 @@ else
   fail "the guard must see the spliced fallback: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
 fi
 rm -f "$f"
-# the interleaving must not reach across a word boundary or into a longer name
 f="$(tmpsh "$(printf '%s\n' \
   'printf "%s" "d" "a" "te -d x"' \
   'git -c alias.x=status -c core.x=1 diff' \
@@ -2884,7 +2262,6 @@ else
   fail "the spliced-name spelling over-reached: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
 fi
 rm -f "$f"
-# a quoted sed suffix inside a longer shell word is not a sed command (#2091).
 f="$(tmpsh "$(printf '%s\n' \
   'x"sed" -i value' \
   'u"sed" --in-place x')")"
@@ -2895,8 +2272,6 @@ else
 fi
 rm -f "$f"
 
-# --- a QUOTED WORD spanning physical lines is one command, so its option must
-# still be reached; the newline is data inside the quotes, not a separator.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat %s\nbar%s -c %%s\n' "'foo" "'" >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
@@ -2908,9 +2283,6 @@ else
 fi
 rm -f "$f"
 
-# --- a joined record is attributed per PHYSICAL line: the hit reports at its
-# own line, and an annotation excuses only the line carrying it. Without that,
-# one annotation anywhere inside a joined block would exempt all of it.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'x=%sopen\nstat -c %%s "$f"\ndate -d @0 +%%s # portability-ok: fixture\nclose%s\n' "'" "'" >"$f"
 out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
@@ -2922,8 +2294,6 @@ else
 fi
 rm -f "$f"
 
-# --- a HEREDOC body is data: a stray backquote or apostrophe in it must not
-# open a frame that swallows the lines after the heredoc ends.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'cat >/dev/null <<%sEOF%s\n"CustomRule%sPath" = %s./x%s\nEOF\ngrep -q %sneedle%s "$f"\nprintf "%%s" "x -Path y"\n' \
   "'" "'" '`' "'" "'" "'" "'" >"$f"
@@ -2934,8 +2304,6 @@ else
 fi
 rm -f "$f"
 
-# --- a heredoc body is still SCANNED: this corpus writes real scripts through
-# heredocs, and the gate deliberately matches inside literal text.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'cat >/tmp/gen.sh <<%sEOF%s\nstat -c %%s "$f"\nEOF\n' "'" "'" >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
@@ -2945,8 +2313,6 @@ else
 fi
 rm -f "$f"
 
-# --- a `#` opening a physical line inside a joined record is a real comment, so
-# a commented-out fallback there cannot excuse a hit above it.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'x=$(stat -c %%s "$f"\n# || stat -f %%z "$f"\n)\n' >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
@@ -2955,12 +2321,6 @@ else
   ok "a # opening a joined physical line still starts a comment"
 fi
 rm -f "$f"
-# --- registered cross-plugin sync copies are exempt (their dedicated drift
-# gate owns byte-identity with the in-repo source; the source itself stays
-# scannable, so a lib change is still gated exactly once — at the pressure
-# point where a fix or annotation can propagate to every copy). The script
-# pins cwd to its own repo root, so the sandbox gets its own copy of the
-# script plus a one-line registry, exercising --all against a synthetic tree --
 TOK="$(one_token_list 'grep[[:space:]]+-P')"
 fixture_tree::build TREE --sut "$SCRIPT"
 mkdir -p "$TREE/plugins/demo/hooks"
@@ -2977,11 +2337,6 @@ fi
 rm -rf "$TREE"
 rm -f "$TOK"
 
-# --- a registry entry is matched LITERALLY, never as a glob. The comparison
-# sits inside `[[ ]]`, where an unquoted RHS would be a pattern and a stray
-# `hooks/*.sh` entry would silently exempt every hook script from the
-# portability scan — a gate widening itself by a typo. The RHS is quoted, so
-# the entry matches only its own literal path; this pins that. ---
 TOK="$(one_token_list 'grep[[:space:]]+-P')"
 fixture_tree::build TREE --sut "$SCRIPT"
 mkdir -p "$TREE/plugins/demo/hooks"
@@ -2997,10 +2352,6 @@ fi
 rm -rf "$TREE"
 rm -f "$TOK"
 
-# --- a TOKEN LIST whose relative path is shaped like an awk variable assignment
-# must still be opened as a file. Parsed as `tokens = "custom.txt"` instead, the
-# loading pass never runs, no class is active, every file reports clean and awk
-# still exits 0 — a silent fail-open in the gate itself.
 fixture_tree::build TREE --label shell-portability-tree
 printf 'grep[[:space:]]+-P\n' >"$TREE/tokens=custom.txt"
 f="$(tmpsh 'grep -P x')"
@@ -3015,8 +2366,6 @@ fi
 rm -rf "$TREE"
 rm -f "$f"
 
-# --- and if a token list somehow loads no active pattern at all, the run fails
-# CLOSED rather than reporting a corpus it never checked as clean.
 TOK="$(mktemp "$TMP_ROOT/f.XXXXXX")"
 printf '# only a comment, no active pattern\n' >"$TOK"
 f="$(tmpsh 'grep -P x')"
@@ -3029,19 +2378,6 @@ else
 fi
 rm -f "$TOK" "$f"
 
-# =============================================================================
-# The scanner engine as a file -- scripts/lib/shell-portability-scan.awk.
-# Everything above drives it THROUGH the gate, which is where its behavior is
-# pinned. These three cases address the program itself: that it compiles, that
-# its two-operand interface is the whole interface, and that the gate refuses
-# to run without it.
-# =============================================================================
-
-# --- the program COMPILES. awk parses a `-f` program in full before executing
-# any of it, so reaching END is proof the whole file parsed: a syntax error
-# anywhere aborts with awk's own diagnostic and never runs a rule. Driven with
-# /dev/null as the only operand, the loading pass reads nothing and END takes
-# the empty-pattern-set branch, which is the observable that says END ran. ---
 out="$(awk -f "$SCAN_AWK" /dev/null 2>&1)"
 rc=$?
 if [[ $rc -eq 2 && "$out" == *"no active patterns"* ]]; then
@@ -3050,10 +2386,6 @@ else
   fail "scanner program did not compile or did not reach END: rc=$rc out=$out"
 fi
 
-# --- the program is addressable on its OWN two operands: token list, then the
-# file to scan. Its stdout contract is `LINE: token -> text`; the
-# `PORTABILITY: <file>:` prefix belongs to the gate, which is what makes this a
-# different assertion from every one above rather than the same one twice. ---
 tok="$(one_token_list 'grep[[:space:]]+-P')"
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'echo first\ngrep -P x\n' >"$f"
@@ -3066,9 +2398,6 @@ else
 fi
 rm -f "$tok" "$f"
 
-# --- and the gate FAILS CLOSED when the program is not there. Reported here,
-# naming the path, rather than as a bare non-zero awk status once per scanned
-# file: a scanner that cannot run is never a clean corpus. ---
 fixture_tree::build TREE --sut "$SCRIPT"
 rm -f "$TREE/scripts/lib/shell-portability-scan.awk"
 f="$(tmpsh 'grep -P x')"
@@ -3082,14 +2411,6 @@ fi
 rm -rf "$TREE"
 rm -f "$f"
 
-# =============================================================================
-# Shell spellings the token classes must not let past -- #1544. All reach the
-# same GNU utility with the same GNU-only option after the shell is done with
-# them.
-# =============================================================================
-
-# --- `&>` / `&>>` after the command name are redirections, not separators the
-# gate can ignore.
 f="$(tmpsh "$(printf '%s\n' \
   'date&>/dev/null -d tomorrow' \
   'stat&>>log -c %s "$f"')")"
@@ -3102,8 +2423,6 @@ else
 fi
 rm -f "$f"
 
-# --- BACKSLASH quoting splices a word exactly as a quote pair does, in the
-# command word and in the option cluster alike.
 f="$(tmpsh "$(printf '%s\n' \
   'da\te -d tomorrow' \
   'date -\d tomorrow')")"
@@ -3129,8 +2448,6 @@ else
 fi
 rm -f "$f"
 
-# --- a raw SUBSHELL inside a substitution needs its own frame, or its closing
-# paren pops the substitution and everything after is masked as data.
 f="$(tmpsh 'x="$( (true); stat -c %s "$f"; true)" || stat -f %z "$f"')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a trailing true owns the status, so this is no ladder: $out"
@@ -3138,7 +2455,6 @@ else
   ok "a raw subshell inside a substitution does not pop the enclosing frame"
 fi
 rm -f "$f"
-# a `)` with no frame open is a case pattern terminator, not a close
 f="$(tmpsh 'case "$x" in foo) stat -c %s "$f" ;; esac')"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
   fail "a case pattern terminator must not swallow the option, got success: $out"
@@ -3147,9 +2463,6 @@ else
 fi
 rm -f "$f"
 
-# --- a structural NEWLINE ends a command inside a substitution, so the gap
-# between a matched call and a `||` must stop at one. Reachable only since
-# records join on an unterminated quote.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'x=$(stat -c %%s "$f"\ntrue) || stat -f %%z "$f"\n' >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
@@ -3159,8 +2472,6 @@ else
 fi
 rm -f "$f"
 
-# --- a redirection OPERAND may be a separate word, so a spaced prefix
-# redirection still leaves a real fallback ladder.
 f="$(tmpsh "stat -c '%s' \"\$f\" || 2> /dev/null stat -f '%z' \"\$f\"")"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
   ok "a spaced redirection operand keeps the fallback a real ladder"
@@ -3169,9 +2480,6 @@ else
 fi
 rm -f "$f"
 
-# --- a `portability-scope:` line inside a HEREDOC BODY is generated data, not
-# this file declaring anything about itself, and must not exempt the file. A
-# grep pre-pass honored it wherever the characters appeared.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'cat >/tmp/gen.sh <<%sEOF%s\n# portability-scope: generated fixture\nEOF\nstat -c %%s "$f"\n' \
   "'" "'" >"$f"
@@ -3181,7 +2489,6 @@ else
   ok "a portability-scope line inside a heredoc body exempts nothing"
 fi
 rm -f "$f"
-# a real declaration still exempts the whole file, wherever in it it sits
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat -c %%s "$f"\n# portability-scope: this file is a fixture corpus\n' >"$f"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
@@ -3191,8 +2498,6 @@ else
 fi
 rm -f "$f"
 
-# --- ANSI-C (`$'…'`) and locale (`$"…"`) quoting splice a word exactly as an
-# ordinary quote or a backslash does, in the command word and the option alike.
 f="$(tmpsh "$(printf '%s\n' \
   "d\$'a'te -d tomorrow" \
   "date -\$'d' tomorrow" \
@@ -3208,8 +2513,6 @@ else
 fi
 rm -f "$f"
 
-# --- a BARE `$` is a variable expansion, not quote removal, so it must not act
-# as a quote-run character. Admitting one would flag ordinary parameterized code.
 f="$(tmpsh "$(printf '%s\n' \
   'validate -d $config' \
   'd$a$t$e -d tomorrow')")"
@@ -3220,9 +2523,6 @@ else
 fi
 rm -f "$f"
 
-# --- a scope marker only counts where the shell reads it as a COMMENT. Inside a
-# multiline quoted value, or any other construct left open by an earlier line,
-# the same characters are data and must exempt nothing.
 for opener in "x='foo" 'y="foo' 'z=$(echo foo'; do
   case "$opener" in
   "x='foo") closer="bar'" ;;
@@ -3239,8 +2539,6 @@ for opener in "x='foo" 'y="foo' 'z=$(echo foo'; do
   rm -f "$f"
 done
 
-# --- and a genuine declaration still grants whole-file scope from either side
-# of the hit, indented or not.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf '%s\n' 'date -d tomorrow' '  # portability-scope: this file is a fixture corpus' >"$f"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
@@ -3250,27 +2548,6 @@ else
 fi
 rm -f "$f"
 
-# =============================================================================
-# The RESUMABLE walk's COMMIT BOUNDARY (#3481). mask_quotes() walks a joined
-# record ONCE: every decision far enough behind the end of the record that no
-# later physical line can change it is committed, the walk state at that point
-# is held, and only the short tail is re-decided next time round. Every other
-# joined fixture in this suite decides the same way whether that walk resumes
-# or restarts, which is exactly why none of them notices when the boundary is
-# drawn one column wrong or the state held at it is not the WHOLE state. The
-# cases below are written to notice: each one is a fixture whose verdict flips
-# when one specific piece of that boundary is broken.
-# =============================================================================
-
-# --- the boundary has to allow for a record that SHRINKS, not only one that
-# grows. The record loop deletes a trailing backslash once it turns out to be a
-# continuation, so a decision committed two columns back had already read a
-# character the record no longer has. `$` `(` `\` in the last three columns is
-# the only shape with the reach to do it: the `$((` test fails on the
-# backslash, the shorter `$(` gets committed, and the `(` that arrives on the
-# next physical line can no longer promote it. POSIX removes `\<newline>`
-# during tokenization (2.2.1), so this spelling IS `$((` and the ladder is
-# guarded; committing the shorter reading reported it as an unguarded call.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat -c %%s $(\\\n(1 | 2)) || stat -f %%z f\n' >"$f"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
@@ -3279,8 +2556,6 @@ else
   fail "a continuation inside \$(( broke a real ladder: $(scan_paths "$REAL_TOKENS" "$f" 2>&1)"
 fi
 rm -f "$f"
-# ...and the same command written on ONE line is the control: the shell sees
-# the same tokens either way, so the gate must too.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat -c %%s $((1 | 2)) || stat -f %%z f\n' >"$f"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
@@ -3290,12 +2565,6 @@ else
 fi
 rm -f "$f"
 
-# --- an INLINE COMMENT is sticky across a join. It masks the rest of the
-# record, text joined on afterwards included, so the walk that resumes on the
-# next physical line has to carry the comment flag over the boundary rather
-# than re-decide a `#` that now sits behind the commit point. Forgetting it
-# hands the `||` back its control-operator meaning and a commented-out fallback
-# starts excusing an unguarded call again.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'v=$(true  # note\nstat -c %%s "$f" || stat -f %%z "$f")\n' >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
@@ -3306,9 +2575,6 @@ else
   fail "expected the line-2 call reported, got: $out"
 fi
 rm -f "$f"
-# ...with the comment removed the identical second line IS live code, so the
-# same ladder is a real one. This is the control that pins the difference on
-# the comment rather than on the join.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'v=$(true\nstat -c %%s "$f" || stat -f %%z "$f")\n' >"$f"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
@@ -3318,13 +2584,6 @@ else
 fi
 rm -f "$f"
 
-# --- `${…}` EXTENTS survive the boundary. The walk records where every
-# expansion it closes began and ended, and the `&`-in-replacement class reads
-# those extents; an expansion that closed before the commit point is gone if
-# the count is not held, and the class then reports the next frame instead.
-# The frames here close at two different stack depths (the nested one on line 2
-# closes inside the one containing it), so a depth-keyed hold is exercised as
-# well as the count.
 tok="$(one_token_list '!subst-replacement-ampersand')"
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'a="${x//p/&} one\n${y//q/${z//r/&}} two"\n' >"$f"
@@ -3337,11 +2596,6 @@ else
 fi
 rm -f "$f" "$tok"
 
-# --- ARITHMETIC DEPTH survives it too. `$(( … ))` ends only at a `))` reached
-# at parenthesis depth zero, so an inner `( … )` left open at the end of a
-# physical line has to be remembered: forget it and the next line's first `))`
-# closes the expansion early, after which the `||` behind it reads as a control
-# operator and a fallback that the shell never reaches starts guarding the call.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat -c %%s "$f" $(( (1 +\n2)) || stat -f %%z "$f"\n' >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
@@ -3352,7 +2606,6 @@ else
   fail "expected the line-1 call reported, got: $out"
 fi
 rm -f "$f"
-# ...same text on one line, same verdict: the join is not what decides it.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat -c %%s "$f" $(( (1 + 2)) || stat -f %%z "$f"\n' >"$f"
 if scan_paths "$REAL_TOKENS" "$f" >/dev/null 2>&1; then
@@ -3361,9 +2614,6 @@ else
   ok "the same arithmetic expansion on one line reports the same call"
 fi
 rm -f "$f"
-# ...and the depth is held per FRAME, so the same shape one frame deeper (the
-# expansion nested inside a `$( )` rather than sitting at the top level) has to
-# survive the boundary on its own stack slot.
 f="$(mktemp --suffix=.sh "$TMP_ROOT/f.XXXXXX")"
 printf 'stat -c %%s "$f" $(printf %%s $(( (1 +\n2)) ) || stat -f %%z "$f"\n' >"$f"
 if out="$(scan_paths "$REAL_TOKENS" "$f" 2>&1)"; then
@@ -3383,10 +2633,6 @@ else
 fi
 rm -f "$f"
 
-# --- --awk-probe (#4143): the runtime half of the `awk -v` rule --------------
-# The mechanism cases run on two fake awks with distinct banners, so they hold on
-# any host. The fixture pair after them needs real gawk and mawk, the pair that
-# disagree on the escape.
 probe_dir="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 mkdir -p "$probe_dir/bin"
 printf '#!/usr/bin/env bash\n[[ "${1:-}" == --version ]] && { echo "fake-a 1"; exit 0; }\nexit 0\n' >"$probe_dir/bin/fake-a"
@@ -3442,9 +2688,6 @@ else
   ok "--awk-probe with no suite is a usage error"
 fi
 
-# The fixture pair: one suite hands the issue's regex through `-v`, the other
-# through ENVIRON[]. gawk drops the backslashes from the `-v` value and dies on
-# the unmatched paren; mawk keeps them.
 cat >"$probe_dir/awk-v-regex.test.sh" <<'EOF'
 prefix_re='\]\([^)]*$'
 got="$(printf 'see [doc](a/b' | awk -v prefix_re="$prefix_re" '{ print ($0 ~ prefix_re) ? "open" : "closed" }')"

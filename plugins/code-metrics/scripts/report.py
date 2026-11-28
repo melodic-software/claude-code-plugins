@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Assemble and render `code-metrics/v2` report documents (design thread T5).
+"""Assemble and render `code-metrics/v3` report documents (design thread T5).
 
 Four subcommands, all standard library:
 
@@ -13,9 +13,9 @@ Four subcommands, all standard library:
                      [--excluded <excluded.jsonl>] [--root <dir>]
       Print the report document: `run[]` is the coverage-of-this-run table,
       `measures[]` gains `over_reference`, `summary` counts, `unavailable[]`
-      lists every non-ok lane/measure, and `status` is complete, partial, or
+      lists every non-ok language/measure, and `status` is complete, partial, or
       empty. A value that was not measured is `null`, never zero. A `partial`
-      run row counts as measured, so a lane that skipped every file is
+      run row counts as measured, so a language that skipped every file is
       `partial`, not `empty`.
 
   report.py render [--document <path>] [--rollup-depth <n>] [< report.json]
@@ -26,7 +26,7 @@ Four subcommands, all standard library:
       `--document` names the file the caller persisted the whole document to,
       so the cap line and the summary can point at it. A duplication document
       (clone-group rows, or `skill` audit-duplication) lists groups largest
-      first, adds a `## Rollup` section with per-lane and per-directory tables
+      first, adds a `## Rollup` section with per-language and per-directory tables
       (directories to `--rollup-depth`, default 2), and summarizes as
       `Files with clones`; every other document renders as it always has.
 
@@ -43,7 +43,7 @@ Four subcommands, all standard library:
       Recompute `summary` from `measures[]` and print the document; for a
       skill that drops rows after assembly (a duplication registry moving
       clone groups into `excluded[]`). Clone-group rows (`instances[]`) add
-      `summary.duplicated_lines`, `summary.clone_groups`, `summary.by_lane`,
+      `summary.duplicated_lines`, `summary.clone_groups`, `summary.by_language`,
       and `summary.by_directory` (paths made relative to `--root`).
 
 Exit 0 on success, 2 on a usage error or unreadable input.
@@ -61,7 +61,7 @@ from typing import Any
 from pathglob import root_relative
 
 MIN_PYTHON = (3, 9)
-SCHEMA = "code-metrics/v2"
+SCHEMA = "code-metrics/v3"
 ROOT_KINDS = ("repository", "directory")
 RUN_STATUSES = ("ok", "partial", "unavailable", "not-applicable", "deferred")
 MAX_RENDERED_ROWS = 200
@@ -90,8 +90,8 @@ def _read_jsonl(path: str | None) -> list[dict[str, Any]]:
     return rows
 
 
-def _lane_measure(row: dict[str, Any]) -> str:
-    return f"{row.get('lane', '*')}/{row.get('measure', '*')}"
+def _language_measure(row: dict[str, Any]) -> str:
+    return f"{row.get('language', '*')}/{row.get('measure', '*')}"
 
 
 def _dig(config: dict[str, Any], dotted: str) -> Any:
@@ -133,7 +133,6 @@ def _over(threshold: dict[str, Any], value: Any) -> bool:
 
 
 def _ancestors(path: str) -> list[str]:
-    """`.` and every directory above the file, root first."""
     parts = path.split("/")[:-1]
     return ["."] + ["/".join(parts[: index + 1]) for index in range(len(parts))]
 
@@ -152,22 +151,15 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
     `duplicated_lines` (sum of `values.lines`, each group counted once) and
     `clone_groups`, and their instance files count toward `files`.
 
-    Clone-group rows also add `by_lane` (lane to `{groups, duplicated_lines}`)
+    Clone-group rows also add `by_language` (language to `{groups, duplicated_lines}`)
     and `by_directory` (the same shape for `.` and every ancestor directory of
     each group's first instance, made relative to `root`). A group counts once
     per ancestor, so a parent includes its children and the rows cannot be
-    summed, while `by_directory["."]` and the per-lane sum both restate the
+    summed, while `by_directory["."]` and the per-language sum both restate the
     totals."""
     files: set[str] = set()
-    by_lane: dict[str, dict[str, int]] = {}
+    by_language: dict[str, dict[str, int]] = {}
     by_directory: dict[str, dict[str, int]] = {}
-    # (file, name) -> the distinct start lines reported for it. A name is not an
-    # identity: one file can hold two `render` methods. A start line is not one
-    # either, because a collector that reports Halstead for a function need not
-    # report where it begins, and splitting on a missing line would count that
-    # function twice. So the rows for a name are grouped and the group counts as
-    # many functions as it has distinct known start lines, and as one when it
-    # has none.
     functions: dict[tuple[str, str], set[int]] = {}
     over_counts: dict[str, int] = {}
     duplicated_lines = 0
@@ -178,10 +170,6 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
         for replica in (row.get("replicas") or {}).get("files") or []:
             if replica:
                 files.add(replica)
-        # One function produces one row per collector that resolves for it
-        # (lizard's cyclomatic row and radon's halstead row for the same
-        # Python function), so a per-row count reports more functions than the
-        # scope holds. A row with no `function` is a file row and is not one.
         if row.get("function"):
             starts = functions.setdefault(
                 (row.get("file") or "", row["function"]), set()
@@ -200,7 +188,7 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
             for instance in instances:
                 if instance.get("file"):
                     files.add(instance["file"])
-            _tally(by_lane, str(row.get("lane") or "*"), counted)
+            _tally(by_language, str(row.get("language") or "*"), counted)
             first = root_relative(str(instances[0].get("file") or ""), root)
             for directory in _ancestors(first):
                 _tally(by_directory, directory, counted)
@@ -212,7 +200,7 @@ def summarize(measures: list[dict[str, Any]], root: str = "") -> dict[str, Any]:
     if clone_groups:
         summary["duplicated_lines"] = duplicated_lines
         summary["clone_groups"] = clone_groups
-        summary["by_lane"] = by_lane
+        summary["by_language"] = by_language
         summary["by_directory"] = by_directory
     return summary
 
@@ -245,7 +233,6 @@ def files_excluded_only(
 def _summary(
     measures: list[dict[str, Any]], excluded: list[dict[str, Any]], root: str = ""
 ) -> dict[str, Any]:
-    """`summarize`, plus `files_excluded_only` when that count is above zero."""
     summary = summarize(measures, root)
     count = files_excluded_only(measures, excluded)
     if count:
@@ -329,12 +316,10 @@ def anchor_document(doc: dict[str, Any], root: str, kind: str) -> dict[str, Any]
             row["reason"] = reason
     doc["root"] = {"kind": kind, "path": root_text}
     doc["scan_root"] = root_relative(os.getcwd(), root_text)
-    # A total exclusion leaves the duplication keys at zero on the previous
-    # summary only: a recomputation from the surviving rows omits them.
     previous = doc.get("summary") or {}
     measures = doc.get("measures") or []
     summary = _summary(measures, doc.get("excluded") or [])
-    for key in ("duplicated_lines", "clone_groups", "by_lane", "by_directory"):
+    for key in ("duplicated_lines", "clone_groups", "by_language", "by_directory"):
         if key in previous and key not in summary:
             summary[key] = previous[key]
     doc["summary"] = summary
@@ -362,13 +347,6 @@ def assemble(
             for threshold in threshold_entries
             if _over(threshold, values.get(threshold["value_key"]))
         ]
-    # A `not-applicable` row implies nothing to run (the measure does not
-    # exist for that lane), so it never withholds `complete`; `unavailable`,
-    # `deferred` and `partial` rows do, because something implied was not
-    # measured. `partial` still counts as having produced rows, so a run that
-    # measured part of a lane reads as `partial` rather than as `empty`, even
-    # when it skipped every file and has no row to show: the skip is stated in
-    # the run row, and "Measured nothing" would contradict it.
     ok_rows = [row for row in run if row.get("status") in ("ok", "partial")]
     partial_rows = [row for row in run if row.get("status") == "partial"]
     settled = [row for row in run if row.get("status") in ("ok", "not-applicable")]
@@ -392,7 +370,7 @@ def assemble(
         "summary": _summary(measures, excluded, root),
         "excluded": excluded,
         "unavailable": [
-            _lane_measure(row) for row in run if row.get("status") == "unavailable"
+            _language_measure(row) for row in run if row.get("status") == "unavailable"
         ],
     }
 
@@ -400,12 +378,6 @@ def assemble(
 def _primary_threshold(
     thresholds_: list[dict[str, Any]], keys: list[str]
 ) -> dict[str, Any] | None:
-    """The threshold whose value orders the rows that are not over any
-    reference: the first one whose `value_key` the rows carry, so a size
-    report lists the longest files first, and a document whose rows carry
-    none of them (clone groups) keeps its file order. A table carrying `crap`
-    is ordered by it (see `_coverage_rank`), whatever the thresholds' order,
-    so the crap threshold is the one the row cap names."""
     for entry in thresholds_:
         if entry.get("value_key") == "crap" and "crap" in keys:
             return entry
@@ -416,8 +388,6 @@ def _primary_threshold(
 
 
 def _primary_rank(primary: dict[str, Any] | None, row: dict[str, Any]) -> tuple:
-    """Largest primary value first (smallest first under a `below`
-    reference), and a row with no numeric value after every row with one."""
     key = primary.get("value_key") if primary else None
     value = (row.get("values") or {}).get(key) if key else None
     if not _is_number(value):
@@ -426,15 +396,6 @@ def _primary_rank(primary: dict[str, Any] | None, row: dict[str, Any]) -> tuple:
 
 
 def _coverage_rank(row: dict[str, Any]) -> tuple:
-    """Order within a coverage document, ahead of the primary rank.
-
-    Function rows carrying a CRAP number come first, highest first, so the row
-    cap never drops the most complex untested function in favor of an
-    alphabetically earlier file; function rows with a null CRAP follow them;
-    file rows come after, least covered first with a null percentage last. A
-    row that carries neither `crap` nor `coverage_pct` ranks as a constant, so
-    every other skill's table is ordered by its primary value alone.
-    """
     values = row.get("values") or {}
     if "crap" not in values and "coverage_pct" not in values:
         return (0, 0, False, 0)
@@ -489,7 +450,6 @@ def _is_number(value: Any) -> bool:
 
 
 def _is_line(value: Any) -> bool:
-    """A reported line number: an int, and not a bool arriving as one."""
     return isinstance(value, int) and not isinstance(value, bool)
 
 
@@ -502,14 +462,6 @@ def _union(first: Any, second: Any) -> list[Any]:
 
 
 def _merge_into(target: dict[str, Any], row: dict[str, Any]) -> bool:
-    """Fold `row` into `target` when their values do not disagree.
-
-    Two rows for one function carry complementary values (a cyclomatic row and
-    a Halstead row), so the join fills a null or absent key from the other row.
-    A key both rows carry with two different numbers is not the same function
-    measured twice; it is two functions the collectors could not tell apart, and
-    the join refuses rather than pick one, so the caller keeps the row separate.
-    """
     values = target.setdefault("values", {})
     incoming = row.get("values") or {}
     for key, value in incoming.items():
@@ -567,9 +519,7 @@ def join_rows(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if function and not _is_line(start):
             known = starts.get((file, function), set())
             start = next(iter(known)) if len(known) == 1 else None
-        # The lane is part of the identity: two lane rows (`file` null) from
-        # two lanes must never join into one line.
-        key = (file, function, start, row.get("lane"))
+        key = (file, function, start, row.get("language"))
         candidates = by_key.setdefault(key, [])
         for candidate in candidates:
             if _merge_into(candidate, row):
@@ -587,12 +537,6 @@ def join_rows(measures: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _over_distance(row: dict[str, Any], references: dict[str, Any]) -> float:
-    """How far past its reference the row's worst value sits, for ordering.
-
-    Distance rather than the raw value, because coverage counts values BELOW
-    a reference and complexity values above one; the absolute gap orders both
-    with the same key, worst first.
-    """
     worst = 0.0
     values = row.get("values") or {}
     for measure in row.get("over_reference") or []:
@@ -627,7 +571,7 @@ def render(
     ):
         hint = next((row.get("hint") for row in detector_rows if row.get("hint")), "")
         lines.append(
-            "No clone detector ran in any lane"
+            "No clone detector ran in any language"
             + (f": {hint}" if hint else "")
             + ". Run `/code-metrics:setup` to install one."
         )
@@ -636,7 +580,7 @@ def render(
         f"{headline}. Scope: {scope.get('mode', '?')}"
         + (f" against `{scope['base']}`" if scope.get("base") else "")
         + f", {scope.get('files', 0)} file(s)"
-        + (f", {scope['unclassified']} in no lane" if scope.get("unclassified") else "")
+        + (f", {scope['unclassified']} in no language" if scope.get("unclassified") else "")
         + (f", {scope['excluded']} excluded" if scope.get("excluded") else "")
         + "."
         + (
@@ -655,11 +599,11 @@ def render(
     lines.append("")
     lines.append("## Coverage of this run")
     lines.append("")
-    lines.append("| Lane | Measure | Collector | Status | Reason |")
+    lines.append("| Language | Measure | Collector | Status | Reason |")
     lines.append("|---|---|---|---|---|")
     for row in doc.get("run", []):
         lines.append(
-            f"| {row.get('lane', '*')} | {row.get('measure', '*')} | "
+            f"| {row.get('language', '*')} | {row.get('measure', '*')} | "
             f"{row.get('collector') or ''} | {row.get('status')} | {row.get('reason') or ''} |"
         )
     thresholds_ = doc.get("thresholds", [])
@@ -692,7 +636,7 @@ def render(
         lines.append("## Measures")
         lines.append("")
         header = (
-            "| File | Function | Lane | Labels | "
+            "| File | Function | Language | Labels | "
             + " | ".join(keys)
             + " | Over reference |"
         )
@@ -705,7 +649,7 @@ def render(
             ordered = sorted(
                 measures,
                 key=lambda r: (
-                    0 if "lane-total" in (r.get("labels") or []) else 1,
+                    0 if "language-total" in (r.get("labels") or []) else 1,
                     -len(r.get("over_reference", [])),
                     -_over_distance(r, references),
                     _coverage_rank(r),
@@ -745,7 +689,7 @@ def render(
                 if key.startswith("halstead") and values.get(key) == 0:
                     halstead_zero = True
             lines.append(
-                f"| {where} | {row.get('function') or ''} | {row.get('lane', '')} | "
+                f"| {where} | {row.get('function') or ''} | {row.get('language', '')} | "
                 f"{', '.join(row.get('labels') or [])} | "
                 + " | ".join(_fmt(values.get(k)) for k in keys)
                 + f" | {', '.join(row.get('over_reference', []))} |"
@@ -757,17 +701,17 @@ def render(
                 "found no operators or operands in that function."
             )
     summary = doc.get("summary", {})
-    by_lane = summary.get("by_lane") or {}
+    by_language = summary.get("by_language") or {}
     by_directory = summary.get("by_directory") or {}
-    if duplication and (by_lane or by_directory):
+    if duplication and (by_language or by_directory):
         lines.append("")
         lines.append("## Rollup")
         lines.append("")
-        lines.append("| Lane | Clone groups | Duplicated lines |")
+        lines.append("| Language | Clone groups | Duplicated lines |")
         lines.append("|---|---|---|")
-        for lane, bucket in sorted(by_lane.items()):
+        for language, bucket in sorted(by_language.items()):
             lines.append(
-                f"| {lane} | {bucket.get('groups', 0)} | {bucket.get('duplicated_lines', 0)} |"
+                f"| {language} | {bucket.get('groups', 0)} | {bucket.get('duplicated_lines', 0)} |"
             )
         lines.append("")
         lines.append(
@@ -853,22 +797,18 @@ def render(
         row for row in doc.get("run", []) if COLLECT_FAILED in (row.get("reason") or "")
     ]
     if failed:
-        # The dispatcher's `collect failed (exit 3)` reason is what makes the
-        # entry script exit 3, in this skill and in a skill whose run rows carry
-        # it forward. Naming the row here keeps that exit from being the only
-        # trace of a collector that ran and produced nothing parseable.
         named = []
         for row in failed:
             reason = row.get("reason") or ""
             label = row.get("collector") or reason.split(":", 1)[0]
-            named.append(f"{_lane_measure(row)} ({label})")
+            named.append(f"{_language_measure(row)} ({label})")
         lines.append(
             "Exit 3: a collector ran and produced nothing parseable: "
             + "; ".join(named)
             + ". The run table carries its output."
         )
     partial = [
-        _lane_measure(row)
+        _language_measure(row)
         for row in doc.get("run", [])
         if row.get("status") == "partial"
     ]
@@ -880,7 +820,7 @@ def render(
         lines.append(
             "No coverage artifact was found, so no line was measured. The "
             '"Getting a first artifact" table in the code-metrics plugin README '
-            "names, per lane, the producer that writes one and the command shape; "
+            "names, per language, the producer that writes one and the command shape; "
             "this skill runs none of them."
         )
     return "\n".join(lines) + "\n"

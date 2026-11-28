@@ -1,13 +1,6 @@
 #!/usr/bin/env bash
 # GENERATED from lib/session-bridge/wake.sh by scripts/sync-shared-copies.sh. Do not edit this copy:
 # edit the canonical source, then rerun the script.
-# One wake: apply the ops Claude wrote, then re-arm the watcher. watch.sh prints this as "next".
-#   bash wake.sh '<data_dir>'
-# Runs the app's control script (CONTROL in session-bridge.conf beside this script) as
-# `CONTROL --dir <data_dir> apply --file <data_dir>/ops.json`, then watch.sh on <data_dir>; the
-# exit code and output are those of the failing apply, else of the watcher. When the conf names
-# AFTER_APPLY (a control subcommand such as `ledger-check`), it runs as `CONTROL --dir <data_dir>
-# <subcommand>` between the two, its output on stderr; its exit code does not stop the re-arm.
 [[ -n "${1:-}" ]] || { echo "usage: wake.sh <data_dir>" >&2; exit 2; }
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 control=$(sed -n 's/^CONTROL=//p' "$here/session-bridge.conf" 2>/dev/null | tr -d '\r')

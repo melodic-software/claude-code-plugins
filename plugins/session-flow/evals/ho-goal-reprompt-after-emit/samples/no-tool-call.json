@@ -1,0 +1,9 @@
+{
+  "pass": [
+    {"answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"Handoff written.\"}]}}"}
+  ],
+  "fail": [
+    {"answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"file_path\":\"index.txt\"}}]}}"},
+    {"answer": "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"name\":\"Bash\",\"input\":{\"command\":\"pwd\"}}]}}"}
+  ]
+}

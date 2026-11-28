@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Tests for revert-cases.sh on a throwaway repository: list finds a pair by each revert form and
-# skips a revert that removes no line its original added or no longer reverses cleanly; build
-# writes a case whose scaffold rebuilds the change and whose grader matches the reverted lines;
-# report counts caught and missed revert- cases and marks a small total as indicative.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -35,14 +31,13 @@ CASES="$WORK/evals/revert-cases.sh"
 
 git init -q -b main "$REPO"
 g() { git -C "$REPO" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false "$@"; }
-commit() { # <file> <content> <subject> [<git commit args>...]: prints the new commit
+commit() {
   printf "%b" "$2" >"$REPO/$1"
   g add -A
   g commit -q -m "$3" "${@:4}"
   g rev-parse HEAD
 }
 
-# app.sh is committed executable, so build's copies keep the exec bit.
 touch "$REPO/app.sh"
 chmod +x "$REPO/app.sh"
 commit app.sh 'a\nb\nc\n' "chore: seed (#1)" >/dev/null
@@ -96,11 +91,12 @@ mode=1
 if [[ ! -x "$case_dir/fixtures/pr-context.md.txt" ]]; then mode=0; fi
 expect "$mode" "build leaves the context file non-executable"
 yaml="$(cat "$case_dir/case.yaml")"
-expect "$(has "# revert: #4 $D" "$yaml")" "case.yaml records the revert"
-expect "$(has "# pr: melodic-software/claude-code-plugins#2 (merged as $B)" "$yaml")" "case.yaml records the original"
-expect "$(has "app.sh lines 2-3" "$yaml")" "case.yaml records the reverted lines"
 expect "$(has "confirmed-by: pending" "$yaml")" "case.yaml leaves the confirmation pending"
-expect "$(has "PR NUMBER: 2" "$(cat "$case_dir/prompt.md")")" "prompt names the original pull request"
+expect "$(($(grep -c '^#' <<<"$yaml") != 1))" "case.yaml holds no comment but the confirmed-by line"
+prompt="$(cat "$case_dir/prompt.md")"
+expect "$(has "PR NUMBER: 2" "$prompt")" "prompt names the original pull request"
+expect "$(has "reverted by #4 ${D:0:12}" "$prompt")" "prompt names the revert"
+expect "$(has "app.sh lines 2-3" "$prompt")" "prompt records the reverted lines"
 
 (cd "$REPO" && bash "$CASES" build "$B" "$D" add-x) 2>/dev/null
 code=$?

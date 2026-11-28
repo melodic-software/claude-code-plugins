@@ -1,5 +1,5 @@
 ---
-description: "Verify javascript-format's prerequisites and which formatter and linter its hooks run here, and register its git pre-commit entries. Use when: 'set up javascript-format', 'configure javascript-format', 'is javascript-format working', 'which formatter does javascript-format run', formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply [install-biome] | apply install-git-hooks [scope=local|shared]. Re-runnable."
+description: "Verify javascript-format prerequisites and hooks (check [inspect]), or install Biome and git hooks (apply [install-biome|install-git-hooks])."
 argument-hint: "[check|apply] [inspect|install-biome|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
@@ -70,7 +70,9 @@ pre-computed `jq` row, run the remaining probes via Bash, and report a PASS/FAIL
 table with one remediation line per FAIL. Do not modify anything.
 Run every numbered step below and give each one that applies its own row in that table, also when
 the request adds questions of its own; answer those beside the table.
-Read each option value from this text; never put a `${user_config.*}` string in a shell command.
+Read each option value from this text, where Claude Code substitutes it
+([reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value));
+never put a `${user_config.*}` string in a shell command.
 Open plugin files by the `${CLAUDE_PLUGIN_ROOT}` paths this skill names; never Glob or Grep the plugin directory.
 An installed plugin runs from a deeply nested cache path, and a search passed that path can fail
 to start on some hosts because the path is too long, while reading a named file still works.
@@ -273,8 +275,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Next
 
-- /toolchain:setup apply <id>, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants
-  a tool the plugin ships no adapter for; /toolchain:lint then runs it on request.
+- Repository wants a tool the plugin ships no adapter for (drafted commands ready): /toolchain:setup apply <id>.
 - A hook stage over its time budget in `setup check inspect`: /performance:target.
 
 ## What this skill does not do

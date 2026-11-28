@@ -71,8 +71,6 @@ git -C "$REPO" add notes.md
 expect "a home path on an added line blocks, naming that line" "1|notes.md:3: machine-specific path (Linux user path detected)
 $HINT" "$(check "$REPO")"
 
-# The GitHub-hosted runner's home is the same on every hosted runner, so a line
-# holding it, bare or with a child path, passes.
 new_repo
 printf 'line one\nline two\n"cwd": "%s"\nsee %s here\n' "${SL}home${SL}runner" "${SL}home${SL}runner${SL}work${SL}demo${SL}demo" >"$REPO/notes.md"
 git -C "$REPO" add notes.md
@@ -85,6 +83,28 @@ git -C "$REPO" commit -q -m old --no-verify
 printf 'line one\ntoken=%s\nclean new line\n' "$FAKE_GHP" >"$REPO/notes.md"
 git -C "$REPO" add notes.md
 expect "a token on an unchanged line does not block" "0|" "$(check "$REPO")"
+
+new_repo
+printf 'if x; then\nsee %s here\ncd  %s\nfi\n' "$FAKE_LINUX" "$FAKE_LINUX" >"$REPO/run.sh"
+git -C "$REPO" add run.sh
+git -C "$REPO" commit -q -m old --no-verify
+printf 'if x; then\n  see %s here\nfi\n' "$FAKE_LINUX" >"$REPO/run.sh"
+git -C "$REPO" add run.sh
+expect "a formatter-only reindent of a path does not block" "0|" "$(check "$REPO")"
+printf 'if x; then\n  see %s here\n  cd %s\n  ls %s\nfi\n' "$FAKE_LINUX" "$FAKE_LINUX" "$FAKE_LINUX" >"$REPO/run.sh"
+git -C "$REPO" add run.sh
+expect "a path whose inner whitespace changed, or added beside a reindent, blocks, naming only those lines" "1|run.sh:3: machine-specific path (Linux user path detected)
+run.sh:4: machine-specific path (Linux user path detected)
+$HINT" "$(check "$REPO")"
+
+new_repo
+printf 'if x; then\ntoken=%s\nfi\n' "$FAKE_GHP" >"$REPO/run.sh"
+git -C "$REPO" add run.sh
+git -C "$REPO" commit -q -m old --no-verify
+printf 'if x; then\n  token=%s\nfi\n' "$FAKE_GHP" >"$REPO/run.sh"
+git -C "$REPO" add run.sh
+expect "a token on a reindented line still blocks" "1|run.sh:2: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO")"
 
 new_repo
 printf 'brand new token=%s\n' "$FAKE_GHP" >"$REPO/new.txt"
@@ -114,8 +134,6 @@ $HINT" "$(check "$REPO")"
 expect "--worktree: a token in an untracked file holding a NUL byte blocks" 1 \
   "$(git -C "$REPO" rm -q --cached blob.bin && rc_of "$REPO" --worktree)"
 
-# Git quotes a name holding `"` whatever core.quotePath says. Windows refuses
-# the name, so the case runs where the file system takes it.
 new_repo
 if printf 'token=%s\n' "$FAKE_GHP" 2>/dev/null >"$REPO/a\"b.txt"; then
   git -C "$REPO" add -- "a\"b.txt"
@@ -205,8 +223,6 @@ ln -s "token=$FAKE_GHP" "$REPO/link.txt"
 git -C "$REPO" add link.txt
 expect "a symbolic link is not judged" "0|" "$(check "$REPO")"
 
-# UTF-16LE (a Windows .reg export, PowerShell `>` output) puts a NUL after
-# every ASCII byte.
 new_repo
 s="token=$FAKE_GHP"
 {
@@ -232,6 +248,14 @@ expect "--worktree: an untracked file is judged whole" "1|loose.md:1: machine-sp
 $HINT" "$(check "$REPO" --worktree)"
 rm "$REPO/loose.md"
 expect "--worktree: no uncommitted change passes" "0|" "$(check "$REPO" --worktree)"
+
+new_repo
+printf 'token=%s\n\0' "$FAKE_GHP" >"$REPO/held.bin"
+git -C "$REPO" add held.bin
+git -C "$REPO" commit -q -m held --no-verify
+git -C "$REPO" mv held.bin moved.bin
+expect "--worktree: an exact rename of a file holding a token is still scanned" "1|moved.bin:1: secret or credential pattern: GitHub PAT
+$HINT" "$(check "$REPO" --worktree)"
 
 new_repo
 BS="\\"
@@ -289,10 +313,6 @@ git -C "$REPO" add notes.md side.txt
 expect "a merge: a path the merge adds to a file the merged branch brings blocks" "1|side.txt:2: machine-specific path (Linux user path detected)
 $HINT" "$(check "$REPO")"
 
-# The merged branch holds t.txt as a symlink whose target text is the token, and
-# the index holds it as a regular file with those bytes. Built with plumbing, so
-# no symlink is checked out: on Windows with core.symlinks=false, an edited
-# checked-out symlink stays at 120000.
 new_repo
 blob="$(printf 'token=%s' "$FAKE_GHP" | git -C "$REPO" hash-object -w --stdin)"
 tree="$(printf '120000 blob %s\tt.txt\n' "$blob" | git -C "$REPO" mktree)"

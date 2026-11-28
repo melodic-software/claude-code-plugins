@@ -1,23 +1,4 @@
 #!/usr/bin/env node
-// The prototype plugin's settings, resolved through the config cascade (lib/config-cascade.mjs,
-// ADR 0075): the shipped default (reference/levels.default.yaml and the schema's `level` default),
-// the userConfig option, the team file <home>/prototype.yaml and the personal override
-// <home>/prototype.local.yaml, <home> from the convention-home pointer line. Keys and their meaning:
-// reference/config.md; schema: schemas/prototype.schema.json.
-//
-// `level` is checked against the names of the resolved `levels` map, not a fixed list, so a team
-// file can add a level. Two passes through the cascade do that: the first resolves `levels`, the
-// second resolves `level` with the schema's `enum` set to the complete levels' names, so the
-// cascade's own invalid-value rule applies (an invalid value drops its layer; a valid higher layer
-// still wins, else the default; an invalid personal value leaves the team value standing). A level
-// is complete when it sets every required dimension and its name fits NAME. Above the files, a
-// `--argument` (the reader's --level) beats a `--prompt` (a level the request names); either is
-// ignored, with a notice, when it names no complete level.
-//
-//   prototype-settings.mjs resolve --option <user_config.level> [--prompt <name>] [--argument <name>] [--project DIR]
-// Prints one JSON line {level, layer, path, definition, phrases, notices}, then the report line
-// `level: <name> (<layer>)`, then one `notice: ` line per notice. Exit 0 resolved, 2 usage.
-
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -60,8 +41,6 @@ const errorsOf = (out, keep) =>
  *   `home` null reads neither file layer.
  */
 export function resolveLevel({ projectRoot, home, userConfig = null, prompt = null, argument = null }, { schema = loadSchema(), defaults = loadDefaults(schema) } = {}) {
-  // The scratch directory stands in for the user home (only legacy files are looked up there) and,
-  // with no usable convention home, for the home itself, so neither file layer is read.
   const scratch = mkdtempSync(join(tmpdir(), "prototype-settings-"));
   try {
     const run = (s) => cascade({ plugin: PLUGIN, projectRoot, home: home ?? scratch, schema: s, defaults, userConfig: { level: userConfig ?? "" }, userHome: scratch });

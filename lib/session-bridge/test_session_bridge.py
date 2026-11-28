@@ -468,7 +468,6 @@ class TestEventStream(BridgeCase):
             first = http.client.HTTPConnection("127.0.0.1", self.port, timeout=TIMEOUT)
             self.addCleanup(first.close)
             first.request("GET", "/events")
-            # Hold the response: dropping it closes the socket, which frees the slot.
             stream = first.getresponse()
             self.addCleanup(stream.close)
             self.assertEqual(stream.readline(), b"retry: 2000\n")
@@ -519,7 +518,6 @@ class TestClient(BridgeCase):
 
     @unittest.skipUnless(os.name == "posix" and shutil.which("bash"), "needs POSIX bash")
     def test_end_watcher_stops_only_the_watcher_of_the_full_data_dir_path(self):
-        # Same last path component in every topic, and one path a prefix of another.
         topics = [self.tmp / n / "interview-surface" for n in ("a", "b")]
         topics.append(self.tmp / "a" / "interview-surface-2")
         procs = []
@@ -555,7 +553,6 @@ class TestWatcherScripts(BridgeCase):
         (self.bin / "session-bridge.conf").write_text(
             "NAME=toy\nCONTROL=toy.sh\n", encoding="utf-8"
         )
-        # The toy control script: `--dir D apply --file F` records F, then exits with $TOY_RC.
         (self.bin / "toy.sh").write_text(
             '#!/usr/bin/env bash\nprintf "%s\\n" "$@" >"$2/applied"\nexit "${TOY_RC:-0}"\n',
             encoding="utf-8",
@@ -1167,7 +1164,6 @@ class TestChannelServer(BridgeCase):
         self.assertIn("toy.sh", line["next"])
         self.assertIn("apply --file", line["next"])
         self.assertEqual(json.loads(self.tool("events")[0])["events"], [])
-        # Rung once: the relay now waits for a new event instead of re-delivering this one.
         self.hub.append("second")
         self.assertEqual(self.ring()["meta"]["seq"], "2")
 

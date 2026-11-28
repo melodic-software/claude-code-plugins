@@ -47,8 +47,6 @@ $CheckBody = {
         Write-Verbose "Test-DnsHealth: gateway probe failed. $($_.Exception.Message)"
     }
 
-    # Order matters: test DNS failures (WARN) before "gateway unknown" (INFO), or real
-    # DNS problems are under-reported whenever the gateway state is unknown.
     $severity = 'OK'
     $summary = "DNS OK ($($targets.Count)/$($targets.Count)); gateway $gateway reachable."
     if ($gatewayReachable -eq $false) {

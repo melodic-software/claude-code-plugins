@@ -1,4 +1,3 @@
-"""Round-trip checks for render.py: decode the PNG and GIF it writes and compare pixels."""
 import json
 import pathlib
 import random

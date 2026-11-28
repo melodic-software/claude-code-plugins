@@ -221,6 +221,23 @@ reads the file itself, through a script where the key names one below.
   when git tracks the file, as `pr_body_required_sections` is. Neither is read at the home
   directory or outside a git working tree. An unknown value at a level is reported, naming the
   level, and the default applies.
+- `pr_body_format_gate`: `true` or `false`, default `true`, whether the guardrails plugin's
+  `block-body-format-violation` hook refuses a pull request body that breaks the format this
+  repository declares: the `pr_body_required_sections` sections, and the opener line where
+  `linkage_gate_uses_pattern` matches a workflow. No skill here reads it. The hook reads it with
+  those two keys from the tracked team file and the git-ignored personal override, which wins per
+  key, so one person can turn it off in one repository; another value is reported and leaves it
+  on. A repository that declares neither key is never judged
+  ([pr-body convention](../../../docs/contracts/pr-body-convention/README.md)).
+- `issue_body_required_sections` and `issue_body_format_gate`: the issue-body format and its
+  switch. `issue_body_required_sections` maps each issue kind the repository accepts, a lowercase
+  id such as `bug` or `task`, to the headings that kind requires, or is the keyword `none`. The
+  guardrails `block-body-format-violation` hook refuses a `gh issue create` or GitHub MCP issue
+  create whose body completes no declared kind: a required `##` or `###` heading missing, empty,
+  or answered `_No response_`. `issue_body_format_gate`, `true` or `false`, default `true`, turns
+  that refusal off. No skill here reads either. The hook reads both like `pr_body_format_gate`,
+  from the tracked team file and the git-ignored personal override, which wins per key; the
+  winning layer's mapping is taken whole. A repository that sets no mapping is never judged.
 - `evidence_inline_max_captures` and `evidence_record_fields`: how
   `/source-control:pull-request evidence` lays out its comment
   ([evidence.md](../skills/pull-request/reference/evidence.md) step 4).
@@ -351,15 +368,24 @@ reads the file itself, through a script where the key names one below.
   [stuck-checks.md](../skills/babysit-prs/reference/stuck-checks.md#routing-never-auto-fix) and
   [safety.md](../skills/babysit-prs/reference/safety.md) say.
 - `trusted_actors_source` and `standards_repository`: where `/source-control:babysit-prs`, the pr-merge lane gate
-  (`babysit_merge_policy.py`, `babysit_verify_evidence.py`, `babysit_merge_skip.py`) and the
-  `ready` hold check (`check-ready-holds.sh`) read the trusted-actors list and the Dependabot
-  policy. `standards` reads `components/trusted-actors/trusted-actors.json` and
-  `components/dependabot-policy/policy.json` from the `owner/repo` that `standards_repository`
-  names, through the contents API, at the one commit its `main` names when the process first
-  reads it. `repository`, or unset, reads the repository's own `.github/standards/` copies. Any
-  other value, `standards` with `standards_repository` absent or not an `owner/repo` pair, or a
-  YAML the parser rejects, reads neither: the lane adopts nothing and the hold check leaves the
-  label holding. The guardrails merge guard and the review loosened-check reader read the same
+  (`babysit_merge_policy.py`, `babysit_verify_evidence.py`, `babysit_merge_skip.py`) read the
+  trusted-actors list and the Dependabot
+  policy. `trusted_actors_source: standards` reads
+  `components/trusted-actors/trusted-actors.json` from the `owner/repo` that
+  `standards_repository` names, through the contents API, at the one commit its `main` names when
+  the process first reads it; `repository`, or unset, reads the repository's own
+  `.github/standards/` copy. Setting `standards` widens which pull requests the babysit lane
+  adopts and merges unattended in that repository, so set it only where the repository's owner
+  has approved that through their own approval process. The
+  Dependabot policy, `components/dependabot-policy/policy.json`, is read the same way from
+  `standards_repository` whenever that key is set, whatever `trusted_actors_source` says, and
+  never from a repository copy: with the key unset the policy is unreadable and the lane merges
+  no Dependabot update. `standards_repository` alone leaves the trusted list on the copy. Any other `trusted_actors_source` value, `standards` with
+  `standards_repository` absent or not an `owner/repo` pair, or a YAML the parser rejects, reads
+  neither file: the lane adopts nothing and the hold check leaves the label holding. A
+  `standards_repository` that is not an `owner/repo` pair, without `standards`, fails the policy
+  read alone: the lane merges no Dependabot update. The guardrails merge guard and the review
+  loosened-check reader read the same
   two keys for the trusted-actors list alone; with `standards` and no valid
   `standards_repository` they read no list. No `userConfig` option and no default for
   `standards_repository`; both keys are read from the target repository's tracked

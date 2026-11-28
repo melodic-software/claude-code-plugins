@@ -1,4 +1,3 @@
-"""Worked sheets for tileset, ui, and vfx match the engine grids they target."""
 import importlib.util
 import contextlib
 import io
@@ -68,8 +67,8 @@ class ExampleSheetTest(unittest.TestCase):
             self.assertEqual(background[3], 255)
             self.assertNotEqual(background, frame)
             self.assertNotEqual(background, pattern)
-            self.assertEqual(sheet[96][144][3], 255)  # pause sign
-            self.assertEqual(sheet[24][132][:3], rgb_of("#f8f0c0"))  # up arrow
+            self.assertEqual(sheet[96][144][3], 255)
+            self.assertEqual(sheet[24][132][:3], rgb_of("#f8f0c0"))
             self.assertEqual(sheet[150][102][:3], rgb_of(module.text_hex(0)))
             self.assertEqual(sheet[186][186][:3], rgb_of(module.text_hex(31)))
             meta = json.loads((out / "sheet.json").read_text())

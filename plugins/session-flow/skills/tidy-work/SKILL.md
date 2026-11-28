@@ -1,6 +1,6 @@
 ---
-description: "Inventory and tidy the gitignored `.work` memory tiers (the repo's memory root and `~/.work`): report what is stale and what is in flight, normalize misplaced handoffs and retros, and remove stale known items behind one confirmation. Opt-in only; nothing runs unless invoked. Use when: 'tidy .work', 'clean up .work', 'what is piling up in .work', 'prune old handoffs', 'clear stale save-points', 'normalize my memory folder'. Handing off is /session-flow:handoff; making work durable before shutdown is /session-flow:clean-stop."
-argument-hint: "[report|normalize|clean] [--days N] [--offline] [--memory-dir DIR]"
+description: "Opt-in inventory/tidy of gitignored .work memory tiers (repo and ~/.work): report stale/in-flight items, normalize, or clean after confirmation."
+argument-hint: "[report|normalize|clean] [--days N] [--offline] [--memory-dir DIR] [--scope all|repo|home]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools: ["Bash(python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tidy_work.py report:*)"]
@@ -31,10 +31,13 @@ Nothing runs unless the user invokes this skill.
 | `normalize` | Moves misplaced known-kind items into the standard layout. Never deletes, never overwrites an existing target |
 | `clean` | Removes an item only when it is a known kind, is not in flight, and names at least one issue or PR, every one closed or merged: a handoff or running retro by the references in its text, a scratch entry by the number in its name. An item that names no issue or PR is kept and reported however old it is; a slice or checklist has no attribution source, so `clean` never removes one; a shape-3 chain's `handoffs/archive/` directory is kept while a handoff of its chain is kept and leaves with the last one |
 
-Pass `--days N` (default 14) to change the recency window. Pass `--offline` to treat every linked
-issue or PR as unknown, which counts as in flight; without it the script asks `gh` for the open
-issues and PRs of each repository a handoff names, then for the state of each link that is not
-open.
+Pass `--days N` (default 14) to change the recency window. Pass `--scope {all,repo,home}` (default
+`all`) to limit inventory, normalize, or clean to the repo memory root (`repo`), `$HOME/.work`
+(`home`), or both (`all`). Pass repeatable `--extra-concern-dir NAME` (or set `extra_concern_dirs`
+in `<convention_home>/session-flow.yaml`) to treat additional bare directory names under the memory
+root as kept concern state. Pass `--offline` to treat every linked issue or PR as unknown, which
+counts as in flight; without it the script asks `gh` for the open issues and PRs of each repository
+a handoff names, then for the state of each link that is not open.
 
 A scratch entry is any other top-level entry whose name holds exactly one all-digit token of 3 to
 7 digits, optionally prefixed `pr`, `issue`, or `gh`: `lint-5371.log`, `measure-4608`,
@@ -52,7 +55,7 @@ date), is not attributed and stays unknown.
    ([`${CLAUDE_PLUGIN_ROOT}/reference/save-point.md`](${CLAUDE_PLUGIN_ROOT}/reference/save-point.md),
    "Where save-points live").
 2. **Report.** Run
-   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tidy_work.py report --memory-dir <root> [--days N] [--offline]`
+   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/tidy_work.py report --memory-dir <root> [--scope all|repo|home] [--days N] [--offline] [--extra-concern-dir NAME]`
    and show the table. `report` is the only `tidy_work.py` invocation `allowed-tools`
    pre-approves. For `report` alone, stop here.
 3. **Dry-run `normalize` or `clean`.** Run the same script with the action name and no
@@ -70,7 +73,13 @@ date), is not attributed and stays unknown.
 An item whose kind is not recognized (for example a `drain/` status tree or any tool's own
 folder) is always kept and always reported, by `report`, `normalize`, and `clean` alike. So is
 every entry of another skill's concern dir (`reviews/`, `exports/`, `overengineering/`,
-`enforceability/`, `docs-hygiene/`, `lanes/`): that skill reads it back. So is every item that
+`enforceability/`, `docs-hygiene/`, `lanes/`, `coupling/`, `recommend-skills/`, `testing/`,
+`testing-cleanup/`, `testing-cleanup-plan/`, plus any `extra_concern_dirs` declared in
+`<convention_home>/session-flow.yaml` or via `--extra-concern-dir`): that skill reads it back.
+Explicit non-removable kinds `git-clone` (a directory holding a `.git` file or directory;
+`.git/objects` is not walked for stats) and `recovery-archive` (`*.bundle`, `*.tar`, `*.tar.gz`,
+`*.tgz`, `*.zip`, or directories containing them) are always kept and reported with their size and
+a manual handoff hint. So is every item that
 names no issue or PR, whatever its kind and age, because nothing says whose it is or whether it
 is the only copy: a handoff or running retro whose text names none, and every slice and
 checklist. In-flight items are kept too:
@@ -93,13 +102,13 @@ No flag overrides any of these.
 
 - **Does not delete or move anything without `--apply` and a confirmation** naming the paths.
 - **Does not modify anything git tracks.** The script refuses a memory root whose `.gitignore`
-  lacks a line `*`, refuses an item with a tracked file under it, and rejects a memory root that
+  lacks a line `*` (or `**`), refuses an item with a tracked file under it, and rejects a memory root that
   is the repository root.
 - **Does not touch a path outside the resolved memory roots**, and does not follow a symlink
   that leaves one.
 - **Does not inventory an arbitrary directory.** `memory_dir` comes from a file the repository
   controls, and `report` is pre-approved, so every action rejects an existing memory root outside
-  the repository unless its `.gitignore` holds a line `*`, the guard the handoff writer requires.
+  the repository unless its `.gitignore` holds a line `*` (or `**`), the guard the handoff writer requires.
 - **Does not write a handoff or make git state durable**; those are `/session-flow:handoff` and
   `/session-flow:clean-stop`.
 
@@ -124,7 +133,9 @@ No flag overrides any of these.
   remove. In `~/.work`, where no repository is known, every scratch entry stays.
 - **A bare `#N` is a reference into the repo that holds the memory root.** A handoff written in
   another repo can name an unrelated open item of this one and stay; in `~/.work`, where no
-  repository is known, a bare `#N` counts as unknown and keeps the handoff. `owner/repo#N` and
+  repository is known, a bare `#N` counts as unknown and keeps the handoff unless a running-retro
+  file in `~/.work/running-retros/` carries a repo-qualified frontmatter `repo: owner/repo`, header,
+  or `owner--repo` slug. `owner/repo#N` and
   `github.com/.../issues/N` URLs are looked up in the repository they name.
 - **Age is the item's modification time.** A restored or copied file looks fresh; the report
   shows the age it computed, so read it before confirming.

@@ -32,21 +32,15 @@ class DependencyAuthorTests(unittest.TestCase):
                 self.assertFalse(fb.is_dependency_author(login))
 
     def test_extra_logins_are_recognized(self) -> None:
-        # A non-dependabot/renovate dependency bot an operator runs keeps the
-        # same hold-merge protection once named. Matching is normalization-
-        # insensitive on both sides (casefold, strip `app/` and `[bot]`).
         extra = frozenset({"MyDepBot"})
         for login in ("mydepbot", "MyDepBot[bot]", "app/mydepbot"):
             with self.subTest(login=login):
                 self.assertTrue(fb.is_dependency_author(login, extra))
 
     def test_extra_login_config_form_is_normalized(self) -> None:
-        # The configured entry itself may carry `app/` / `[bot]`; it still matches
-        # the normalized incoming login.
         self.assertTrue(fb.is_dependency_author("mydepbot", frozenset({"app/MyDepBot[bot]"})))
 
     def test_unconfigured_extra_matches_builtin_set_only(self) -> None:
-        # Empty extra (the shipped default) never widens the built-in set.
         self.assertFalse(fb.is_dependency_author("mydepbot"))
         self.assertFalse(fb.is_dependency_author("mydepbot", frozenset()))
         self.assertTrue(fb.is_dependency_author("dependabot", frozenset()))
@@ -127,10 +121,6 @@ class CollectFeedbackTests(unittest.TestCase):
         self.assertEqual(result["blocking"], [])
 
     def test_bot_approval_with_descriptive_blocking_prose_is_ignored(self) -> None:
-        # #499: an Approve verdict whose body uses the word "blocking" only
-        # descriptively ("blocking criteria"/"blocking checks") and carries no
-        # severity marker must be fully non-blocking, matching the readiness
-        # gate's findings=0 — not routed to blocking or even material.
         pr = _pr([
             {"id": 20, "author": {"login": "claude", "__typename": "Bot"},
              "body": "Verdict: Approve. No blocking issues. Checked the REVIEW.md "
@@ -144,8 +134,6 @@ class CollectFeedbackTests(unittest.TestCase):
         self.assertEqual(result["ignored"][0]["downgrade"], "approval_verdict")
 
     def test_configured_login_surfaces_clean_approval_as_material(self) -> None:
-        # An opt-in `approval_downgrade_logins` login routes the same clean
-        # approval to the more-conservative material bucket instead of ignored.
         comment = {"id": 21, "author": {"login": "claude", "__typename": "Bot"},
                    "body": "Verdict: Approve. Checked every blocking criterion; "
                            "all blocking checks are inapplicable."}
@@ -333,7 +321,6 @@ class DowngradeHeuristicTests(unittest.TestCase):
     def test_approval_downgrade_rejects_critical_or_important_marker(self) -> None:
         self.assertFalse(fb.approval_downgrade("Approve, but CRITICAL: fix this."))
         self.assertFalse(fb.approval_downgrade("Approve. IMPORTANT: revisit."))
-        # Lowercase severity words are ordinary prose, not markers.
         self.assertTrue(
             fb.approval_downgrade("Approve; it is important to note the nit.")
         )
@@ -345,9 +332,6 @@ class DowngradeHeuristicTests(unittest.TestCase):
         self.assertFalse(fb.has_blocking_severity("SUGGESTION: rename the var"))
 
     def test_negated_severity_marker_is_not_blocking(self) -> None:
-        # A clean approval stating the absence of high-severity findings uses the
-        # same structured vocabulary in its verdict; it must not re-introduce a
-        # false blocker (the mirror of no-P1/P2 redaction for CRITICAL/IMPORTANT).
         self.assertFalse(
             fb.has_blocking_severity("No CRITICAL or IMPORTANT findings.")
         )
@@ -357,7 +341,6 @@ class DowngradeHeuristicTests(unittest.TestCase):
                 "Verdict: Approve. No CRITICAL or IMPORTANT findings."
             )
         )
-        # A live marker without a negator still blocks.
         self.assertTrue(fb.has_blocking_severity("CRITICAL: null deref remains"))
 
     def test_skip_downgrade_only_when_review_could_not_run(self) -> None:
@@ -367,9 +350,6 @@ class DowngradeHeuristicTests(unittest.TestCase):
         self.assertFalse(fb.skip_downgrade("Not approving; P1 regression found."))
 
     def test_skip_downgrade_rejects_live_severity_marker(self) -> None:
-        # A skip comment carrying a genuine CRITICAL/IMPORTANT marker has no
-        # imperative blocking text, so has_blocking_text alone would let it
-        # downgrade; the severity guard keeps the live finding blocking.
         self.assertFalse(
             fb.skip_downgrade(
                 "bugbot skipped: usage limit reached. Not approving. "
@@ -382,7 +362,6 @@ class DowngradeHeuristicTests(unittest.TestCase):
                 "IMPORTANT: unbounded retry loop."
             )
         )
-        # A negated severity conclusion still downgrades -- it is not a finding.
         self.assertTrue(
             fb.skip_downgrade(
                 "bugbot skipped: usage limit reached. Not approving. "

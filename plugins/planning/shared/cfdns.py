@@ -44,11 +44,11 @@ if str(HERE) not in sys.path:
 import tunnel  # noqa: E402  (beside this file; sys.path is set just above)
 
 API = "https://api.cloudflare.com/client/v4"
-ID = re.compile(r"[0-9a-f]{32}")  # zone and account ids
-UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")  # tunnel ids
-PER_PAGE = 100  # judgment: records per list request
-MAX_PAGES = 100  # judgment: a zone this tool lists stays well under PER_PAGE * MAX_PAGES records
-RECORD_FIELDS = ("id", "type", "name", "content", "proxied")  # what the output shows of a DNS record
+ID = re.compile(r"[0-9a-f]{32}")
+UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+PER_PAGE = 100
+MAX_PAGES = 100
+RECORD_FIELDS = ("id", "type", "name", "content", "proxied")
 TUNNEL_ID = "--tunnel-id must be the tunnel's id, a UUID"
 
 
@@ -108,7 +108,6 @@ def request(token, method, path, query=None, body=None):
 
 
 def errors(doc):
-    """The API's error messages, as one line."""
     msgs = [f"{e.get('code', '')} {e.get('message', '')}".strip() for e in doc.get("errors") or [] if isinstance(e, dict)]
     return "; ".join(msgs) or "no error message"
 
@@ -151,7 +150,6 @@ def plan(token, zone, hostname, tunnel_id):
 
 
 def matching(pattern, value, message):
-    """Refuse with `message` unless `value` is all `pattern`."""
     if not pattern.fullmatch(value or ""):
         raise Refused(1, message)
 

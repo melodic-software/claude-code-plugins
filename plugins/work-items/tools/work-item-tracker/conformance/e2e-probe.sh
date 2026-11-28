@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by sourced tests/lib.sh
-# End-to-end lifecycle probe against a live GitHub sandbox: every seam verb through the
-# core CLI, plus closed-blocker graduation. On-demand only.
-# Usage: e2e-probe.sh [--evidence <file>]   (target required: WIT_CONFORMANCE_GITHUB_REPO=owner/name)
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -14,7 +11,6 @@ if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
   exit 0
 fi
 
-# usage_error — the one spelling of the usage line every arg-parsing failure exits on.
 usage_error() {
   echo "usage: e2e-probe.sh [--evidence <file>]" >&2
   exit 2
@@ -34,7 +30,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Required target — guarded after arg-parsing so usage errors still exit 2.
 REPO="${WIT_CONFORMANCE_GITHUB_REPO:?set WIT_CONFORMANCE_GITHUB_REPO to a throwaway sandbox repo (owner/name); never a coordination repo}"
 
 BINDING_TMP="$(mktemp)"
@@ -53,7 +48,6 @@ wit() {
   bash "$TRACKER" "$@"
 }
 
-# ids <list-envelope>: the envelope's item ids as a compact JSON array.
 ids() {
   jq -c '[.items[].id]' <<<"$1"
 }
@@ -67,14 +61,11 @@ done
 
 TS="$(date -u +%Y%m%dT%H%M%SZ)"
 
-# 1. Container issue (the default spec-container marker).
 MAP="$(wit create-item --title "e2e map $TS" --body "e2e lifecycle probe map" --labels spec-container --repo "$REPO")"
 MAP_ID="$(jq -r '.id' <<<"$MAP")"
 record "create map" "$MAP"
 assert_contains "map id well-formed" "$MAP_ID" "github:"
 
-# 2. Two work items under the map, item2 blocked by item1, plus an unblocked wayfind
-# map item, which /planning:wayfind drives and the frontier never surfaces.
 ITEM1="$(wit create-item --title "e2e work item $TS" --parent "$MAP_ID" --repo "$REPO")"
 ITEM1_ID="$(jq -r '.id' <<<"$ITEM1")"
 record "create item1" "$ITEM1"
@@ -87,8 +78,6 @@ WAYFIND="$(wit create-item --title "e2e wayfind research item $TS" --labels "way
 WAYFIND_ID="$(jq -r '.id' <<<"$WAYFIND")"
 record "create wayfind item (research)" "$WAYFIND"
 
-# 3. Frontier: item1 claimable, item2 blocked, and neither the map (a container) nor
-# the wayfind item surfaces as a frontier item.
 FRONTIER="$(wit list-frontier --repo "$REPO")"
 record "frontier before claim" "$FRONTIER"
 IDS="$(ids "$FRONTIER")"
@@ -97,8 +86,6 @@ assert_not_contains "frontier hides blocked item2" "$IDS" "$ITEM2_ID"
 assert_not_contains "frontier excludes the unblocked container map" "$IDS" "$MAP_ID"
 assert_not_contains "frontier excludes the wayfind item" "$IDS" "$WAYFIND_ID"
 
-# 3b. Sub-item enumeration keeps BOTH children; the container-scoped frontier applies
-# the global filter.
 SUBS="$(wit list-sub-items "$MAP_ID")"
 record "map sub-items" "$SUBS"
 SUB_IDS="$(ids "$SUBS")"
@@ -114,7 +101,6 @@ assert_not_contains "scoped frontier hides blocked item2" "$PIDS" "$ITEM2_ID"
 assert_not_contains "scoped frontier excludes the map itself" "$PIDS" "$MAP_ID"
 assert_not_contains "scoped frontier excludes the wayfind item" "$PIDS" "$WAYFIND_ID"
 
-# 4. Claim item1 (assignee + lease comment).
 CLAIM="$(wit claim "$ITEM1_ID" --session-id "e2e-$TS")"
 record "claim item1" "$CLAIM"
 LEASE_CID="$(jq -r '.lease_comment_id' <<<"$CLAIM")"
@@ -124,24 +110,18 @@ else
   fail "lease_comment_id shape" "numeric" "$LEASE_CID"
 fi
 
-# 5. Renew.
 RENEW="$(wit renew-lease "$ITEM1_ID" --lease-comment-id "$LEASE_CID")"
 record "renew lease" "$RENEW"
 assert_eq "renew keeps holder" "$(jq -r '.holder' <<<"$CLAIM")" "$(jq -r '.holder' <<<"$RENEW")"
 
-# 6. Resolve + close item1 (resolution is a provider-native close; the seam has no
-# close verb by design — skills resolve via their own flow).
 gh issue close "${ITEM1_ID##*#}" -R "$REPO" --comment "e2e: resolved" >/dev/null
 
-# 7. Graduation: item1's closure (gh's default reason, completed) unblocks item2
-# (blocker count, not blockedBy.totalCount — closed blockers linger there).
 FRONTIER2="$(wit list-frontier --repo "$REPO")"
 record "frontier after item1 closed" "$FRONTIER2"
 IDS2="$(ids "$FRONTIER2")"
 assert_contains "item2 graduated into frontier" "$IDS2" "$ITEM2_ID"
 assert_not_contains "closed item1 out of frontier" "$IDS2" "$ITEM1_ID"
 
-# 8. Close out.
 gh issue close "${ITEM2_ID##*#}" -R "$REPO" --comment "e2e: done" >/dev/null
 gh issue close "${WAYFIND_ID##*#}" -R "$REPO" --comment "e2e: done" >/dev/null
 gh issue close "${MAP_ID##*#}" -R "$REPO" --comment "e2e: map closed" >/dev/null

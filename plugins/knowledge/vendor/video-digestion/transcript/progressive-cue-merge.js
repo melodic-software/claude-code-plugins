@@ -1,7 +1,3 @@
-/**
- * Progressive / rolling caption cue merge — shared by auto and manual YouTube VTT.
- */
-
 import { parseVttSegment } from "./vtt-parser.js";
 
 /** @typedef {import('./vtt-parser.js').VttCue} VttCue */

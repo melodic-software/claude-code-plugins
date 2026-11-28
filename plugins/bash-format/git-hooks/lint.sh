@@ -79,7 +79,7 @@ fi
 for f in ${indexed[@]+"${indexed[@]}"}; do
   opts=()
   bf_large "$(git show ":$f" 2>/dev/null | bf_lines)" && opts=(--extended-analysis=false)
-  git show ":$f" 2>/dev/null | "$RT_BIN" "${BF_SC_ARGS[@]}" ${opts[@]+"${opts[@]}"} - >"$CHECKS_TMP/one" 2>&1
+  git show ":$f" 2>/dev/null | "$RT_BIN" "${BF_SC_ARGS[@]}" ${opts[@]+"${opts[@]}"} ${BF_SC_RC:+--rcfile "$BF_SC_RC"} - >"$CHECKS_TMP/one" 2>&1
   one=${PIPESTATUS[1]}
   ((one > rc)) && rc=$one
   escaped="$(printf '%s' "$f" | sed 's/[#&\\]/\\&/g')"

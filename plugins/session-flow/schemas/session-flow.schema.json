@@ -26,6 +26,16 @@
       "default": false,
       "description": "Whether /session-flow:handoff makes one local chore(wip): commit of tracked changes when the user asks in this session to pause. Never pushed, never on the default branch, detached HEAD, during a merge, rebase, cherry-pick or revert, or over a partially staged path, and never with commit hooks skipped. A quoted \"true\" is a string, not a boolean, so it is invalid."
     },
+    "compact_focus_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the compact-focus hook records a typed /goal, a resumed handoff file and a step-away task file in the session's focus file and prints it before each compaction. Unlike the other keys, a user option the user set wins over this value; this file decides only while the user option is unset. A quoted \"false\" is a string, not a boolean, so it is invalid."
+    },
+    "resume_context_enabled": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the resume-context hook adds the resume procedure (raise due reminders, reconcile recorded off-thread work, re-arm recurring work) to the turn a pasted resume prompt starts. Unlike the other keys, a user option the user set wins over this value; this file decides only while the user option is unset. A quoted \"false\" is a string, not a boolean, so it is invalid."
+    },
     "transcript_scope": {
       "enum": ["worktree", "repo", "all"],
       "default": "worktree",
@@ -48,10 +58,30 @@
       "default": "1",
       "description": "How many review passes /session-flow:retro session mode runs to produce its Phase 2 findings. 1 runs one pass. 3 runs three subagents in parallel, one on the calls the session made and why, one on the tools and steps it used, one on the approaches it did not try, and merges their findings before scoring. No session-length threshold applies. The setup check compares the value's text, so an unquoted 3 is valid and 2 is not."
     },
+    "implementation_route": {
+      "enum": ["local", "factory"],
+      "default": "local",
+      "description": "Where /session-flow:workflow sends the items decompose published. local continues into implement in a local session; factory names them as handed to the repository's unattended factory lanes and recommends no local implement stage, except for an item that needs a local dependency, which stays local."
+    },
     "verification": {
       "enum": ["off", "light", "standard", "strict"],
       "default": "light",
       "description": "How much independent checking this plugin's skills run: off, light (the default: skip the verifier dispatch), standard (run it) or strict (also run the optional passes). Read from the default branch's committed copy only, so a branch cannot lower it. Levels: docs/contracts/verification-level/README.md."
+    },
+    "observer": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "The repository's values for the session observer's live checks, read from the default branch at session start; each key wins over the user option of the same name with the observer_ prefix. The repository's guidance prose for the checks goes in the \"## Observer guidance\" section of session-flow.md in the same convention home.",
+      "properties": {
+        "skill_check": { "type": "boolean", "description": "Add the skill category (observer_skill_check)." },
+        "improvement_check": { "type": "boolean", "description": "Add the improvement category (observer_improvement_check)." },
+        "defer_kinds": {
+          "type": "array",
+          "items": { "enum": ["process", "decision", "verification", "instruction", "request", "skill", "improvement", "harness"] },
+          "description": "Categories auto-send holds until the turn ends (observer_defer_kinds)."
+        },
+        "codify_threshold": { "type": "integer", "minimum": 0, "description": "Findings citing one rule across sessions before a codify finding; 0 is off (observer_codify_threshold)." }
+      }
     },
     "verification_skills": {
       "type": "object",

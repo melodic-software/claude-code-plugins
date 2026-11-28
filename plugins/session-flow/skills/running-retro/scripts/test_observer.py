@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
 # test-scope: plugins/session-flow/.claude-plugin/plugin.json
-"""Unit + integration tests for the detached observer (stdlib unittest, no deps).
-
-Mirrors retro's `test_parse_transcript.py` convention. Covers the pieces the
-observer's correctness rests on: distillation, the two-hop redaction sweep, the
-`-p` result parsing, the atomic one-observer-per-session lock (including the race
-and stale reclaim), ledger discovery/append with redaction, and the retention
-rule (collect-only keeps observations, a consumed analysis deletes them).
-"""
+# test-scope: plugins/session-flow/hooks/observer-catchup.sh
+# test-scope: plugins/session-flow/hooks/session-attended.env
+# test-scope: plugins/session-flow/hooks/session-attended.sh
+# test-scope: plugins/session-flow/lib/python-probe.sh
 
 from __future__ import annotations
 
@@ -18,12 +14,13 @@ import io
 import json
 import os
 import shutil
-import signal
+import subprocess
 import sys
 import tempfile
 import threading
 import time
 import unittest
+import warnings
 from pathlib import Path
 from unittest import mock
 
@@ -36,11 +33,11 @@ import claude_cli  # noqa: E402  (observer.py put the plugin scripts dir on sys.
 
 
 def make_observer(tmp: Path, **overrides):
-    """Build an Observer via the real parser so defaults always match production."""
     (tmp / "work").mkdir(exist_ok=True)
     (tmp / "ledger").mkdir(exist_ok=True)
     transcript = tmp / "sess.jsonl"
-    transcript.write_text("", encoding="utf-8")
+    if not transcript.exists():
+        transcript.write_text("", encoding="utf-8")
     argv = [
         "--transcript",
         str(transcript),
@@ -52,21 +49,22 @@ def make_observer(tmp: Path, **overrides):
         overrides.get("session_id", "sid"),
         "--topic",
         "test",
-        "--idle-seconds",
-        str(overrides.get("idle_seconds", 1.0)),
-        "--poll-seconds",
-        str(overrides.get("poll_seconds", 0.2)),
-        "--max-seconds",
-        str(overrides.get("max_seconds", 10.0)),
-        "--idle-confirm-seconds",
-        str(overrides.get("idle_confirm_seconds", 30.0)),
     ]
     if overrides.get("analysis"):
         argv.append("--analysis")
+    if overrides.get("min_lines") != "":
+        argv += ["--min-lines", str(overrides.get("min_lines", 0))]
     if "effort" in overrides:
         argv += ["--effort", overrides["effort"]]
     args = observer.build_parser().parse_args(argv)
     return observer.Observer(args)
+
+
+def ledger_of(ob):
+    return observer.find_session_ledger(ob.ledger_dir, ob.session_id)
+
+
+USER_RECORD = json.dumps({"type": "user", "message": {"content": "hi"}}) + "\n"
 
 
 class Distillation(unittest.TestCase):
@@ -92,10 +90,6 @@ class Distillation(unittest.TestCase):
         self.assertEqual(out["tools"], ["Bash"])
         self.assertEqual(out["stop_reason"], "tool_use")
         self.assertLessEqual(len(out["say"]), 160)
-        # Grouping key + bounded per-call preview -- see summarize_record()'s
-        # docstring. Both ids go through _short_id(), so compare against it
-        # rather than the raw value ("call_1" is <= _ID_TAIL_LEN so it happens
-        # to pass through unchanged; "msg_01ABC" does not).
         self.assertEqual(out["mid"], observer._short_id("msg_01ABC"))
         self.assertEqual(
             out["calls"],
@@ -237,7 +231,7 @@ class Distillation(unittest.TestCase):
         )
         self.assertNotIn(
             "tool_results", u
-        )  # superseded by len(results) -- see docstring
+        )
         self.assertEqual(
             u["results"],
             [
@@ -406,11 +400,7 @@ class Distillation(unittest.TestCase):
             }
         )
 
-        # (a) Sequential, not batched: different `mid`s.
         self.assertNotEqual(write_call["mid"], read_call["mid"])
-        # (b) Dependency is findable purely from the bounded previews: the later
-        # call's input preview and the earlier result's output preview share the
-        # dependent path, without ever reading the raw transcript.
         later_in = read_call["calls"][0]["in"]
         earlier_out = write_result["results"][0]["out"]
         self.assertIn("/tmp/out/report.md", later_in)
@@ -706,13 +696,6 @@ class AnalysisPrompt(unittest.TestCase):
         self.assertNotIn("mid", rec)
 
     def test_dependency_check_before_batching_finding_present(self):
-        # A correctly computed sequencing fact doesn't by itself prove a missed
-        # batching opportunity -- genuinely dependent calls are correctly
-        # sequential, not a miss. The compute-don't-assert rule must cover the
-        # Efficiency judgment built on top of a computed structural fact, not
-        # only the fact itself, and "dependent" must not be narrowed to data
-        # flow alone -- control, resource, and side-effect dependencies are
-        # just as real a reason two calls had to run in order.
         self.assertIn("missed batching opportunity", self.prompt)
         self.assertIn("dependency", self.prompt)
         self.assertIn("control", self.prompt)
@@ -769,16 +752,8 @@ class AnalysisPrompt(unittest.TestCase):
         self.assertIn('"err": true', self.prompt)
         self.assertIn("retry", self.prompt)
         self.assertIn("control-dependent", self.prompt)
-        # Tool-name equality alone is not a retry -- a failed Read of one file
-        # followed by a Read of another is two independent calls, and calling
-        # that control-dependent suppresses a genuine finding (#1485 review).
         self.assertIn("NOT evidence", self.prompt)
-        # ...but a corrected-argument retry (`git stats` -> `git status`) names
-        # no shared resource and repeats no argument, so requiring either would
-        # swing the rule too far the other way (#1485 review).
         self.assertIn("CORRECTION", self.prompt)
-        # Neither over-suppress nor over-report: an illegible pair around a
-        # failure is unknown, and unknown means drop.
         self.assertIn("UNKNOWN, not independent", self.prompt)
 
     def test_state_wide_consumer_after_a_mutation_is_dependent(self):
@@ -789,9 +764,7 @@ class AnalysisPrompt(unittest.TestCase):
         (#1485 review)."""
         self.assertIn("STATE-WIDE CONSUMER", self.prompt)
         self.assertIn("MUTATED state", self.prompt)
-        # Undecidable mutation drops rather than routing, like every other guard.
         self.assertIn("whether the earlier call mutated anything", self.prompt)
-        # The clause count in the lead-in must move with the clause list.
         self.assertIn("all five of these places", self.prompt)
 
     def test_resource_dependency_compares_call_inputs(self):
@@ -815,10 +788,6 @@ def b64url(data):
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
 
 
-# A stateless installation token is ghs_ then a JWT of about 520 characters, with
-# no app id. The RS256 header encodes to exactly 36 alphanumerics, the length
-# gh[pousr]_ accepts; the kid header carries a '-' 16 characters in, before any
-# alphanumeric minimum is met. Payload and signature are fake.
 STATELESS_HEADERS = (
     b64url(b'{"alg":"RS256","typ":"JWT"}'),
     b64url(b'{"kid":"k?~>","alg":"RS256","typ":"JWT"}'),
@@ -838,8 +807,6 @@ class Redaction(unittest.TestCase):
         self.assertIn(
             "<REDACTED: GitHub token>", r("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345")
         )
-        # ghs_<APPID>_<JWT> installation token, about 520 characters; the
-        # segments spell FAKE.
         jwt = "eyJFAKE.FAKEpayload" + "A" * 450 + ".FAKEsignatureNOTreal"
         self.assertEqual(
             "tok <REDACTED: GitHub token> z", r("tok ghs" + "_1234567_" + jwt + " z")
@@ -868,7 +835,6 @@ class Redaction(unittest.TestCase):
         self.assertEqual(observer._redact("no secrets here"), "no secrets here")
 
     def test_github_token_pattern_finishes_promptly_on_adversarial_text(self):
-        # Shapes that made the pattern backtrack for seconds to minutes.
         github = [
             p
             for p, marker in observer._REDACTIONS
@@ -889,7 +855,6 @@ class Redaction(unittest.TestCase):
                 self.assertLess(time.monotonic() - start, 1.0)
 
     def test_jwt_url_and_email_patterns_finish_promptly_on_adversarial_text(self):
-        # Shapes that made these patterns backtrack for seconds to minutes.
         patterns = [
             p
             for p, marker in observer._REDACTIONS
@@ -919,7 +884,6 @@ class Redaction(unittest.TestCase):
                 self.assertLess(time.monotonic() - start, 1.0)
 
     def test_private_key_pattern_finishes_promptly_on_adversarial_text(self):
-        # A repeated header made the unbounded body scan take about 38 seconds.
         (key,) = (
             p
             for p, marker in observer._REDACTIONS
@@ -938,13 +902,10 @@ class Redaction(unittest.TestCase):
 
     def test_bounded_patterns_still_redact_realistic_secrets(self):
         r = observer._redact
-        # Header, payload and signature spell FAKE.
         jwt = "eyJhbGciOiJIUzI1NiJ9" ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
         self.assertEqual("auth <REDACTED: JWT> x", r(f"auth {jwt} x"))
         long_header = "eyJ" + "A" * 509 + ".eyJzdWIiOiJGQUtFIn0.FAKEsignatureNOTreal"
         self.assertEqual("<REDACTED: JWT>", r(long_header))
-        # A header past the bound, as with an embedded x5c chain, is redacted
-        # whole, payload and signature included.
         for size in (513, 4000):
             with self.subTest(header=size):
                 token = (
@@ -985,7 +946,6 @@ class ResultParsing(unittest.TestCase):
     def test_extract(self):
         self.assertEqual(observer._extract_result('{"result":"BLOCK"}'), "BLOCK")
         self.assertEqual(observer._extract_result('{"is_error":true,"result":"x"}'), "")
-        # Non-JSON output is a failed run, never findings.
         self.assertEqual(observer._extract_result("plain"), "")
 
     def test_error(self):
@@ -1024,9 +984,6 @@ class Locking(unittest.TestCase):
             ob.release_lock()
 
     def test_partial_write_lock_treated_live(self):
-        # A just-created lock the winner has not finished writing (empty/partial,
-        # fresh mtime) must be treated as LIVE, never reclaimed -- otherwise a
-        # racing loser could unlink it and both proceed.
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             ob = make_observer(tmp)
@@ -1037,9 +994,6 @@ class Locking(unittest.TestCase):
             )
 
     def test_live_lock_not_reclaimed_by_age(self):
-        # A lock held by a LIVE pid must never be reclaimed, even if its recorded
-        # start is far past the tailing cap -- an idle-ended observer can hold its
-        # lock for the whole analysis run (its own timeout).
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             ob = make_observer(tmp)
@@ -1078,6 +1032,35 @@ class Locking(unittest.TestCase):
                 t.join()
             self.assertEqual(sum(wins), 1, "exactly one racer may win the lock")
 
+    def test_unreadable_lock_reclaimed_only_past_the_analysis_timeout_bound(self):
+        with tempfile.TemporaryDirectory() as d:
+            ob = make_observer(Path(d))
+            bound = ob.analysis_timeout_secs + observer._LOCK_STALE_MARGIN_SECONDS
+            ob.lock_path.write_text("", encoding="utf-8")
+            young = time.time() - bound + 60
+            os.utime(ob.lock_path, (young, young))
+            self.assertFalse(ob.acquire_lock(), "inside the bound: treated live")
+            old = time.time() - bound - 1
+            os.utime(ob.lock_path, (old, old))
+            self.assertTrue(ob.acquire_lock(), "past the bound: reclaimed")
+            self.assertEqual(
+                os.getpid(),
+                json.loads(ob.lock_path.read_text(encoding="utf-8"))["pid"],
+            )
+
+    def test_run_exits_without_work_while_another_run_holds_the_lock(self):
+        with tempfile.TemporaryDirectory() as d:
+            ob = make_observer(Path(d), analysis=True)
+            ob.transcript.write_text(USER_RECORD * 3, encoding="utf-8")
+            ob.lock_path.write_text(json.dumps({"pid": os.getpid()}), encoding="utf-8")
+            captured: dict = {}
+            with fake_analysis_run(captured):
+                self.assertEqual(0, ob.run())
+            self.assertNotIn("cmd", captured)
+            self.assertFalse(ob.status_path.exists())
+            self.assertFalse(ob.obs_path.exists())
+            self.assertTrue(ob.lock_path.exists(), "the holder's lock is left alone")
+
 
 @contextlib.contextmanager
 def fake_tasklist(stdout: bytes, captured: dict | None = None):
@@ -1088,7 +1071,6 @@ def fake_tasklist(stdout: bytes, captured: dict | None = None):
     `os.name` is patched process-wide until the `finally` restores it. Pass
     `captured` to record the kwargs `_pid_alive` handed `subprocess.run`.
     """
-
     class FakeProc:
         pass
 
@@ -1111,12 +1093,6 @@ def fake_tasklist(stdout: bytes, captured: dict | None = None):
 
 class PidAlive(unittest.TestCase):
     def test_tasklist_call_uses_no_fixed_decoder(self):
-        # #1512: tasklist's piped output follows the console output code page,
-        # which is not fixed -- it varies by locale/session and can even
-        # differ between shells in the same session, so neither a hardcoded
-        # "utf-8" (the earlier #1483 fix) nor a hardcoded "oem" decodes
-        # correctly everywhere. _pid_alive must not pass any encoding/text
-        # kwarg to subprocess.run and must match the PID against raw bytes.
         captured: dict = {}
         with fake_tasklist(b"12345 Console 1 10,000 K", captured):
             self.assertTrue(observer._pid_alive(12345))
@@ -1125,13 +1101,6 @@ class PidAlive(unittest.TestCase):
         self.assertNotIn("errors", captured)
 
     def test_tasklist_call_matches_pid_despite_undecodable_process_name(self):
-        # A cp437 console plus a process name containing characters undefined
-        # in cp1252 (e.g. \x81) defeats any fixed decoder: it raises
-        # UnicodeDecodeError inside subprocess's reader thread and leaves
-        # out.stdout as None (#1512), a crash class errors="replace" alone
-        # (#1496) does not cover. Raw-bytes matching sidesteps decoding
-        # entirely, so this mojibake name must not affect the ASCII-digit
-        # PID match.
         stdout = b"\r\nt\x81st\x82.exe" + b" " * 20 + b"12345 Console 1  10,000 K"
         with fake_tasklist(stdout):
             self.assertTrue(observer._pid_alive(12345))
@@ -1143,13 +1112,27 @@ class PidAlive(unittest.TestCase):
             self.assertFalse(observer._pid_alive(12345))
 
 
-COMPLETED_RUN = {
-    "is_error": False,
-    "subtype": "success",
-    "terminal_reason": "completed",
-    "permission_denials": [],
-    "result": "### Checkpoint findings\n\nok",
+PRODUCED_RUN = json.loads(
+    Path(__file__)
+    .with_name("fixtures")
+    .joinpath("claude-p-result.json")
+    .read_text(encoding="utf-8")
+)
+COMPLETED_RUN = dict(PRODUCED_RUN, result="### Checkpoint findings\n\nok")
+PRODUCED_RUN_RECORD = {
+    "usage": {
+        "input_tokens": 2,
+        "cache_creation_input_tokens": 98015,
+        "cache_read_input_tokens": 0,
+        "output_tokens": 4,
+    },
+    "duration_ms": 1855,
+    "total_cost_usd": PRODUCED_RUN["total_cost_usd"],
 }
+
+
+def without_at(run: dict) -> dict:
+    return {k: v for k, v in run.items() if k != "at"}
 
 
 @contextlib.contextmanager
@@ -1157,6 +1140,7 @@ def fake_analysis_run(
     captured: dict,
     version: tuple[int, int, int] | None = (2, 1, 259),
     stdout: str | None = None,
+    on_run=None,
 ):
     """Drive `_run_analysis` against a stubbed `claude -p`, recording the call.
 
@@ -1165,9 +1149,9 @@ def fake_analysis_run(
     kwarg the analysis run passes, so a caller can assert on the command
     shape, the stdin prompt, or the subprocess kwargs. `version` is what
     `claude --version` reports to the flag gate (None: unparsable). `stdout`
-    replaces the completed run's JSON body.
+    replaces the completed run's JSON body. `captured["runs"]` counts the
+    calls, and `on_run`, when given, is called on each before it returns.
     """
-
     class FakeProc:
         returncode = 0
         stderr = ""
@@ -1177,6 +1161,9 @@ def fake_analysis_run(
     def fake_run(cmd, **kw):
         captured["cmd"] = cmd
         captured.update(kw)
+        captured["runs"] = captured.get("runs", 0) + 1
+        if on_run:
+            on_run()
         return FakeProc()
 
     saved_find, saved_run = observer._find_claude, observer.subprocess.run
@@ -1184,7 +1171,6 @@ def fake_analysis_run(
     observer._find_claude = lambda: "claude"
     observer.subprocess.run = fake_run
     claude_cli._CLAUDE_VERSION_CACHE = version
-    # The ledger stamp's own run would replace the recorded analysis call.
     with mock.patch.object(observer.Observer, "_stamp_plugin_usage"):
         try:
             yield
@@ -1198,15 +1184,14 @@ class LedgerAndRetention(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             ob = make_observer(tmp, session_id="s-1")
-            self.assertIsNone(ob._find_session_ledger())
+            self.assertIsNone(ledger_of(ob))
             ob._append_ledger("finding with token ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345")
-            led = ob._find_session_ledger()
+            led = ledger_of(ob)
             self.assertIsNotNone(led)
             text = led.read_text(encoding="utf-8")
             self.assertIn("session_id: s-1", text)
             self.assertIn("<REDACTED: GitHub token>", text)
             self.assertNotIn("ghp_ABCDEFGHIJKLMNOPQRSTUVWXYZ012345", text)
-            # Second append reuses the same file (one ledger per session).
             ob._append_ledger("second block")
             self.assertEqual(
                 len(list((tmp / "ledger").glob("*-running-retro-*.md"))), 1
@@ -1226,7 +1211,7 @@ class LedgerAndRetention(unittest.TestCase):
             ob._append_ledger("first")
             ob.transcript.write_text((json.dumps(event) + "\n") * 2, encoding="utf-8")
             ob._append_ledger("second")
-            text = ob._find_session_ledger().read_text(encoding="utf-8")
+            text = ledger_of(ob).read_text(encoding="utf-8")
             self.assertEqual(1, text.count("plugin_usage:"))
             self.assertIn(
                 'plugin_usage: {"skills": {"plugin-quality:audit": 2}}\n---\n', text
@@ -1258,7 +1243,7 @@ class LedgerAndRetention(unittest.TestCase):
             ob = make_observer(tmp)
             ob.transcript.unlink()
             self.assertTrue(ob._append_ledger("kept"))
-            text = ob._find_session_ledger().read_text(encoding="utf-8")
+            text = ledger_of(ob).read_text(encoding="utf-8")
             self.assertIn("kept", text)
             self.assertNotIn("plugin_usage:", text)
 
@@ -1269,7 +1254,25 @@ class LedgerAndRetention(unittest.TestCase):
             other.parent.mkdir(parents=True, exist_ok=True)
             other.write_text("---\nsession_id: other\n---\n", encoding="utf-8")
             ob = make_observer(tmp, session_id="mine")
-            self.assertIsNone(ob._find_session_ledger())
+            self.assertIsNone(ledger_of(ob))
+
+    def test_ensure_memory_root_ignored_accepts_doublestar_and_refuses_repo_root(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            mem = tmp / "mem"
+            mem.mkdir()
+            (mem / ".gitignore").write_text("**\n", encoding="utf-8")
+            ob = make_observer(tmp)
+            ob.ledger_dir = mem / "running-retros"
+            self.assertTrue(ob._ensure_memory_root_ignored())
+            self.assertEqual((mem / ".gitignore").read_text(encoding="utf-8"), "**\n")
+
+            repo = tmp / "repo"
+            (repo / ".git").mkdir(parents=True)
+            ob_repo = make_observer(tmp)
+            ob_repo.ledger_dir = repo / "running-retros"
+            self.assertFalse(ob_repo._ensure_memory_root_ignored())
+            self.assertFalse((repo / ".gitignore").exists())
 
     def test_analysis_command_is_tool_restricted(self):
         with tempfile.TemporaryDirectory() as d:
@@ -1286,7 +1289,7 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertEqual(cmd[cmd.index("--permission-prompts") + 1], "none")
             self.assertIsInstance(captured["input"], str)
             self.assertNotIn("--bare", cmd)
-            self.assertIsNotNone(ob._find_session_ledger())
+            self.assertIsNotNone(ledger_of(ob))
 
     def test_permission_prompts_flag_needs_a_cli_that_knows_it(self):
         for version in (None, (2, 1, 258)):
@@ -1304,17 +1307,6 @@ class LedgerAndRetention(unittest.TestCase):
                 self.assertEqual(cmd[cmd.index("--tools") + 1], "Read")
 
     def test_analysis_subprocess_encoding_and_creationflags(self):
-        # #1472: the analysis subprocess.run must (a) always decode captured
-        # output as UTF-8 explicitly, with errors="replace" so a truncated
-        # byte sequence decodes rather than raising past the try block's
-        # TimeoutExpired/OSError handling -- claude -p writes UTF-8, but
-        # Python's default text encoding is the platform code page (cp1252 on
-        # Windows), which corrupted non-ASCII ledger entries into mojibake --
-        # and (b) on Windows only, pass CREATE_NO_WINDOW so the run doesn't
-        # flash a console window, matching arm_observer.py's spawn_detached
-        # windowless spawn. Runs on every platform: the encoding/errors
-        # assertions are unconditional, and the creationflags assertion
-        # branches on the real os.name rather than skipping off-Windows.
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             ob = make_observer(tmp, analysis=True, session_id="enc")
@@ -1322,23 +1314,14 @@ class LedgerAndRetention(unittest.TestCase):
             captured: dict = {}
             with fake_analysis_run(captured):
                 self.assertTrue(ob._run_analysis())
-            # encoding="utf-8" and errors="replace" are unconditional --
-            # required on every platform, not just Windows (Linux/mac default
-            # UTF-8 already, but explicit beats implicit and keeps behavior
-            # identical everywhere).
             self.assertEqual(captured.get("encoding"), "utf-8")
             self.assertEqual(captured.get("errors"), "replace")
             if os.name == "nt":
-                # CREATE_NO_WINDOW only -- not DETACHED_PROCESS/CREATE_NEW_PROCESS_GROUP,
-                # which are for escaping the parent's process tree and unneeded for a
-                # waited (non-detached) child.
                 self.assertEqual(captured.get("creationflags"), 0x08000000)
             else:
                 self.assertNotIn("creationflags", captured)
 
     def test_analysis_unavailable_retains(self):
-        # claude CLI absent -> _run_analysis must report "not consumed" so run()
-        # keeps the observations as the collect fallback rather than deleting them.
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             ob = make_observer(tmp, analysis=True)
@@ -1375,13 +1358,10 @@ class LedgerAndRetention(unittest.TestCase):
                     cmd[cmd.index("--model") + 1],
                     manifest["observer_analysis_model"]["default"],
                 )
-                # A settings-file `env` re-applies CLAUDE_CODE_EFFORT_LEVEL in the
-                # child and it overrides --effort; --settings outranks those files.
                 settings = json.loads(cmd[cmd.index("--settings") + 1])
                 self.assertEqual(
                     settings, {"env": {"CLAUDE_CODE_EFFORT_LEVEL": effort}}
                 )
-                # --settings must precede the variadic --add-dir block.
                 self.assertLess(cmd.index("--settings"), cmd.index("--add-dir"))
                 self.assertEqual(captured["env"]["SESSION_FLOW_OBSERVER_ANALYSIS"], "1")
 
@@ -1401,7 +1381,7 @@ class LedgerAndRetention(unittest.TestCase):
                 ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
                 with fake_analysis_run({}, stdout=json.dumps(body)):
                     self.assertFalse(ob._run_analysis())
-                self.assertIsNone(ob._find_session_ledger())
+                self.assertIsNone(ledger_of(ob))
                 self.assertTrue(ob.obs_path.exists())
 
     def test_absent_terminal_reason_still_completes(self):
@@ -1412,7 +1392,7 @@ class LedgerAndRetention(unittest.TestCase):
             ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
             with fake_analysis_run({}, stdout=json.dumps(body)):
                 self.assertTrue(ob._run_analysis())
-            self.assertIsNotNone(ob._find_session_ledger())
+            self.assertIsNotNone(ledger_of(ob))
 
     def test_non_json_output_is_a_failed_run(self):
         with tempfile.TemporaryDirectory() as d:
@@ -1421,179 +1401,107 @@ class LedgerAndRetention(unittest.TestCase):
             ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
             with fake_analysis_run({}, stdout="### Checkpoint findings\n\nplain"):
                 self.assertFalse(ob._run_analysis())
-            self.assertIsNone(ob._find_session_ledger())
+            self.assertIsNone(ledger_of(ob))
             self.assertTrue(ob.obs_path.exists())
 
-    def test_tail_no_duplicate_events_on_growth(self):
-        # The offset must advance by bytes read, not the stat size, or a session
-        # that grows across polls re-emits its tail. Run the tailer while the file
-        # grows in batches and assert exactly one observation per record.
+    def test_below_min_lines_skips_analysis_and_records_it(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            # Growth ends about 1.8 s in; the 2 s idle window then opens and
-            # the 1 s idle confirmation closes the tail near 5 s. The idle
-            # confirmation is set explicitly because the harness default is
-            # the production 30 s, under which this case could only ever end
-            # at the lifetime deadline (a 30 s wait, measured in CI).
-            ob = make_observer(
-                tmp,
-                analysis=False,
-                idle_seconds=2.0,
-                poll_seconds=0.15,
-                idle_confirm_seconds=1.0,
-                max_seconds=10.0,
-            )
-            rec = '{"type":"user","message":{"content":"x"}}\n'
-            total = 9
-
-            tailer = threading.Thread(target=ob._tail_until_idle)
-            tailer.start()
-            time.sleep(0.3)  # let the tailer begin polling before growth starts
-            for _ in range(3):
-                with ob.transcript.open("a", encoding="utf-8") as f:
-                    for _ in range(3):
-                        f.write(rec)
-                time.sleep(0.5)
-            tailer.join(10)
-            lines = [
-                ln for ln in ob.obs_path.read_text(encoding="utf-8").splitlines() if ln
-            ]
-            self.assertEqual(
-                len(lines),
-                total,
-                f"expected {total} distilled events, got {len(lines)} (dupes/underread?)",
-            )
-
-    def test_tail_decodes_through_shared_reader_and_keeps_streamed_message_whole(self):
-        # One streamed API message written as two records yields two events that
-        # share one `mid` (so downstream counts the message once); a bad line and a
-        # non-object line emit nothing, and the bad line is counted in the status.
-        def tool_use(call_id: str) -> str:
-            return json.dumps(
-                {
-                    "type": "assistant",
-                    "message": {
-                        "id": "msg_stream",
-                        "content": [
-                            {"type": "tool_use", "id": call_id, "name": "Bash", "input": {}}
-                        ],
-                    },
-                }
-            )
-
-        with tempfile.TemporaryDirectory() as d:
-            ob = make_observer(
-                Path(d),
-                analysis=False,
-                idle_seconds=0.4,
-                poll_seconds=0.1,
-                idle_confirm_seconds=0.5,
-                max_seconds=8.0,
-            )
-            ob.transcript.write_text(
-                "\n".join([tool_use("c1"), "{not json", "[1]", tool_use("c2")]) + "\n",
-                encoding="utf-8",
-            )
-            ob._tail_until_idle()
-            events = [
-                json.loads(ln)
-                for ln in ob.obs_path.read_text(encoding="utf-8").splitlines()
-                if ln
-            ]
-            self.assertEqual(len(events), 2)
-            self.assertEqual(len({e["mid"] for e in events}), 1)
+            ob = make_observer(tmp, analysis=True, session_id="short", min_lines=3)
+            ob.obs_path.write_text('{"t":"user"}\n' * 2, encoding="utf-8")
+            captured: dict = {}
+            with fake_analysis_run(captured):
+                self.assertFalse(ob._run_analysis())
+            self.assertNotIn("cmd", captured, "no claude -p run below the minimum")
+            self.assertIsNone(ledger_of(ob))
+            self.assertTrue(ob.obs_path.exists())
             status = json.loads(ob.status_path.read_text(encoding="utf-8"))
-            self.assertEqual(status["lines_observed"], 2)
-            self.assertEqual(status["parse_errors"], 2)
+            reason = "analysis skipped: 2 lines < min 3"
+            (run,) = status["analysis_runs"]
+            self.assertEqual({"skipped": reason, "lines": 2}, without_at(run))
+            self.assertIn(reason, ob.log_path.read_text(encoding="utf-8"))
 
-    def test_idle_confirmation_resumes_when_transcript_grows_again(self):
-        rec = '{"type":"user","message":{"content":"x"}}\n'
+    def test_at_min_lines_fires_analysis(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            ob = make_observer(
-                tmp,
-                analysis=False,
-                idle_seconds=0.4,
-                poll_seconds=0.1,
-                idle_confirm_seconds=2.0,
-                max_seconds=8.0,
-            )
-            with ob.transcript.open("w", encoding="utf-8") as f:
-                f.write(rec)
+            ob = make_observer(tmp, analysis=True, session_id="full", min_lines=3)
+            ob.obs_path.write_text('{"t":"user"}\n' * 3, encoding="utf-8")
+            captured: dict = {}
+            with fake_analysis_run(captured):
+                self.assertTrue(ob._run_analysis())
+            self.assertIn("cmd", captured)
+            self.assertIsNotNone(ledger_of(ob))
 
-            tailer = threading.Thread(target=ob._tail_until_idle)
-            tailer.start()
+    def test_unset_min_lines_comes_from_the_manifest(self):
+        manifest_path = observer._PLUGIN_DIR / ".claude-plugin" / "plugin.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))["userConfig"]
+        with tempfile.TemporaryDirectory() as d:
+            ob = make_observer(Path(d), min_lines="")
+            self.assertEqual(ob.min_lines, manifest["observer_min_lines"]["default"])
 
-            def read_status() -> dict | None:
-                try:
-                    return json.loads(ob.status_path.read_text(encoding="utf-8"))
-                except (OSError, json.JSONDecodeError):
-                    return None
-
-            deadline = time.time() + 5.0
-            saw_pending = False
-            while time.time() < deadline:
-                status = read_status()
-                if status and status.get("state") == "pending-idle":
-                    saw_pending = True
-                    with ob.transcript.open("a", encoding="utf-8") as f:
-                        f.write(rec)
-                    break
-                time.sleep(0.05)
-            self.assertTrue(saw_pending, "expected pending-idle before renewed growth")
-            resumed = False
-            deadline = time.time() + 3.0
-            while time.time() < deadline:
-                status = read_status()
-                if status and status.get("state") == "watching":
-                    resumed = True
-                    break
-                time.sleep(0.05)
-            tailer.join(10)
-            self.assertTrue(resumed, "renewed growth must return observer to watching")
-
-    def test_resume_offset_from_prior_status(self):
+    def test_run_usage_is_recorded_in_status_and_log(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            ob = make_observer(tmp, session_id="rs")
-            self.assertEqual(ob._resume_offset(), 0)
-            ob.status_path.write_text(
-                json.dumps({"target_session": "rs", "byte_offset": 4096}),
-                encoding="utf-8",
-            )
-            self.assertEqual(ob._resume_offset(), 4096)
-            # A status file for a DIFFERENT session must not be resumed from.
-            ob.status_path.write_text(
-                json.dumps({"target_session": "other", "byte_offset": 999}),
-                encoding="utf-8",
-            )
-            self.assertEqual(ob._resume_offset(), 0)
+            ob = make_observer(tmp, analysis=True, session_id="use")
+            ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
+            with fake_analysis_run({}):
+                self.assertTrue(ob._run_analysis())
+            status = json.loads(ob.status_path.read_text(encoding="utf-8"))
+            (run,) = status["analysis_runs"]
+            self.assertEqual(PRODUCED_RUN_RECORD, without_at(run))
+            log = ob.log_path.read_text(encoding="utf-8")
+            self.assertEqual(1, log.count("analysis usage: "))
+            self.assertIn('"cache_creation_input_tokens":98015', log)
 
-    def test_continuity_pointers_in_frontmatter(self):
+    def test_failed_run_usage_is_still_recorded(self):
+        body = dict(
+            COMPLETED_RUN, subtype="error_max_turns", terminal_reason="max_turns"
+        )
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            # Without pointers: only session_id + observer marker.
-            a = make_observer(tmp, session_id="c1")
-            a._append_ledger("f")
-            self.assertNotIn(
-                "previous_running_retro",
-                a._find_session_ledger().read_text(encoding="utf-8"),
+            ob = make_observer(tmp, analysis=True, session_id="fail")
+            ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
+            with fake_analysis_run({}, stdout=json.dumps(body)):
+                self.assertFalse(ob._run_analysis())
+            status = json.loads(ob.status_path.read_text(encoding="utf-8"))
+            (run,) = status["analysis_runs"]
+            self.assertEqual(PRODUCED_RUN_RECORD, without_at(run))
+
+    def test_analysis_runs_survive_a_status_write_and_a_new_observer(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, session_id="keep")
+            ob._add_analysis_run({"lines": 1})
+            ob._write_status({"target_session": "keep", "byte_offset": 1})
+            status = json.loads(ob.status_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                [{"lines": 1}], [without_at(r) for r in status["analysis_runs"]]
             )
-            # With pointers (as the in-session arm entry would pass): carried through.
-            b = make_observer(tmp, session_id="c2")
-            b.prev_running_retro = (
-                "/mem/running-retros/20260101T000000Z-running-retro-x.md"
+            again = make_observer(tmp, session_id="keep")
+            again._add_analysis_run({"lines": 2})
+            status = json.loads(again.status_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                [{"lines": 1}, {"lines": 2}],
+                [without_at(r) for r in status["analysis_runs"]],
             )
-            b.prev_session_id = "prior-sid"
-            b._append_ledger("f")
-            head = b._find_session_ledger().read_text(encoding="utf-8")
-            self.assertIn("previous_running_retro: /mem/running-retros/", head)
-            self.assertIn("previous_session_id: prior-sid", head)
+
+    def test_new_ledger_frontmatter(self):
+        with tempfile.TemporaryDirectory() as d:
+            ob = make_observer(Path(d), session_id="c1")
+            ob._append_ledger("f")
+            text = ledger_of(ob).read_text(encoding="utf-8")
+            self.assertTrue(
+                text.startswith(
+                    "---\nsession_id: c1\nobserver: autonomous\n---\n\n"
+                    "# Running retro ledger — test\n"
+                ),
+                text[:200],
+            )
 
     def test_memory_root_self_ignore_guard(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            ob = make_observer(tmp, session_id="gi")  # ledger_dir = tmp/ledger
+            ob = make_observer(tmp, session_id="gi")
             ob._append_ledger("finding")
             gi = ob.ledger_dir.parent / ".gitignore"
             self.assertTrue(
@@ -1604,9 +1512,6 @@ class LedgerAndRetention(unittest.TestCase):
     def test_guard_refuses_repo_root_and_aborts_write(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            # memory root == a repo root (has .git): the guard must NOT create a
-            # .gitignore there, AND the ledger write must be refused (not left as
-            # an untracked committable file under the repo).
             (tmp / "ledger").mkdir()
             (tmp / ".git").mkdir()
             ob = make_observer(tmp, session_id="rr")
@@ -1625,9 +1530,7 @@ class LedgerAndRetention(unittest.TestCase):
     def test_guard_ensures_star_in_existing_gitignore(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            ob = make_observer(
-                tmp, session_id="ex"
-            )  # memory root = tmp/ledger's parent = tmp
+            ob = make_observer(tmp, session_id="ex")
             root = ob.ledger_dir.parent
             (root / ".gitignore").write_text("# notes\n!keep.txt\n", encoding="utf-8")
             self.assertTrue(ob._ensure_memory_root_ignored())
@@ -1635,281 +1538,516 @@ class LedgerAndRetention(unittest.TestCase):
             self.assertIn("*", body.splitlines())
             self.assertIn("# notes", body)
 
-    def test_retention_rule(self):
+
+def read_json(path: Path) -> dict:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+class OneShotRun(unittest.TestCase):
+    def test_finished_transcript_is_distilled_analyzed_and_ledgered(self):
+        with tempfile.TemporaryDirectory() as d:
+            ob = make_observer(Path(d), analysis=True, session_id="done")
+            ob.transcript.write_text(USER_RECORD * 3, encoding="utf-8")
+            seen: dict = {}
+
+            def snapshot():
+                seen["obs"] = ob.obs_path.read_text(encoding="utf-8").splitlines()
+
+            captured: dict = {}
+            with fake_analysis_run(captured, on_run=snapshot):
+                self.assertEqual(0, ob.run())
+            self.assertEqual(1, captured["runs"])
+            self.assertIn(str(ob.obs_path), captured["input"])
+            self.assertEqual(3, len(seen["obs"]))
+            self.assertEqual("user", json.loads(seen["obs"][0])["t"])
+            text = ledger_of(ob).read_text(encoding="utf-8")
+            self.assertIn("(autonomous post-end)\n\n### Checkpoint findings\n\nok\n", text)
+            self.assertFalse(ob.obs_path.exists(), "consumed observations deleted")
+            self.assertFalse(ob.lock_path.exists(), "lock released")
+            status = read_json(ob.status_path)
+            self.assertEqual(ob.transcript.stat().st_size, status["byte_offset"])
+            self.assertEqual(3, status["lines_observed"])
+            self.assertEqual("analyzed", status["state"])
+            self.assertEqual(
+                [PRODUCED_RUN_RECORD], [without_at(r) for r in status["analysis_runs"]]
+            )
+
+    def test_rerun_reads_only_the_span_past_the_stored_offset(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            # Collect-only (analysis off): run() never consumes, so it never
-            # calls _cleanup_observations and the observations stay.
-            ob = make_observer(tmp, analysis=False)
-            ob.obs_path.write_text('{"t":"user"}\n', encoding="utf-8")
-            self.assertTrue(
-                ob.obs_path.exists(), "collect-only must retain observations"
+            ob = make_observer(tmp, analysis=True, session_id="re", min_lines=3)
+            ob.transcript.write_text(USER_RECORD * 5, encoding="utf-8")
+            obs_lines: list[int] = []
+            captured: dict = {}
+
+            def count():
+                obs_lines.append(len(ob.obs_path.read_text(encoding="utf-8").splitlines()))
+
+            with fake_analysis_run(captured, on_run=count):
+                ob.run()
+                unchanged = make_observer(tmp, analysis=True, session_id="re", min_lines=3)
+                unchanged.run()
+                self.assertEqual(1, captured["runs"], "no growth: no second analysis")
+                self.assertEqual("analyzed", read_json(ob.status_path)["state"])
+                with ob.transcript.open("a", encoding="utf-8") as f:
+                    f.write(USER_RECORD)
+                grown = make_observer(tmp, analysis=True, session_id="re", min_lines=3)
+                grown.run()
+            self.assertEqual(2, captured["runs"])
+            self.assertEqual([5, 1], obs_lines, "the follow-up saw only the new line")
+            text = ledger_of(ob).read_text(encoding="utf-8")
+            self.assertEqual(2, text.count("(autonomous post-end)"))
+            runs = read_json(ob.status_path)["analysis_runs"]
+            self.assertEqual([PRODUCED_RUN_RECORD] * 2, [without_at(r) for r in runs])
+
+    def test_below_min_lines_skip_is_recorded_and_re_evaluated_after_growth(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="short", min_lines=3)
+            ob.transcript.write_text(USER_RECORD * 2, encoding="utf-8")
+            captured: dict = {}
+            with fake_analysis_run(captured):
+                ob.run()
+            self.assertNotIn("cmd", captured)
+            status = read_json(ob.status_path)
+            reason = "analysis skipped: 2 lines < min 3"
+            self.assertEqual(
+                [{"skipped": reason, "lines": 2}],
+                [without_at(r) for r in status["analysis_runs"]],
             )
-            ob._cleanup_observations()
-            self.assertFalse(ob.obs_path.exists())
+            self.assertEqual(ob.transcript.stat().st_size, status["byte_offset"])
+            self.assertEqual("skipped", status["state"])
+            self.assertTrue(ob.obs_path.exists())
+            with ob.transcript.open("a", encoding="utf-8") as f:
+                f.write(USER_RECORD)
+            with fake_analysis_run(captured):
+                make_observer(tmp, analysis=True, session_id="short", min_lines=3).run()
+            self.assertEqual(1, captured["runs"], "3 lines now: analyzed")
+            self.assertIsNotNone(ledger_of(ob))
+
+    def test_failed_analysis_of_an_unchanged_span_is_retried_once(self):
+        failed = json.dumps(dict(COMPLETED_RUN, is_error=True, result="API Error"))
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="flaky")
+            ob.transcript.write_text(USER_RECORD * 3, encoding="utf-8")
+            captured: dict = {}
+            states = []
+            for _ in range(3):
+                with fake_analysis_run(captured, stdout=failed):
+                    make_observer(tmp, analysis=True, session_id="flaky").run()
+                status = read_json(ob.status_path)
+                states.append((status["state"], status["failed_attempts"]))
+            self.assertEqual(2, captured["runs"], "one first try, one retry, then none")
+            self.assertEqual([("retained", 1), ("retained", 2), ("retained", 2)], states)
+            self.assertEqual(3, len(ob.obs_path.read_text(encoding="utf-8").splitlines()))
+
+    def test_retry_over_retained_observations_can_succeed(self):
+        failed = json.dumps(dict(COMPLETED_RUN, is_error=True, result="API Error"))
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            ob = make_observer(tmp, analysis=True, session_id="heal")
+            ob.transcript.write_text(USER_RECORD * 3, encoding="utf-8")
+            with fake_analysis_run({}, stdout=failed):
+                ob.run()
+            seen: list[int] = []
+
+            def count():
+                seen.append(len(ob.obs_path.read_text(encoding="utf-8").splitlines()))
+
+            with fake_analysis_run({}, on_run=count):
+                make_observer(tmp, analysis=True, session_id="heal").run()
+            self.assertEqual([3], seen, "the retry read the retained observations")
+            status = read_json(ob.status_path)
+            self.assertEqual(("analyzed", 0), (status["state"], status["failed_attempts"]))
+            self.assertIsNotNone(ledger_of(ob))
+
+    def test_collect_only_run_keeps_observations(self):
+        with tempfile.TemporaryDirectory() as d:
+            ob = make_observer(Path(d), session_id="co")
+            ob.transcript.write_text(USER_RECORD * 2, encoding="utf-8")
+            captured: dict = {}
+            with fake_analysis_run(captured):
+                self.assertEqual(0, ob.run())
+            self.assertNotIn("cmd", captured)
+            self.assertEqual(2, len(ob.obs_path.read_text(encoding="utf-8").splitlines()))
+            self.assertEqual("collected", read_json(ob.status_path)["state"])
+            self.assertIsNone(ledger_of(ob))
+
+    def test_transcript_shorter_than_the_stored_offset_is_read_from_the_start(self):
+        with tempfile.TemporaryDirectory() as d:
+            ob = make_observer(Path(d), session_id="tr")
+            ob.transcript.write_text(USER_RECORD * 2, encoding="utf-8")
+            ob.status_path.write_text(
+                json.dumps({"target_session": "tr", "byte_offset": 10**6}),
+                encoding="utf-8",
+            )
+            self.assertTrue(ob._distill())
+            self.assertEqual(2, len(ob.obs_path.read_text(encoding="utf-8").splitlines()))
+            self.assertEqual(
+                ob.transcript.stat().st_size, read_json(ob.status_path)["byte_offset"]
+            )
+
+    def test_distill_decodes_through_shared_reader_and_keeps_streamed_message_whole(self):
+        def tool_use(call_id: str) -> str:
+            return json.dumps(
+                {
+                    "type": "assistant",
+                    "message": {
+                        "id": "msg_stream",
+                        "content": [
+                            {"type": "tool_use", "id": call_id, "name": "Bash", "input": {}}
+                        ],
+                    },
+                }
+            )
+
+        with tempfile.TemporaryDirectory() as d:
+            ob = make_observer(Path(d))
+            ob.transcript.write_text(
+                "\n".join([tool_use("c1"), "{not json", "[1]", tool_use("c2")]),
+                encoding="utf-8",
+            )
+            self.assertTrue(ob._distill())
+            events = [
+                json.loads(ln)
+                for ln in ob.obs_path.read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual(2, len(events))
+            self.assertEqual({"g_stream"}, {e["mid"] for e in events})
+            status = read_json(ob.status_path)
+            self.assertEqual(2, status["lines_observed"])
+            self.assertEqual(2, status["parse_errors"])
+            self.assertEqual(ob.transcript.stat().st_size, status["byte_offset"])
+
+    def test_stored_offset_reads_only_this_sessions_status(self):
+        with tempfile.TemporaryDirectory() as d:
+            work = Path(d)
+            self.assertEqual(0, observer.stored_offset(observer.read_status(work, "rs")))
+            (work / "status-rs.json").write_text(
+                json.dumps({"target_session": "rs", "byte_offset": 4096}),
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                4096, observer.stored_offset(observer.read_status(work, "rs"))
+            )
+            (work / "status-rs.json").write_text(
+                json.dumps({"target_session": "other", "byte_offset": 999}),
+                encoding="utf-8",
+            )
+            self.assertEqual(0, observer.stored_offset(observer.read_status(work, "rs")))
 
 
-class ArmLauncher(unittest.TestCase):
-    @staticmethod
-    def _arm():
-        spec = importlib.util.spec_from_file_location(
-            "arm_observer", str(Path(__file__).with_name("arm_observer.py"))
+def load_arm():
+    spec = importlib.util.spec_from_file_location(
+        "arm_observer", str(Path(__file__).with_name("arm_observer.py"))
+    )
+    m = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(m)
+    return m
+
+
+IDLE = 900.0
+
+
+class CatchUpSelection(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        root = Path(self._tmp.name)
+        self.projects = root / "projects"
+        self.work = root / "data" / "session-flow-observer"
+        self.ledgers = root / "repo" / ".work" / "running-retros"
+        for p in (self.projects, self.work, self.ledgers):
+            p.mkdir(parents=True)
+        self.now = time.time()
+        self.current = self.transcript("current", age=IDLE * 10)
+        self.arm = load_arm()
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def transcript(self, sid: str, age: float, lines: int = 1) -> Path:
+        path = self.projects / f"{sid}.jsonl"
+        path.write_text(USER_RECORD * lines, encoding="utf-8")
+        os.utime(path, (self.now - age, self.now - age))
+        return path
+
+    def picked(self) -> list[str]:
+        return [
+            p.stem
+            for p in self.arm.catch_up_candidates(
+                self.current, "current", self.work, self.ledgers, IDLE, now=self.now
+            )
+        ]
+
+    def test_ended_session_is_picked_and_the_current_one_is_not(self):
+        self.transcript("ended", age=IDLE + 60)
+        self.assertEqual(["ended"], self.picked())
+
+    def test_too_fresh_and_too_old_are_skipped(self):
+        self.transcript("fresh", age=IDLE - 60)
+        self.transcript("old", age=self.arm.MAX_AGE_SECONDS + 60)
+        self.assertEqual([], self.picked())
+
+    def test_session_with_live_checks_is_skipped(self):
+        self.transcript("live", age=IDLE + 60)
+        (self.work / "live-live.jsonl").write_text("{}\n", encoding="utf-8")
+        self.assertEqual([], self.picked())
+
+    def test_session_with_a_ledger_is_skipped(self):
+        self.transcript("ledgered", age=IDLE + 60)
+        (self.ledgers / "20260101T000000Z-running-retro-x.md").write_text(
+            "---\nsession_id: ledgered\nobserver: live\n---\n", encoding="utf-8"
         )
-        m = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(m)
-        return m
+        self.assertEqual([], self.picked())
 
-    def test_live_observer_detected_for_manual_arm(self):
-        arm = self._arm()
-        with tempfile.TemporaryDirectory() as d:
-            tmp = Path(d)
-            self.assertIsNone(arm.live_observer_pid(str(tmp), "s"))
-            (tmp / "observer-s.lock").write_text(
-                json.dumps({"pid": os.getpid()}), encoding="utf-8"
+    def test_analyzed_session_is_skipped_until_it_grows(self):
+        path = self.transcript("seen", age=IDLE + 60)
+        status = self.work / "status-seen.json"
+        status.write_text(
+            json.dumps({"target_session": "seen", "byte_offset": path.stat().st_size}),
+            encoding="utf-8",
+        )
+        self.assertEqual([], self.picked())
+        self.transcript("seen", age=IDLE + 60, lines=2)
+        self.assertEqual(["seen"], self.picked())
+
+    def test_resumed_follow_up_of_an_analyzed_session_is_picked(self):
+        path = self.transcript("resumed", age=IDLE + 60)
+        size = path.stat().st_size
+        (self.ledgers / "20260101T000000Z-running-retro-x.md").write_text(
+            "---\nsession_id: resumed\nobserver: autonomous\n---\n", encoding="utf-8"
+        )
+        (self.work / "status-resumed.json").write_text(
+            json.dumps(
+                {"target_session": "resumed", "byte_offset": size, "state": "analyzed"}
+            ),
+            encoding="utf-8",
+        )
+        self.assertEqual([], self.picked())
+        self.transcript("resumed", age=IDLE + 60, lines=2)
+        self.assertEqual(["resumed"], self.picked())
+
+    def test_failed_session_is_picked_until_its_retry_is_spent(self):
+        path = self.transcript("failed", age=IDLE + 60)
+        status = self.work / "status-failed.json"
+        for attempts, picked in ((1, ["failed"]), (2, [])):
+            status.write_text(
+                json.dumps(
+                    {
+                        "target_session": "failed",
+                        "byte_offset": path.stat().st_size,
+                        "state": "retained",
+                        "failed_attempts": attempts,
+                    }
+                ),
+                encoding="utf-8",
             )
-            self.assertEqual(arm.live_observer_pid(str(tmp), "s"), os.getpid())
-            (tmp / "observer-s.lock").write_text(
-                json.dumps({"pid": 2**30}), encoding="utf-8"
-            )
-            self.assertIsNone(arm.live_observer_pid(str(tmp), "s"))
+            self.assertEqual(picked, self.picked(), attempts)
 
-    def _run_main(self, argv: list[str], arm=None) -> tuple[int, str]:
-        """Run arm_observer.py's main() with `argv` and capture its stdout.
+    def test_at_most_two_newest_first(self):
+        for sid, age in (("a", IDLE + 300), ("b", IDLE + 100), ("c", IDLE + 200)):
+            self.transcript(sid, age=age)
+        self.assertEqual(["b", "c"], self.picked())
 
-        Drives `main()` all the way through to the `spawn_detached` call (not
-        just argument parsing or an early-return branch) -- the real spawn
-        call is exercised, not mocked, so a regression at that call site
-        (e.g. an undefined name) surfaces exactly as it does for a live
-        caller. Pass a pre-built `arm` module (from `self._arm()`) to run
-        `main()` against a module a caller already monkeypatched (e.g. to
-        force a spawn-time exception) -- `_arm()` re-execs the file fresh
-        each time, so a patch applied to a separately-loaded module would
-        never reach the module this method actually runs.
-        """
-        if arm is None:
-            arm = self._arm()
-        old_argv = sys.argv
+
+class CatchUpLauncher(unittest.TestCase):
+    def run_main(self, arm, argv: list[str]) -> tuple[int, str]:
         buf = io.StringIO()
-        try:
-            sys.argv = ["arm_observer.py", *argv]
+        with mock.patch.object(sys, "argv", ["arm_observer.py", *argv]):
             with contextlib.redirect_stdout(buf):
                 rc = arm.main()
-        finally:
-            sys.argv = old_argv
         return rc, buf.getvalue()
 
-    @staticmethod
-    def _terminate_and_wait(pid: int, timeout: float = 5.0):
-        """Best-effort cleanup for a spawned detached observer.
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.projects = self.root / "projects"
+        self.projects.mkdir()
+        self.current = self.projects / "current.jsonl"
+        self.current.write_text(USER_RECORD, encoding="utf-8")
+        self.argv = [
+            "--transcript",
+            str(self.current),
+            "--session-id",
+            "current",
+            "--work-dir",
+            str(self.root / "work"),
+            "--ledger-dir",
+            str(self.root / "ledger"),
+        ]
 
-        `os.kill` maps onto `TerminateProcess` for a non-Windows-specific
-        signal like SIGTERM even on Windows (CPython's `os.kill` docs), so
-        this is portable. Errors are swallowed -- the process may already
-        have exited on its own (it is armed with a tiny --idle-seconds) --
-        and we wait briefly afterward so the caller's tempdir teardown does
-        not race a still-open file handle held by the child (observed on
-        Windows: a live child holding `observations-<sid>.ndjson` open makes
-        `TemporaryDirectory.cleanup()` raise `PermissionError`).
+    def tearDown(self):
+        self._tmp.cleanup()
 
-        The wait is per-platform because liveness and reaping differ. On
-        POSIX the detached child is still a direct child of this test
-        process, so after SIGTERM it lingers as a zombie until reaped and
-        `_pid_alive`'s `os.kill(pid, 0)` keeps reporting it alive -- polling
-        liveness there would burn the whole timeout and leave the zombie
-        behind. `waitpid` is the correct wait on that platform: it returns
-        as soon as the child dies and reaps it in the same call. Windows has
-        no zombie state and no `waitpid`, so liveness polling stays.
-        """
-        with contextlib.suppress(OSError, ProcessLookupError):
-            os.kill(pid, signal.SIGTERM)
-        deadline = time.time() + timeout
-        if os.name != "nt":
-            while time.time() < deadline:
-                try:
-                    if os.waitpid(pid, os.WNOHANG)[0] == pid:
-                        return
-                except ChildProcessError:
-                    return  # already reaped (subprocess's own _active cleanup)
-                except OSError:
-                    return
-                time.sleep(0.05)
-            return
-        arm = ArmLauncher._arm()
-        while time.time() < deadline and arm._observer_mod()._pid_alive(pid):
-            time.sleep(0.05)
+    def ended(self, sid: str) -> Path:
+        path = self.projects / f"{sid}.jsonl"
+        path.write_text(USER_RECORD, encoding="utf-8")
+        then = time.time() - IDLE - 60
+        os.utime(path, (then, then))
+        return path
 
-    def _assert_reaches_spawn_success(self, sid: str, extra_args: list[str]):
-        """Shared body: drive `main()` through the real spawn call and assert
-        the success-path outcome (armed message + a real live child pid) for
-        one caller's flag shape. Both entry points -- the running-retro `arm`
-        action and the opt-in SessionStart auto-arm hook
-        (`hooks/observer-arm.sh`) -- invoke this same launcher `main()` and
-        differ only in which flags they pass, never in the code path
-        executed; `extra_args` supplies each caller's distinguishing shape.
-        """
-        d = tempfile.mkdtemp()
-        pid = None
-        try:
-            tmp = Path(d)
-            transcript = tmp / "sess.jsonl"
-            transcript.write_text("", encoding="utf-8")
-            argv = [
-                "--transcript",
-                str(transcript),
-                "--work-dir",
-                str(tmp / "work"),
-                "--ledger-dir",
-                str(tmp / "ledger"),
-                "--session-id",
-                sid,
-                "--plugin-root",
-                str(tmp),
-                "--model",
-                "test-model",
-                # Analysis-free (no `claude -p` call) keeps this fast and
-                # hermetic; the spawn call itself -- the site of the bug --
-                # is still real. --idle-seconds is set well above the time
-                # this test needs to parse output, reload arm_observer.py,
-                # and probe liveness after spawn_detached returns, so the
-                # child cannot legitimately self-exit mid-assertion (that
-                # raced intermittently at 0.05s under load); --max-seconds
-                # is the leak backstop, short enough that a missed
-                # _terminate_and_wait still dies fast on its own.
-                "--idle-seconds",
-                "30",
-                "--max-seconds",
-                "15",
-                *extra_args,
-            ]
-            rc, out = self._run_main(argv)
-            self.assertEqual(rc, 0)
-            self.assertIn(f"observer: armed for session {sid} (pid ", out)
-            self.assertNotIn("NameError", out)
-            self.assertNotIn("Traceback", out)
-            pid = int(out.rsplit("(pid ", 1)[1].rstrip(")\n"))
-            arm = self._arm()
-            self.assertTrue(
-                arm._observer_mod()._pid_alive(pid),
-                f"spawned observer pid {pid} is not alive right after spawn",
-            )
-        finally:
-            if pid is not None:
-                self._terminate_and_wait(pid)
-            shutil.rmtree(d, ignore_errors=True)
+    def test_each_pick_launches_observer_with_its_own_transcript_and_settings(self):
+        ended = self.ended("ended")
+        arm = load_arm()
+        cmds: list[list[str]] = []
 
-    def test_manual_arm_reaches_spawn_success(self):
-        """Manual `arm` action's flag shape (SKILL.md): no --poll-seconds,
-        includes --previous-running-retro / --previous-session-id (empty when
-        there is no continuity chain)."""
-        self._assert_reaches_spawn_success(
-            "manual-sid",
-            ["--previous-running-retro", "", "--previous-session-id", ""],
-        )
-
-    def test_sessionstart_autoarm_reaches_spawn_success(self):
-        """SessionStart auto-arm hook's flag shape (hooks/observer-arm.sh):
-        includes --poll-seconds, omits --previous-running-retro /
-        --previous-session-id / --topic (the headless hook cannot infer
-        continuity in-session)."""
-        self._assert_reaches_spawn_success(
-            "autoarm-sid",
-            ["--poll-seconds", "0.05"],
-        )
-
-    def test_idle_confirm_seconds_reaches_observer_argv(self):
-        """`--idle-confirm-seconds` must be a declared launcher flag and must
-        be forwarded verbatim to the observer.py argv it spawns, not just
-        accepted and dropped. Monkeypatches `spawn_detached` to capture the
-        real `cmd` list `main()` builds, rather than asserting on observer
-        runtime behavior, so this test fails on the forwarding bug itself
-        (a dropped flag) as well as on the argparse error the bug also
-        causes (an undeclared flag)."""
-        arm = self._arm()
-        captured: dict = {}
-
-        def _capture(cmd, cwd):
-            captured["cmd"] = cmd
+        def capture(cmd, cwd):
+            cmds.append(cmd)
             return 999999
 
-        arm.spawn_detached = _capture
+        arm.spawn_detached = capture
+        argv = self.argv + ["--effort", "low", "--min-lines", "42", "--analysis"]
+        rc, out = self.run_main(arm, argv)
+        self.assertEqual(0, rc)
+        self.assertEqual("observer: catch-up for session ended (pid 999999)\n", out)
+        (cmd,) = cmds
+        self.assertEqual(str(Path(arm.__file__).with_name("observer.py")), cmd[1])
+        self.assertEqual(str(ended.resolve()), cmd[cmd.index("--transcript") + 1])
+        self.assertEqual("ended", cmd[cmd.index("--session-id") + 1])
+        self.assertEqual("low", cmd[cmd.index("--effort") + 1])
+        self.assertEqual("42", cmd[cmd.index("--min-lines") + 1])
+        self.assertIn("--analysis", cmd)
+        self.assertNotIn("--bare", cmd)
 
-        with tempfile.TemporaryDirectory() as d:
-            tmp = Path(d)
-            transcript = tmp / "sess.jsonl"
-            transcript.write_text("", encoding="utf-8")
-            argv = [
-                "--transcript",
-                str(transcript),
-                "--work-dir",
-                str(tmp / "work"),
-                "--ledger-dir",
-                str(tmp / "ledger"),
-                "--session-id",
-                "idle-confirm-sid",
-                "--idle-seconds",
-                "30",
-                "--idle-confirm-seconds",
-                "7",
-                "--max-seconds",
-                "15",
-                "--effort",
-                "low",
-            ]
-            rc, out = self._run_main(argv, arm=arm)
-            self.assertEqual(rc, 0)
-            self.assertNotIn("Traceback", out)
+    def test_nothing_to_catch_up_spawns_nothing(self):
+        arm = load_arm()
+        arm.spawn_detached = mock.Mock()
+        rc, out = self.run_main(arm, self.argv)
+        self.assertEqual(0, rc)
+        self.assertEqual("observer: no ended session to catch up\n", out)
+        arm.spawn_detached.assert_not_called()
 
-        cmd = captured.get("cmd")
-        self.assertIsNotNone(cmd, "spawn_detached was never called")
-        self.assertIn("--idle-confirm-seconds", cmd)
-        flag_index = cmd.index("--idle-confirm-seconds")
-        self.assertEqual(cmd[flag_index + 1], "7")
-        self.assertEqual(cmd[cmd.index("--effort") + 1], "low")
+    def test_spawn_failure_degrades_gracefully(self):
+        self.ended("boom")
+        arm = load_arm()
 
-    def test_non_oserror_at_spawn_degrades_gracefully(self):
-        """A non-OSError exception at the spawn call (e.g. a resurfaced
-        undefined-name regression) must degrade the same as any other spawn
-        failure -- a graceful `observer: failed to spawn: ...` message and
-        exit 0, never a raw traceback escaping to the caller.
-
-        Forces the failure by monkeypatching `spawn_detached` on an
-        already-loaded module (rather than relying on a real crash), so this
-        test is independent of whatever the current spawn-call implementation
-        is. Uses `_run_main(argv, arm=...)` -- passing a *pre-built* module
-        -- because `_run_main`'s own default re-execs arm_observer.py fresh
-        each call; patching a separately-loaded module would never reach the
-        module `main()` actually runs from.
-        """
-        arm = self._arm()
-
-        def _boom(*_args, **_kwargs):
+        def boom(*_args, **_kwargs):
             raise RuntimeError("boom")
 
-        arm.spawn_detached = _boom
+        arm.spawn_detached = boom
+        rc, out = self.run_main(arm, self.argv)
+        self.assertEqual(0, rc)
+        self.assertEqual("observer: failed to spawn for boom: boom\n", out)
 
+    def test_real_detached_launch_runs_observer_to_completion(self):
+        ended = self.ended("real")
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", ResourceWarning)
+            rc, out = self.run_main(load_arm(), self.argv)
+        self.assertEqual(0, rc)
+        pid = int(out.rsplit("(pid ", 1)[1].rstrip(")\n"))
+        status = self.root / "work" / "status-real.json"
+        wait_for(status, pid)
+        self.assertEqual("collected", read_json(status)["state"])
+        self.assertEqual(ended.stat().st_size, read_json(status)["byte_offset"])
+
+
+def wait_for(path: Path, pid: int, timeout: float = 15.0) -> None:
+    """Wait for a detached child to exit (reaping it on POSIX), then for `path`."""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        if os.name != "nt":
+            with contextlib.suppress(ChildProcessError):
+                if os.waitpid(pid, os.WNOHANG)[0] == pid:
+                    break
+        elif not observer._pid_alive(pid):
+            break
+        time.sleep(0.05)
+    while time.time() < deadline and not path.exists():
+        time.sleep(0.05)
+    if not path.exists():
+        raise AssertionError(f"{path} not written within {timeout}s")
+
+
+HOOK = Path(__file__).resolve().parents[3] / "hooks" / "observer-catchup.sh"
+
+
+@unittest.skipUnless(
+    shutil.which("bash") and shutil.which("jq") and os.name != "nt",
+    "needs bash and jq",
+)
+class CatchUpHook(unittest.TestCase):
+    """Each guard stops the hook before any launch; with none tripped it launches."""
+
+    @staticmethod
+    def real_home_tools(root: Path) -> Path:
+        """A version-manager shim (mise, asdf) reads its config and trust under HOME, which
+        the temp HOME below would break: wrap each tool the hook runs to keep the real HOME."""
+        bin_dir = root / "bin"
+        if not bin_dir.exists():
+            bin_dir.mkdir()
+            for tool in ("jq",):
+                wrapper = bin_dir / tool
+                wrapper.write_text(
+                    f'#!/bin/sh\nHOME="{Path.home()}" exec "{shutil.which(tool)}" "$@"\n',
+                    encoding="utf-8",
+                )
+                wrapper.chmod(0o755)
+        return bin_dir
+
+    def run_hook(self, root: Path, name: str, env: dict, stdin: dict) -> Path:
+        data = root / name
+        projects = root / "projects"
+        projects.mkdir(exist_ok=True)
+        ended = projects / "ended.jsonl"
+        if not ended.exists():
+            ended.write_text(USER_RECORD, encoding="utf-8")
+            then = time.time() - IDLE - 60
+            os.utime(ended, (then, then))
+        base = {
+            "PATH": f"{self.real_home_tools(root)}{os.pathsep}{os.environ['PATH']}",
+            "HOME": str(root),
+            "CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED": "true",
+            "CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED": "true",
+            "CLAUDE_PLUGIN_OPTION_OBSERVER_MIN_LINES": "1000000",
+            "CLAUDE_CODE_SESSION_ATTENDED": "1",
+            "CLAUDE_CODE_ENTRYPOINT": "cli",
+            "CLAUDE_PLUGIN_DATA": str(data),
+            "CLAUDE_PROJECT_DIR": str(root / "repo"),
+        }
+        payload = {
+            "source": "startup",
+            "session_id": "current",
+            "transcript_path": str(projects / "current.jsonl"),
+            **stdin,
+        }
+        proc = subprocess.run(
+            ["bash", str(HOOK)],
+            input=json.dumps({k: v for k, v in payload.items() if v is not None}),
+            env={k: v for k, v in {**base, **env}.items() if v is not None},
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        self.assertEqual(0, proc.returncode, proc.stderr)
+        return data / "session-flow-observer" / "status-ended.json"
+
+    def test_guards_and_launch(self):
+        blocked = {
+            "disabled": ({"CLAUDE_PLUGIN_OPTION_OBSERVER_ENABLED": None}, {}),
+            "analysis off": ({"CLAUDE_PLUGIN_OPTION_OBSERVER_ANALYSIS_ENABLED": "false"}, {}),
+            "headless": ({"CLAUDE_CODE_ENTRYPOINT": "sdk-cli"}, {}),
+            "unattended": ({"CLAUDE_CODE_SESSION_ATTENDED": "0"}, {}),
+            "analysis run": ({"SESSION_FLOW_OBSERVER_ANALYSIS": "1"}, {}),
+            "compact": ({}, {"source": "compact"}),
+            "subagent": ({}, {"agent_type": "Explore"}),
+        }
         with tempfile.TemporaryDirectory() as d:
-            tmp = Path(d)
-            transcript = tmp / "sess.jsonl"
-            transcript.write_text("", encoding="utf-8")
-            argv = [
-                "--transcript",
-                str(transcript),
-                "--work-dir",
-                str(tmp / "work"),
-                "--ledger-dir",
-                str(tmp / "ledger"),
-                "--session-id",
-                "boom-sid",
-                "--idle-seconds",
-                "30",
-                "--max-seconds",
-                "15",
-            ]
-            rc, out = self._run_main(argv, arm=arm)
-            self.assertEqual(rc, 0)
-            self.assertIn("observer: failed to spawn: boom", out)
-            self.assertNotIn("Traceback", out)
-            self.assertNotIn("armed for session", out)
+            root = Path(d)
+            statuses = {
+                name: self.run_hook(root, name.replace(" ", "-"), env, stdin)
+                for name, (env, stdin) in blocked.items()
+            }
+            launched = self.run_hook(root, "launch", {}, {})
+            deadline = time.time() + 15
+            while time.time() < deadline and not launched.exists():
+                time.sleep(0.05)
+            self.assertTrue(launched.exists(), "unguarded start must launch")
+            time.sleep(0.5)
+            for name, status in statuses.items():
+                self.assertFalse(status.exists(), f"{name}: guard did not stop it")
 
 
 if __name__ == "__main__":

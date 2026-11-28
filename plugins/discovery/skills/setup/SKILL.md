@@ -1,5 +1,5 @@
 ---
-description: "Verify the discovery plugin's runtime prerequisites for this session, print the gate allow rules for the operator to paste so the acceptance-gate scripts stop prompting, and write the repository's docs/conventions/discovery.yaml after confirmation. Use when: 'set up discovery', 'configure the discovery plugin', 'is discovery configured', 'discovery setup', 'the research gates keep prompting', 'set explore_output for this repo', or a discovery skill reports a missing capability. Actions: check (read-only, default), apply (writes docs/conventions/discovery.yaml). Re-runnable."
+description: "Check discovery prerequisites, print gate allow rules, and apply docs/conventions/discovery.yaml after confirmation (actions: check, apply)."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true

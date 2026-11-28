@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for check-as-of-recheck.sh.
-#
-# Self-contained and cwd-independent: builds a throwaway tree with fixture
-# skill files and a baseline, runs the checker against it, and asserts on exit
-# code and output. Mutates only its own mktemp dir.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,8 +13,6 @@ SKILL=plugins/alpha/skills/audit
 BL=scripts/as-of-recheck-baseline.txt
 FIXED='add a recheck trigger ("Recheck when: <event>") to this paragraph'
 
-# mk_tree <out-var>: one baselined offender, and a clean file holding each
-# passing shape.
 mk_tree() {
   local dir
   fixture_tree::build "$1" --sut "$SUT_SRC" --label as-of-recheck || return 1
@@ -56,7 +49,6 @@ EOF
   printf '# none\n%s/reference/old.md 1  # pending: fix\n' "$SKILL" >"$dir/$BL"
 }
 
-# run_case <label> <expected-rc> <setup> [<must-name>...]
 run_case() { test_harness::check_case mk_tree check-as-of-recheck.sh "$@"; }
 
 run_case "every passing shape and a baselined offender pass" 0 ":" "1 baselined file(s)"
@@ -151,7 +143,6 @@ run_case "a baseline entry without a count is an environment error" 2 \
 
 run_case "a missing baseline is an environment error" 2 "rm $BL"
 
-# Findings on stderr only; the clean statement on stdout only.
 tree=""
 if mk_tree tree; then
   printf 'Cap 3 as of 2026-01-01.\n' >"$tree/$SKILL/reference/new.md"

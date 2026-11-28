@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
-# RUNS the full abstract suite against the consume-only jira adapter, once normally and
-# once under a PATH shim that makes gh/curl fail: every exercised path is pre-network.
 # test-scope: plugins/work-items/tools/work-item-tracker/seeds/jira/*
 # test-scope: plugins/work-items/tools/work-item-tracker/lib/id.sh
 set -uo pipefail
@@ -10,7 +8,6 @@ TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-# jira is a seed, which the dispatcher never resolves from the plugin; point it there.
 export WIT_ADAPTERS_DIR="$SCRIPT_DIR/../../seeds"
 RUNNER="$SCRIPT_DIR/../run-conformance.sh"
 source "$SCRIPT_DIR/../../tests/lib.sh"
@@ -26,8 +23,6 @@ assert_eq "consume-only binding leaves CB_REPO empty" "" "$CB_REPO"
 bash "$RUNNER" --binding jira >/dev/null 2>&1
 assert_eq "conformance --binding jira exit 0" "0" "$?"
 
-# Zero-network: a PATH shim makes gh + curl exit 1 and the suite must still pass
-# (no unshare -n on Git Bash).
 SHIM="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 write_blocking_network_shim "$SHIM"
 PATH="$SHIM:$PATH" bash "$RUNNER" --binding jira >/dev/null 2>&1

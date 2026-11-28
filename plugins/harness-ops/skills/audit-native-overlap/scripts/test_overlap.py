@@ -51,9 +51,6 @@ BASE_ROW = {
     "budget_caveat": False,
 }
 
-# A verdict lands with its Boundary section, so the default component carries
-# one; the description phrase is the separately gated half and stays absent. The
-# surface is named as a code span, which is what ties the section to the row.
 BOUNDARY_EXTRA = "\n## Boundary, the bundled `doctor` skill\n\nDetail.\n"
 
 
@@ -99,8 +96,6 @@ class TempRepo:
         self.view_path = self.root / "docs" / "native-surfaces.md"
         self.store_path.parent.mkdir(parents=True, exist_ok=True)
         self.write_store(make_store(rows if rows is not None else [BASE_ROW]))
-        # BASE_ROW claims a Boundary section, so the component it names exists
-        # from the start; tests that want a different component rewrite it.
         self.write_skill("demo", "demo-audit", extra=BOUNDARY_EXTRA)
 
     def write_store(self, store):
@@ -251,8 +246,6 @@ class StoreValidationTests(unittest.TestCase):
         )
 
     def test_same_name_skill_and_agent_rows_are_not_duplicates(self):
-        # Distinct components resolving to distinct paths: skills/<name>/SKILL.md
-        # vs agents/<name>.md. Identity keys on kind, so both rows stand.
         skill_row = deep_copy(BASE_ROW)
         agent_row = deep_copy(BASE_ROW)
         agent_row["component"]["kind"] = "agent"
@@ -550,8 +543,6 @@ class SelfCheckTests(unittest.TestCase):
         self.assertEqual(self.repo.self_check(), 0)
 
     def test_forward_parity_breaks_when_the_token_sits_outside_the_description(self):
-        # The token in `argument-hint` is not routing-effective; a baked claim
-        # is only satisfied by the description field itself.
         row = deep_copy(BASE_ROW)
         row["baked"]["description_phrase"] = True
         self.repo.write_store(make_store([row]))
@@ -607,17 +598,11 @@ class SelfCheckTests(unittest.TestCase):
         self.assertEqual(self.repo.self_check(), 1)
 
     def test_row_without_a_description_phrase_is_legal_pending_sweep_state(self):
-        # The phrase is the budget-priced, routing-affecting half and earns its
-        # own gate; a row carrying only its Boundary section is complete.
         self.repo.generate()
         self.repo.write_skill("demo", "demo-audit", extra=BOUNDARY_EXTRA)
         self.assertEqual(self.repo.self_check(), 0)
 
     def test_row_without_a_boundary_section_breaks(self):
-        # The verdict is recorded but the model never reads it. Broken, not
-        # degraded: a consumer gate passes degraded runs because they report a
-        # condition this repository cannot fix by editing its own files, and a
-        # missing section is fixable in the change that adds the row.
         row = deep_copy(BASE_ROW)
         row["baked"]["boundary_section"] = False
         self.repo.write_store(make_store([row]))
@@ -631,8 +616,6 @@ class SelfCheckTests(unittest.TestCase):
         self.assertIn("demo:demo-audit", err.getvalue())
 
     def test_boundary_section_for_another_surface_does_not_satisfy_a_row(self):
-        # `boundary_section` true plus any `## Boundary` heading would pass a
-        # presence-only check while the row's own surface goes unmentioned.
         self.repo.generate()
         self.repo.write_skill(
             "demo",
@@ -646,9 +629,6 @@ class SelfCheckTests(unittest.TestCase):
         self.assertIn("names `doctor`", err.getvalue())
 
     def test_a_generic_boundary_heading_naming_the_surface_satisfies_a_row(self):
-        # The preferred heading names the surface, but a component covering
-        # several surfaces under one generic heading is legal as long as the
-        # section text names each row's surface.
         self.repo.generate()
         self.repo.write_skill(
             "demo",
@@ -661,7 +641,6 @@ class SelfCheckTests(unittest.TestCase):
         self.assertEqual(self.repo.self_check(), 0)
 
     def test_one_boundary_section_can_carry_several_rows(self):
-        # The visualize shape: two rows, two native surfaces, one section.
         second = deep_copy(BASE_ROW)
         second["native"] = {
             "name": "simplify",
@@ -681,8 +660,6 @@ class SelfCheckTests(unittest.TestCase):
         self.assertEqual(self.repo.self_check(), 0)
 
     def test_a_surface_named_only_in_prose_does_not_satisfy_a_row(self):
-        # A native name that is also an ordinary English word must not be
-        # satisfied by prose that happens to use it.
         row = deep_copy(BASE_ROW)
         row["native"] = {"name": "run", "class": "bundled-skill", "markers": []}
         self.repo.write_store(make_store([row]))
@@ -703,9 +680,6 @@ class SelfCheckTests(unittest.TestCase):
         self.assertEqual(self.repo.self_check(), 0)
 
     def test_agent_rows_owe_no_boundary_section(self):
-        # Agents are registry-rows-only: a role prompt loads after dispatch, too
-        # late to route, so no agent row is ever baked and the advisory that
-        # names skills without a Boundary section must not count them.
         row = deep_copy(BASE_ROW)
         row["component"] = {"plugin": "demo", "skill": "some-agent", "kind": "agent"}
         row["baked"]["boundary_section"] = False
@@ -718,8 +692,6 @@ class SelfCheckTests(unittest.TestCase):
         self.assertNotIn("carry no Boundary section", out.getvalue())
 
     def test_boundary_heading_alone_is_not_a_reverse_parity_break(self):
-        # `## Boundary` predates this registry across the fleet; only the
-        # frontmatter gate token is a baked-line marker.
         self.repo.generate()
         self.repo.write_skill(
             "demo", "unrelated", extra="\n## Boundary — unrelated surfaces\n\nDetail.\n"
@@ -833,9 +805,6 @@ class SelfCheckTests(unittest.TestCase):
         )
 
     def test_defer_overrides_model_disabled_and_takes_route(self):
-        # design-sync is both defer and model-invocation-disabled. The
-        # confirmed verdict table records route; defer wins because nothing
-        # is baked from a defer row.
         row = deep_copy(BASE_ROW)
         row["native"]["name"] = "design-sync"
         row["native"]["markers"] = ["hidden", "gated", "model-invocation-disabled"]
@@ -935,8 +904,6 @@ class MarketplaceLaneTests(unittest.TestCase):
     """The marketplace-plugin class: lanes, validation, parity, freshness."""
 
     def test_every_native_class_has_a_lane(self):
-        # A class without a lane validates and then renders nowhere - the
-        # silent-vanish failure this invariant exists to prevent.
         lane_classes = {lane for lane, _heading, _noun in overlap.LANES}
         self.assertEqual(set(overlap.NATIVE_CLASSES), lane_classes)
 
@@ -970,11 +937,8 @@ class MarketplaceLaneTests(unittest.TestCase):
         self.addCleanup(repo.cleanup)
         row = deep_copy(MARKETPLACE_ROW)
         row["baked"]["description_phrase"] = True
-        # BASE_ROW rides along so the extraction-version advisory (a store with
-        # no extraction row degrades) does not mask the parity verdict.
         repo.write_store(make_store([BASE_ROW, row]))
         repo.generate()
-        # The native gate token does not satisfy a marketplace-plugin row.
         repo.write_skill(
             "demo",
             "demo-route",
@@ -1019,8 +983,6 @@ class MarketplaceLaneTests(unittest.TestCase):
         self.assertEqual(repo.self_check(upstream_sha=FIXTURE_UPSTREAM_SHA), 0)
 
     def test_self_check_accepts_one_sha_per_upstream_repository(self):
-        # Two upstream-source rows citing two repositories: a recorded commit
-        # matches when ANY provided value matches it, so neither drifts.
         other = deep_copy(MARKETPLACE_ROW)
         other["component"]["skill"] = "other-skill"
         other["observation"]["detail"] = (
@@ -1059,8 +1021,6 @@ class MarketplaceLaneTests(unittest.TestCase):
         )
 
     def test_self_check_with_whitespace_upstream_sha_degrades_not_passes(self):
-        # A value that strips to "" would otherwise match every recorded SHA
-        # via startswith and silently suppress the drift advisory.
         repo = TempRepo(rows=[BASE_ROW, MARKETPLACE_ROW])
         self.addCleanup(repo.cleanup)
         repo.generate()
@@ -1383,8 +1343,6 @@ class DetectTests(unittest.TestCase):
         return lanes
 
     def test_a_broken_lane_marks_its_candidates_not_re_derivable(self):
-        # Seeded bundled-skill `doctor`, absent from a broken bundled lane:
-        # the seeded class decides the lane, and its absence proves nothing.
         self.write_inventory(
             bundled_skills={},
             integrity={
@@ -1452,8 +1410,6 @@ class DetectTests(unittest.TestCase):
         return candidate
 
     def test_a_built_in_plugin_reads_its_own_lane_not_its_class_lane(self):
-        # Two lanes share the plugin-backed-builtin class; the lane the entry
-        # was read from decides, so a broken builtin_plugins lane marks it.
         present = {"cc-plugin-agents-md": {"description": "Loads AGENTS.md"}}
         candidate = self._seed_builtin_plugin(present, builtin_plugins="broken")
         self.assertIs(candidate["re_derivable"], False)
@@ -1482,8 +1438,6 @@ class DetectTests(unittest.TestCase):
         self.assertTrue(candidate["re_derivable"])
 
     def test_a_class_collision_is_marked_in_both_directions(self):
-        # Seeded as a bundled skill, observed as a built-in command: a broken
-        # lane on EITHER side marks the candidate.
         collided = {
             "builtin_commands": {
                 "help": {"name": "help"},
@@ -1509,8 +1463,6 @@ class DetectTests(unittest.TestCase):
             self.assertFalse(candidate["re_derivable"], broken)
 
     def test_top_level_drift_makes_every_ok_lane_report_floors(self):
-        # An unvalidated CLI version degrades the run, not a lane; the lane
-        # labels must agree with the top-level `counts_are`.
         self.write_inventory(
             integrity={
                 "status": "degraded",
@@ -1697,8 +1649,6 @@ class PresenceMentionTests(unittest.TestCase):
         self.assertNotIn("presence condition", out)
 
     def test_the_token_is_judged_per_clause_not_per_description(self):
-        # A gated marketplace clause does not excuse an ungated native clause
-        # elsewhere in the same description.
         claimed = deep_copy(MARKETPLACE_ROW)
         claimed["component"]["skill"] = "mixed"
         claimed["baked"]["description_phrase"] = True
@@ -1738,8 +1688,6 @@ class PresenceMentionTests(unittest.TestCase):
         self.assertNotIn("presence condition", out)
 
     def test_a_plain_mention_in_a_when_clause_is_not_flagged(self):
-        # "when the user asks about a built-in command" states no presence
-        # condition; only an availability word makes one.
         self.repo.write_skill(
             "demo",
             "plain",
@@ -1799,7 +1747,6 @@ class SuggestAndNativeStepParityTests(unittest.TestCase):
         self.assertEqual(self.repo.self_check(), 1)
 
     def test_bare_available_phrase_is_not_a_suggest_orphan(self):
-        # harness-ops:changelog carries this phrase in unrelated prose.
         self.repo.generate()
         self.repo.write_skill(
             "demo",
@@ -1847,7 +1794,6 @@ class ScanTests(unittest.TestCase):
         agents.mkdir(parents=True, exist_ok=True)
         (agents / "helper.md").write_text("---\nname: helper\n---\n", encoding="utf-8")
         found = overlap.scan_components(repo.root)
-        # TempRepo seeds demo:demo-audit for BASE_ROW; the scan reports it too.
         self.assertEqual(found["skills"], ["alpha:one", "beta:two", "demo:demo-audit"])
         self.assertEqual(found["agents"], ["alpha:helper"])
 
@@ -1881,7 +1827,7 @@ class DiscoveryScoringTests(unittest.TestCase):
         found = discover.discover([native], [ours, other], threshold=0.0, top_k=5)
         ranked = [(c.plugin, c.name) for _s, c, _score, _m in found]
         self.assertEqual(ranked[0], ("source-control", "commit"))
-        self.assertNotIn(("songwriting", "rhyme"), ranked)  # no shared token at all
+        self.assertNotIn(("songwriting", "rhyme"), ranked)
         self.assertIn("commit", found[0][3])
 
     def test_a_pascal_case_name_scores_on_its_words(self):
@@ -2176,14 +2122,11 @@ class DiscoveryDetectTests(unittest.TestCase):
         self.assertEqual(agent["recommended_integration"], "route")
         self.assertEqual(tool["native"]["class"], "builtin-tool")
         self.assertEqual(tool["native"]["invocable_by"], "model-only")
-        self.assertEqual(tool["component"]["skill"], "commit")  # via search_hint
+        self.assertEqual(tool["component"]["skill"], "commit")
         self.assertIn("tool loading: deferred", tool["evidence"])
         self.assertEqual(tool["recommended_integration"], "route")
 
     def test_an_unresolved_description_still_scores_name_ufn_and_hint(self):
-        # The inventory could not resolve these descriptions; each surface is
-        # still scored on what it has: its user-facing name, its search hint,
-        # and its name.
         self.repo.write_skill(
             "prototype", "design-directions", description="Mock up a UI layout."
         )
@@ -2562,7 +2505,6 @@ class DismissalRenderTests(unittest.TestCase):
 class DismissalDetectTests(unittest.TestCase):
     """Dismiss, then detect: suppression and resurfacing."""
 
-    # The discovery harness, borrowed without inheriting its tests.
     setUp = DiscoveryDetectTests.setUp
     write_inventory = DiscoveryDetectTests.write_inventory
     detect = DiscoveryDetectTests.detect
@@ -2745,8 +2687,6 @@ class DismissalDetectTests(unittest.TestCase):
             "kind": "skill",
         }
         store = make_store([row])
-        # Even beside a (malformed-by-policy) dismissal whose fingerprints no
-        # longer match, the verdict row wins: the pair stays under `existing`.
         store["dismissals"] = [make_dismissal()]
         self.repo.write_store(store)
         self.write_inventory()
@@ -2819,7 +2759,6 @@ class DismissalDetectTests(unittest.TestCase):
 
     def test_resurfaced_evidence_caps_a_hand_edited_reason(self):
         store = make_store([])
-        # Stale fingerprints resurface the pair; the reason is over the cap.
         store["dismissals"] = [make_dismissal(reason="x" * 5000)]
         self.repo.write_store(store)
         self.write_inventory()
@@ -2857,7 +2796,6 @@ class DismissalDetectTests(unittest.TestCase):
         self.write_inventory()
         code, _err = self.dismiss_stderr(component="source-control:nope")
         self.assertEqual(code, 1)
-        # A skill exists, but not as an agent.
         code, _err = self.dismiss_stderr("--kind", "agent")
         self.assertEqual(code, 1)
 
@@ -2948,7 +2886,6 @@ class DismissalHardeningTests(unittest.TestCase):
         )
         self.assertIn("`x\\|\\<y\\>`", row)
         self.assertIn("`p\\]:\\[s`", row)
-        # Every pipe that is not a cell border is escaped.
         unescaped = [
             i
             for i, ch in enumerate(row)

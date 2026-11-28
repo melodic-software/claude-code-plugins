@@ -1,8 +1,4 @@
 /**
- * Parse session boundaries from slice claim-inventory markdown (video-agnostic).
- */
-
-/**
  * The only session shape the parser reads, for messages that reject an
  * inventory with no parsed session. `context/watch-pipeline.md` Phase 2 shows it.
  */
@@ -40,7 +36,6 @@ export function parseSessionsFromClaimInventory(claimInventoryBody) {
   for (const section of sections) {
     const nameLine = section.split("\n")[0]?.trim();
     const boundaryMatch = section.match(/\*\*Boundary:\*\*\s*(.+)/);
-    // A boundary with no bracketed stamp would span the whole video.
     if (!nameLine || !boundaryMatch?.[1].match(BOUNDARY_STAMP)) return [];
     const { startSec, endSec } = parseBoundaryLine(boundaryMatch[1]);
     sessions.push({ name: nameLine, startSec, endSec });

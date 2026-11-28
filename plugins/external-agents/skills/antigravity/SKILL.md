@@ -1,5 +1,5 @@
 ---
-description: "Hands a task, investigation or review to Google's Antigravity CLI (agy, Gemini models) as a background job and reads back its jobs. Use when the user asks for Gemini or Antigravity: 'ask Gemini', 'have Gemini do X', 'Gemini second opinion', 'Antigravity review of this branch', 'run this through agy', 'is the Gemini job done', 'cancel the agy run', 'is agy ready', 'update antigravity'. A multi-reviewer panel is /review:council."
+description: "Delegate a task, investigation, or read-only review to Google's Antigravity CLI (agy, Gemini) as a background job (status, result, cancel, update); delegate only when asked for Gemini or Antigravity. Use when: 'ask Gemini', 'run this through agy', 'Antigravity review'. Not for a multi-reviewer panel: /review:council."
 argument-hint: "[run <prompt>|review --base <ref>|status [<job>]|result <job>|cancel <job>|update]"
 user-invocable: true
 disable-model-invocation: false
@@ -67,7 +67,8 @@ the prompt.
 ## Background runs
 
 Run every `run` and `review` with the Bash tool's `run_in_background`: a run can last up to
-`antigravity.timeout_seconds`, longer than a foreground Bash call may wait, and a call cut off by
+`antigravity.timeout_seconds`, which can outlast a foreground Bash call (how long one may wait:
+[timeout and output limits](https://code.claude.com/docs/en/tools-reference#timeout-and-output-limits)), and a call cut off by
 its own timeout leaves the job without its result. You are notified when it exits, so do not poll. The job id prints only at the end, so while it runs, find it with bare
 `external-agents status`. Stop a run with `external-agents cancel <job>`, which stops agy's whole
 process tree; stopping the background Bash task alone may leave agy running.
@@ -79,8 +80,8 @@ process tree; stopping the background Bash task alone may leave agy running.
 ## Gotchas
 
 - **Write is opt-in.** Every use runs read-only until the user sets
-  `antigravity.uses.task.mode: write` in `<home>/external-agents.yaml` or `.local.yaml`, or the
-  per-user `userConfig` option `antigravity_uses_task_mode` to `write`, which those files override
+  `antigravity.uses.task.mode: write` in `<home>/external-agents.yaml` or `.local.yaml`, or once
+  per machine through the plugin option `antigravity_uses_task_mode`, which those files override
   (ADR 0119 decision 2). Pass `--mode write` with a task that should change files: under a read-only ceiling
   it runs read-only and prints a notice naming that key, and an `--add-dir` or `--unsandboxed` on
   it is refused. Relay the notice, and never set the key yourself.

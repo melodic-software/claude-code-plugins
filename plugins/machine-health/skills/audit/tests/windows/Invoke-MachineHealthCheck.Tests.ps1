@@ -1,15 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Orchestrator-level tests for scripts/windows/Invoke-MachineHealthCheck.ps1:
-the run lock, the synced-StateBase mode and both elevated-pass modes.
-
-.DESCRIPTION
-Each run uses a StateBase whose catalog overlay disables every shipped check,
-so the real orchestrator runs end to end in seconds. Required snapshot fields
-come from reference/shared/output-schema.md, "RunSnapshot".
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\helpers\Initialize-CheckSuite.ps1" -LibScript @(
@@ -92,8 +82,6 @@ Describe 'Invoke-MachineHealthCheck run lock' -Tag 'orchestrator' {
     }
 
     It 'releases run.lock when the run throws after taking it' {
-        # A copy of the skill whose check selection throws, run in this process so only
-        # the orchestrator's own finally can release the handle.
         $copy = Join-Path $script:root 'skill'
         New-Item -ItemType Directory -Path $copy | Out-Null
         foreach ($part in @('SKILL.md', 'catalog', 'reference', 'scripts')) {
@@ -196,7 +184,6 @@ Describe 'Invoke-MachineHealthCheck -ElevatedResultPath' -Tag 'orchestrator' {
     }
 
     It 'imports a matrix result the quiet run did not dispatch, lists it in elevated_checks and logs the import' {
-        # Pre-created before the document is written, as New-ElevatedLaunch leaves it.
         $resultPath = Join-Path $script:root 'elevated-result.json'
         [System.IO.File]::Create($resultPath).Dispose()
         $created = [System.IO.File]::GetCreationTimeUtc($resultPath)
@@ -272,7 +259,6 @@ Describe 'Invoke-MachineHealthCheck run artifacts in latest.json' -Tag 'orchestr
         $script:root = New-MachineHealthTempDir -Prefix 'machine-health-orch-stamp'
         $script:stateBase = Initialize-QuietStateBase (Join-Path $script:root 'state-base')
         $script:outputBase = Join-Path $script:root 'output'
-        # Two checks re-enabled at monthly cadence that ran three days ago: a weekly run defers both.
         $deferred = @($script:QuietOverlay | ConvertFrom-Json).checks | Select-Object -First 2
         $overlay = $script:QuietOverlay | ConvertFrom-Json
         foreach ($c in $overlay.checks | Where-Object { $_.id -in $deferred.id }) {
@@ -283,13 +269,10 @@ Describe 'Invoke-MachineHealthCheck run artifacts in latest.json' -Tag 'orchestr
         $stateDir = New-Item -ItemType Directory -Path (Join-Path $script:stateBase 'state') -Force
         @{ run_id = (Get-Date).AddDays(-3).ToString('o'); checks_ran = @($deferred.id) } | ConvertTo-Json -Compress |
             Set-Content -LiteralPath (Join-Path $stateDir 'history.jsonl') -Encoding utf8
-        # th-TH formats dates in the Buddhist calendar (Gregorian 2026 is 2569), so a culture-bound
-        # stamp would name this run's files by the wrong year.
         $command = "[cultureinfo]::CurrentCulture = 'th-TH'; & '$script:Orchestrator' -OutputBase '$script:outputBase' " +
             "-StateBase '$script:stateBase' -RunMode weekly -DryRun -SkipBanner | Out-Null"
         & pwsh -NoProfile -NonInteractive -Command $command 2>$null
         $script:ExitCode = $LASTEXITCODE
-        # JsonNode keeps run_id as written; ConvertFrom-Json would turn it into a DateTime.
         $script:Snapshot = [System.Text.Json.Nodes.JsonNode]::Parse((Get-Content -Raw -LiteralPath (Join-Path $stateDir 'latest.json')))
         $script:Field = { param($Name) $script:Snapshot[$Name].GetValue[object]().ToString() }
     }
@@ -382,8 +365,6 @@ Describe 'Invoke-MachineHealthCheck without -OutputBase' -Tag 'orchestrator' {
         $script:root = New-MachineHealthTempDir -Prefix 'machine-health-orch-default'
         $script:stateBase = Initialize-QuietStateBase (Join-Path $script:root 'state-base')
         $script:profile = Join-Path $script:root 'profile'
-        # A scheduled run omits -OutputBase when the report option is unset; the default must be
-        # the one the audit SKILL.md roots block applies.
         $roots = (Get-Content -LiteralPath (Join-Path $script:SkillRoot 'SKILL.md') -Raw) -match "Join-Path \`$env:USERPROFILE '([^']+)'"
         $roots | Should -BeTrue
         $script:Expected = Join-Path $script:profile $Matches[1]

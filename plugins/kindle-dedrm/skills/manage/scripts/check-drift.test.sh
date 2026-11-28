@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for check-drift.sh pin-file paths.
-#
-# check-drift.sh HEADs upstream URLs. This suite never runs it. It asserts the
-# load-bearing relative paths after the references/ to reference/ spoke rename
-# and that the extracted pin() helper can read a fixture table.
-#
-# Assertion helpers are duplicated per plugin on purpose:
-# docs/contracts/shell-test-helpers/README.md.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -72,8 +64,6 @@ assert_file "shipped versions.md sits next to the script" \
 assert_file "shipped sources.md sits next to the script" \
   "${SCRIPT_DIR}/../reference/sources.md"
 
-# Extract pin() from the SUT and run it against a fixture so a parser
-# regression fails here instead of as a silent skip in the live probe.
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 
@@ -108,7 +98,6 @@ got_sha="$(pin "${TMP}/versions.md" "Kindle for PC" "SHA256")"
 assert_eq "pin() reads a second label in the same section" \
   "abc123" "${got_sha}"
 
-# pin() calls exit, so the miss case must run in a subshell.
 if ( pin "${TMP}/versions.md" "Kindle for PC" "Missing row" >/dev/null 2>"${TMP}/pin.err" ); then
   fail "pin() exits non-zero when the label is absent"
 else

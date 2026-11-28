@@ -226,16 +226,16 @@ describe("the team YAML file is the only team location", () => {
     assert.equal(result.config.digest_policy.source, "default", "the old files' keys are not mixed in");
     assert.deepEqual(result.triggers, ["files"]);
   });
-  test("the YAML file, a user key and the personal override resolve key by key", () => {
-    writeFileSync(join(home, ".claude/review-digest.json"), '{"max_files": 9, "opt_in_label": "mine"}');
-    const result = run(facts);
+  test("the YAML file, userConfig and the personal override resolve key by key", () => {
+    const result = run(facts, ["--setting", "digest_max_files=9", "--setting", "digest_opt_in_label=mine"]);
     assert.equal(result.config.max_files.value, 1);
     assert.match(result.config.max_files.source, /review-digest\.yaml$/);
-    assert.match(result.config.opt_in_label.source, /^user-global /);
+    assert.equal(result.config.opt_in_label.source, "userConfig");
+    assert.equal(result.config.opt_in_label.value, "mine");
   });
   test("an invalid YAML value is named and ignored, and the old files are not consulted", () => {
     track(yamlPath, "max_files: many\ndigest_policy: sometimes\nunknown_key: 1\n");
-    const result = run(facts);
+    const result = run(facts, ["--setting", "digest_max_files=9"]);
     const warnings = result.warnings.join("\n");
     assert.match(warnings, /invalid max_files; key ignored/);
     assert.match(warnings, /invalid digest_policy; key ignored/);
@@ -244,7 +244,7 @@ describe("the team YAML file is the only team location", () => {
   });
   test("a YAML file that does not parse drops the team layer with a warning", () => {
     track(yamlPath, "max_files: {1}\n");
-    const result = run(facts);
+    const result = run(facts, ["--setting", "digest_max_files=9"]);
     assert.match(result.warnings.join("\n"), /team docs\/conventions\/review-digest\.yaml: line 1: .*layer ignored/);
     assert.equal(result.config.max_files.value, 9);
   });
@@ -271,31 +271,29 @@ describe("cascade layers resolve through the CLI", () => {
     assert.equal(result.config.max_files.source, "default");
     assert.deepEqual(at(result.medium), DEFAULT_MEDIUM);
   });
-  test("user-global, then the tracked team YAML file, then the personal override, key by key", () => {
-    writeFileSync(join(home, ".claude/review-digest.json"), '{"max_files": 1, "opt_in_label": "mine"}');
-    let result = run(facts);
+  test("userConfig, then the tracked team YAML file, then the personal override, key by key", () => {
+    const userArgs = ["--setting", "digest_max_files=1", "--setting", "digest_opt_in_label=mine"];
+    let result = run(facts, userArgs);
     assert.deepEqual(result.triggers, ["files"]);
-    assert.match(result.config.max_files.source, /^user-global /);
+    assert.equal(result.config.max_files.source, "userConfig");
 
     writeFileSync(join(repo, "docs/conventions/review-digest.yaml"), 'max_files: 2\ndigest_policy: "off"\n');
-    result = run(facts);
+    result = run(facts, userArgs);
     assert.match(result.warnings.join("\n"), /not on the base commit/);
     assert.equal(result.config.max_files.value, 1);
     git("add", "docs/conventions/review-digest.yaml");
     commit();
-    result = run(facts);
+    result = run(facts, userArgs);
     assert.equal(result.action, "skip");
     assert.equal(result.policy.value, "off");
     assert.match(result.config.max_files.source, /^team .*review-digest\.yaml$/);
     assert.equal(result.config.opt_in_label.value, "mine");
 
-    writeFileSync(join(repo, ".claude/review-digest.local.json"), '{"digest_policy": "offer"}');
-    result = run(facts);
+    writeFileSync(join(repo, "docs/conventions/review-digest.local.yaml"), 'digest_policy: "offer"\n');
+    result = run(facts, userArgs);
     assert.equal(result.action, "offer");
     assert.match(result.policy.source, /^personal-override /);
-    assert.equal(result.warnings.length, 2, result.warnings.join("\n"));
-    assert.match(result.warnings[0], /^user-global .*review-digest\.json is retired but still read: run \/review:setup apply to move its settings to the review plugin's digest options$/);
-    assert.match(result.warnings[1], /^personal-override .*\.claude[\\/]review-digest\.local\.json is retired but still read: run \/review:setup apply to move its settings to docs\/conventions\/review-digest\.local\.yaml$/);
+    assert.deepEqual(result.warnings, []);
   });
   test("the argument beats every layer", () => {
     const result = run(facts, ["--policy", "off"]);
@@ -303,33 +301,32 @@ describe("cascade layers resolve through the CLI", () => {
     assert.equal(result.action, "skip");
   });
   test("a malformed layer, an invalid value, and an unknown key degrade soft", () => {
-    writeFileSync(join(repo, ".claude/review-digest.local.json"), "{nope");
-    writeFileSync(join(home, ".claude/review-digest.json"), '{"max_files": -1, "palette": "red"}');
-    const result = run(facts);
+    writeFileSync(join(repo, "docs/conventions/review-digest.local.yaml"), "digest_policy: {nope\n");
+    const result = run(facts, ["--setting", "digest_max_files=-1"]);
     const warnings = result.warnings.join("\n");
     assert.match(warnings, /personal-override .*layer ignored/);
     assert.match(warnings, /invalid max_files/);
-    assert.match(warnings, /unknown key palette is inert/);
     assert.equal(result.config.max_files.value, 2);
+    writeFileSync(join(repo, "docs/conventions/review-digest.local.yaml"), 'palette: "red"\n');
+    const unknown = run(facts);
+    assert.match(unknown.warnings.join("\n"), /unknown key palette is inert/);
+    rmSync(join(repo, "docs/conventions/review-digest.local.yaml"), { force: true });
   });
   test("risk_paths past the glob-length or count cap is invalid and the layer below supplies it", () => {
     for (const globs of [["*".repeat(MAX_GLOB_LENGTH + 1)], Array.from({ length: MAX_RISK_PATHS + 1 }, (_, i) => `d${i}/**`)]) {
-      writeFileSync(join(home, ".claude/review-digest.json"), JSON.stringify({ risk_paths: globs }));
-      const result = run(facts);
+      const result = run(facts, ["--setting", `digest_risk_paths=${JSON.stringify(globs)}`]);
       assert.match(result.warnings.join("\n"), /invalid risk_paths; key ignored/);
       assert.notDeepEqual(result.config.risk_paths.value, globs);
     }
-    writeFileSync(join(home, ".claude/review-digest.json"), JSON.stringify({ risk_paths: ["a".repeat(MAX_GLOB_LENGTH)] }));
-    assert.deepEqual(run(facts).config.risk_paths.value, ["a".repeat(MAX_GLOB_LENGTH)], "a glob at the cap is kept");
+    const atCap = ["a".repeat(MAX_GLOB_LENGTH)];
+    assert.deepEqual(run(facts, ["--setting", `digest_risk_paths=${JSON.stringify(atCap)}`]).config.risk_paths.value, atCap, "a glob at the cap is kept");
   });
   test("a tracked .claude/review-digest.json beside the YAML file is not read", () => {
     writeFileSync(join(repo, ".claude/review-digest.json"), '{"max_files": 0}');
     git("add", ".claude/review-digest.json");
     commit();
     const result = run(facts);
-    const naming = result.warnings.filter((w) => /\.claude[\\/]review-digest\.json/.test(w));
-    assert.equal(naming.length, 1, naming.join("\n"));
-    assert.match(naming[0], /^user-global .*[\\/]home[\\/]\.claude[\\/]review-digest\.json is retired but still read: run \/review:setup apply to move its settings to the review plugin's digest options$/);
+    assert.deepEqual(result.warnings, []);
     assert.equal(result.config.max_files.value, 2);
     assert.match(result.config.max_files.source, /^team .*review-digest\.yaml$/);
   });
@@ -369,7 +366,6 @@ describe("the config-cascade layers and the retired files", () => {
   const retiredUser = join(home, ".claude/review-digest.json");
   const retiredPersonal = join(repo, ".claude/review-digest.local.json");
   const personal = join(repo, "docs/conventions/review-digest.local.yaml");
-  const retiredLines = (result) => result.warnings.filter((w) => / is retired but still read: /.test(w));
   const clean = () => {
     for (const p of [retiredUser, retiredPersonal, personal]) rmSync(p, { force: true });
   };
@@ -395,39 +391,16 @@ describe("the config-cascade layers and the retired files", () => {
     assert.equal(result.config.blast_radius.source, "default");
     assert.deepEqual(result.warnings, ["userConfig: invalid blast_radius; key ignored"]);
   });
-  test("old files only: their values apply and each prints one warning naming the setup", () => {
-    clean();
-    writeFileSync(retiredUser, '{"max_files": 0}');
-    writeFileSync(retiredPersonal, '{"digest_policy": "off"}');
-    const result = run(facts);
-    assert.match(result.config.max_files.source, /^user-global /);
-    assert.match(result.policy.source, /^personal-override .*\.claude\/review-digest\.local\.json$/);
-    const lines = retiredLines(result);
-    assert.equal(lines.length, 2);
-    assert.match(lines[0], /review-digest\.json is retired but still read: run \/review:setup apply to move its settings to the review plugin's digest options$/);
-    assert.match(lines[1], /\.claude\/review-digest\.local\.json is retired but still read: run \/review:setup apply to move its settings to docs\/conventions\/review-digest\.local\.yaml$/);
-  });
-  test("both present: the new layer wins on each key it sets, the old file fills the rest, and the warning names both", () => {
+  test("old ~/.claude/review-digest.json and .claude/review-digest.local.json files are not read", () => {
     clean();
     writeFileSync(retiredUser, '{"max_files": 0, "opt_in_label": "mine"}');
     writeFileSync(retiredPersonal, '{"digest_policy": "off", "max_changed_lines": 7}');
-    writeFileSync(personal, "digest_policy: always\n");
-    const result = run(facts, ["--setting", "digest_max_files=3"]);
-    assert.deepEqual(result.config.max_files, { value: 3, source: "userConfig" });
-    assert.match(result.config.opt_in_label.source, /^user-global /);
-    assert.equal(result.policy.value, "always");
-    assert.match(result.policy.source, /review-digest\.local\.yaml$/);
-    assert.equal(result.config.max_changed_lines.value, 7);
-    const lines = retiredLines(result);
-    assert.match(lines[0], /review-digest\.json is retired .*; the options already set \(digest_max_files\) win over it$/);
-    assert.match(lines[1], /review-digest\.local\.json is retired .*review-digest\.local\.yaml, which is present and wins over it on each key it sets$/);
-  });
-  test("a malformed old file still names the setup", () => {
-    clean();
-    writeFileSync(retiredUser, "{nope");
     const result = run(facts);
-    assert.match(result.warnings.join("\n"), /user-global .*layer ignored/);
-    assert.equal(retiredLines(result).length, 1);
+    assert.equal(result.config.max_files.source, "default");
+    assert.equal(result.config.opt_in_label.source, "default");
+    assert.equal(result.policy.source, "default");
+    assert.equal(result.config.max_changed_lines.source, "default");
+    assert.deepEqual(result.warnings, []);
     clean();
   });
   test("a --setting naming no digest option exits 2", () => {
@@ -436,117 +409,10 @@ describe("the config-cascade layers and the retired files", () => {
   });
 });
 
-describe("setup moves the retired digest files", () => {
-  const MIGRATE = join(PLUGIN, "skills/setup/scripts/digest-migrate.mjs");
-  const home = join(scratch, "home-migrate");
-  const repo = join(scratch, "repo-migrate");
-  mkdirSync(join(home, ".claude"), { recursive: true });
-  mkdirSync(join(repo, ".claude"), { recursive: true });
-  const { git, commit } = gitRepo(repo);
-  writeFileSync(join(repo, ".gitignore"), "*.local.*\n");
-  git("add", ".gitignore");
-  commit();
-  const retiredUser = join(home, ".claude/review-digest.json");
-  const retiredPersonal = join(repo, ".claude/review-digest.local.json");
-  const personal = join(repo, "docs/conventions/review-digest.local.yaml");
-  const migrate = (...args) =>
-    spawnSync(process.execPath, [MIGRATE, ...args], { encoding: "utf8", env: { ...process.env, HOME: home, USERPROFILE: home, CLAUDE_PROJECT_DIR: repo } });
-
-  test("check names each old file and where each setting goes", () => {
-    writeFileSync(retiredUser, '{"max_files": 3, "risk_paths": ["a/**"]}');
-    writeFileSync(retiredPersonal, '{"digest_policy": "off", "risk_paths": ["**/x/**"]}');
-    const out = migrate("check", "--setting", "digest_max_files=3");
-    assert.equal(out.status, 0, out.stderr);
-    assert.match(out.stdout, /review-digest\.json: max_files -> digest_max_files: already set/);
-    assert.match(out.stdout, /review-digest\.json: risk_paths -> digest_risk_paths: set the review plugin's digest_risk_paths option to \["a\/\*\*"\]/);
-    assert.match(out.stdout, /\.claude\/review-digest\.local\.json: moves digest_policy, risk_paths to docs\/conventions\/review-digest\.local\.yaml$/m);
-  });
-  test("personal previews, then on --yes writes the YAML file, checks it resolves the same, and deletes the old file", () => {
-    let out = migrate("personal");
-    assert.equal(out.status, 3);
-    assert.match(out.stdout, /would write docs\/conventions\/review-digest\.local\.yaml/);
-    assert.equal(existsSync(personal), false);
-    out = migrate("personal", "--yes");
-    assert.equal(out.status, 0, out.stdout);
-    assert.equal(existsSync(retiredPersonal), false);
-    assert.deepEqual({ ...parseYamlLayer(readFileSync(personal, "utf8"), "p", "p", []) }, { digest_policy: "off", risk_paths: ["**/x/**"] });
-  });
-  test("personal adds the keys the existing file lacks and keeps the ones it sets, which win", () => {
-    writeFileSync(retiredPersonal, '{"max_files": 1, "digest_policy": "always"}');
-    const out = migrate("personal", "--yes");
-    assert.equal(out.status, 0, out.stdout);
-    assert.match(out.stdout, /already sets digest_policy, which wins and is kept/);
-    assert.equal(existsSync(retiredPersonal), false);
-    assert.deepEqual({ ...parseYamlLayer(readFileSync(personal, "utf8"), "p", "p", []) }, { digest_policy: "off", risk_paths: ["**/x/**"], max_files: 1 });
-  });
-  test("user lists the options to set, then deletes the old file only on --yes once each is set", () => {
-    let out = migrate("user", "--setting", "digest_max_files=5");
-    assert.equal(out.status, 4);
-    assert.match(out.stdout, /risk_paths: set digest_risk_paths to \["a\/\*\*"\]/);
-    assert.doesNotMatch(out.stdout, /max_files/, "a set option already wins over the old value");
-    const both = ["--setting", "digest_max_files=5", "--setting", 'digest_risk_paths=["a/**"]'];
-    out = migrate("user", ...both);
-    assert.equal(out.status, 3);
-    assert.equal(existsSync(retiredUser), true);
-    out = migrate("user", ...both, "--yes");
-    assert.equal(out.status, 0, out.stdout);
-    assert.equal(existsSync(retiredUser), false);
-    assert.match(migrate("check").stdout, /^INFO review-digest: no retired file$/m);
-  });
-  test("an old file with an unknown key is refused, never moved with the key dropped", () => {
-    writeFileSync(retiredUser, '{"palette": "red"}');
-    const out = migrate("user", "--yes");
-    assert.equal(out.status, 1);
-    assert.match(out.stdout, /unknown or invalid keys palette/);
-    assert.equal(existsSync(retiredUser), true);
-    rmSync(retiredUser);
-  });
-  test("a tracked old personal file, which the digest never reads, is not moved", () => {
-    rmSync(personal);
-    writeFileSync(retiredPersonal, '{"digest_policy": "off"}');
-    git("add", "-f", ".claude/review-digest.local.json");
-    commit();
-    assert.match(migrate("check").stdout, /^INFO \.claude\/review-digest\.local\.json: not read \(.*tracked in git.*\), so not moved$/m);
-    const out = migrate("personal", "--yes");
-    assert.equal(out.status, 1);
-    assert.equal(existsSync(retiredPersonal), true);
-    assert.equal(existsSync(personal), false);
-  });
-  test("a tracked YAML file that sets every old key is refused, and the old file is kept", () => {
-    git("rm", "-q", "--cached", ".claude/review-digest.local.json");
-    commit();
-    writeFileSync(retiredPersonal, '{"digest_policy": "off"}');
-    mkdirSync(dirname(personal), { recursive: true });
-    writeFileSync(personal, "digest_policy: always\n");
-    git("add", "-f", "docs/conventions/review-digest.local.yaml");
-    commit();
-    assert.match(migrate("check").stdout, /^WARN \.claude\/review-digest\.local\.json: docs\/conventions\/review-digest\.local\.yaml would not be read \(.*tracked in git.*\); fix it first$/m);
-    const out = migrate("personal", "--yes");
-    assert.equal(out.status, 1);
-    assert.doesNotMatch(out.stdout, /deleted/);
-    assert.equal(existsSync(retiredPersonal), true);
-    assert.equal(readFileSync(personal, "utf8"), "digest_policy: always\n");
-    git("rm", "-q", "--cached", "docs/conventions/review-digest.local.yaml");
-    commit();
-    rmSync(personal);
-  });
-  test("a dangling symlink at the YAML path is refused before anything is written through it", () => {
-    const outside = join(scratch, "migrate-outside.yaml");
-    symlinkSync(outside, personal);
-    const out = migrate("personal", "--yes");
-    assert.equal(out.status, 1);
-    assert.match(out.stdout, /would not be read \(.*symlink/);
-    assert.equal(existsSync(outside), false);
-    assert.equal(existsSync(retiredPersonal), true);
-    rmSync(personal);
-  });
-});
-
 describe("a pull request branch cannot silence its own digest", () => {
   const home = join(scratch, "home-pr");
   const repo = join(scratch, "repo-pr");
   mkdirSync(join(home, ".claude"), { recursive: true });
-  mkdirSync(join(repo, ".claude"), { recursive: true });
   mkdirSync(join(repo, "docs/conventions"), { recursive: true });
   const { git, commit } = gitRepo(repo);
   writeFileSync(join(repo, ".gitignore"), "*.local.*\n");
@@ -555,7 +421,7 @@ describe("a pull request branch cannot silence its own digest", () => {
   git("checkout", "-q", "-b", "pr");
   writeFileSync(join(repo, "docs/conventions/review-digest.yaml"), 'digest_policy: "off"\nrisk_paths: []\n');
   writeFileSync(join(repo, "docs/conventions/rendered-views.yaml"), "medium: terminal\n");
-  writeFileSync(join(repo, ".claude/review-digest.local.json"), '{"digest_policy": "off"}');
+  writeFileSync(join(repo, "docs/conventions/review-digest.local.yaml"), 'digest_policy: "off"\n');
   git("add", "-f", ".");
   commit();
   const run = runPolicy(home, repo);
@@ -586,7 +452,7 @@ describe("a pull request branch cannot silence its own digest", () => {
 });
 
 describe("personal override guards", () => {
-  const personalOverride = '{"max_files": 0}';
+  const personalOverride = "max_files: 0\n";
   const setup = (name) => {
     const home = join(scratch, `home-${name}`);
     const repo = join(scratch, `repo-${name}`);
@@ -598,45 +464,46 @@ describe("personal override guards", () => {
 
   test("an untracked personal override that is not gitignored applies, with a warning", () => {
     const { repo, run } = setup("unignored");
-    mkdirSync(join(repo, ".claude"));
-    writeFileSync(join(repo, ".claude/review-digest.local.json"), personalOverride);
+    mkdirSync(join(repo, "docs/conventions"), { recursive: true });
+    writeFileSync(join(repo, "docs/conventions/review-digest.local.yaml"), personalOverride);
     const result = run(facts);
     assert.match(result.config.max_files.source, /^personal-override /);
     assert.match(result.warnings.join("\n"), /not gitignored, so it can reach team history$/m);
   });
   test("a symlinked personal override file is refused", () => {
     const { repo, run } = setup("linkfile");
-    mkdirSync(join(repo, ".claude"));
-    writeFileSync(join(scratch, "outside.json"), personalOverride);
-    symlinkSync(join(scratch, "outside.json"), join(repo, ".claude/review-digest.local.json"));
+    mkdirSync(join(repo, "docs/conventions"), { recursive: true });
+    writeFileSync(join(scratch, "outside.yaml"), personalOverride);
+    symlinkSync(join(scratch, "outside.yaml"), join(repo, "docs/conventions/review-digest.local.yaml"));
     const result = run(facts);
     assert.equal(result.config.max_files.source, "default");
     assert.match(result.warnings.join("\n"), /symlink.*layer ignored/);
   });
-  test("a .claude submodule holding the personal override is refused and .gitmodules fires risk-path", () => {
+  test("a docs/conventions submodule holding the personal override is refused and .gitmodules fires risk-path", () => {
     const { repo, git, commit, run } = setup("submodule");
     const sub = join(scratch, "sub");
     mkdirSync(sub);
     const s = gitRepo(sub);
-    writeFileSync(join(sub, "review-digest.local.json"), '{"digest_policy": "off"}');
+    writeFileSync(join(sub, "review-digest.local.yaml"), 'digest_policy: "off"\n');
     s.git("add", ".");
     s.commit();
-    git("-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, ".claude");
+    git("-c", "protocol.file.allow=always", "submodule", "add", "-q", sub, "docs/conventions");
     commit();
-    const result = run({ ...facts, files: [{ path: ".gitmodules" }, { path: ".claude" }] });
+    const result = run({ ...facts, files: [{ path: ".gitmodules" }, { path: "docs/conventions" }] });
     assert.deepEqual(result.policy, { value: "offer", source: "default" });
     assert.deepEqual(at(result.medium), DEFAULT_MEDIUM);
     assert.deepEqual(result.triggers, ["risk-path"]);
     assert.equal(result.action, "offer");
     assert.match(result.warnings.join("\n"), /submodule or tracked entry; layer ignored/);
   });
-  test("a tracked symlinked .claude pointing at a dir holding the personal override is refused", () => {
+  test("a tracked symlinked docs/conventions pointing at a dir holding the personal override is refused", () => {
     const { repo, git, commit, run } = setup("linkdir");
     const evil = join(scratch, "evil");
     mkdirSync(evil);
-    writeFileSync(join(evil, "review-digest.local.json"), personalOverride);
-    symlinkSync(evil, join(repo, ".claude"));
-    git("add", ".claude");
+    writeFileSync(join(evil, "review-digest.local.yaml"), personalOverride);
+    mkdirSync(join(repo, "docs"), { recursive: true });
+    symlinkSync(evil, join(repo, "docs/conventions"));
+    git("add", "docs/conventions");
     commit();
     const result = run(facts);
     assert.equal(result.config.max_files.source, "default");
@@ -645,28 +512,25 @@ describe("personal override guards", () => {
 });
 
 describe("a case-variant personal override a pull request tracks is ignored and fires risk-path", () => {
-  // Simulates a case-insensitive filesystem on any host: the tracked entry differs
-  // only in case from the untracked, gitignored file the script reads.
   const home = join(scratch, "home-case");
   const repo = join(scratch, "repo-case");
   mkdirSync(join(home, ".claude"), { recursive: true });
-  mkdirSync(join(repo, ".claude"), { recursive: true });
+  mkdirSync(join(repo, "docs/conventions"), { recursive: true });
   const { git, commit } = gitRepo(repo);
   writeFileSync(join(repo, ".gitignore"), "*.local.*\n");
   git("add", ".gitignore");
   commit();
   git("checkout", "-q", "-b", "pr");
-  writeFileSync(join(repo, ".claude/Review-Digest.local.json"), '{"digest_policy": "off"}');
-  mkdirSync(join(repo, "docs/conventions"), { recursive: true });
+  writeFileSync(join(repo, "docs/conventions/Review-Digest.local.yaml"), 'digest_policy: "off"\n');
   writeFileSync(join(repo, "docs/conventions/Rendered-Views.local.yaml"), "medium: hosted\n");
-  git("add", "-f", ".claude", "docs/conventions");
+  git("add", "-f", "docs/conventions");
   commit();
-  writeFileSync(join(repo, ".claude/review-digest.local.json"), '{"digest_policy": "off"}');
+  writeFileSync(join(repo, "docs/conventions/review-digest.local.yaml"), 'digest_policy: "off"\n');
   writeFileSync(join(repo, "docs/conventions/rendered-views.local.yaml"), "medium: hosted\n");
   const run = runPolicy(home, repo);
 
   test("the personal override is treated as tracked and a case-variant config path offers", () => {
-    const result = run({ ...quiet, files: [{ path: "./.claude//Review-Digest.local.json" }], baseRefOid: "MAIN" });
+    const result = run({ ...quiet, files: [{ path: "./docs/conventions//Review-Digest.local.yaml" }], baseRefOid: "MAIN" });
     assert.deepEqual(result.policy, { value: "offer", source: "default" });
     assert.equal(result.action, "offer");
     assert.deepEqual(result.triggers, ["risk-path"]);
@@ -677,7 +541,6 @@ describe("a case-variant personal override a pull request tracks is ignored and 
 
 describe("publish gate: the default artifact medium publishes only a public, credential-free diff", () => {
   const clean = "+++ b/src/a.js\n+const answer = 42;\n";
-  // Assembled at run time so this file holds no credential-shaped literal.
   const secrets = [
     ["private key", `+-----BEGIN RSA ${"PRIVATE"} KEY-----`],
     ["AWS access key", `+key = ${"AKIA"}${"A".repeat(16)}`],
@@ -764,7 +627,6 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     const found = lookedUp("https://github.com/acme/app/pull/7");
     assert.equal(found.medium, "artifact");
     assert.deepEqual(found.calls, [["api", "--hostname", "github.com", "repos/acme/app", "--jq", ".visibility"]]);
-    // GH_HOST would send a host-less `gh api` to another server; the lookup always names the URL's host.
     const redirected = lookedUp("https://github.com/acme/app/pull/7", { env: { GH_HOST: "evil.example.net" } });
     assert.deepEqual(redirected.calls, [["api", "--hostname", "github.com", "repos/acme/app", "--jq", ".visibility"]]);
     for (const out of ["private", "internal", "", "garbage"]) assert.equal(lookedUp("https://github.com/acme/app/pull/7", { out }).medium, "file", `answer ${JSON.stringify(out)}`);
@@ -804,7 +666,6 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
       assert.deepEqual(run.calls, [], path);
     }
   });
-  // #7740: a model-typed --repo naming a public repository once gated a private pull request's diff as PUBLIC.
   test("a mistyped public --repo cannot make a private pull request's diff publishable", fakeRuns, () => {
     const byRepo = JSON.stringify({ "acme/public": "public" });
     const facts = gateRun(["--facts", privateFacts], { byRepo });
@@ -877,9 +738,6 @@ process.exitCode = Number((process.argv[2] === "--delete" ? process.env.FAKE_DEL
 `,
   );
   chmodSync(join(bin, "pages-publish"), 0o755);
-  // The fake gh records its argv, passes `auth status --hostname <h>` for a host in FAKE_GH_AUTHED or, as real gh
-  // does, for any host when an enterprise token is in its environment, and answers the visibility lookup with
-  // FAKE_GH_OUT and FAKE_GH_EXIT.
   writeFileSync(
     join(bin, "gh"),
     `#!/usr/bin/env node
@@ -893,7 +751,6 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
   );
   chmodSync(join(bin, "gh"), 0o755);
   const ghLog = join(scratch, "gh.log");
-  // publish-hosted.mjs spawns pages-publish with no shell, so Windows finds only a .exe or .com on PATH.
   const runsFake = { skip: process.platform === "win32" && "the fake pages-publish is a script, which a shell-less spawn on Windows cannot run" };
   const idA = "A".repeat(22);
   const idB = "b".repeat(21) + "-";
@@ -1070,7 +927,6 @@ process.exitCode = Number(process.env.FAKE_GH_EXIT || 0);
     assert.ok(!existsSync(ghLog));
     assert.deepEqual(calls(), []);
   });
-  // #7740: the repository and the sidecar key come from the facts URL, never from a model-typed --repo or --pr.
   test("a mismatched --repo or --pr cannot change the lookup, the host or the sidecar", runsFake, () => {
     for (const extra of [["--repo", "acme/public"], ["--pr", "8"], ["--repo", "acme/app"]]) {
       const at = setup(sample, answer(idA, "public"));

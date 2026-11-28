@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# Takes the collect-trusted-text job's context.json into this leg's data directory,
-# only when it is this run attempt's, read at this leg's main commit for this
-# leg's pull request and head at most SHARED_TEXT_MAX_AGE_MINUTES ago, and its
-# bytes hash to the job's sha256 output. A later leg can start hours after the
-# read, when the PR body or a trusted comment may have changed. Anything else
-# sets nothing, and the leg reads its own (Select the trusted PR text). Always
-# exits 0, so a shared read that failed never fails the leg.
-#
-# Env: SHARED_FILE, SHARED_SHA256, SHARED_ATTEMPT, SHARED_MAIN, SHARED_PR,
-# SHARED_HEAD, SHARED_READ_AT (the job's outputs, the last in UTC epoch
-# seconds), SHARED_TEXT_MAX_AGE_MINUTES, RUN_ATTEMPT, PR_NUMBER, HEAD_SHA (this
-# leg's gate result), BASE_DIR (this leg's main checkout), CONTEXT_FILE.
 set -uo pipefail
 
 own() {
@@ -23,7 +11,6 @@ own() {
 [[ ${SHARED_READ_AT:-} =~ ^[1-9][0-9]{0,11}$ ]] || own "no read time"
 [[ ${SHARED_TEXT_MAX_AGE_MINUTES:-} =~ ^[1-9][0-9]{0,3}$ ]] || own "no age limit"
 age=$(($(date +%s) - SHARED_READ_AT))
-# A read time up to a minute ahead of this runner's clock is clock skew.
 ((age >= -60)) || own "a read time in the future"
 ((age <= SHARED_TEXT_MAX_AGE_MINUTES * 60)) || own "read ${age}s ago, past the ${SHARED_TEXT_MAX_AGE_MINUTES}-minute limit"
 [[ ${SHARED_MAIN:-} =~ ^[0-9a-f]{40}$ ]] || own "no main commit"

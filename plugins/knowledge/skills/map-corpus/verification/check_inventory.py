@@ -179,7 +179,6 @@ def check_inventory_shape(inventory) -> list:
 
 
 def check_row(index: int, row, node, data: bytes, failures: Failures) -> bool:
-    """Field and evidence checks for one row; returns True when fully clean."""
     label = f"row[{index}]" + (
         f" (node_id {row.get('node_id')!r})"
         if isinstance(row, dict) and "node_id" in row
@@ -346,7 +345,7 @@ def main(argv=None) -> int:
 if __name__ == "__main__":
     try:
         sys.exit(main())
-    except Exception as exc:  # residual bug: documented exit 3, never a bare traceback
+    except Exception as exc:
         sys.stderr.write(
             f"check_inventory: ERROR: internal failure "
             f"{type(exc).__name__}: {exc}. This is a gate bug; the run is "

@@ -24,8 +24,6 @@ def _pruned(dirpath: str, name: str, prune: set[str]) -> bool:
 
 
 def scan_files(watched: list[str], since: float, prune: set[str], budget: float) -> FileScan:
-    """Files modified since `since` under the watched folders, skipping dot entries, the run's roots
-    and every git repository or worktree; stops once `budget` seconds have passed."""
     deadline = time.monotonic() + budget
     found = []
     for folder in watched:

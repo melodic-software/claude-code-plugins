@@ -238,7 +238,6 @@ rooted_only="$(bash "$SCRIPT" --repo "$dirty" --worktree-root "$wtroot")"
 expect "a worktree root alone does not enable a park" "$rooted_only" \
   has "$rooted_only" $'skip\t'"$dirty"$'\t\tworktree-create-missing'
 
-# The helper is named only by --worktree-create, and only a file called worktree-create.sh.
 mkdir "$TMP/fail" "$TMP/helper-dir" "$TMP/helper-dir/worktree-create.sh"
 printf 'exit 1\n' >"$TMP/fail/worktree-create.sh"
 printf 'exit 0\n' >"$TMP/fail-create.sh"
@@ -250,10 +249,8 @@ for bad in "$TMP/fail-create.sh" "$TMP/absent/worktree-create.sh" "$TMP/helper-d
     is "$(grep -c 'must name an existing file called worktree-create.sh' "$TMP/bad.err")|$(wc -c <"$TMP/bad.out" | tr -d ' ')" "1|0"
 done
 
-# The source-control plugin next door is never probed: a decoy in its place stays unread.
 layout="$TMP/layout"
 mkdir -p "$layout/source-control/scripts"
-# The copy holds only what sync-fleet.sh sources, under the plugin's own layout.
 mkdir -p "$layout/repo-fleet-hygiene/skills/sync/scripts" "$layout/repo-fleet-hygiene/scripts"
 cp "$SCRIPT" "$layout/repo-fleet-hygiene/skills/sync/scripts/"
 cp "$SCRIPT_DIR/../../../scripts/scope-resolve.sh" "$SCRIPT_DIR/../../../scripts/fleet-discovery.sh" "$layout/repo-fleet-hygiene/scripts/"
@@ -289,10 +286,6 @@ else
   fail "dirty non-default branch is parked in a worktree" "$parked"
 fi
 
-# Test double for worktree-create.sh. It records its arguments in $STUB_LOG.
-# STUB_FOREIGN=1 makes another session push a stash first, STUB_REAL=1 creates
-# the real worktree and prints its path, and STUB_EXIT ends the run with that
-# status.
 mkdir "$TMP/stub"
 STUB="$TMP/stub/worktree-create.sh"
 export STUB_LOG="$TMP/stub.args"
@@ -318,7 +311,6 @@ exit "${STUB_EXIT:-0}"
 EOF
 export REAL_HELPER="$HELPER"
 
-# dirty_clone <dir> [<branch>]: a clone with an untracked and a staged file, on <branch> when given.
 dirty_clone() {
   git clone -q "$bare" "$1"
   git_identity "$1"
@@ -328,10 +320,6 @@ dirty_clone() {
   git -C "$1" add STAGED.md
 }
 
-# run_park <repo> [<worktree-root>]: apply with the stub helper under the
-# caller's STUB_* variables, passing --worktree-root only when a root is given;
-# sets OUT, ERR, CODE, ARGS (what the helper was called with), and WT (the
-# applied worktree path).
 run_park() {
   local root=()
   [[ -z "${2:-}" ]] || { mkdir -p "$2"; root=(--worktree-root "$2"); }
@@ -348,7 +336,6 @@ stash_subjects() { git -C "$1" stash list --format=%gs; }
 # shellcheck disable=SC2329  # invoked by name, as expect's predicate
 restored_in_place() { [[ -f "$1/DIRTY.md" && ! -e "$1/FOREIGN.md" && "$(git -C "$1" diff --cached --name-only)" == "STAGED.md" ]]; }
 
-# Another session pushes a stash between the park and the apply.
 repo_a="$TMP/park-a"
 dirty_clone "$repo_a" feature-a
 STUB_REAL=1 STUB_FOREIGN=1 run_park "$repo_a" "$TMP/wt-a"
@@ -359,7 +346,6 @@ expect "a park drops only its own stash and the other session's survives" "$d $(
 expect "an applied park exits 0" "$d" is "$CODE" 0
 expect "--worktree-root reaches the helper as --root" "$d args=$ARGS" has "$ARGS" "--root $TMP/wt-a"
 
-# The same push, then a failed worktree create: unpark must restore its own entry.
 repo_b="$TMP/park-b"
 dirty_clone "$repo_b" feature-b
 STUB_FOREIGN=1 STUB_EXIT=1 run_park "$repo_b" "$TMP/wt-b"
@@ -373,7 +359,6 @@ expect "unpark leaves the other session's stash alone" "$d $(stash_subjects "$re
   is "$(stash_subjects "$repo_b")" "On main: foreign-session"
 expect "unpark returns to the original branch" "$d" is "$(git -C "$repo_b" branch --show-current)" feature-b
 
-# Helper status 3: nothing was created.
 repo_c="$TMP/park-c"
 dirty_clone "$repo_c" feature-c
 STUB_EXIT=3 run_park "$repo_c" "$TMP/wt-c"
@@ -386,7 +371,6 @@ expect "helper exit 3 leaves no stash" "$d" is "$(stash_subjects "$repo_c")" ""
 expect "helper exit 3 quotes the helper's first stderr line and names the root remedy" "$d" \
   has "$OUT" "(stub: warning, exiting 3); set worktreeroot.path"
 
-# Without --worktree-root the helper gets no --root and resolves the root from the repository.
 repo_h="$TMP/park-h"
 dirty_clone "$repo_h" feature-h
 git -C "$repo_h" config worktreeroot.path "$TMP/wt-h"
@@ -397,7 +381,6 @@ expect "an unset --worktree-root keeps --root out of the helper call" "$d" \
 expect "an unset --worktree-root parks under the repository's worktreeroot.path" "$d" has "$WT" "$TMP/wt-h/"
 expect "an unset --worktree-root still parks the work in the worktree" "$d" restored_in_place "$WT"
 
-# The real helper refuses when no root resolves anywhere: unparked, skipped, its message quoted.
 repo_i="$TMP/park-i"
 dirty_clone "$repo_i" feature-i
 OUT="$(GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 bash "$SCRIPT" --repo "$repo_i" --apply --yes --worktree-create "$HELPER" 2>"$TMP/park.err")"
@@ -408,7 +391,6 @@ expect "no root anywhere skips the repo as helper exit 3, restored, with a remed
 expect "no root anywhere leaves the work in place and no stash" "$d" \
   is "$(restored_in_place "$repo_i" && echo in-place)|$(stash_subjects "$repo_i")" "in-place|"
 
-# Helper status 4 and 5 with a path: the worktree exists, so the park continues.
 for status in 4 5; do
   repo_s="$TMP/park-s$status"
   dirty_clone "$repo_s" "feature-s$status"
@@ -424,7 +406,6 @@ for status in 4 5; do
     is "$(stash_subjects "$repo_s")|$(git -C "$repo_s" branch --show-current)" "|main"
 done
 
-# Helper status 4 without a path: nothing usable, so unpark.
 repo_d="$TMP/park-d"
 dirty_clone "$repo_d" feature-d
 STUB_EXIT=4 run_park "$repo_d" "$TMP/wt-d"
@@ -434,7 +415,6 @@ expect "helper exit 4 without a path is unparked and reported" "$d" \
 expect "helper exit 4 without a path restores the work and leaves no stash" "$d" \
   restored_in_place "$repo_d"
 
-# A dirty default branch parks on a sync-park branch and comes back clean.
 repo_e="$TMP/park-e"
 dirty_clone "$repo_e"
 STUB_REAL=1 run_park "$repo_e" "$TMP/wt-e"
@@ -454,7 +434,6 @@ expect "a failed default-branch park drops its sync-park branch and keeps the ot
   is "$(git -C "$repo_f" branch --show-current)|$(git -C "$repo_f" branch --list 'sync-park/*')|$(stash_subjects "$repo_f")" "main||On main: foreign-session"
 expect "a failed default-branch park exits 1" "$d" is "$CODE" 1
 
-# A stash entry that cannot be matched by its marker fails closed.
 mkdir "$TMP/shim"
 cat >"$TMP/shim/git" <<EOF
 #!/usr/bin/env bash
@@ -497,7 +476,6 @@ expect "a non-fast-forward skip exits 1" "code=$code" is "$code" 1
 expect "a non-fast-forward skip line carries git-exit and a remedy" "$skipped" \
   has "$skipped" $'skipped\t'"$diverge"$'\tnon-fast-forward\tgit-exit=128\tremedy='
 
-# The plan names the scope rung that produced each repository, on plan and skipped lines alike.
 rung_home="$TMP/rung-home"
 mkdir -p "$rung_home"
 rung_of() { printf '%s\n' "$1" | awk -F'\t' -v r="$2" '$2 == r { print $NF }'; }
@@ -518,7 +496,6 @@ printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%s"\n' "$TMP/skipdrive" >"$TMP/ghq
 chmod +x "$TMP/ghq-stub"
 r_ghq="$(cd "$TMP/bare-cwd" && HOME="$rung_home" REPO_FLEET_GHQ_BIN="$TMP/ghq-stub" bash "$SCRIPT")"
 expect "ghq root --all plans rung=ghq" "$r_ghq" is "$(rung_of "$r_ghq" "$TMP/skipdrive/app")" "rung=ghq"
-# Four directories above solo hold no other repository, so the ancestor probe finds nothing.
 solo="$TMP/iso/a/b/c/solo"
 mkdir -p "$TMP/iso/a/b/c"
 git clone -q "$bare" "$solo"
@@ -526,7 +503,6 @@ r_cwd="$(cd "$solo" && HOME="$rung_home" REPO_FLEET_GHQ_BIN=/nonexistent bash "$
 expect "the working directory plans rung=cwd" "$r_cwd" is "$(rung_of "$r_cwd" "$solo")" "rung=cwd"
 expect "a lone checkout plans only itself" "$r_cwd" has "$r_cwd" $'repos: 1\n'
 
-# A bare run inside one checkout plans the checkout's sibling fleet, from the checkout root or below it.
 mkdir -p "$TMP/fleet"
 for name in one two three; do git clone -q "$bare" "$TMP/fleet/$name"; done
 mkdir -p "$TMP/fleet/one/sub/dir"
@@ -538,7 +514,6 @@ for from in "$TMP/fleet/one" "$TMP/fleet/one/sub/dir"; do
   expect "a bare run in ${from#"$TMP"/} reports 3 repos" "$r_sib" has "$r_sib" $'repos: 3\n'
 done
 
-# Discovery is the walker audit uses: it honors fleet.maxDepth and stops at a checkout.
 printf '[fleet]\n\tmaxDepth = 1\n' >"$TMP/depth1.conf"
 depth1="$(bash "$SCRIPT" --root "$TMP/skipdrive" --config "$TMP/depth1.conf")"
 expect "fleet.maxDepth 1 finds a repository one level down" "$depth1" has "$depth1" "$TMP/skipdrive/app"
@@ -562,6 +537,21 @@ r_skip="$(HOME="$rung_home" bash "$SCRIPT" --repo "$TMP/no-such-dir")"
 expect "a skipped plan line carries the rung" "$r_skip" has "$r_skip" $'skip\t'"$TMP/no-such-dir"$'\t\tnot-a-directory\trung=repo'
 r_skipped="$(HOME="$rung_home" bash "$SCRIPT" --repo "$TMP/no-such-dir" --apply --yes)"
 expect "a skipped result line ends with the rung" "$r_skipped" has "$r_skipped" $'\tremedy=check the path, then fix or remove it in the fleet config or the --repo and --root arguments\trung=repo'
+
+printf '[fleet\n\trepo = %s\n' "$clone" >"$TMP/malformed.conf"
+bash "$SCRIPT" --config "$TMP/malformed.conf" >/dev/null 2>"$TMP/malformed.err"
+mal_code=$?
+expect "malformed --config fails closed with exit 2" "code=$mal_code err=$(cat "$TMP/malformed.err")" is "$mal_code" 2
+
+mkdir -p "$TMP/win-user/.claude"
+printf '[fleet]\n\trepo = %s\n' "$clone" >"$TMP/win-user/.claude/repo-fleet-hygiene.conf"
+r_win="$(env -u HOME USERPROFILE="$TMP/win-user" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT")"
+expect "USERPROFILE fallback without HOME resolves user-global config" "$r_win" \
+  is "$(rung_of "$r_win" "$clone")" "rung=config"
+
+r_ph="$(HOME="$TMP/win-user" REPO_FLEET_GHQ_BIN=/nonexistent bash "$SCRIPT" --project-dir '${CLAUDE_PROJECT_DIR}')"
+expect "literal \${CLAUDE_PROJECT_DIR} placeholder is stripped and falls back to user-global config" "$r_ph" \
+  is "$(rung_of "$r_ph" "$clone")" "rung=config"
 
 if [[ "$FAILED" -eq 0 ]]; then
   printf 'OK\n'

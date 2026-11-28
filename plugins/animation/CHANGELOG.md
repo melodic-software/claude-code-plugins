@@ -3,6 +3,36 @@
 All notable changes to the `animation` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.1] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+- Trimmed `animation` skill frontmatter descriptions to <=350 chars (`learn-style`: 452 -> 341 chars; `produce`: 439 -> 331 chars; `rotoscope`: 507 -> 347 chars; total 1,398 -> 1,019 chars, -379 chars) with zero body changes.
+
+## [1.1.0] - 2026-11-27
+
+### Added
+
+- `install_python_deps_enabled` option (boolean, default `false`) in `plugin.json` and `schemas/animation.schema.json` controls the SessionStart `install-python-deps` hook across the plugin default, user layer (`CLAUDE_PLUGIN_OPTION_INSTALL_PYTHON_DEPS_ENABLED`), and repository layer (`docs/conventions/animation.yaml`) through `lib/hook-enabled.sh`.
+
+### Changed
+
+- The SessionStart `install-python-deps` hook now defaults to off per the hook-enablement convention because it installs packages over the network without an explicit request; running any skill script without the packages prints the one-line install command.
+
+## [1.0.37] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [1.0.36] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [1.0.35] - 2026-11-24
 
 ### Changed

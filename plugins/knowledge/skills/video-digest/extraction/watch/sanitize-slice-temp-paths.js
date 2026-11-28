@@ -101,8 +101,6 @@ export function sanitizeSliceTempPaths(sliceDir) {
   const promptPath = lanePath(absSlice, LANES.runState, "continuation-prompt.md");
   if (fs.existsSync(promptPath)) {
     const original = fs.readFileSync(promptPath, "utf8");
-    // Scoped to the two temp-session lines only — a blanket backtick replace would
-    // path.resolve() non-temp backtick spans (e.g. `key-frames/triage/...`) into garbage.
     const sanitized = original.replace(
       /^(- (?:Frames|Contact sheets) temp: `)([^`]+)(`)/gm,
       (_match, prefix, value, suffix) => `${prefix}${normalizePortableTempPath(value)}${suffix}`,

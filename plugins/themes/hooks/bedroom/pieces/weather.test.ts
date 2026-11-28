@@ -7,7 +7,6 @@ import { EVENING, QUIET, STORE_KEY, startRoom } from '../core/testing.js'
 import { encodeWorld } from '../core/values.js'
 import { SHARES, autoKind } from './weather.js'
 
-/** 1,000 days in a row from 2026-01-01, at noon. */
 const DAYS = Array.from({ length: 1000 }, (_, i) => local(new Date(2026, 0, 1 + i, 12, 0, 0).getTime()))
 
 test('auto gives the same kind twice for one date and block, and across a block', () => {

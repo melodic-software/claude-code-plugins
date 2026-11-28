@@ -1,5 +1,5 @@
 ---
-description: "C4 deployment view of committed infrastructure: which containers sit on which declared nodes, per environment, and what differs between two environments. Use when 'map deployment', 'deployment diagram', 'what is different in production', 'IaC topology', or 'where does this container run'. Skip when the question is a live cloud inventory, cost, or runtime health."
+description: "C4 deployment view of committed infrastructure: which containers sit on which declared nodes, per environment, and what differs between two environments. Use for 'map deployment', 'deployment diagram', 'what is different in production', IaC topology, or where does this container run. Not for live cloud inventory, cost, or runtime health."
 argument-hint: "[environment] [--diff <env-a> <env-b>] [--dialect likec4|c4-plantuml] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false
@@ -182,7 +182,7 @@ Shipped readers, every one that is present:
   diffed like any other container. A task definition one service runs keeps the plain container
   name. A `containers.json` name matches its `@<service>` placements.
 
-A Pulumi project of any other runtime (`nodejs`, `python`, `go`, `dotnet`, ...), Helm (a
+A Pulumi project of any other runtime (`nodejs`, `python`, `go`, `dotnet`, ...), Helm (a <!-- portability-ok: R6 kept-adapter runtime list - Pulumi runtime detection -->
 `Chart.yaml`, a Terraform `helm_release`, or a `kubernetes:helm.sh/` resource in a Pulumi YAML
 program), and Kustomize are recognized and named, never read. If any of them is present, the
 record is refused, including when a shipped reader also matches, because a diagram of only the

@@ -1,12 +1,12 @@
 # fleet
 
 A Claude Code plugin for agent-to-agent reach across the machines you own. One skill, one job: from
-any Claude Code lane, get work to happen in any other lane, with no human copying prompts between
-terminals.
+Claude Code on any host and platform, get work to happen on any other, with no human copying prompts
+between terminals.
 
 | Skill | What it does |
 |---|---|
-| `/fleet:reach` | Resolve a target lane from the fleet manifest, then run a script, prompt, query and wait, message a session, or start a named session there: the other lane on this machine (WSL or native Windows) or either lane on another machine |
+| `/fleet:reach` | Resolve a target host and platform from the fleet manifest, then run a script, prompt, query and wait, message a session, or start a named session there: the other platform on this machine (WSL or native Windows) or either platform on another machine |
 
 ## Install
 
@@ -17,18 +17,19 @@ terminals.
 
 ## Why not the peer tools
 
-A **lane** is one Claude Code install with its own sign-in: a WSL distro or native Windows, on each
-machine. When each lane signs into its own Claude account, which keeps one lane's usage limits off
-another's, the built-in peer tools see only their own lane:
+A **host** is one machine you own. A **platform** is where Claude Code runs on a host: a WSL distro
+or native Windows (windows, wsl, linux or macos in general). Each platform on each host is one Claude
+Code install with its own sign-in. When each signs into its own Claude account, which keeps one
+platform's usage limits off another's, the built-in peer tools see only their own host and platform:
 
 - WSL and native Windows on one machine register sessions under different homes and sockets, so
   neither lists the other.
 - Remote Control lists only the signed-in account's sessions, so another account's sessions never
   appear, even with Remote Control connected.
 
-What works is starting a headless `claude -p` turn inside the target lane: over WSL interop for
+What works is starting a headless `claude -p` turn on the target platform: over WSL interop for
 native Windows on this machine, `wsl.exe` for WSL on this machine, and SSH for another machine. That
-turn runs under the target lane's own account, config and limits, and its peer tools are local
+turn runs under the target platform's own account, config and limits, and its peer tools are local
 there, so it can list and message the target's sessions.
 
 ```shell
@@ -43,19 +44,49 @@ port, account and shell. The skill reads it before composing anything, and treat
 absent from it as not a fleet host. Machines are addressed by hostname over the tailnet, never by
 session name.
 
+## Peer list at session start
+
+A SessionStart hook adds the live Claude Code sessions on every fleet lane to the session's
+context on startup, resume, `/clear`, compaction and fork, at no model-turn cost. It reads
+`~/.config/fleet/fleet.json` (contract: [fleet-manifest](../../docs/contracts/fleet-manifest/README.md))
+and runs each lane's `claude agents --json`: on this lane directly, through WSL interop or
+`wsl.exe -d <distro> --exec`, or over ssh in batch mode with strict host keys and no forwarding. The ssh client is the one
+`ssh_client` names, else the platform's own; on WSL that is the Windows OpenSSH client.
+It starts no local shell and runs no other program itself; ssh still follows your ssh config.
+
+- The list opens with a line saying it is data, that same-lane peers take SendMessage by name and
+  other lanes take `/fleet:reach`; it is at most 25 lines.
+- With no live peer and no broken lane it prints nothing.
+- A session that is not attended (`claude -p`, `--bg`, the SDK) lists only its own lane, as does
+  a timeout of 0. With no `fleet.json` it lists only its own lane, through the binary that started
+  the session.
+- A lane that cannot be reached prints `not reached: <host> <OS> (<reason>)`: always for a broken
+  lane (name lookup failed, sign-in expired, claude not found, unsafe manifest entry), and only
+  inside a printed list for one that is away (timed out, no route, refused, distro stopped).
+
+To see what the hook would print, run it yourself; `--manifest <file>` reads another manifest (`--preview` runs regardless of `peer_list_enabled`):
+
+```shell
+node <plugin root>/hooks/peer-list.mjs --preview [--manifest <file>]
+```
+
+The SessionStart hook is off by default (`peer_list_enabled: false`) because it queries other lanes over WSL or SSH on session start. Turn it on in your user plugin options (`pluginConfigs`) or per repository in `docs/conventions/fleet.yaml` (schema: `schemas/fleet.schema.json`); an explicit user value wins over the repository layer per the [hook-enablement contract](../../docs/contracts/hook-enablement/README.md).
+
 ## Posture
 
-Starting an agent in another lane is a state change nobody is watching, so it is outside the
-auto-mode classifier and prompts by design. This plugin ships no scripts, requests no tool grants,
-and never proposes an ssh allow rule to quiet the prompt.
+Starting an agent on another host or platform is a state change nobody is watching, so it is outside the
+auto-mode classifier and prompts by design. The reach skill requests no tool grants and never
+proposes an ssh allow rule to quiet the prompt. The peer-list hook runs without a prompt because it
+only reads: each lane's `claude agents --json`, with names and paths from `fleet.json` that pass a
+safe-character check.
 
 ## Boundaries
 
 `repo-fleet-hygiene` also says "fleet" and means fleets of REPOSITORIES. Different subject, no
-overlap. Messaging a session in the same lane belongs to the built-in peer tools. Delegation inside
-one session belongs to subagents and `session-flow:orchestrate`; a detached session in this lane
-belongs to `session-flow:continue-in-background`. Interactive human use of a lane's session, from a
-phone or the web, is the built-in Remote Control feature, under that lane's own account.
+overlap. Messaging a session on the same host and platform belongs to the built-in peer tools. Delegation inside
+one session belongs to subagents and `session-flow:orchestrate`; a detached session on this platform
+belongs to `session-flow:continue-in-background`. Interactive human use of a platform's session, from a
+phone or the web, is the built-in Remote Control feature, under that platform's own account.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
@@ -66,7 +97,10 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `converge_docs_url` | string | *(none)* | URL of your own documentation for the fleet-converge command, which reach names when converging a lane comes up. Unset: reach names the command with no link. |
+| `peer_list_enabled` | boolean | `false` | Whether the SessionStart hook queries fleet lanes for live Claude Code sessions and injects the peer list into session context. Defaults to false because it queries other lanes over WSL or SSH. |
+| `converge_docs_url` | string | *(none)* | URL of your own documentation for the fleet-converge command, which reach names when converging dotfiles comes up. Unset: reach names the command with no link. |
+| `peer_query_timeout_seconds` | number<br>*min 0, max 10* | `3` | Seconds the session-start peer list waits for each fleet lane's claude agents --json, from 0 to 10. 0 lists only the lane the session runs on. Empty or out of range: 3. |
+| `ssh_client` | string | *(none)* | Absolute path of the ssh client the peer list runs to reach other machines; the file must be named ssh or ssh.exe (a drive-letter path on Windows). Empty or invalid: the platform's own client, on WSL the Windows OpenSSH client. Set /usr/bin/ssh on WSL when the distro holds the fleet key. |
 
 ### How to set these
 

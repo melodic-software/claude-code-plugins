@@ -1,21 +1,21 @@
 {
   "pass": [
     {
-      "answer": "**Round 2.** A production month-end export for finance.\nScope check: 5 of 12 questions registered\n\n❓ Q601: **Should one export cover one calendar month?**\n\nContext:\n- Finance closes on the calendar month (your notes).\n\n➡️ My recommendation: **Yes**.\n\n---\n\n❓ Q602: **How are amounts written?**",
+      "answer": "Round 2\nScope check: 5 questions asked so far\n\n❓ Q601 (date range): **Should one export cover one calendar month?**\n\nContext:\n- Finance closes on the calendar month (your notes).\n\n➡️ My recommendation: **Yes**.\n\n---\n\n❓ Q602 (amount format): **How are amounts written?**",
       "why": "no title in Q3-Q599"
     },
     {
-      "answer": "Context:\n- Q2 said the users are finance (round 1).\n\n❓ Q601: **Date range?**",
+      "answer": "Context:\n- Q2 said the users are finance (round 1).\n\n❓ Q601 (date range): **Date range?**",
       "why": "a cited id is not a title"
     }
   ],
   "fail": [
     {
-      "answer": "❓ Q3: **Date range?**",
+      "answer": "❓ Q3 (date range): **Date range?**",
       "why": "Q3 fills the gap"
     },
     {
-      "answer": "❓ Q599: **Date range?**",
+      "answer": "❓ Q599 (date range): **Date range?**",
       "why": "inside the declared gap"
     }
   ]

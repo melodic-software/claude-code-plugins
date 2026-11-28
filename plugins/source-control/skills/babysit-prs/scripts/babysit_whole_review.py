@@ -44,7 +44,6 @@ from typing import Any
 import diff_risk
 from babysit_gh import fetch_paginated_api, gh_capture
 
-# The reasons comment babysit_merge.py writes; the record lives in it.
 RISK_MARKER = "<!-- babysit-merge-risk -->"
 RECORD_PREFIX = "Whole review requested at head `"
 RECORD_RE = re.compile(
@@ -52,22 +51,16 @@ RECORD_RE = re.compile(
     r"(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ): .*$",
     re.MULTILINE,
 )
-# Whole reviews a pull request may request; past that a person decides.
 MAX_TOGGLES = 2
-# A lane conversion to draft this long after a record belongs to its toggle.
 CONVERT_WINDOW = timedelta(minutes=10)
 CONVERT_SKEW = timedelta(minutes=1)
 SPENT_ENV = "BABYSIT_WHOLE_REVIEW_SPENT"
-# The job's own token (GITHUB_TOKEN), which also reads the runs.
 JOB_TOKEN_ENV = "BABYSIT_VERIFY_GH_TOKEN"
 MAX_RUNNING_JOBS = 35
-# The share of each rate-limit bucket that must be left: 1,500 of 5,000, 300
-# of GITHUB_TOKEN's 1,000 outside GitHub Enterprise Cloud.
 MIN_SHARE = 0.3
 READY_TRIES = 3
 RECOVER_HOURS = 24
 FINDING_CODES = frozenset(code for code, _ in diff_risk.LANES.values())
-# The lane whose clean review clears a `review-path:` hold.
 SECURITY_LANE = "claude-security-review"
 NEW_RUN_CLEARS = frozenset({"rerun-not-allowed", "base-retargeted"})
 CONVERT = (
@@ -93,8 +86,6 @@ _FENCE_RE = re.compile(r"^```[^\n]*\n.*?^```[ \t]*$", re.MULTILINE | re.DOTALL)
 
 
 def _unfenced(body: Any) -> str:
-    """`body` without its fenced blocks, where a reason quotes changed paths:
-    a record line counts only outside them."""
     return _FENCE_RE.sub("", str(body or "").replace("\r\n", "\n"))
 
 
@@ -119,11 +110,6 @@ def record_lines(body: Any) -> list[str]:
 
 
 def _new_run_clears(lanes: Sequence[diff_risk.LaneEvidence]) -> set[str]:
-    """The `evidence-unbound:` risk codes of the lanes whose one evidence entry
-    is unbound for a reason in `NEW_RUN_CLEARS`, the reasons a new run at the
-    same head removes: the re-run rule reads only a run's later attempts, and
-    a run created after the newest retarget reviews against the new base
-    (babysit_review_evidence `_bound_record`)."""
     names = [lane.lane for lane in lanes]
     return {
         f"evidence-unbound:{lane.lane}"
@@ -190,7 +176,6 @@ def request(
         return lines, None
     if len(lines) >= MAX_TOGGLES:
         return lines, {"toggled": False, "skipped": f"toggle-cap:{len(lines)}"}
-    # The timeline, not the comment the lane token can edit, holds the count.
     toggled = lane_toggles(node_id, identity)
     if toggled is None:
         return lines, {"toggled": False, "skipped": "toggle-cap:unread"}
@@ -216,15 +201,12 @@ def _short_bucket(env: Mapping[str, str] | None) -> str | None:
     for bucket in ("core", "graphql"):
         left = int(resources[bucket]["remaining"])
         limit = int(resources[bucket]["limit"])
-        # A limit of zero or less is no budget to judge against, so it refuses.
         if limit <= 0 or left < MIN_SHARE * limit:
             return f"{bucket}:{left}/{limit}"
     return None
 
 
 def _running_jobs(repo: str, env: Mapping[str, str]) -> int:
-    """Unfinished jobs of the in-progress and queued runs, counted up to the
-    cap; a run holds at least one, so that many runs needs no job read."""
     runs = [
         item
         for status in ("in_progress", "queued")
@@ -244,9 +226,6 @@ def _running_jobs(repo: str, env: Mapping[str, str]) -> int:
 
 
 def limits(repo: str) -> str | None:
-    """None when this sweep may request one whole review, else why not. Only
-    the call that passes every limit claims the sweep, so a refused candidate
-    leaves it to the next one."""
     spent = os.environ.get(SPENT_ENV)
     if not spent:
         return "not-pr-merge"
@@ -287,15 +266,15 @@ def _graphql(query: str, node_id: str) -> bool:
 
 HOLD_STATE = (
     "query($id: ID!) { node(id: $id) { ... on PullRequest {"
-    " isDraft body labels(first: 100) { totalCount nodes { name } } } } }"
+    " isDraft labels(first: 100) { totalCount nodes { name } } } } }"
 )
 
 
 def _held(node_id: str, human_gated: str) -> str | None:
     """Why the pull request, read now, must not be toggled, or None: it is
     already a draft (a person's, whose hold a mark-ready would undo), carries
-    a merge-hold label, the tracker's `human_gated` role label or a body hold,
-    or did not read whole."""
+    a merge-hold label or the tracker's `human_gated` role label, or did not
+    read whole."""
     import babysit_merge_policy as merge_policy  # noqa: PLC0415 - import cycle
 
     proc = _graphql_capture(HOLD_STATE, node_id)
@@ -304,7 +283,7 @@ def _held(node_id: str, human_gated: str) -> str | None:
         labels = node["labels"]
         names = {str(n["name"]).casefold() for n in labels["nodes"]}
         whole = labels["totalCount"] == len(labels["nodes"])
-        draft, body = node["isDraft"], str(node["body"] or "")
+        draft = node["isDraft"]
     except (KeyError, TypeError, ValueError):
         return "hold-state-unread"
     if draft is not False:
@@ -314,8 +293,6 @@ def _held(node_id: str, human_gated: str) -> str | None:
     holds = {*merge_policy.MERGE_HOLD_LABELS, human_gated}
     if names & {label.casefold() for label in holds}:
         return "hold-label"
-    if merge_policy.BODY_MERGE_HOLD_RE.search(body):
-        return "body-hold"
     return None
 
 
@@ -339,7 +316,6 @@ def toggle(
     return {"toggled": False, "error": "stranded-draft: mark-ready failed"}
 
 
-# The newest 100: past that the cap is long reached.
 CONVERSIONS = (
     "query($id: ID!) { node(id: $id) { ... on PullRequest {"
     " timelineItems(itemTypes: [CONVERT_TO_DRAFT_EVENT], last: 100)"
@@ -353,8 +329,6 @@ def _login(value: Any) -> str:
 
 
 def _conversions(node_id: str) -> list[dict[str, Any]] | None:
-    """The pull request's conversions to draft, oldest first, or None when
-    unread."""
     proc = _graphql_capture(CONVERSIONS, node_id)
     if proc.returncode != 0:
         return None
@@ -366,8 +340,6 @@ def _conversions(node_id: str) -> list[dict[str, Any]] | None:
 
 
 def lane_toggles(node_id: str, identity: str) -> int | None:
-    """How many conversions to draft `identity` made, or None when unread.
-    Any lane conversion counts, a toggle's or not."""
     nodes = _conversions(node_id)
     if nodes is None:
         return None
@@ -380,8 +352,6 @@ def lane_toggles(node_id: str, identity: str) -> int | None:
 
 
 def _converter(node_id: str) -> tuple[str, datetime] | None:
-    """Who made the newest conversion to draft and when (server time), or
-    None when unread."""
     nodes = _conversions(node_id)
     if not nodes:
         return None

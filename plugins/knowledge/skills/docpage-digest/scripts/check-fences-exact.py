@@ -24,7 +24,7 @@ import os
 import sys
 from typing import List, Optional
 
-sys.dont_write_bytecode = True  # the plugin's own tree is not a cache
+sys.dont_write_bytecode = True
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from digest_fences import (  # noqa: E402
     Failures,
@@ -42,7 +42,6 @@ PROG = "check-fences-exact"
 
 
 def check_digest(path: str, source: str, failures: Failures) -> int:
-    """Return the number of claims fully exercised on this digest."""
     text = read_text(path, PROG, "digest")
     found = find_section(text, "Key claims")
     if found is None:

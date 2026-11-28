@@ -251,7 +251,6 @@ test("parseLog splits git log output by commit", () => {
   ]);
 });
 
-// End to end against a real repository, with gh stubbed.
 const SCRIPT = join(dirname(fileURLToPath(import.meta.url)), "upkeep.mjs");
 const dir = mkdtempSync(join(tmpdir(), "upkeep-"));
 after(() => rmSync(dir, { recursive: true, force: true }));
@@ -321,7 +320,6 @@ test("gate: an unknown open count fails and plans nothing", () => {
   assert.equal(result.stdout, "");
 });
 
-// A gh that logs its request as GH_DEBUG=1 does, so the wrapper counts it.
 const TRACED = `[ -z "$GH_DEBUG" ] || printf '* Request at now\\n* Request to https://api.github.com/repos/o/r/actions/runs/7/artifacts\\n* Request took 1ms\\n' >&2`;
 const budget = (name) => {
   const temp = join(dir, `temp-${name}`);
@@ -343,7 +341,6 @@ test("gate: under API_BUDGET_TOKEN it plans the same and counts every gh call, o
   const result = runCli(["gate", "--root", repo], PATH, env);
   assert.equal(result.status, 0, result.stderr);
   assert.equal(JSON.parse(result.stdout).proceed, true);
-  // open-pr-count.sh's pr list, the two pr lists and the artifacts read.
   assert.equal(readFileSync(join(temp, "api-budget/github-token"), "utf8").split("\n").filter(Boolean).length, 4);
 });
 

@@ -1,5 +1,5 @@
 ---
-description: "When the built-in skill-doctor command resolves in this session, prefer it for cost; this skill for unseen ones. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'."
+description: "Audit which skills the model can see, which are starved or dropped, and whether skill listing is over budget. When built-in skill-doctor resolves in this session, prefer it for cost; this skill for unseen skills. Use when 'audit skill visibility', 'which skills are starved', 'is my skill listing over budget', or why Claude never suggests a skill."
 argument-hint: "[--unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json]"
 user-invocable: true
 shell: bash
@@ -11,7 +11,7 @@ metadata:
 ---
 ## Run-start suggestion
 
-Relay the sentence below to the user and do not run `/skill-doctor` yourself: it is a command the Skill tool never lists.
+Relay the sentence below to the user and do not run `/skill-doctor` yourself: it is the user's command to type (what it reports: [find unused skills](https://code.claude.com/docs/en/skills#find-unused-skills)).
 
 If /skill-doctor is available in your session (gate basis: **Boundary, the bundled `doctor` skill and `/skill-doctor`** below), run it for the one-shot unused-versus-context-cost report when that is the whole ask.
 
@@ -37,7 +37,7 @@ therefore never takes effect; `harness-config:audit`, when installed, reports th
 - **Pointer**: when deciding whether `skillOverrides` can affect a plugin skill, fetch [skills: override skill visibility from settings](https://code.claude.com/docs/en/skills#override-skill-visibility-from-settings) live.
 
 Claude Code budgets the model-visible skill listing in characters, at
-`window x bytes-per-token x skillListingBudgetFraction` (our binary reading), and, when it
+`window x bytes-per-token x skillListingBudgetFraction` (our binary reading; the docs' account, which differs on the drop order: [skill descriptions are cut short](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)), and, when it
 overflows, **sheds descriptions from the lowest-scoring skills first**. Names always survive,
 descriptions do not. A skill at zero usage scores zero, so it loses its description, loses the
 keywords a request would match against, and stays at zero. Unused is partly self-causing.
@@ -110,10 +110,10 @@ instead, read the plugin manifest:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/skills/audit-skill-visibility/scripts/audit_skill_visibility.py" \
-  --installed
+  --installed --sources-file '${user_config.transcript_sources_file}' --diagnostics-dir "${CLAUDE_PLUGIN_DATA}/diagnostics"
 ```
 
-It reads `~/.claude/plugins` by default (pass a directory to `--installed` to
+`--sources-file` (`''` when unrendered) picks the configuration directory, its first local source's; name each gap the report's `header` lists, with its retry, first. It reads `~/.claude/plugins` by default (pass a directory to `--installed` to
 point elsewhere). The two answers differ on purpose: a checkout can hold
 plugins that are not installed, so the repo count and the installed count
 disagree. Neither number is wrong; they answer different questions.
@@ -139,7 +139,7 @@ excluded and reported rather than counted. Current project comes from
 
 A marketplace whose source is a local `directory` loads from that **checkout**,
 not from either cached `installPath`. Verified by a skill executing out of the
-marketplace directory. For those, the plugin's root comes from the catalog's
+marketplace directory; the docs' account: [in-place and copied plugins](https://code.claude.com/docs/en/plugins/loading#in-place-and-copied-plugins). For those, the plugin's root comes from the catalog's
 declared `source`, since `plugins/<name>` is the common layout but not a rule.
 
 Whether each resolved plugin actually loads is read from `enabledPlugins` in the
@@ -251,8 +251,8 @@ workflows, and with `--installed` the user's `~/.claude/skills`, the
 `.claude/skills` of the project and each parent up to the repository root, and
 the signed-in account's claude.ai-synced skills, each with `skillOverrides`
 applied. A user or project skill is listed under its frontmatter `name` when it
-sets one, a synced skill under its folder name, and the engine lets a personal skill shadow a project skill of the same name, the order read live from [skills: resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name). Built-in and bundled skills ship
-inside Claude Code and cannot be read from disk, so without a capture
+sets one, a synced skill under its folder name, and the engine lets a personal skill shadow a project skill of the same name, the order read live from [skills: resolve skills that share a name](https://code.claude.com/docs/en/skills#resolve-skills-that-share-a-name). The engine reads no built-in or bundled
+skill from disk (what those are: [bundled skills](https://code.claude.com/docs/en/skills#bundled-skills)), so without a capture
 `coverage` is `enumerated-only`, the Markdown says what was not counted, and a
 row whose counted entries fit reports `fit-unconfirmed`, never `listing-fits`:
 only a read capture that covers the counted fleet can confirm a fit. A capture
@@ -262,7 +262,7 @@ a session that loaded a different fleet; it is listed under
 `fit-unconfirmed`. `overflowing` needs no capture, since an uncounted entry
 only adds to the listing.
 `--listing-capture <transcript.jsonl>` reads the listing a session actually
-received from its transcript (`~/.claude/projects/<project>/<session>.jsonl`),
+received from its transcript (`<config dir>/projects/<project>/<session>.jsonl`),
 counts every entry no disk walk could find (built-in, bundled, synced skills
 when no signed-in account was read, and, in a checkout, any plugin outside the
 checkout and the project's own skills) at its captured length, and reports in
@@ -276,9 +276,9 @@ removed personal skill cannot be told from a built-in by name. It also reports i
 `listing-fits` while the session shed descriptions is listed under
 `disagrees`. The engine only reads the file; it never launches Claude Code.
 The transcript's listing record is not a published format: its shape, as-of
-date (2026-10-04, Claude Code 2.1.289) and recheck trigger are stamped beside
-`parse_listing_capture` in the script, and a shape it does not recognize
-reports the capture as `not-read` rather than guessing.
+date and recheck trigger are in [listing-scorer.md](reference/listing-scorer.md#the-transcript-listing-record),
+and a shape it does not recognize reports the capture as `not-read` rather than
+guessing.
 
 A verdict covers the main session at the stated window. A subagent gets a
 listing sized to its own window and can shed where the main session does not.
@@ -424,7 +424,7 @@ the settings file that did), and says so when there is nothing to fix.
   [reference/listing-scorer.md](reference/listing-scorer.md) before changing that
   ordering or quoting it to a user.
 
-## Scope boundary
+## What this skill does not do
 
 | Question | Owner |
 |---|---|

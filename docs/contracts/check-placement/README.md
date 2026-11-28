@@ -68,6 +68,12 @@ and what reaches the model.
 - A format and lint plugin keeps the two concerns apart: a `format` entry that rewrites and a `lint`
   entry that reports, each resolved on its own ([Hooks run the shipped adapter](#hooks-run-the-shipped-adapter)). Formatting includes
   import ordering; no lint autofix runs in the batch row or at `pre-commit`.
+- The two entries may share one tool start at `pre-commit` (owner decision, 2026-11-24, to keep the
+  hook within its [duration budget](#duration-budgets)): the `format` entry may lint the files it
+  just formatted and leave that result for the `lint` entry, keyed by the files' bytes and the
+  tool's config. Each entry stays separately resolvable, declinable and skippable under its own
+  name: a declined or skipped `lint` makes the `format` entry lint nothing, and a `lint` entry
+  that finds no matching result runs the tool itself, with the same exit codes and messages.
 
 Pointer: for `PostToolBatch` (no matcher, no `if`, one firing per batch of parallel tool calls),
 see the [hooks reference](https://code.claude.com/docs/en/hooks). As of 2026-10-15, Claude Code
@@ -210,8 +216,8 @@ beside each installed entry). A file no adapter's config governs gets nothing.
 |---|---|
 | Shell | `#!/bin/sh`, and POSIX sh until the script sources the check lib, its first step. The lib puts it under bash: under bash already, in POSIX mode when it started as sh, it turns POSIX mode off; under another sh it reruns the script under the first `bash` on `PATH` outside System32, Sysnative and WindowsApps, and with none, bash is a missing tool (below). A bash script the check runs itself starts through `checks_bash_run`. No hook file, dispatcher or run line names `bash` as a command: on Windows that can resolve to System32's WSL launcher. A script that needs no bash, such as guardrails' `commit-msg-convention`, stays POSIX sh throughout, so it needs no bash beside git's sh |
 | Args | none from git; optional `--worktree` for the end-of-turn mode |
-| Inputs | pre-commit: `git diff --cached --name-only --diff-filter=ACMR -z` plus `-U0` hunks; while a merge is in progress, an entry that lists files through `checks_files` skips a path whose staged entry (mode and blob) equals a merge head's; pre-push: refs on stdin, range `<remote-sha>..<local-sha>`, merge-base with `<remote>/HEAD` for a new branch, deletions skipped |
-| Scope of findings | changed lines only; in a pre-commit merge, only the lines that differ from every parent. A file both sides changed, or whose mode differs from every head, is still listed, and a rewriting entry formats it whole |
+| Inputs | pre-commit: `git diff --cached --raw --diff-filter=ACMR -z` plus `-U0` hunks; `checks_files` leaves out an exact rename (same blob and mode, new path), in every mode; `checks_files --include-exact-renames` lists through `git diff --name-only --diff-filter=ACMR -z` instead, keeping it, for a check whose verdict depends on a file's name or location (the guardrails content scan and reference verify, the spelling lint, which checks file names); while a merge is in progress, an entry that lists files through `checks_files` skips a path whose staged entry (mode and blob) equals a merge head's; pre-push: refs on stdin, range `<remote-sha>..<local-sha>`, merge-base with `<remote>/HEAD` for a new branch, deletions skipped |
+| Scope of findings | changed lines only; in a check that passes `--skip-reindent` (the comment lint, and the guardrails content scans for machine-specific paths), an added line equal, leading and trailing whitespace aside, to a line its file's diff removes is unchanged (a reindent, or a move within the file), each removed line matching one added line. The comment lint also passes a changed line whose trailing comment text equals that of the base line it replaces (paired in order within a hunk of equal size, else by the one removed code line in the hunk with the same comment, when no other added code line of the hunk holds it). Only a check whose loosening has a recorded owner decision passes it (`checks_changed_lines --skip-reindent <out>`, or `checks_added_ranges --skip-reindent`), and it filters its findings with `checks_filter_findings <out>`, the ranges file it built; in a pre-commit merge, only the lines that differ from every parent. A file both sides changed, or whose mode differs from every head, is still listed, and a rewriting entry formats it whole |
 | Missing tool | named in `git config --get checks.skipmissing` (comma list, whole-name match) and absent: `SKIPPED: <tool> (missing)` on stderr, exit 0. Otherwise an agent (`CLAUDECODE=1` or `AI_AGENT`) gets `FAIL: <tool> missing. Install: <cmd>` plus the skip line, exit 1; a human gets a one-line notice, exit 0 |
 | Findings | `<path>:<line>: <message>` on stderr, exit 1 |
 | Rewrites | in place, rewritten paths on stdout; a partly staged file is left alone and fails with `<path>: partly staged; format it or stage it fully, then commit` |
@@ -444,9 +450,13 @@ Caveats:
 
 ## Duration budgets
 
-Each row is measured on the host named in its row. Other hosts re-measure; CI does not enforce
-durations ([hook-budget](../hook-budget/README.md) enforces counts). Placement shipped by this
-marketplace comes from these rows.
+Each row is measured on the host named in its row. Other hosts re-measure. When a change touches
+a git-hook config or a script a hook entry calls, CI times every shipped `pre-commit` and
+`pre-push` entry on a fixed fixture and fails a hook over its budget
+(`scripts/check-git-hook-time-budget.sh`, ADR 0072 addendum 2026-11-24); Claude Code hooks keep
+count budgets ([hook-budget](../hook-budget/README.md)). Placement shipped by this marketplace
+comes from these rows. A hook over or near its budget follows the "Over or near budget" order in
+[ADR 0072](../../adr/0072-place-each-check-by-coverage-cost-and-model-facing-output.md#addendum-2026-11-24-ci-times-the-git-hooks).
 
 | Budget | Value | Basis |
 |---|---|---|

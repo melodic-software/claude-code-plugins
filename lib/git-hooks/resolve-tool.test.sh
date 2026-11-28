@@ -140,5 +140,36 @@ expect "a non-zero exit with no parsed finding fails closed and shows the output
 RT_SCRIPT='stublint --clean "$@"'
 expect "a clean exit passes with no finding" "|0" "$(cd "$WORK/rl" && rt_lint sub/a.dm 2>&1; printf '|%s' "$?")"
 
+std_case() {
+  RT__STD_FOR=""
+  if rt_standards_file "$1" "$2"; then printf '%s' "$RT_STANDARDS_FILE"; else printf 'none|%s' "$RT_STANDARDS_FILE"; fi
+}
+SR="$WORK/std-repo"
+mkdir -p "$SR/docs/conventions" "$HOME/ghq/github.com/acme/standards" "$WORK/ghq2/github.com/acme/standards" "$WORK/stddir"
+for d in "$HOME/ghq/github.com/acme/standards" "$WORK/ghq2/github.com/acme/standards" "$WORK/stddir"; do
+  printf 'x\n' >"$d/_typos.toml"
+done
+expect "no source-control config: no standards file" "none|" "$(std_case "$SR" _typos.toml)"
+printf 'pr_open_state: ready\n' >"$SR/docs/conventions/source-control.yaml"
+expect "a config without standards_repository: no standards file" "none|" "$(std_case "$SR" _typos.toml)"
+printf 'standards_repository: acme/standards # the org defaults\n' >"$SR/docs/conventions/source-control.yaml"
+expect "standards_repository with no ghq.root reads ~/ghq" "$HOME/ghq/github.com/acme/standards/_typos.toml" "$(std_case "$SR" _typos.toml)"
+expect "a path the checkout lacks: no standards file" "none|" "$(std_case "$SR" .shellcheckrc)"
+git config --global ghq.root "$WORK/ghq2"
+expect "ghq.root wins over ~/ghq" "$WORK/ghq2/github.com/acme/standards/_typos.toml" "$(std_case "$SR" _typos.toml)"
+expect "STANDARDS_DIR wins over ghq.root" "$WORK/stddir/_typos.toml" "$(STANDARDS_DIR="$WORK/stddir" std_case "$SR" _typos.toml)"
+expect "a relative STANDARDS_DIR resolves to an absolute path" "$WORK/stddir/_typos.toml" "$(cd "$WORK" && STANDARDS_DIR=stddir std_case "$SR" _typos.toml)"
+printf "standards_repository: 'acme/standards'\n" >"$SR/docs/conventions/source-control.yaml"
+expect "a single-quoted value resolves" "$WORK/ghq2/github.com/acme/standards/_typos.toml" "$(std_case "$SR" _typos.toml)"
+printf 'standards_repository: "acme/standards"\r\n' >"$SR/docs/conventions/source-control.yaml"
+expect "a double-quoted value with a CRLF line ending resolves" "$WORK/ghq2/github.com/acme/standards/_typos.toml" "$(std_case "$SR" _typos.toml)"
+for bad in 'not-a-pair' '../standards' 'acme/../standards' '[acme/standards]'; do
+  printf 'standards_repository: %s\n' "$bad" >"$SR/docs/conventions/source-control.yaml"
+  expect "a malformed standards_repository '$bad' resolves nothing" "none|" "$(STANDARDS_DIR="$WORK/stddir" std_case "$SR" _typos.toml)"
+done
+printf 'nested:\n  standards_repository: acme/standards\n' >"$SR/docs/conventions/source-control.yaml"
+expect "only a top-level standards_repository opts in" "none|" "$(std_case "$SR" _typos.toml)"
+git config --global --unset ghq.root
+
 echo "resolve-tool: $PASS passed, $FAIL failed"
 ((FAIL == 0))

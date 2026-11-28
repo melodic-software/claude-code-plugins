@@ -2,9 +2,7 @@
 
 - Status: accepted
 - Date: 2026-11-21
-- Supersedes: decision 3 of
-  [ADR 0084](0084-ship-handoff-shape-3-on-measured-size-and-leave-accuracy-to-the-resume-eval.md)
-  (shape 3 is the written shape) and, in part, decision 1 of
+- Supersedes: decision 3 of ADR 0084 (retired): shape 3 is the written shape; and, in part, decision 1 of
   [ADR 0091](0091-bound-the-handoff-core-by-relevance-and-amend-late-events.md) (size is the
   writer's judgment alone)
 - Related: [#17677](https://github.com/melodic-software/claude-code-plugins/pull/17677) (the
@@ -32,15 +30,15 @@ reads of handoff chains cost up to 250,000 tokens.
    you continue. Direction changes, Observations and Suggested skills are movable. Prior sessions
    and Resume prompt are carried by the tool.
 3. **`new` and `fill` own the byte budget, the fit and the verdict.** Two separate operations
-   keep the hot file small:
+   keep the handoff file small:
    - **Age fold, in `new`.** A Direction changes line whose newest hop tag is 3 or more hops old
-     moves to the hop file of the hop that folds it. One `- Folded:` line stays in Direction
+     moves to the archive file of the hop that folds it. One `- Folded:` line stays in Direction
      changes and points at the folded lines.
    - **Over-cap move, in `fill`.** When the file is over the 24,600-byte cap, `fill` moves whole
      movable sections to this hop's file under `## <Section> (h<k>)`, in the order Observations,
      Suggested skills, then Direction changes. A moved Direction changes section includes its
      newest lines; nothing guarantees recent direction changes stay inline. A `- Moved:` line
-     pointing at the hop-file heading replaces the moved section's body, inside that section.
+     pointing at the archive-file heading replaces the moved section's body, inside that section.
      `save_point.py read --section` follows it, and exits 1 when the file or heading is not on
      disk.
 
@@ -71,5 +69,10 @@ reads of handoff chains cost up to 250,000 tokens.
 - A reader reaches moved history through the `- Moved:` and `- Folded:` lines left in each
   moved section.
 - The 24,600-byte cap stays fixed until a passing eval justifies another number.
+- Shape 5 keeps every decision above and puts a binding `Reminders` section, with `[M<n>]` ids,
+  the `next_reminder_id` floor and `## Retired reminders`, in the place of Pending commands, so an
+  item that affects a later session leaves only through `retire`. `new` writes shape 5 by default
+  and continues a shape-4 chain as shape 5, turning each Pending commands bullet into a reminder;
+  shape-4 files stay readable and writable (reference/reminders.md "Shape 5: Reminders").
 - Resume-eval runs keep the owner's guardrails hooks loaded. #17874 counts hook-blocked runs per
   arm, so a format that leads readers into a hook shows up apart from accuracy.

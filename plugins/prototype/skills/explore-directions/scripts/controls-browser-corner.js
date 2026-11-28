@@ -1,6 +1,4 @@
 async page => {
-  // A manifest whose placement is top-left, for a variant that occupies the top-right: opened alone,
-  // the page's own panel sits in the top-left corner, as the control panel's Placement says.
   const R = [], ok = (name, pass, detail) => R.push((pass ? "PASS " : "FAIL ") + name + (detail !== undefined ? "  [" + JSON.stringify(detail) + "]" : ""));
   try {
     await page.setViewportSize({ width: 1280, height: 800 });

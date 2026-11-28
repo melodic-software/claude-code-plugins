@@ -1,5 +1,104 @@
 # Changelog: evals
 
+## [0.30.3] - 2026-11-28
+
+### Fixed
+
+- `/evals:plugin-eval select` no longer puts a plugin's cases on the `cases:` line when the diff changes nothing under that plugin's `skills/`, `agents/`, `context/` or `evals/` (for example, a case whose grader reads another plugin's changed skill). A compare run refuses such a plugin, so those cases now print on a new `suite-only:` line, to run in a suite run on the default branch after merge. `agent-runs:` still counts them. The split applies only where the repository has `.github/scripts/plugin-eval/compare-arms.sh`.
+
+## [0.30.2] - 2026-11-28
+
+### Fixed
+
+- `prune-run-roots.py` also removes legacy run roots named without the leading dot: a directory directly under `$HOME` named `ev` followed by at least one more character (`ev8635`, `eval-runs`, `eval-13765`), under the same rules as a `.ev*` legacy root (a real directory holding a `claude-eval-*` sandbox directly inside it, nothing changed for 3 days, no process holding it, `chmod 700` on each `sealed/`), and only when it holds nothing but `claude-eval-*` sandboxes directly inside it. A matching directory with no sandbox, such as a user's `evolution`, or with anything beside its sandboxes, such as a user's `evals` folder, is reported and left, and a name outside the `.ev` and `ev` prefixes is never a candidate. Preflight's `stale_run_roots` lists these roots too.
+
+## [0.30.1] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [0.30.0] - 2026-11-28
+
+### Changed
+
+- `select` treats deleting a trailing comment (a `#` comment after code on the same line, the code left byte for byte) like deleting a whole comment line, in a shell file and in a `case.yaml`, under the same hidden rule. A `case.yaml` comment counts only when the file parses the same without it; a `#` inside a quote, heredoc, block scalar, `$(`, `${`, `((` or backtick stays content.
+- The hidden check proves more scaffold helpers hidden by setting aside a few reference forms: a `plugins: [...]` entry naming the suite's own plugin, a `$(cd "$var/.." && pwd)` path, a `(cd <dir> && bash "$script" <args>)` run with `<dir>` outside the suite, and `$0` inside an `awk`, `sed`, `grep` or `jq` program. A file that pipes into a shell, runs a string (`eval`, `bash -c`, `trap`, `alias`) or sources a stream (`/dev/stdin`, `<(...)`, a here-string) gets no quote reading.
+- The hidden check also catches more ways a case exposes a file: an assignment with a command after it on the same line, a `cd` into the suite, a case file finding its own folder by `${0%/*}`, `realpath "$0"` or `__file__`, and a case script naming `case.yaml`.
+- An `.editorconfig` line that `#` or `;` opens is a comment line, and deleting such lines runs no case anywhere, under an `evals/` folder too (an editor-settings comment cannot change what the agent does); a `#` after a value is part of the value, and any other `.editorconfig` edit keeps its treatment.
+- A shell `$'...'` string now reads cleanly, so a file holding one keeps the comment-deletion exemption.
+- A `plugins/*/skills/*/evals/` folder gets no hidden exemption: it is not the plugin's eval directory, so the agent can read it with the skill.
+
+### Fixed
+
+- A `case.yaml` edit that only drops a trailing comment no longer counts as a description-only edit, which ran nothing without the hidden check.
+
+## [0.29.1] - 2026-11-27
+
+### Fixed
+
+- `prune-run-roots.py` also removes legacy run roots: a directory directly under `$HOME` named `.ev*`, other than `$HOME/.ev`, under the same rules as a root in `$HOME/.ev` (a real directory holding a `claude-eval-*` sandbox, nothing changed for 3 days, no process holding it, `chmod 700` on each `sealed/`). A legacy symlink or a `.ev*` directory with no sandbox is left, and its output line says what removing it by hand takes. `$HOME/.ev` itself is refused, and a `$HOME` that resolves to a shared directory exits 2. Preflight's `stale_run_roots` lists the legacy roots that hold a sandbox.
+- `docker-links.py` keeps its manifest and lock in `$HOME/.ev` (created with mode 700 when missing) instead of the home root. A manifest left at `$HOME/.docker-link-swap.json` by a killed run of the earlier version is moved there and restored, and the old lock file is removed; a manifest at both paths is refused for a restore by hand.
+
+## [0.29.0] - 2026-11-27
+
+### Changed
+
+- `select` runs nothing for a comment-line deletion the agent under test cannot see: a comment line in a case's `case.yaml`, or a shell comment line outside any heredoc or multi-line quoted string in a script a case's scaffold runs but never copies, prints, globs over or names in any other form, and that never reads its own source. Fixtures, prompts, graders, samples and anything a scaffold copies into the workspace still run their case, and so does any script the static check is unsure of.
+- In every shell file, a comment-shaped line inside a multi-line quoted string now counts as content, and a shell file whose quoting does not read cleanly gets no comment-deletion exemption.
+
+## [0.28.3] - 2026-11-27
+
+### Changed
+
+- The shared redactor copy (`redact.py`) gains a published-output redactor for fleet identifiers; this plugin's own redaction is unchanged.
+- The shared redactor copy (`redact.py`) can leave report field names its caller lists unredacted; this plugin lists none, so its redaction is unchanged.
+
+### Fixed
+
+- Redacting a secret at the end of a line no longer joins the next line onto the redacted one.
+- A secret whose gitleaks rule marks only part of it, such as a base64 JWT, a Teams webhook URL or a Kubernetes Secret's later data values, is redacted whole; only line breaks and a trailing quote, space or semicolon are kept.
+
+## [0.28.2] - 2026-11-26
+
+### Changed
+
+- `/evals:plugin-eval` states its own rules (grant gated tools with `--allow-tools`, treat scores for hooks you did not write as advisory, read the CLI's message on an exit 1) and points at the plugin-evals docs sections for what a run loads, what a case cannot widen and what each exit code means, instead of restating them ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [0.28.1] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [0.28.0] - 2026-11-26
+
+### Changed
+
+- `/evals:plugin-eval select` runs nothing for routing-only skill edits: an edit inside a SKILL.md `## Related` or `## See also` section, a routing heading renamed to another routing heading or to Next or Related, and a `description` or `when_to_use` edit that only adds, removes or rewords `Not for`, `Skip` or `prefer` clauses naming a skill, or changes a skill token's form (`plugin:skill` to `/plugin:skill`). It lists such skills on a new `no-run-exempt:` line with the reason.
+- `select` also runs nothing for a decided-term swap, or a deletion of whole comment lines in a code, YAML or shell file (never markdown), wherever it looks: a skill body, reference or agent hunk, a frontmatter value, an eval case file, or a renamed file whose only difference is such a deletion or swaps a term for the word the glossary's "Rejected terms" table decided (or that word's last word, as `--lane` to `--area`). A comment deletion in an eval case's own files still runs that case. A hunk with any other change keeps today's rule.
+
+## [0.27.1] - 2026-11-25
+
+### Fixed
+
+- `scripts/redact.py` now redacts the whole value of a bare `sk-ant-oat02-` OAuth token, the same
+  way it redacts `sk-ant-oat01-`. Claude Code 2.1.332 lets `CLAUDE_CODE_OAUTH_TOKEN` start with
+  either prefix
+  ([#18984](https://github.com/melodic-software/claude-code-plugins/issues/18984)).
+
+## [0.27.0] - 2026-11-25
+
+### Changed
+
+- `/evals:plugin-eval select` treats an edit inside a SKILL.md `## Next` section as no-run: it names successors for the person and changes no tool call.
+
+## [0.26.2] - 2026-11-25
+
+### Fixed
+
+- `/evals:audit` no longer counts a Skill grader that accepts several skills, such as `(?:a|b)`, as triggering coverage. A skill whose only triggering grader is one of these now appears on its own line, "skills covered only by a multi-skill grader", and in the `multi_skill_trigger_only` list and count of `--json`.
+
 ## [0.26.1] - 2026-11-24
 
 ### Changed

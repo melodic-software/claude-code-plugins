@@ -105,7 +105,7 @@ read that finds no file fires it. Delegation therefore resets the trigger instea
 match: an agent that edits a file and was never told to read the rule for that kind of file first acts without it. This is why
 every accepted move regenerates an **always-loaded index** of deferred surfaces, which the main
 session and every subagent that loads the CLAUDE.md hierarchy receive, and that turns an unnamed
-rule into one an ordinary `Read` can fetch. Explore, Plan, and an agent whose definition sets
+rule into one an ordinary `Read` can fetch. Explore, Plan, `web-fetch`, and an agent whose definition sets
 `omitClaudeMd` skip the project CLAUDE.md files, so the index does not reach them; a fork inherits the
 parent conversation instead.
 
@@ -147,7 +147,7 @@ Across 32 trials at two bloat levels, using a realistic 251-line always-loaded f
 was followed **100% of the time in both arms**. Full method, caveats, and the ceiling effect the
 run hit: [`evals/adherence-results.md`](evals/adherence-results.md).
 
-Weigh a migration on context cost and on the promote lane. Do not expect your instructions to be
+Weigh a migration on context cost and on the promote direction. Do not expect your instructions to be
 obeyed better afterwards.
 
 ## The hard-deny classes
@@ -231,9 +231,6 @@ The options below are personal, enable-time dials. The one setting that is polic
 the record of findings the operator has declined, lives on the tracked cascade surface
 `<home>/instruction-placement.yaml` (default home `docs/conventions`) instead, whose keys, layers,
 and policy-floor merge are owned by [`reference/consumer-config.md`](reference/consumer-config.md).
-A file at an old path (`.claude/instruction-placement.md`, its `.local.md`, or
-`~/.claude/instruction-placement.md`) is still read, with a warning, until
-`/instruction-placement:setup apply migrate-config` moves it.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

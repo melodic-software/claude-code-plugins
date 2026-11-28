@@ -45,7 +45,6 @@ def slugify(text):
 PY
 git -c user.name=eval -c user.email=eval@example.invalid commit -q -am "feat: strip punctuation in slugify"
 
-# A settled draft plan and a design early exit, so the run reaches Step 3 without open questions.
 mkdir -p .work/slugify-max-length/design
 cat >.work/slugify-max-length/PLAN.md <<'MD'
 # slugify max_length
@@ -92,7 +91,6 @@ Slugs from long titles make URLs too long for the share links that embed them.
 | `textkit/slug.py` | modify |
 | `tests/test_slug.py` | modify |
 MD
-# The phase heading takes its status tag here, outside the heredoc.
 plan=.work/slugify-max-length/PLAN.md
 text="$(cat "$plan")"
 printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"

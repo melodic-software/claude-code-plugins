@@ -1,7 +1,3 @@
-// The check behind scripts/check-read-caller-keys.sh, which states the rule
-// and the exit contract. Parses every workflow under .github/workflows/, builds
-// the call graph of this repository's workflows, and checks every parsed key and
-// string value of every file of every run that can reach the read workflow.
 import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
@@ -10,9 +6,6 @@ import { pathToFileURL } from "node:url";
 
 const WORKFLOWS = ".github/workflows";
 const READ_WORKFLOW = `${WORKFLOWS}/pr-run-activity-read.yml`;
-// The one job of the read workflow that may name id-token. It runs no PR head
-// code, so it may only check out the default branch tip: by name, or as the
-// SHA an unconditional tip step before it resolves from this repository's refs.
 const CHECK_JOB = "check-broker";
 const TIP_REF = "${{ github.event.repository.default_branch }}";
 const TIP_STEP_REF = "${{ steps.tip.outputs.sha }}";
@@ -20,29 +13,18 @@ const TIP_BRANCHES = new Set(["main", TIP_REF]);
 const TIP_USES =
   /^melodic-software\/ci-workflows\/\.github\/actions\/resolve-branch-tip@main$/;
 const REPOSITORY = "melodic-software/claude-code-plugins";
-// A job-level `uses:` naming one of this repository's workflows, in local
-// (`./`) or remote (`owner/repo/...@ref`) form.
 const WORKFLOW_USES = new RegExp(
   `^(?:\\./|${REPOSITORY}/)\\.github/workflows/([^/@\\s]+\\.ya?ml)(?:@\\S+)?$`,
   "i",
 );
 const APP_KEY = /automation_lanes_app_private_key|app-private-key/i;
 const APP_KEY_INPUTS = new Set(["app-private-key", "private-key"]);
-// Secrets any file of a read run may name, compared lower-cased with `-` read
-// as `_`. claude_api_key is a Claude Console API key, which fix-ci's and
-// resolve-issue's first read jobs run on. fallback_claude_code_oauth_token is
-// the central fallback subscription's token, the same kind of credential for
-// every role: each lane's third read call runs on it, and its handoff job reads
-// whether it is set.
 const SHARED_SECRETS = new Set([
   "fallback_claude_code_oauth_token",
   "claude_code_oauth_token",
   "claude_api_key",
   "github_token",
 ]);
-// A role's Claude Code OAuth token and Claude Console API key, the same kinds
-// of credential as claude_code_oauth_token and claude_api_key under the role's
-// name.
 const PR_UNBLOCK_SECRETS = new Set([
   "pr_unblock_claude_code_oauth_token",
   "pr_unblock_claude_api_key",
@@ -51,23 +33,20 @@ const ISSUE_LANE_SECRETS = new Set([
   "issue_lane_claude_code_oauth_token",
   "issue_lane_claude_api_key",
 ]);
-// By file name, every workflow whose run reaches the read workflow, mapped to
-// the role secrets it may name beside SHARED_SECRETS. A file of the run that
-// is not one of these workflows may name SHARED_SECRETS alone.
+const INTAKE_SECRETS = new Set([
+  "intake_claude_code_oauth_token",
+  "intake_claude_api_key",
+]);
 const CALLER_SECRETS = new Map([
   ["pr-refine.yml", PR_UNBLOCK_SECRETS],
   ["pr-unblock.yml", PR_UNBLOCK_SECRETS],
   ["work-resolve-issue.yml", ISSUE_LANE_SECRETS],
+  ["intake-triage.yml", INTAKE_SECRETS],
 ]);
 const ROLE_SECRETS = new Set(
   [...CALLER_SECRETS.values()].flatMap((names) => [...names]),
 );
 const KEY = "references the App key";
-// The one other secret a read run may name: the scan-carrier private key. In
-// the read workflow, only as the private-key input of the scan job's step that
-// uses open-lane-output (and its workflow_call declaration, a key); in a
-// caller, only as the scan-carrier-private-key entry of the secrets map of a
-// job that calls the read workflow. The one environment, only on that job.
 const CARRIER_JOB = "scan";
 const CARRIER_SECRET = "scan_carrier_private_key";
 const CARRIER_VALUE = "${{ secrets.scan-carrier-private-key }}";
@@ -103,7 +82,6 @@ try {
     /\.ya?ml$/.test(name),
   );
 } catch {
-  // No workflows directory: the missing read workflow is reported below.
 }
 const byLowerName = new Map(names.map((name) => [name.toLowerCase(), name]));
 
@@ -161,8 +139,6 @@ if (!files.has(READ_WORKFLOW)) {
     `${READ_WORKFLOW}: missing; the read-caller key check has nothing to anchor on`,
   );
 } else {
-  // Up to every workflow whose run reaches the read workflow, then down
-  // through every reusable workflow those runs call.
   callers = walk(READ_WORKFLOW, callersOf);
   callers.delete(READ_WORKFLOW);
   for (const file of callers) {
@@ -179,9 +155,6 @@ if (!files.has(READ_WORKFLOW)) {
   }
 }
 
-// Every `${{ ... }}` in a string, with its start offset. A `}}` inside a
-// quoted string literal does not close the expression; an unclosed one runs
-// to the end of the string.
 function expressions(text) {
   const found = [];
   let at = text.indexOf("${{");
@@ -200,10 +173,6 @@ function expressions(text) {
   return found;
 }
 
-// What an expression does with the secrets context that a read run may not.
-// scope: the role secrets the file may name (own) and the finding for a role
-// secret outside them (outside). carrier: the expression is the scan-carrier
-// input's whole value.
 function secretFindings(expression, scope, carrier = false) {
   const code = expression.replace(/'(?:[^']|'')*'/g, "''");
   const findings = [];
@@ -242,8 +211,6 @@ function secretFindings(expression, scope, carrier = false) {
   return findings;
 }
 
-// The read workflow's check job node, or null. Only offsets inside its range
-// may name id-token.
 function checkJobOf(file, doc) {
   if (file !== READ_WORKFLOW) {
     return null;
@@ -254,7 +221,6 @@ function checkJobOf(file, doc) {
 
 const pairsOf = (node) => (yaml.isMap(node) ? node.items : []);
 
-// The pairs of a map node whose key and value are exactly these scalars.
 const exactPairs = (map, key, value) =>
   pairsOf(map).filter(
     (pair) =>
@@ -264,8 +230,6 @@ const exactPairs = (map, key, value) =>
       pair.value.value === value,
   );
 
-// The read workflow's scan-job open step's private-key pair, when there is
-// exactly one such step and its value is exactly the carrier secret.
 function carrierPairOf(file, doc) {
   if (file !== READ_WORKFLOW) {
     return null;
@@ -283,8 +247,6 @@ function carrierPairOf(file, doc) {
   return pairs.length === 1 ? pairs[0] : null;
 }
 
-// In any file, the scan-carrier-private-key values of the secrets map of a job
-// that calls the read workflow, valued exactly CARRIER_PASS.
 function carrierPassesOf(doc) {
   return new Set(
     pairsOf(doc.get("jobs", true))
@@ -321,9 +283,6 @@ function isTipCheckout(values, index) {
   );
 }
 
-// The read workflow's shape: an empty top-level grant, an explicit
-// permissions map on every job, and a check-broker job made of steps whose
-// checkouts can only fetch this repository's default branch tip.
 function checkReadShape(file, doc, lineCounter) {
   const lineOf = (node) =>
     node?.range ? lineCounter.linePos(node.range[0]).line : 1;
@@ -375,9 +334,6 @@ function checkReadShape(file, doc, lineCounter) {
   }
 }
 
-// Exactly `{ name: pr-pipeline-scan-carrier, deployment: false }`: the
-// environment's secret and branch policy, and no deployment record:
-// https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/control-deployments
 function isCarrierEnvironment(node) {
   return (
     yaml.isMap(node) &&
@@ -428,7 +384,6 @@ function check(file) {
     offenders.push(
       `${file}:${line}: ${what} in a run that reaches ${READ_WORKFLOW}`,
     );
-  // A pair whose value is a scalar reading `word`, any case, outer space trimmed.
   const valueIs = (pair, word) =>
     yaml.isScalar(pair.value) &&
     String(pair.value.value).trim().toLowerCase() === word;
@@ -510,6 +465,6 @@ if (offenders.length === 0) {
 const unique = [...new Set(offenders)].sort();
 process.stderr.write(`${unique.join("\n")}\n`);
 process.stderr.write(
-  `check-read-caller-keys: ${unique.length} offender(s); a run that reaches the read workflow references no App key and passes no secret it cannot name, and a lane mixing read and write activities waits for the token broker (see the header of scripts/check-read-caller-keys.sh).\n`,
+  `check-read-caller-keys: ${unique.length} offender(s); a run that reaches the read workflow references no App key and passes no secret it cannot name, and a lane mixing read and write activities waits for the token broker (see docs/conventions/pr-pipeline/pr-run-activity.md, "Secrets and the two files").\n`,
 );
 process.exit(1);

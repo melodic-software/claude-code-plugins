@@ -1,48 +1,5 @@
 #!/usr/bin/env bash
-# Check every docs/upstream page pinned to a git commit for upstream changes
-# since that commit.
-#
-#   scripts/check-upstream-drift.sh [--page <file>]...            findings
-#   scripts/check-upstream-drift.sh --report [--page <file>]...   list mode
-#   scripts/check-upstream-drift.sh --links [--page <file>]...    link check
-#   scripts/check-upstream-drift.sh --help
-#
-# The page forms (the git pin marker, row links, drift inputs, the `## Map`
-# section and page status) are defined in docs/contracts/upstream-drift/
-# README.md, "Pinned git upstreams". In short: a page whose marker line reads
-# **Last audited upstream state:** `<owner>/<repo>@<40-hex sha>` [under `<scope>/`]
-# is checked; links to that repository outside `## Map` are drift inputs for any
-# change under them; a `## Map` link counts only when its unit is removed; a file
-# added under the scope that no link covers is a new unit. A marker carrying a
-# backticked `<owner>/<repo>@<hex>` that fails the form exits 2. Other markers
-# (`main@<short sha>`, `changelog through`) are skipped.
-#
-# Trees are read with `gh api 'repos/<o>/<r>/git/trees/<sha>:<path>?recursive=1'`
-# at the pin and at upstream HEAD. A truncated tree, a failed call, or a tree
-# path holding a control character exits 2 and is never a clean report. When an
-# owner's IP allow list refuses the token, that owner's repositories are read
-# anonymously over git instead (ls-remote for HEAD, a blobless depth-1 fetch of
-# each commit into a temporary bare repository, ls-tree for its tree), which no
-# REST rate limit meters; UPSTREAM_DRIFT_GIT_BASE (default https://github.com)
-# is the base URL, a test seam. A page with any read still refused is reported
-# `status=unreachable`, named on stderr with git's error, and skipped; --report
-# goes on and exits by drift alone, the other modes exit 2 after every page is
-# read.
-#
-# Fixture seam, for tests: with UPSTREAM_DRIFT_FIXTURE_DIR set, gh is not used.
-# <dir>/<owner>__<repo>/HEAD holds a SHA; <dir>/<owner>__<repo>/<sha>.tree
-# holds `<blob sha> <repo-relative path>` lines for the whole tree; a line
-# reading `truncated` marks a truncated read. A missing file exits 2.
-#
-# Output follows the check-script contract (scripts/README.md, "The check-script
-# contract"): findings on stderr, the clean statement on stdout; --report prints
-# its report on stdout for exit 0 and 1. Exit: 0 clean, 1 drift (or a bad link
-# under --links), 2 environment or usage; on exit 2 nothing reaches stdout.
-# Read-only: the script writes no file outside the temporary directory an
-# anonymous read creates, which it removes on exit.
 set -uo pipefail
-# In a job, each gh call keeps its rate-limit reading for the job-end
-# api-budget notice (.github/actions/log-api-budget).
 # shellcheck source=/dev/null
 [[ -z "${RUNNER_TEMP:-}" ]] || ! . "${BASH_SOURCE[0]%/*}/../.github/actions/log-api-budget/api-budget.bash" 2>/dev/null || api_budget_wrap_gh github-token
 export LC_ALL=C
@@ -90,7 +47,6 @@ done
 command -v jq >/dev/null 2>&1 || die "jq is required"
 FIXTURE="${UPSTREAM_DRIFT_FIXTURE_DIR:-}"
 if [[ -z "$FIXTURE" ]]; then
-  # type -P: on a runner `gh` is also the api-budget wrapper function.
   type -P gh >/dev/null 2>&1 || die "gh is required (or set UPSTREAM_DRIFT_FIXTURE_DIR)"
 fi
 
@@ -105,10 +61,6 @@ NEAR_RE='`[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@[0-9A-Fa-f]+`'
 UNDER_RE='^ under `([^`]+)/`( .*)?$'
 URL_RE="https://github\\.com/[^]()<>[:space:]\`\"'|[]+"
 
-# --- page parsing ------------------------------------------------------------
-
-# Set by parse_page: P_OWNER P_REPO P_PIN P_SCOPE, and per link L_LINE L_PATH
-# L_REF L_MAP L_FORM (ok or bad-form), indexed together.
 P_OWNER="" P_REPO="" P_PIN="" P_SCOPE=""
 L_LINE=() L_PATH=() L_REF=() L_MAP=() L_FORM=() L_URL=()
 
@@ -119,12 +71,10 @@ url_decode() {
   printf '%b' "${s//%/\\x}"
 }
 
-# parse_marker <page>: 0 git form (P_* set), 1 not the git form, 2 near-miss.
 parse_marker() {
   local line rest
   line="$(grep -m1 -F -- "$MARKER_PREFIX" "$1")" || return 1
   if [[ "$line" != "$MARKER_PREFIX"* ]]; then
-    # An indented or quoted marker that names a pin is a malformed record.
     [[ "$line" =~ $NEAR_RE ]] && return 2
     return 1
   fi
@@ -145,7 +95,6 @@ parse_marker() {
   return 1
 }
 
-# add_link <line> <map> <url>: records a link to the page's repository.
 add_link() {
   local n="$1" map="$2" url="$3" rest owner repo kind ref path
   url="${url%%#*}"
@@ -179,7 +128,7 @@ add_link() {
   L_PATH+=("$(url_decode "$path")")
 }
 
-parse_links() { # <page>
+parse_links() {
   local n=0 in_map=0 line
   L_LINE=() L_PATH=() L_REF=() L_MAP=() L_FORM=() L_URL=()
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -194,14 +143,12 @@ parse_links() { # <page>
   done <"$1"
 }
 
-# --- reading upstream --------------------------------------------------------
-
 declare -A HEADS=() TREES=() FIXTURE_FILES=() ANON=()
 OUT_SHA=""
 OUT_TREE=""
 OUT_API=""
 API_STATUS=""
-PAGE_UNREACH="" # set when a read for the current page stays refused
+PAGE_UNREACH=""
 
 api() {
   local o="$1" url="$2"
@@ -271,18 +218,21 @@ anon_tree() {
   esac
   OUT_TREE="$(anon_git -C "$ANON_REPO" ls-tree -r -z --full-tree "$3" |
     awk -v RS='\0' '
-      { i = index($0, "\t"); split(substr($0, 1, i - 1), m, " "); p = substr($0, i + 1) }
-      p ~ /[[:cntrl:]]/ { control = 1 }
-      !control && m[2] == "blob" { print m[3] " " p }
-      END { if (control) print "control" }')" ||
+      { i = index($0, "\t"); split(substr($0, 1, i - 1), m, " "); p = substr($0, i + 1); gsub(/[[:cntrl:]]/, "\001", p) }
+      m[2] == "blob" || m[2] == "commit" { print m[2] " " m[3] " " p }')" ||
     die "git ls-tree $1/$2@$3 failed"
-  [[ "$OUT_TREE" != control && "$OUT_TREE" != *$'\n'control ]] ||
-    die "$1/$2@${3:0:12}: a tree path holds a control character"
-  return 0
+  ! grep -q '[[:cntrl:]]' <<<"$OUT_TREE" || die "$1/$2@${3:0:12}: a tree path holds a control character"
 }
 
-# check_tree_lines <text> <source>: dies on a truncated mark, a malformed line,
-# or a path with a control character.
+declare -A GIT=() REST=()
+use_git() { [[ -n "${ANON[$1]:-}" || -n "${GIT[$1/$2]:-}" ]]; }
+git_to_rest() {
+  [[ -z "${ANON[$1]:-}" ]] || return 1
+  unset "GIT[$1/$2]"
+  REST[$1/$2]=1
+  PAGE_UNREACH=""
+}
+
 check_tree_lines() {
   local line path
   while IFS= read -r line; do
@@ -294,7 +244,7 @@ check_tree_lines() {
   done <<<"$1"
 }
 
-head_sha() { # <owner> <repo>: sets OUT_SHA
+head_sha() {
   local key="$1/$2" sha
   if [[ -n "${HEADS[$key]:-}" ]]; then
     OUT_SHA="${HEADS[$key]}"
@@ -305,18 +255,22 @@ head_sha() { # <owner> <repo>: sets OUT_SHA
     sha="$(tr -d '[:space:]' <"$FIXTURE/$1__$2/HEAD")"
   else
     local rc=6
-    [[ -n "${ANON[$1]:-}" ]] || {
+    use_git "$1" "$2" || {
       api "$1" "repos/$1/$2/commits/HEAD"
       rc=$?
     }
     case $rc in
     0) sha="$(jq -r '.sha // empty' <<<"$OUT_API")" ;;
     6)
-      anon_head "$1" "$2" || {
+      if anon_head "$1" "$2"; then
+        sha="$OUT_SHA"
+      elif git_to_rest "$1" "$2"; then
+        head_sha "$1" "$2"
+        return
+      else
         OUT_SHA=""
         return 0
-      }
-      sha="$OUT_SHA"
+      fi
       ;;
     *) die "gh api repos/$1/$2/commits/HEAD failed${API_STATUS:+ (HTTP $API_STATUS)}" ;;
     esac
@@ -326,7 +280,6 @@ head_sha() { # <owner> <repo>: sets OUT_SHA
   OUT_SHA="$sha"
 }
 
-# filter_under <tree-text> <path>: lines whose path is <path> or under it.
 filter_under() {
   local p="$2"
   [[ -z "$p" ]] && {
@@ -336,7 +289,7 @@ filter_under() {
   awk -v p="$p" '{ q = substr($0, index($0, " ") + 1); if (q == p || index(q, p "/") == 1) print }' <<<"$1"
 }
 
-uri_path() { # percent-encodes every byte outside [A-Za-z0-9._~/-]
+uri_path() {
   local s="$1" out="" c i
   for ((i = 0; i < ${#s}; i++)); do
     c="${s:i:1}"
@@ -348,8 +301,6 @@ uri_path() { # percent-encodes every byte outside [A-Za-z0-9._~/-]
   printf '%s' "$out"
 }
 
-# gh_tree <o> <r> <sha> <path> [<recursive 1|0>]: sets OUT_TREE to
-# `<blob> <path>` lines; returns 3 for 404 (absent), 4 for 422 (a blob).
 gh_tree() {
   local o="$1" r="$2" sha="$3" p="$4" rec="${5:-1}" url status
   url="repos/$o/$r/git/trees/$sha"
@@ -374,8 +325,31 @@ gh_tree() {
   return 0
 }
 
-# tree_list <o> <r> <sha> <path>: sets OUT_TREE to `<blob> <path>` lines for
-# every file at or under <path> at <sha>; empty when the path is absent.
+declare -A WHOLE=()
+git_tree() {
+  local o="$1" r="$2" sha="$3" p="$4" rec="${5:-1}" key="$1/$2@$3" out
+  if [[ -z "${WHOLE[$key]+set}" ]]; then
+    anon_tree "$o" "$r" "$sha" || return 5
+    WHOLE[$key]="$OUT_TREE"
+  fi
+  out="$(awk -v p="$p" -v rec="$rec" '
+    { t = $1; s = $2; q = substr($0, length(t) + length(s) + 3) }
+    q == p { exact = 1; next }
+    p != "" && index(q, p "/") != 1 { next }
+    { under = 1 }
+    t == "blob" && (rec || !index(substr(q, length(p) + (p != "") + 1), "/")) { print s " " q }
+    END { if (!under) print (exact ? "notree" : "missing") }' <<<"${WHOLE[$key]}")"
+  case "${out##*$'\n'}" in
+  notree) return 4 ;;
+  missing) return 3 ;;
+  *) OUT_TREE="$out" ;;
+  esac
+}
+
+read_tree() {
+  if use_git "$1" "$2"; then git_tree "$@"; else gh_tree "$@"; fi
+}
+
 tree_list() {
   local o="$1" r="$2" sha="$3" p="$4" key="$1/$2@$3:$4" file rc dir
   if [[ -n "${TREES[$key]+set}" ]]; then
@@ -390,42 +364,28 @@ tree_list() {
       check_tree_lines "${FIXTURE_FILES[$file]}" "$o/$r@${sha:0:12}"
     fi
     OUT_TREE="$(filter_under "${FIXTURE_FILES[$file]}" "$p")"
-  elif [[ -n "${ANON[$o]:-}" ]]; then
-    if [[ -n "$p" ]]; then
-      tree_list "$o" "$r" "$sha" ""
-      OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
-    else
-      anon_tree "$o" "$r" "$sha" || OUT_TREE=""
-    fi
   elif [[ -n "$P_SCOPE" && -n "$p" && "$p" != "$P_SCOPE" && "$p" == "$P_SCOPE"/* ]]; then
     tree_list "$o" "$r" "$sha" "$P_SCOPE"
     OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
   else
-    gh_tree "$o" "$r" "$sha" "$p"
+    read_tree "$o" "$r" "$sha" "$p"
     rc=$?
-    if ((rc == 6)); then
-      tree_list "$o" "$r" "$sha" "$p"
-      return 0
-    elif ((rc == 3)); then
-      OUT_TREE=""
-    elif ((rc == 4)); then
-      # A blob path: list its directory and keep the one entry.
+    if ((rc == 4)); then
       dir=""
       [[ "$p" == */* ]] && dir="${p%/*}"
-      gh_tree "$o" "$r" "$sha" "$dir" 0
+      read_tree "$o" "$r" "$sha" "$dir" 0
       rc=$?
-      if ((rc == 0)); then
-        # The listing is one level deep, so no entry sits under <path>.
-        OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
-      else
-        OUT_TREE=""
-      fi
+      ((rc == 0)) && OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
     fi
+    if ((rc == 6)) || { ((rc == 5)) && git_to_rest "$o" "$r"; }; then
+      tree_list "$o" "$r" "$sha" "$p"
+      return 0
+    fi
+    ((rc == 0)) || OUT_TREE=""
   fi
   [[ -n "$PAGE_UNREACH" ]] || TREES[$key]="$OUT_TREE"
 }
 
-# diff_trees <pin-text> <head-text>: prints `<A|M|D> <path>` sorted by path.
 diff_trees() {
   awk '
     FNR == 1 { fileno++ }
@@ -444,8 +404,6 @@ diff_trees() {
     sort | awk -F '\t' '{ print $2 " " $1 }'
 }
 
-# --- pages -------------------------------------------------------------------
-
 EXPLICIT=$((${#PAGES[@]} > 0))
 if ((!EXPLICIT)) && [[ -d "$ROOT/docs/upstream" ]]; then
   while IFS= read -r path; do
@@ -453,7 +411,7 @@ if ((!EXPLICIT)) && [[ -d "$ROOT/docs/upstream" ]]; then
   done < <(find "$ROOT/docs/upstream" -type f -name '*.md' | sort)
 fi
 
-page_file() { # <page>: resolves a page argument to a readable file
+page_file() {
   if [[ "$1" == /* || -f "$1" ]]; then printf '%s' "$1"; else printf '%s' "$ROOT/$1"; fi
 }
 
@@ -473,8 +431,6 @@ FINDINGS=()
 REPORT=()
 UNREACHABLE=()
 
-# unreachable_page: records the current page as unreachable; its other results
-# are dropped.
 unreachable_page() {
   UNREACHABLE+=("$page: $o/$r refused the token (IP allow list) and an anonymous git read failed ($PAGE_UNREACH); not checked")
   REPORT+=("page repo=$o/$r pin=${pin:0:12} head=unknown status=unreachable path=$page")
@@ -488,14 +444,21 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
   parse_links "$file"
   o="$P_OWNER" r="$P_REPO" pin="$P_PIN" scope="$P_SCOPE"
   PAGE_UNREACH=""
-  # Without this, an unknown pin reads as every path absent. The fixture seam
-  # already exits 2 on a missing <pin>.tree file.
   if [[ -z "$FIXTURE" ]]; then
-    rc=6
-    [[ -n "${ANON[$o]:-}" ]] || {
-      api "$o" "repos/$o/$r/git/commits/$pin"
+    OUT_API="" API_STATUS="" rc=5
+    [[ -n "${REST[$o/$r]:-}" ]] || {
+      anon_fetch "$o" "$r" "$pin"
       rc=$?
     }
+    if ((rc == 0)); then
+      GIT[$o/$r]=1
+    elif ((rc == 5)); then
+      REST[$o/$r]=1 PAGE_UNREACH="" rc=6
+      [[ -n "${ANON[$o]:-}" ]] || {
+        api "$o" "repos/$o/$r/git/commits/$pin"
+        rc=$?
+      }
+    fi
     if ((rc == 6)); then
       OUT_API="" API_STATUS=""
       anon_fetch "$o" "$r" "$pin"
@@ -511,8 +474,6 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
     esac
   fi
 
-  # A scope absent at the pin is a malformed record, not drift: both trees
-  # would read empty and new-unit detection would be silently off.
   if [[ -n "$scope" ]]; then
     tree_list "$o" "$r" "$pin" "$scope"
     if [[ -n "$PAGE_UNREACH" ]]; then
@@ -619,15 +580,12 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
     FINDINGS+=("${page_events[@]}")
   fi
   REPORT+=("page repo=$o/$r pin=${pin:0:12} head=${head:0:12} status=$status path=$page")
-  # Row lines first in page order, then units, as the report contract lists.
   for kind in row new-unit removed-unit; do
     for line in ${page_report[@]+"${page_report[@]}"}; do
       [[ "$line" == "$kind "* ]] && REPORT+=("$line")
     done
   done
 done
-
-# --- output ------------------------------------------------------------------
 
 if ((${#UNREACHABLE[@]} > 0)); then
   printf '%s: %s\n' "$SELF" "${UNREACHABLE[@]}" >&2

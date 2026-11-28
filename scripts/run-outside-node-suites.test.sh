@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Classifies declined suites without guessing a runner, and runs a fixture
-# registry's packages through their own npm test.
 set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
@@ -46,8 +44,6 @@ else
   fail "wrapped node suite was not owned: $out"
 fi
 
-# The no-argument mode against a fixture registry. Each registered package's
-# own suites run in test-node when the plan names that package.
 # shellcheck source=lib/fixture-tree.sh
 . scripts/lib/fixture-tree.sh
 fixture=""
@@ -70,9 +66,6 @@ else
   ok "a failing registered package fails the run"
 fi
 
-# A package's locked file: dependency is installed before its npm test runs
-# (check-wip-cap's suites load yaml from resolve-config's node_modules); one
-# with no lockfile is left alone. An npm stub records the calls.
 mkdir -p "$fixture/pkgs/app" "$fixture/pkgs/locked" "$fixture/pkgs/unlocked" "$fixture/bin"
 printf '{"private":true,"scripts":{"test":"node --test"},"dependencies":{"locked":"file:../locked","unlocked":"file:../unlocked"}}\n' \
   >"$fixture/pkgs/app/package.json"
@@ -90,7 +83,6 @@ else
   fail "expected one npm ci of pkgs/locked, then npm test: $(cat "$fixture/npm.log")"
 fi
 
-# A missing list file fails the run instead of reading as zero packages.
 for missing in outside-node-packages.txt outside-node-exclusions.txt node-subprojects.txt; do
   printf 'pkgs/pass\n' >"$fixture/scripts/outside-node-packages.txt"
   : >"$fixture/scripts/outside-node-exclusions.txt"

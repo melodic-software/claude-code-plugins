@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# Self-contained tests for setup.sh: each case builds a git repository and an
-# empty home beside it, so no real layer is read or written.
-#
-# SC2016 is disabled file-wide: the single-quoted backticks are literal Markdown
-# fences written into fixtures, never shell expansions.
+# SC2016 is disabled file-wide: the single-quoted backticks are literal Markdown fences written into fixtures.
 # shellcheck disable=SC2016
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG CLAUDE_PROJECT_DIR
@@ -21,7 +17,7 @@ fixture() {
   mkdir -p "$T/$1/repo" "$T/$1/home"
   git -C "$T/$1/repo" init -q
 }
-run() { # run <case> <action> <args...>
+run() {
   local c="$1" a="$2"
   shift 2
   "$SUT" "$a" --root "$T/$c/repo" --home "$T/$c/home" "$@" 2>"$T/$c.err"
@@ -80,7 +76,6 @@ for bad in verification=Standard verification=lite verification_skills.x=bad; do
   assert_eq "$bad leaves the team file unchanged" "$before" "$(cat "$T/team/repo/docs/conventions/multi-agent.yaml")"
 done
 
-# A bound convention home moves the team YAML apply writes.
 fixture bound
 mkdir -p "$T/bound/repo/team-docs"
 printf '<!-- BEGIN GENERATED: convention-home -->\nConventions live in `team-docs`.\n<!-- END GENERATED: convention-home -->\n' >"$T/bound/repo/AGENTS.md"
@@ -92,7 +87,6 @@ assert_eq "bound home: nothing is written under docs/conventions" absent "$state
 out="$(run bound check session=opus)"
 assert_contains "bound home: the written YAML is the team layer" "$out" '"layer":"team","path":"'"$T/bound/repo/team-docs/multi-agent.yaml"'","state":"read"'
 
-# The legacy docs block seeds the YAML and is left as it was.
 fixture docs
 mkdir -p "$T/docs/repo/docs/conventions"
 printf '# Ours\n\nProse.\n\n```yaml config\nschema: 1\nroles:\n  worker:\n    effort: low\n```\n\nTrailer.\n' \
@@ -111,7 +105,7 @@ out="$(run claudefile apply --layer team roles.verifier.effort=high)"
 assert_contains "team targets the concern YAML, not the .claude file" "$out" "would write: $T/claudefile/repo/docs/conventions/multi-agent.yaml"
 assert_contains "the .claude file seeds the preview" "$out" '+    effort: low'
 out="$(run claudefile check session=opus)"
-assert_contains "check names the retired .claude file and the migration" "$out" "WARN team: $T/claudefile/repo/.claude/multi-agent.yaml is no longer read; apply --migrate moves its keys into $T/claudefile/repo/docs/conventions/multi-agent.yaml and deletes it"
+assert_contains "check names the retired .claude file and the seed step" "$out" "WARN team: $T/claudefile/repo/.claude/multi-agent.yaml is no longer read; the first apply --layer team copies its keys into $T/claudefile/repo/docs/conventions/multi-agent.yaml, then delete it"
 assert_contains "the resolver does not read the retired .claude file" "$out" '"layer":"team","path":"'"$T/claudefile/repo/docs/conventions/multi-agent.yaml"'","state":"absent"'
 
 fixture existing
@@ -143,7 +137,6 @@ assert_eq "a symlinked team file is refused" 2 "$?"
 assert_eq "the symlink target is untouched" outside "$(cat "$T/symlink/victim")"
 assert_contains "the refusal names the symlink" "$(cat "$T/symlink.err")" 'is a symlink'
 
-# A symlinked legacy file is not read as a seed.
 fixture seedlink
 mkdir -p "$T/seedlink/repo/.claude"
 printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/seedlink/victim"
@@ -163,8 +156,6 @@ assert_lacks "the symlinked docs seed is not in the preview" "$out" 'effort: low
 out="$(run mdlink check session=opus)"
 assert_contains "check names the symlinked docs file apply refuses" "$out" "WARN team: apply --layer team refuses $T/mdlink/repo/docs/conventions/multi-agent.md while $T/mdlink/repo/docs/conventions/multi-agent.yaml is absent, since $T/mdlink/repo/docs/conventions/multi-agent.md is a symlink; replace or delete the symlink"
 
-# A symlinked docs file beside a regular .claude file: apply refuses the docs
-# file, block or no block, so check must not promise a seed from the .claude file.
 fixture mdbeside
 mkdir -p "$T/mdbeside/repo/docs/conventions" "$T/mdbeside/repo/.claude"
 printf '# Prose only\n' >"$T/mdbeside/victim"
@@ -175,9 +166,8 @@ assert_eq "a symlinked docs file beside a .claude file is refused" 2 "$?"
 out="$(run mdbeside check session=opus)"
 assert_contains "check names the symlinked docs file beside a .claude file" "$out" "WARN team: apply --layer team refuses $T/mdbeside/repo/docs/conventions/multi-agent.md while"
 assert_lacks "check promises no seed apply would refuse" "$out" 'the first apply --layer team copies'
-assert_contains "the .claude file gets the migration row" "$out" "WARN team: $T/mdbeside/repo/.claude/multi-agent.yaml is no longer read; apply --migrate moves its keys into $T/mdbeside/repo/docs/conventions/multi-agent.yaml and deletes it"
+assert_contains "the .claude file gets the retired team row" "$out" "WARN team: $T/mdbeside/repo/.claude/multi-agent.yaml is no longer read; copy any key still wanted into $T/mdbeside/repo/docs/conventions/multi-agent.yaml, then delete it"
 
-# A regular .claude file in a symlinked .claude directory: apply refuses it.
 fixture claudedir
 mkdir -p "$T/claudedir/outside"
 printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/claudedir/outside/multi-agent.yaml"
@@ -205,61 +195,22 @@ run user apply --layer user --write --user-file role-map.yaml fanout.model=sonne
 assert_eq "a relative option is refused" 2 "$?"
 assert_contains "the refusal asks for an absolute path in /config" "$(cat "$T/user.err")" 'set an absolute path in /config'
 
-fixture mig
-mkdir -p "$T/mig/home/.claude" "$T/mig/repo/.claude"
-printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/mig/home/.claude/multi-agent.yaml"
-printf 'schema: 1\nroles:\n  worker:\n    model: sonnet\n' >"$T/mig/repo/.claude/multi-agent.local.yaml"
-out="$(run mig check session=opus)"
-assert_contains "check: the old user file row names the option" "$out" "WARN user-config: $T/mig/home/.claude/multi-agent.yaml is an old path; set the role_map_file option in /config"
-assert_contains "check: the old personal file row names the new path" "$out" "WARN personal-override: $T/mig/repo/.claude/multi-agent.local.yaml is an old path; apply --migrate moves its keys into $T/mig/repo/docs/conventions/multi-agent.local.yaml and deletes it"
-assert_contains "check: the dual-read warning names the setup command" "$(cat "$T/mig.err")" '/multi-agent:setup apply --migrate'
-run mig apply --layer local --write roles.worker.effort=low >/dev/null
-assert_eq "local apply beside the old personal file is refused" 2 "$?"
-assert_contains "the refusal names the migration" "$(cat "$T/mig.err")" 'run apply --migrate first'
-run mig apply --layer user --write --user-file "$T/mig/role-map.yaml" roles.worker.effort=low >/dev/null
-assert_eq "user apply beside the old user file is refused" 2 "$?"
-out="$(run mig apply --migrate)"
-assert_contains "migrate without the option skips the user file" "$out" "skip: $T/mig/home/.claude/multi-agent.yaml stays until the user layer has a new home"
-assert_contains "migrate previews the personal move" "$out" "would move: $T/mig/repo/.claude/multi-agent.local.yaml into $T/mig/repo/docs/conventions/multi-agent.local.yaml (local layer)"
-assert_contains "migrate preview shows the keys" "$out" '+    model: sonnet'
-state=absent
-[[ -e "$T/mig/repo/docs/conventions/multi-agent.local.yaml" ]] && state=present
-assert_eq "migrate preview writes nothing" absent "$state"
-out="$(run mig apply --migrate --write --user-file "$T/mig/role-map.yaml")"
-assert_eq "migrate write exits 0" 0 "$?"
-assert_contains "migrate moves the user file" "$out" "moved: $T/mig/home/.claude/multi-agent.yaml into $T/mig/role-map.yaml (user layer)"
-assert_contains "migrate moves the personal file" "$out" "moved: $T/mig/repo/.claude/multi-agent.local.yaml into $T/mig/repo/docs/conventions/multi-agent.local.yaml (local layer)"
-assert_eq "the user file holds the old keys" $'schema: 1\nroles:\n  worker:\n    effort: high' "$(cat "$T/mig/role-map.yaml")"
-state=absent
-[[ -e "$T/mig/home/.claude/multi-agent.yaml" || -e "$T/mig/repo/.claude/multi-agent.local.yaml" ]] && state=present
-assert_eq "migrate deletes the old files" absent "$state"
-out="$(run mig check session=opus --user-file "$T/mig/role-map.yaml")"
-assert_contains "after migrate: the same values from the new layers" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"high","guarded":false},"fanout":{"model":"sonnet","omit_model":false,"effort":"high","guarded":false},"source":{"model":"personal-override","effort":"user-config"}'
-assert_lacks "after migrate: no old-path row" "$out" 'old path'
-out="$(run mig apply --migrate --user-file "$T/mig/role-map.yaml")"
-assert_eq "migrate with no old file says so" "nothing to migrate: no old file found" "$out"
-
-fixture migboth
-mkdir -p "$T/migboth/repo/.claude" "$T/migboth/repo/docs/conventions"
-printf 'schema: 1\nroles:\n  worker:\n    effort: low\n    model: sonnet\n' >"$T/migboth/repo/.claude/multi-agent.local.yaml"
-printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/migboth/repo/docs/conventions/multi-agent.local.yaml"
-out="$(run migboth apply --migrate --write)"
-assert_contains "both: the kept key is named" "$out" "kept: roles.worker.effort: high from $T/migboth/repo/docs/conventions/multi-agent.local.yaml (the old file says low)"
-assert_eq "both: the old key the new file lacks is added" $'schema: 1\nroles:\n  worker:\n    effort: high\n    model: sonnet' \
-  "$(cat "$T/migboth/repo/docs/conventions/multi-agent.local.yaml")"
-state=absent
-[[ -e "$T/migboth/repo/.claude/multi-agent.local.yaml" ]] && state=present
-assert_eq "both: the old file is deleted" absent "$state"
-
-fixture migteam
-mkdir -p "$T/migteam/repo/.claude"
-printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/migteam/repo/.claude/multi-agent.yaml"
-out="$(run migteam apply --migrate --write)"
-assert_contains "team: the retired file moves into the YAML" "$out" "moved: $T/migteam/repo/.claude/multi-agent.yaml into $T/migteam/repo/docs/conventions/multi-agent.yaml (team layer)"
-assert_eq "team: the YAML holds its keys" $'schema: 1\nroles:\n  worker:\n    effort: low' "$(cat "$T/migteam/repo/docs/conventions/multi-agent.yaml")"
-state=absent
-[[ -e "$T/migteam/repo/.claude/multi-agent.yaml" ]] && state=present
-assert_eq "team: the retired file is deleted" absent "$state"
+fixture oldignored
+mkdir -p "$T/oldignored/home/.claude" "$T/oldignored/repo/.claude"
+printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/oldignored/home/.claude/multi-agent.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    model: sonnet\n' >"$T/oldignored/repo/.claude/multi-agent.local.yaml"
+out="$(run oldignored check session=opus)"
+assert_contains "check: old files are not read and bundled defaults apply" "$out" '"source":{"model":"bundled","effort":"bundled"}'
+assert_lacks "check: no old-path warning row" "$out" 'old path'
+assert_eq "check: no stderr warning for old files" "" "$(cat "$T/oldignored.err")"
+out="$(run oldignored apply --layer local --write roles.worker.effort=low)"
+assert_eq "local apply succeeds even when an old personal file exists" 0 "$?"
+assert_contains "local apply writes the canonical path" "$out" "wrote: $T/oldignored/repo/docs/conventions/multi-agent.local.yaml (local layer)"
+out="$(run oldignored apply --layer user --write --user-file "$T/oldignored/role-map.yaml" roles.worker.effort=low)"
+assert_eq "user apply succeeds even when an old user file exists" 0 "$?"
+assert_contains "user apply writes the option file" "$out" "wrote: $T/oldignored/role-map.yaml (user layer)"
+run oldignored apply --migrate >/dev/null
+assert_eq "--migrate is no longer accepted" 2 "$?"
 
 mkdir -p "$T/homeroot"
 git -C "$T/homeroot" init -q
@@ -278,16 +229,24 @@ state=absent
 [[ -e "$T/vendors/repo/docs/conventions/multi-agent.local.yaml" ]] && state=present
 assert_eq "refused vendors.trials_fail=1 writes nothing" absent "$state"
 
-run vendors apply --layer local --write vendors.tiebreak=bogus >/dev/null
-assert_eq "unknown tiebreak step is refused" 1 "$?"
-assert_contains "unknown tiebreak refusal names the key" "$(cat "$T/vendors.err")" "vendors.tiebreak rejected: 'bogus'"
-
-out="$(run vendors apply --layer local --write vendors.routing=false vendors.trials_prove=3 vendors.trials_fail=2 vendors.tiebreak=fewest-tokens,vendor-order vendors.codex.in_use=true vendors.codex.rank=1 vendors.sources.terminal-bench.enabled=false)"
+out="$(run vendors apply --layer local --write vendors.routing=false vendors.trials_prove=3 vendors.trials_fail=2 vendors.codex.in_use=true vendors.codex.rank=1 vendors.sources.terminal-bench.enabled=false)"
 assert_eq "valid vendors keys write cleanly" 0 "$?"
-assert_contains "tiebreak renders as a YAML sequence" "$(cat "$T/vendors/repo/docs/conventions/multi-agent.local.yaml")" $'  tiebreak:\n    - fewest-tokens\n    - vendor-order'
 out="$(run vendors check session=opus)"
 assert_contains "check resolves written vendors keys" "$out" '"routing":false'
-assert_contains "check resolves written tiebreak list" "$out" '"tiebreak":["fewest-tokens","vendor-order"]'
+
+fixture tbupgrade
+mkdir -p "$T/tbupgrade/repo/docs/conventions"
+printf 'schema: 1\nvendors:\n  tiebreak:\n    - fewest-tokens\n    - vendor-order\n  trials_fail: 2\n' >"$T/tbupgrade/repo/docs/conventions/multi-agent.local.yaml"
+run tbupgrade apply --layer local --write vendors.routing=false >/dev/null
+assert_eq "an unrelated apply over a retired tiebreak list succeeds" 0 "$?"
+assert_eq "the apply drops the retired tiebreak list and keeps the rest" $'schema: 1\nvendors:\n  routing: false\n  trials_fail: 2' "$(cat "$T/tbupgrade/repo/docs/conventions/multi-agent.local.yaml")"
+
+fixture tbclear
+mkdir -p "$T/tbclear/repo/docs/conventions"
+printf 'schema: 1\nvendors:\n  tiebreak: [most-usage-left, vendor-order]\n  trials_fail: 2\n' >"$T/tbclear/repo/docs/conventions/multi-agent.local.yaml"
+run tbclear apply --layer local --write vendors.tiebreak= >/dev/null
+assert_eq "vendors.tiebreak= over a retired list succeeds" 0 "$?"
+assert_eq "vendors.tiebreak= removes every child of the list" $'schema: 1\nvendors:\n  trials_fail: 2' "$(cat "$T/tbclear/repo/docs/conventions/multi-agent.local.yaml")"
 
 printf '\n%d cases, %d failed\n' "$CASES" "$FAILED"
 ((FAILED == 0))

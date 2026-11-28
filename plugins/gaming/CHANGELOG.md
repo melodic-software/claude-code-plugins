@@ -3,6 +3,25 @@
 All notable changes to the `gaming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.37] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across both `gaming` skills (1,312 -> 476 chars, -836 / -63.7%): `dlss5` (693 -> 336) and `setup` (619 -> 140, `disable-model-invocation: true`), while preserving all eight mod actions, Windows-only scope, typed anti-cheat acknowledgement gate, byte-exact removal, and setup provisioning checks.
+
+## [0.10.36] - 2026-11-27
+
+### Fixed
+
+- The DLSS 5 fork reference no longer lists dlss5.net among the lookalike packages. It is a
+  compatibility guide that hosts no mod or DLL download, not one of the byte-identical repos.
+
+## [0.10.35] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [0.10.34] - 2026-11-21
 
 ### Changed

@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Fail a review-lane hold an untrusted account lifted` step body of
-# .github/workflows/pr-require-checks.yml's ci-status under the shell Actions
-# gives a step with no `shell:` (bash -e), against stub `gh` and `sleep`.
-#
-# Once a review lane has held a pull request, ci-status passes with the
-# human-gated label off only when the first removal of that label after the
-# newest hold comment was made by a `human` of the base commit's trusted-actor
-# list. It fails closed when it cannot tell.
 # test-scope: .github/workflows/pr-require-checks.yml
 # test-scope: docs/conventions/work-items.yaml
 # test-scope: docs/conventions/source-control.yaml
@@ -35,8 +27,6 @@ if [[ "$step" == *"if: \${{ !cancelled() && github.event_name == 'pull_request' 
 else
   fail "step lost its condition on the human-gated step's held output"
 fi
-# On a draft the human-gated step skips, so its held output is empty, not
-# 'false', and this step skips with it: it makes no read on a draft.
 gated="$(awk '$0 == "      - name: Fail a pull request carrying the human-gated label" { on = 1; next } on && /^        if: / { print; exit }' "$WORKFLOW")"
 if [[ "$gated" == *"github.event.pull_request.draft != true"* ]]; then
   ok "the human-gated step skips on a draft, so this step does too"
@@ -62,12 +52,6 @@ else
   fail "step is not inside ci-status between the human-gated step and the aggregate (lines: $order)"
 fi
 
-# The stub logs its arguments. A comments read fails when STUB_COMMENTS_FAIL is
-# set, else answers the STUB_COMMENTS array. An events read fails when STUB_EVENTS_FAIL is set, else prints
-# STUB_EVENTS (pages concatenated, as --paginate prints them). The base
-# commit's config is a fixture directory holding STUB_ACTORS as the
-# trusted-actor list; STUB_CHECKOUT_FAILED leaves BASE_CONFIG empty, as a
-# failed checkout does.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -95,25 +79,18 @@ HOLD="$(comment "$LANE" $'<!-- claude-lane-hold lane=claude-review sha=bbbb crit
 OLD_HOLD="$(comment "$LANE" $'<!-- claude-lane-hold lane=claude-security-review sha=aaaa criteria=cost -->\nHeld.\nclaude-lane: claude-security-review' 2026-10-22T10:00:00Z)"
 SPOOF="$(comment '{"login":"someone","type":"User"}' $'<!-- claude-lane-hold lane=x -->\nclaude-lane: claude-review' 2026-10-23T12:00:00Z)"
 NO_FOOTER="$(comment "$LANE" $'<!-- claude-lane-hold lane=claude-review -->\nNo footer.' 2026-10-23T12:00:00Z)"
-# unlabeled <label> <at> <actor-id> <login>
 unlabeled() { jq -cn --arg l "$1" --arg at "$2" --argjson id "$3" --arg login "$4" '{event: "unlabeled", created_at: $at, label: {name: $l}, actor: {id: $id, login: $login}}'; }
 labeled() { jq -cn --arg l "$1" --arg at "$2" --arg login "${3:-melodic-automation-lanes[bot]}" '{event: "labeled", created_at: $at, label: {name: $l}, actor: {id: 1, login: $login}}'; }
 OWNER_LIFT="$(unlabeled needs-human 2026-10-23T11:00:00Z 153232337 kyle-sexton)"
 BOT_LIFT="$(unlabeled needs-human 2026-10-23T11:30:00Z 337595936 'melodic-automation-lanes[bot]')"
 EARLY_LIFT="$(unlabeled needs-human 2026-10-23T09:00:00Z 153232337 kyle-sexton)"
 
-# expect <label> <want-rc> [want-out] [refuse-out]; stubs come from the environment.
 expect() {
-  local label="$1" want_rc="$2" out rc config="$TMP_ROOT/base-config"
+  local label="$1" want_rc="$2" out rc config="$TMP_ROOT/base-config" standards="$TMP_ROOT/stub-standards"
   : >"$TMP_ROOT/log"
-  rm -rf "$config" "$TMP_ROOT/pr-reads"
-  mkdir -p "$config/.github/standards/trusted-actors"
-  printf '%s\n' "${STUB_ACTORS-$ACTORS}" >"$config/.github/standards/trusted-actors/trusted-actors.json"
-  # The base commit's clear-escalations.mjs, stubbed: its recheckStaleHold
-  # records what it was given and answers STUB_PREDICATE (pass, else the hold
-  # stands); a run of the module as a script is recorded too. Absent when
-  # STUB_NO_PREDICATE is set. clear-escalations-recheck.test.mjs tests the
-  # real one.
+  rm -rf "$config" "$standards" "$TMP_ROOT/pr-reads"
+  mkdir -p "$config" "$standards/components/trusted-actors"
+  printf '%s\n' "${STUB_ACTORS-$ACTORS}" >"$standards/components/trusted-actors/trusted-actors.json"
   if [[ -z "${STUB_NO_PREDICATE:-}" ]]; then
     mkdir -p "$config/.github/scripts/pr-merge"
     cat >"$config/.github/scripts/pr-merge/clear-escalations.mjs" <<'JS'
@@ -160,7 +137,7 @@ JS
   [[ -z "${STUB_CHECKOUT_FAILED:-}" ]] || config=
   out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" PR_NUMBER=6419 \
     GITHUB_REPOSITORY=o/r HUMAN_GATED="${HUMAN_GATED-needs-human}" BASE_SHA="${BASE_SHA-$BASE}" \
-    BASE_CONFIG="$config" STANDARDS_DIR="${STUB_STANDARDS:-}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
+    BASE_CONFIG="$config" STANDARDS_DIR="${STUB_STANDARDS-$standards}" bash -e "$TMP_ROOT/body.sh" 2>&1)" && rc=0 || rc=$?
   if grep -q '/contents/' "$TMP_ROOT/log"; then
     fail "$label: the trusted-actor list was read through the API"
     return
@@ -260,7 +237,6 @@ STUB_EVENTS="[$(unlabeled owner-call 2026-10-23T11:00:00Z 153232337 kyle-sexton)
 expect "the label is the one the human-gated step resolved" 0 "kyle-sexton, a person on the trusted-actor list"
 unset HUMAN_GATED
 
-# The label events anchor the hold too: they cannot be deleted or edited.
 STUB_COMMENTS="[]"
 STUB_EVENTS="[$(labeled needs-human 2026-10-23T10:00:00Z 'github-actions[bot]'),$BOT_LIFT]"
 expect "a deleted hold comment leaves the lane's label event as the hold" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
@@ -269,7 +245,6 @@ expect "a trusted lift of a claude[bot] label passes with no comment" 0 "lifted 
 STUB_COMMENTS="[$HOLD]"
 STUB_EVENTS="[$OWNER_LIFT,$(labeled needs-human 2026-10-23T11:10:00Z 'github-actions[bot]'),$BOT_LIFT]"
 expect "a review re-run that labels the same head again needs its own trusted lift" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
-# Recovery: a trusted person adds the label back and removes it.
 TRUSTED_RELABEL="$(jq -cn '{event: "labeled", created_at: "2026-10-23T12:00:00Z", label: {name: "needs-human"}, actor: {id: 153232337, login: "kyle-sexton"}}')"
 STUB_EVENTS="[$BOT_LIFT,$TRUSTED_RELABEL,$(unlabeled needs-human 2026-10-23T12:05:00Z 153232337 kyle-sexton)]"
 expect "a trusted person re-adding and removing the label recovers a hold a bot lifted" 0 "lifted the review-lane hold"
@@ -278,9 +253,6 @@ expect "a bot re-adding the label does not move the hold" 1 "melodic-automation-
 STUB_EVENTS="[$BOT_LIFT,$TRUSTED_RELABEL,$(unlabeled needs-human 2026-10-23T12:05:00Z 4242 octocat)]"
 expect "an untrusted removal after a trusted re-add fails" 1 "octocat removed 'needs-human'"
 
-# A stale hold the lanes App cleared (clear-escalations.mjs stale-review-hold,
-# owner brief Part A2): the App's own removal lifts it only after its own
-# marked comment names a head no hold comment names.
 OLD_SHA=$(printf 'c%.0s' {1..40})
 NEW_SHA=$(printf 'd%.0s' {1..40})
 APP_USER='{"login":"melodic-automation-lanes[bot]","type":"Bot","id":337595936}'
@@ -315,28 +287,21 @@ STUB_EVENTS="[$BOT_LIFT]"
 LANES_APP_ID='' expect "with no lanes App id the App's removal fails closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
 STUB_ACTORS='{"version":1,"actors":[{"id":153232337,"login":"kyle-sexton","kind":"human"}]}' \
   expect "a lanes App id the base list does not name fails closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
-# The race the security review of 990c1941 found: a lane held the current
-# head after the App judged it, under the label already on, before its delete.
 STUB_COMMENTS="[$STALE_HOLD,$(held_at "$NEW_SHA" 2026-10-23T11:20:00Z),$(cleared_for "$OLD_SHA")]"
 expect "a hold naming this head, written before the App's marker, keeps it whatever head the marker names" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
 OTHER_SHA=$(printf 'e%.0s' {1..40})
 STUB_COMMENTS="[$STALE_HOLD,$(held_at "$NEW_SHA" 2026-10-23T11:20:00Z),$(cleared_for "$OTHER_SHA")]"
 expect "a hold naming this head keeps it beside a marker for an unheld head" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
-# A later clean push: the marker names the head the App judged, this head is
-# a newer one no hold names, so its own reviews decide (not strict equality).
 STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
 HEAD_SHA="$OTHER_SHA" expect "a later head no hold names passes after the App's clear of an earlier one" 0 \
   "melodic-automation-lanes[bot] cleared the review-lane hold on #6419 as stale"
-if grep -qxF "predicate pr=6419 head=$OTHER_SHA cleared=$NEW_SHA label=needs-human trusted=$TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json" "$TMP_ROOT/log"; then
+if grep -qxF "predicate pr=6419 head=$OTHER_SHA cleared=$NEW_SHA label=needs-human trusted=$TMP_ROOT/stub-standards/components/trusted-actors/trusted-actors.json" "$TMP_ROOT/log"; then
   ok "at a later head the predicate judges the head the App's marker names"
 else
   fail "at a later head the predicate was not given the marker's head: '$(cat "$TMP_ROOT/log")'"
 fi
-# Only the newest marker before the removal names the cleared head.
 STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$OTHER_SHA" "" 2026-10-23T11:10:00Z),$(cleared_for "$NEW_SHA")]"
 expect "the newest marker before the removal is the one judged" 0 "its marker names $NEW_SHA,"
-# A hold a person already lifted counts for nothing (thread PRRT_kwDOTCGFQM6xmJXy):
-# an old unparsable hold, its trusted lift, then the lane's new label and hold.
 STUB_COMMENTS="[$(comment "$LANE" $'<!-- claude-lane-hold lane=claude-review sha=bbbb criteria=trust-gate -->\nHeld.\n\nclaude-lane: claude-review' 2026-10-22T10:00:00Z),$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
 STUB_EVENTS="[$(unlabeled needs-human 2026-10-22T12:00:00Z 153232337 kyle-sexton),$(labeled needs-human 2026-10-23T09:59:00Z 'github-actions[bot]'),$BOT_LIFT]"
 expect "an unparsable hold a person lifted before the label went on again does not block the App's clear" 0 \
@@ -349,13 +314,10 @@ expect "with no removal before the label, every hold comment counts" 1 "melodic-
 STUB_EVENTS="[$BOT_LIFT]"
 HEAD_SHA='' expect "an empty head fails the App's removal closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
 HEAD_SHA=main expect "a head that is not a commit SHA fails the App's removal closed" 1 "melodic-automation-lanes[bot] removed 'needs-human'"
-# The marker only points ci-status at the hold: the base commit's
-# clear-escalations.mjs recheckStaleHold judges it again at this head (coordinator direction:
-# never take the App's judgment on trust).
 STUB_COMMENTS="[$STALE_HOLD,$(cleared_for "$NEW_SHA")]"
 STUB_PREDICATE=stands expect "a valid marker whose predicate now finds the hold standing fails" 1 \
   "melodic-automation-lanes[bot] removed 'needs-human'"
-if grep -qxF "predicate pr=6419 head=$NEW_SHA cleared=$NEW_SHA label=needs-human trusted=$TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json" "$TMP_ROOT/log"; then
+if grep -qxF "predicate pr=6419 head=$NEW_SHA cleared=$NEW_SHA label=needs-human trusted=$TMP_ROOT/stub-standards/components/trusted-actors/trusted-actors.json" "$TMP_ROOT/log"; then
   ok "the predicate runs at this head with the base commit's trusted-actor list and the resolved label"
   if grep -q 'clear-escalations main ran' "$TMP_ROOT/log"; then fail "importing the base module ran its sweep"; else ok "importing the base module runs no sweep"; fi
 else
@@ -370,18 +332,14 @@ unset LANES_APP_ID HEAD_SHA STUB_PREDICATE
 
 export STUB_EVENTS="[$OWNER_LIFT]"
 export STUB_ACTORS='{"version":1,"actors":[{"id":153232337,"login":"kyle-sexton","kind":"bot"}]}'
-expect "an id listed only as a bot is not a trusted person" 1 "the trusted-actor list at $TMP_ROOT/base-config/.github/standards/trusted-actors/trusted-actors.json names no person"
+expect "an id listed only as a bot is not a trusted person" 1 "the trusted-actor list at $TMP_ROOT/stub-standards/components/trusted-actors/trusted-actors.json names no person"
 export STUB_ACTORS='{"actors":[{"id":1,"login":"someone","kind":"human"}]}'
 expect "a person missing from the base list is not trusted" 1 "kyle-sexton removed 'needs-human'"
 export STUB_ACTORS='{not json'
 expect "an unreadable trusted-actor list fails closed" 1 "names no person"
 unset STUB_ACTORS
-mkdir -p "$TMP_ROOT/standards/components/trusted-actors"
-printf '%s\n' "$ACTORS" >"$TMP_ROOT/standards/components/trusted-actors/trusted-actors.json"
-export STUB_ACTORS='{"version":1,"actors":[{"id":153232337,"login":"kyle-sexton","kind":"bot"}]}'
-STUB_STANDARDS="$TMP_ROOT/standards" expect "the standards checkout's list is read over the hold config's copy" 0 \
-  "kyle-sexton, a person on the trusted-actor list, lifted"
-unset STUB_ACTORS
+STUB_STANDARDS='' expect "with no standards checkout the hold config's copy is never read, and the hold stays" 1 \
+  "::error::could not read the trusted-actor list from the standards checkout; re-run this run." "lifted"
 STUB_STANDARDS="$TMP_ROOT/no-standards" expect "a standards checkout with no list fails closed" 1 "could not read the trusted-actor list"
 STUB_CHECKOUT_FAILED=1 expect "a hold with a failed base checkout fails closed" 1 "::error::could not read the base commit's config at $BASE to check the review-lane hold comments; re-run this run."
 export STUB_EVENTS_FAIL=1
@@ -394,9 +352,6 @@ export BASE_SHA=main
 expect "a base that is not a commit SHA fails closed" 1 "::error::the base commit 'main' is not a commit SHA"
 unset BASE_SHA
 
-# The stub above stands in for the base commit's clear-escalations.mjs, so a
-# real import the sparse base_config checkout leaves out would only fail on a
-# runner. Copy the sparse list's files alone and import the real module.
 SPARSE="$TMP_ROOT/sparse"
 mapfile -t sparse_paths < <(awk '/^        id: base_config$/ { on = 1 } on && /sparse-checkout: \|$/ { list = 1; next }
   list && /^            \// { print substr($0, 14); next } list { exit }' "$WORKFLOW")
@@ -409,7 +364,6 @@ else
       cp "$ROOT/$rel" "$SPARSE/$rel"
     fi
   done
-  # The path goes in the environment: as argv[1] the module would run as the script.
   if out="$(SPARSE_MODULE="$SPARSE/.github/scripts/pr-merge/clear-escalations.mjs" node --input-type=module -e 'await import(process.env.SPARSE_MODULE);' 2>&1)"; then
     ok "the base_config sparse checkout holds every file clear-escalations.mjs imports"
   else

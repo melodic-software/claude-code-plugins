@@ -22,8 +22,6 @@ def have_chromium():
 HAVE = have_chromium()
 REQUIRED = os.environ.get('ANIMATION_REQUIRE_DEPS') == '1'
 
-# Shared code sets the hooks and a placeholder DURATION first; the scene's own setup finishes after a top-level
-# await, so a capture that reads DURATION too early writes half the frames.
 LATE = """const c = document.getElementById('c'); c.width = 8; c.height = 8;
 window.DURATION = 1;
 window.renderFrame = async () => { c.getContext('2d').fillRect(0, 0, 8, 8); };

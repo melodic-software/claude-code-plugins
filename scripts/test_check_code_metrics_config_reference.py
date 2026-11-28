@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""Tests for the code-metrics config reference gate.
-
-Every case runs the gate at its command line against a mutated COPY of the
-shipped pair, so what is asserted is the exit code and the message an author
-would actually see. The point of the gate is that drift is impossible, so the
-suite is written as drift injections: each one must FAIL, and the message must
-name the key, or the gate is decorative.
-"""
 
 from __future__ import annotations
 
@@ -81,8 +73,6 @@ class ShippedPairTests(GateHarness):
         self.assertIn("documents all", result.stdout)
 
     def test_the_unmutated_copy_agrees(self) -> None:
-        # The harness itself must clear the gate, or every "this fails" case
-        # below would pass for the wrong reason.
         self.assert_clean(self.write())
 
 
@@ -124,16 +114,16 @@ class DriftFailsTests(GateHarness):
         self.assert_drift(self.write(), "type_debt.reference", "ambiguous")
 
     def test_a_wildcard_row_whose_leaves_stop_agreeing_fails(self) -> None:
-        self.defaults["lanes"]["go"]["enabled"] = False
+        self.defaults["languages"]["go"]["enabled"] = False
         result = self.write()
-        self.assert_drift(result, "lanes.<lane>.enabled", "lanes.go.enabled")
+        self.assert_drift(result, "languages.<language>.enabled", "languages.go.enabled")
 
     def test_a_documented_undefaulted_key_that_gains_a_default_fails(self) -> None:
-        self.defaults["lanes"]["python"]["collectors"] = {"cyclomatic": ["lizard"]}
+        self.defaults["languages"]["python"]["collectors"] = {"cyclomatic": ["lizard"]}
         self.assert_drift(
             self.write(),
-            "lanes.<lane>.collectors.<measure>",
-            "lanes.python.collectors.cyclomatic",
+            "languages.<language>.collectors.<measure>",
+            "languages.python.collectors.cyclomatic",
         )
 
     def test_a_key_cell_that_is_not_a_code_span_fails(self) -> None:
@@ -202,16 +192,11 @@ class ToleratedTests(GateHarness):
     """What the gate deliberately does NOT fail on."""
 
     def test_reordering_the_defaults_file_is_not_drift(self) -> None:
-        # The document orders keys for a reader and the defaults file orders
-        # them for the resolver. Pinning the two orders together would fail a
-        # harmless reformat while preventing no disagreement.
         self.defaults = dict(reversed(list(self.defaults.items())))
         self.defaults["size"] = dict(reversed(list(self.defaults["size"].items())))
         self.assert_clean(self.write())
 
     def test_reserved_members_need_no_row(self) -> None:
-        # `thresholds` and any `_`-prefixed member belong to the bundled
-        # defaults and the resolver's output, not to the consumer surface.
         self.defaults["_generated_at"] = "2026-01-01"
         self.defaults["thresholds"] = copy.deepcopy(self.defaults["thresholds"])
         self.defaults["thresholds"].append(

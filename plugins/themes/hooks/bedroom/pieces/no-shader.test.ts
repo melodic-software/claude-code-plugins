@@ -16,7 +16,6 @@ import { part as windowPart } from '../scene/parts/window.js'
 import { BUILT } from './index.js'
 import { piece } from './no-shader.js'
 
-/** The console's title card on the screen, and the default title in it. */
 const CARD = '<rect x="1164" y="472" width="88" height="16" fill="#04050b"/>'
 const SWITCHES = ['tv', 'tape', 'console', 'pc', 'light', 'lamp', 'lava'] as const
 
@@ -45,7 +44,6 @@ test('with the shader off the backdrop is the hand-drawn room alone, and the idl
   await room.unmount()
 })
 
-/** A hook's `$` with the calls drawing makes: the store, a redraw, the clock and the debug log. */
 function engine(): EngineInterface {
   const store = new Map<string, unknown>()
   return {

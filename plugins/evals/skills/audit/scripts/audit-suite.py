@@ -6,6 +6,7 @@
 Reports coverage and calibration gaps without calling a model or editing files:
   - skills with no case
   - skills with no deterministic triggering case
+  - skills whose only triggering grader accepts several skills
   - judged (llm or baseline) graders without labeled samples/<grader>.json,
     and PASS/FAIL label counts for judged graders that have samples
   - legacy-only skills (only skills/<skill>/evals/evals.json)
@@ -206,6 +207,26 @@ def _grader_targets_skill(grader, plugin, skill, prompt_file, suite_plugin, nega
         return False
 
 
+def _skills_grader_accepts(grader, plugin, skills, prompt_file):
+    accepted = set(case_skills.skills_under_test("", prompt_file, (), [grader], plugin))
+    _, options, _ = grader
+
+    def accepts(call_name):
+        return validate_cases.call_matches(
+            {"tool": "Skill", "input": {"skill": call_name}}, options
+        )
+
+    try:
+        probed = {
+            (plugin, skill)
+            for skill in skills
+            if accepts("%s:%s" % (plugin, skill)) or accepts(skill)
+        }
+    except validate_cases.Unmirrored:
+        probed = set()
+    return accepted | probed
+
+
 def _read_sample_counts(case_dir, grader_name):
     rel = "%s/%s.json" % (validate_cases.SAMPLES_DIR, grader_name)
     path = os.path.join(case_dir, validate_cases.SAMPLES_DIR, grader_name + ".json")
@@ -234,6 +255,7 @@ def audit(target):
 
     has_case = set()
     has_det_trigger = set()
+    has_multi_skill_trigger = set()
     has_should_not_fire = set()
     judged_without_samples = []
     judged_with_samples = []
@@ -255,7 +277,11 @@ def audit(target):
                 if _is_positive_skill_grader(options) and _grader_targets_skill(
                     grader, plugin, ref_skill, prompt_file, plugin
                 ):
-                    has_det_trigger.add(ref_skill)
+                    accepted = _skills_grader_accepts(grader, plugin, skills, prompt_file)
+                    if accepted == {(plugin, ref_skill)}:
+                        has_det_trigger.add(ref_skill)
+                    else:
+                        has_multi_skill_trigger.add(ref_skill)
                 if _is_negated_skill_grader(options) and _grader_targets_skill(
                     grader, plugin, ref_skill, prompt_file, plugin, negated=True
                 ):
@@ -315,7 +341,14 @@ def audit(target):
     no_deterministic_trigger = [
         {"skill": "%s:%s" % (plugin, skill), "route": ROUTE_DESIGN}
         for skill in skills
-        if skill in has_case and skill not in has_det_trigger
+        if skill in has_case
+        and skill not in has_det_trigger
+        and skill not in has_multi_skill_trigger
+    ]
+    multi_skill_trigger_only = [
+        {"skill": "%s:%s" % (plugin, skill), "route": ROUTE_DESIGN}
+        for skill in skills
+        if skill in has_multi_skill_trigger and skill not in has_det_trigger
     ]
     no_should_not_fire = [
         {"skill": "%s:%s" % (plugin, skill), "advisory": True, "route": ROUTE_DESIGN}
@@ -335,6 +368,7 @@ def audit(target):
         "counts": {
             "no_case": len(no_case),
             "no_deterministic_trigger": len(no_deterministic_trigger),
+            "multi_skill_trigger_only": len(multi_skill_trigger_only),
             "judged_without_samples": len(judged_without_samples),
             "judged_with_samples": len(judged_with_samples),
             "legacy_only": len(legacy_only),
@@ -342,6 +376,7 @@ def audit(target):
         },
         "no_case": no_case,
         "no_deterministic_trigger": no_deterministic_trigger,
+        "multi_skill_trigger_only": multi_skill_trigger_only,
         "judged_without_samples": judged_without_samples,
         "judged_with_samples": judged_with_samples,
         "legacy_only": legacy_only,
@@ -362,6 +397,13 @@ def format_text(report):
         % report["counts"]["no_deterministic_trigger"]
     )
     for item in report["no_deterministic_trigger"]:
+        lines.append("  %s [%s]" % (item["skill"], item["route"]))
+
+    lines.append(
+        "skills covered only by a multi-skill grader: %d"
+        % report["counts"]["multi_skill_trigger_only"]
+    )
+    for item in report["multi_skill_trigger_only"]:
         lines.append("  %s [%s]" % (item["skill"], item["route"]))
 
     lines.append(

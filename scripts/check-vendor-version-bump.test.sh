@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Unit tests for check-vendor-version-bump.sh. Builds a tiny synthetic repo
-# tree per scenario in a temp dir (git-initialized, since the gate diffs
-# against a base ref) and invokes the script against it directly — the
-# script's own `cd "$(dirname "$0")/.."` makes this work unmodified: copy it
-# to <fixture>/scripts/ and it operates on the fixture tree.
 set -uo pipefail
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,8 +10,6 @@ SCRIPT="$SELF_DIR/check-vendor-version-bump.sh"
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh"
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
 set_version() {
@@ -25,7 +18,6 @@ set_version() {
     >"$fixture/plugins/$name/.claude-plugin/plugin.json"
 }
 
-# plugin <fixture> <name> <version> — a plugin with one vendored source file.
 plugin() {
   local fixture="$1" name="$2"
   mkdir -p "$fixture/plugins/$name/.claude-plugin" "$fixture/plugins/$name/vendor/pkg"
@@ -33,8 +25,6 @@ plugin() {
   printf 'module.exports = 1;\n' >"$fixture/plugins/$name/vendor/pkg/index.js"
 }
 
-# base_fixture <out-var> → two vendored plugins committed as the base ref; the
-# base ref is HEAD.
 base_fixture() {
   local dir
   fixture_tree::build "$1" --sut "$SCRIPT" --git || return 1
@@ -51,9 +41,6 @@ run_gate() (
   cd "$fixture" && bash scripts/check-vendor-version-bump.sh "$@"
 )
 
-# failing_git_shim <fixture> <subcommand>: a PATH-front git that fails only
-# <subcommand>; every other subcommand passes through to the real binary, so
-# the gate's own rev-parse still resolves the base ref.
 failing_git_shim() {
   local fixture="$1" sub="$2" real_git
   real_git="$(command -v git)"
@@ -115,11 +102,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a cross-plugin vendor MOVE checks the source plugin too ----------------
-# git's default rename detection collapses a byte-identical move to one R100
-# record whose --name-only line is the destination only; without --no-renames
-# in the gate, alpha's vendor deletion vanishes from the diff and bumping beta
-# alone passes.
 base_fixture f
 git -C "$f" mv plugins/alpha/vendor/pkg/index.js plugins/beta/vendor/pkg/moved.js
 set_version "$f" beta 2.0.1
@@ -156,8 +138,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a fragment carries the bump only in fragment mode -----------------------
-# add_fragment <fixture> <plugin> <bump>: an added changelog fragment.
 add_fragment() {
   mkdir -p "$1/.changes/$2"
   printf -- '---\nbump: %s\n---\n\n### Fixed\n\n- x\n' "$3" >"$1/.changes/$2/feat-x-0123abcd.md"
@@ -187,7 +167,6 @@ else
 fi
 rm -rf "$f"
 
-# A fragment-mode plugin with no fragment is told to add one, not to bump.
 base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 printf 'alpha\n' >"$f/scripts/fragment-plugins.txt"
@@ -203,9 +182,6 @@ else
 fi
 rm -rf "$f"
 
-# A verified Dependabot change set needs no fragment: release-generate-dependabot-changelog-fragments.yml
-# writes it after the merge. A gh stub answers the signature lookup with
-# $GH_ANSWER, as in check-changelog-fragments.test.sh.
 base_fixture f
 printf 'alpha\n' >"$f/scripts/fragment-plugins.txt"
 git -C "$f" add -A
@@ -219,7 +195,7 @@ echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 git -C "$f" add plugins
 GIT_AUTHOR_NAME='dependabot[bot]' GIT_AUTHOR_EMAIL='49699333+dependabot[bot]@users.noreply.github.com' \
   GIT_COMMITTER_NAME=GitHub GIT_COMMITTER_EMAIL=noreply@github.com git_test_config "$f" commit -qm "build(deps): bump pkg"
-run_dependabot_gate() { # <gh-answer> <author>
+run_dependabot_gate() {
   PATH="$f/stub:$PATH" GH_ANSWER="$1" CHANGELOG_PR_AUTHOR="$2" GITHUB_REPOSITORY=melodic-software/claude-code-plugins \
     run_gate "$f" --check-bump "$dependabot_base" 2>&1
 }
@@ -254,7 +230,6 @@ else
 fi
 rm -rf "$f"
 
-# --- deleting the manifest is not an off switch -----------------------------
 base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 git -C "$f" rm -q plugins/alpha/.claude-plugin/plugin.json
@@ -265,8 +240,6 @@ else
 fi
 rm -rf "$f"
 
-# --- an ADDED skill-level vendor/ tree is in scope --------------------------
-# It installs with the plugin, so it needs a bump.
 base_fixture f
 mkdir -p "$f/plugins/alpha/skills/digest/vendor"
 echo nested >"$f/plugins/alpha/skills/digest/vendor/lib.js"
@@ -280,11 +253,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a failed git diff is a loud exit, not a pass ---------------------------
-# Fault-inject a PATH-front git shim that fails only the diff subcommand, so
-# the gate's own rev-parse still resolves the base ref. Without the gate
-# checking the diff's status, the failure drains to an empty plugin list and
-# the gate reports "nothing changed" over a tree carrying a real violation.
 base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 failing_git_shim "$f" diff
@@ -297,10 +265,6 @@ else
 fi
 rm -rf "$f"
 
-# --- broken or absent jq is a loud exit, not a blanket exemption ------------
-# With jq unusable every manifest read comes back empty, which the loop would
-# misread as the new-plugin carve-out for every plugin — a full-open gate over
-# a tree carrying a real violation.
 base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 mkdir -p "$f/shim"
@@ -315,10 +279,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a malformed BASE manifest is a loud exit, not an exemption -------------
-# A single-pipeline read (`git show | jq ... || true`) collapses a jq parse
-# error into the same empty base_version the new-plugin carve-out keys on, so a
-# manifest malformed at the base ref would silently exempt its plugin.
 base_fixture f
 printf '{"name":"alpha","version":\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
 git -C "$f" add -A
@@ -333,17 +293,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a NUL-corrupted BASE manifest is a loud exit, not a silent version -----
-# The malformed-manifest case above only reaches jq's parser because the
-# corruption survives the read. A raw NUL byte does not: `$(git show ...)`
-# makes Bash drop it (with a warning on stderr, nothing more), so jq receives
-# repaired JSON, parses it clean, and the gate trusts a version no manifest in
-# the base tree actually holds. Reading through a file keeps the stored bytes
-# intact, which is what makes this a parse error rather than a version.
-# The head manifest is left valid and bumped, which is what makes this the
-# fail-open shape rather than a merely wrong diagnostic: a `$(...)` read
-# compares a repaired "1.0.0" against a real "1.0.1", finds a difference, and
-# reports "Every plugin ... bumped" -- exit 0 over a base ref it never read.
 base_fixture f
 printf '{"name":"alpha","version":\0"1.0.0"}\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
 git -C "$f" add -A
@@ -359,9 +308,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a version-less BASE manifest is a loud exit, not an exemption ----------
-# Same collapse, without even a jq diagnostic: `.version // empty` on a valid
-# manifest that lacks the key yields the empty string the carve-out keys on.
 base_fixture f
 printf '{"name":"alpha"}\n' >"$f/plugins/alpha/.claude-plugin/plugin.json"
 git -C "$f" add -A
@@ -376,11 +322,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a failed git show is a loud exit, not an exemption ---------------------
-# Structurally the failed-git-diff defect one layer down: the manifest exists
-# at the base ref (ls-tree still sees it), so a `git show` that fails anyway
-# is a read the gate could not make, not a new plugin. The shim fails only the
-# show subcommand; rev-parse, diff, and ls-tree pass through.
 base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 failing_git_shim "$f" show
@@ -393,11 +334,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a failed sort is a loud exit, not "nothing changed" --------------------
-# A command substitution discards its pipeline's status (pipefail cannot cross
-# a substitution boundary), so a failed sort would drain to an empty list and
-# report "No plugin vendor/ tree changed" over a tree carrying a real violation. The shared resolver stages and checks the
-# sort itself; the gate must surface that failure as exit 2.
 base_fixture f
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"
 mkdir -p "$f/shim"
@@ -412,12 +348,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a non-ASCII vendor path is seen, not silently dropped ------------------
-# Under the default core.quotePath a line-wise read of `git diff --name-only`
-# gets the path C-quoted ("plugins/.../caf\303\251.js", literal quotes
-# included), which matches no plugins/*/vendor/* pattern, so the change would
-# be invisible. The NUL-delimited resolver hands the name
-# over verbatim.
 base_fixture f
 quoted_name='café.js'
 printf 'module.exports = 9;\n' >"$f/plugins/alpha/vendor/pkg/$quoted_name"
@@ -431,9 +361,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a skill-level vendor/ tree needs a bump too ----------------------------
-# plugins/<name>/skills/<skill>/vendor/ installs with the plugin exactly like
-# the plugin-root vendor/, so an unbumped edit never reaches consumers.
 base_fixture f
 mkdir -p "$f/plugins/alpha/skills/lookup/vendor/pkg"
 echo 'module.exports = 1;' >"$f/plugins/alpha/skills/lookup/vendor/pkg/index.js"
@@ -466,10 +393,6 @@ else
 fi
 rm -rf "$f"
 
-# --- a branch behind its base is judged on its own changes ------------------
-# The base moves on with an unbumped vendor edit to alpha after the branch
-# forks. Against the base's tip that edit reads as the branch's; against the
-# merge base it is not in the change set at all.
 base_fixture f
 fork="$(git -C "$f" rev-parse HEAD)"
 echo 'module.exports = 2;' >"$f/plugins/alpha/vendor/pkg/index.js"

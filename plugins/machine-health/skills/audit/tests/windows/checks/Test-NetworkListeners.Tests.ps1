@@ -1,11 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/checks/Test-NetworkListeners.ps1, with Get-ListenerOwner
-mocked. Expected severities follow check-catalog.md section 24: unresolved
-UNKNOWN, loopback INFO, exposed and unsigned or user-writable WARN.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-NetworkListeners' `
@@ -16,7 +10,6 @@ BeforeAll {
         return ConvertFrom-CheckOutput (& $script:ScriptPath -MutedKeys $MutedKeys)
     }
 
-    # Outside every user-writable folder (TestDrive sits under TEMP, which is one).
     $script:SignedPath = Join-Path $env:ProgramFiles 'Vendor\server.exe'
 
     $script:ResolvedSources = @('process', 'process-reported', 'service')
@@ -32,8 +25,6 @@ BeforeAll {
         }
     }
 
-    # Mock bodies run inside the check script, where $script: names the check's
-    # scope, so the fake read lives in one table the mock reaches by closure.
     $script:Fake = @{}
     $fake = $script:Fake
     Set-Item -Path function:Get-FakeOwner -Value ({ $fake['read'] }.GetNewClosure())

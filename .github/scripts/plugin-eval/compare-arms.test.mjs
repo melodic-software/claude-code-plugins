@@ -92,16 +92,45 @@ test("an unchanged main leaves the before patch empty with an empty sum", () => 
   assert.equal(r.values["before-sha256"], "");
 });
 
-test("a change select-plugins refuses, a change to cases only, or no change under the plugin builds nothing", () => {
-  assert.equal(run(fixture({ "plugins/p/skills/s/run.sh": "echo hi\n" })).status, 1);
-  assert.equal(run(fixture({ [CASE]: 'plugins: ["../.."]\nname: c1\ndescription: more\n' })).status, 1);
-  assert.equal(run(fixture({ "plugins/p/tests/x.sh": "echo new\n" })).status, 1);
+test("a change select-plugins refuses or a change to cases only is refused (exit 3) and builds nothing", () => {
+  for (const change of [{ "plugins/p/skills/s/run.sh": "echo hi\n" }, { [CASE]: 'plugins: ["../.."]\nname: c1\ndescription: more\n' }]) {
+    const r = run(fixture(change));
+    assert.equal(r.status, 3, r.stdout);
+    assert.deepEqual(r.values, { refused: "true" }, "a refusal writes only its marker");
+  }
 });
 
-test("a change to plugin text the arms do not carry, such as a reference file, builds nothing", () => {
-  const r = run(fixture({ [SKILL]: "---\nname: s\ndescription: d\n---\nNew rule.\n", "plugins/p/reference/x.md": "cut\n" }));
-  assert.equal(r.status, 1);
-  assert.match(r.stdout, /plugins\/p\/reference\/x\.md/);
+test("no change under the plugin is a wrong target (exit 1), not a refusal", () => {
+  const wrong = run(fixture({ "plugins/p/tests/x.sh": "echo new\n" }));
+  assert.equal(wrong.status, 1);
+  assert.deepEqual(wrong.values, {}, "a wrong target writes no refusal marker");
+});
+
+test("reference/ markdown and README.md beside a skill edit are carried: after has the head's text, before the merge base's", () => {
+  const f = fixture(
+    { [SKILL]: "---\nname: s\ndescription: d\n---\nNew rule.\n", "plugins/p/reference/x.md": "New reference.\n", "plugins/p/README.md": "New readme.\n" },
+    { "plugins/p/reference/x.md": "Main reference.\n" },
+  );
+  const r = run(f);
+  assert.equal(r.status, 0, r.stdout);
+  assert.match(r.patch("after"), /\+New reference\./);
+  assert.match(r.patch("after"), /\+New readme\./);
+  assert.doesNotMatch(r.patch("before"), /\+New reference\.|\+New readme\./);
+  assert.match(r.patch("before"), /reference\/x\.md/, "before restores the merge base's reference text over main's");
+  assert.ok(applies(f.repo, f.main, join(r.out, "after", "edit.patch")));
+  assert.ok(applies(f.repo, f.main, join(r.out, "before", "edit.patch")));
+});
+
+test("a reference/ or README.md change with no suite change is a wrong target; a non-markdown reference file is refused", () => {
+  for (const path of ["plugins/p/reference/x.md", "plugins/p/README.md"]) {
+    const r = run(fixture({ [path]: "cut\n" }));
+    assert.equal(r.status, 1, path);
+    assert.deepEqual(r.values, {}, path);
+  }
+  const script = run(fixture({ [SKILL]: "---\nname: s\ndescription: d\n---\nNew rule.\n", "plugins/p/reference/run.sh": "echo hi\n" }));
+  assert.equal(script.status, 3);
+  assert.deepEqual(script.values, { refused: "true" });
+  assert.match(script.stdout, /plugins\/p\/reference\/run\.sh: not markdown/);
 });
 
 test("a context/ markdown edit is carried: after has the head's text, before the merge base's", () => {
@@ -119,11 +148,13 @@ test("a context/ markdown edit is carried: after has the head's text, before the
 test("a context/ file that is not markdown, plugin.json or probes/ builds nothing", () => {
   const skill = { [SKILL]: "---\nname: s\ndescription: d\n---\nNew rule.\n" };
   const script = run(fixture({ ...skill, "plugins/p/context/lookup.sh": "echo hi\n" }));
-  assert.equal(script.status, 1);
+  assert.equal(script.status, 3);
+  assert.deepEqual(script.values, { refused: "true" });
   assert.match(script.stdout, /select-plugins\.mjs refuses/);
+  assert.match(script.stdout, /plugins\/p\/context\/lookup\.sh: /, "the refusal's reasons still reach the log");
   for (const path of ["plugins/p/.claude-plugin/plugin.json", "plugins/p/probes/p.md"]) {
     const r = run(fixture({ ...skill, [path]: "{}\n" }));
-    assert.equal(r.status, 1, path);
+    assert.equal(r.status, 3, path);
     assert.match(r.stdout, new RegExp(`would not carry ${path.replaceAll(".", "\\.")}`));
   }
 });

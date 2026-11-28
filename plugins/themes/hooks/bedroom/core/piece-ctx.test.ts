@@ -17,7 +17,6 @@ const standIn: Piece = {
   fields: () => ({ sun: 6, weather: 2 }),
   switched: (_, name, isOn, by) => void heard.push([name, isOn, by]),
 }
-/** The stand-in's own hook, as a turn event would call it. */
 async function onTurn($: EngineInterface): Promise<void> {
   await ctxOf($).send('a turn starting', { hurry: true })
 }
@@ -28,7 +27,6 @@ const throwing: Piece = {
   },
 }
 
-/** A hook's `$` with the calls these make: the store, a redraw, the clock and the debug log. */
 function engine(): { $: EngineInterface; log: string[] } {
   const store = new Map<string, unknown>()
   const log: string[] = []

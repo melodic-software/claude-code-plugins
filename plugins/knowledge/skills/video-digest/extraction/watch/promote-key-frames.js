@@ -1,7 +1,3 @@
-/**
- * Promote curated vision-triage frames into the staged `key-frames/` lane.
- */
-
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -80,7 +76,6 @@ export async function promoteKeyFrames(sliceDir, promotions, { copyFile = fs.cop
  */
 export function parsePromotionPair(pair) {
   const pipeSeparator = pair.indexOf("|");
-  // A Windows drive letter's colon (`C:`) is part of the source, not the separator.
   const separator =
     pipeSeparator !== -1 ? pipeSeparator : pair.indexOf(":", /^[A-Za-z]:/.test(pair) ? 2 : 0);
   if (separator === -1) {

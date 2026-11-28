@@ -1,11 +1,3 @@
-// The lane transcript puller: copies each sealed lane-transcript artifact to
-// the sink, opened with the private key, and keeps the sink's retention.
-// README.md has the commands, the layout and the key setup.
-//
-// The private key comes only from LANE_TRANSCRIPT_PRIVATE_KEY, which vault-exec
-// sets; it is read once and removed from the environment before any child
-// process starts. Transcript text reaches only the sink's files: nothing here
-// prints it, and an error names a kind, never a value.
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -60,45 +52,33 @@ export const GH_ATTEMPTS = 5;
 export const GH_LIST_ATTEMPTS = 10;
 export const GH_DELAY_MS = 2000;
 export const GH_MAX_DELAY_MS = 300_000;
-// gh calls one pull may make, every retry counted: a fifth of the login's
-// 5,000 REST requests an hour, so the other lanes on it keep their headroom.
 export const GH_CALL_BUDGET = 1000;
 
-// GitHub answers the repository-wide artifact listing with a 500 for this
-// repository, so the pull lists each artifact name on its own instead. A name
-// is lane-transcript-<job-id>-<run attempt> (upload-lane-transcript), so these
-// are every job-id an upload step passes, by workflow file; a ci-workflows/
-// key is a reusable workflow this repository calls with the transcript key.
 const LEGS = ["", "-subscription", "-fallback"];
 const legs = (job, suffixes = [""]) => LEGS.flatMap((leg) => suffixes.map((suffix) => `${job}${leg}${suffix}`));
 const AUDIT_UNITS = ["a", "c", "d"].flatMap((group) => [1, 2, 3, 4, 5, 6, 7, 8].map((n) => `-${group}${n}`));
-const VERIFY_LEGS = ["", ...Array.from({ length: 11 }, (_, i) => `-${i + 2}`), "-spec"];
-const CHUNKS = ["", "-2", "-3", "-4"];
+const VERIFY_LEGS = ["", ...Array.from({ length: 11 }, (_, i) => `-${i + 2}`), "-chunks", "-spec"];
+const CHUNKS = ["", "-2", "-3", "-4", "-chunks"];
 const REVIEW_CHUNKS = ["claude-review", "claude-security-review"].flatMap((lane) => CHUNKS.map((chunk) => `-${lane}${chunk}`));
 export const TRANSCRIPT_JOB_IDS = {
   "intake-triage.yml": legs("refine-issue"),
   "maintenance-audit-lane-runs.yml": legs("assess-units", AUDIT_UNITS),
   "maintenance-measure-skill-edit.yml": ["generate-edit-key", "generate-edit", "generate-edit-fallback"],
+  "maintenance-scan-architecture-find.yml": legs("find-candidates"),
   "maintenance-tidy-code-upkeep.yml": legs("sweep-areas"),
   "post-merge-test-mutation.yml": [...legs("generate"), ...legs("triage")],
   "pr-review-main.yml": legs("review", REVIEW_CHUNKS),
   "pr-run-activity-read.yml": [
     ...legs("reuse-summary"),
-    ...["fix-docs", "resolve-issue", "resolve-conflicts", "review-dependency"].flatMap((activity) => legs(activity)),
+    ...["fix-docs", "resolve-issue", "resolve-conflicts", "review-dependency", "triage-issue"].flatMap((activity) => legs(activity)),
     ...["address-feedback", "fix-ci"].flatMap((activity) => legs(activity, ["", "-rung-up"])),
   ],
   "pr-unblock.yml": ["0", "1", "2"].flatMap((n) => legs(`adjudicate-feedback-${n}`)),
   "pr-verify.yml": legs("check-intent", VERIFY_LEGS),
   "pr-rate-merge-risk.yml": legs("rate-merge-risk"),
   "upstream-apply-changelog.yml": [...legs("apply-changelog"), ...legs("verify-env-scrub")],
-  // job-id `${{ inputs.lane }}-${{ github.job }}` and chunks -2 to -4.
   "ci-workflows/pr-review-cli.yml": ["code", "security"].flatMap((lane) => ["review-key", "review-subscription", "review-fallback"].flatMap((job) => CHUNKS.map((chunk) => `${lane}-${job}${chunk}`))),
-  // job-id `intake-${{ github.job }}`.
-  // The legs' job ids are triage-subscription and triage-fallback; runs from
-  // before that rename uploaded the two shorter names.
-  "ci-workflows/intake-triage.yml": ["intake-claude", "intake-triage-subscription", "intake-triage-fallback", "intake-subscription", "intake-fallback"],
 };
-// A re-run uploads under its own attempt number; attempts past 3 are not read.
 export const ATTEMPTS = 3;
 export const TRANSCRIPT_NAMES = [...new Set(Object.values(TRANSCRIPT_JOB_IDS).flatMap((ids) => ids.flatMap((id) => Array.from({ length: ATTEMPTS }, (_, i) => `lane-transcript-${id}-${i + 1}`))))];
 
@@ -107,9 +87,9 @@ export const TRANSCRIPT_NAMES = [...new Set(Object.values(TRANSCRIPT_JOB_IDS).fl
  * pull-listing.test.mjs reads the workflows and fails when a caller is missing here.
  */
 export const TRANSCRIPT_CALLERS = {
-  "pr-run-activity-read.yml": ["pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"],
+  "maintenance-scan-architecture-find.yml": ["maintenance-scan-architecture.yml"],
+  "pr-run-activity-read.yml": ["intake-triage.yml", "pr-refine.yml", "pr-unblock.yml", "work-resolve-issue.yml"],
   "ci-workflows/pr-review-cli.yml": ["pr-review-hosted.yml", "pr-review-security-hosted.yml"],
-  "ci-workflows/intake-triage.yml": ["intake-triage.yml"],
 };
 const runWorkflowsOf = (key) => TRANSCRIPT_CALLERS[key] ?? [key];
 /** The workflows whose runs upload transcripts: the pull lists each one's newest runs. */
@@ -136,6 +116,7 @@ export const LANE_WORKFLOWS = [
   "intake-triage.yml",
   "maintenance-audit-lane-runs.yml",
   "maintenance-measure-skill-edit.yml",
+  "maintenance-scan-architecture.yml",
   "maintenance-tidy-code-upkeep.yml",
   "post-merge-test-mutation.yml",
   "pr-rate-merge-risk.yml",
@@ -162,12 +143,8 @@ const USAGE = `usage: pull.mjs <${COMMANDS.join("|")}> [--sink DIR] [--repo OWNE
   query filters: [--lane LANE[/JOB]] [--model TEXT] [--outcome OUTCOME] [--class FAILURE-CLASS] [--trace TRACE-ID] [--since YYYY-MM-DD] [--until YYYY-MM-DD]`;
 
 export class UsageError extends Error {}
-// A failed pull whose message names a kind and a count, never a value.
 export class PullError extends Error {}
-// One artifact's call that still failed: the pull counts it and goes on. Its
-// message is the call's kind, so the failed call's own text goes no further.
 class FetchFailed extends Error {}
-// The pull's gh call budget is spent: it stops fetching and keeps what it has.
 class BudgetSpent extends Error {}
 
 export function parseArgs(argv) {
@@ -184,7 +161,6 @@ export function parseArgs(argv) {
   return { command, flags };
 }
 
-// The one sink value: --sink, else LANE_TRANSCRIPT_SINK, else under XDG_DATA_HOME.
 export function sinkOf(flags, env) {
   const sink = flags.sink ?? env.LANE_TRANSCRIPT_SINK ?? path.join(env.XDG_DATA_HOME || path.join(env.HOME ?? os.homedir(), ".local", "share"), "lane-transcripts");
   if (!path.isAbsolute(sink)) throw new UsageError("the sink must be an absolute directory path");
@@ -198,13 +174,6 @@ function defaultDeps(env) {
   return { gh: run("gh"), unzip: run("unzip"), now: () => Date.now(), sleep: (ms) => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms) };
 }
 
-// GitHub answers these calls with a passing 5xx, on some days for most calls
-// to the artifact listing at any page. A listing page the pull cannot skip
-// gets ten tries, the wait doubling up to 5 min (about 13.5 min in all), so it
-// rides out a bad spell of several minutes. A zip or run read, whose failure
-// the pull already tolerates (fetch_failed), keeps five tries (about 30 s). A
-// rate limit stops the pull at once: every further call while limited spends
-// the user's shared budget. Every attempt counts against the pull's call budget.
 function ghRetried(deps, args, list = false) {
   const attempts = deps.ghAttempts ?? (list ? GH_LIST_ATTEMPTS : GH_ATTEMPTS);
   for (let attempt = 1; ; attempt++) {
@@ -228,16 +197,8 @@ function fetched(kind, call) {
   }
 }
 
-/**
- * A second sealed file the writer may add beside the transcript, such as the
- * leg's telemetry; the pull opens only the telemetry.
- */
 const EXTRA_SEALED = /^[A-Za-z0-9][A-Za-z0-9._-]{0,99}\.sealed$/;
 
-/**
- * The sealed records inside one artifact zip: the sealed transcript, and the
- * telemetry when it is the one other sealed file.
- */
 function sealedRecords(deps, sink, zip) {
   const dir = mkdtempSync(path.join(paths(sink).tmp, "zip-"));
   try {
@@ -351,7 +312,6 @@ function pullWithin({ sink, repo, recipient, deps, log }) {
   return tally;
 }
 
-/** What taking an artifact reads and counts: the rows and outcomes held, the runs read, the tally. */
 function takeContext(sink, recipient, repo, deps, now) {
   return {
     sink,
@@ -449,7 +409,6 @@ function store({ sink, repo, recipient, deps, artifact, named, runs, byTrace, no
   try {
     messages = JSON.parse(gunzipSync(gz, { maxOutputLength: MAX_PLAIN }).toString("utf8"));
   } catch {
-    // An unreadable payload stays null: its row's outcome is `unreadable`.
   }
   if (!runs.has(runId)) runs.set(runId, fetched("run-read", () => json(ghRetried(deps, ["api", `repos/${repo}/actions/runs/${runId}`]))));
   const run = runs.get(runId);
@@ -517,11 +476,6 @@ function openTelemetry(recipient, record, runId, jobId, traceId) {
   }
 }
 
-/**
- * Each completed run of every lane workflow created since the cutoff, newest
- * first per workflow, starting at `at.workflow` (where a budget-stopped pull
- * stopped) and wrapping round.
- */
 function* listedRuns(deps, repo, cutoff, at) {
   const created = encodeURIComponent(`>=${new Date(cutoff).toISOString()}`);
   const start = Math.max(0, LANE_WORKFLOWS.indexOf(at.workflow));
@@ -595,7 +549,6 @@ function copyRunOutcomes({ sink, repo, deps, run, known, tally }) {
   }
 }
 
-/** The outcome rows held, first removing any job that has fewer rows than its `job_records`. */
 function heldOutcomes(sink) {
   const held = readOutcomes(sink);
   const perJob = new Map();
@@ -605,11 +558,6 @@ function heldOutcomes(sink) {
   return whole;
 }
 
-/**
- * Rewrites the metrics rows through `fill`, which sets fields on one row, and
- * each row's trace_id and failure class from the outcomes held. The file is
- * written only when a row changed; returns how many did.
- */
 function refreshRows(sink, fill = () => {}) {
   const rows = readRows(sink);
   const byTrace = outcomesByTrace(readOutcomes(sink));
@@ -750,7 +698,6 @@ const outcomesAlert = (s) =>
 /** A kind, never a value: a failed listing call names its exit status only. */
 const failureKind = (error, listing) => (error instanceof PullError ? error.message : error?.status !== undefined ? `${listing}: gh exited ${error.status}` : error?.name ?? "error");
 
-// Exit codes: 0 done, 1 failed or stale, 2 usage.
 export function main(argv = process.argv.slice(2), env = process.env, deps = undefined, io = { out: (s) => process.stdout.write(s), err: (s) => process.stderr.write(s) }) {
   let parsed;
   let sink;
@@ -762,11 +709,9 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
     return 2;
   }
   const { command, flags } = parsed;
-  // Read the key, then drop it, before anything can start a child process.
   const keyText = env.LANE_TRANSCRIPT_PRIVATE_KEY;
   delete env.LANE_TRANSCRIPT_PRIVATE_KEY;
   const d = deps ?? defaultDeps(env);
-  // Alerts on a stale sink; the exit code is 1 when it is stale.
   const alertIfStale = (s) => {
     if (s.pull_stale) io.err(`${pullAlert(s)}\n`);
     if (s.outcomes_stale) io.err(`${outcomesAlert(s)}\n`);
@@ -824,8 +769,6 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
     }
   }
   try {
-    // A complete pull is fresh; one that missed an artifact or stopped at its
-    // budget is stale once its kept window is.
     pull({ sink, repo: flags.repo ?? REPO, recipient, deps: d, log: (s) => io.out(`${s}\n`) });
     const after = status(sink, d.now());
     alertIfStale(after);
@@ -835,7 +778,6 @@ export function main(argv = process.argv.slice(2), env = process.env, deps = und
     try {
       writeState(sink, { ...readState(sink), last_error: kind });
     } catch {
-      // The sink itself may be the failure.
     }
     io.err(`pull failed: ${kind}\n`);
     alertIfStale(status(sink, d.now()));

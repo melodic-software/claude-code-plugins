@@ -48,7 +48,6 @@ run "$ITEM_ID" --source-link "https://github.com/o/r/actions/runs/2" --note "see
 assert_eq "another link is recorded" "true" "$(jq -r '.recorded' <<<"$OUT")"
 assert_eq "another link adds one marker" "2" "$(grep -cF 'work-item-recurrence' "$ITEM_FILE")"
 
-# A note holding ` -->` must not end the marker early, or the link would not be found again.
 ODD="https://example.com/a?b=-->"
 run "$ITEM_ID" --source-link "$ODD" --note "closes --> early? no"
 assert_eq "a link holding --> is recorded" "true" "$(jq -r '.recorded' <<<"$OUT")"
@@ -57,7 +56,6 @@ run "$ITEM_ID" --source-link "$ODD" --note "again"
 assert_eq "a link holding --> is found again" "false" "$(jq -r '.recorded' <<<"$OUT")"
 assert_eq "a link holding --> is not written twice" "$BEFORE" "$(cat "$ITEM_FILE")"
 
-# The markers stay out of the item's normalized fields.
 GOT="$(WIT_STORAGE_DIR="$STORE" bash "$ADAPTER/get-item.sh" "$ITEM_ID")"
 assert_eq "markers do not count as blockers" "0" "$(jq -r '.blocked_by_count' <<<"$GOT")"
 

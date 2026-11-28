@@ -223,6 +223,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `otel_store_reset_doc` | string | *(none)* | URL or path of your machine provisioning's documented full reset of the OTEL store, which observability names when asked to wipe it. Unset: it names the step without a link. |
 | `otel_collector_config_ref` | string | *(none)* | URL or path of the Collector configuration your machine provisioning installs, which observability names as the pipeline's source. Unset: it describes the configuration without a link. |
 | `otel_dashboards_compose_ref` | string | *(none)* | URL or path of the compose file your machine provisioning declares the Aspire dashboard containers in. Unset: observability describes the stack without a link. |
+| `transcript_sources_file` | file | *(none)* | JSON file of the Claude Code configuration directories this plugin's transcript-mining skills read, here and on hosts reached over ssh. Unset: only this host's, CLAUDE_CONFIG_DIR or ~/.claude. A missing file falls back to that with a warning; a malformed one stops the run. |
 
 ### How to set these
 

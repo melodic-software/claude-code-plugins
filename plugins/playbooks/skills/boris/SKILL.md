@@ -1,11 +1,8 @@
 ---
-description: "Boris Cherny Claude Code workflow tips (howborisusesclaudecode.com). 143 tips across 131 sections on parallel sessions, planning, CLAUDE.md, skills, hooks, permissions, autonomy, orchestration, loops, context engineering, maintenance routines, and effort. Use when: 'how does Boris use Claude Code', 'Claude Code workflow tips', 'optimize my CLAUDE.md', 'improve my Claude Code setup', 'parallel Claude sessions', 'hook ideas', or optimizing Claude Code setup, workflows, CLAUDE.md, skills, hooks, or parallel sessions."
+description: "Knowledge guide to Boris Cherny's 143 Claude Code workflow tips (howborisusesclaudecode.com): parallel sessions, planning, CLAUDE.md, skills, hooks, permissions, autonomy, orchestration, loops, context engineering, maintenance routines, and effort. Use when: 'how does Boris use Claude Code', 'Claude Code workflow tips', 'parallel Claude sessions'."
 user-invocable: true
 disable-model-invocation: false
 metadata:
-  author: Boris Cherny (tips)
-  source: howborisusesclaudecode.com
-  compiled-by: "@CarolinaCherry"
   upstream-version: 8.16.0
   synced: 2026-10-11
   workflow-stage: anytime
@@ -97,14 +94,14 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | Cowork Dispatch | Secure remote control for Claude Desktop |
 | Chrome Extension | Give Claude a browser to verify frontend work |
 | Desktop Web Testing | Built-in browser for web server testing |
-| Fork Sessions | `/branch` or `--resume <id> --fork-session` |
+| Fork Sessions | Boris: `/branch` or `--resume <id> --fork-session`. For the flag, see [CLI flags](https://code.claude.com/docs/en/cli-reference#cli-flags) |
 | --bare | Boris: 10x faster SDK startup for non-interactive usage (Section 57). For what bare mode skips, see [Start faster with bare mode](https://code.claude.com/docs/en/headless#start-faster-with-bare-mode) |
 | --add-dir | Multi-repo access with permissions |
 | --agent | Custom agents from `.claude/agents` |
 | Routines | Scheduled / event-driven Claude Code, runs on Anthropic infra |
 | /rewind | Drop failed attempts from context instead of correcting |
 | /compact vs /clear | Lossy LLM summary vs hand-written brief, know which to use |
-| Auto-compact window | `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000` to dodge context rot (Opus 4.7-era; see §64's amendment, premise does not carry to Opus 5) |
+| Auto-compact window | `CLAUDE_CODE_AUTO_COMPACT_WINDOW=400000` to dodge context rot (Opus 4.7-era; see §64's amendment, premise does not carry to Opus 5). For the accepted values, see [Set the auto-compact window](https://code.claude.com/docs/en/model-config#set-the-auto-compact-window) |
 | Delegation over Guidance | Treat Opus 4.7 like an engineer, not a pair programmer |
 | Full Task Context Upfront | Goal + constraints + acceptance criteria in the first turn |
 | xhigh effort | An effort level above high (tip 67); for per-model defaults, see [model config](https://code.claude.com/docs/en/model-config#adjust-effort-level) |
@@ -116,7 +113,7 @@ Read the reference file matching the user's question. Multi-topic question = rea
 | /go | Verify end-to-end + /simplify + put up a PR |
 | 4.6→4.7 Shifts | Historical (Opus 4.7 against 4.6, Section 74): calibrated length, less auto-tool-use, judicious subagents; for a later model, read its own prompting guide |
 | Task Notifications | Hooks and alerts for autonomous runs |
-| Agent View | `claude agents` from a root code dir, one list of sessions grouped by needs input / working / completed |
+| Agent View | Boris: `claude agents` from a root code dir, one list of sessions grouped by needs input / working / completed. For its flags, see [CLI commands](https://code.claude.com/docs/en/cli-reference#cli-commands) |
 | /goal | Set a completion condition; Claude keeps working until it's met (Ralph loop built into Claude Code) |
 | Opus 4.8 | Honesty shift, catches own bugs instead of declaring victory early |
 | Dynamic Workflows | "use a workflow", orchestrated harness for migrations, refactors, big sweeps; for the phrases that opt in, see [Ask for a workflow in your prompt](https://code.claude.com/docs/en/workflows#ask-for-a-workflow-in-your-prompt) |

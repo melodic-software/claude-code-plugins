@@ -509,7 +509,6 @@ class LoopKeyTests(unittest.TestCase):
     def test_adoption_without_a_merge_key_defaults_to_the_baseline(self) -> None:
         for yaml in (
             "babysit_loop_tier: worker\n",
-            # One of the nine keys outside `LOOP_KEYS` is adoption too.
             "babysit_loop_fixing: worker\n",
             "babysit_loop_trusted_internal_bot_logins:\n  - lane[bot]\n",
         ):

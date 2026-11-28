@@ -3,7 +3,6 @@ import type { EngineInterface, PromptOrigin, Register, SessionRateLimit, Timer }
 import { desktopNotice, type DesktopChange } from './desktop-notice.tsx'
 import { readTiers } from './levels.ts'
 
-// The contract directory under the home directory. make-probe-copy.sh rewrites this one line.
 const CONTRACT_DIR = 'rate-limits'
 const SNAPSHOT_FILE = 'rate-limits.json'
 const HELPER = 'lib/write-snapshot.mjs'
@@ -21,14 +20,12 @@ const DEFAULT_DATA = DATA_ITEMS
 const RANK = { quiet: 0, approach: 1, edge: 2 } as const
 const PERSON_ORIGINS = ['composer', 'bridge']
 const COMMAND = 'rate-limits'
-// Command replies carry no plugin prefix: Claude Code shows each under the plugin's name.
 const USAGE = `Usage: /${COMMAND} [band [on|off]]`
 const README = 'https://github.com/melodic-software/claude-code-plugins/blob/main/plugins/rate-limits/README.md'
 
 type Level = 'quiet' | 'approach' | 'edge'
 type Event = Level | 'reset'
 type Reading = Map<string, SessionRateLimit>
-// An event and the reading that produced it, so a late line states both from one reading.
 type Due = { event: Event; limit: SessionRateLimit | undefined }
 type Identity = { uuid?: string; email?: string }
 type Voided = { cause: 'account' | 'reset'; kinds: string[] }
@@ -44,8 +41,6 @@ type Config = {
   toast: boolean
   switchUrl: string | undefined
 }
-// An operator notice offers held lines and shows on every surface; a crossing notice stands in for
-// the toast where toasts may not draw, so it shows only off the terminal.
 type Notice = { text: string; kind: 'crossing' | 'operator'; changes?: DesktopChange[] }
 type Body = {
   captured_at: string
@@ -60,8 +55,6 @@ type State = {
   limits: readonly SessionRateLimit[]
   pending: Map<string, Due>
   toastQueue: [string, Event][]
-  // Operator mode: the changes the operator notice offers, and whether its row has been drawn.
-  // The row and a shown suggestion are the person's channel, so a change either reached is never toasted.
   heldToasts: [string, Event][]
   rowSeen: boolean
   handoff: Map<string, Due>
@@ -88,8 +81,6 @@ type State = {
   reofferTimer: Timer | undefined
 }
 
-// A bad value reads as the option's default and adds one line to `bad`: the engine refuses the whole
-// module for a value outside a declared range, so the ranges are checked here instead.
 export const parseConfig = (options: Record<string, unknown>): Config => {
   const bad: string[] = []
   const reject = (key: string, kind: string, fallback: string) =>
@@ -131,7 +122,6 @@ export const parseConfig = (options: Record<string, unknown>): Config => {
 
 const resetsMsOf = (limit: SessionRateLimit) => (limit.resetsAt === undefined ? NaN : Date.parse(limit.resetsAt))
 
-// The status line drops a window once its reset time has passed; so does this reading.
 export const liveWindows = (limits: readonly SessionRateLimit[], nowMs: number): Reading => {
   const reading: Reading = new Map()
   for (const { kind } of WINDOWS) {
@@ -188,13 +178,6 @@ const toastBody = (kind: string, event: Event, limit: SessionRateLimit | undefin
 
 const order = (kind: string) => WINDOWS.findIndex(w => w.kind === kind)
 
-// Records crossings since the last check as pending events, one per window, the newest kept.
-// Use only rises within a window, so a dip is reporting noise: a window's level falls, and its
-// lines re-arm, only when the window resets (its reset time passes) or leaves the reading.
-// Returns the events the person is told of: a rise from a known level, or a reset from the edge.
-// A window's first reading is never one, so a fresh load or the reading after a reset stays quiet.
-// A window whose reset time reads earlier than the recorded one is taken as a new window, as after
-// an account change: its latched state is dropped, and a line voids what Claude was told of it.
 export const recordCrossings = (st: State, reading: Reading, cfg: Config, nowMs: number) => {
   const changes: [string, Event][] = []
   const moved: string[] = []
@@ -250,9 +233,6 @@ const windowSig = (limits: readonly SessionRateLimit[]) =>
   JSON.stringify(WINDOWS.map(({ kind }) => limits.find(l => l.kind === kind)).map(l => l && [l.percentUsed, l.resetsAt ?? null]))
 
 const dueEvents = (st: State, cfg: Config): [string, Due][] => {
-  // After /clear or a fresh load mid-session, only a window at the edge is restated; after a
-  // compaction, a resume or a /branch, each window past quiet. A quiet window is never restated.
-  // A restatement states the current reading, and none is made once that reading is below the level.
   const restated = (edgeOnly: boolean): [string, Due][] =>
     [...st.levels].flatMap(([kind, w]): [string, Due][] => {
       const limit = st.reading?.get(kind)
@@ -281,8 +261,6 @@ const voidedLine = (st: State, cfg: Config): { line: string; levels: Level[] } |
   return { line: `rate-limits: ${head} ${tail}`, levels: current.map(([, , level]) => level) }
 }
 
-// Follows any approach or edge line, once per carrier. Facts alone led Claude to stop launching agents
-// and to move work to a smaller model, so the options are stated and lowering quality is not one of them.
 const optionsLine = (cfg: Config) =>
   `rate-limits: options: continue at the same model, effort and review depth; the user can switch accounts${cfg.switchUrl ? ` (${cfg.switchUrl})` : ''}; or schedule work for after the reset. /usage shows what is using the plan (https://code.claude.com/docs/en/costs#track-your-costs). Usage never calls for lowering model, effort or review depth; whether to stop or pause is the user's call, or an opted-in loop lane's floor.`
 
@@ -321,8 +299,6 @@ const sameAccount = (a: Identity, b: Identity) =>
       ? a.email === b.email
       : undefined
 
-// The signed-in account changed: everything latched was the old account's. The reading held now
-// is the old account's too until a different one arrives, so it is kept out of the levels.
 function switchAccount($: EngineInterface, st: State) {
   const told =
     st.voided !== undefined ||
@@ -350,11 +326,8 @@ async function refresh($: EngineInterface, st: State, cfg: Config, limits?: read
     limits ?? $.session.usage().then(u => u.rateLimits),
     currentIdentity($, st).catch(() => undefined),
   ])
-  // A refresh that started before the last one applied holds an older reading and identity.
   if (seq < st.appliedSeq) return
   st.appliedSeq = seq
-  // An unreadable identity is no evidence either way, so the recorded one stands; a field one
-  // read lacks is kept from the last, so a UUID that drops out and returns is still compared.
   if (identity !== undefined) {
     const same = st.account === undefined ? undefined : sameAccount(st.account, identity)
     if (same === false) switchAccount($, st)
@@ -368,7 +341,6 @@ async function refresh($: EngineInterface, st: State, cfg: Config, limits?: read
   st.limits = rateLimits
   st.spend = rateLimits.find(l => l.kind === 'spend_limit')
   if (changed) $.ui.invalidate('ui.render')
-  // No window reported is no reading, never a reset: the levels wait for the next reading.
   if (hasWindows && st.staleSig === undefined) st.toastQueue.push(...recordCrossings(st, reading, cfg, now))
 }
 
@@ -386,7 +358,6 @@ async function takeLines($: EngineInterface, st: State, cfg: Config): Promise<st
   }
   if (await operatorHolds($, st, cfg)) return []
   const lines = dueLines(st, cfg)
-  // A restatement with no reading to restate waits for the first carrier that has one.
   if ((st.restate || st.restateIfLoud) && (st.reading?.size ?? 0) === 0) return []
   consume(st)
   if (lines.length > 0 && st.notice?.kind === 'operator') {
@@ -401,11 +372,6 @@ function releaseHeld(st: State, seen: boolean) {
   st.heldToasts = []
 }
 
-// Tells the person of each queued window change: a transcript line always, a toast when the option
-// allows. Run after a carrier's lines are built and never throws, so a failing toast drops no line.
-// While operator mode holds the lines the queue waits: a shown suggestion or the person's next
-// prompt drops it, and a suggestion that cannot show leaves it for the carrier that sends the line.
-// `held` is the carrier's answer from before its lines were taken, which may end a forced turn.
 async function flushToasts($: EngineInterface, st: State, cfg: Config, held?: boolean) {
   try {
     if (st.toastQueue.length === 0) return
@@ -434,9 +400,6 @@ async function flushToasts($: EngineInterface, st: State, cfg: Config, held?: bo
 const noticeShows = (st: State, surface: string) =>
   st.notice !== undefined && (st.notice.kind === 'operator' || surface !== 'terminal')
 
-// The module's band row: rate-limits: 5h <x>% | 7d <y>%, led by the plugin's name so the row says whose it is.
-// Before a reading every window shows -; after one, only the windows reported, since an account
-// with no 5-hour limit never reports that window.
 export const bandText = (reading: Reading | undefined) =>
   `rate-limits: ${WINDOWS.filter(({ kind }) => !reading?.size || reading.has(kind))
     .map(({ kind, short }) => {
@@ -482,8 +445,6 @@ const homeDir = async ($: EngineInterface) => (await $.env.get('HOME')) || (awai
 
 const isIdShaped = (value: unknown): value is string => typeof value === 'string' && /^[A-Za-z0-9-]{1,128}$/.test(value)
 
-// The account in the state file, undefined when unreadable; a field is left out when missing or
-// malformed. The file is large and rewritten often, so a parse is kept until its mtime or size changes.
 async function readIdentity($: EngineInterface, st: State, home: string): Promise<Identity | undefined> {
   const path = `${(await $.env.get('CLAUDE_CONFIG_DIR')) || home}/.claude.json`
   const stat = await $.fs.stat(path).catch(() => undefined)
@@ -546,7 +507,6 @@ const reportOptions = ($: EngineInterface, st: State, cfg: Config) => {
   for (const line of cfg.bad) logOnce($, st, line, line, 'transcript')
 }
 
-// Decides in memory whether to write, so an event that writes nothing starts no process.
 async function writeSnapshot($: EngineInterface, st: State, cfg: Config, trigger: 'event' | 'timer') {
   if (!cfg.writes || st.origin?.kind === 'task-notification' || st.reading === undefined) return
   const home = await homeDir($)
@@ -563,14 +523,12 @@ async function writeSnapshot($: EngineInterface, st: State, cfg: Config, trigger
   if (trigger === 'timer' && onDisk !== undefined && onDisk.session_id !== sessionId && !(diskAt < (st.lastResponseAtMs ?? 0))) {
     return
   }
-  // After a branch the file takes the new session id at once: the id is part of what a reader trusts.
   const moved =
     onDisk === undefined || wholePoints(onDisk) !== wholePoints(body) || (st.branched && onDisk.session_id !== sessionId)
   if (!moved && Number.isFinite(diskAt) && now - diskAt < FLOOR_MS) return
   const sig = JSON.stringify({ ...body, captured_at: undefined })
   if (st.lastAttempt !== undefined && st.lastAttempt.sig === sig && now - st.lastAttempt.at < FLOOR_MS) return
   const argv = ['node', `${$.plugin.root}/${HELPER}`, target, '--preserve-key', 'rate_limits', ...(moved ? [] : ['--floor', '300'])]
-  // Only a write the helper decided (written, or skipped by rule) dedupes; a failed one is tried at the next carrier.
   try {
     const run = await $.process.run(argv, { stdin: JSON.stringify(body), timeoutMs: 10_000 })
     if (run.exitCode === 0 || run.exitCode === 3) {
@@ -606,10 +564,6 @@ async function statusJson($: EngineInterface, st: State, cfg: Config) {
   })
 }
 
-// Operator mode: offer the line as the prompt box's suggestion; with text in the box, show the
-// notice row and offer again once the box is empty; where it cannot show, the line goes to Claude.
-// A first offer that cannot show leaves the changes to be toasted with the automatic line; a
-// re-offer comes after the row was up, so the person has seen them unless a survey hid the row.
 async function offer($: EngineInterface, st: State, cfg: Config, first = false) {
   if (st.notice?.kind !== 'operator') return true
   const { text } = st.notice
@@ -690,8 +644,6 @@ export const register: Register = (on, options) => {
       logOnce($, st, 'tool-register', `the status pull tool could not register: ${reason}`)
     }
     await refresh($, st, cfg)
-    // A fresh load mid-session (a reload, a worker respawn, an enable, a --resume launch): the
-    // earlier lines already reached Claude, so only a window at the edge is restated.
     if ((await $.session.turns()) > 0) {
       st.pending.clear()
       st.restateIfLoud = true
@@ -736,7 +688,6 @@ export const register: Register = (on, options) => {
     reportOptions($, st, cfg)
     if (e.turnId === undefined) {
       st.origin = e.origin
-      // An untaken suggestion goes to Claude at the next turn no person started; a person's turn drops it.
       const handingOff = !isPersonTurn(st) && (st.handoff.size > 0 || st.handoffVoided !== undefined)
       if (handingOff) {
         for (const [kind, due] of st.handoff) {

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { withRetry } from "../../scripts/pr-merge/enable-auto-merge.mjs";
 import { readOutputs } from "../check-kill-switch/fixtures/read-outputs.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../log-api-budget/rate-guard.mjs";
-import { commitPulls as readCommitPulls, createGitHub, GitHubError } from "../../scripts/lib/github-client.mjs";
+import { commitPulls as readCommitPulls, createGitHub, GitHubError, readStore } from "../../scripts/lib/github-client.mjs";
 import { appCloseKind, isTrustedClose } from "./close-trust.mjs";
 import { loadTrustedActors, loadTrustedList, main, reconcilerRecordVouches } from "./check-trusted-trigger.mjs";
 import { main as recordMain } from "./reconciler-record.mjs";
@@ -120,6 +120,8 @@ async function gate({
   sleep = fakeSleep(),
   attemptTimeoutMs,
   faultReason,
+  botSenderIds,
+  issueAuthor,
 }) {
   const outputPath = writeJson("output", "");
   const ownRoute = `GET /repos/${REPOSITORY}/actions/runs/${runId}`;
@@ -168,6 +170,8 @@ async function gate({
       ...(ciStatusRerunWorkflow === undefined ? {} : { CI_STATUS_RERUN_WORKFLOW: ciStatusRerunWorkflow }),
       ...(runAttempt === undefined ? {} : { GITHUB_RUN_ATTEMPT: runAttempt }),
       ...(faultReason === undefined ? {} : { FAULT_REASON: faultReason }),
+      ...(botSenderIds === undefined ? {} : { BOT_SENDER_IDS: botSenderIds }),
+      ...(issueAuthor === undefined ? {} : { ISSUE_AUTHOR: issueAuthor }),
     },
     github: withOwnRun,
     sleep,
@@ -338,7 +342,7 @@ test("workflow_dispatch: an unlisted dispatcher stops with untrusted-actor", asy
   );
 });
 
-const commitPulls = `GET /repos/${REPOSITORY}/commits/${HEAD_SHA}/pulls`;
+const commitPulls = `GET /repos/${REPOSITORY}/commits/${HEAD_SHA}/pulls?per_page=100&page=1`;
 
 test("workflow_run: empty pull_requests still resolves a same-repo PR by fetching", async () => {
   const github = fakeGitHub({ [commitPulls]: [fixture("api-pull-42.json")] });
@@ -491,11 +495,6 @@ test("workflow_run: a PR on a non-default base stops with untrusted-base", async
   const github = fakeGitHub({ [commitPulls]: [pull] });
   assert.deepEqual(await gate({ eventName: "workflow_run", event, github }), STOPPED("untrusted-base"));
 });
-
-// A layer of a native stack: its base is the layer below, and GitHub names the
-// stack's own base in pull_request.stack. The layer is trusted only when that
-// stack base is the default branch, and its base-sha is the stack base's SHA
-// (a default-branch commit), never the lower layer's unmerged head.
 
 const STACK_BASE_SHA = "3333333333333333333333333333333333333333";
 const asLayer = (pull, stackBase = "main") => {
@@ -755,8 +754,6 @@ test("dispatcher: a dispatcher run a listed human dispatched proceeds", async ()
   assert.deepEqual(await dispatched({ github }), PROCEED);
 });
 
-// A scheduled run's actor is whoever last edited the cron, so, as for push, it
-// is not checked.
 test("dispatcher: a scheduled dispatcher run on the default branch proceeds", async () => {
   const github = fakeGitHub(
     dispatcherRoutes({
@@ -1508,7 +1505,52 @@ for (const eventName of ["pull_request", "workflow_run", "schedule"]) {
   });
 }
 
-// An issues event: the sender is the account that applied the label.
+const intake = (rest) => actorOnly({ requireKind: "human", botSenderIds: "41898282,337595936", issueAuthor: "true", ...rest });
+const opened = (sender, author = sender, action = "opened") => ({ action, sender, issue: { number: 7, user: author }, repository: { full_name: REPOSITORY } });
+
+test("intake: an issue a listed human opened proceeds", async () => {
+  assert.deepEqual((await intake({ eventName: "issues", event: opened(KYLE) })).outputs, ACTORS_OK);
+});
+
+test("intake: an issue the lanes App opened proceeds as a named bot sender", async () => {
+  const app = { login: "melodic-automation-lanes[bot]", id: 337595936, type: "Bot" };
+  assert.deepEqual((await intake({ eventName: "issues", event: opened(app), triggeringActor: app.login, rerunner: app })).outputs, ACTORS_OK);
+});
+
+test("intake: a dispatch from github-actions[bot] proceeds as a named bot sender, and only a listed human re-runs it", async () => {
+  const event = { sender: ACTIONS_BOT, repository: { full_name: REPOSITORY } };
+  const bot = { triggeringActor: "github-actions[bot]", rerunner: ACTIONS_BOT };
+  assert.deepEqual((await intake({ event, ...bot })).outputs, ACTORS_OK);
+  assert.deepEqual((await intake({ event, ...bot, runAttempt: "2" })).outputs, STOPPED("untrusted-rerunner"));
+  assert.deepEqual((await intake({ event, runAttempt: "2" })).outputs, ACTORS_OK);
+});
+
+test("intake: a listed bot that is not a named bot sender stops", async () => {
+  const dependabot = { login: "dependabot[bot]", id: 49699333, type: "Bot" };
+  assert.deepEqual((await intake({ event: { sender: dependabot, repository: { full_name: REPOSITORY } } })).outputs, STOPPED("untrusted-actor"));
+  assert.deepEqual((await intake({ eventName: "issues", event: opened(dependabot) })).outputs, STOPPED("untrusted-actor"));
+});
+
+test("intake: a user whose id matches a bot sender id is not admitted as that bot", async () => {
+  const lookalike = { login: "lookalike", id: 41898282, type: "User" };
+  assert.deepEqual((await intake({ event: { sender: lookalike, repository: { full_name: REPOSITORY } } })).outputs, STOPPED("untrusted-actor"));
+});
+
+test("intake: an issue opened by someone else, or reopened or edited, stops", async () => {
+  assert.deepEqual((await intake({ eventName: "issues", event: opened(KYLE, STRANGER) })).outputs, STOPPED("untrusted-actor"));
+  for (const action of ["reopened", "edited", "labeled"]) {
+    assert.deepEqual((await intake({ eventName: "issues", event: opened(KYLE, KYLE, action) })).outputs, STOPPED("untrusted-actor"), action);
+  }
+});
+
+test("intake: an issue an unlisted person opened stops", async () => {
+  assert.deepEqual((await intake({ eventName: "issues", event: opened(STRANGER) })).outputs, STOPPED("untrusted-actor"));
+});
+
+test("intake: a malformed bot sender list stops with list-unreadable", async () => {
+  assert.deepEqual((await intake({ botSenderIds: "41898282,abc" })).outputs, STOPPED("list-unreadable"));
+});
+
 test("actor-only: an issues label from a listed human proceeds without a PR", async () => {
   const { outputs, calls } = await actorOnly({ eventName: "issues", requireKind: "human" });
   assert.deepEqual(outputs, ACTORS_OK);
@@ -2035,10 +2077,114 @@ test("createGitHub opted into keepGraphQLErrors returns the answer with its erro
   assert.deepEqual(await github("POST", "/graphql", { query: "{}" }), answer);
 });
 
-// A GET that GitHub answers 5xx, or that never gets an answer, is sent at most
-// 3 times, after a full-jitter wait (a random share of 2 s, then of 4 s), and
-// no client waits more than 60 s in all (runs 39786710017 and 39788855311 each
-// failed a lane on one 500 from GET /commits/{sha}/pulls).
+function conditional(answers) {
+  const sent = [];
+  const fetchImpl = async (url, init) => {
+    const ifNoneMatch = init.headers["If-None-Match"];
+    sent.push(`${init.method} ${url.slice("https://api.example".length)} ${init.headers.Authorization} ${ifNoneMatch ?? "-"}`);
+    const { etag = null, body = "{}", status = 200, headers = {} } = answers.shift();
+    const all = { ...headers, ...(etag === null ? {} : { etag }) };
+    return status === 304 || (etag !== null && ifNoneMatch === etag)
+      ? new Response(null, { status: 304, headers: all })
+      : new Response(body, { status, headers: { "content-type": "application/json", ...all } });
+  };
+  const latch = { guard: (f) => f, waitOut: async () => {}, waits: () => false };
+  const options = { token: "t", apiUrl: "https://api.example", fetchImpl, latch, sleep: async () => {}, random: () => 0, log: () => {} };
+  return { sent, options };
+}
+const RUN_PATH = "/repos/o/r/actions/runs/7";
+
+test("createGitHub sends a repeated GET with the kept ETag, and a 304 returns the kept body with the 304's rate-limit headers", async () => {
+  const gh = conditional([
+    { etag: '"e1"', body: '{"id":7}', headers: { "x-ratelimit-remaining": "10" } },
+    { etag: '"e1"', headers: { "x-ratelimit-remaining": "9" } },
+  ]);
+  const seen = [];
+  const github = createGitHub({ ...gh.options, onResponse: (response) => seen.push(response.headers.get("x-ratelimit-remaining")) });
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 7 });
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 7 });
+  assert.deepEqual(gh.sent, [`GET ${RUN_PATH} Bearer t -`, `GET ${RUN_PATH} Bearer t "e1"`]);
+  assert.deepEqual(seen, ["10", "9"]);
+});
+
+test("createGitHub returns a changed answer to a conditional GET and keeps it for the next one", async () => {
+  const gh = conditional([{ etag: '"e1"', body: '{"id":1}' }, { etag: '"e2"', body: '{"id":2}' }, { etag: '"e2"' }]);
+  const github = createGitHub(gh.options);
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 1 });
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 2 });
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 2 });
+  assert.deepEqual(gh.sent.map((line) => line.split(" ").at(-1)), ["-", '"e1"', '"e2"']);
+});
+
+test("createGitHub fails closed: a 304 with no kept answer throws, as does any error to a conditional GET", async () => {
+  const noEtag = conditional([{ body: '{"id":7}' }, { status: 304 }]);
+  const github = createGitHub(noEtag.options);
+  await github("GET", RUN_PATH);
+  await assert.rejects(github("GET", RUN_PATH), (error) => error instanceof GitHubError && error.status === 304);
+  assert.equal(noEtag.sent[1].split(" ").at(-1), "-");
+  for (const status of [404, 403, 500]) {
+    const gh = conditional([{ etag: '"e1"', body: '{"id":7}' }, { status }, { status }, { status }]);
+    const client = createGitHub(gh.options);
+    await client("GET", RUN_PATH);
+    await assert.rejects(client("GET", RUN_PATH), (error) => error instanceof GitHubError && error.status === status, String(status));
+  }
+});
+
+test("createGitHub keeps no body it could not parse, so the next read is unconditional", async () => {
+  const broken = { etag: '"e1"', body: '{"id":' };
+  const gh = conditional([broken, broken, broken, { etag: '"e1"', body: '{"id":7}' }]);
+  const github = createGitHub(gh.options);
+  await assert.rejects(github("GET", RUN_PATH), SyntaxError);
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 7 });
+  assert.equal(gh.sent[3].split(" ").at(-1), "-");
+});
+
+test("createGitHub passes a GET with its own If-None-Match through, and never sends a POST conditionally", async () => {
+  const gh = conditional([{ etag: '"e1"', body: "[]" }, { status: 304 }, { body: '{"data":{}}' }, { body: '{"data":{}}' }]);
+  const github = createGitHub(gh.options);
+  await github("GET", RUN_PATH);
+  await assert.rejects(github("GET", RUN_PATH, undefined, { "If-None-Match": '"x"' }), (error) => error.status === 304);
+  await github("POST", "/graphql", { query: "{}" });
+  await github("POST", "/graphql", { query: "{}" });
+  assert.deepEqual(gh.sent.slice(1).map((line) => line.split(" ").at(-1)), ['"x"', "-", "-"]);
+});
+
+test("a GITHUB_READ_STORE directory carries kept answers to a later client on the same token only", async () => {
+  const dir = path.join(tempDir("read-store-"), "reads");
+  const first = conditional([{ etag: '"e1"', body: '{"id":7}' }]);
+  await createGitHub({ ...first.options, store: readStore(dir) })("GET", RUN_PATH);
+  const later = conditional([{ etag: '"e1"' }]);
+  assert.deepEqual(await createGitHub({ ...later.options, store: readStore(dir) })("GET", RUN_PATH), { id: 7 });
+  assert.deepEqual(later.sent, [`GET ${RUN_PATH} Bearer t "e1"`]);
+  const other = conditional([{ etag: '"e1"', body: '{"id":8}' }]);
+  assert.deepEqual(await createGitHub({ ...other.options, token: "u", store: readStore(dir) })("GET", RUN_PATH), { id: 8 });
+  assert.deepEqual(other.sent, [`GET ${RUN_PATH} Bearer u -`]);
+});
+
+test("createGitHub keeps a JSON read and a diff read of one URL apart, and returns the diff as text", async () => {
+  const gh = conditional([{ etag: '"e1"', body: '{"id":7}' }, { etag: '"e2"', body: "diff --git a/x b/x\n", headers: { "content-type": "application/vnd.github.diff; charset=utf-8" } }, { status: 304 }, { status: 304 }]);
+  const github = createGitHub(gh.options);
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 7 });
+  assert.equal(await github("GET", RUN_PATH, undefined, { Accept: "application/vnd.github.diff" }), "diff --git a/x b/x\n");
+  assert.equal(gh.sent[1].split(" ").at(-1), "-", "the diff read is not sent with the JSON read's ETag");
+  assert.deepEqual(await github("GET", RUN_PATH), { id: 7 });
+  assert.equal(await github("GET", RUN_PATH, undefined, { Accept: "application/vnd.github.diff" }), "diff --git a/x b/x\n");
+  assert.deepEqual(gh.sent.slice(2).map((line) => line.split(" ").at(-1)), ['"e1"', '"e2"']);
+});
+
+test("a GITHUB_READ_STORE file that cannot be read, or names another URL, counts as absent", async () => {
+  for (const spoil of [() => "{not json", (text) => text.replace("/runs/7", "/runs/8")]) {
+    const dir = tempDir("read-store-");
+    const first = conditional([{ etag: '"e1"', body: '{"id":7}' }]);
+    await createGitHub({ ...first.options, store: readStore(dir) })("GET", RUN_PATH);
+    const [file] = readdirSync(dir).map((name) => path.join(dir, name));
+    writeFileSync(file, spoil(readFileSync(file, "utf8")));
+    const later = conditional([{ etag: '"e1"', body: '{"id":7}' }]);
+    await createGitHub({ ...later.options, store: readStore(dir) })("GET", RUN_PATH);
+    assert.deepEqual(later.sent, [`GET ${RUN_PATH} Bearer t -`]);
+  }
+});
+
 function flaky(answers) {
   const sent = [];
   const slept = [];
@@ -2072,8 +2218,6 @@ test("createGitHub's resend waits are full jitter: none when random is 0, the wh
   }
 });
 
-// GitHub Support's probe on 2026-10-22: GET /commits/{sha}/pulls
-// answered 200 with an empty body ("unexpected end of JSON input").
 test("createGitHub sends a GET answered 200 with an empty body again", async () => {
   const gh = flaky([{ status: 200, body: "" }, { status: 200, body: '[{"number":7}]' }]);
   const github = createGitHub({ ...gh.options, random: () => 0.5 });
@@ -2114,9 +2258,6 @@ test("createGitHub sends a 404, a 403 and a POST answered 500 once", async () =>
   assert.deepEqual(gh.slept, []);
 });
 
-// Runs 41814429466 and 41814435576: issue-field-values and blocked-by POSTs
-// answered 500 and 502 in a GitHub incident. A write marked resendOnce is sent
-// again once, 3 s later, on a 5xx or a dropped socket, and never on a 4xx.
 const FIELDS_PATH = "/repos/o/r/issues/7/issue-field-values";
 test("createGitHub sends a resendOnce write answered 500 again once and returns the next answer", async () => {
   const gh = flaky([{ status: 500 }, { status: 200, body: '[{"issue_field_id":1}]' }]);
@@ -2204,8 +2345,6 @@ test("createGitHub waits at most 60 s on 5xx answers across all its calls", asyn
   assert.equal(gh.sent.length, 10 * 3 + 1);
 });
 
-// A connection that never answers: undici would wait its own header timeout
-// per attempt, past a 3-minute gate step (pr-merge.yml's report-gate-checks).
 const hung = (sent) => async (url, init) => {
   sent.push(url);
   return new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason)));
@@ -2537,11 +2676,6 @@ test("commitPulls never logs the REST error's message when it falls back to Grap
   assert.ok(!lines[0].includes(FAKE_TOKEN));
 });
 
-// A dispatcher started by workflow_run when a review lane finished on the PR
-// (pr-dispatch-feedback.yml). Its run record reports the default branch and its
-// tip, as pr-merge.yml's workflow_run runs did (run 38779143370 after review run
-// 38779135732 on release/plugins).
-
 const RUN_DISPATCHER_WORKFLOW = ".github/workflows/pr-dispatch-feedback.yml";
 const REVIEW_WORKFLOW = ".github/workflows/pr-review-hosted.yml";
 const SECURITY_WORKFLOW = ".github/workflows/pr-review-security-hosted.yml";
@@ -2745,8 +2879,6 @@ test("workflow_run dispatcher: a review a listed human started proceeds", async 
   assert.deepEqual(await runDispatched({ github }), PROCEED);
 });
 
-// A listed human's review comment, relayed by pr-review-comment-relay.yml
-// (ADR 0088): the gate accepts that upstream by path, event and actor id.
 const RELAY_WORKFLOW = ".github/workflows/pr-review-comment-relay.yml";
 const RELAY = {
   path: RELAY_WORKFLOW,
@@ -2848,9 +2980,6 @@ test("workflow_run dispatcher: a relay re-run by github-actions[bot] stays refus
   assert.ok(!github.calls.includes(upstreamRecordRouteAt(2)));
 });
 
-// A pull_request_target run of the push dispatcher's workflow (ADR 0090): its
-// head_branch and head_sha are the PR's (run 42286186105), so the PR entry and
-// the record's commit stand in for the default-branch checks.
 const REFINE_WORKFLOW = ".github/workflows/pr-refine.yml";
 const PR_HEAD_COMPARE = `GET /repos/${REPOSITORY}/compare/${HEAD_SHA}...${TIP_SHA}`;
 const prEntry = (overrides = {}) => ({
@@ -2994,8 +3123,6 @@ for (const [label, routes, options] of [
 
 const GATED_SHA = "9".repeat(40);
 const afterRoute = `GET /repos/${REPOSITORY}/compare/${GATED_SHA}...${HEAD_SHA}`;
-// The shape of the lanes App's commits on #7493 and #7520: author the App,
-// committer web-flow, signature valid.
 const WEB_FLOW = { login: "web-flow", id: 19864447, type: "User" };
 const laneCommit = (overrides = {}) => ({
   sha: "8".repeat(40),
@@ -3057,9 +3184,6 @@ test("pushed commit: refused when it is not a SHA or rides without an expected u
   assert.deepEqual(await runDispatched({ github: fakeGitHub(runDispatcherRoutes()), pushedCommit: HEAD_SHA }), STOPPED("untrusted-actor"));
 });
 
-// GET /pulls lags a push by minutes (run 39615724332 on #8870 gated the head
-// the model job had already moved past), so the gate re-reads it until it
-// agrees with the branch ref.
 const pullAt = (sha) => {
   const pull = fixture("api-pull-42.json");
   pull.head.sha = sha;
@@ -3179,10 +3303,6 @@ test("workflow_run dispatcher: a listed human's own dispatch is unchanged", asyn
   );
   assert.deepEqual(github.calls, [pullRoute, HEAD_REF_ROUTE, selfRoute]);
 });
-
-// The re-runner is read by id from this run's own record
-// (GET /actions/runs/{run_id}), never by login: a released login another
-// account registers stays untrusted.
 
 const prPaths = {
   pull_request: () => ({ eventName: "pull_request", event: fixture("event-pull-request.json") }),
@@ -3667,6 +3787,7 @@ const isLanesApp = (actor) => actor?.id === LANES_APP.id;
 const MERGE_SHA = "3333333333333333333333333333333333333333";
 const closeComment = (stop, words, user = LANES_APP) => ({
   user,
+  created_at: "2026-10-22T00:00:00Z",
   body: [
     "<!-- work-resolve-issue outcome=closed run=555 -->",
     `The work-resolve-issue lane stopped on this issue (\`${stop}\`): the run found the issue's work already on the default branch.`,
@@ -3678,6 +3799,7 @@ const closeComment = (stop, words, user = LANES_APP) => ({
   ].join("\n"),
 });
 const APP_CLOSED = { number: 77, state: "closed", closed_by: LANES_APP };
+const BLOCKER = { blocker: true };
 const appCloseRoutes = ({ comments = [closeComment("already-done", "already-done: ＃5 shipped it")], message = "fix: tidy (#5)\n\nCloses #77", merged = true, events = [] } = {}) => ({
   "POST /graphql": { data: { repository: { issue: { timelineItems: { nodes: [{ closer: null }] } } } } },
   "GET /repos/o/r/issues/77/comments?per_page=100&page=1": comments,
@@ -3702,33 +3824,16 @@ test("isTrustedClose: the lanes App's already-done close counts when its merged 
   assert.equal(await isTrustedClose(routeClient(appCloseRoutes()), "o/r", APP_CLOSED, new Set(), isLanesApp), true);
 });
 
-// Security review on #10978: a person who reopens an issue after the cited
-// merge says the work is not done, so the App's later close on that same
-// merge counts for nothing; a reopen before the merge changes nothing.
-test("isTrustedClose: the lanes App's already-done close counts for nothing when the issue was reopened after the cited merge", async () => {
-  const reopened = (at) => [{ event: "reopened", created_at: at }];
-  const close = (routes, failOn) => isTrustedClose(routeClient(routes, failOn), "o/r", APP_CLOSED, new Set(), isLanesApp);
-  assert.equal(await close(appCloseRoutes({ events: reopened("2026-10-25T00:00:00Z") })), false);
-  assert.equal(await close(appCloseRoutes({ events: reopened("2026-10-10T00:00:00Z") })), true);
-  assert.equal(await close(appCloseRoutes(), "GET /repos/o/r/issues/77/events?per_page=100&page=1"), false, "an unreadable event list");
-});
-
-test("isTrustedClose: the lanes App's already-done close counts for nothing once its evidence no longer verifies", async () => {
+test("isTrustedClose: the lanes App's already-done close with its outcome comment counts for nothing once its evidence no longer verifies", async () => {
   const humans = new Set();
   assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ message: "fix: tidy (#5)" })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the merge commit closes nothing");
   assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ merged: false })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the pull request is not merged");
-  assert.equal(await isTrustedClose(routeClient(appCloseRoutes()), "o/r", APP_CLOSED, humans), false, "a caller that names no App");
-  const forged = [closeComment("already-done", "already-done: ＃5 shipped it", STRANGER)];
-  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments: forged })), "o/r", APP_CLOSED, humans, isLanesApp), false, "a close comment the App did not write");
-  const reopened = [closeComment("already-done", "already-done: ＃5 shipped it"), closeComment("report-delivered", "report-delivered: ＃5 shipped it")];
-  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments: reopened })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the last close is a report");
+  const reported = [closeComment("already-done", "already-done: ＃5 shipped it"), closeComment("report-delivered", "report-delivered: ＃5 shipped it")];
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments: reported, message: "fix: tidy (#5)" })), "o/r", APP_CLOSED, humans, isLanesApp), false, "the last close is a report");
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments: reported, message: "fix: tidy (#5)" })), "o/r", APP_CLOSED, humans, isLanesApp, BLOCKER), true, "the last close is a report, read as a blocker");
 });
 
-// #12456 class A: the App's verified-done close of a finished parent counts
-// when every sub-issue, read fresh, is closed as completed by a close this
-// function trusts (here a listed human's); a not_planned or untrusted one, or
-// no sub-issue, leaves it untrusted.
-test("isTrustedClose: the lanes App's verified-done close counts only while every sub-issue's close holds", async () => {
+test("isTrustedClose: the lanes App's verified-done close with its outcome comment counts only while every sub-issue's close holds", async () => {
   const OWNER_ID = 101;
   const humans = new Set([OWNER_ID]);
   const child = (number, extra = {}) => ({ number, state: "closed", state_reason: "completed", closed_by: { id: OWNER_ID }, repository_url: "https://api.github.com/repos/o/r", ...extra });
@@ -3745,14 +3850,56 @@ test("isTrustedClose: the lanes App's verified-done close counts only while ever
   assert.equal(await isTrustedClose(verified([child(80), child(81, { repository_url: "https://api.github.com/repos/o/other" })]), "o/r", APP_CLOSED, humans, isLanesApp), false, "a sub-issue in another repository");
 });
 
-test("isTrustedClose: the lanes App's report-delivered close counts for nothing", async () => {
+test("isTrustedClose: a verified-done parent counts for nothing on a sub-issue the lanes App closed report-delivered, even read as a blocker", async () => {
+  const report = [closeComment("report-delivered", "report-delivered: the report")];
+  const child = { number: 80, state: "closed", state_reason: "completed", closed_by: LANES_APP, repository_url: "https://api.github.com/repos/o/r" };
+  const github = routeClient({
+    ...appCloseRoutes({ comments: [closeComment("verified-done", "verified-done: each done-when item checks out")] }),
+    "GET /repos/o/r/issues/77/sub_issues?per_page=100&page=1": [child],
+    "GET /repos/o/r/issues/80": child,
+    "GET /repos/o/r/issues/80/comments?per_page=100&page=1": report,
+    "GET /repos/o/r/issues/80/events?per_page=100&page=1": [],
+  });
+  assert.equal(await isTrustedClose(github, "o/r", APP_CLOSED, new Set(), isLanesApp, BLOCKER), false);
+  assert.equal(await isTrustedClose(github, "o/r", child, new Set(), isLanesApp, BLOCKER), true, "the same sub-issue read as a blocker");
+});
+
+test("isTrustedClose: the lanes App's report-delivered close counts on its outcome comment alone, for a blocker only", async () => {
   const comments = [closeComment("report-delivered", "report-delivered: ＃5 shipped it")];
-  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments })), "o/r", APP_CLOSED, new Set(), isLanesApp), false);
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments, message: "fix: tidy (#5)" })), "o/r", APP_CLOSED, new Set(), isLanesApp, BLOCKER), true);
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes({ comments, message: "fix: tidy (#5)" })), "o/r", APP_CLOSED, new Set(), isLanesApp), false, "a sub-issue or parent rule");
+});
+
+test("isTrustedClose: a listed human's close counts with no comment read", async () => {
+  const humans = new Set([KYLE.id]);
+  assert.equal(await isTrustedClose(routeClient({}), "o/r", { ...APP_CLOSED, closed_by: KYLE }, humans, isLanesApp), true);
+});
+
+test("isTrustedClose: the lanes App's outcome comment counts for nothing from before the issue's last reopen", async () => {
+  const reopened = (at) => [{ event: "reopened", created_at: at }];
+  const close = (routes, failOn) => isTrustedClose(routeClient(routes, failOn), "o/r", APP_CLOSED, new Set(), isLanesApp, BLOCKER);
+  const report = [closeComment("report-delivered", "the report")];
+  assert.equal(await close(appCloseRoutes({ comments: report, events: reopened("2026-10-25T00:00:00Z") })), false);
+  assert.equal(await close(appCloseRoutes({ comments: report, events: reopened("2026-10-10T00:00:00Z") })), true);
+  assert.equal(await close(appCloseRoutes({ comments: report }), "GET /repos/o/r/issues/77/events?per_page=100&page=1"), false, "an unreadable event list");
+  const undated = [{ ...closeComment("report-delivered", "the report"), created_at: undefined }];
+  assert.equal(await close(appCloseRoutes({ comments: undated })), false, "a comment with no readable time");
+});
+
+test("isTrustedClose: the lanes App's close counts for nothing without its own outcome comment", async () => {
+  const humans = new Set();
+  const close = (comments) => isTrustedClose(routeClient(appCloseRoutes({ comments })), "o/r", APP_CLOSED, humans, isLanesApp, BLOCKER);
+  assert.equal(await close([]), false, "no comment");
+  assert.equal(await close([{ user: LANES_APP, created_at: "2026-10-22T00:00:00Z", body: "Closing as a duplicate." }]), false, "an App comment with no outcome marker");
+  assert.equal(await close([closeComment("report-delivered", "the report", STRANGER)]), false, "an outcome comment the App did not write");
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes()), "o/r", APP_CLOSED, humans), false, "a caller that names no App");
+  assert.equal(await isTrustedClose(routeClient(appCloseRoutes()), "o/r", { ...APP_CLOSED, closed_by: STRANGER }, humans, isLanesApp), false, "an App comment on a close someone else made");
 });
 
 test("isTrustedClose: a read that fails leaves the lanes App's close untrusted", async () => {
   for (const failOn of [
     "GET /repos/o/r/issues/77/comments?per_page=100&page=1",
+    "GET /repos/o/r/issues/77/events?per_page=100&page=1",
     "GET /repos/o/r/issues/77",
     "GET /repos/o/r",
     "GET /repos/o/r/pulls/5",
@@ -3762,7 +3909,7 @@ test("isTrustedClose: a read that fails leaves the lanes App's close untrusted",
   }
 });
 
-test("appCloseKind: reads the lanes App's report-delivered close and its comment, and isTrustedClose still counts it for nothing", async () => {
+test("appCloseKind: reads the lanes App's report-delivered close and its comment, and isTrustedClose counts it for a blocker only", async () => {
   const report = { ...closeComment("report-delivered", "the report"), html_url: "https://github.com/o/r/issues/77#issuecomment-1", created_at: "2026-10-28T00:00:00Z" };
   const routes = appCloseRoutes({ comments: [report] });
   assert.deepEqual(await appCloseKind(routeClient(routes), "o/r", 77, isLanesApp), {
@@ -3771,6 +3918,7 @@ test("appCloseKind: reads the lanes App's report-delivered close and its comment
     url: "https://github.com/o/r/issues/77#issuecomment-1",
     at: "2026-10-28T00:00:00Z",
   });
+  assert.equal(await isTrustedClose(routeClient(routes), "o/r", APP_CLOSED, new Set(), isLanesApp, BLOCKER), true);
   assert.equal(await isTrustedClose(routeClient(routes), "o/r", APP_CLOSED, new Set(), isLanesApp), false);
 });
 
@@ -3804,18 +3952,6 @@ test("reconciler record: no record does not vouch, after one re-read", async () 
   assert.equal(sleeps.length, 1);
 });
 
-// Outage posture element 6 (docs/conventions/pr-pipeline/README.md#outage-posture): the record listing's
-// re-read is a conditional request. GitHub answers 304 to an If-None-Match
-// naming the page's current ETag and, for an authorized request, does not count
-// it against the primary rate limit
-// (https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests).
-// The routes go through a real createGitHub, so the client's header and ETag
-// handling are what is tested. `listings` answers the record listing in turn:
-// `{ etag, body }` is a 304 to a request naming that ETag, else a 200 with the
-// body (and the ETag header, unless it is null); `{ status: 304 }` is a 304
-// whatever was sent. With `runFailsFirst`, the reconciler run's first read
-// answers 404, so a record listed at the first read vouches only when the
-// re-read gives it back and it is judged again.
 const RECORD_LISTING = listing(rerunRecord({ name: rerunRecordAt(2) }));
 function conditionalClient(listings, { runFailsFirst = true } = {}) {
   const routes = rerunRoutes();

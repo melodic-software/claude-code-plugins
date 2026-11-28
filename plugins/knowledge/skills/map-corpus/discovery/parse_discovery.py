@@ -44,8 +44,6 @@ TRACKING_PARAMS_RE = re.compile(r"^(utm_.*|gclid|fbclid)$")
 
 MD_LINK_RE = re.compile(r"\[[^\]]*\]\(\s*<?([^)\s>]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 MD_AUTOLINK_RE = re.compile(r"<(https?://[^>\s]+)>", re.IGNORECASE)
-# leading backtick allowed (inline-code URLs still count as discovered);
-# backtick excluded from the URL chars so the closing fence never rides along
 BARE_URL_RE = re.compile(r"(?<![(<\"'])(https?://[^\s)\]>\"'`]+)", re.IGNORECASE)
 
 
@@ -72,7 +70,6 @@ def normalize_url(url: str, strip_punct: bool = False) -> str | None:
     scheme = parts.scheme.lower()
     if scheme not in ("http", "https") or not parts.netloc:
         return None
-    # lowercase host only; userinfo is case-significant
     userinfo, at, host = parts.netloc.rpartition("@")
     netloc = userinfo + at + host.lower()
     path = parts.path.rstrip("/")
@@ -87,7 +84,6 @@ def normalize_url(url: str, strip_punct: bool = False) -> str | None:
 
 
 def extract_markdown_urls(text: str, base_url: str) -> list:
-    """Link targets from markdown: [](), <autolink>, and bare URLs."""
     urls = []
     for regex, bare_text_capture in (
         (MD_LINK_RE, False),
@@ -115,8 +111,6 @@ def extract_sitemap_xml_urls(data: bytes) -> list:
     fetches external entities, and bundled libexpat >= 2.4 caps entity
     amplification — this check makes the refusal explicit and loud.)
     """
-    # scan the WHOLE input: a prefix window is bypassable by padding the prolog,
-    # and the full scan is cheap next to the XML parse that reads every byte
     for marker in (b"<!DOCTYPE", b"<!ENTITY"):
         if marker in data:
             fail(
@@ -150,7 +144,6 @@ def extract_sitemap_xml_urls(data: bytes) -> list:
 
 
 def glob_regex(pattern: str):
-    """Path glob: '**' spans directories, '*' and '?' stay inside one segment."""
     out, i = [], 0
     while i < len(pattern):
         if pattern.startswith("**/", i):
@@ -172,7 +165,6 @@ def glob_regex(pattern: str):
 
 
 def extract_repo_tree_urls(data: bytes, args) -> tuple:
-    """Raw URLs for the listed blobs the globs keep, plus the repository record."""
     adapter = ADAPTERS[args.forge]
     for flag, value in (("--owner", args.owner), ("--repo", args.repo)):
         if not value or not REPO_NAME_RE.match(value) or value in (".", ".."):
@@ -188,7 +180,7 @@ def extract_repo_tree_urls(data: bytes, args) -> tuple:
     try:
         listing = json.loads(data)
         paths = adapter.blob_paths(listing)
-    except ValueError as exc:  # json.JSONDecodeError and ListingError
+    except ValueError as exc:
         fail(2, f"tree listing {args.snapshot!r} is unusable: {exc}")
     includes = [glob_regex(g) for g in args.include]
     excludes = [glob_regex(g) for g in args.exclude]

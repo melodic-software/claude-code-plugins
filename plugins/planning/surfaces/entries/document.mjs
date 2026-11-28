@@ -1,6 +1,3 @@
-// A Markdown document another person fills in, for a decision only they can answer. Needs no
-// tool. It is not a way for the user to answer, so it is never offered beside the other surfaces:
-// the user's request for it, or the handoff's recommendation, picks it.
 export default {
   id: 'document',
   reportName: 'document',

@@ -1,5 +1,5 @@
 ---
-description: "Audit a codebase for drift between docs, config, code, and architecture. Verifies every factual claim against reality via parallel subagent fan-out, severity-rates findings and reports read-only; remediation is delegated to the implementation/verification lanes (`--fix` ends the report by suggesting `/implementation:implement` then `/verification:confirm`, which the user runs). Use when: 'audit codebase', 'check for drift', 'verify docs', 'full audit'. Flags: `--fix` (suggest the remediation lanes after reporting), `--docs-only`, `--code-only`, `--config-only`, `--arch-only`."
+description: "Audit codebase for factual drift across docs, config, code, and architecture; read-only report (`--docs-only`, `--code-only`, `--config-only`, `--arch-only`; `--fix` suggests remediation). Use when 'audit codebase', 'check for drift', 'verify docs'. Not for upstream drift: /discipline:recheck-against-upstream; harness: /harness-config:audit."
 argument-hint: "[scope] [--repo <repo> ...] [--fix] [--medium <value>] [--docs-only|--code-only|--config-only…]"
 user-invocable: true
 disable-model-invocation: false
@@ -20,7 +20,7 @@ Parse `$ARGUMENTS` for:
 - **Target forms** (optional): `--repo`, `--repos-from`, `--owner`, `--fleet`, `--skip`, or the
   same request in words, run the audit once per repository. See
   [Several repositories](#several-repositories). With none, the audit covers this repository only.
-- **`--fix`**: after reporting, hand the findings off to the remediation lanes
+- **`--fix`**: after reporting, hand the findings off to the remediation skills
   (`/implementation:implement` (if enabled) then `/verification:confirm` (if enabled)) rather than fixing inline. See
   [Remediation](#remediation-delegated-to-other-plugins). Per the naming doctrine's verb
   contract, bare `audit` is read-only. It reports at Phase 3 and stops; remediation intent sits
@@ -50,18 +50,18 @@ externally-unverifiable part `needs-review` rather than guessing.
 
 ---
 
-## Boundary, the adjacent drift lanes
+## Boundary, the adjacent drift skills
 
 This skill verifies **factual claims** in a repo's docs, config, code, and architecture notes
-against the repo's actual state. Seven adjacent lanes each own a different kind of drift, and this
+against the repo's actual state. Seven adjacent skills each own a different kind of drift, and this
 skill owns none of them.
 
 **This table is a router for the operator, not a dispatch list for this skill.** Bare `audit` is
-read-only, and some of these lanes mutate: `/discipline:recheck-against-upstream` (if enabled) says to "Correct
+read-only, and some of these skills mutate: `/discipline:recheck-against-upstream` (if enabled) says to "Correct
 each forward now: fix gaps toward upstream", and others carry a fix mode. Invoking one from inside a
 read-only run would let this skill edit the repo through a sibling, which its own verb contract
-forbids. So a request that belongs to another lane is **reported as uncovered**, and that lane is
-**named as the next thing the operator can run** rather than invoked here. Name the lane whether or
+forbids. So a request that belongs to another skill is **reported as uncovered**, and that skill is
+**named as the next thing the operator can run** rather than invoked here. Name the skill whether or
 not its plugin is installed, and never assert that an absent one is available. `--fix` authorizes
 remediation of this skill's own findings only; it does not extend to running a sibling's.
 
@@ -77,7 +77,7 @@ Each row states its own invocation form, since one row is an agent and the rest 
 | What moved in the instruction-placement findings since the last placement audit | `/instruction-placement:delta` (if enabled) |
 | What moved in the enforcement surface since the last enforcement audit | `/overengineering:delta` (if enabled) |
 
-The last two are delta lanes over their own prior runs, not over this audit's findings. This skill
+The last two are delta skills over their own prior runs, not over this audit's findings. This skill
 keeps no baseline and reports no deltas: each run is a full pass.
 
 ---
@@ -96,14 +96,6 @@ file; it also owns `<home>`, the root rule and the merge semantics):
    means unset.
 2. team: `<home>/codebase-health.md` (tracked)
 3. personal: `<home>/codebase-health.local.md` (gitignored)
-
-**Old locations.** While `~/.claude/codebase-health.md` (one Read of that literal path, `~` kept;
-never Glob for it, spell out a home directory, or search the home tree), `.claude/codebase-health.md`
-or `.claude/codebase-health.local.md` exists, read it as the layer config.md's "Old locations"
-table says, wherever the new location does not supply that layer, so its values still apply. Print
-one warning line for the run naming each old file found, its new location, and
-`/codebase-health:setup apply` to move it. When the new location also supplies that layer, the new
-one wins, and the warning names both files and lists the old file's dimensions that do not apply.
 
 The four bundled dimensions are `documentation`, `configuration`, `code-quality`, and
 `architecture`; the config may tune their globs, remove a dimension, or add custom ones.
@@ -178,9 +170,8 @@ form, nothing in this skill changes. What differs here:
   run that repository's Phases 1 and 2 from the main thread with its root anchored. Never let one
   context both discover and validate the findings.
 - **Phase 0 and the config are resolved per repository.** Read the `.claude/rules/` files of each
-  repository's tree. Resolve `<home>` and the team config layer (`<home>/codebase-health.md`, or
-  the old `.claude/codebase-health.md` standing in for it) from that tree. Read the personal layer
-  (`<home>/codebase-health.local.md`, or the old `.claude/codebase-health.local.md`) from the
+  repository's tree. Resolve `<home>` and the team config layer (`<home>/codebase-health.md`) from
+  that tree. Read the personal layer (`<home>/codebase-health.local.md`) from the
   clone's own root, never from a scratch worktree: it is gitignored, so a detached worktree of
   `origin/HEAD` never holds it, and reading it there would drop a clone's override only because
   the clone is behind or dirty. The `userConfig` layer is shared by all repositories. Run `read-verification.sh` as
@@ -192,11 +183,11 @@ form, nothing in this skill changes. What differs here:
   the claim against the other repository's tree, or against the ref the claim names. Report the
   finding in the repository that makes the claim, and name the repository the claim is about in
   its Verification cell. A claim about a repository outside the scope is verified as it is today.
-- **Duplicated files across repositories belong to another lane.** Exact and diverged copies
+- **Duplicated files across repositories belong to another skill.** Exact and diverged copies
   between repositories are measured by `/coupling:reduce` (if enabled), as the contract's "Cross-repository
   signals" says. After the report, name its read-only form
-  (`/coupling:reduce dry-run --repo <repo> ...` (if enabled)) as a lane the operator can run next, the way the
-  [Boundary](#boundary-the-adjacent-drift-lanes) table names a lane. Never invoke it from this run.
+  (`/coupling:reduce dry-run --repo <repo> ...` (if enabled)) as a skill the operator can run next, the way the
+  [Boundary](#boundary-the-adjacent-drift-skills) table names a skill. Never invoke it from this run.
 - **One report for all repositories.** Merge the findings as "Merging findings" says, with the
   repository in the File:Line cell (`<owner>/<name>:<path>:<line>`), and write one Needs you line.
   The verification line, the dimensions effort skipped and the config-gap observations are given
@@ -214,7 +205,7 @@ repository.
 For any audit run (Phases 0–3), copy
 `${CLAUDE_PLUGIN_ROOT}/skills/audit/templates/checklist.md` into wherever the consuming
 repo keeps working task notes (or keep it in-response). Tick each phase as completed. Remediation is
-delegated to the `implementation`/`verification` lanes and is not part of this checklist.
+delegated to the `implementation`/`verification` skills and is not part of this checklist.
 
 ---
 
@@ -384,7 +375,7 @@ Resolve `medium` first with the shared resolver. `<option>` is this plugin's `me
 `${user_config.medium}`, or `""` when that reads empty or unsubstituted; never put a `${user_config.*}` string in a shell command. Add `--argument` only when the run has a `--medium` value:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --lane codebase-health:audit --option "<option>" [--argument <the --medium value>]
+node "${CLAUDE_PLUGIN_ROOT}/lib/view-settings.mjs" resolve --producer codebase-health:audit --option "<option>" [--argument <the --medium value>]
 ```
 
 It prints one JSON line, then the report line naming the medium and what decided it, then any
@@ -405,7 +396,7 @@ one line and take the `null` row.
 **Without `--fix`** (the default, including every model auto-invocation): present the full
 report, then the rendered-view offer line when one applies, and **stop**; the Phase 3 report is
 the deliverable.
-**With `--fix`**: present the full Phase 3 report, then hand off to the remediation lanes below.
+**With `--fix`**: present the full Phase 3 report, then hand off to the remediation skills below.
 
 ---
 
@@ -426,18 +417,18 @@ the deliverable.
 
 The audit ends at the Phase 3 report: the findings table, verified-non-issues proof, drift patterns,
 fix priority, enforcement escalation, and config-gap observations are the deliverable. Fixing,
-verifying, self-reviewing, and retrospecting are separate lanes owned end-to-end by other plugins; re-implementing them here would duplicate those skills, so this skill delegates instead.
+verifying, self-reviewing, and retrospecting are separate skills owned end-to-end by other plugins; re-implementing them here would duplicate those skills, so this skill delegates instead.
 
-Route remediation to the dedicated lanes (soft dependencies. Use when the plugin is enabled):
+Route remediation to the dedicated skills (soft dependencies. Use when the plugin is enabled):
 
 - **Fix** → `/implementation:implement` (if enabled). Hand it the
   Phase 3 findings, whose "Fix priority" section already carries the Config Drift → Missing
   Enforcement → Code Quality → Doc Drift order (see
-  [`reference/category-playbook.md`](reference/category-playbook.md)); that lane owns the fix cadence:
+  [`reference/category-playbook.md`](reference/category-playbook.md)); that skill owns the fix cadence:
   TDD, build/test at each checkpoint, and the post-fix simplification pass.
 - **Verify** → `/verification:confirm` (if enabled). Confirms the
   fixes against the repo's own build/test/lint gates with no regressions, and covers the self-review
-  and retrospective that the fix lane hands it.
+  and retrospective that the fix skill hands it.
 
 **With `--fix`**, present the Phase 3 findings and output an explicit user-directed suggestion to run
 `/implementation:implement` (if enabled) with those findings, then `/verification:confirm` (if enabled). Do not auto-invoke

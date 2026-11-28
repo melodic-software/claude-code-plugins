@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for telemetry-upsert.sh against a PATH-stub `gh` that keeps the issue's
-# comments in a JSON file and applies the script's own --jq programs with real jq.
-# SKIPs (exit 0) when jq is unavailable.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -62,14 +59,11 @@ case "$method $url" in
 esac
 STUB
 chmod +x "$TMP/bin/gh"
-# A passwd lookup stub: the home dir the safe-dir check reads, so a test can put
-# it under the work dir without touching HOME.
 cat >"$TMP/bin/getent" <<'GETENT'
 #!/usr/bin/env bash
 printf 'tester:x:1000:1000::%s:/bin/sh\n' "${STUB_PASSWD_HOME:-/nonexistent-home}"
 GETENT
 chmod +x "$TMP/bin/getent"
-# A version-manager shim for node needs the real HOME; check 95 runs with another one.
 cat >"$TMP/bin/node" <<NODE
 #!/usr/bin/env bash
 HOME="$HOME" exec "$(command -v node)" "\$@"
@@ -108,86 +102,69 @@ FOREIGN="$SENT"$'\n''{"writer_nonce":"intruder","heartbeat_at":"2099-01-01T00:00
 body_of() { jq -r --argjson id "$1" '.[] | select(.id == $id) | .body' "$STUB_DIR/comments.json"; }
 writes() { grep -cE '^(POST|PATCH) ' "$STUB_DIR/calls.log"; }
 
-# 1. No comment yet: created, then verified.
 setup '[]'
 run
 check "create: exit 0" 0 "$?"
 check "create: stored body is sentinel + payload" "$SENT"$'\n'"$PAYLOAD" "$(body_of 101)"
 
-# 2. Existing sentinel comment holding last cycle's body: updated in place.
 setup "[$(c 40 unrelated), $(c 41 "$OLD")]"
 run
 check "update: exit 0" 0 "$?"
 check "update: comment 41 holds this cycle's body" "$SENT"$'\n'"$PAYLOAD" "$(body_of 41)"
 check "update: no POST" 0 "$(grep -c '^POST' "$STUB_DIR/calls.log")"
 
-# 3. Read-back returns a well-formed telemetry body that is not this cycle's (a
-#    PATCH that stored the previous body): unconfirmed, exit 6.
 setup "[$(c 41 "$OLD")]"
 STUB_READBACK="$SENT"$'\n''cycle: 6 old body here' run
 check "stale read-back: exit 6" 6 "$?"
 
-# 4. Read-back that differs only by CRLF line endings still verifies.
 setup '[]'
 STUB_READBACK="$(printf '%s\n%s\n' "$SENT" "$PAYLOAD" | sed 's/$/\r/')" run
 check "CRLF read-back: exit 0" 0 "$?"
 
-# 5. Lookup fails: exit 5, nothing written.
 setup '[]'
 STUB_FAIL='list' run
 check "lookup failure: exit 5" 5 "$?"
 check "lookup failure: no write" 0 "$(writes)"
 
-# 6. POST fails: exit 5.
 setup '[]'
 STUB_FAIL='post' run
 check "create failure: exit 5" 5 "$?"
 
-# 7. PATCH fails: exit 5.
 setup "[$(c 41 "$OLD")]"
 STUB_FAIL='patch' run
 check "patch failure: exit 5" 5 "$?"
 
-# 8. Read-back GET fails: exit 6.
 setup '[]'
 STUB_FAIL='get' run
 check "read-back failure: exit 6" 6 "$?"
 
-# 9. Invalid instance id: exit 3 before any gh call.
 setup '[]'
 INST='Bad_Id' run
 check "invalid instance: exit 3" 3 "$?"
 check "invalid instance: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 
-# 9b. A fleet-hostname-shaped instance passes the shape check but would publish
-#     the hostname in the marker: exit 3 before any gh call, blaming the instance.
 setup '[]'
 INST="melo-""lap-001" run
 check "hostname instance: exit 3" 3 "$?"
 check "hostname instance: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 check "hostname instance: names the instance, not the body" 1 "$(grep -c 'withheld from the public marker' "$STUB_DIR/err")"
 
-# 10. A literal @path body: exit 3 before any gh call.
 setup '[]' '@/tmp/telemetry.md'
 run
 check "@path body: exit 3" 3 "$?"
 check "@path body: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 
-# 11. Two sentinel comments: the lower id is canonical, the other tombstoned.
 setup "[$(c 9 "$OLD"), $(c 5 "$OLD")]"
 run
 check "duplicates: exit 0" 0 "$?"
 check "duplicates: comment 5 is canonical" "$SENT"$'\n'"$PAYLOAD" "$(body_of 5)"
 check "duplicates: comment 9 tombstoned" "Superseded duplicate - canonical telemetry comment: 5" "$(body_of 9)"
 
-# 12. A body file that already opens with the sentinel is not double-prefixed.
 setup '[]' "$SENT"$'\n'"$PAYLOAD"
 run
 check "pre-prefixed body: exit 0" 0 "$?"
 check "pre-prefixed body: one sentinel" "$SENT"$'\n'"$PAYLOAD" "$(body_of 101)"
 
-# 13. An unsubstituted ${user_config.…} placeholder falls back to a random id kept
-# in the body dir, stable across runs, and never the hostname: the marker is public.
 setup '[]'
 # shellcheck disable=SC2016 # the literal placeholder is the input under test
 INST='${user_config.lane_instance}' run
@@ -206,21 +183,17 @@ check "unset instance, second run: same stored id" "$STORED" "$(cat "$STUB_DIR/l
 check "unset instance: the hostname reaches no API call" 0 \
   "$(grep -cF -- "$HOST_SANITIZED" "$STUB_DIR/calls.log" "$STUB_DIR/comments.json" | awk -F: '{n+=$NF} END {print n+0}')"
 
-# 14. A stored id that fails the instance check: exit 3 before any gh call.
 setup '[]'
 printf '%s\n' "$(printf 'h%.0s' {1..40})" >"$STUB_DIR/lane-instance"
 INST='' run
 check "over-length stored id: exit 3" 3 "$?"
 check "over-length stored id: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 
-# 15. Under 16 payload bytes below the sentinel: exit 3 before any gh call.
 setup '[]' "$SENT"$'\n''short'
 run
 check "short body: exit 3" 3 "$?"
 check "short body: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 
-# 17. A foreign-author sentinel comment with a lower id is never adopted: this
-#     identity's own comment stays canonical and the foreign one is not touched.
 setup "[$(c 3 "$FOREIGN" outsider), $(c 41 "$OLD")]"
 run
 check "foreign lower id: exit 0" 0 "$?"
@@ -228,29 +201,23 @@ check "foreign lower id: own comment 41 is canonical" "$SENT"$'\n'"$PAYLOAD" "$(
 check "foreign lower id: foreign comment untouched" "$FOREIGN" "$(body_of 3)"
 check "foreign lower id: no write to it" 0 "$(grep -c 'comments/3$' "$STUB_DIR/calls.log")"
 
-# 18. Only a foreign sentinel comment exists: this identity creates its own.
 setup "[$(c 3 "$FOREIGN" outsider)]"
 run
 check "foreign only: exit 0" 0 "$?"
 check "foreign only: own comment 4 created" "$SENT"$'\n'"$PAYLOAD" "$(body_of 4)"
 check "foreign only: foreign comment untouched" "$FOREIGN" "$(body_of 3)"
 
-# 19. App installation token: GET user fails and --app-slug names the writer; a
-#     lower-id sentinel comment by a user account is foreign to it.
 setup "[$(c 3 "$FOREIGN" lane-op), $(c 41 "$OLD" 'lane-app[bot]')]"
 STUB_USER=fail STUB_AUTHOR='lane-app[bot]' run --app-slug lane-app
 check "app token: exit 0" 0 "$?"
 check "app token: own bot comment 41 is canonical" "$SENT"$'\n'"$PAYLOAD" "$(body_of 41)"
 check "app token: user-authored comment untouched" "$FOREIGN" "$(body_of 3)"
 
-# 20. GET user fails and no --app-slug: identity unresolved, exit 5, nothing written.
 setup "[$(c 41 "$OLD")]"
 STUB_USER=fail run
 check "no identity: exit 5" 5 "$?"
 check "no identity: no write" 0 "$(writes)"
 
-# 20b. A wrong --app-slug: the POST lands under another login, so the comment it
-#      created is deleted, nothing else is written, exit 5 naming the real author.
 setup "[$(c 3 "$FOREIGN" outsider)]"
 STUB_USER=fail STUB_AUTHOR='real-app[bot]' run --app-slug wrong-app
 check "wrong slug: exit 5" 5 "$?"
@@ -260,35 +227,28 @@ check "wrong slug: only the foreign comment remains" "3" "$(jq -r 'map(.id) | jo
 check "wrong slug: no PATCH" 0 "$(grep -c '^PATCH' "$STUB_DIR/calls.log")"
 check "wrong slug: error names the real author" 1 "$(grep -c "posted as 'real-app\[bot\]'" "$STUB_DIR/err")"
 
-# 20c. The cleanup DELETE fails: still exit 5, and the error says to remove it by hand.
 setup '[]'
 STUB_USER=fail STUB_AUTHOR='real-app[bot]' STUB_FAIL=delete run --app-slug wrong-app
 check "wrong slug, delete fails: exit 5" 5 "$?"
 check "wrong slug, delete fails: says remove by hand" 1 "$(grep -c 'deleting comment 101 failed' "$STUB_DIR/err")"
 
-# 21. GET user reports a bot: its [bot] login is the identity.
 setup "[$(c 3 "$FOREIGN"), $(c 41 "$OLD" 'lane-app[bot]')]"
 STUB_USER='{"login":"lane-app","type":"Bot"}' run
 check "bot user: exit 0" 0 "$?"
 check "bot user: own bot comment 41 is canonical" "$SENT"$'\n'"$PAYLOAD" "$(body_of 41)"
 check "bot user: user-authored comment untouched" "$FOREIGN" "$(body_of 3)"
 
-# 22. --read prints this identity's canonical body, skipping a lower-id foreign
-#     comment, and writes nothing.
 setup "[$(c 3 "$FOREIGN" outsider), $(c 41 "$OLD")]"
 read_state
 check "read: exit 0" 0 "$?"
 check "read: prints own canonical body" "$OLD" "$(cat "$STUB_DIR/out")"
 check "read: no write" 0 "$(writes)"
 
-# 23. --read with only a foreign comment: unclaimed, empty output, exit 0.
 setup "[$(c 3 "$FOREIGN" outsider)]"
 read_state
 check "read unclaimed: exit 0" 0 "$?"
 check "read unclaimed: empty output" "" "$(cat "$STUB_DIR/out")"
 
-# 24. --read fails closed: a failed lookup, read, or identity is exit 5 with no
-#     output, never the empty "unclaimed" answer.
 for knob in list get user; do
   setup "[$(c 41 "$OLD")]"
   if [[ "$knob" == user ]]; then STUB_USER=fail read_state; else STUB_FAIL="$knob" read_state; fi
@@ -296,14 +256,11 @@ for knob in list get user; do
   check "read, $knob fails: no output" "" "$(cat "$STUB_DIR/out")"
 done
 
-# 25. An invalid --app-slug: exit 3 before any gh call.
 setup '[]'
 run --app-slug 'bad"slug'
 check "invalid slug: exit 3" 3 "$?"
 check "invalid slug: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 
-# 25b. A surviving ${user_config.lane_app_slug} placeholder or an empty slug is
-#      absent: with GET user failing, the identity stays unresolved (exit 5).
 # shellcheck disable=SC2016 # the literal placeholder is the input under test
 for slug in '${user_config.lane_app_slug}' ''; do
   setup "[$(c 41 "$OLD")]"
@@ -312,22 +269,17 @@ for slug in '${user_config.lane_app_slug}' ''; do
   check "absent slug '$slug': no write" 0 "$(writes)"
 done
 
-# 25c. A placeholder slug is not fatal when GET user reports a User.
 setup "[$(c 41 "$OLD")]"
 # shellcheck disable=SC2016 # the literal placeholder is the input under test
 run --app-slug '${user_config.lane_app_slug}'
 check "placeholder slug, user token: exit 0" 0 "$?"
 check "placeholder slug, user token: comment 41 updated" "$SENT"$'\n'"$PAYLOAD" "$(body_of 41)"
 
-# 26. An Enterprise Managed User login (underscore shortcode) is a valid identity.
 setup "[$(c 3 "$FOREIGN" outsider), $(c 41 "$OLD" 'jane_acme')]"
 STUB_USER='{"login":"jane_acme","type":"User"}' run
 check "EMU login: exit 0" 0 "$?"
 check "EMU login: own comment 41 is canonical" "$SENT"$'\n'"$PAYLOAD" "$(body_of 41)"
 
-# 17. Body-file containment: an outside path (mode 000, so a read would fail
-# differently), a `..` escape, and a symlink leaf are each refused before any read
-# or gh call; no safe dir, or another plugin's CLAUDE_PLUGIN_DATA, is refused too.
 setup '[]'
 OUTSIDE="$TMP/outside"
 mkdir -p "$OUTSIDE"
@@ -357,8 +309,6 @@ check "foreign CLAUDE_PLUGIN_DATA: exit 3" 3 "$?"
 check "containment refusals: no secret content echoed" 0 "$(grep -c PRIVATE-KEY-MATERIAL "$STUB_DIR/err" "$STUB_DIR/out" | awk -F: '{n+=$NF} END {print n+0}')"
 check "containment refusals: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 
-# 18. A credential-shaped body is withheld whole before any gh call and never
-# echoed. The fake token is assembled at run time so no token-shaped literal is tracked.
 FAKE_TOKEN="ghp""_$(printf 'Z%.0s' {1..36})"
 setup '[]' "cycle: 7 note=$FAKE_TOKEN"
 run
@@ -370,8 +320,6 @@ setup '[]' 'cycle: 7 password="hunter2hunter2"'
 run
 check "plain secret assignment: exit 3" 3 "$?"
 
-# 19. A caller-chosen --body-dir must be the plugin's data dir: one not naming
-# source-control, or the home dir or an ancestor of it, is refused before any read.
 setup '[]'
 mkdir -p "$TMP/elsewhere"
 cp "$STUB_DIR/body.txt" "$TMP/elsewhere/body.txt"
@@ -382,7 +330,6 @@ check "body-dir that is a home-dir ancestor: exit 3" 3 "$?"
 check "body-dir that is a home-dir ancestor: names the rule" 1 "$(grep -q 'home dir' "$STUB_DIR/err" && echo 1)"
 check "body-dir refusals: no gh call" 0 "$(wc -l <"$STUB_DIR/calls.log" | tr -d ' ')"
 
-# 20. CDPATH cannot redirect a relative body path to a same-named dir in the safe dir.
 setup '[]'
 mkdir -p "$TMP/cwd/sub" "$STUB_DIR/sub"
 cp "$STUB_DIR/body.txt" "$TMP/cwd/sub/body.txt"
@@ -390,7 +337,6 @@ cp "$STUB_DIR/body.txt" "$STUB_DIR/sub/body.txt"
 (cd "$TMP/cwd" && CDPATH="$STUB_DIR" run_body sub/body.txt --body-dir "$STUB_DIR")
 check "CDPATH relative escape: exit 3" 3 "$?"
 
-# 21. A symlinked or malformed stored lane-instance is refused and never echoed.
 setup '[]'
 printf 'lane-0000beef\n' >"$TMP/elsewhere-id"
 ln -s "$TMP/elsewhere-id" "$STUB_DIR/lane-instance"
@@ -403,8 +349,6 @@ check "malformed stored id: exit 3" 3 "$?"
 check "malformed stored id: names the rule" 1 "$(grep -q 'stored lane-instance is malformed' "$STUB_DIR/err" && echo 1)"
 check "malformed stored id: value never echoed" 0 "$(grep -c 'Not_A-Valid' "$STUB_DIR/err")"
 
-# 22. A home path in the body is withheld, naming the rule and never the path.
-# A fake home path, assembled at run time so no user path is tracked.
 FAKE_HOME="/ho""me/alice"
 setup '[]' "cycle: 7 worktree=$FAKE_HOME/worktrees/app"
 run
@@ -413,13 +357,10 @@ check "home path in body: names the rule" 1 "$(grep -q "names a machine path or 
 check "home path in body: no rotation advice" 0 "$(grep -c rotate "$STUB_DIR/err")"
 check "home path in body: path never printed" 0 "$(grep -cF -- "$FAKE_HOME" "$STUB_DIR/err")"
 
-# 23. A GitHub-hosted runner's home path reveals nothing, so it is posted.
 setup '[]' "cycle: 7 log=/ho""me/runner/work/app/app/run.log"
 run
 check "hosted-runner home path: exit 0" 0 "$?"
 
-# 24. The plugin name is checked again on the canonical dir: a symlink named for
-# the plugin that points at another dir is refused.
 setup '[]'
 mkdir -p "$TMP/config"
 cp "$STUB_DIR/body.txt" "$TMP/config/body.txt"
@@ -427,7 +368,6 @@ ln -s "$TMP/config" "$TMP/source-control-x"
 run_body "$TMP/source-control-x/body.txt" --body-dir "$TMP/source-control-x"
 check "symlinked body-dir named for the plugin: exit 3" 3 "$?"
 
-# 16. gh not on PATH: exit 4.
 setup '[]'
 PATH=/nonexistent "$BASH" "$SCRIPT" --repo acme/widgets --issue 5 --instance lap-1 \
   --body-file "$STUB_DIR/body.txt" >/dev/null 2>&1

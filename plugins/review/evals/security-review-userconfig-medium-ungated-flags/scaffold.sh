@@ -4,9 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# digest writes its page to a local file. The branch adds a medium userConfig
-# key and has lib/send.mjs read it directly: hosted uploads the page to an
-# external host, with no resolver or trust rule in between.
 mkdir -p .claude-plugin plugins/digest/.claude-plugin plugins/digest/skills/digest plugins/digest/lib
 
 cat >.claude-plugin/marketplace.json <<'JSON'

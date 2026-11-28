@@ -27,7 +27,6 @@ param(
 
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
-# The console code page (often 437) mangles characters such as ® (into "r"); the reader expects UTF-8.
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
 
 $libRoot = Join-Path $PSScriptRoot 'lib'
@@ -64,7 +63,6 @@ if (-not (Test-Path -LiteralPath $LatestPath -PathType Leaf)) {
     try {
         $text = Read-SharedText -Path $LatestPath
         $latest = $text | ConvertFrom-Json
-        # JsonNode keeps run_id as written; ConvertFrom-Json turns a date-shaped string into a DateTime.
         $runNode = [System.Text.Json.Nodes.JsonNode]::Parse($text)['run_id']
         if ($runNode -isnot [System.Text.Json.Nodes.JsonValue] -or $runNode.GetValueKind() -ne 'String') { throw 'no run_id' }
         $runId = $runNode.GetValue[string]()
@@ -82,8 +80,6 @@ if ($failure) {
     $lines.Add("$marker $(Get-Field $latest 'hostname') $runId")
     $lines.Add("elevated: $((Get-Field $latest 'elevated') ? 'yes' : 'no'), mode: $(Get-Field $latest 'run_mode')")
 
-    # latest.json carries no severity counts, and this run's own history line is
-    # already appended, so the prior run is the newest line with another run_id.
     $counts = @{}
     foreach ($s in $severityOrder) { $counts[$s] = @($checks | Where-Object { (Get-Field $_ 'severity') -eq $s }).Count }
     $prior = @(Read-HistoryJsonl -Path (Join-Path (Split-Path -Parent $LatestPath) 'history.jsonl') -Tail 2 |

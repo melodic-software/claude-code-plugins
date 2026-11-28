@@ -1,5 +1,5 @@
 ---
-description: "wayfind evals.json case 30, run as a plugin-eval case for the before/after comparison (after-only)."
+description: "A build-set map closes to /planning:plan then /work-items:decompose, with a Source map line, a closing comment naming the dossier branch, and the branch kept (after-only)."
 tags: [wayfind, wayfind-charting, after-only]
 runs: 3
 max_turns: 30

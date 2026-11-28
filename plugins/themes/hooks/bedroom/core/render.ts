@@ -77,7 +77,6 @@ export async function clearLook($: EngineInterface): Promise<Awaited<ReturnType<
   return cleared
 }
 
-/** The room the running shader was started over; empty while no shader runs or a hold is due. */
 let shaderSource = ''
 let lastSource = ''
 let holdUntil = 0
@@ -128,7 +127,6 @@ export function isHolding(): boolean {
   return nowMs() < holdUntil || shaderSource === ''
 }
 
-/** What a piece says the hand-drawn room should show; one whose room() throws says nothing. */
 function roomOfPiece(piece: Piece, ctx: Ctx): { sun: number; weather: number } | undefined {
   try {
     return piece.room?.(ctx)
@@ -151,7 +149,6 @@ export function wholeRoom(ctx: Ctx): string {
   return bedroomSvg({ ...saved.state, titles: saved.titles, ...(look === undefined ? {} : { look }) }, saved.dim)
 }
 
-/** Counts a drawing for /bedroom stats. */
 function counted(source: string, startedAt: number): void {
   const buildMs = performance.now() - startedAt
   stats.renders += 1

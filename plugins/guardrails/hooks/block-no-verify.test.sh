@@ -130,8 +130,8 @@ run "wsl git commit -m x (allowed)" 'wsl git commit -m x' 0
 run "wsl --list --verbose (management verb, allowed)" 'wsl --list --verbose' 0
 
 case "${OSTYPE:-}" in
-msys* | cygwin* | win32) exp_win=2 ;; # Windows/MSYS folds case + strips .exe
-*) exp_win=0 ;;                       # POSIX stays case-sensitive
+msys* | cygwin* | win32) exp_win=2 ;;
+*) exp_win=0 ;;
 esac
 run "GIT commit --no-verify (uppercase exec, OS-gated)" \
   'GIT commit --no-verify -m test' "$exp_win"
@@ -225,29 +225,16 @@ run_pwsh "PS: expandable body with a non-git subexpression (fail-closed block, n
   "$(printf '%s\n%s\n%s' "Write-Output @\"" "Built \$(Get-Date)" "\"@")" 2
 run_pwsh "PS: LEFTHOOK=0 git commit (env bypass, blocked)" "LEFTHOOK=0 git commit -m x" 2
 
-# The commit-guard twin of the comment-tail here-string opener. PowerShell reads
-# `# @"` as comment text, so the `@"` opens nothing and the `--no-verify` commit
-# under it is a live top-level command; the reduction takes the line as an opener
-# and drops that command as here-string body. Measured on the base through this
-# hook: rc 0, with the bypass never seen. A `#` anywhere on a CONFIRMED opener
-# line, before the two-character suffix, now refuses the shape, on a plain
-# substring test of the raw line with no quote pairing. This guard consults no
-# allow-list, so the refusal here is final.
 run_pwsh "PS: --no-verify recovered from behind a commented opener (blocked)" \
   "$(printf '%s\n%s\n%s' "Write-Output x # @\"" "git commit --no-verify -m x" "\"@ fine\"")" 2
 run_pwsh "PS: the @' spelling of the commented opener (blocked)" \
   "$(printf '%s\n%s\n%s' "Write-Output x # @'" "git commit --no-verify -m x" "'@ fine'")" 2
 run_pwsh "PS: CRLF-line-ended copy of the commented opener (blocked)" \
   "$(printf '%s\r\n%s\r\n%s' "Write-Output x # @\"" "git commit --no-verify -m x" "\"@ fine\"")" 2
-# The apostrophe-straddle spelling, which two per-style quote strips read as a
-# clean opener because the span they delete swallows the real `#`. The raw test
-# never looks at a quote.
 run_pwsh "PS: an apostrophe inside a double-quoted string does not erase the # (blocked)" \
   "$(printf '%s\n%s\n%s' "Write-Host \"it's\" # don't \"x @\"" "git commit --no-verify -m x" "\"@\"")" 2
-# ACCEPTED OVER-BLOCK: a real here-string whose opener line merely contains a `#`.
 run_pwsh "PS: a # inside a quoted string before a real opener (blocked, accepted over-block)" \
   "$(printf '%s\n%s\n%s' "Write-Output \"#1\" @\"" "hello" "\"@")" 2
-# The regression fence: the `#` has to be on the opener line before the suffix.
 run_pwsh "PS: a here-string body containing a # (allowed)" \
   "$(printf '%s\n%s\n%s' "Write-Output @'" "release # 1" "'@")" 0
 run_pwsh "PS: the canonical verbatim commit here-string (allowed)" \
@@ -293,9 +280,6 @@ run_pwsh "PS: same probe with advertised sink token (allowed — #4252)" \
 run_pwsh "PS: token blanks the group, visible --no-verify still blocked" \
   "Invoke-Command -ScriptBlock { git status }; git commit --no-verify -m x" 2 \
   CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-special-construct
-# reset-hard is a destructive-form token and must not open this sink.
-# The budget refuses (#4682 twin): a quoted call target makes no progress under
-# its token, so all five rounds are spent and the --no-verify inside is never read.
 expect "PS: no-progress sink under its token exhausts the budget (blocked)" 2 \
   --tool PowerShell --command "\$a=& 'git commit --no-verify -m x'" \
   -- CLAUDE_PLUGIN_OPTION_BLOCK_DANGEROUS_GIT_ALLOW=ps-unparsable-dynamic-invocation
@@ -321,10 +305,6 @@ assert_contains "PS: sink denial names block_dangerous_git_allow" "$GUARD_ERR" \
 assert_absent "PS: sink denial does not name the kill switch (a user lever)" "$GUARD_ERR" \
   "block_no_verify_enabled"
 
-# Obfuscation regressions (independent security review, sink-level fail-closed).
-# A construct that defeats the Bash tokenizer must not let an obfuscated git
-# invocation through — the sink blocks unless the command is provably git-free,
-# rather than trusting a negative shape match on the mangled scan.
 bt='`'
 run_pwsh "PS: backtick inside subcommand (git com\`mit, blocked)" "git com${bt}mit --no-verify" 2
 run_pwsh "PS: backtick inside push (git pu\`sh --force, blocked)" "git pu${bt}sh --force" 2
@@ -414,17 +394,6 @@ config set subcommand defines (blocked)|git config set alias.c 'commit -n'; git 
 alias loop terminates (allowed)|git config alias.c c; git c|0
 EOF
 
-# --- ps::git_command_is_readonly — the `readonly-ok` sink scope (SECURITY) -----
-# This guard is the ONLY caller that passes `readonly-ok`, so it is the only place
-# a wrongly-classified subcommand is observable. Every case below carries a SINK
-# TRIGGER (`& { … }`, a `{}` pipeline, or `()` grouping): without one the command
-# takes the Bash-parser path and never reaches ps::git_command_is_readonly at all,
-# which would make the assertion vacuous.
-#
-# The classifier is a blocklist, so a subcommand it omits classifies as READ-ONLY
-# and the whole guard skips. `git clean -fdx` and `git restore .` destroy
-# uncommitted work irrecoverably and were both omitted — hence one case per
-# mutating subcommand, so an accidental deletion from the alternation fails here.
 run_pwsh "PS: git clean -fdx in scriptblock (destructive, blocked)" "& { git clean -fdx }" 2
 run_pwsh "PS: git clean -fdx in a pipeline (destructive, blocked)" \
   "git clean -fdx | ForEach-Object { \$_ }" 2
@@ -486,10 +455,6 @@ run_pwsh "PS: git svn dcommit (rewrites history + publishes, blocked)" "& { git 
 run_pwsh "PS: git p4 submit (publishes to Perforce, blocked)" "& { git p4 submit }" 2
 run_pwsh "PS: git cvsexportcommit (publishes to CVS, blocked)" "& { git cvsexportcommit -c HEAD }" 2
 
-# SYNONYMS AND PLUMBING BENEATH A LISTED PORCELAIN. Listing the porcelain alone
-# leaves the identical mutation reachable under another spelling — and `send-pack`
-# is the sharpest case for THIS guard: it is what `push` calls, and it does NOT
-# run the pre-push hook, so omitting it left a hook bypass wide open.
 run_pwsh "PS: git stage (documented synonym of add, blocked)" "& { git stage -A }" 2
 run_pwsh "PS: git send-pack (push plumbing, skips pre-push hook, blocked)" \
   "& { git send-pack origin +refs/heads/main:refs/heads/main --force }" 2
@@ -538,9 +503,6 @@ run_pwsh "PS: git bundle create (artifact producer, allowed)" \
   "& { git bundle create out.bundle HEAD }" 0
 run_pwsh "PS: git ls-tree (interrogator, allowed)" "& { git ls-tree -r HEAD }" 0
 run_pwsh "PS: git shortlog (interrogator, allowed)" "& { git shortlog -sn }" 0
-# `--staged` must NOT match the newly-listed `stage`: the trailing `d` is
-# alphanumeric, so the token boundary refuses to close. Without this the `stage`
-# addition would silently over-block one of the most common read-only diffs.
 run_pwsh "PS: git diff --staged ('staged' is not 'stage', allowed)" "& { git diff --staged }" 0
 run_pwsh "PS: git fast-export (exports, does not mutate, allowed)" "& { git fast-export --all }" 0
 run_pwsh "PS: git merge-tree (create-only plumbing, allowed)" \
@@ -566,32 +528,21 @@ run_pwsh "PS: -v before a mutating remote verb (blocked)" "& { git remote -v ren
 run_pwsh "PS: read-only remote beside a mutating one (blocked)" \
   "& { git remote -v; git remote add x y }" 2
 run_pwsh "PS: stash list beside stash drop (blocked)" "& { git stash list; git stash drop }" 2
-# Dynamic-invocation regressions: iex / string-literal call run an opaque string,
-# so a construct-free form must still route to the fail-closed sink (it otherwise
-# reached the Bash parser, which sees `iex`, not git, and passed).
 run_pwsh "PS: iex of a literal git command (blocked)" "iex 'git commit --no-verify'" 2
 run_pwsh "PS: invoke-expression of a literal (blocked)" "invoke-expression 'git push --force'" 2
 run_pwsh "PS: iex of a here-string (blocked)" \
   "$(printf 'iex @%s\ngit commit --no-verify\n%s@' "'" "'")" 2
 run_pwsh "PS: call of a string-literal command (blocked)" "& 'git commit --no-verify'" 2
 run_pwsh "PS: call of a bare variable (deferred residual — not blocked here)" "& \$sb" 0
-# #2848: that residual and a grouping construct are each allowed alone, so their
-# CONJUNCTION must be too — `foreach (…) { & $py run.py $x }` is ordinary
-# PowerShell, and grouping hides nothing from the quote-intact literal git probe.
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + bare-computed target via Get-Command (allowed — #2848)" \
   '$py = "C:/tools/python.exe"; if (-not (Test-Path $py)) { $py = (Get-Command python).Source }; & $py C:/s/run.py --flag' 0
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + bare-computed target inside foreach (allowed — #2848)" \
   "\$ids = @('a','b'); foreach (\$id in \$ids) { & \$py \$script (Join-Path \$dir \"\$id.jsonl\") }" 0
-# Single-factor pin: grouping with a LITERAL call target (#2848), so a future
-# narrowing pass cannot regress it unnoticed.
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + literal call target (allowed — single-factor pin, #2848)" \
   "foreach (\$id in @('a','b')) { & \"C:/tools/python.exe\" C:/s/run.py \$id }" 0
-# Fail-OPEN guard rails: a SUBEXPRESSION target assembles a name no literal probe
-# can see, so it still fails closed with the same grouping present — as does a
-# literal git command word inside the grouping.
 # shellcheck disable=SC2016
 run_pwsh "PS: grouping + subexpression call target (fail-closed block — #2848)" \
   "foreach (\$x in @('a')) { & ('g'+'it') commit --no-verify }" 2
@@ -609,10 +560,6 @@ run_pwsh "PS: cmd /c git (blocked)" "cmd /c git commit --no-verify" 2
 run_pwsh "PS: Start-Process notepad (no git, allowed)" "Start-Process notepad" 0
 run_pwsh "PS: pwsh -File script (no inline git, allowed)" "pwsh -File build.ps1" 0
 
-# `ps::might_invoke_git` is SHARED with block-dangerous-git, so the constant
-# call-target false positive (#1968) false-blocked the same command twice — once
-# per guard. Covered on both sides so a regression in the shared predicate cannot
-# be caught by only one suite.
 run_pwsh "PS: call-op, double-quoted literal script path (allowed)" \
   '& "C:\tools\publish.ps1"' 0
 run_pwsh "PS: dot-source, single-quoted literal script path (allowed)" \
@@ -621,13 +568,6 @@ run_pwsh "PS: dot-source, single-quoted literal script path (allowed)" \
 run_pwsh "PS: call-op, interpolated variable target (fail-closed block)" \
   '& "$tool" commit --no-verify' 2
 
-# --- PowerShell token separators bash does not honor (#2928) ----------------
-# PowerShell's tokenizer treats U+00A0 as token-separating whitespace; bash's
-# `[[:space:]]` does not. Every boundary in the PowerShell classifier is now fed
-# text where those code points have been normalized to an ASCII space at intake,
-# so a `--no-verify` hidden behind one is seen. Built from a BYTE ESCAPE, never
-# pasted literally — a formatter that normalized a raw U+00A0 to a plain space
-# would leave a case that passes while pinning nothing.
 PS_NBSP=$'\xc2\xa0'
 run_pwsh "PS: U+00A0 before the -m flag of a --no-verify commit (blocked — #2928)" \
   "git commit --no-verify${PS_NBSP}-m x" 2
@@ -636,30 +576,17 @@ run_pwsh "PS: U+00A0 between git and its subcommand (blocked — #2928)" \
 run_pwsh "PS: U+00A0 inside a read-only git command (allowed — #2928)" \
   "git log --oneline${PS_NBSP}-n 5" 0
 
-# --- Unspaced assignment before a computed launcher (#2928) -----------------
-# `ps::might_invoke_git`'s launcher class lacked `=`, so dropping the spaces
-# around an assignment hid a launcher whose program is assembled at run time and
-# could be git. The spaced form already failed closed; these bring the two level.
 run_pwsh "PS: unspaced assignment before a computed launcher (fail-closed block — #2928)" \
   "\$p=Start-Process ('g'+'it') reset" 2
 run_pwsh "PS: spaced assignment before a computed launcher (fail-closed block — pre-existing)" \
   "\$p = Start-Process ('g'+'it') reset" 2
 
-# --- Sink remediation TEXT --------------------------------------------------
-# run_pwsh discards stderr, so nothing asserted what the trigger lines actually
-# SAY — and a remediation line that describes a shape it never sees is as much a
-# dead end as no line at all. Both message defects fixed here (#1974 review) were
-# exactly that, and both survived because only the exit code was checked.
-# The hook's exit code is the function's, so a caller can still take it with
-# `out="$(pwsh_stderr …)" || rc=$?`.
 pwsh_stderr() {
   guard_invoke --tool PowerShell --command "$1"
   printf '%s' "$GUARD_ERR"
   return "$GUARD_RC"
 }
 
-# PowerShell pairs each opener with its own quote, so the terminator named has to
-# follow the opener rather than always being `'@`.
 assert_contains "PS msg: @' opener names the '@ terminator" \
   "$(pwsh_stderr "$(printf '%s\n%s\n%s' "@'" "body" "'X | git commit --no-verify")")" \
   "the '@ terminator must start at column 0"
@@ -688,9 +615,6 @@ stop_nov_out="$(pwsh_stderr 'git --% commit --no-verify')"
 assert_contains "PS msg #2662: unparsable-git path still cannot-parse" \
   "$stop_nov_out" "cannot be parsed with confidence"
 
-# The canonical-commit-form advice belongs to a commit: a grouped push must not
-# get it, and the special-construct line names the PowerShell rewrite before the
-# Bash-tool escape.
 # shellcheck disable=SC2016  # literal PowerShell variables
 grp_out="$(pwsh_stderr 'foreach ($b in $x) { git push origin $b }')"
 assert_absent "PS msg: blocked grouping with no commit token omits the commit form" \
@@ -714,21 +638,6 @@ assert_eq "unreadable fields: the refusal says why" \
   "BLOCKED: the hook payload could not be parsed." "$GUARD_ERR"
 assert_eq "unreadable fields: nothing on stdout" "" "$GUARD_OUT"
 
-# --- A NUL in the payload must not void the guard (#2122) --------------------
-# hook::jq_fields separates its fields with a NUL. A JSON NUL escape inside the
-# command used to split that value in two, fail the helper's cardinality check
-# and return non-zero — which this hook spells `|| exit 0`, a PreToolUse ALLOW
-# with no diagnostic. Asserted at the HOOK boundary, not in the helper, because
-# the boundary is where the bypass was observable.
-#
-# The rule is one line with no exceptions: a NUL in any field the hook reads
-# BLOCKS, whatever the surrounding text says. That includes a command whose text
-# is entirely NUL bytes, which strips to nothing and would otherwise be waved
-# through by the empty-command skip, and a NUL in a command with nothing
-# dangerous in it. The guard refuses rather than matching because the text it can
-# read is not dependably the text that would run — stripping SPLICES the bytes
-# either side of the NUL into a token the payload never carried contiguously —
-# and which executor behavior applies has not been traced.
 run_nul() {
   local label="$1" head="$2" tail="$3" expected="$4"
   expect "$label" "$expected" --payload "$(nul_payload "$head" "$tail")"
@@ -744,25 +653,10 @@ assert_contains "NUL msg: names the byte" "$(nul_stderr 'git push --no-verify' '
 assert_contains "NUL msg: gives the fix" "$(nul_stderr 'git push --no-verify' 'x')" \
   "Reissue the call without it"
 
-# The all-NUL command reaches the flag BEFORE the empty-COMMAND skip — its block
-# must carry the NUL reason, and an empty command with no NUL must still take
-# that skip. The pair is what pins the ordering; either row alone is equally
-# consistent with a guard that refuses every empty command or blocks for some
-# other reason.
 assert_contains "NUL msg: all-NUL command refused by the flag, not skipped" \
   "$(nul_stderr '' '')" "NUL byte"
 run "empty command, no NUL (allowed)" "" 0
 
-# --- #2965: an apostrophe in a DOUBLE-quoted string is not a span delimiter -----
-# ps::blank_quoted_spans_to used to pair quotes with two independent `sed`
-# expressions, neither aware of which style opened first. The single-quote
-# expression matched from the apostrophe inside one double-quoted string to the
-# apostrophe inside the next and DELETED everything between them — including the
-# command. With the `(` gone the sink was never entered, so this blocked on its
-# own and was ALLOWED once flanked by two ordinary strings.
-#
-# The controls are load-bearing: without them an all-blocked column is equally
-# consistent with a guard that refuses everything containing an apostrophe.
 # shellcheck disable=SC2016
 run_pwsh "PS: computed git commit --no-verify (control, blocked)" \
   "& ('g'+'it') commit --no-verify -m x" 2
@@ -780,10 +674,6 @@ run_pwsh "PS: two apostrophe-bearing strings, no command between (allowed — #2
 run_pwsh "PS: #2848 bare-computed call target flanked by an apostrophe (allowed — #2965)" \
   "Write-Host \"Kyle's build\"; & \$py \$script (Join-Path \$dir \"\$id.jsonl\")" 0
 
-# --- #2906 containment: quoted Path+Value is a write, not a --no-verify signal --
-# The placeholder lives only inside write_bypass's positional probe. These rows
-# must stay allowed here so a contained write-lane fix cannot leak into the
-# no-verify fail-closed sink.
 # shellcheck disable=SC2016
 run_pwsh "PS: quoted Path+Value is not a no-verify signal (allowed — #2906 containment)" \
   "& \$w 'f.txt' 'x'" 0

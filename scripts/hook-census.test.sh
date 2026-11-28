@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for hook-census.sh: builds a throwaway plugins/fx/hooks/hooks.json,
-# runs the census against its rows, and asserts on the counts and exit codes.
-# The counts are the kernel's (strace), so this suite needs strace and fails
-# closed without it: a census suite that skips proves nothing about the census
-# the ratchet step runs.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -22,8 +17,6 @@ fi
 TMP=""
 fixture_tree::build TMP --sut "$SCRIPT_DIR/hook-census.sh" --plugins --label hook-census
 mkdir -p "$TMP/plugins/fx/hooks"
-# Rows: a no-op, one that forks and execs once, a whole-file transcript read, a
-# bounded one, and one that fails.
 cat >"$TMP/plugins/fx/hooks/hooks.json" <<'JSON'
 {"hooks": {
   "Stop": [{"hooks": [
@@ -43,13 +36,13 @@ JSON
 CENSUS="$TMP/scripts/hook-census.sh"
 PAYLOAD='{"session_id":"t","transcript_path":"@TRANSCRIPT@","hook_event_name":"Stop","cwd":"@DIR@"}'
 
-census() { # <row> [options...]: sets OUT and RC
+census() {
   local row="$1"
   shift
   OUT="$(bash "$CENSUS" fx Stop "$row" "$PAYLOAD" "$@" 2>&1)"
   RC=$?
 }
-expect() { # <name> <rc> <output substring>
+expect() {
   if [[ "$RC" == "$2" && "$OUT" == *"$3"* ]]; then
     pass "$1"
   else

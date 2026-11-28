@@ -1,10 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for hop_chain.py: runs its --dry-run self-test and its
-# --budget projection. Neither mode reaches the API, so this suite spends
-# nothing; the live hop-chain run is an operator action, never a test.
-#
-# SKIPs (exit 0) when Python 3.10+ is unavailable, matching the repo test-runner
-# convention for optional toolchains.
 set -uo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
@@ -71,14 +65,28 @@ print("ok")
   status=1
 fi
 
+echo "== shape-5 chain validates with a Reminders section"
+if ! "$PY" -X utf8 -c '
+import tempfile
+from pathlib import Path
+import hop_chain
+with tempfile.TemporaryDirectory() as tmp:
+    newest = hop_chain.generate_chain(Path(tmp) / "5", 3, shape=5)[-1]
+    text = newest.read_text(encoding="utf-8")
+    assert "handoff_shape: 5" in text, "newest hop is shape 5"
+    assert "\n## Reminders\n" in text and "\n## Pending commands\n" not in text, "Reminders replace Pending commands"
+print("ok")
+'; then
+  echo "FAIL: shape-5 chain"
+  status=1
+fi
+
 echo "== hop_chain.py --dry-run"
 if ! "$PY" -X utf8 hop_chain.py --dry-run; then
   echo "FAIL: --dry-run self-test"
   status=1
 fi
 
-# --budget writes a 20-hop chain; give it its own scratch dir in mixed form so
-# the native interpreter reads the same path Git Bash printed (windows-path-emit).
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 if command -v cygpath >/dev/null 2>&1; then

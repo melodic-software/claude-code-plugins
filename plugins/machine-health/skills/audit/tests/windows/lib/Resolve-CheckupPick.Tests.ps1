@@ -1,10 +1,5 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
-<#
-.SYNOPSIS
-Tests for scripts/windows/lib/Resolve-CheckupPick.ps1 -- a pasted checkup-picks
-payload resolved against the one id map its run: line names.
-#>
 
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -LibScript 'Resolve-CheckupPick.ps1'

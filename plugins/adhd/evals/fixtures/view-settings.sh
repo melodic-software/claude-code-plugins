@@ -15,9 +15,6 @@ esac
 
 case "${mode}" in
 team-artifact)
-  # The eval workspace sits inside the run's temporary home, which is itself a repository, so a
-  # repository above the workspace is expected there. Allow only that one; refuse a workspace that
-  # is already a repository and any other enclosing repository.
   unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
   if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
     tmp="$(cd "${TMPDIR:-/nonexistent}" 2>/dev/null && pwd -P || true)"
@@ -49,7 +46,6 @@ team-artifact)
   g commit -q -m "billing-service fixture"
   ;;
 retired-terminal)
-  # A file under $HOME is written only when $HOME is not the real home of the user running this.
   real="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f6 || true)"
   if [[ -z "${real}" || -z "${HOME:-}" || "$(cd "${HOME}" && pwd -P)" == "$(cd "${real}" 2>/dev/null && pwd -P)" ]]; then
     echo "refusing to write under HOME=${HOME:-unset}: it is the real home or the real home is unknown" >&2

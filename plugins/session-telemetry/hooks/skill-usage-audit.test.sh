@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for skill-usage-audit.sh (session-telemetry plugin). Black-box.
-# Covers both outputs: the unconditional skill-usage.jsonl second store (with
-# its project-relative destination + skill_usage_dir override) and the telemetry
-# envelope emitted only when a sink is wired.
 set -uo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -15,7 +11,6 @@ source "$HOOK_DIR/session-telemetry-test-helpers.sh"
 
 INPUT='{"tool_name":"Skill","tool_input":{"skill":"/research"}}'
 
-# --- Second store: written unconditionally, default .claude/observability ---
 PROJ="$TEST_TMPDIR/proj"
 mkdir -p "$PROJ"
 env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJ" \
@@ -38,11 +33,6 @@ env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJ2" \
 assert_eq "override dir used" "research" \
   "$(jq -r '.skill' "$PROJ2/telemetry/skills/skill-usage.jsonl" 2>/dev/null)"
 
-# --- Invalid override is visible and cannot escape the project -------------
-# CLAUDE_PLUGIN_DATA isolated to a fresh dir: the config-invalid branch now
-# goes through hook::notice_once (once-per-session gate), which persists a
-# marker file under CLAUDE_PLUGIN_DATA — an unisolated real machine path would
-# make this assertion pass only on the first-ever run.
 PROJB="$TEST_TMPDIR/projb"
 mkdir -p "$PROJB"
 OUTSIDE="$TEST_TMPDIR/outside"
@@ -85,7 +75,6 @@ env HOOK_TELEMETRY_SINK="$SINKN" CLAUDE_PROJECT_DIR="$PROJ4" \
 assert_file_absent "non-Skill → no second store" "$PROJ4/.claude/observability/skill-usage.jsonl"
 assert_file_absent "non-Skill → no envelope" "$TELN"
 
-# --- Repo scope in a git work tree: machine-local exclude hygiene ----------
 PROJG="$TEST_TMPDIR/projg"
 mkdir -p "$PROJG"
 if git -C "$PROJG" init -q 2>/dev/null; then
@@ -143,7 +132,6 @@ fi
 assert_file_absent "data-dir scope leaves the project tree untouched" \
   "$PROJD/.claude/observability/skill-usage.jsonl"
 
-# --- Unknown scope: visible advisory, falls back to repo --------------------
 PROJS="$TEST_TMPDIR/projs"
 mkdir -p "$PROJS"
 BADSCOPE_DATA="$TEST_TMPDIR/badscope-data"
@@ -168,10 +156,9 @@ assert_contains "data-dir scope without CLAUDE_PLUGIN_DATA says so" \
 assert_eq "data-dir advisory does not reach the model" "" \
   "$(jq -r '.hookSpecificOutput.additionalContext // empty' <<<"$NODATA_OUTPUT" 2>/dev/null)"
 
-# --- A destination that cannot be created: user notice only ---------------
 PROJN="$TEST_TMPDIR/projn"
 mkdir -p "$PROJN/.claude" "$TEST_TMPDIR/nodest-data"
-: >"$PROJN/.claude/observability" # a file where the store directory belongs
+: >"$PROJN/.claude/observability"
 NODEST_OUTPUT=$(env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJN" \
   CLAUDE_PLUGIN_DATA="$TEST_TMPDIR/nodest-data" \
   bash "$HOOK" <<<"$INPUT" 2>/dev/null)
@@ -191,13 +178,10 @@ env HOOK_TELEMETRY_SINK="$SINKK" CLAUDE_PROJECT_DIR="$PROJ5" \
 assert_file_absent "kill switch → no second store" "$PROJ5/.claude/observability/skill-usage.jsonl"
 assert_file_absent "kill switch → no envelope" "$TELK"
 
-# --- Size cap: past skill_usage_max_bytes the store rotates to .1 -----------
-# The rule hook-events.jsonl follows: a file over the cap moves to .1,
-# replacing any older .1, before the append.
 PROJ6="$TEST_TMPDIR/proj6"
 STORE6="$PROJ6/.claude/observability/skill-usage.jsonl"
 mkdir -p "${STORE6%/*}"
-printf '%s\n' '{"old":1}' '{"old":2}' >"$STORE6" # 20 bytes
+printf '%s\n' '{"old":1}' '{"old":2}' >"$STORE6"
 printf '%s\n' '{"stale":1}' >"$STORE6.1"
 env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJ6" CLAUDE_PLUGIN_OPTION_SKILL_USAGE_MAX_BYTES=19 \
   bash "$HOOK" <<<"$INPUT" >/dev/null 2>&1
@@ -209,13 +193,12 @@ assert_eq "over the cap: the live file holds only the new row" "1 research" \
 PROJ7="$TEST_TMPDIR/proj7"
 STORE7="$PROJ7/.claude/observability/skill-usage.jsonl"
 mkdir -p "${STORE7%/*}"
-printf '%s\n' '{"old":1}' '{"old":2}' >"$STORE7" # 20 bytes
+printf '%s\n' '{"old":1}' '{"old":2}' >"$STORE7"
 env -u HOOK_TELEMETRY_SINK CLAUDE_PROJECT_DIR="$PROJ7" CLAUDE_PLUGIN_OPTION_SKILL_USAGE_MAX_BYTES=20 \
   bash "$HOOK" <<<"$INPUT" >/dev/null 2>&1
 assert_eq "at the cap: nothing rotates, the row appends" "3 absent" \
   "$(wc -l <"$STORE7" | tr -d ' ') $([[ -e "$STORE7.1" ]] && echo present || echo absent)"
 
-# Unset, the cap is 10 MiB: a file one byte over 10485760 rotates.
 PROJ8="$TEST_TMPDIR/proj8"
 STORE8="$PROJ8/.claude/observability/skill-usage.jsonl"
 mkdir -p "${STORE8%/*}"

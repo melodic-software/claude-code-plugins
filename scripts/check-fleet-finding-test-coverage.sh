@@ -1,26 +1,4 @@
 #!/usr/bin/env bash
-# Gate: every finding kind audit-fleet.sh emits must have a collector-output
-# assertion in audit-fleet.test.sh (the literal `Finding: <kind>` needle).
-#
-#   scripts/check-fleet-finding-test-coverage.sh          discover: list emitted
-#                                                          kinds and whether the
-#                                                          suite asserts them
-#   scripts/check-fleet-finding-test-coverage.sh --check  fail if an un-grandfathered
-#                                                          emitted kind has no
-#                                                          Finding: assertion, or a
-#                                                          baseline entry is stale
-#
-# Why this lives outside audit-fleet.test.sh: a rewrite of the test file
-# alongside the collector keeps the suite self-consistent while dropping
-# coverage. A check that only runs inside the rewritten file cannot defend it.
-#
-# Substring / setup-only mentions (comments, F_KIND injection arrays) do not
-# count. Existing coverage debt is grandfathered in
-# scripts/fleet-finding-test-coverage-baseline.txt
-# (exact finding-kind tokens, one per line). --check fails on a stale entry so
-# the baseline cannot outlive its debt. FLEET_FINDING_COVERAGE_BASELINE /
-# FLEET_FINDING_SCRIPT / FLEET_FINDING_TEST override paths (test injection and
-# historical proofs).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -53,17 +31,6 @@ fi
 emitted_tmp="$(mktemp)"
 trap 'rm -f "$emitted_tmp"' EXIT
 
-# The collector owns its finding-kind list and publishes it as data
-# (--print-finding-registry, first tab-separated column). Ask it, rather than
-# pattern-matching its source: a registry the emitters, the action predicates
-# and the reference table already read is the same list this gate needs, and a
-# regex over call sites goes quietly empty the moment the emitter's argument
-# shape changes.
-#
-# A collector predating that mode answers nothing, so the gate falls back to
-# scraping emit_finding call sites, which is the list such a tree encodes. The
-# fallback announces itself: it is for the historical proofs, and a live tree
-# whose registry mode broke must not be mistaken for an old one.
 if bash "$SCRIPT" --print-finding-registry 2>/dev/null |
   awk -F'\t' 'NF > 0 && $1 != "" {print $1}' | sort -u >"$emitted_tmp" &&
   [[ -s "$emitted_tmp" ]]; then
@@ -71,7 +38,6 @@ if bash "$SCRIPT" --print-finding-registry 2>/dev/null |
 else
   kind_source="emit_finding call sites (collector has no --print-finding-registry)"
   echo "check-fleet-finding-test-coverage: $SCRIPT does not answer --print-finding-registry; falling back to source scraping" >&2
-  # Skip comment lines: prose in the collector names kinds while explaining them.
   grep -vE "^[[:space:]]*#" "$SCRIPT" | grep -oE "emit_finding [A-Z]+ [a-z-]+" |
     awk '{print $3}' | sort -u >"$emitted_tmp"
 fi
@@ -83,9 +49,6 @@ if [[ "$emitted_count" -lt 20 ]]; then
 fi
 
 kind_asserted() {
-  # True only when the suite asserts collector output for this exact kind.
-  # Anchor the trailing boundary so Finding: worktree-root-conformance does not
-  # false-cover via Finding: worktree-root-conformance-summary.
   local kind="$1"
   grep -Eq -- "Finding: ${kind}([^a-z-]|$)" "$TEST"
 }
@@ -93,9 +56,6 @@ kind_asserted() {
 declare -A baselined=()
 baseline_entries=()
 if [[ -f "$BASELINE" ]]; then
-  # `inline`: entries are finding-kind tokens, never regexes, so a `#` anywhere
-  # on the line opens the reason comment (scripts/lib/read-list.sh owns the two
-  # comment families and why they must stay distinct).
   read_list::into baseline_entries "$BASELINE" --comments inline || exit 2
   for line in ${baseline_entries[@]+"${baseline_entries[@]}"}; do
     baselined["$line"]=1
@@ -124,15 +84,10 @@ while IFS= read -r kind; do
     echo "UNCOVERED FINDING KIND: $kind (emitted by $SCRIPT, no Finding: assertion in $TEST)" >&2
     errors=$((errors + 1))
   else
-    # The entry is shadowing a real gap right now, so it has not outlived what
-    # it excuses. scripts/lib/read-list.sh owns the consumed-set.
     read_list::mark_used "$kind"
   fi
 done <"$emitted_tmp"
 
-# Stale baseline: entry no longer shadows a missing kind (either covered now, or
-# no longer emitted). The two reasons differ per entry, so the report goes
-# through the library's diagnostic line rather than its uniform reporter.
 stale_entries=()
 read_list::stale_to stale_entries baseline_entries
 for entry in ${stale_entries[@]+"${stale_entries[@]}"}; do

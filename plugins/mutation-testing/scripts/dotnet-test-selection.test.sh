@@ -1,11 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for dotnet-test-selection.sh.
-#
-# Self-contained and cwd-independent; works on copies in its own mktemp dir, so
-# a dotnet build writes nothing into the plugin. Every expected line below is
-# written from the fixture's source, not from running the script. The dotnet
-# section runs the printed line through `dotnet test` and skips, printing why,
-# when dotnet is not on PATH.
 # test-scope: plugins/mutation-testing/scripts/fixtures/dotnet-test-selection/*
 set -uo pipefail
 
@@ -16,13 +9,8 @@ FIXTURE="$SCRIPT_DIR/fixtures/dotnet-test-selection"
 WORK="$(mktemp -d)" || exit 1
 WORK="$(cd "$WORK" && pwd -P)" || exit 1
 trap 'rm -rf "$WORK"' EXIT
-# Children that call mktemp land inside the trapped root.
 export TMPDIR="$WORK"
 
-# The fixture: Shop.Tests holds CalculatorTests (2 tests, and 1 in its nested
-# Negatives class) and CalculatorTestsExtra (2), whose name extends it;
-# Shop.Specs holds DiscountSpecs (2) and RoundingSpecs (1) in one file, and
-# OtherSpecs (1).
 FX="$WORK/fx"
 cp -R "$FIXTURE" "$FX" || exit 1
 TESTS="$FX/tests/Shop.Tests"
@@ -35,7 +23,6 @@ fail() {
   fails=$((fails + 1))
 }
 
-# run <file>...: run the script from /, so every project path prints absolute.
 out=""
 code=0
 run() {
@@ -76,8 +63,6 @@ code=$?
 expect "a project under the working directory prints relative" 0 \
   "'tests/Shop.Specs/Shop.Specs.csproj' --filter 'FullyQualifiedName~Shop.Specs.OtherSpecs.'"
 
-# Synthetic sources, in a tree of their own so the dotnet run below sees the
-# fixture alone. The script reads a project file's presence, not its content.
 SYN="$WORK/syn/App.Tests"
 mkdir -p "$SYN/Deep/Er" || exit 1
 : >"$SYN/App.Tests.csproj"
@@ -170,20 +155,15 @@ expect "two projects in the nearest directory refuse" 1 ""
 run "$(src NoClass.cs 'namespace N; public interface INothing { }')"
 expect "a file with no top-level class refuses" 1 ""
 
-# The dotnet run: line one names Shop.Tests (5 tests) but selects only
-# CalculatorTests and its nested class (3); line two names Shop.Specs (4) and
-# selects DiscountSpecs and RoundingSpecs (3).
 if ! command -v dotnet >/dev/null 2>&1; then
   printf 'skip - dotnet test on the fixture: dotnet is not on PATH\n'
 else
   export DOTNET_CLI_TELEMETRY_OPTOUT=1 DOTNET_NOLOGO=1 MSBUILDDISABLENODEREUSE=1
-  # Read where the tests build, so a global.json above the caller pins nothing.
   version="$(cd "$WORK" && dotnet --version 2>/dev/null)"
   major="${version%%.*}"
   if [[ ! "$major" =~ ^[0-9]+$ ]]; then
     fail "dotnet --version printed no major version: $version"
   else
-    # Target the installed SDK's own runtime, which can run the tests.
     for p in "$FX/src/Shop/Shop.csproj" "$TESTS/Shop.Tests.csproj" "$SPECS/Shop.Specs.csproj"; do
       if ! sed "s#<TargetFramework>net8.0</TargetFramework>#<TargetFramework>net$major.0</TargetFramework>#" "$p" >"$p.tmp" ||
         ! mv "$p.tmp" "$p" || ! grep -q "<TargetFramework>net$major.0</TargetFramework>" "$p"; then
@@ -196,8 +176,6 @@ else
       n=$((n + 1))
       line="$(sed -n "${n}p" <<<"$out")"
       res="$WORK/results-$n"
-      # The output goes to a file: a build server left running would hold a
-      # command substitution's pipe open.
       if ! (cd "$WORK" && eval "dotnet test $line --logger 'trx;LogFileName=line$n.trx' --results-directory '$res'") >"$WORK/dotnet-$n.log" 2>&1; then
         fail "dotnet test on line $n exited non-zero: $(tail -n 20 "$WORK/dotnet-$n.log")"
         continue

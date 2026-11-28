@@ -1,5 +1,5 @@
 ---
-description: "Standing output posture for a reader with ADHD: every later response leads with the next action, numbers multi-step work, restates state, caps and ranks lists, sizes work concretely, and cuts preamble, recap and closers. Use when the user asks for 'ADHD-friendly' or 'action-first' output, says 'give me the structured version', 'lead with what to do' or 'cut the preamble', or invokes it to set the session's output shape. One dense message already on screen is adhd:clarify. Skip when the user wants a full narrative explanation (it stays long) or a destructive action needs confirmation (safety wins over brevity)."
+description: "Standing ADHD output shape for every later response: action-first, structured numbered steps, restated state, capped ranked lists, concrete sizing, no preamble/recap/closers (safety confirmations still apply). Use when: 'ADHD-friendly', 'lead with what to do', 'cut the preamble'. Not for one dense message: /adhd:clarify; not for full narratives."
 user-invocable: true
 disable-model-invocation: false
 metadata:

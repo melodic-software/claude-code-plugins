@@ -45,7 +45,7 @@ original text. For big or decision-dense content it renders an HTML decision
 table (item, recommendation, alternative, and what you're deciding, with rows
 numbered so a terminal answer maps back), honoring the Artifact tool contract and
 degrading to a local HTML file, then structured terminal markdown, where the
-Artifact surface is unavailable. The shared medium resolver, which every view lane
+Artifact surface is unavailable. The shared medium resolver, which every view producer
 uses, decides where the table goes from a `--medium` argument, the plugin's `medium`
 option, the repository's `docs/conventions/rendered-views.yaml` team file, and its
 untracked `.local.yaml` personal override. A team file can keep the table local but
@@ -151,6 +151,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | --- | --- | --- | --- |
 | `time_units` | boolean | `false` | When on, /adhd:shape may state an estimate of work in minutes, hours, days or weeks; when off it gives a relative size (Small, Medium, Large) instead. A time budget you state is kept in your words either way. Default: off. |
 | `medium` | string | `"auto"` | Where /adhd:clarify sends its decision table. auto (default): an Artifact when the tool is present, else a local file, else the terminal, by content size; terminal: no page; file: a local file, never published; artifact or hosted: a private Artifact. A table of 1-2 decisions stays in the terminal. |
+| `branding` | string | *(none)* | Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored. |
 
 ### How to set these
 

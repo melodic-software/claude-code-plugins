@@ -17,11 +17,13 @@ melodic-software/github-iac
 
 ## Configuration contract
 
-`.github/runner-policy.json` declares `visibility: "public"` and
-`selfHostedCi: false`; the policy engine cross-checks that declaration against
-the live repository-visibility evidence on every CI run and fails closed on a
-mismatch, so a visibility change must land together with the matching posture
-change in this repository's workflows.
+No `.github/runner-policy.json` is needed here: the standards `runner-policy`
+engine applies its built-in public hosted-only default (`visibility: "public"`,
+`selfHostedCi: false`, empty `exceptions`) when the file is absent and the live
+repository-visibility evidence is `"public"`, and fails closed otherwise. A
+visibility change must therefore land together with an explicit
+`.github/runner-policy.json` and the matching posture change in this
+repository's workflows.
 
 Workflow source contains no organization runner label, host name, or GitHub
 App identifier. Each reusable workflow from `melodic-software/ci-workflows` is
@@ -69,6 +71,61 @@ metadata checks (Conventional Commits title,
 inside the same `ci-status` job on the same hosted runner and carry no status
 contexts of their own. Fork pull requests receive no secrets and
 no automated review, by design.
+
+On a ready pull request `ci-status` also requires both AI review lanes
+(`pr-review-hosted.yml` and `pr-review-security-hosted.yml`) to have reviewed
+the head, in its `Require both review lanes on this head` step, with one
+exception: the formatter-only proof (owner decision).
+The `prove-formatting` job checks out the pull request's test merge commit,
+moves to its base, and runs
+`.github/scripts/pr-require-checks/formatter-proof.sh` from there: the base's
+pinned shfmt (through bash-format's `shfmt_rewrite`) and Ruff (the
+python-format hook's two commands, through `scripts/run-ruff.sh`) over the
+base's copy of each changed shell and Python file, then the base's
+`scripts/sync-shared-copies.sh` and `scripts/sync-hold-floor.py`. When that
+reproduces every changed file of the head byte for byte, with only added
+`.changes/<plugin>/*.md` fragments beside them, the step accepts the head
+without the lanes. A fragment counts only when its bytes are exactly the
+fixed one the script's usage text shows (`bump: patch` and "Reformatted with
+the pinned shfmt and Ruff; no behavior change."), so no author-written
+changelog text merges unreviewed; the base's `changelog_fragments::validate`
+accepts it; it is its plugin's only added fragment; and its plugin holds a
+reproduced file. A trust-gate path among the changed files (the step's
+`hold_patterns`, whoever the author) still needs a person on the trusted-actor
+list to approve the head. Any other file, an added, deleted or renamed file, a
+mode change, a byte the formatters do not write, a tool off its pin or a run
+that fails is no proof, and the lanes decide as before. The proof waives
+nothing else: the lane jobs, the holds, pr-verify and the merge-risk rating
+still apply. A fork's head and a head an agent App wrote on a trust-gate path
+fail as before.
+
+No pull request code runs in `prove-formatting`: after its checkout it moves
+the working tree to the merge commit's first parent, the base branch commit
+GitHub merged into, so the local shfmt action, the Ruff pin and the script are
+the base's, and the head is read only as blob ids. The regenerators and the
+fragment validator run in the formatted tree, so a change to any file the
+proof runs (`scripts/run-ruff.sh`, `scripts/sync-shared-copies.sh`,
+`scripts/sync-hold-floor.py`, the `lib/parse-concern-value.sh` it runs,
+`scripts/lib/` but its `*.test.sh` files, the
+bash-format hooks, and the babysit-prs scripts `sync-hold-floor.py` imports but
+their `tests/`) is no proof. shfmt is
+downloaded fresh and checked against the base action's SHA-256, never restored
+from a cache a pull request's earlier run could write, and the job checks that
+the test merge commit merges the event's head. The job and `ci-status`
+themselves come from the pull request's own workflow file, though, so a head
+that rewrites `pr-require-checks.yml` can set the proof itself, as it can
+rewrite the review-lane check; that file is a trust-gate path. The job holds a
+read-only token and keeps no credential. It is not a lane: `ci-status` leaves its result
+out of the aggregate, so its failure only means no proof. It runs on every
+non-draft `pull_request` event, contract-only ones included, and `ci-status`
+reads only its output in the same run: a recorded proof, such as a commit
+status, could be written by any workflow run in the repository. A change with
+any path no formatter or regenerator covers stops after the classifying step,
+before the tools install. Its budget is unmeasured as a job: the script took 173 s on one
+lane (36 s on eight) for the 1,403-file shfmt cleanup of
+[#17778](https://github.com/melodic-software/claude-code-plugins/issues/17778)
+and 5 s for its 439-file Ruff cleanup, so with about 60 s of checkout and setup,
+ceil(1.5 x 233 / 60) = 6 minutes, and a 12-minute timeout.
 
 Workflow, job and step names follow the org naming lint
 ([github-actions-conventions](https://github.com/melodic-software/standards/blob/main/components/github-actions-conventions/README.md)),
@@ -146,10 +203,125 @@ of every lane. `lint-shell` skips when the change touches none of its inputs
 directories, skill and agent markdown, its gates and their baselines).
 
 A suite that scans a directory never names the file that changed, so it
-declares what it reads in a `test-scope:` header comment, and the selector's rule R8
-selects it for any changed file matching the glob. The rules, and the
-`--replay` mode that shows a selector change's effect on recent main commits,
-are in the header of `scripts/affected-tests.sh`.
+declares what it reads in a `test-scope:` header comment, and the selector's rule
+[R8](#selection-rules) selects it for any changed file matching the glob.
+`scripts/affected-tests.sh --help` lists the flags, including `--replay`, which
+shows a selector change's effect on recent main commits.
+
+### Selection rules
+
+`scripts/affected-tests.sh` selects a suite when the changed file is code the
+suite runs or loads, or data the suite (or code it runs) reads. Each rule finds
+that relation from text and paths, and says no when the text does not show it.
+"Names" is defined under [Matching](#matching), [Ambiguous names](#ambiguous-names)
+and [Comments](#comments) below.
+
+- **R1 self.** A changed suite selects itself, in any ecosystem.
+- **R2 co-located.** `<dir>/<stem>.<ext>` selects the sibling suites covering
+  it under each ecosystem's naming: `<stem>.test.sh`, `<stem>.test.js`,
+  `<stem>.test.mjs`, `<stem>.Tests.ps1`, `<dir>/test_<stem>.py` and
+  `<dir>/tests/test_<stem>.py`, the Python forms also with `-` folded to `_`.
+  Every match is taken. pytest loads a `conftest.py`, and Python an
+  `__init__.py`, with no mention, so either selects every `test_*.py` at or
+  below its directory.
+- **R3 same language.** A file in the changed file's language that names it is
+  a dependent, and R1, R2 and R3 apply to it in turn, with no depth cap; this
+  carries a library change out to what sources it. A Python `import`/`from`
+  line names `<stem>.py` for each dotted component equal to the stem, and a
+  name after `from m import` names `name.py` only when `m`'s package directory
+  holds it. The module must sit under the importer's plugin or lib root
+  (`plugins/<p>/`, `lib/<l>/`, `.github/scripts/<x>/`); an importer outside
+  every root reaches the whole tree. An ambiguous stem resolves only to the
+  module of its name in the nearest directory, from the importer up to that
+  root, that holds one.
+- **R4 other language.** A file in another language counts only where the
+  naming line runs or loads the file: an interpreter or process API on the line
+  (`bash`, `sh`, `python3`, `node`, `pwsh`, `source`, `subprocess`, `spawn*`,
+  `exec*`, ...), or a path to the file rather than its bare name. A chain takes
+  at most one such transition. A data file (any extension that is not code)
+  reaches code of every language that names it, and that first step spends no
+  transition.
+- **R5 shared lib.** The `src` of a `scripts/sync-*.sh` selects every path in
+  that script's published `copy` list, then R2, R3 and R4 on each copy. The
+  copy set is derived from `--print-manifest` on every run, since the manifests
+  are what CI's sync lanes enforce.
+- **R6 sync script.** A changed `scripts/sync-*.sh` selects its own co-located
+  test plus everything its published `src` selects.
+- **R7 path class.** A path under `plugins/autonomy/reference/` selects the
+  plugin-contract validator's suite, which bans vendor names across that
+  directory without naming any file in it.
+- **R8 declared scope.** A suite that enumerates a directory of the live tree
+  (a `grep -r`, a `find`, a glob) or builds a path from parts declares what it
+  reads in its leading comment block, before any code or docstring, in lines of
+  `# test-scope: plugins/github/* scripts/x.sh` (`// test-scope:` in `.test.js`
+  and `.test.mjs` suites). A changed file matching a glob selects the suite and
+  counts as mapped. The globs use the dialect of
+  `scripts/affected-tests-no-suite.txt`: matched against the repo-relative
+  path, `*` crosses `/`, and a `#` after them starts a comment. A glob matching
+  no file fails the run that changes its suite.
+- **R9 wrapper.** A selected `<stem>.test.js` or `<stem>.test.mjs` whose
+  directory holds `<stem>.test.sh` selects that wrapper too, since CI runs such
+  a suite only through its wrapper. Applied after every other rule, before
+  `--shard`.
+- **R10 package scope.** Node reads a `package.json` for every bare import in
+  its package scope
+  ([resolution algorithm](https://nodejs.org/api/esm.html#resolution-algorithm-specification)),
+  so a changed `<dir>/package.json` seeds the walk with each non-test `.js`,
+  `.mjs` or `.cjs` file under `<dir>`, short of `node_modules/` and any nested
+  `package.json`, that imports or requires a dependency the manifest declares at
+  the diff base or now; R2, R3 and R4 then apply to each. Needs `jq`.
+
+#### Matching
+
+One file names another when the other's basename stands in a line as a whole
+path token: bounded on both sides by a character outside `[A-Za-z0-9_.-]`. `/`
+is outside that class, so a path-qualified mention names the file. A trailing
+run of `.` is sentence punctuation and is dropped, and so is a leading run of
+`-`, `+`, `=`, `?` or `.`, so `${TARGET:-<name>}` and `...<name>` name
+`<name>`. A basename buried inside a longer token (`handoff-paths.json` against
+`paths.js`) is not a mention: a substring match there would be false coverage, a
+file nothing covers coming back mapped. A basename with a character outside the
+class keeps the substring test rather than losing its coverage.
+
+`plugin.json`, `marketplace.json`, `hooks.json`, `settings.json`,
+`package.json`, `package-lock.json`, `CHANGELOG.md` and `LICENSE` select no
+suite through a mention: a suite that reads one reads its name or version, and
+the manifest, changelog and catalog gates own those files. Only R1, R2, R8 and,
+for `package.json`, R10 reach a suite from them; anything else is on the
+no-suite list.
+
+#### Ambiguous names
+
+A basename two or more files carry, and the structural docs (`README.md`,
+`SKILL.md`, `AGENTS.md`, `CLAUDE.md`, `index.md`), name a specific file only
+when the mention resolves to it. Any mention from the file's own directory
+resolves. A bare name resolves from a directory above the file when no other
+file of that name sits below that directory (`FIXTURES / "questions.json"`),
+and never otherwise. A path resolves when it ends in the shortest suffix of the
+file's path, two components or more, that no other file of that name ends in,
+or in the file's path relative to a directory below the repository root that
+holds both files, when that relative path has a directory in it
+(`$SCRIPT_DIR/lib/x.sh` from a script beside `lib/`,
+`$PLUGIN_DIR/skills/interview/SKILL.md` from inside the plugin). A path that
+spells only the name (`$SKILL_DIR/SKILL.md`) or is relative to the root alone
+(`$ROOT/.github/workflows/pr-require-checks.yml`) does not resolve: tests build
+the same path under a temporary directory as often as they read the real file,
+so a suite that reads such a file declares it (R8). R5's shared-library copies
+are the exception and keep the plain rule: they share a basename on purpose and
+change together with their source.
+
+#### Comments
+
+A line that is only a comment (`#` in shell, Python and PowerShell; `//`, `/*`
+or a `*` continuation in Node) names nothing, in suites and in code alike. A
+`# shellcheck source=` directive and a JSDoc type import (`@import`,
+`import('...')`) are read by tools and still count. A trailing comment on a
+shell, Python or PowerShell code line (a `#` outside quotes after a blank)
+names nothing either, but a trailing comment on a Node line, or on a Python
+`import`/`from` line, still counts: `import transcript_reader  #
+scripts/transcript_reader.py` is how a module import names its file. A shell
+output redirect's target (`>file`, `>>"$dir/file"`) names nothing: a suite that
+seeds a fixture writes that name and reads nothing.
 
 ## Contract-only `ci-status`
 

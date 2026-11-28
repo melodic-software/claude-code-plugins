@@ -7,9 +7,6 @@ import sys
 import tempfile
 import unittest
 
-# An inherited GIT_DIR, GIT_WORK_TREE or GIT_CONFIG would send the git
-# fixtures' identity writes into the caller's repository
-# (scripts/check-fixture-git-isolation.sh). Cleared before any test spawns git.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",
@@ -98,8 +95,6 @@ class ChangedSinceMergeBase(unittest.TestCase):
         )
 
     def test_the_default_branch_heads_list_is_read_on_its_own(self) -> None:
-        # Main's README.md change since A, through main's own list: a base
-        # exclude cannot cancel it, and an empty base list still reads it.
         for paths in (("docs/none.md", ":!README.md"), ()):
             with self.subTest(paths=paths):
                 out = check_inputs.changed_since_merge_base(
@@ -137,8 +132,6 @@ class ChangedSinceMergeBase(unittest.TestCase):
         self.assertEqual(out["notApplicable"], [REGISTRY])
 
     def test_a_registry_change_is_stale_for_a_pr_editing_the_registry(self) -> None:
-        # Main retired what the PR now registers: only the PR's own registry
-        # line names it, so the tip's registry alone would miss the overlap.
         edit = self.branch("edit", REGISTRY)
         out = self.read((REGISTRY,), edit)
         self.assertEqual(out["state"], "stale")
@@ -205,8 +198,6 @@ class ChangedSinceMergeBase(unittest.TestCase):
                 self.assertTrue(out["reason"])
 
     def test_a_partial_clone_is_unknown(self) -> None:
-        # A blobless clone lacks the tip's registry once a fetch moves the tip;
-        # read as empty, it would register nothing and answer `current`.
         git(self.origin, "config", "uploadpack.allowFilter", "true")
         partial = self.tmp / "partial"
         git(

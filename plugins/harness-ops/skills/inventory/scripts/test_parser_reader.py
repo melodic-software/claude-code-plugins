@@ -31,8 +31,6 @@ import inventory as inv
 import parser_reader as pr
 import test_inventory
 
-# The region-rule suite's byte layouts, borrowed by value: binding the TestCase
-# itself at module level would make the loader run its tests here too.
 MARKER, BIG, GAP, DOCTOR = (
     getattr(test_inventory.TestReadBundleRegionRule, n)
     for n in ("MARKER", "BIG", "GAP", "DOCTOR")
@@ -91,9 +89,6 @@ class TestInstallResolution(unittest.TestCase):
             )
 
     def test_a_lookalike_prefix_is_not_this_plugins_data_dir(self) -> None:
-        # startswith("harness-ops") accepts harness-opsx-foo and would return
-        # it as CLAUDE_PLUGIN_DATA. The last segment must equal harness-ops or
-        # start with harness-ops-.
         env = {"CLAUDE_PLUGIN_DATA": "/x/harness-opsx-foo", "CLAUDE_CONFIG_DIR": "/cfg"}
         with (
             mock.patch.dict(os.environ, env),
@@ -216,8 +211,6 @@ class TestRepairCommandPerPlatform(unittest.TestCase):
     def test_the_windows_form_is_one_child_script_block_so_stop_does_not_leak(
         self,
     ) -> None:
-        # A bare `$ErrorActionPreference = 'Stop'` would be a second top-level
-        # statement and stay set in the session the line is pasted into.
         pwsh = shutil.which("pwsh")
         if pwsh is None:
             self.skipTest("pwsh is not installed")
@@ -239,8 +232,6 @@ class TestRepairCommandPerPlatform(unittest.TestCase):
         )
         self.assertEqual(run.stdout.strip(), "0 1 Ampersand ScriptBlockExpressionAst")
 
-    # PowerShell's tokenizer treats U+2018, U+2019, U+201A and U+201B as single-quote
-    # characters (language specification 2.3.5.2); doubling the same character escapes each.
     CURLY_TARGET = pathlib.Path(
         "D:\\it\u2018s \u2019 \u201a \u201b data\\inventory-parser\\abc"
     )
@@ -280,7 +271,6 @@ class TestRepairCommandPerPlatform(unittest.TestCase):
                 "EXPECTED_PATH": str(self.CURLY_TARGET),
             },
         )
-        # Remove-Item, New-Item, Copy-Item -Destination and npm --prefix each carry it once.
         self.assertEqual(run.stdout.strip(), "0 4")
 
     def test_the_default_platform_is_this_one(self) -> None:
@@ -467,7 +457,6 @@ class TestBindingQuery(unittest.TestCase):
         for n in range(20):
             other = f"var pY={n};"
             self.reader.binding(other, 0, len(other), "pY", 4)
-        # One character into the name: not asked before, so not memoized.
         self.assertEqual(self._at("pY=[", 1), first)
 
     def test_an_unparsable_module_resolves_nothing(self) -> None:
@@ -670,7 +659,6 @@ class TestFlowQuery(unittest.TestCase):
         self.assert_unsafe(body + "gn(1,{hook:h});", "h}")
         self.assert_unsafe(body + "gn(1,{});", "{})")
         self.assert_unsafe(body + "gn(1,{hook:!1});gn(2,o);", "o)")
-        # A getter's value is its accessor function, not what reading `hook` returns.
         self.assert_unsafe(
             body + "gn(1,{get hook(){return(x,i,a)=>a.push(2)}});", "{get"
         )
@@ -782,8 +770,6 @@ class TestFlowQuery(unittest.TestCase):
             ("var A=Array;A.prototype.includes=f;", ["write"]),
             ("(0,Array).prototype.includes=f;", ["write"]),
             ("globalThis.Array.prototype.includes=f;", ["write"]),
-            # A computed read whose key may be `require` may load node:vm,
-            # and one whose key may be `constructor` reaches `Function`.
             (
                 'Array["proto"+"type"].includes=f;',
                 ["write", "function-constructor", "unknown-load"],
@@ -818,20 +804,16 @@ class TestFlowQuery(unittest.TestCase):
             ("Function(s)();", ["function-constructor"]),
             ("var F=new Function(s);F();", ["function-constructor"]),
             ("Function.call(0,s)();", ["function-constructor"]),
-            # #5901 slice 6: a build that runs, or folds to code that hits.
             ('Function("Array.prototype.includes=f")();', ["function-constructor"]),
             ('new Function("o","o.includes=f")(P);', ["function-constructor"]),
             ('Function(`eval("")`)();', ["function-constructor"]),
             ('Function("with(o){}")();', ["function-constructor"]),
             ('Function("return this").call(0);', ["function-constructor"]),
-            # The built function binds no `anonymous`; that is a global here.
             ('Function("anonymous.includes=f")();', ["function-constructor"]),
-            # A body's `-->` line is a comment, so the patch below it runs.
             (
                 'Function("var y=0;y\\n-->`\\nArray.prototype.includes=f\\n//`")();',
                 ["function-constructor"],
             ),
-            # A write of the global `Function` the folded calls trust.
             ("Function=g;", ["global-write", "function-constructor"]),
             ("globalThis.Function=g;", ["write"]),
             ('Reflect.set(globalThis,"Function",g);', ["argument"]),
@@ -843,12 +825,10 @@ class TestFlowQuery(unittest.TestCase):
                 "typeof eval;x instanceof Function;Function.prototype.toString.call(f);",
                 [],
             ),
-            # The `constructor` read is a sink of its own beside the global `Function`.
             (
                 "Function.prototype.constructor(s)();",
                 ["function-constructor", "function-constructor"],
             ),
-            # `k` may also spell `require`, as with `Array["proto"+"type"]` above.
             (
                 "Function.prototype[k](s)();",
                 ["function-constructor", "unknown-load", "function-constructor"],
@@ -859,25 +839,17 @@ class TestFlowQuery(unittest.TestCase):
                 ["function-constructor", "function-constructor"],
             ),
             ("Function.prototype instanceof H;", ["function-constructor"]),
-            # #9990: a loop head, `arguments` or a block function declaration
-            # can hand a fresh-looking target any object; a destructured
-            # `__defineGetter__` defines, and code built from a string loads
-            # unseen.
             ("x={};for(var x of[P])x.includes=f;", ["write"]),
             ("function g(o){arguments[0]=P;o.includes=f}g({});", ["write"]),
             ("{function g(o){o.includes=f}}g(P);", ["write"]),
             ('var{__defineGetter__:g}=Object;g.call(P,"x",f);', ["definer-escape"]),
-            # A destructured reflective read hands out a definer to call.
             ('var{get:g}=Reflect;g(P,"__defineGetter__").call(P,k,f);', ["definer-escape"]),
             (
                 'var{getOwnPropertyDescriptor:d}=Object;d(P,"__defineGetter__").value.call(P,k,f);',
                 ["definer-escape"],
             ),
             ("Function(\"return import('/b.js')\")();", ["function-constructor"]),
-            # Cleared: a trusted name or computed key on a fresh object, or
-            # a name nothing trusted.
             ("var o={};o.includes=f;o[k]=1;", []),
-            # #5901 slice 6: a `Function` build that runs no unknown code.
             ('Function("return this")();', []),
             ('function t(){try{return new Function(""),!0}catch(e){return!1}}', []),
             ("function c(e){Function(`async function _check() {'use strict';\\n${e}\\n}`)}", []),
@@ -889,15 +861,11 @@ class TestFlowQuery(unittest.TestCase):
                 "class D extends B{constructor(k){super();this[k]=1}}",
                 ["computed-write"],
             ),
-            # #5901 slice 8: a built-in superclass, unless the class can
-            # reach a prototype swap.
             ("class Q extends Error{constructor(k){super();this[k]=1}}", []),
             (
                 "class Q extends Error{constructor(k){super();this[k]=1}}h(Q);",
                 ["computed-write"],
             ),
-            # A [[Set]] of `__proto__` swaps the prototype; a literal's
-            # `__proto__:` sets its own prototype, which `assign` never copies.
             ('Reflect.set(P,"__proto__",Q);', ["proto-swap"]),
             ('Object.assign(P,{["__proto__"]:Q});', ["proto-swap"]),
             ("Object.assign(P,{__proto__:Q});", []),
@@ -971,7 +939,6 @@ class TestFlowQuery(unittest.TestCase):
         `constructor` read whose value is only tested, compared by identity
         or named stays clear."""
         for src, kinds in (
-            # A computed read on the swapped object is an unknown load too.
             (
                 'var o={};Object.setPrototypeOf(o,module);o[k]("/a.js");',
                 ["function-constructor", "unknown-load"],
@@ -991,19 +958,13 @@ class TestFlowQuery(unittest.TestCase):
                 ["function-constructor", "function-constructor"],
             ),
             ('f["constructor"](s)();', ["function-constructor"]),
-            # A key the scan cannot know (a parameter, a `for in` key) may
-            # spell `constructor`; such a read is a load it cannot name too.
             (
                 "function get(o,k){return o[k]}",
                 ["function-constructor", "unknown-load"],
             ),
-            # A loop counter is a number, which spells neither.
             ("for(let i=0;i<n;i++)f(a[i]);", []),
             ("var{constructor:C}=f;C(s)();", ["function-constructor"]),
-            # A method can be called with a function as `this`.
             ("new this.constructor(s);", ["function-constructor"]),
-            # Coercion calls a `toString` or `valueOf` with it as `this`, and
-            # a write of a key it lacks calls an inherited setter the same way.
             ('""+(()=>1).constructor;', ["function-constructor"]),
             ("x.constructor+=s;", ["function-constructor"]),
             ("(()=>1).constructor.y=s;", ["function-constructor"]),
@@ -1012,7 +973,6 @@ class TestFlowQuery(unittest.TestCase):
                 "typeof x.constructor;a instanceof x.constructor;",
                 [],
             ),
-            # A branch or right operand whose whole value is thrown away.
             ("r?x.constructor:null;a&&x.constructor;a??x.constructor;", []),
             ("(r?x.constructor:g)(s)();", ["function-constructor"]),
             ("var C=a&&x.constructor;", ["function-constructor"]),
@@ -1044,8 +1004,6 @@ class TestFlowQuery(unittest.TestCase):
                 ["function-constructor"],
             ),
             ("e[`${s}uire`];", ["unknown-load"]),
-            # A key that cannot spell `constructor` may still spell `eval`,
-            # `Function`, a vm runner or a getter definer.
             ('globalThis[`ev${"al"}`](s);', ["indirect-eval"]),
             (
                 'const J=(e,n)=>e[n];J(globalThis,"Function")(s)();',
@@ -1053,7 +1011,6 @@ class TestFlowQuery(unittest.TestCase):
             ),
             ('const J=(e,n)=>e[n];J(o,"runInThisContext");', ["vm-string-code"]),
             ('const J=(e,n)=>e[n];J(o,"__defineGetter__");', ["definer-escape"]),
-            # A destructured key reads its member as a computed read does.
             ('const J=(o,k)=>{const{[k]:f}=o;return f};J(globalThis,"eval")(s);', ["indirect-eval"]),
             (
                 'const J=(o,k)=>{const{[k]:F}=o;return F};J(globalThis,"Function")(s)();',
@@ -1139,8 +1096,6 @@ class TestFlowQuery(unittest.TestCase):
             ],
         )
         self.assert_unsafe("var pY=[1];var z=pY[k];", "pY[k]")
-        # The literal's own elements reach no prototype; past them, or
-        # after a hole, an index read does.
         for src, trusted in (
             ('var pY=[1,2];var a=pY[1],b=pY["0"],c=pY[2];', ["2"]),
             ("var pY=[1,,3];var a=pY[0];", ["0"]),

@@ -45,29 +45,53 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 from typing import Callable
 
-_LIB_DIR = Path(__file__).resolve().parents[3] / "lib"
+_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+_LIB_DIR = _SCRIPT_DIR.parents[2] / "lib"
 if str(_LIB_DIR) not in sys.path:
     sys.path.insert(0, str(_LIB_DIR))
 
+import managed_settings  # noqa: E402  (sibling module in scripts/)
+from claude_projects import (  # noqa: E402  (path set above; plugin-bundled module)
+    NullTranscriptCwdAdapter,
+    ProjectSlugResolver,
+)
 from plugin_cache_versions import (  # noqa: E402  (path set above; plugin-bundled module)
+    AUTHORED,
+    DEFAULT_READ_LIMIT,
     INSTALLED_PLUGINS,
+    KEPT,
+    NEVER_READ_GLOBS,
     ORPHAN_SWEEP_DAYS,
+    SECRET,
+    SESSION_SCOPED,
+    SURFACE_TABLE,
+    SWEPT,
+    TEMP_GIT_PREFIX,
+    UNCLASSIFIED,
+    AllowlistGuardedReader,
+    SecretReadRefused,
+    classify_cache_relpath,
+    is_never_read,
     load_registry,
     orphan_marker,
     resolve,
+    resolve_claude_dir,
 )
 
 MIN_PYTHON = (3, 11)
 
 
-MEASURED = "measured"  # read off the filesystem or a config file in this run
+MEASURED = "measured"
 DOCUMENTED_DEFAULT = (
-    "documented-default"  # absent locally; upstream's documented default
+    "documented-default"
 )
-INFERRED = "inferred"  # a step was taken beyond what was measured
-NO_UPSTREAM_ROW = "no-upstream-row"  # no documentation covers the path either way
-DOCUMENTED = "documented"  # a claim whose basis is an upstream page, cited with a date
-OBSERVED_UNDOCUMENTED = "observed-undocumented"  # seen on real trees; no upstream row
+INFERRED = "inferred"
+NO_UPSTREAM_ROW = "no-upstream-row"
+DOCUMENTED = "documented"
+OBSERVED_UNDOCUMENTED = "observed-undocumented"
 
 EVIDENCE_VOCABULARY = frozenset(
     {
@@ -80,50 +104,16 @@ EVIDENCE_VOCABULARY = frozenset(
     }
 )
 
-# Bumped whenever a section is added or a field's meaning changes. /2 added the
-# environment block, size attribution, the report header, shaped unknown samples,
-# grouped PID rows, the content_read flags and the sentinels block. /3 added
-# unreferenced_versions and its note. /4 caps unreferenced_versions in the JSON at
-# UNREFERENCED_VERSIONS_CAP entries (largest first) and adds
-# unreferenced_versions_total and unreferenced_versions_truncated.
 SCHEMA = "claude-install-state/4"
 
-# Entries of unreferenced_versions kept in the stdout JSON. The complete list goes to
-# --versions-out, because the report is read end to end and this list grows with every
-# plugin update.
 UNREFERENCED_VERSIONS_CAP = 25
 
-# --------------------------------------------------------------------------
-# Secrets: paths whose CONTENTS are never opened by this engine.
-#
-# `stat` is permitted (name, size, mtime are inventory line-items). Reading
-# bytes is not. `ide/*.lock` is on this list because its body carries an
-# `authToken`; the cost of not reading it is that the real PID inside stays
-# unknown, which is the correct answer for a report-only pass -- see
-# reference/name-schemes.md.
-# --------------------------------------------------------------------------
-
-NEVER_READ_GLOBS = (
-    ".credentials.json",
-    "daemon/control.key",
-    "daemon/pipe.key",
-    "ide/*.lock",
-    "*.key",
-    "*.pem",
-)
-
-
-# The complete set of files inside the target tree whose BYTES this engine
-# opens. Everything else -- including every file deposited by a sibling plugin
-# -- is stat-only. A plugin owns its own state; this engine inventories such
-# paths by name, size and mtime, and does not parse them or attribute an owner.
 CONTENT_READ_ALLOWLIST = (
     "settings.json",
     ".last-cleanup",
     "plugins/.last_inuse_sweep",
     "plugins/installed_plugins.json",
 )
-# Same rule for paths that repeat per plugin version: each marker holds one epoch-ms timestamp.
 CONTENT_READ_GLOBS = ("plugins/cache/*/*/*/.orphaned_at",)
 
 
@@ -133,148 +123,22 @@ def may_read_content(relpath: str) -> bool:
     )
 
 
-class SecretReadRefused(RuntimeError):
-    """Raised when the engine is asked to read the bytes of a secret file."""
+def read_text_guarded(
+    root: Path, relpath: str, limit: int = DEFAULT_READ_LIMIT
+) -> str:
+    """Read a file's text strictly as UTF-8, preserving all four safety guards.
 
-
-def is_never_read(relpath: str) -> bool:
-    """True when `relpath` (POSIX-style, relative to the root) is secret-bearing."""
-    # `lstrip("./")` would eat the leading dot of a dotfile and turn
-    # `.credentials.json` into an unmatched `credentials.json`. Strip the `./`
-    # prefix as a prefix, not as a character set.
-    rel = relpath.replace("\\", "/")
-    while rel.startswith("./"):
-        rel = rel[2:]
-    return any(fnmatch.fnmatchcase(rel, pat) for pat in NEVER_READ_GLOBS) or any(
-        fnmatch.fnmatchcase(PurePosixPath(rel).name, pat) for pat in NEVER_READ_GLOBS
-    )
-
-
-def read_text_guarded(root: Path, relpath: str, limit: int = 2_000_000) -> str:
-    """Read a file's text, refusing outright for anything on the never-read list.
-
-    The guard lives in the reader, not in each call site, so a future check
-    cannot reach a secret by forgetting to consult the list.
+    Delegates to ``AllowlistGuardedReader`` (NEVER_READ_GLOBS, explicit
+    allowlist/globs, symlink refusal outside allowlist, and bounded read cap).
     """
-    if is_never_read(relpath) or not may_read_content(relpath):
-        raise SecretReadRefused(relpath)
-    path = root / relpath
-    if relpath not in CONTENT_READ_ALLOWLIST and (
-        path.is_symlink() or not path.is_file()
-    ):
-        # A cached plugin controls these paths; never follow a link out of the audited root.
-        raise OSError(f"{relpath} is not a regular file")
-    with path.open(encoding="utf-8", errors="replace") as fh:
-        return fh.read(limit)
+    reader = AllowlistGuardedReader(
+        root,
+        allowlist=CONTENT_READ_ALLOWLIST,
+        globs=CONTENT_READ_GLOBS,
+        limit=limit,
+    )
+    return reader.read_text(relpath, limit=limit)
 
-
-# --------------------------------------------------------------------------
-# Surfaces: what upstream documents about each path under ~/.claude
-#
-# Pointer for every SWEPT / KEPT row: https://code.claude.com/docs/en/claude-directory#application-data,
-# read as raw markdown. As of 2026-10-11. See reference/surfaces.md.
-# Recheck when that section adds, moves or drops a path row.
-# --------------------------------------------------------------------------
-
-SWEPT = "product-managed-swept"  # deleted at startup once older than cleanupPeriodDays
-KEPT = "product-managed-kept"  # documented as never age-swept
-SESSION_SCOPED = (
-    "product-managed-session-scoped"  # removed at session exit, not age-swept
-)
-AUTHORED = "authored"  # you wrote it; the product will not remove it
-SECRET = "secret"  # never-read list
-UNCLASSIFIED = "unclassified"  # not in any upstream table -- the interesting bucket
-
-# name -> (surface, note). Keys are matched case-SENSITIVELY against the literal
-# directory entry name; see `classify_entry` for why.
-SURFACE_TABLE: dict[str, tuple[str, str]] = {
-    # Cleaned up automatically (age-swept at cleanupPeriodDays)
-    "projects": (
-        SWEPT,
-        "Transcripts, subagent transcripts, spilled tool results, auto memory",
-    ),
-    "file-history": (SWEPT, "Pre-edit snapshots for checkpoint restore"),
-    "plans": (SWEPT, "Plan files written during plan mode"),
-    "debug": (SWEPT, "Per-session debug logs (--debug / /debug only)"),
-    "paste-cache": (SWEPT, "Contents of large pastes"),
-    "image-cache": (SWEPT, "Attached images"),
-    "uploads": (SWEPT, "Uploads; see claude-directory#cleaned-up-automatically"),
-    "dev-mods": (SWEPT, "Mods; see claude-directory#cleaned-up-automatically"),
-    "usage-data": (SWEPT, "Usage data; see claude-directory#cleaned-up-automatically"),
-    "session-env": (SWEPT, "Per-session environment metadata"),
-    "tasks": (SWEPT, "Per-session task lists"),
-    "shell-snapshots": (
-        SWEPT,
-        "Shell state captured at startup; removed on clean exit",
-    ),
-    "backups": (
-        SWEPT,
-        "~/.claude.json backups; see claude-directory#cleaned-up-automatically",
-    ),
-    "feedback-bundles": (SWEPT, "Redacted transcript archives written by /feedback"),
-    "todos": (
-        SWEPT,
-        "Legacy; no longer written. Sweep removes contents then the directory",
-    ),
-    "statsig": (
-        SWEPT,
-        "Legacy; no longer written. Sweep removes contents then the directory",
-    ),
-    "logs": (
-        SWEPT,
-        "Legacy; no longer written. Sweep removes contents then the directory",
-    ),
-    # Kept until you delete them
-    "history.jsonl": (KEPT, "Every prompt typed, with timestamp and project path"),
-    "stats-cache.json": (KEPT, "Aggregated token and cost counts shown by /usage"),
-    "remote-settings.json": (
-        KEPT,
-        "Cached server-managed settings for your organization",
-    ),
-    "policy-limits.json": (
-        KEPT,
-        "Cached feature policy settings for your organization",
-    ),
-    "cache": (KEPT, "cache/changelog.md is a cached copy of the Claude Code changelog"),
-    "jobs": (KEPT, "Background session state; see claude-directory#state-files-to-keep"),
-    # Session-scoped, explicitly NOT age-swept
-    "sessions": (
-        SESSION_SCOPED,
-        "One file per running session; removed at session exit, crash leftovers cleared at launch",
-    ),
-    # Authored / explicitly do-not-delete
-    "settings.json": (AUTHORED, "Primary user settings. Upstream: do not delete"),
-    "settings.local.json": (AUTHORED, "Personal overrides"),
-    "CLAUDE.md": (AUTHORED, "Global memory file"),
-    "rules": (AUTHORED, "Topic-scoped instructions"),
-    "skills": (AUTHORED, "User-scope skills"),
-    "commands": (AUTHORED, "Legacy single-file prompts; same mechanism as skills"),
-    "agents": (AUTHORED, "Subagent definitions"),
-    "agent-memory": (AUTHORED, "Persistent memory for subagents"),
-    "output-styles": (AUTHORED, "Custom system-prompt sections"),
-    "workflows": (AUTHORED, "Dynamic workflow scripts saved from /workflows"),
-    "themes": (AUTHORED, "Custom color themes"),
-    "keybindings.json": (AUTHORED, "Custom keyboard shortcuts"),
-    "hooks": (AUTHORED, "Hook scripts referenced from settings.json"),
-    "plugins": (
-        AUTHORED,
-        "Marketplaces, installed versions, per-plugin data. Upstream: do not delete. "
-        f"Orphaned versions are removed {ORPHAN_SWEEP_DAYS} days after update/uninstall; a removed "
-        "marketplace's cache tree keeps its .orphaned_at markers and is swept on the same clock "
-        "while any plugin stays installed. A version directory with no marker is never swept",
-    ),
-    # Secrets
-    ".credentials.json": (SECRET, "OAuth/API credentials -- never opened"),
-    "daemon": (SECRET, "Contains control.key / pipe.key -- those two are never opened"),
-}
-
-# What the sweep's unit of retention actually is, where upstream says so. This
-# decides whether a file whose mtime exceeds the window means anything at all.
-#
-# It usually does not. `file-history/` retains by CHECKPOINT COUNT, and keeps
-# each file's first snapshot regardless of age; per-session directories age out
-# with their session, not with each contained file. A per-file mtime comparison
-# on those paths measures something real and proves nothing about the sweep.
 SWEEP_UNIT: dict[str, str] = {
     "projects": (
         "the session transcript; subagent and tool-result directories are removed WITH their "
@@ -295,21 +159,10 @@ SWEEP_UNIT_UNDOCUMENTED = (
     "each file's mtime or on a containing unit"
 )
 
-# Directories whose contents are session-keyed or otherwise churn while a scan
-# runs. A clean unanimous small-n count over one of these is a red flag, not a
-# confirmation (see reference/evidence-discipline.md).
 VOLATILE_DIRS = frozenset(
     {"sessions", "backups", "projects", "shell-snapshots", "ide", "tasks"}
 )
 
-# --------------------------------------------------------------------------
-# Deliberate / experimental state
-#
-# Runs BEFORE any staleness classification. A directory holding one of these
-# ledgers is the sole copy of somebody's revert path until proven otherwise.
-# --------------------------------------------------------------------------
-
-# Names that mean "somebody's revert path" almost wherever they appear.
 STRONG_LEDGER_GLOBS = (
     "RESTORE.md",
     "RESTORE.txt",
@@ -318,37 +171,17 @@ STRONG_LEDGER_GLOBS = (
     "restore*.sh",
 )
 
-# Names that mean it only in the right neighborhood. Scanned across the whole
-# tree these are pure noise -- a live run over a real install matched browser
-# payloads, plugin-cache test fixtures and subagent directories, and deny-listed
-# most of the tree. Restricted to a shallow hotspot they are high signal.
 CORROBORATING_LEDGER_GLOBS = (
     "manifest.json",
     "*baseline*.json",
     "*BASELINE*",
 )
 
-# Where a revert store is most likely to hide, and least likely to be looked for.
 DELIBERATE_STATE_HOTSPOTS = ("plugins/data",)
 
-# Corroborating names count only this many directory levels below a hotspot.
-# A real revert store sits at `plugins/data/<plugin-id>/<experiment>/`; vendored
-# payloads bury their manifests far deeper.
 HOTSPOT_CORROBORATING_MAX_DEPTH = 3
 
-# Vendored upstream payloads. Their `RESTORE.md` or `baseline.json` belongs to
-# somebody else's repository, not to this install's state.
 LEDGER_SCAN_SKIP_PREFIXES = ("plugins/cache", "plugins/marketplaces")
-
-# --------------------------------------------------------------------------
-# Numeric filename schemes -- the PID trap
-#
-# A number in a filename is NOT reliably a PID. Applying a process lookup to a
-# non-PID returns a meaningless miss that reads as "dead" and authorizes a wrong
-# deletion. Liveness is attempted for exactly one meaning: PID. Everything else,
-# INCLUDING every pattern this table does not recognize, returns
-# `not_applicable`.
-# --------------------------------------------------------------------------
 
 PID = "pid"
 TCP_PORT = "tcp_port"
@@ -437,8 +270,6 @@ NAME_SCHEMES: tuple[NameScheme, ...] = (
 
 _HAS_DIGITS = re.compile(r"\d")
 
-# Liveness verdicts. `dead` is reachable ONLY from a successful probe that
-# positively reported no such process.
 ALIVE = "alive"
 DEAD = "dead"
 UNVERIFIED = "unverified"
@@ -474,7 +305,6 @@ def classify_name(rel: str) -> tuple[str, str]:
 
 
 def extract_pid(rel: str) -> int | None:
-    """Extract the PID from a name already classified as carrying one."""
     match = re.search(r"(\d+)", PurePosixPath(rel).name)
     return int(match.group(1)) if match else None
 
@@ -530,11 +360,6 @@ def probe_pid(pid: int) -> tuple[str, str]:
 
 
 def verdict_for(rel: str, probe=probe_pid) -> NameVerdict:
-    """Classify a name, then probe liveness only when the number IS a PID.
-
-    `probe` is injectable so the test suite can assert it is never called for a
-    non-PID name -- the gate is a tested property, not a convention.
-    """
     meaning, note = classify_name(rel)
     if meaning != PID:
         return NameVerdict(
@@ -550,11 +375,6 @@ def verdict_for(rel: str, probe=probe_pid) -> NameVerdict:
         )
     liveness, reason = probe(pid)
     return NameVerdict(PID, liveness, reason, MEASURED, pid)
-
-
-# --------------------------------------------------------------------------
-# Sampled counts -- a range with its n, never a central tendency
-# --------------------------------------------------------------------------
 
 
 @dataclasses.dataclass
@@ -594,12 +414,7 @@ class FileRow:
 
 
 def resolve_root(explicit: str | None) -> Path:
-    if explicit:
-        return Path(explicit).expanduser()
-    env = os.environ.get("CLAUDE_CONFIG_DIR")
-    if env:
-        return Path(env).expanduser()
-    return Path.home() / ".claude"
+    return resolve_claude_dir(explicit)
 
 
 def iso(ts: float) -> str:
@@ -628,11 +443,6 @@ def classify_entry(rel: str) -> tuple[str, str]:
 
 
 def find_deliberate_state(root: Path) -> list[dict]:
-    """Locate revert ledgers anywhere in the tree, hotspots first.
-
-    Returns one record per ledger found. Every directory named here, and its
-    whole subtree, is deny-listed for the rest of the run.
-    """
     found: list[dict] = []
     seen: set[str] = set()
 
@@ -762,8 +572,6 @@ def read_retention(root: Path) -> dict:
         "effective_evidence": DOCUMENTED_DEFAULT,
         "last_cleanup": None,
         "last_cleanup_age_hours": None,
-        # The file is read and its advance is real, but its ROLE as the sweep's
-        # watermark is an observation with no upstream row (see `sentinels`).
         "last_cleanup_evidence": OBSERVED_UNDOCUMENTED,
         "plugin_inuse_sweep": None,
         "findings": [],
@@ -776,8 +584,6 @@ def read_retention(root: Path) -> dict:
         raw = data["cleanupPeriodDays"]
         days = valid_retention_days(raw)
         if days is None:
-            # Reported, not silently ignored, and it does NOT drive
-            # effective_days -- the previously effective value stands.
             result[field] = f"invalid: {raw!r}"
         else:
             result[field] = result["effective_days"] = days
@@ -790,7 +596,7 @@ def read_retention(root: Path) -> dict:
             data = json.loads(read_text_guarded(root, "settings.json"))
             result["user_settings_parse"] = "ok"
             apply_setting(data, "user_setting_days")
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, ValueError) as exc:
             settings_unparsable = True
             result["user_settings_parse"] = f"failed: {type(exc).__name__}"
             result["findings"].append(
@@ -809,34 +615,42 @@ def read_retention(root: Path) -> dict:
     else:
         result["user_settings_parse"] = "absent"
 
+    _missing = object()
     for candidate in managed_settings_paths():
-        if candidate.is_file():
-            result["managed_settings_path"] = str(candidate)
-            try:
-                data = json.loads(
-                    candidate.read_text(encoding="utf-8", errors="replace")
-                )
-                apply_setting(data, "managed_setting_days")
-            except (OSError, json.JSONDecodeError):
-                result["managed_setting_days"] = "unparsable"
-                result["findings"].append(
-                    {
-                        "id": "managed-settings-unparsable-refuses-start",
-                        "severity": "error",
-                        "evidence": MEASURED,
-                        "claim": (
-                            "The managed settings file does not parse. From Claude Code v2.1.259 a "
-                            "managed settings file, drop-in, MDM plist, or HKLM Settings value that "
-                            "cannot be parsed refuses startup (exit 1) and names the source. This is "
-                            "not silent non-enforcement."
-                        ),
-                    }
-                )
-            break
+        entries = managed_settings.load_managed_settings(candidate)
+        if not entries:
+            continue
+        result["managed_settings_path"] = str(entries[0].path)
+        result["managed_settings_files"] = [str(e.path) for e in entries]
+        unparsable_paths: list[str] = []
+        last_managed_raw: object = _missing
+        for entry in entries:
+            if entry.error is not None:
+                unparsable_paths.append(str(entry.path))
+                continue
+            if isinstance(entry.data, dict) and "cleanupPeriodDays" in entry.data:
+                last_managed_raw = entry.data["cleanupPeriodDays"]
+        if unparsable_paths:
+            result["managed_setting_days"] = "unparsable"
+            listed = ", ".join(unparsable_paths)
+            result["findings"].append(
+                {
+                    "id": "managed-settings-unparsable-refuses-start",
+                    "severity": "error",
+                    "evidence": MEASURED,
+                    "paths": unparsable_paths,
+                    "claim": (
+                        f"Managed settings file(s) do not parse ({listed}). From Claude Code v2.1.259 a "
+                        "managed settings file, drop-in, MDM plist, or HKLM Settings value that "
+                        "cannot be parsed refuses startup (exit 1) and names the source. This is "
+                        "not silent non-enforcement."
+                    ),
+                }
+            )
+        elif last_managed_raw is not _missing:
+            apply_setting({"cleanupPeriodDays": last_managed_raw}, "managed_setting_days")
+        break
 
-    # The settings-unparsable finding names managed settings as the exception that
-    # keeps the sweep running, so withdraw it once a valid managed value is measured.
-    # The parse failure itself stays reported in `user_settings_parse`.
     if settings_unparsable and isinstance(result["managed_setting_days"], int):
         result["findings"] = [
             f
@@ -861,25 +675,17 @@ def read_retention(root: Path) -> dict:
             result["plugin_inuse_sweep"] = read_text_guarded(
                 root, "plugins/.last_inuse_sweep"
             ).strip()
-        except OSError:
+        except (OSError, ValueError):
             result["plugin_inuse_sweep"] = "unreadable"
 
     return result
 
 
 def managed_settings_paths() -> list[Path]:
-    """Documented machine-scope managed-settings locations, by platform."""
-    system = platform.system()
-    if system == "Darwin":
-        return [Path("/Library/Application Support/ClaudeCode/managed-settings.json")]
-    if system == "Windows":
-        program_files = os.environ.get("ProgramFiles", r"C:\Program Files")
-        return [Path(program_files) / "ClaudeCode" / "managed-settings.json"]
-    return [Path("/etc/claude-code/managed-settings.json")]
+    return [managed_settings.base_file()]
 
 
 def count_files(root: Path, exclude: set[str] | None = None) -> dict[str, int]:
-    """Cheap per-top-level-entry file count, for resampling a live tree."""
     exclude = exclude or set()
     counts: dict[str, int] = {}
     for dirpath, _dirnames, filenames in os.walk(root, followlinks=False):
@@ -905,7 +711,6 @@ def walk_tree(
     probe=probe_pid,
     exclude: set[str] | None = None,
 ) -> tuple[list[FileRow], list[dict]]:
-    """Enumerate every file once, classifying as it goes."""
     exclude = exclude or set()
     rows: list[FileRow] = []
     errors: list[dict] = []
@@ -949,43 +754,25 @@ def rollup(
     authored_threshold: int,
     opened: frozenset[str] = frozenset(),
 ) -> list[dict]:
-    """Group per top-level entry, splitting listed surfaces from rolled-up bulk.
-
-    `opened` holds the relpaths a later read step actually opened; the registry and
-    the per-version markers count as read only when they are in it.
-    """
     groups: dict[str, list[FileRow]] = {}
     for row in rows:
         groups.setdefault(top_level_name(row.relpath), []).append(row)
 
-    # Same precision as FileRow.mtime, so the lexicographic comparison below is
-    # exact rather than off by up to a second at the boundary.
     cutoff = (datetime.now(timezone.utc) - timedelta(days=retention_days)).isoformat(
         timespec="seconds"
     )
     out: list[dict] = []
     for name, members in sorted(groups.items()):
         surface, note = classify_entry(name)
-        # `classify_entry` reads SURFACE_TABLE only, so an entry with no row of its
-        # own (such as `ide`, whose `*.lock` members are never-read) would read
-        # `unclassified` above SECRET member rows. The entry line is what a reader
-        # scans first and must never be milder than its rows, so a SECRET member
-        # promotes the entry.
         secret_members = sum(1 for m in members if m.surface == SECRET)
         if surface != SECRET and secret_members:
             surface = SECRET
-            # The count lets a reader weigh it against `files`: a mixed tree can be
-            # promoted by a couple of vendored `*.pem` bundles.
             note = (
                 f"Contains {secret_members} never-read secret-bearing file(s), so the entry "
                 f"is classified by its contents rather than by its own name. "
                 f"Own classification: {note}"
             )
         older = [m for m in members if m.mtime < cutoff]
-        # Which member files the engine opened by content. Orthogonal to the
-        # surface: `settings.json` stays AUTHORED and the two sentinels stay
-        # unclassified; the flag records the engine's own behavior, so the
-        # retention section and this table agree about what was read.
         read_paths = sorted(
             m.relpath
             for m in members
@@ -1019,7 +806,6 @@ def rollup(
 
 
 def staleness_reading(entry: dict, retention_days: int) -> dict:
-    """The one place a staleness verdict is produced, so it cannot be produced elsewhere."""
     if entry["deny_listed"]:
         return {
             "verdict": "deny-listed",
@@ -1091,10 +877,6 @@ def recent_writers(rows: list[FileRow], hours: int) -> list[dict]:
     scope, and enablement is read at session start so a running session keeps
     whatever it loaded. A file written in the last few hours is a measurement.
     """
-    # Same precision as FileRow.mtime (`iso()` uses timespec="seconds"), for the same
-    # reason `rollup`'s cutoff does: without it the cutoff carries microseconds, `.`
-    # (0x2E) sorts after `+` (0x2B), and a file written inside the window but in the
-    # cutoff second compares LOWER than the cutoff and is silently dropped.
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat(
         timespec="seconds"
     )
@@ -1113,7 +895,6 @@ _DIGIT_RUN = re.compile(r"\d+")
 
 
 def name_shape(basename: str) -> str:
-    """`wml-2010.xsd` -> `wml-<n>.xsd`. Presentation only: never feeds classification."""
     return _DIGIT_RUN.sub("<n>", basename)
 
 
@@ -1147,7 +928,6 @@ def _parent_from_proc(pid: int) -> int | None:
 
 
 def _parent_map_from_command(cmd: list[str]) -> dict[int, int]:
-    """`pid ppid` pairs, one per line, from a single process-table listing."""
     try:
         out = subprocess.run(
             cmd, capture_output=True, text=True, timeout=15, check=False
@@ -1167,7 +947,6 @@ def _parent_map_from_command(cmd: list[str]) -> dict[int, int]:
 
 
 def _process_table() -> tuple[dict[int, int] | None, str]:
-    """A pid->ppid map for the whole table, or None when /proc can be walked directly."""
     if Path("/proc").is_dir():
         return None, WALK_PROC
     if os.name == "nt":
@@ -1238,20 +1017,6 @@ def summarize_numeric(
     self_pids: set[int] | None = None,
     self_pids_walk: str | None = None,
 ) -> dict:
-    """Counts per (meaning, liveness), PID rows grouped by PID, unknown names by shape.
-
-    PID rows are grouped because a plugin cache holds one `.in_use/<pid>` marker
-    per enabled plugin version, all carrying the same PID: seventy identical
-    rows say less than one row with a count. A group whose PID belongs to the
-    auditing process's own ancestry is marked `self_held`.
-
-    Unrecognized numeric names are the ones a future scheme table should learn,
-    so the sample groups them by SHAPE (digit runs collapsed to `<n>`) with a
-    count per shape and a histogram by top-level directory. One repeated
-    schema-file shape can no longer fill the whole sample. Shape derivation is
-    presentational: `classify_name` never sees it, and the fail-closed default
-    is untouched.
-    """
     if self_pids is None:
         self_pids, self_pids_walk = auditor_ancestry()
     buckets: Counter[str] = Counter()
@@ -1355,17 +1120,6 @@ def home_root_state(root: Path) -> list[dict]:
     return out
 
 
-# --------------------------------------------------------------------------
-# Environment: is this tree a cloud-session container's, or the operator's?
-#
-# Label only. Nothing below changes a staleness verdict; the block exists so
-# a three-minute-old container tree is never graded as the operator's machine.
-# --------------------------------------------------------------------------
-
-# Tree-level signals: (relpath, kind, evidence, note). A `named` signal decides
-# the verdict on its own. `session-env/`, `remote-settings.json` and
-# `policy-limits.json` are deliberately absent: every install can carry them,
-# so they would fire on every local tree.
 REMOTE_TREE_SIGNALS: tuple[tuple[str, str, str, str], ...] = (
     (
         "launcher-settings.json",
@@ -1484,12 +1238,6 @@ def largest_subtrees(
     max_depth: int = 6,
     passthrough: float = 0.95,
 ) -> list[dict]:
-    """Top directories by bytes under every rolled-up entry.
-
-    A directory whose single child holds `passthrough` of its bytes is dropped
-    in favor of that child, so the list names `.../node_modules` rather than
-    five nested prefixes of it. Every figure is the sum of measured sizes.
-    """
     rolled = {e["entry"] for e in entries if e.get("listing") == "rolled-up"}
     agg: dict[str, list[int]] = {}
     for row in rows:
@@ -1530,7 +1278,12 @@ def largest_subtrees(
 
 def _is_cache_version_node_modules(parts: list[str]) -> bool:
     """`plugins/cache/<marketplace>/<plugin>/<version>/node_modules/...`, the one layout upstream installs into."""
-    return len(parts) > 6 and parts[1] == "cache" and parts[5] == "node_modules"
+    return (
+        len(parts) > 6
+        and parts[1] == "cache"
+        and not parts[2].startswith(TEMP_GIT_PREFIX)
+        and parts[5] == "node_modules"
+    )
 
 
 def node_modules_bucket(rows: list[FileRow]) -> dict:
@@ -1591,30 +1344,33 @@ def unreferenced_versions(
     now: float | None = None,
     opened: set[str] | None = None,
 ) -> tuple[list[dict], str | None]:
-    """Plugin cache version directories that no `installPath` references, largest first.
-
-    Reuses the bytes already measured in `rows`. Reads only the registry and each
-    candidate's `.orphaned_at` marker, and never writes. When the registry cannot
-    vouch for the cache (missing, unparsable, or no path in it lands under this
-    root's cache), the result is an empty list and a note: a missing registry is
-    not evidence that every directory is unreferenced. Each file it opens is added
-    to `opened` when given.
-    """
     opened = set() if opened is None else opened
     sizes: Counter[tuple[str, str, str]] = Counter()
     for row in rows:
         parts = row.relpath.split("/")
-        if len(parts) >= 6 and parts[:2] == ["plugins", "cache"]:
-            sizes[(parts[2], parts[3], parts[4])] += row.bytes
+        if len(parts) < 6 or parts[:2] != ["plugins", "cache"]:
+            continue
+        classified = classify_cache_relpath(row.relpath)
+        if (
+            classified.kind == "version"
+            and classified.marketplace is not None
+            and classified.plugin is not None
+            and classified.version is not None
+        ):
+            sizes[(classified.marketplace, classified.plugin, classified.version)] += (
+                row.bytes
+            )
     if not sizes:
         return [], None
 
-    def read(relpath: str) -> str:
-        text = read_text_guarded(root, relpath)
-        opened.add(relpath)
-        return text
+    reader = AllowlistGuardedReader(
+        root,
+        allowlist=CONTENT_READ_ALLOWLIST,
+        globs=CONTENT_READ_GLOBS,
+        on_open=opened.add,
+    )
 
-    registry = load_registry(read, root)
+    registry = load_registry(reader, root)
     if registry.foreign:
         return (
             [],
@@ -1629,7 +1385,7 @@ def unreferenced_versions(
         if resolve(cache / marketplace / plugin / version) in registry.referenced:
             continue
         rel = f"plugins/cache/{marketplace}/{plugin}/{version}"
-        marker = orphan_marker(read, rel, now) or {
+        marker = orphan_marker(reader, rel, now) or {
             "orphaned_at": None,
             "marker_age_days": None,
             "past_sweep_window": False,
@@ -1649,8 +1405,31 @@ def unreferenced_versions(
     return found, None
 
 
+def projects_audit(root: Path) -> dict:
+    """Stat-only summary of ``projects/`` slugs using ``NullTranscriptCwdAdapter``."""
+    projects_dir = root / "projects"
+    if not projects_dir.is_dir():
+        return {
+            "total": 0,
+            "exists": 0,
+            "orphan_slugs": [],
+            "unknown_slugs": [],
+            "evidence": MEASURED,
+            "note": "Stat-only directory-tree check; no transcript files were opened.",
+        }
+    resolver = ProjectSlugResolver(cwd_port=NullTranscriptCwdAdapter())
+    resolutions = resolver.resolve_all(projects_dir)
+    return {
+        "total": len(resolutions),
+        "exists": sum(1 for r in resolutions if r.status in ("exists", "pinned")),
+        "orphan_slugs": [r.slug for r in resolutions if r.status == "orphan"],
+        "unknown_slugs": [r.slug for r in resolutions if r.status == "unknown"],
+        "evidence": MEASURED,
+        "note": "Stat-only directory-tree check; no transcript files were opened.",
+    }
+
+
 def engine_version() -> str:
-    """The owning plugin's manifest version, or `unknown` outside a plugin layout."""
     try:
         manifest = _LIB_DIR.parent / ".claude-plugin" / "plugin.json"
         data = json.loads(manifest.read_text(encoding="utf-8"))
@@ -1658,10 +1437,6 @@ def engine_version() -> str:
     except (OSError, ValueError):
         return "unknown"
 
-
-# --------------------------------------------------------------------------
-# Sentinels the engine reads by content and no upstream page names
-# --------------------------------------------------------------------------
 
 SENTINELS: dict[str, str] = {
     ".last-cleanup": (
@@ -1679,7 +1454,6 @@ SENTINELS: dict[str, str] = {
 
 
 def sentinels_block(root: Path) -> dict:
-    """One record per sentinel; `content_read` is true only when its bytes were actually opened."""
     out: dict[str, dict] = {}
     for rel, role in SENTINELS.items():
         present = (root / rel).is_file()
@@ -1688,7 +1462,7 @@ def sentinels_block(root: Path) -> dict:
             try:
                 read_text_guarded(root, rel)
                 content_read = True
-            except OSError:
+            except (OSError, ValueError):
                 pass
         out[rel] = {
             "present": present,
@@ -1796,6 +1570,7 @@ def scan(
         "unreferenced_versions_total": versions_total,
         "unreferenced_versions_truncated": versions_truncated,
         "unreferenced_versions_note": versions_note,
+        "projects_audit": projects_audit(root),
         "_versions": versions,
         "sentinels": sentinels_block(root),
         "numeric_names": numeric,
@@ -1845,13 +1620,6 @@ def csv_safe(value: object) -> object:
 
 
 def write_csv(rows: list[FileRow], path: Path) -> int:
-    """Emit EVERY file as a row, so "every file" literally exists as an artifact.
-
-    This is deliberately independent of `--authored-threshold`. That flag decides
-    only which entries the JSON summary LABELS `per-file` versus `rolled-up`; it
-    must never decide how much of the tree reaches the artifact, or the report
-    silently drops most of the install while its own prose claims completeness.
-    """
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.writer(handle)
         writer.writerow(
@@ -1915,8 +1683,6 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: not a directory: {root}", file=sys.stderr)
         return 2
 
-    # Whether the scanned tree is the auditing process's own config dir decides
-    # whether CLAUDE_CODE_REMOTE says anything about it (see environment_state).
     try:
         own_config_dir = args.root is None or (
             root.resolve() == resolve_root(None).resolve()
@@ -1996,12 +1762,6 @@ def main(argv: list[str] | None = None) -> int:
             ),
         }
 
-    # The JSON stays a summary: `rollup` attaches `members` to every entry it labels
-    # per-file, and they are dropped here rather than serialized. Measured at +58 KB
-    # against a 27 KB summary (3.2x) on an 86k-file install, against a report a model
-    # reads end to end -- and `write_csv` already emits every row. Any note or doc
-    # describing this flag must say it LABELS entries, not that it embeds rows;
-    # `TestCsvNoteAccuracy` pins that, because the claim drifted here once already.
     for entry in report["entries"]:
         entry.pop("members", None)
 

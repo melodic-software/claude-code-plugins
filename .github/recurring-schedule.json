@@ -60,8 +60,8 @@
       "area": [],
       "category": "general",
       "triggers": [],
-      "last_checked": "2026-10-24",
-      "next_due": "2026-11-24",
+      "last_checked": "2026-11-25",
+      "next_due": "2026-12-25",
       "notes": "Re-read https://code.claude.com/docs/en/model-config#automatic-model-fallback. If it still names Opus 5, Opus 4.8 and Sonnet 5, change nothing. For each model no longer named, file an issue: remove plugins/playbooks/reference/model-adaptation/<model>.md, update fable-5 meta-rule 3 with the new read date, fable-5 evals, playbooks CHANGELOG and version, then sweep stale references (spec: #4349). Retire the row when the opus-5, opus-4-8 and sonnet-5 chapters are gone.",
       "close_previous": true
     },
@@ -84,8 +84,8 @@
       "area": [],
       "category": "general",
       "triggers": [],
-      "last_checked": "2026-10-26",
-      "next_due": "2026-11-26",
+      "last_checked": "2026-11-27",
+      "next_due": "2026-12-27",
       "notes": "Run gh run list -R melodic-software/claude-code-plugins --workflow pr-verify.yml --branch main --status failure -L 50 and read each failed run's log for ::error::no verdict: the run hit N permission denial(s) or ::error::no verdict: the run's legs hit N permission denial(s) (write-verdict.mjs); list the lane PRs the merge lane refused verify:missing behind those heads. A person decides, per denial, whether it was a benign read (the model reaching for a path outside pr-verify-data) or injected PR text. Injected PR text: the refusal worked; keep it and change nothing. Benign reads recurring (2 or more lane PRs refused verify:missing from benign-read denials in 30 days): file a fix issue, trying first an automatic pr-require-checks rerun on the stalled head, since it leaves the injection refusal intact, then a tighter prompt. Below that: comment the counts on the recurring issue and change nothing. Rejected for now (#8432): a fail verdict with the reason, which refuses that head verify:fail, holds the PR's later heads verify:earlier-fail until a later pass on a different change clears them, and counts toward the verify:repeated-fail cap; and ignoring denials, which lets an injected read still be judged. Spec: #8432.",
       "close_previous": true
     },

@@ -33,7 +33,6 @@ import babysit_merge as merge
 from repo_config_fake import RepoConfigFake
 
 HEAD = "a" * 40
-# The base compare the freshness hold reads for an otherwise-ready PR.
 UP_TO_DATE = {"status": "ahead", "ahead_by": 1, "behind_by": 0}
 PR_NUMBER = 2157
 CI_GATE = ["pr-title / pr-title", "do-not-merge / do-not-merge", "ci-status"]
@@ -47,8 +46,6 @@ def _status_checks_rule(contexts: list[str]) -> dict[str, Any]:
     }
 
 
-# A base whose `pull_request` rule requires zero approving reviews, as this
-# repository's does: `baseUnprotected` then hangs entirely on the context union.
 NO_REQUIRED_REVIEWS = {
     "type": "pull_request",
     "parameters": {"required_approving_review_count": 0},
@@ -56,7 +53,6 @@ NO_REQUIRED_REVIEWS = {
 
 
 def _branch_rules(*rules: dict[str, Any]) -> dict[str, object]:
-    """`branch_rules` folded over `rules`, with the single gh read stubbed."""
     with mock.patch.object(merge, "gh_json", return_value=list(rules)):
         return merge.branch_rules("owner/repo", "main")
 
@@ -242,7 +238,6 @@ class OneRunSharesTheBaseReads(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         path = str(pathlib.Path(tmp.name, "run.json"))
-        # The `--unattended` path, which `main` lets share.
         for patcher in (
             mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path}),
             mock.patch.object(merge, "SHARE_BASE_READS", True),

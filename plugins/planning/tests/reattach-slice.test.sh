@@ -1,13 +1,5 @@
 #!/usr/bin/env bash
-# The plan, prd, and design hubs' mandatory gates stay inside the compaction
-# re-attach slice (#4255). The stand-in for 5,000 tokens is the first 20,000
-# bytes. A phrase that also appears after that cut is a gate the re-attach can
-# drop. The interview hub's full gate rules stay where interview-defenses.test.sh
-# pins them, past the cut; its "## Gates" block restates them early and is
-# asserted here.
-#
 # shellcheck disable=SC2016  # single quotes are deliberate: assert_gate phrases are verbatim
-# markdown lines that hold literal backticks, and expanding them would break the match.
 # test-scope: plugins/planning/skills/*/SKILL.md
 set -uo pipefail
 

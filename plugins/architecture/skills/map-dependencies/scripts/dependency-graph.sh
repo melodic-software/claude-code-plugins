@@ -1,240 +1,4 @@
 #!/usr/bin/env bash
-# Cite a repository's build-declaration dependency graph, as JSON.
-#
-# WHY. A diagram of which project depends on which is model recall unless every
-# edge is a declaration a script read. This collector reads declarations only.
-# It does not read source imports, and it does not guess a missing project by
-# file name.
-#
-# ProjectReference is a reference to another project. Basis:
-# https://learn.microsoft.com/en-us/visualstudio/msbuild/common-msbuild-project-items
-# PackageReference Include is the package id. Basis:
-# https://learn.microsoft.com/en-us/nuget/consume-packages/package-references-in-project-files
-# Verified 2026-09-28. Recheck when either page renames the item or stops using
-# Include as that string.
-#
-# The human render is not a C4 diagram. C4's diagrams are system context,
-# containers, components, and code, plus system landscape, dynamic, and
-# deployment. Basis: https://c4model.com/ Verified 2026-09-28. Recheck when
-# that page adds a diagram type for a build-declaration graph.
-#
-# Usage:
-#   dependency-graph.sh [--out <file>] [--generated-on <date>] <repo-path>
-#   dependency-graph.sh --help
-#
-# Output: one JSON document on stdout, or in --out <file> with nothing on
-# stdout; a failed write exits 1 with a message. generated_on defaults to the
-# date of the repository's HEAD commit (git log -1 --format=%cs), so a second
-# run on the same commit is byte-identical, and to "unknown" when there is no
-# commit. --generated-on overrides it. The document is in the
-# one-object-per-line layout. Readers match objects by line, the same way landscape.json does. A reader
-# given any other layout must fail rather than report an empty graph.
-# render-dependencies.sh is that reader.
-#
-#   {
-#     "schema_version": 1,
-#     "generated_on": "YYYY-MM-DD" | "unknown",
-#     "result": "ok" | "unknown",
-#     "message": "...",
-#     "ecosystem": "<name>" | "mixed" | "unknown",
-#     "node_threshold": 40,
-#     "cycles_truncated": false,
-#     "nodes": [ <one node object per line> ],
-#     "edges": [ <one edge object per line> ],
-#     "cycles": [ <one cycle object per line> ],
-#     "findings": [ <one finding object per line> ]
-#   }
-#
-#   node     {"id","name","path","ecosystem","kind"} plus, on a project, the
-#            optional "namespace" and "test" fields.
-#            ecosystem is the name of the reader that produced the node.
-#            kind is "project" or "package". id of a project is its
-#            repo-relative path. id of a package is "pkg:" plus the Include.
-#            Nodes with the same id are one node, so a reader other than .NET
-#            puts its ecosystem name after the colon ("pkg:<ecosystem>:<name>").
-#            namespace is the project file's RootNamespace, else its
-#            AssemblyName, and is omitted when neither is a literal value.
-#            test is "yes" on a test project (IsTestProject true, or a
-#            reference to Microsoft.NET.Test.Sdk, xunit*, NUnit*, MSTest*, or
-#            Microsoft.Testing.Platform*) and is omitted otherwise. A record
-#            without either field is still schema_version 1.
-#   edge     {"from","to","kind","status","evidence"}
-#            kind is "project" or "package". status is "resolved" or
-#            "unresolved". evidence is the repo-relative file, a colon, and
-#            the matched declaration text.
-#   cycle    {"id"}  project ids joined by " -> ", rotated to start at the
-#            smallest id, first id repeated at the end. One witness cycle per
-#            strongly connected group of projects, and one per self-reference.
-#            The search is linear in projects plus edges, so it always
-#            finishes; cycles_truncated stays in the record for readers of
-#            schema_version 1 and is always false.
-#   finding  {"kind","path","evidence"}
-#            kind "unresolved-membership" is a solution project whose declared
-#            path is missing or outside the repository root.
-#            kind "unread-reference-tags" is a project or MSBuild file with
-#            reference tags this run did not turn into an edge. evidence is the
-#            file, a colon, and the count. A graph with this finding is not a
-#            complete list of that file's references.
-#            kind "unread-manifest" is a declaration in a manifest whose shape
-#            a reader does not handle. path is the manifest. evidence is that
-#            file, a colon, and the declaration it skipped, one finding per
-#            declaration. A graph with this finding is not a complete list of
-#            that manifest's dependencies.
-#
-# Every shipped reader whose manifests are present runs, and their nodes, edges
-# and findings are merged into one record. The top-level ecosystem is the name
-# of the one reader that ran, "mixed" when more than one ran, and "unknown"
-# when none did. A reader of schema_version 1 that does not know a new
-# ecosystem name or finding kind still finds every field it reads.
-#
-# result "unknown" means this run did not read a shipped adapter. The arrays
-# are empty and message says why. That is not an empty graph: an empty graph
-# is result "ok" with project nodes and no edges.
-#
-# The .NET adapter: ProjectReference is a directed internal
-# edge whose target is the Include path relative to the project file.
-# PackageReference is an external package edge. A ProjectReference that is
-# missing or escapes the repository root is status "unresolved" and is never
-# matched to a similarly named project elsewhere. Solution files
-# (*.sln, *.slnx) contribute membership, not dependency edges. A member whose
-# path ends in another project extension (.vbproj, .sqlproj, ...) is an
-# unread-manifest finding.
-#
-# A Directory.Build.props or Directory.Build.targets reference is an edge from
-# every project whose nearest such file, walking up from the project, is that
-# one; a relative Include resolves from the project's folder and the edge cites
-# the props file. A project never gets an edge to itself from those files. Any
-# other *.props or *.targets file, and Directory.Packages.props, is imported by
-# a path this collector does not evaluate: its references are counted in an
-# unread-reference-tags finding, not drawn. Basis:
-# https://learn.microsoft.com/en-us/visualstudio/msbuild/customize-by-directory
-# and https://learn.microsoft.com/en-us/visualstudio/msbuild/msbuild-items
-# Verified 2026-09-29. Recheck when either page changes the lookup rule or the
-# base of a relative Include in an imported file.
-#
-# The Node adapter (lib/node-references.sh): every package.json outside
-# node_modules is a project node whose id is its repo-relative path. Workspace
-# members are the package folders that the "workspaces" globs of a package.json
-# (an array, or an object with a "packages" array) and the "packages" list of a
-# pnpm-workspace.yaml expand to, matched only against the package.json files
-# found under the root. A dependencies, devDependencies, peerDependencies or
-# optionalDependencies entry is an internal project edge when its name is a
-# member of a workspace that holds the declaring package, or its spec is
-# workspace: (a range, an alias pkg@range, or a relative path), file: or link:
-# and names a package folder inside the root. Every other entry is an external
-# package edge to "pkg:node:<name>". A spec that names no member, resolves
-# outside the root or to a folder with no package.json is status "unresolved"
-# and is never matched to a package of the same name elsewhere. A negated or
-# otherwise unexpanded glob, a flow-list "packages:", a catalog: spec, and a
-# dependency value that is not a string are unread-manifest findings.
-# Basis: https://docs.npmjs.com/cli/v11/using-npm/workspaces and
-# https://pnpm.io/workspaces Verified 2026-09-29. Recheck when either page
-# changes what "workspaces" or "packages" may hold or what workspace: accepts.
-#
-# The Go adapter (lib/go-references.sh): every go.mod is a project node whose id
-# is its repo-relative path and whose name is its module path. A replace whose
-# target is a local path (./, ../) holding a go.mod inside the root is an
-# internal project edge to that module, and the evidence cites the replace
-# line; a target that is missing or outside the root is status "unresolved".
-# A require whose module path is that of another go.mod in the repo is internal
-# only when a replace or a go.work use line points it there (both modules named
-# by one go.work); otherwise it is an external edge to "pkg:go:<module>". A
-# directive the reader cannot parse, a go.work replace, and a use line naming no
-# go.mod in the root are unread-manifest findings.
-# Basis: https://go.dev/ref/mod#go-mod-file-replace and
-# https://go.dev/ref/mod#workspaces Verified 2026-09-29. Recheck when either
-# page changes what a replace target or a use directive may hold.
-#
-# The Python adapter (lib/python-references.sh): every pyproject.toml, every
-# setup.py with no pyproject.toml beside it, and every requirements*.txt with
-# neither beside it is a project node whose id is its repo-relative path. A
-# requirements file beside a pyproject.toml or setup.py is read as that
-# project. An edge is read from [project] dependencies (and
-# optional-dependencies and dependency-groups), [tool.poetry.dependencies]
-# entries that carry path =, [tool.uv.sources] entries that carry path =, and
-# requirements lines. A [tool.uv.workspace] members glob (minus exclude) is an
-# internal project edge to each pyproject.toml it matches under the workspace
-# root folder; a literal member holding none is "unresolved". A path (a
-# "name @ file:" URL, a path =, a -e line, or a plain ./ or ../ line) naming a
-# folder inside the root that holds a pyproject.toml, else a setup.py, is an
-# internal project edge citing the declaration; a missing or out-of-root path
-# is status "unresolved". A named requirement is an external edge to
-# "pkg:python:<normalized name>" unless the
-# same file gives that name a path. -r includes are followed only inside the
-# root. setup.py is never executed or parsed: each is an unread-manifest
-# finding, and so are dynamic dependencies, a uv workspace = true source, a
-# multi-line inline table, and an include that is missing or leaves the root.
-# Basis: https://packaging.python.org/en/latest/specifications/dependency-specifiers/
-# https://packaging.python.org/en/latest/specifications/pyproject-toml/
-# https://pip.pypa.io/en/stable/reference/requirements-file-format/ and
-# https://docs.astral.sh/uv/concepts/projects/dependencies/#path and
-# https://docs.astral.sh/uv/concepts/projects/workspaces/ Verified
-# 2026-09-29. Recheck when any page changes what a dependency string, a
-# requirements line, or a path source may hold.
-#
-# The Rust adapter (lib/rust-references.sh): every Cargo.toml is a project node
-# whose id is its repo-relative path, named by [package] name else its folder.
-# A path = dependency in [dependencies], [dev-dependencies] or
-# [build-dependencies] naming a folder inside the root that holds a Cargo.toml
-# is an internal project edge citing the declaration; a missing or out-of-root
-# path is status "unresolved". Every other dependency is an external edge to
-# "pkg:rust:<lower-case name, _ as ->". A [workspace] members glob (minus
-# exclude) is an internal project edge from the workspace root to each
-# Cargo.toml it matches under the root's folder; a literal member holding none
-# is "unresolved". A dependency written workspace = true takes its source from
-# the nearest ancestor Cargo.toml with a [workspace] table: a
-# [workspace.dependencies] path = entry gives an internal edge, any other entry
-# an external one, and the evidence cites both declarations. A
-# [workspace.dependencies] entry no member inherits draws no edge. Unread: any
-# [target.*] dependency table, a path = under [patch] or [replace], workspace =
-# true with no [workspace.dependencies] entry to resolve it, a dependency value
-# that is neither a string nor an inline table, an inline table split across
-# lines, and a members glob node_glob_regex refuses.
-# Basis: https://doc.rust-lang.org/cargo/reference/specifying-dependencies.html
-# https://doc.rust-lang.org/cargo/reference/workspaces.html Verified
-# 2026-09-29. Recheck when either page changes what a dependency entry or a
-# members entry may hold.
-#
-# The JVM adapter (lib/jvm-references.sh): every pom.xml, build.gradle and
-# build.gradle.kts is a project node whose id is its repo-relative path; a
-# folder with a settings.gradle(.kts) and no build file is one too, under the
-# settings file. A Gradle project is its folder. An include argument in
-# settings.gradle(.kts) is an internal project edge from the settings folder's
-# project to the folder that project path names, when that folder holds a
-# build file. A project(':x') dependency in a build file resolves from the
-# nearest settings file at or above it (a path with no colon resolves from the
-# build file's folder), and project(path = ':x') is the same reference. A
-# pom.xml <modules><module> entry, including one inside a profile, is an
-# internal project edge to the pom.xml in the folder it names, or to the
-# pom.xml it names when it ends in .xml. A project path or module that names no
-# build file, or leaves the root, is status "unresolved". Every edge cites the
-# declaration. No external package edge is drawn for JVM. Unread: includeFlat,
-# includeBuild, an include with a variable, an interpolated string or a spread,
-# an include or project reference inside a loop, a project(...).projectDir,
-# .buildFileName or .name assignment, apply from, projects.x type-safe
-# accessors, project(...) with a non-literal argument, a module holding a
-# property reference, and a module naming a pom file not called pom.xml.
-# Basis: https://docs.gradle.org/current/userguide/multi_project_builds.html
-# https://docs.gradle.org/current/userguide/declaring_dependencies_basics.html
-# and https://maven.apache.org/pom.html Verified 2026-09-29. Recheck when
-# any page changes how a project path maps to a folder or what a module entry
-# may hold.
-#
-# node_threshold is the documented count of internal project nodes above which
-# the human diagram aggregates to directories. This file stays at project
-# resolution either way. The diagram is render-dependencies.sh.
-#
-# Build output directories named bin and obj are not walked. Dot-directories
-# other than .github, .gitlab, .circleci, and .devcontainer are not walked.
-# node_modules and vendor are not walked.
-#
-# Nothing here fetches. The only write is --out.
-#
-# Portability: bash plus POSIX awk. No jq, no `grep -P`, no python.
-#
-# Exit: 0 = a document was emitted (result ok or unknown); 1 = the path is
-# not a readable directory or --out cannot be written; 2 = usage.
-
 # shellcheck disable=SC2329 # the readers and their helpers are called as "read_$eco".
 set -uo pipefail
 
@@ -257,7 +21,19 @@ source "$SCRIPT_DIR/../../../lib/jvm-references.sh"
 source "$SCRIPT_DIR/../../../lib/json-escape.sh"
 
 usage() {
-  sed -n '2,${/^#/!q;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  cat <<'EOF'
+Cite a repository's build-declaration dependency graph, as JSON.
+
+Usage: dependency-graph.sh [--out <file>] [--generated-on <date>] <repo-path>
+  --out <file>           write the document to <file> instead of stdout
+  --generated-on <date>  the generated_on value (default: the HEAD commit date)
+  --help                 print this help
+
+The document is in the one-object-per-line layout; node_threshold is the project-node
+count above which the diagram aggregates to directories. Schema: reference/dependency-graph-record.md
+
+Exit: 0 a document was emitted; 1 the path is not a readable directory or --out cannot be written; 2 usage
+EOF
 }
 
 die() {
@@ -311,9 +87,6 @@ if [[ -z "$raw_path" ]]; then
   exit 2
 fi
 
-# Print the repo-relative path of base/raw with . and .. resolved, or return 1
-# when the path is absolute or escapes the repository root. The target does
-# not have to exist. Nothing outside the root is looked up.
 normalize_within_root() {
   local base="$1" raw="$2" rel combined part
   local -a stack=()
@@ -366,7 +139,6 @@ is_proj_suffix() {
   [[ "$ext" == "csproj" || "$ext" == "fsproj" ]]
 }
 
-# Solution project paths. One line per declared path: path<TAB>citation.
 sln_declared_projects() {
   local file="$1" ext
   ext="${file##*.}"
@@ -410,7 +182,6 @@ node_paths=()
 node_kinds=()
 node_ecos=()
 
-# The reader that is running; the dispatch below sets it.
 CUR_ECO=""
 
 add_node() {
@@ -452,7 +223,6 @@ finding_evidence=()
 add_finding() {
   local kind="$1" path="$2" evidence="$3" key
   key="${kind}"$'\x1f'"${path}"
-  # One unread-manifest finding per skipped declaration, not per file.
   [[ "$kind" == "unread-manifest" ]] && key+=$'\x1f'"$evidence"
   [[ -n "${FINDING_SEEN[$key]+x}" ]] && return 0
   FINDING_SEEN[$key]=1
@@ -461,12 +231,10 @@ add_finding() {
   finding_evidence+=("$evidence")
 }
 
-# A declaration in manifest $1 whose shape the running reader does not handle.
 add_unread_manifest() {
   add_finding "unread-manifest" "$1" "$1: $2"
 }
 
-# Set JSON_OBJ to a one-line object of the string fields given as key/value pairs.
 JSON_OBJ=""
 json_object() {
   local out=""
@@ -478,8 +246,6 @@ json_object() {
   JSON_OBJ="{$out}"
 }
 
-# Optional node fields, read from the project file itself: namespace is
-# RootNamespace, else AssemblyName, else absent; test is "yes" for a test project.
 node_namespace() {
   local ns
   ns="$(dotnet_project_property "$root/$1" RootNamespace)"
@@ -487,8 +253,6 @@ node_namespace() {
   printf '%s\n' "$ns"
 }
 
-# Print "key": [...] with items $3... sorted, one per line, and $2 after the
-# closing bracket.
 emit_array() {
   local key="$1" after="$2" i sep=","
   shift 2
@@ -575,18 +339,10 @@ for rel in "${files[@]+"${files[@]}"}"; do
   esac
 done
 
-# Readers. A reader is a pair of functions. has_<name> succeeds when the
-# manifests it reads are present. read_<name> adds their nodes, edges and
-# findings through add_node, add_edge, add_finding and add_unread_manifest.
-# <name> is the ecosystem name that lands in each node's "ecosystem" field, and
-# it is the key a manifest gets in OTHER above once a reader ships. READERS
-# lists the shipped readers, in the order they run. A reader parses in its own
-# file, lib/<name>-references.sh, sourced above.
 READERS=(dotnet node go python rust jvm)
 readers_list="${READERS[*]}"
 readers_list="${readers_list// /, }"
 
-# A manifest whose ecosystem has a shipped reader is that reader's to read.
 for eco in "${READERS[@]}"; do
   unset "OTHER[$eco]"
 done
@@ -600,13 +356,10 @@ if [[ ${#OTHER[@]} -gt 0 ]]; then
   done < <(printf '%s\n' "${!OTHER[@]}" | LC_ALL=C sort)
 fi
 
-# The value of the first "$1<TAB>value" record on stdin.
 record_value() {
   awk -F '\t' -v key="$1" '$1 == key { print $2; exit }'
 }
 
-# Project node for manifest $1, named $2, else after its folder (the root's
-# own folder for a manifest at the top).
 add_project_node() {
   local label
   label="$(proj_dir_of "$1")"
@@ -614,11 +367,6 @@ add_project_node() {
   add_node "$1" "${2:-${label##*/}}" "$1" "project"
 }
 
-# Edges from workspace manifest $1 to each manifest in $4... whose folder a
-# members glob in records $2 matches under $1's folder, less the folders an
-# exclude glob matches. A glob node_glob_regex refuses is unread. A literal
-# member that matches no folder is an unresolved edge. $3 is "skip-dot" when a
-# "." member (the workspace root itself) draws nothing.
 add_member_edges() {
   local rel="$1" records="$2" dot="$3" wdir kind glob decl re cand cdir under ex hit m
   local -a excl=() mems=()
@@ -668,13 +416,10 @@ declare -A FILE_CONSUMED=()
 has_dotnet() { [[ ${#proj_files[@]} -gt 0 ]]; }
 
 read_dotnet() {
-  # Cache one file's reference records in FILE_RECORDS (not in a subshell, so
-  # the cache survives).
   load_records() {
     [[ -n "${FILE_RECORDS[$1]+x}" ]] || FILE_RECORDS[$1]="$(dotnet_reference_records "$root/$1")"
   }
 
-  # Nearest ancestor file called $2, from directory $1 up to the root.
   nearest_build_file() {
     local dir="$1" name="$2" cand
     while :; do
@@ -691,10 +436,6 @@ read_dotnet() {
     done
   }
 
-  # Edges that the references in source file $3 give project $1. $2 is that
-  # file's records. A relative Include resolves from the project's folder even
-  # when the tag sits in an imported file. $4 is "props" when the file is not
-  # the project itself: such a file cannot make a project reference itself.
   add_reference_edges() {
     local proj_rel="$1" records="$2" source_rel="$3" via="$4"
     local proj_dir rec rec_kind rec_rest rec_inc rec_decl normalized
@@ -741,8 +482,6 @@ read_dotnet() {
     done
   done
 
-  # Reference tags that are not an edge in this record are counted, so an
-  # empty or short edge list never reads as "declares no references".
   for unread_rel in "${proj_files[@]}" "${msbuild_files[@]+"${msbuild_files[@]}"}"; do
     unread_n="$(dotnet_reference_unmatched_count "$root/$unread_rel")"
     if ! is_proj_suffix "$unread_rel" && [[ -z "${FILE_CONSUMED[$unread_rel]+x}" ]]; then
@@ -760,7 +499,6 @@ read_dotnet() {
       declared="${rec%%$'\t'*}"
       citation="${rec#*$'\t'}"
       if ! is_proj_suffix "$declared"; then
-        # Another project type (.vbproj, .sqlproj, ...); a solution folder has no such extension.
         case "${declared,,}" in *.*proj) add_unread_manifest "$sln_rel" "$citation" ;; *) ;; esac
         continue
       fi
@@ -782,15 +520,12 @@ read_node() {
   local rel name rec decl
   local us=$'\x1f'
 
-  # Every package.json outside node_modules is a project node.
   for rel in "${node_files[@]}"; do
     pkg_recs[$rel]="$(node_manifest_records "$root/$rel")"
     pkg_name[$rel]="$(printf '%s\n' "${pkg_recs[$rel]}" | record_value name)"
     add_project_node "$rel" "${pkg_name[$rel]}"
   done
 
-  # Workspace declarations by the folder they sit in ("." is the root). Each
-  # line is source<TAB>glob<TAB>declaration.
   read_ws_records() {
     local src="$1" records="$2" base
     base="$(proj_dir_of "$src")"
@@ -809,9 +544,6 @@ read_node() {
     read_ws_records "$rel" "$(node_pnpm_workspace_records "$root/$rel")"
   done
 
-  # A workspace member is a package folder a glob expands to, matched against
-  # the package.json files this run found and no others. The workspace root's
-  # own package and each member it lists may name the members.
   local ws_dir ws_rel line src glob re cand cdir under mkey
   if [[ ${#ws_decls[@]} -gt 0 ]]; then
     while IFS= read -r ws_dir; do
@@ -847,7 +579,6 @@ read_node() {
     done < <(printf '%s\n' "${!ws_decls[@]}" | LC_ALL=C sort)
   fi
 
-  # The member package.json that package $1 reaches by name $2, if any.
   member_named() {
     local d
     local -a roots
@@ -860,8 +591,6 @@ read_node() {
     return 1
   }
 
-  # An edge from package $1 to the package folder that path $3 names. $2 is the
-  # spec as declared, kept as the target of an unresolved edge.
   add_path_edge() {
     local from="$1" spec="$2" path="$3" evidence="$4" normalized target
     if normalized="$(normalize_within_root "$(proj_dir_of "$from")" "$path")"; then
@@ -878,7 +607,7 @@ read_node() {
   for rel in "${node_files[@]}"; do
     while IFS= read -r rec; do
       [[ "$rec" == dep$'\t'* ]] || continue
-      rec="${rec#*$'\t'}" # drop the kind, then the section
+      rec="${rec#*$'\t'}"
       rec="${rec#*$'\t'}"
       name="${rec%%$'\t'*}"
       rec="${rec#*$'\t'}"
@@ -895,7 +624,6 @@ read_node() {
         add_path_edge "$rel" "$spec" "${spec#workspace:}" "$rel: $decl"
         ;;
       workspace:*)
-        # workspace:*, workspace:^1.0.0, or the alias form workspace:pkg@range.
         want="$name"
         [[ "${spec#workspace:}" == ?*@* ]] && want="${spec#workspace:}" && want="${want%@*}"
         if target="$(member_named "$rel" "$want")"; then
@@ -924,7 +652,6 @@ read_go() {
   local rel rec decl target old is_local normalized cand
   local us=$'\x1f'
 
-  # Every go.mod is a project node; its id is its repo-relative path.
   for rel in "${go_files[@]+"${go_files[@]}"}"; do
     mod_recs[$rel]="$(go_mod_records "$root/$rel")"
     mod_name[$rel]="$(printf '%s\n' "${mod_recs[$rel]}" | record_value module)"
@@ -934,9 +661,6 @@ read_go() {
     done <<<"${mod_recs[$rel]}"
   done
 
-  # A replace whose target is a local path is an internal edge to the go.mod in
-  # that folder; a missing or out-of-root folder is unresolved. The replaced
-  # module path is then not also drawn as an external requirement.
   for rel in "${go_files[@]+"${go_files[@]}"}"; do
     while IFS= read -r rec; do
       [[ "$rec" == replace$'\t'* ]] || continue
@@ -955,9 +679,6 @@ read_go() {
     done <<<"${mod_recs[$rel]}"
   done
 
-  # go.work use lines are membership: modules used by one go.work resolve each
-  # other's module paths. A use line naming no go.mod in the root is unread.
-  # ws_members[go.work] holds one member per line: go.mod<US>use declaration.
   local work
   for work in "${gowork_files[@]+"${gowork_files[@]}"}"; do
     while IFS= read -r rec; do
@@ -980,8 +701,6 @@ read_go() {
     done <<<"$(go_work_records "$root/$work")"
   done
 
-  # Requirements. Internal only through a local replace (above) or a shared
-  # go.work; otherwise the module path is an external package.
   local mod hit hit_decl line
   for rel in "${go_files[@]+"${go_files[@]}"}"; do
     while IFS= read -r rec; do
@@ -1021,8 +740,6 @@ read_python() {
   for rel in "${py_files[@]+"${py_files[@]}"}"; do is_pyproject[$rel]=1; done
   for rel in "${setup_files[@]+"${setup_files[@]}"}"; do is_setup[$rel]=1; done
 
-  # The project a manifest in the same folder belongs to: pyproject.toml, else
-  # setup.py, else the requirements file itself.
   py_owner() {
     local pre
     pre="$(proj_dir_of "$1")"
@@ -1036,7 +753,6 @@ read_python() {
     fi
   }
 
-  # The project a path names: the pyproject.toml, else setup.py, in that folder.
   py_target() {
     local n
     n="$(normalize_within_root "$1" "$2")" || return 1
@@ -1050,7 +766,6 @@ read_python() {
     fi
   }
 
-  # An edge from project $1 for the path $3 written in file $2 as declaration $4.
   py_path_edge() {
     local id
     if id="$(py_target "$(proj_dir_of "$2")" "$3")"; then
@@ -1065,7 +780,6 @@ read_python() {
     add_edge "$1" "pkg:python:$2" "package" "resolved" "$3: $4"
   }
 
-  # Every manifest folder is one project node; setup.py is reported, not read.
   for rel in "${py_files[@]+"${py_files[@]}"}"; do
     recs[$rel]="$(py_project_records "$root/$rel")"
     add_project_node "$rel" "$(printf '%s\n' "${recs[$rel]}" | record_value name)"
@@ -1078,8 +792,6 @@ read_python() {
     [[ "$(py_owner "$rel")" == "$rel" ]] && add_node "$rel" "${rel##*/}" "$rel" "project"
   done
 
-  # A named requirement whose entry names a local path is that internal edge
-  # only, not also an external package.
   for rel in "${py_files[@]+"${py_files[@]}"}"; do
     while IFS= read -r rec; do
       IFS=$'\t' read -r kind a b c <<<"$rec"
@@ -1098,15 +810,10 @@ read_python() {
     done <<<"${recs[$rel]}"
   done
 
-  # [tool.uv.workspace] members name the pyproject.toml files under the
-  # workspace root's folder.
   for rel in "${py_files[@]+"${py_files[@]}"}"; do
     add_member_edges "$rel" "${recs[$rel]}" keep-dot "${py_files[@]}"
   done
 
-  # A requirements file, and the files it includes with -r that sit inside the
-  # root, belong to its folder's project. An include that is missing or leaves
-  # the root is unread.
   py_read_req() {
     local file="$1" owner="$2" inc rec kind a b c
     seen[$file]=1
@@ -1141,8 +848,6 @@ read_rust() {
 
   for rel in "${cargo_files[@]}"; do is_cargo[$rel]=1; done
 
-  # An edge from project $1 for the path $3 written relative to file $2, with
-  # the citation $4.
   rust_path_edge() {
     local n id
     if n="$(normalize_within_root "$(proj_dir_of "$2")" "$3")" && [[ -n "${is_cargo[${n:+$n/}Cargo.toml]+x}" ]]; then
@@ -1158,14 +863,11 @@ read_rust() {
     add_edge "$1" "pkg:rust:$2" "package" "resolved" "$3"
   }
 
-  # Every Cargo.toml is one project node; its id is its repo-relative path.
   for rel in "${cargo_files[@]}"; do
     recs[$rel]="$(rust_manifest_records "$root/$rel")"
     add_project_node "$rel" "$(printf '%s\n' "${recs[$rel]}" | record_value name)"
   done
 
-  # Direct dependencies. [workspace.dependencies] entries are kept for the
-  # workspace = true lookup below and draw no edge of their own.
   for rel in "${cargo_files[@]}"; do
     while IFS= read -r rec; do
       IFS=$'\t' read -r kind a b c d <<<"$rec"
@@ -1181,8 +883,6 @@ read_rust() {
     done <<<"${recs[$rel]}"
   done
 
-  # workspace = true: the entry in the nearest ancestor (or own) Cargo.toml
-  # with a [workspace] table. No entry to resolve it is unread.
   local wroot cur entry
   for rel in "${cargo_files[@]}"; do
     while IFS= read -r rec; do
@@ -1213,8 +913,6 @@ read_rust() {
     done <<<"${recs[$rel]}"
   done
 
-  # [workspace] members name the Cargo.toml files under the workspace root's
-  # folder; a "." member is the root itself.
   for rel in "${cargo_files[@]}"; do
     [[ -n "${has_ws[$rel]+x}" ]] || continue
     add_member_edges "$rel" "${recs[$rel]}" skip-dot "${cargo_files[@]}"
@@ -1224,12 +922,9 @@ read_rust() {
 has_jvm() { [[ ${#pom_files[@]} -gt 0 || ${#gradle_files[@]} -gt 0 || ${#settings_files[@]} -gt 0 ]]; }
 
 read_jvm() {
-  # gnode is keyed "/<folder>": bash refuses an empty subscript for the root.
   local -A is_pom=() gnode=() is_settings=()
   local rel dir rec kind a b n cur sdir
 
-  # An edge from project $1 to the Gradle project path $3, resolved from folder
-  # $2, with the citation $4. A path with no leading colon is relative to $2.
   gradle_edge() {
     local p="${3#:}" t
     p="${p//://}"
@@ -1240,8 +935,6 @@ read_jvm() {
     fi
   }
 
-  # A Gradle project is its folder. Its node is the folder's build file, else
-  # its settings file when the folder has one.
   for rel in "${gradle_files[@]+"${gradle_files[@]}"}"; do
     dir="$(proj_dir_of "$rel")"
     add_project_node "$rel" ""
@@ -1267,8 +960,6 @@ read_jvm() {
     done < <(jvm_settings_records "$root/$rel")
   done
 
-  # project(':x') resolves from the nearest settings file at or above the
-  # build file; a path with no colon resolves from the build file's folder.
   for rel in "${gradle_files[@]+"${gradle_files[@]}"}"; do
     dir="$(proj_dir_of "$rel")"
     sdir=""
@@ -1298,8 +989,6 @@ read_jvm() {
     done < <(jvm_build_records "$root/$rel")
   done
 
-  # A pom is a project node named by its artifactId. A <module> is a folder
-  # holding a pom.xml, or a pom file, relative to the aggregating pom.
   for rel in "${pom_files[@]+"${pom_files[@]}"}"; do
     is_pom[$rel]=1
   done
@@ -1368,10 +1057,6 @@ if [[ ${#edge_from[@]} -gt 0 ]]; then
     fi
   done
   if [[ -n "$cycle_feed" ]]; then
-    # Tarjan's strongly connected components, then one shortest witness cycle
-    # through the smallest id of each component with more than one project or a
-    # self-reference. O(projects + edges). The recursion depth is the longest
-    # dependency chain.
     while IFS= read -r line; do
       [[ -n "$line" ]] || continue
       json_object id "$line"
@@ -1475,7 +1160,6 @@ e_message="$JSON_ESC"
 json_escape "$ecosystem"
 e_ecosystem="$JSON_ESC"
 
-# cycles_truncated stays for schema_version 1 readers; the search cannot truncate.
 emit_document() {
   printf '{\n'
   printf '  "schema_version": 1,\n'

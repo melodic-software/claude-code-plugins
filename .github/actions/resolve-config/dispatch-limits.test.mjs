@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { parse } from "yaml";
 
+import { standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 import { main } from "../../scripts/pr-unblock/dispatch.mjs";
 import { main as refineEvent } from "../../scripts/pr-unblock/refine-event-dispatch.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -29,8 +30,6 @@ function baseWith(text) {
   const base = tempDir("dispatch-limits-base-");
   for (const file of [
     "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
-    ".github/standards/github-actions-conventions/vocabulary.json",
-    ".github/standards/trusted-actors/trusted-actors.json",
   ]) {
     mkdirSync(dirname(join(base, file)), { recursive: true });
     cpSync(join(ROOT, file), join(base, file));
@@ -106,7 +105,7 @@ async function run(text, ciFixPulls = [], docsPulls = [], tracker = null) {
   const dispatched = [];
   try {
     const code = await main(
-      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: output, BASE_PATH: base, APP_SENDER_ID: String(LANES_APP) },
+      { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: output, BASE_PATH: base, STANDARDS_DIR: standardsCheckout(), APP_SENDER_ID: String(LANES_APP) },
       { api: api(dispatched, ciFixPulls, docsPulls), sleep: async () => {}, log: () => {}, now: Date.parse("2026-10-17T12:00:00Z") },
     );
     return { code, dispatched };
@@ -164,7 +163,7 @@ test("the base config's adoption section lets fix-ci adopt an idle owner PR", as
   assert.doesNotMatch(without, /^adoption:/m);
   assert.deepEqual(await run(without, [owner]), { code: 0, dispatched: ["40"] });
   const noIdle = LIVE.replace(/^ {2}idle-hours: 2\n/m, "");
-  assert.match(noIdle, /^adoption:\n {2}#/m);
+  assert.match(noIdle, /^adoption:\n {2}spec-from-body-apps:/m);
   assert.deepEqual(await run(noIdle, [owner, release]), { code: 0, dispatched: ["40"] });
 });
 
@@ -201,6 +200,7 @@ async function runEvent(text, pull) {
       GITHUB_RUN_ID: "4242",
       RUN_IDS_FILE: join(base, "run-ids"),
       BASE_PATH: base,
+      STANDARDS_DIR: standardsCheckout(),
       APP_SENDER_ID: String(LANES_APP),
       SENDER_ID: String(LANES_APP),
       RUN_ATTEMPT: "1",
@@ -222,7 +222,6 @@ test("the base config's limits.fix-docs-per-run turns a PR event's fix-docs on o
     changedFiles: 1,
     additions: lines,
     deletions: 0,
-    // The lane run's one API commit, as GraphQL lists one.
     commits: {
       totalCount: 1,
       nodes: [
@@ -253,7 +252,7 @@ test("a base config the resolver refuses fails the run before any dispatch", asy
   try {
     await assert.rejects(
       main(
-        { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: join(base, "output"), BASE_PATH: base, APP_SENDER_ID: String(LANES_APP) },
+        { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "4242", GITHUB_OUTPUT: join(base, "output"), BASE_PATH: base, STANDARDS_DIR: standardsCheckout(), APP_SENDER_ID: String(LANES_APP) },
         { api: api(dispatched), sleep: async () => {}, log: () => {} },
       ),
       /fails the schema/,

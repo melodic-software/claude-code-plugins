@@ -430,7 +430,6 @@ function main(argv) {
   let maxAgeDays = DEFAULT_STALE_DAYS;
   /** @type {string | null} */
   let videoId = null;
-  /** Caller-supplied holder name; the default names this short-lived child process. */
   let claimedBy;
   let nextCheckAt = "";
   let deadline = "";

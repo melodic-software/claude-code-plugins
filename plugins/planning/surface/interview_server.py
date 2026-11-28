@@ -53,24 +53,15 @@ EMPTY_RESPONSES = {
     "history": {},
     "events": [],
 }
-# One-line free-text cap; a hedged decision's condition is one.
 LINE_CAP = 500
 DECISIONS = {"accept", "alt", "own", "defer", "hedged", "reopen"}
-# Requests to Claude that record no decision. `research` and `cancel-research` name no skill or plugin;
-# `confirm-reading` confirms Claude's read-back of the user's answer.
 REQUESTS = {"ask", "rephrase", "research", "cancel-research", "confirm-reading"}
-# Events not tied to a question; `confirm-understanding` answers the restatement, and
-# `accept-audit` lists the questions one click accepted (each also gets its own `accept`).
 FREE = {"note", "wrapup", "confirm-understanding", "accept-audit"}
-# Kinds that carry `alt`; `confirm` carries a commitment index and records no decision,
-# `confirm-understanding` carries `confirm` or `off`, `accept-audit` the round id, and
-# `proposal` the user's answer to a proposed question (PROPOSAL), recording no decision.
 WITH_ALT = {"alt", "confirm", "confirm-understanding", "accept-audit", "proposal"}
 UNDERSTANDING = ("confirm", "off")
 PROPOSAL = ("accept", "edit", "decline")
 API = 2
 MAX_BODY = 64 * 1024
-# A file visual larger than this is neither served nor inlined.
 MAX_VISUAL_FILE = 4 * 1024 * 1024
 OCTET = "application/octet-stream"
 IMAGE_TYPES = {
@@ -81,7 +72,6 @@ IMAGE_TYPES = {
     ".webp": "webp",
     ".svg": "svg+xml",
 }
-# A new-tab link (/api/visual-open) works once, within this many seconds of its mint.
 OPEN_SECONDS = 10
 PAGE_CSP = (
     "default-src 'self'; script-src 'self' 'unsafe-inline'; "
@@ -89,45 +79,35 @@ PAGE_CSP = (
     "connect-src 'self'; frame-src 'self' about:; frame-ancestors 'none'; "
     "form-action 'none'; base-uri 'none'"
 )
-# The question-shape files both interview pages load (composer, viewport fit), from the shared page's web folder.
 SHARED_WEB = HERE.parent / "shared" / "web"
 QUESTION_SHAPE = {
     "/question-shape.js": ("question-shape.js", "text/javascript"),
     "/question-shape.css": ("question-shape.css", "text/css"),
 }
-# A visual may never name a runtime file: the session files and their transient temp copies
-# hold the token, so every dotfile path component, lock and temp file is refused.
 RUNTIME_SUFFIXES = (".lock", ".tmp")
 
 
 def page_build():
-    """plugin_build() of the files on disk, as attribute-safe text ("" for an unreadable part)."""
     return {k: html.escape(v or "") for k, v in plugin_build(HERE).items()}
 
 
 def runtime_path(rel):
-    """True when any part of the data-dir-relative path is a dotfile, a lock or a temp file."""
     return any(
         p.startswith(".") or p.lower().endswith(RUNTIME_SUFFIXES) for p in rel.parts
     )
 
 
-QUIET_SECONDS = 10.0  # default settleQuiet: a found event waits this long for more before the watcher wakes
-BURST_SECONDS = 30.0  # default settleBurst: never holding it longer than this in all
-NAME = "interview"  # names the session files and the token header (session_bridge)
+QUIET_SECONDS = 10.0
+BURST_SECONDS = 30.0
+NAME = "interview"
 SESSION_JSON = session_files(NAME)[0]
-# The ADR 0075 file layers: the interview_page mapping of planning's team and personal files in
-# the convention home, which the planning copy of resolve-convention-home.sh binds.
 SECTION = "interview_page"
 TEAM_FILE, PERSONAL_FILE = "planning.yaml", "planning.local.yaml"
 DEFAULT_HOME = "docs/conventions"
 HOME_SCRIPT = HERE.parent / "lib" / "resolve-convention-home.sh"
-# Retired: never read for values, only named in a one-time notice (Settings.retired_notices).
 RETIRED_FILE = Path(".claude") / "interview-surface.json"
 RETIRED_SEEN = ".retired-notices.json"
 
-# Settings, lowest layer first: plugin default, team file, personal file, user file, the data
-# dir's settings.json. No userConfig option carries these keys, so that layer is empty.
 DEFAULT_SETTINGS = {
     "port": 0,
     "openBrowser": True,
@@ -168,12 +148,11 @@ SETTING_RULES = {
     "requireDepends": ("bool",),
     "orderThreshold": ("int", 0, 1000),
 }
-TEAM_KEYS = set(DEFAULT_SETTINGS) - {"displayName"}  # a name is one person's, never the team's
-USER_ONLY = {"browserCommand"}  # read by ensure-running, never sent to the page
+TEAM_KEYS = set(DEFAULT_SETTINGS) - {"displayName"}
+USER_ONLY = {"browserCommand"}
 
 
 def setting_error(key, value):
-    """None when value is valid for key, else the reason."""
     kind, *rule = SETTING_RULES[key]
     if kind == "bool":
         ok = isinstance(value, bool)
@@ -200,7 +179,6 @@ def setting_error(key, value):
 
 
 def token_map(value):
-    """A {light: {token: value}, dark: {...}} map with string tokens and values, or None."""
     if not isinstance(value, dict) or not set(value) <= {"light", "dark"}:
         return None
     for tokens in value.values():
@@ -224,7 +202,6 @@ def repo_root(data_dir):
 
 
 def run_quiet(cmd):
-    """(exit code, stdout, stderr) of a short command with no window; None when it cannot run."""
     try:
         p = subprocess.run(
             cmd,
@@ -268,7 +245,6 @@ def convention_home(repo):
 
 
 def yaml_section(path, label, note):
-    """The interview_page mapping of a planning YAML file; {} when absent, noted when unusable."""
     if path is None:
         return {}
     shown = f"{label} file {path}"
@@ -419,7 +395,6 @@ class Settings:
         per data dir while the file's bytes are unchanged. Its values never apply."""
         path = self.retired_file
         try:
-            # Only a regular file: a symlink could point the notice at any file the user can read.
             regular = path is not None and not path.is_symlink() and path.is_file()
             raw = path.read_bytes() if regular else None
         except OSError:
@@ -449,18 +424,14 @@ class Settings:
         try:
             record.write_text(json.dumps({**seen, shown: digest}) + "\n", encoding="utf-8")
         except OSError:
-            pass  # an unwritable record shows the notice again next time, the safe direction
+            pass
 
 
 def question_states(doc, r):
-    """Per question id: (state, revising); see derive_states."""
     return derive_states(doc, r)[0]
 
 
 def supersede_chains(doc):
-    """Per question id that supersedes another: every earlier question of its supersede chain as
-    {id, round, stage}, the chain's first question first (G6: a question re-issued twice keeps
-    its history). A cycle or an unknown id ends the walk. Never written to questions.json."""
     by_id = {
         q["id"]: q
         for q in doc.get("questions") or []
@@ -483,10 +454,6 @@ def supersede_chains(doc):
 
 
 def decision_value(e, recs):
-    """What a decision settles, compared to tell a changed answer from a repeated one: an alt's
-    key; an accept's or hedged accept's count of recommendation changes so far (accepting a
-    revised recommendation is a new answer), with a hedged condition; an own or defer text,
-    whitespace folded. An accept's note is not part of it."""
     kind, text = e["kind"], " ".join((e.get("text") or "").split())
     if kind == "alt":
         return (kind, e.get("alt"))
@@ -519,13 +486,7 @@ def unchecked_constraints(doc):
 
 
 def answer_order(questions, threshold):
-    """The recommended answering order of the open questions (on the path, and held or not
-    answered, as frontierLock reads a prerequisite), or [] while there are `threshold` or fewer.
-    Prerequisites come first (topological by dependsOn); among the questions ready next, the
-    larger blast radius (the count of transitive dependents through dependsOn) goes first, then
-    the lower id. A dependsOn cycle is broken by the same keys. Advisory: it changes no state and
-    no frontierLock check."""
-    from exporters import natural  # exporters imports this module at its top
+    from exporters import natural
 
     path = [
         q
@@ -558,7 +519,7 @@ def answer_order(questions, threshold):
     heapq.heapify(ready)
     order = []
     while waits:
-        if not ready:  # only a cycle is left: take its best-ranked question
+        if not ready:
             best = min(waits, key=rank.__getitem__)
             ready = [(rank[best], best)]
         qid = heapq.heappop(ready)[1]
@@ -637,7 +598,7 @@ def derive_states(doc, r):
         and isinstance(t.get("updatedAt"), str)
     ]
 
-    def slot(at):  # the first event at or after `at`
+    def slot(at):
         return next(
             (i for i, e in enumerate(events) if (e.get("at") or "") >= at),
             len(events),
@@ -657,13 +618,11 @@ def derive_states(doc, r):
         if isinstance(h, dict) and isinstance(h.get("pageSeq"), int)
     ]
 
-    def after(seq):  # the first event past `seq`
+    def after(seq):
         return next(
             (i for i, e in enumerate(events) if e.get("seq", 0) > seq), len(events)
         )
 
-    # Claude revised or reconfirmed the question: a line goes by its reviewSeq, and a revise line
-    # written before reviewSeq existed goes by its time, as a terminal decision does.
     reviews = [
         (
             after(h["reviewSeq"])
@@ -692,7 +651,7 @@ def derive_states(doc, r):
     for *_, e in sorted(replay, key=lambda x: x[:4]):
         qid = e["id"]
         if e["kind"] in ("rec", "review"):
-            pending.pop(qid, None)  # Claude revised or reconfirmed it
+            pending.pop(qid, None)
         if e["kind"] == "review":
             continue
         if e["kind"] == "rec":
@@ -739,7 +698,7 @@ def derive_states(doc, r):
         pending[qid] = [*pending.get(qid, []), *missing]
         stale.discard(qid)
 
-    def upstream(qid):  # stale ancestors, nearest first, ties by id
+    def upstream(qid):
         seen, level, found = {qid}, list(deps.get(qid, [])), []
         while level:
             level = sorted(set(level) - seen)
@@ -792,7 +751,6 @@ def load_json(path, default):
 
 
 def find_visual(doc, vid):
-    """The visual with id vid: top-level visuals first, then inline visuals inside questions."""
     inline = [
         v
         for q in doc.get("questions") or []
@@ -806,7 +764,6 @@ def find_visual(doc, vid):
 
 
 def visual_format(v):
-    """The visual's format, with `kind` as its alias; the page reads a missing one as html."""
     return v.get("format") or v.get("kind") or "html"
 
 
@@ -859,7 +816,6 @@ def read_visual_file(data_dir, file):
         not isinstance(file, str)
         or not file
         or ":" in file
-        # A Windows anchor covers a root on either separator and a UNC share.
         or PureWindowsPath(file).anchor
         or ".." in file.replace("\\", "/").split("/")
     ):
@@ -917,9 +873,6 @@ def proposal_answer(q, events):
 
 
 def check_proposal(q, alt, text, events):
-    """ValueError (400) or Conflict (409) for a proposal event on q: `alt` is accept, edit or
-    decline, an edit carries the reworded question in `text` (one line), and q is a proposed
-    question no proposal event has answered yet."""
     answer = proposal_answer(q, events)
     if answer is None:
         raise ValueError("not a proposed question")
@@ -944,8 +897,6 @@ def chain_end(qs, q):
 
 
 def check_retired(qs, q):
-    """Conflict (409) for a decision on a question off the path: `superseded`, with `by` naming
-    the end of its supersededBy chain (chain_end), wins over `archived`."""
     if q.get("supersededBy"):
         raise Conflict({"error": "superseded", "by": chain_end(qs, q)})
     if q.get("archived"):
@@ -953,8 +904,6 @@ def check_retired(qs, q):
 
 
 def round_complete(doc, r, qid):
-    """True when every live question in qid's round has a decision in r (this accept included);
-    a proposed question the user has not accepted or edited is not a question yet."""
     qs = [q for q in doc.get("questions") or [] if isinstance(q, dict)]
     rnd = next((q.get("round") for q in qs if q.get("id") == qid), None)
     return not any(
@@ -995,7 +944,6 @@ def release_user_holds(doc, r):
 
 
 def content_rev(q, events):
-    """Bumped by round.py on wording or recommendation changes, plus one per decision or undo. Replies never bump it."""
     qid = q.get("id")
     return (q.get("contentRev") or 0) + sum(
         1
@@ -1005,7 +953,6 @@ def content_rev(q, events):
 
 
 def decision_view(event, prev_text=""):
-    """The responses[id] entry one decision event produces; a reopen without text keeps the note."""
     kind, text = event["kind"], event.get("text") or ""
     return {
         "decision": None if kind == "reopen" else kind,
@@ -1017,7 +964,6 @@ def decision_view(event, prev_text=""):
 
 
 def history_line(event):
-    """The history[id] line one user event adds; an undo also names the seq it withdrew."""
     line = {
         "at": event["at"],
         "by": "user",
@@ -1032,7 +978,6 @@ def history_line(event):
 
 
 def fold_decisions(events):
-    """The responses[id] entry after a run of live decision events in seq order (a reopen keeps the note)."""
     view = None
     for e in events:
         view = decision_view(e, view["text"] if view else "")
@@ -1083,8 +1028,6 @@ def rebuild_responses(events):
 
 
 def check_accept_audit(msg):
-    """ValueError (400) unless msg is a well-formed accept-audit: a round id in `alt` and a
-    non-empty `items` list of {id, contentRev} pairs with no repeated id. Returns the items."""
     if not (isinstance(msg.get("alt"), str) and msg["alt"].strip()):
         raise ValueError("accept-audit needs alt: the round id")
     items = msg.get("items")
@@ -1112,7 +1055,7 @@ def open_prereqs(doc, r, q):
     """The ids in q's dependsOn still open, in dependsOn order: on the path (not archived,
     superseded or a declined proposal) and held, or with no decision that counts. Call
     release_user_holds first."""
-    from exporters import latest_decision  # exporters imports server at module top
+    from exporters import latest_decision
 
     qs = {x.get("id"): x for x in doc.get("questions") or [] if isinstance(x, dict)}
     out = []
@@ -1134,7 +1077,6 @@ def open_prereqs(doc, r, q):
 
 
 def check_out_of_order(msg):
-    """ValueError (400) unless msg's `outOfOrder`, when present, is a list of question ids."""
     ooo = msg.get("outOfOrder")
     if ooo is not None and not (
         isinstance(ooo, list) and all(isinstance(p, str) for p in ooo)
@@ -1144,11 +1086,6 @@ def check_out_of_order(msg):
 
 
 def split_accept_audit(doc, r, items):
-    """(accepted, skipped) of an accept-audit: the items the server accepts now, and an
-    {id, reason} for each it refuses. `changed` is a contentRev that no longer matches;
-    `ineligible` is an unknown, closed, superseded, held or recommendation-less question, one
-    whose state is not open (stale, upstream-changed, upstream-pending), or one with a
-    prerequisite still open (open_prereqs: an archived or superseded prerequisite is met)."""
     release_user_holds(doc, r)
     qs = {q.get("id"): q for q in doc.get("questions") or []}
     states = question_states(doc, r)
@@ -1192,7 +1129,6 @@ def check_alt(q, kind, alt):
 
 
 def check_understanding(doc, alt, text, rev):
-    """ValueError (400) or Conflict (409 stale) for a confirm-understanding event."""
     if alt not in UNDERSTANDING:
         raise ValueError("confirm-understanding needs alt: confirm or off")
     if alt == "off" and not text.strip():
@@ -1210,9 +1146,6 @@ READ_BACK = re.compile(r"^\s*Understood as:", re.I)
 
 
 def check_reading(q, response, answer_seq, read_rev):
-    """ValueError (400) or Conflict (409 stale) for a confirm-reading event: it names the answer
-    (its seq) and the read-back it confirms (readRev, the count of Claude's `Understood as:` replies
-    to that answer up to the one shown), so a reading Claude replaced after the tab drew it is refused."""
     if not isinstance(answer_seq, int) or not isinstance(read_rev, int):
         raise ValueError(
             "confirm-reading needs answerSeq and readRev: the read-back it confirms"
@@ -1230,10 +1163,6 @@ def check_reading(q, response, answer_seq, read_rev):
 
 
 def repeat_of(events, event, since_seq=None):
-    """The event a repeated Confirm duplicates, or None; the server answers a repeat with that
-    event's seq. A commitment's confirm repeats any live confirm of it after `since_seq` (the
-    question's commitsSinceSeq: a commitments revise retires earlier confirms); an understanding
-    Confirm repeats only when the newest answer to that restatement rev is a Confirm."""
     kind = event["kind"]
     if kind == "confirm":
         same = [
@@ -1272,7 +1201,7 @@ class Hub(LoopbackWatcher):
         self.session = hashlib.sha256(str(self.dir).lower().encode()).hexdigest()[:12]
         self.layers = Settings(repo_root(self.dir))
         self._last_state = None
-        self.opens = {}  # new-tab nonce: (visual id, monotonic expiry)
+        self.opens = {}
 
     def read_log(self):
         return load_json(self.responses, EMPTY_RESPONSES)
@@ -1336,8 +1265,6 @@ class Hub(LoopbackWatcher):
             mtime(self.layers.personal_file) if self.layers.personal_file else 0,
             mtime(Path(user)) if user else 0,
             listener["state"],
-            # The header reads Live only while a watcher waits, and a wait inside the listen
-            # grace leaves state and lease unchanged.
             listener["waiters"] > 0,
             listener["lease"] is not None,
         )
@@ -1367,7 +1294,6 @@ class Hub(LoopbackWatcher):
             release_user_holds(q, r)
             derived, changed, waits, changed_by = derive_states(q, r)
             chains = supersede_chains(q)
-            # exporters imports server at module top
             from exporters import latest_decision
 
             for x in q.get("questions") or []:
@@ -1417,7 +1343,6 @@ class Hub(LoopbackWatcher):
             "session": self.session,
             "instance": self.instance,
             "api": API,
-            # The build this process started from; the page compares it with the one stamped in it.
             **self.build,
         }, stale
 
@@ -1517,7 +1442,6 @@ class Hub(LoopbackWatcher):
                 and msg.get("contentRev") is not None
                 and msg["contentRev"] != (qs[qid].get("contentRev") or 0)
             ):
-                # A tab holding an old commitments list would otherwise confirm the new one by index.
                 raise Conflict(
                     {"error": "stale", "contentRev": qs[qid].get("contentRev") or 0}
                 )
@@ -1543,7 +1467,6 @@ class Hub(LoopbackWatcher):
                             "decision": r["responses"].get(qid),
                         }
                     )
-            # After the contentRev check, so a page holding old alternatives gets the 409 payload.
             if kind in WITH_ALT and qid and kind != "proposal":
                 check_alt(qs[qid], kind, alt)
             if kind in DECISIONS - {"reopen"}:
@@ -1551,11 +1474,9 @@ class Hub(LoopbackWatcher):
                 waits, lock = open_prereqs(doc, r, qs[qid]), self.frontier_lock()
                 if waits and lock == "hard":
                     raise Conflict({"error": "blocked", "waitsOn": waits})
-                # An upstream answer changed: the question waits on Claude's revise or reconfirm.
                 by = derive_states(doc, r)[3].get(qid) if lock != "off" else None
                 if by:
                     raise Conflict({"error": "upstream-changed", "changedBy": by})
-                # The page's Answer anyway names the open prerequisites; keep the ones still open.
                 ahead = [p for p in waits if p in (ahead or [])]
                 if ahead:
                     event["outOfOrder"] = ahead
@@ -1572,8 +1493,6 @@ class Hub(LoopbackWatcher):
             prev = r["responses"].get(qid, {}) if qid else {}
             if kind in DECISIONS:
                 r["responses"][qid] = decision_view(event, prev.get("text", ""))
-            # A plain accept or confirm needs no reply, so it wakes no agent; the accept that
-            # settles its round's last question stays unhandled, so the agent learns the round is done.
             if not text.strip() and (
                 kind == "confirm"
                 or (kind == "accept" and not round_complete(doc, r, qid))
@@ -1662,8 +1581,6 @@ class Handler(LoopbackHandler):
     def route_get(self, url, query):
         hub = self.hub
         if url.path in ("/", "/index.html"):
-            # The page carries the build on disk now; /api/state carries the one this process
-            # started from, so a page newer than its server can tell.
             build = page_build()
             html = (
                 (HERE / "index.html")
@@ -1692,8 +1609,6 @@ class Handler(LoopbackHandler):
                 )
             return self.send(200, raw, OCTET)
         if url.path == "/api/visual-open":
-            # A tab navigation cannot send the token header, so a one-time nonce stands in; the
-            # sandbox CSP makes the document an opaque origin that cannot reach the page's token.
             vid = (query.get("id") or [""])[0]
             if not hub.take_open((query.get("t") or [""])[0], vid):
                 return self.send(403, {"error": "open link expired or already used"})

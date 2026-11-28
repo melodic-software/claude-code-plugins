@@ -1,8 +1,4 @@
 // test-scope: .github/actions/resolve-config/package.json
-// A skill leaf's self-checks, validated by the real schema and passed through
-// to the selected activity for collect-base-activity, apart from its checks,
-// which the issue lane's run-checks job reruns. Contract:
-// docs/conventions/pr-pipeline/README.md, "Activities", self-checks.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";

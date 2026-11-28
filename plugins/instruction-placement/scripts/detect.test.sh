@@ -1,16 +1,6 @@
 #!/usr/bin/env bash
-# Regression tests for detect.sh — the audit's deterministic fact emitter.
-#
-# The line ranges this script emits are what `realign` excises by, so the
-# SECTION assertions below check exact numbers rather than presence: an
-# off-by-one here removes the wrong text from someone's instruction file.
-#
 # fixture-isolation-scope: this suite builds git fixtures and clears the
-# inherited git environment itself rather than sourcing a harness, so the plugin
-# stays self-contained and portable outside this marketplace.
-#
-# shellcheck disable=SC2016 # fixtures contain literal markdown fences, globs,
-# and @import tokens; backticks and $ are file content, never expansions.
+# shellcheck disable=SC2016 # fixtures contain literal markdown fences and globs
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR GIT_PREFIX GIT_OBJECT_DIRECTORY GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 
@@ -198,20 +188,11 @@ a="$(run --root "$rules")"
 b="$(run --root "$rules")"
 assert_eq "output is byte-identical across runs" "$a" "$b"
 
-# A regex the awk engine cannot compile would print a panic to stderr and an
-# empty fact set to stdout, which reads exactly like "this file has no sections".
 assert_lacks_sub "no awk panic reaches the output" "$out" "panic"
 assert_lacks_sub "no awk syntax error reaches the output" "$out" "syntax error"
 sections="$(printf '%s\n' "$out" | grep -c '^SECTION' || true)"
 assert_eq "a headed file yields a non-zero section count" "4" "$sections"
 
-# ==========================================================================
-# identity subcommand
-#
-# The two golden vectors below equal the output of harness-config's
-# audit-pass finding-identity.sh `finding-id` for one site (surface=<repo-relative path>, anchor=<anchor>), so
-# a change here that drifts from that formula fails this suite.
-# ==========================================================================
 idr="$(mktemp -d "$TMP/x.XXXX")"
 mkdir -p "$idr/docs"
 cat >"$idr/CLAUDE.md" <<'EOF'
@@ -241,16 +222,16 @@ text
 EOF
 ident() { bash "$SCRIPT" identity --root "$idr" "$@" 2>&1; }
 
-out="$(ident --file CLAUDE.md --start 1 --lane demote --destination path-scoped-rule)"
+out="$(ident --file CLAUDE.md --start 1 --direction demote --destination path-scoped-rule)"
 assert_eq "identity: demote golden vector" \
   "$(printf 'IDENTITY\tCLAUDE.md\t1\tinstruction-placement/audit/demote\tnarrower-scope:path-scoped-rule\t958d10fb\t866c7f4e04652643\tTest conventions')" "$out"
 
-out="$(ident --file docs/deployment.md --start 3 --lane promote --destination nested-agents-md)"
+out="$(ident --file docs/deployment.md --start 3 --direction promote --destination nested-agents-md)"
 assert_eq "identity: nested promote golden vector" \
   "$(printf 'IDENTITY\tdocs/deployment.md\t3\tinstruction-placement/audit/promote\tunloaded-convention:nested-agents-md\tf2146d4b\t3f63ad6cc4466c0a\tDeployment > Release checklist')" "$out"
 
-a="$(ident --file docs/deployment.md --start 3 --lane promote --destination nested-agents-md)"
-b="$(ident --file docs/deployment.md --start 3 --lane promote --destination nested-agents-md)"
+a="$(ident --file docs/deployment.md --start 3 --direction promote --destination nested-agents-md)"
+b="$(ident --file docs/deployment.md --start 3 --direction promote --destination nested-agents-md)"
 assert_eq "identity: output is byte-identical across runs" "$a" "$b"
 
 cat >"$idr/CLAUDE.md" <<'EOF'
@@ -261,42 +242,42 @@ was rewritten and lengthened inside the section.
 
 Another paragraph appeared.
 EOF
-out="$(ident --file CLAUDE.md --start 1 --lane demote --destination path-scoped-rule)"
+out="$(ident --file CLAUDE.md --start 1 --direction demote --destination path-scoped-rule)"
 assert_eq "identity: editing a paragraph inside the section leaves the anchor and id unchanged" \
   "$(printf 'IDENTITY\tCLAUDE.md\t1\tinstruction-placement/audit/demote\tnarrower-scope:path-scoped-rule\t958d10fb\t866c7f4e04652643\tTest conventions')" "$out"
 
-ident --file CLAUDE.md --start 1 --lane bogus --destination path-scoped-rule >/dev/null
-assert_eq "identity: a bad lane is a usage error" "2" "$?"
-ident --file CLAUDE.md --start 1 --lane demote --destination bogus >/dev/null
+ident --file CLAUDE.md --start 1 --direction bogus --destination path-scoped-rule >/dev/null
+assert_eq "identity: a bad direction is a usage error" "2" "$?"
+ident --file CLAUDE.md --start 1 --direction demote --destination bogus >/dev/null
 assert_eq "identity: a bad rung is a usage error" "2" "$?"
-ident --file CLAUDE.md --start 2 --lane demote --destination skill >/dev/null
+ident --file CLAUDE.md --start 2 --direction demote --destination skill >/dev/null
 assert_eq "identity: a --start matching no section is a usage error" "2" "$?"
-ident --file CLAUDE.md --start x --lane demote --destination skill >/dev/null
+ident --file CLAUDE.md --start x --direction demote --destination skill >/dev/null
 assert_eq "identity: a non-integer --start is a usage error" "2" "$?"
-ident --file CLAUDE.md --lane demote --destination skill >/dev/null
+ident --file CLAUDE.md --direction demote --destination skill >/dev/null
 assert_eq "identity: a missing --start is a usage error" "2" "$?"
-ident --file CLAUDE.md --start 1 --lane demote >/dev/null
+ident --file CLAUDE.md --start 1 --direction demote >/dev/null
 assert_eq "identity: a missing --destination is a usage error" "2" "$?"
-ident --file "$idr/CLAUDE.md" --start 1 --lane demote --destination skill >/dev/null
+ident --file "$idr/CLAUDE.md" --start 1 --direction demote --destination skill >/dev/null
 assert_eq "identity: an absolute --file is a usage error" "2" "$?"
 for bad in ./CLAUDE.md ././CLAUDE.md docs/../CLAUDE.md docs//x.md 'docs\x.md'; do
-  ident --file "$bad" --start 1 --lane demote --destination skill >/dev/null
+  ident --file "$bad" --start 1 --direction demote --destination skill >/dev/null
   assert_eq "identity: noncanonical --file '$bad' is a usage error" "2" "$?"
 done
-PATH=/nonexistent "$BASH" "$SCRIPT" identity --root "$idr" --file CLAUDE.md --start 1 --lane demote --destination skill >/dev/null 2>&1
+PATH=/nonexistent "$BASH" "$SCRIPT" identity --root "$idr" --file CLAUDE.md --start 1 --direction demote --destination skill >/dev/null 2>&1
 assert_eq "identity: no sha256 utility is a usage error, not a bogus id" "2" "$?"
-out="$(ident --file CLAUDE.md --start 1 --lane bogus --destination skill)"
+out="$(ident --file CLAUDE.md --start 1 --direction bogus --destination skill)"
 assert_has "identity: a usage error prints usage text" "$out" "  detect.sh identity [--root <dir>] --file <path> --start <n>"
 
-out="$(ident --file skipped.md --start 3 --lane demote --destination skill)"
+out="$(ident --file skipped.md --start 3 --direction demote --destination skill)"
 assert_eq "identity: an H3 directly under an H1 takes the H1 as its parent" \
   "Top > Deep" "$(printf '%s' "$out" | cut -f8)"
-out="$(ident --file skipped.md --start 11 --lane demote --destination skill)"
+out="$(ident --file skipped.md --start 11 --direction demote --destination skill)"
 assert_eq "identity: the nearest preceding record at each lower level is taken" \
   "Top > Mid > Under Mid > Four" "$(printf '%s' "$out" | cut -f8)"
 expect="$(printf '%s\037%s' 'Top' 'Deep' | sha256sum | cut -c1-8)"
 assert_eq "identity: the anchor hashes the path elements joined by 0x1F" \
-  "$expect" "$(ident --file skipped.md --start 3 --lane demote --destination skill | cut -f6)"
+  "$expect" "$(ident --file skipped.md --start 3 --direction demote --destination skill | cut -f6)"
 
 printf '\n%d case(s), %d failure(s)\n' "$CASE_NUM" "$FAILED"
 [[ $FAILED -eq 0 ]] || exit 1

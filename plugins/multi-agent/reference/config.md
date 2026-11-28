@@ -19,13 +19,7 @@ The user layer is a nested map of the same keys as the team file, which no
 scalar `userConfig` option can hold, so the plugin's one `role_map_file`
 option (type `file`) names a file that keeps it, and `/config` sets it.
 
-**Old paths, read during the migration window.** While no new file supplies
-the user layer, `~/.claude/multi-agent.yaml` still does, named `user-global`
-in `source`; while `<home>/multi-agent.local.yaml` is absent,
-`.claude/multi-agent.local.yaml` still supplies the personal override. Every
-run names each old file it finds, read or not, in `notes`, with its new
-location and `/multi-agent:setup apply --migrate`, which moves the file after a
-preview and a yes and then deletes it. A later change removes these reads.
+Old `~/.claude/multi-agent.yaml` and `.claude/multi-agent.local.yaml` files are not read.
 
 Later layers win per key. Team and personal override are read only when the root is a
 repository that is neither `$HOME` nor an ancestor of it
@@ -36,8 +30,7 @@ resolver no longer reads the old team locations, the config block in
 `/multi-agent:setup check` names each one it finds. While the team YAML is
 absent, the first `/multi-agent:setup apply --layer team` write copies the keys
 of one of them, the block when there is one, into the new YAML and leaves the
-old file in place; `/multi-agent:setup apply --migrate` moves
-`.claude/multi-agent.yaml` into the YAML and deletes it. Every layer declares `schema: 1`; a layer that does not
+old file in place. Every layer declares `schema: 1`; a layer that does not
 parse or names another schema is skipped and named in `notes`, and the layers
 around it still apply. The format is a YAML subset: nested mappings, block or
 flow sequences, scalars, comments. `/multi-agent:setup apply` writes a layer
@@ -57,13 +50,10 @@ after a preview and an explicit yes.
 | `vendors.routing` | `true`, `false` | `true` |
 | `vendors.trials` | `true`, `false` | `false` |
 | `vendors.auto_delegation` | `true`, `false` | `false` |
-| `vendors.tiebreak` | ordered list (no duplicates) from `vendor-order`, `fewest-tokens`, `most-usage-left` | unset (caller keeps its vendor on a tie) |
 | `vendors.trials_prove` | integer >= 1 | unset |
 | `vendors.trials_fail` | integer >= 2 (`1` is rejected) | unset |
-| `vendors.promotion_audits` | integer >= 1 | `3` |
-| `vendors.promotion_days` | integer >= 1 | `30` |
 | `vendors.<vendor>.in_use` | `true`, `false` (`<vendor>` is `claude`, `codex` or `antigravity`) | unset |
-| `vendors.<vendor>.rank` | integer (lower rank wins `vendor-order` tiebreak) | unset |
+| `vendors.<vendor>.rank` | integer (lower rank comes first in vendor order) | unset |
 | `vendors.sources.<id>.enabled` | `true`, `false` (`<id>` matches `^[a-z0-9][a-z0-9-]*$`) | unset (uses the row's `enabled`, default `true`) |
 | `verification`, `verification_skills.<skill>` | `off`, `light`, `standard`, `strict` | `light` |
 
@@ -171,10 +161,9 @@ stops every worker at once.
 
 The `vendors` block resolves across the same layers (`bundled`, `user-config`,
 `team`, `personal-override`) under the same invalid-value rule: an invalid
-value (such as `trials_fail: 1` or an unknown `tiebreak` step) is rejected with
-a note, and the layer below keeps the key. `/multi-agent:setup apply` runs the
-same validation before writing; pass `vendors.tiebreak=step1,step2` to write a
-tiebreak list, or `vendors.tiebreak=` to clear it.
+value (such as `trials_fail: 1`) is rejected with a note, and the layer below
+keeps the key. `/multi-agent:setup apply` runs the same validation before
+writing.
 
 - `vendors.routing: false`: `/multi-agent:route vendors` reports that routing is
   off and recommends nothing (including work Claude cannot do), while trials
@@ -195,18 +184,8 @@ tiebreak list, or `vendors.tiebreak=` to clear it.
 - `vendors.auto_delegation` for `coding`, `web-ui` and `knowledge` work: `true`
   runs a caller's brief through route's `delegate` script (`--use investigate`
   read-only, or `--use task --mode write`) per the Caller contract in `vendors.md`.
-- `vendors.tiebreak`: a higher layer's valid list replaces the lower layer's
-  list whole. With no tiebreak set, a tie across trusted sources keeps the
-  caller's vendor. When `most-usage-left` is listed, `/multi-agent:route vendors`
-  queries `external-agents usage <product>` per in-use vendor and Claude's
-  `rate-limits` status tool (when enabled) before deciding; any missing or
-  `unavailable` reading falls back to `vendor-order` with one note.
 - `vendors.sources.<id>.enabled: false`: disables a shipped or team benchmark
   row during fetch and decision.
-- `vendors.promotion_audits` and `vendors.promotion_days`: `/multi-agent:audit-defaults registry`
-  proposes a shipped `support-only` row `permanent` once its most recent audits, at least
-  `promotion_audits` of them spanning at least `promotion_days` days, all passed the four checks
-  in `vendors.md` "Benchmarks and trust model". A failed check in that run resets the count.
 
 A repository may append team benchmark rows in
 `<repo>/docs/conventions/multi-agent/benchmarks.json` (resolved from
@@ -219,30 +198,19 @@ shipped row id is refused with a note.
 ## Trial state
 
 Trial notes, per-pair outcomes (`proven` or `failed`), and seen model ids live per machine under
-`<data>/vendor-state/` (`trials/`, `outcomes/`, `seen/`), where `<data>` resolves from the
+`<data>/vendor-state/` (`trials/`, `outcomes/`, `rechecks/`, `seen/`), where `<data>` resolves from the
 installed plugin path first (`<...>/plugins/data/multi-agent-<marketplace>` derived from
 `<...>/plugins/cache/<marketplace>/multi-agent/<version>/`), then `CLAUDE_PLUGIN_DATA` only when
 its basename starts with `multi-agent-`. Outcome files are machine-neutral, one file per
 `vendor:model:version:effort:work_type` key. Routine routing writes nothing.
 
-A proven pair stays proven until the user sends it back to trial:
+A proven pair keeps recording Claude's verdicts in `rechecks/`, holding only its newest
+`trials_prove` results (or `trials_fail`, when that is larger), and goes back to trial when `trials_fail` of them are rejected. The user can
+also send a pair back by hand:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/skills/route/scripts/vendor-state send-back --key <vendor>:<model>:<version>:<effort>:<work_type>
 ```
-
-## Registry audit history
-
-Each completed `/multi-agent:audit-defaults registry` run writes one record per audited row to
-`<data>/registry-history/<row id>.json`, `<data>` resolved as under Trial state: the audit date,
-the row id, and the outcome of each promotion check (`live`, `dated`, `error_range`,
-`current_models`). One record is kept per row per date, the later run winning. Writes go through
-`${CLAUDE_PLUGIN_ROOT}/skills/audit-defaults/scripts/registry-history.mjs record`.
-
-Retention: a row keeps only its newest records back to the first point where they number
-`promotion_audits + 1` and span `promotion_days + 7` days; older records go. A row file whose
-newest record is more than 365 days older than the current audit is deleted, so rows that left the
-registry do not linger.
 
 ## Example team file
 

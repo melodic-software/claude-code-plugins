@@ -4,6 +4,9 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { PickerEntry, Switch } from '../types'
 
 const CLI = 'scripts/profiles.mjs'
+const HOOK_ENABLEMENT = 'lib/hook-enablement.mjs'
+const MODULE_KEY = 'plugin_profile_module_enabled'
+const OFF = 1
 const COMMAND = 'plugin-profile'
 const RELOAD = 'reload-plugins'
 const MORE = 'More profiles'
@@ -14,7 +17,6 @@ const PICKER = 'plugin-profile-picker'
 const ROW = 'profile:'
 const APPLY = 'Apply'
 const CANCEL = 'Cancel'
-// $.ui.ask takes two to four labels: a page holds three profiles and MORE.
 const PAGE = 3
 const NEXT_STEP = `Send any message, or run /${RELOAD} now, to load the change into this session; a new session starts with it.`
 const NOT_CHOSEN = 'No profile chosen; nothing changed.'
@@ -53,6 +55,13 @@ const cli = async ($: EngineInterface, args: readonly string[]) =>
     timeoutMs: 60_000,
     env: { CLAUDE_CODE_SESSION_ID: await $.session.id() },
   })
+
+const moduleEnabled = async ($: EngineInterface) => {
+  const root = await $.session.root().catch(() => '')
+  const argv = ['node', `${$.plugin.root}/${HOOK_ENABLEMENT}`, MODULE_KEY, 'true', '--settings', ...(root ? ['--root', root] : [])]
+  const r = await $.process.run(argv, { timeoutMs: 10_000 }).catch(() => undefined)
+  return r?.exitCode !== OFF
+}
 
 /** Whether the picker pane is up, from the engine's record, which outlives a reload of this module. */
 const pickerOpen = async ($: EngineInterface) => (await $.ui.panes()).some(pane => pane.id === PICKER)
@@ -259,23 +268,23 @@ const markReloading = async ($: EngineInterface) => {
 }
 
 export const register: Register = on => {
-  // A reload loads this module again and fires session.start, which finishes a switch the reload
-  // interrupted; $.state outlives the reload.
+  let enabled = false
   on('session.start', async ($, e, next) => {
     const started = await next(e)
+    enabled = await moduleEnabled($)
+    if (!enabled) return started
     await registerCommand($)
     void finish($).catch(() => undefined)
     return started
   }).catch(($, e, next) => next(e))
 
-  // No session.start fires after /clear, /resume or /branch, so the next prompt registers again.
   let reregister = false
   on('session.end', async ($, e, next) => {
     reregister = true
     return next(e)
   }).catch(($, e, next) => next(e))
   on('prompt.submit', async ($, e, next) => {
-    if (reregister) {
+    if (reregister && enabled) {
       reregister = false
       await registerCommand($).catch(() => undefined)
     }
@@ -333,7 +342,6 @@ export const register: Register = on => {
 
   on('command.run', { command: COMMAND }, async ($, e) => ({ text: await outcome(() => switchProfile($, e.args.trim())) }))
 
-  // A reload from the command's own handler does not take, so it waits for the turn's end.
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
     if (e.agentId === undefined && (await markReloading($))) {

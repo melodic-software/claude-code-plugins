@@ -24,7 +24,6 @@ const MODES = ["full", "video-only", "transcript", "captions-only"];
 /** @param {typeof youtube} adapter @param {string} url @param {NodeJS.ProcessEnv} [env] */
 function buildAllArgv(adapter, url, env = {}) {
   const source = adapterSourceDeclarations(adapter);
-  // Default empty env: local cookie/js-runtime settings must not leak into the assertions.
   return [
     ...MODES.map((mode) => ({
       label: `acquisition ${mode}`,
@@ -50,7 +49,6 @@ describe("X argv carries its declared allow-list and mediaOptional flag everywhe
       expect(allowListIndex, label).toBeGreaterThan(-1);
       expect(args[allowListIndex + 1], label).toBe("twitter.*");
       expect(args, label).toContain("--ignore-no-formats-error");
-      // Comments capability is false — never push the comment download.
       expect(args, label).not.toContain("--write-comments");
     }
   });

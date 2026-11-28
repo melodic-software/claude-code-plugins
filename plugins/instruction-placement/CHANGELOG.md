@@ -3,6 +3,74 @@
 All notable changes to the `instruction-placement` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.0.1] - 2026-11-28
+
+### Changed
+
+- Trimmed `instruction-placement` skill frontmatter descriptions (`audit` 488 -> 342 chars, `check` 467 -> 342 chars, `delta` 405 -> 326 chars, `establish-hub` 385 -> 314 chars, `migrate` 490 -> 337 chars, `realign` 458 -> 345 chars, `setup` 962 -> 138 chars; total 3655 -> 2144 chars, -1511 chars) and backfilled 20-query invocation probes for all 6 model-invoked skills (`audit`, `check`, `delta`, `establish-hub`, `migrate`, and `realign`).
+
+## [3.0.0] - 2026-11-28
+
+### Removed
+
+- **Dropped legacy `.claude/` and `~/.claude/` suppression dual-reads and `/instruction-placement:setup apply migrate-config`.** `audit`, `delta`, `realign`, and `setup` now read only the canonical suppression cascade (`<home>/instruction-placement.yaml` and `<home>/instruction-placement.local.yaml`) and ignore `.claude/instruction-placement.md`, `.claude/instruction-placement.local.md`, and `~/.claude/instruction-placement.md`.
+
+## [2.0.5] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [2.0.4] - 2026-11-27
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_files` leaves out an exact rename (the same blob and mode under a new path), so a pure move is no longer formatted or linted as a changed file. `checks_files --include-exact-renames` keeps the full list for checks whose verdict depends on a file's name or location: the guardrails content scan and reference verify, and the spelling lint. A rename with an edit or a mode change is still listed and judged on its added lines only; a copy, an add and a modify are listed as before.
+
+## [2.0.3] - 2026-11-27
+
+### Fixed
+
+- Mechanics records MS-13 and MS-28 quote the current docs wording, so `quote-check.sh` reads them `verified` again; the surface table and the subagent gap now name the built-in `web-fetch` agent beside Explore and Plan as skipping the CLAUDE.md hierarchy.
+
+## [2.0.2] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [2.0.1] - 2026-11-26
+
+### Changed
+
+- `/instruction-placement:migrate` and `/instruction-placement:realign` point at the memory page's "When Claude Code reads AGENTS.md" section for which `CLAUDE.md` files block an `AGENTS.md`, instead of stating it ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [2.0.0] - 2026-11-26
+
+### Changed
+
+- **Placement findings have a direction, not a lane.** "Lane" now means only a worker that
+  serves one pipeline stage, so demote and promote are directions: `scripts/detect.sh identity`
+  takes `--direction demote|promote` (`--lane` is gone, with no alias), the findings artifact
+  writes `**Direction:**`, and the `check` field reads `instruction-placement/audit/<direction>`
+  with the same values. The delta skill's prose names it a skill.
+
+## [1.10.10] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [1.10.9] - 2026-11-24
+
+### Changed
+
+- The `index-check` pre-commit entry checks whether a rules file or the index file is staged before it copies the instruction files out of the index, so a commit that touches neither copies nothing.
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_changed_lines` and `checks_added_ranges` take an opt-in `--skip-reindent`, which leaves out an added line equal, leading and trailing whitespace aside, to a line the same file's diff removes (a reindent, or a move within the file). Without it, every added line still counts, so this plugin's checks judge the same lines as before.
+
 ## [1.10.8] - 2026-11-24
 
 ### Changed

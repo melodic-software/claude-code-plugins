@@ -1,25 +1,9 @@
-# Diff kinds shared by the readers: containers added or removed, image,
-# replicas, ports, network and Ingress nodes, parameter presence, plain
-# parameter values, and secret parameters. A reader fills the global arrays
-# image[env,container], replica_of[env,container] ("undeclared" is never
-# compared), node_seen[env,kind,name] (kind network or ingress, value the node
-# detail), placed[env,container], portjoin[env,container],
-# param_seen[env,container,name], plain_val[...] and secret_val[...] (same key
-# as param_seen), and defines jesc() and the diffs output file. A secret value
-# is compared here and never printed.
-#
-# note_unmapped() records a resource the reader parsed and has no mapping for,
-# once per tool, type and file, into the unmapped output file.
 function note_unmapped(tool, type, file,    k) {
   k = tool SUBSEP type SUBSEP file
   if (k in unm_seen) return
   unm_seen[k] = 1
   printf "{\"tool\":\"%s\",\"type\":\"%s\",\"evidence\":\"%s\"}\n", tool, jesc(type), jesc(file) >> unmapped
 }
-# note_compute() records a compute node (a cluster, service plan or node pool) of
-# an IaC reader for node_diffs(). The key is the node's address with the
-# environment prefix of its id dropped and the value its resource type, so a
-# node named per environment is still the same node and a changed type shows.
 function note_compute(env, id, type,    addr) {
   addr = id
   if (index(addr, env "/") == 1) addr = substr(addr, length(env) + 2)

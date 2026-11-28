@@ -1,10 +1,3 @@
-/**
- * Perceptual-hash frame deduplication via imghash (blockhash).
- *
- * Compares consecutive frames using Hamming distance on hex hashes.
- * Default threshold ≤8 bits per RESEARCH lane 2 / design-threads D9.
- */
-
 import { basename } from "node:path";
 
 import { createLogger } from "../shared/logger.js";
@@ -14,22 +7,11 @@ import { createLogger } from "../shared/logger.js";
 
 export const DEFAULT_MAX_HAMMING_DISTANCE = 8;
 
-/**
- * Perceptual hash of an image file. imghash is loaded on first use, so callers
- * that inject their own `hashImage` never need it installed.
- * @param {string} path
- * @returns {Promise<string>}
- */
 async function hashImageFile(path) {
   const { default: imghash } = await import("imghash");
   return imghash.hash(path);
 }
 
-/**
- * Binary digits of a hex string, four per hex digit; other characters are skipped.
- * @param {string} hex
- * @returns {string}
- */
 function hexToBinary(hex) {
   return [...hex]
     .filter((digit) => /[0-9a-f]/i.test(digit))

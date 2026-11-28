@@ -1,36 +1,4 @@
 #!/usr/bin/env bash
-# Keep a sweep's closure ledger, running fetch spend and source cache in one file.
-#
-#   sweep-ledger.sh --topic SLUG init
-#   sweep-ledger.sh --topic SLUG close FILE --dispositions T --pointer-liveness T
-#                   --semantic-diff T --in-span T --carve-out T
-#   sweep-ledger.sh --topic SLUG spend N
-#   sweep-ledger.sh --topic SLUG cache-add URL SHA256
-#   sweep-ledger.sh --topic SLUG cache-check URL
-#   sweep-ledger.sh --topic SLUG status
-#   sweep-ledger.sh [--topic SLUG] --show-config
-#
-# Reasoning-free (Brief constraint C1): this script checks that an entry has the
-# fields the ledger needs and that the spend adds up. Whether a disposition is
-# RIGHT, or whether a file's findings are all accounted for, is not knowable from
-# an entry and is never asserted here; every field is the run's own claim.
-#
-# The ledger is `.work/SLUG/sweep-ledger.md` under the checkout's toplevel, so a
-# worktree keeps its own and no other checkout sees it. `init` writes the sweep's
-# id and the checkout it started in on the first line after the header, and every
-# call refuses a ledger that does not name this checkout, so a copy carried to
-# another checkout is not resumed as the same sweep. The script reads and
-# writes that one file, plus the config cascade for `budgets.corpus_fetch_ceiling`.
-# It is append-only: the running spend is the sum of the `spend` lines, and the
-# newest `cache` line for a URL wins.
-#
-# Contract: reference/dispositions.md "Sweep closure".
-# Exit: 0 on success, 1 when `status` finds spend at or over the ceiling, 2 on
-# usage or input error (a `close` missing a field included), 3 when the ledger's
-# state refuses the call (no ledger for a write, a file already closed, a ledger
-# from another checkout), 4 when
-# `status` needs jq to read a JSON config layer and it is absent, 5 when the ledger
-# could not be written.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -126,22 +94,10 @@ TOPIC="${OPT[topic]:-}"
 CMD="${ARGS[0]:-}"
 ARGS=(${ARGS[@]+"${ARGS[@]:1}"})
 
-# --- Roots and config ------------------------------------------------------------
-#
-# The ledger lives in the checkout; the config is read from CLAUDE_PROJECT_DIR,
-# falling back to the checkout, as the sibling scripts do.
-
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"
 cfg_layers_init "$CONFIG_ROOT"
 
-UNREAD_LAYER=0
-if cfg_have_unread_layer; then
-  UNREAD_LAYER=1
-  echo "sweep-ledger.sh: jq not found; JSON config layers present but unread, using defaults" >&2
-fi
-
-# The last layer that defines a whole-number ceiling wins.
 CEILING=200
 CEILING_RAW=""
 cfg_scalar CEILING_RAW budgets.corpus_fetch_ceiling '^[0-9]+$'
@@ -156,8 +112,6 @@ if [[ "$SHOW_CONFIG" -eq 1 ]]; then
   exit 0
 fi
 
-# --- Inputs ----------------------------------------------------------------------
-
 [[ -n "$CMD" ]] || {
   usage >&2
   exit 2
@@ -168,12 +122,10 @@ fi
 LEDGER="$REPO_ROOT/.work/$TOPIC/sweep-ledger.md"
 NO_LEDGER="no ledger here: this is a new sweep (no closures, no spend, no cache)"
 
-# want <count> <what>: the subcommand's positional arguments.
 want() {
   [[ "${#ARGS[@]}" -eq "$1" ]] || die 2 "$CMD takes $2"
 }
 
-# plain <name> <value>: a ledger line is one line of ' | ' separated fields.
 plain() {
   [[ "$2" != *[$'\n\r|']* ]] || die 2 "$1 may not contain a newline or '|'"
 }
@@ -189,9 +141,6 @@ SWEEP_AT=""
 declare -A CLOSED=()
 declare -A CACHE=()
 
-# load_ledger: one pass over the ledger, filling SWEEP_*, SPEND, CLOSED (file set)
-# and CACHE (URL to "sha256 | fetch time", the newest line winning). A ledger that
-# does not record this checkout is refused: a copy carried here is not this sweep.
 load_ledger() {
   local line rest n
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -223,7 +172,6 @@ load_ledger() {
     die 3 "$LEDGER is not this checkout's sweep (${SWEEP_ID:-no sweep line}, started in ${SWEEP_ROOT:-no checkout recorded}): this is a new sweep; move the file aside to start one here"
 }
 
-# need_ledger: every subcommand but init and a bare status refuses without one.
 need_ledger() {
   [[ -f "$LEDGER" ]] || die 3 "$NO_LEDGER; run init to start one"
   load_ledger
@@ -310,8 +258,6 @@ status)
     echo "$NO_LEDGER"
     exit 0
   fi
-  [[ "$UNREAD_LAYER" -eq 0 ]] ||
-    die 4 "jq is required to read corpus_fetch_ceiling from the JSON config layers"
   load_ledger
   echo "ledger: $LEDGER"
   echo "sweep: $SWEEP_ID (started $SWEEP_AT)"

@@ -1,15 +1,4 @@
 #!/usr/bin/env bash
-# Black-box contract test for emit-windows-path.sh.
-#
-# Self-contained and cwd-independent. The argument handling and the POSIX
-# pass-through run on every host (the SUT reads OSTYPE, and an inherited OSTYPE
-# survives bash startup, so both host branches are reachable from either).
-#
-# The CONVERSION itself cannot be faked: it is cygpath's answer on a real
-# Windows host. Those cases run only where cygpath exists, and where they do not
-# they print a visible NOT EXERCISED line — read that as absence of coverage on
-# this host, never as the conversion passing. CI runs this suite on both a Linux
-# and a Windows runner precisely so the Windows branch is never green-by-absence.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,8 +9,6 @@ SUT="$SCRIPT_DIR/emit-windows-path.sh"
 
 note() { printf 'NOT EXERCISED - %s\n' "$1"; }
 
-# run <ostype> [args...] — sets OUT (stdout+stderr) and RC. Not called through a
-# command substitution, which would fork a subshell and lose the exit code.
 run() {
   local ostype="$1"
   shift
@@ -29,7 +16,6 @@ run() {
   RC=$?
 }
 
-# --- 1. Usage errors --------------------------------------------------------
 run msys
 if ((RC == 2)) && grep -q 'at least one path' <<<"$OUT"; then
   ok "no arguments is a usage error (exit 2)"
@@ -50,8 +36,6 @@ if ((RC == 0)) && grep -q 'usage:' <<<"$OUT"; then
 else
   fail "--help should exit 0 with usage: rc=$RC out=$OUT"
 fi
-# Every accepted option must appear in the banner: an option the header comment
-# documents but the banner omits is how a caller concludes it does not exist.
 for opt in -m --mixed -w --backslash; do
   if grep -q -- "$opt" <<<"$OUT"; then
     ok "the usage banner documents $opt"
@@ -59,7 +43,6 @@ for opt in -m --mixed -w --backslash; do
     fail "usage banner omits an accepted option ($opt): $OUT"
   fi
 done
-# ... and each must actually be accepted, not merely advertised.
 for opt in -m --mixed; do
   run linux-gnu "$opt" /srv/build/out.zip
   if ((RC == 0)) && [[ "$OUT" == "/srv/build/out.zip" ]]; then
@@ -69,7 +52,6 @@ for opt in -m --mixed; do
   fi
 done
 
-# --- 2. POSIX host: pass through unchanged, exit 0 --------------------------
 run linux-gnu /srv/build/out.zip
 if ((RC == 0)) && [[ "$OUT" == "/srv/build/out.zip" ]]; then
   ok "a POSIX host passes the path through unchanged (exit 0)"
@@ -84,7 +66,6 @@ else
   fail "POSIX multi-arg pass-through failed: rc=$RC out=$OUT"
 fi
 
-# A path that merely LOOKS like an option, after `--`, is a path.
 run linux-gnu -- -w
 if ((RC == 0)) && [[ "$OUT" == "-w" ]]; then
   ok "-- ends option parsing so an option-shaped path is treated as a path"
@@ -92,10 +73,6 @@ else
   fail "-- terminator not honored: rc=$RC out=$OUT"
 fi
 
-# --- 3. Windows host without cygpath: FAIL LOUD, never a silent pass-through -
-# The whole point of the helper: an emit path must not degrade to the
-# unconverted literal, because the unconverted literal is what writes to the
-# wrong place. Reachable on any host by emptying PATH for the child.
 BASH_ABS="$(command -v bash)"
 OUT="$(OSTYPE=msys PATH="$SCRIPT_DIR/__no_such_dir__" "$BASH_ABS" "$SUT" /d/x 2>&1)"
 RC=$?
@@ -110,7 +87,6 @@ else
   fail "unconverted path leaked to output: $OUT"
 fi
 
-# --- 4. Real conversion, on a real Windows host -----------------------------
 if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win32 ]] &&
   command -v cygpath >/dev/null 2>&1; then
   probe="$(cygpath -m -- / 2>/dev/null)"
@@ -134,9 +110,6 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
       fail "backslash conversion wrong: rc=$RC out=$OUT want=$expect_w"
     fi
 
-    # The defect this helper prevents, stated as an assertion: the emitted form
-    # must NOT be the leading-slash literal a native consumer would re-anchor to
-    # the current drive's root.
     if [[ "$OUT" != /* ]]; then
       ok "the emitted path no longer starts with the MSYS root slash"
     else
@@ -150,8 +123,6 @@ if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* || "${OSTYPE:-}" == win
       fail "multi-arg conversion wrong: rc=$RC out=$OUT"
     fi
 
-    # A relative path stays relative — the convention's preferred shape must
-    # survive the helper rather than being silently absolutized.
     run "$OSTYPE" "sub/dir/out.zip"
     if ((RC == 0)) && [[ "$OUT" == "sub/dir/out.zip" ]]; then
       ok "a relative path survives conversion as a relative path"

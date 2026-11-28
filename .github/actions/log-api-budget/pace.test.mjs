@@ -159,8 +159,6 @@ test("a previous scheduled run that did not finish its work, or none, keeps the 
   assert.match(unnamed.lines[0], /this tick runs: no PACE_WORK_STEP names this lane's work$/);
 });
 
-// The previous run is the highest id below this one, whatever created_at
-// says: on 2026-11-01 runs were stamped an hour ahead (rotation.mjs runOrder).
 test("the previous scheduled run is found by run id, not by its creation time", async () => {
   const skewed = [
     { id: 8, created_at: minutesAgo(-60) },
@@ -306,15 +304,15 @@ test("work-unblock marks a paced run, and the sweep after it reaches back past a
   const at = (name) => steps.findIndex((step) => step.name === name);
   assert.ok(at(PACED_STEP) > at(PACE_STEP), "after the pacer");
   assert.equal(/\n {8}if: (.*)\n/.exec(steps[at(PACED_STEP)].text)?.[1], "steps.pace.outputs.paced == 'true'");
-  const crons = [...text.matchAll(/\n {4}- cron: "([0-9]+) ([0-9,-]+) \* \* \*"(?=\n)/g)];
+  const crons = [...text.matchAll(/\n {4}- cron: "([0-9,]+) ([0-9,-]+|\*) \* \* \*"(?=\n)/g)];
   assert.ok(crons.length > 0, "the schedule is read");
-  const hours = (field) => field.split(",").flatMap((part) => {
+  const values = (field) => (field === "*" ? "0-23" : field).split(",").flatMap((part) => {
     const [from, to = from] = part.split("-").map(Number);
     return Array.from({ length: to - from + 1 }, (_, i) => from + i);
   });
-  const fires = crons.flatMap(([, minute, hour]) => hours(hour).map((h) => h * 60 + Number(minute))).sort((a, b) => a - b);
+  const fires = crons.flatMap(([, minute, hour]) => values(hour).flatMap((h) => values(minute).map((m) => h * 60 + m))).sort((a, b) => a - b);
   const period = Math.max(...fires.map((at, i) => (i === 0 ? at + 1440 : at) - fires.at(i - 1)));
-  assert.equal(period, 60, "hourly");
+  assert.equal(period, 15, "every 15 minutes");
   const wait = Number(/\n {4}timeout-minutes: ([0-9]+)\n/.exec(jobOf("work-unblock.yml", "label-unblocked"))?.[1]);
   assert.equal(wait, 10);
   const reach = 3 * period + wait + SWEEP_MARGIN_MIN;
@@ -338,4 +336,14 @@ test("pr-merge reads the pacer in dispatch-post-merge-runs and skips only the sw
   for (const job of ["merge", "enable-auto-merge"]) {
     assert.doesNotMatch(jobOf(file, job), /steps\.pace\./, `${job} reads no pacer of its own`);
   }
+});
+
+test("an override of pace-pr-merge never reaches the pacer: that share is read from rate-limits.json alone", async () => {
+  const resolved = join(tempDir("pace-override-"), "resolved.json");
+  writeFileSync(resolved, JSON.stringify({ limits: { api: { "github-token": { "pace-pr-merge": 0.9 } } } }));
+  const headers = { "x-ratelimit-limit": "5000", "x-ratelimit-remaining": "4000", "x-ratelimit-reset": String(NOW + 1800) };
+  const fetchImpl = async () => new Response(JSON.stringify({ workflow_runs: PAIR }), { headers });
+  const got = await run({ RESOLVED_CONFIG: resolved, GITHUB_WORKFLOW_REF: "o/r/.github/workflows/pr-merge.yml@refs/heads/main" }, fetchImpl);
+  assert.equal(got.output, "paced=false\n");
+  assert.match(got.lines[0], /projected=0\.6 pace=0\.3 paced=false/);
 });

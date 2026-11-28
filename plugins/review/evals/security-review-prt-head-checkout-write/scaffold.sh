@@ -4,8 +4,6 @@ set -euo pipefail
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# main tests pull requests under pull_request with a read token. The branch
-# moves to pull_request_target, checks out the head and keeps a write token.
 mkdir -p .github/workflows
 
 cat >.github/workflows/test.yml <<'YAML'

@@ -1,47 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: docs/upstream/*.md
-# Contract suite for the scripts/check-*.sh family: the part a CALLER must know
-# is the same for every member, and this is what holds it.
-#
-#   bash scripts/check-script-contract.test.sh
-#
-# The contract itself is stated once, in scripts/README.md, "The check-script contract":
-# exit 0 clean, 1 findings, 2 environment or usage, findings on stderr. Each
-# script's header points at that statement rather than restating it; this suite
-# is what makes the statement true rather than aspirational. Nothing here judges
-# what a member checks or how well; the members' own co-located suites own that.
-#
-# THREE DIMENSIONS, and why they are split the way they are:
-#
-#   ENVIRONMENT  For every member that declares a prerequisite, the prerequisite
-#                is taken away and the run must exit 2 with a diagnostic on
-#                stderr and NOTHING on stdout. This is the dimension a reader
-#                cannot settle by inspection, and the one that costs the most
-#                when it drifts: an exit 1 for a missing tool makes "your tree is
-#                wrong" and "I could not look" one signal to every lane that
-#                reads only the code.
-#
-#   CLEAN        A clean corpus exits 0 with its statement on stdout.
-#
-#   VIOLATION    A seeded violation exits 1 with the finding on stderr, and the
-#                finding does NOT also appear on stdout.
-#
-# The clean and violation dimensions run against a FIXTURE, never the live tree:
-# a family suite that read the checkout would report another change in flight as
-# a contract breach. Fixtures cost a seeding recipe per member, so those two
-# dimensions cover the members whose recipe is written below; the environment
-# dimension needs no recipe and covers every member that declares a prerequisite.
-# A member with neither is registered with `-` in both columns and is held to the
-# contract only by its own suite until a recipe is written for it.
-#
-# THE REGISTRY IS THE STOPPING RULE. Every scripts/check-*.sh must have a row: a
-# new member fails as UNREGISTERED rather than being silently uncovered, and a
-# row naming a script that no longer exists fails as stale. Registering by
-# basename is also what routes a member's changes back here, since
-# scripts/affected-tests.sh selects any suite that NAMES the changed file.
 set -uo pipefail
-# Members read CHECK_DATA_ROOT in place of the tree they are run in, so a
-# caller's value would point every fixture run at that caller's tree.
 unset CHECK_DATA_ROOT
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -52,21 +11,8 @@ REPO_ROOT="$(cd "$SELF_DIR/.." && pwd)" || exit 2
 # shellcheck source=lib/fixture-tree.sh
 . "$SELF_DIR/lib/fixture-tree.sh" || exit 2
 
-# The builder assigns through a nameref, which shellcheck cannot follow;
-# declaring the out-var here is what tells it (SC2154) the name is written.
 f=""
 
-# --- the registry ------------------------------------------------------------
-# <basename> | <prerequisite to remove> | <argv> | <fixture recipe>
-#
-# Prerequisite forms: a bare tool name is hidden from PATH; NAME=VALUE is an
-# environment override that points the member at a tool that is not there. `-`
-# means the member declares no prerequisite of its own, so there is nothing to
-# take away.
-#
-# Argv is what it takes to REACH the prerequisite check, nothing more; a member
-# that reads its mode first needs that mode here or it would exit 2 for usage
-# and the run would prove the wrong thing.
 REGISTRY=(
   "check-adr-numbers.sh|-|-|adr_numbers"
   "check-affected.sh|-|-|-"
@@ -81,7 +27,6 @@ REGISTRY=(
   "check-changelog-fragments.sh|-|--check|changelog_fragments"
   "check-changelog-parity.sh|-|--check|changelog_parity"
   "check-comment-hygiene.sh|curl|HEAD|-"
-  "check-comment-lint.sh|-|-|-"
   "check-conformance-registry.sh|-|-|-"
   "check-convention-yaml.sh|CHECK_JSONSCHEMA_BIN=/nonexistent/check-jsonschema|--check|convention_yaml"
   "check-cross-plugin-source-drift.sh|-|-|-"
@@ -92,9 +37,11 @@ REGISTRY=(
   "check-docs-only-gate.sh|-|-|-"
   "check-docs-only.sh|-|-|-"
   "check-drive-root-litter.sh|-|-|-"
+  "check-engineering-concepts.sh|node|-|-"
   "check-fixture-git-isolation.sh|-|-|-"
   "check-fleet-audit-doc-grammar.sh|-|-|-"
   "check-fleet-finding-test-coverage.sh|-|-|-"
+  "check-git-hook-time-budget.sh|-|-|-"
   "check-guardrails-ps-differential.sh|jq|-|-"
   "check-hook-exec-form.sh|jq|-|hook_exec_form"
   "check-exec-form-windows-probe.sh|jq|-|exec_form_windows_probe"
@@ -105,6 +52,7 @@ REGISTRY=(
   "check-html-assets.sh|HTMLHINT_BIN=/nonexistent/htmlhint|-|html_assets"
   "check-killswitch-hoist.sh|jq|-|killswitch_hoist"
   "check-lane-coverage.sh|-|-|-"
+  "check-lifecycle-map.sh|jq|--check|lifecycle_map"
   "check-loop-lane-floor-drift.sh|git|-|-"
   "check-org-repo-tokens.sh|git|-|-"
   "check-orphaned-fixtures.sh|-|-|-"
@@ -130,6 +78,7 @@ REGISTRY=(
   "check-stale-base-overlap.sh|-|-|-"
   "check-standards-contract-bump.sh|-|-|-"
   "check-test-tmp-cleanup.sh|git|-|-"
+  "check-token-literals.sh|node|-|token_literals"
   "check-upstream-drift.sh|gh|-|upstream_drift"
   "check-vendor-version-bump.sh|-|-|-"
   "check-workflow-template-size.sh|node|-|-"
@@ -139,16 +88,12 @@ CAP_RC=0
 CAP_OUT=""
 CAP_ERR=""
 
-# run_in <dir> <command...> — a subshell rather than `env -C`, whose --chdir is a
-# GNU extension this repo cannot assume on every host it runs on.
 run_in() {
   local dir="$1"
   shift
   (cd "$dir" && "$@")
 }
 
-# capture <command...> — run it with the two streams kept apart, because keeping
-# them apart is half of what this suite asserts.
 capture() {
   local outf errf
   outf="$(mktemp)" || return 2
@@ -161,22 +106,6 @@ capture() {
   return 0
 }
 
-# hidden_path <tool> — sets HIDDEN_PATH to this host's PATH with one tool missing.
-# Entries without the tool pass through untouched. Each entry that holds it is
-# replaced, in place so precedence holds, by a directory of per-file symlinks to
-# everything in it but the tool: dropping the entry would starve the member of
-# the coreutils it shares a directory with (awk and sed both live in /usr/bin),
-# and the exit code would stop meaning what the assertion reads it as.
-#
-# Only regular files are linked, and MSYS is forced to native symlinks: Git
-# Bash's default `ln -s` deep-copies its target, which once copied C:\WINDOWS into
-# $TMPDIR on every run. Where native links are not allowed, `ln` fails and the
-# suite reports it rather than copying.
-#
-# The answer comes back through a global rather than stdout because the cache and
-# the cleanup root must survive the call: `$(hidden_path jq)` would run this in a
-# subshell, so every caller would rebuild the mirrors and every mirror would
-# outlive the run in $TMPDIR.
 declare -A HIDDEN_PATHS=()
 HIDDEN_PATH=""
 HIDDEN_ROOT=""
@@ -211,11 +140,9 @@ cleanup_hidden_paths() {
   return 0
 }
 
-# Installed BEFORE the first fixture_tree::build so the builder chains this trap
-# rather than replacing it: it records whatever trap it finds and runs it first.
 trap cleanup_hidden_paths EXIT
 
-assert_env_failure() { # <label>
+assert_env_failure() {
   local label="$1"
   if ((CAP_RC == 2)) && [[ -n "$CAP_ERR" && -z "$CAP_OUT" ]]; then
     ok "$label: a missing prerequisite exits 2 and reports on stderr"
@@ -224,7 +151,7 @@ assert_env_failure() { # <label>
   fi
 }
 
-assert_clean() { # <label>
+assert_clean() {
   local label="$1"
   if ((CAP_RC == 0)) && [[ -n "$CAP_OUT" ]]; then
     ok "$label: a clean tree exits 0 and says so on stdout"
@@ -233,7 +160,7 @@ assert_clean() { # <label>
   fi
 }
 
-assert_violation() { # <label> <needle>
+assert_violation() {
   local label="$1" needle="$2"
   if ((CAP_RC == 1)) && [[ "$CAP_ERR" == *"$needle"* && "$CAP_OUT" != *"$needle"* ]]; then
     ok "$label: a seeded violation exits 1 with its finding on stderr"
@@ -242,15 +169,9 @@ assert_violation() { # <label> <needle>
   fi
 }
 
-# --- fixture recipes ---------------------------------------------------------
-# One function per covered member: build the fixture for <clean|violation>, run
-# the member against it, and leave the result in CAP_*. Each is the SMALLEST
-# tree the member accepts, since the point here is the interface and not the
-# rule.
-
 HOOKS_LABELED='{"description":"Guards Bash calls.","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash x.sh"}]}]}}'
 
-recipe::hooks_description() { # <clean|violation>
+recipe::hooks_description() {
   local body="$HOOKS_LABELED"
   [[ "$1" == violation ]] && body='{"hooks":{"PreToolUse":[]}}'
   fixture_tree::build f --sut "$SELF_DIR/check-hooks-description.sh" --plugins || return 2
@@ -259,7 +180,7 @@ recipe::hooks_description() { # <clean|violation>
   capture run_in "$f" bash scripts/check-hooks-description.sh
 }
 
-recipe::hook_userconfig_argv() { # <clean|violation>
+recipe::hook_userconfig_argv() {
   local body="$HOOKS_LABELED"
   # shellcheck disable=SC2016  # the token is the literal violation; expansion would erase it
   [[ "$1" == violation ]] && body='{"description":"Guards Bash calls.","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash","args":["${user_config.level}"]}]}]}}'
@@ -269,7 +190,7 @@ recipe::hook_userconfig_argv() { # <clean|violation>
   capture run_in "$f" bash scripts/check-hook-userconfig-argv.sh
 }
 
-recipe::exec_form_windows_probe() { # <clean|violation>
+recipe::exec_form_windows_probe() {
   local body='{"description":"Asks.","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"node","args":["x.mjs"]}]}]}}'
   # shellcheck disable=SC2016
   [[ "$1" == violation ]] && body='{"description":"Asks.","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"${CLAUDE_PLUGIN_ROOT}/hooks/x.sh","args":["a"]}]}]}}'
@@ -282,7 +203,7 @@ recipe::exec_form_windows_probe() { # <clean|violation>
   capture run_in "$f" bash scripts/check-exec-form-windows-probe.sh
 }
 
-recipe::hook_exec_form() { # <clean|violation>
+recipe::hook_exec_form() {
   local body="$HOOKS_LABELED"
   [[ "$1" == violation ]] && body='{"description":"Guards Bash calls.","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"bash","args":["x.sh"]}]}]}}'
   fixture_tree::build f \
@@ -294,7 +215,7 @@ recipe::hook_exec_form() { # <clean|violation>
   capture run_in "$f" bash scripts/check-hook-exec-form.sh
 }
 
-recipe::hook_slow_shapes() { # <clean|violation>
+recipe::hook_slow_shapes() {
   # shellcheck disable=SC2016  # the literal hooks.json command; Claude Code expands it, not this suite
   local cmd='bash "${CLAUDE_PLUGIN_ROOT}"/hooks/x.sh'
   # shellcheck disable=SC2016  # see above
@@ -305,17 +226,13 @@ recipe::hook_slow_shapes() { # <clean|violation>
   mkdir -p "$f/plugins/alpha/hooks" "$f/.github"
   cp "$REPO_ROOT/.github/requirements-ci.txt" "$f/.github/requirements-ci.txt"
   printf '#!/usr/bin/env bash\nexit 0\n' >"$f/plugins/alpha/hooks/x.sh"
-  # The command goes in on stdin: Git Bash rewrites a `.../hooks/x.sh` argument
-  # into a Windows path before a native jq sees it.
+  # Git Bash converts path-like arguments to Windows paths: https://www.msys2.org/docs/filesystem-paths/
   printf '%s' "$cmd" | jq -Rs '{hooks:{Stop:[{hooks:[{type:"command",command:.}]}]}}' \
     >"$f/plugins/alpha/hooks/hooks.json"
   capture run_in "$f" bash scripts/check-hook-slow-shapes.sh
 }
 
-recipe::killswitch_hoist() { # <clean|violation>
-  # The gate pins its inlined predicate against the real hook::is_enabled, so the
-  # fixture carries the real library: a stub would let the pin pass on text this
-  # repo does not ship.
+recipe::killswitch_hoist() {
   local guard
   fixture_tree::build f --sut "$SELF_DIR/check-killswitch-hoist.sh" --plugins || return 2
   mkdir -p "$f/lib" "$f/plugins/alpha/hooks"
@@ -338,7 +255,7 @@ exit 0'
   capture run_in "$f" bash scripts/check-killswitch-hoist.sh
 }
 
-recipe::docs_naming() { # <clean|violation>
+recipe::docs_naming() {
   local name=plugin-philosophy.md
   [[ "$1" == violation ]] && name=PLUGIN-Philosophy.md
   fixture_tree::build f --sut "$SELF_DIR/check-docs-naming.sh" --git --label docs-naming || return 2
@@ -349,7 +266,7 @@ recipe::docs_naming() { # <clean|violation>
   capture run_in "$f" bash scripts/check-docs-naming.sh --check
 }
 
-recipe::plugin_imports() { # <clean|violation>
+recipe::plugin_imports() {
   # shellcheck disable=SC2016  # the source lines are literal fixture text
   local load='source "$SCRIPT_DIR/../lib/x.sh"'
   # shellcheck disable=SC2016
@@ -362,7 +279,7 @@ recipe::plugin_imports() { # <clean|violation>
   capture run_in "$f" bash scripts/check-plugin-imports.sh
 }
 
-recipe::convention_yaml() { # <clean|violation>
+recipe::convention_yaml() {
   fixture_tree::build f --sut "$SELF_DIR/check-convention-yaml.sh" --git --label convention-yaml || return 2
   mkdir -p "$f/docs/conventions" "$f/plugins/alpha/schemas" "$f/lib"
   cp "$REPO_ROOT/lib/yaml-subset.awk" "$f/lib/yaml-subset.awk"
@@ -374,7 +291,7 @@ recipe::convention_yaml() { # <clean|violation>
   capture run_in "$f" env -u GITHUB_ACTIONS -u GITHUB_BASE_REF CHECK_JSONSCHEMA_BIN=true bash scripts/check-convention-yaml.sh --check
 }
 
-recipe::adr_numbers() { # <clean|violation>
+recipe::adr_numbers() {
   fixture_tree::build f --sut "$SELF_DIR/check-adr-numbers.sh" --label adr-numbers || return 2
   mkdir -p "$f/docs/adr"
   printf 'seed\n' >"$f/docs/adr/0001-first.md"
@@ -383,7 +300,7 @@ recipe::adr_numbers() { # <clean|violation>
   capture run_in "$f" bash scripts/check-adr-numbers.sh --check
 }
 
-recipe::spoke_plugin_root() { # <clean|violation>
+recipe::spoke_plugin_root() {
   local spoke=plugins/demo/skills/audit/context/step.md
   fixture_tree::build f --sut "$SELF_DIR/check-spoke-plugin-root.sh" --label spoke-plugin-root || return 2
   mkdir -p "$f/${spoke%/*}"
@@ -394,7 +311,7 @@ recipe::spoke_plugin_root() { # <clean|violation>
   capture run_in "$f" bash scripts/check-spoke-plugin-root.sh --check
 }
 
-recipe::as_of_recheck() { # <clean|violation>
+recipe::as_of_recheck() {
   local skill=plugins/demo/skills/audit/SKILL.md
   fixture_tree::build f --sut "$SELF_DIR/check-as-of-recheck.sh" --label as-of-recheck || return 2
   mkdir -p "$f/${skill%/*}"
@@ -404,7 +321,7 @@ recipe::as_of_recheck() { # <clean|violation>
   capture run_in "$f" bash scripts/check-as-of-recheck.sh --check
 }
 
-recipe::cost_figures() { # <clean|violation>
+recipe::cost_figures() {
   local skill=plugins/demo/skills/audit/SKILL.md
   fixture_tree::build f --sut "$SELF_DIR/check-cost-figures.sh" --label cost-figures || return 2
   mkdir -p "$f/${skill%/*}"
@@ -415,7 +332,7 @@ recipe::cost_figures() { # <clean|violation>
   capture run_in "$f" bash scripts/check-cost-figures.sh --check
 }
 
-recipe::queue_front_matter() { # <clean|violation>
+recipe::queue_front_matter() {
   local status=unclaimed
   [[ "$1" == violation ]] && status=open
   fixture_tree::build f --sut "$SELF_DIR/check-queue-front-matter.sh" --label queue || return 2
@@ -432,7 +349,7 @@ EOF
   capture run_in "$f" bash scripts/check-queue-front-matter.sh queue
 }
 
-recipe::html_assets() { # <clean|violation>
+recipe::html_assets() {
   local asset=plugins/demo/reference/html-chrome.html
   fixture_tree::build f --sut "$SELF_DIR/check-html-assets.sh" --git --plugins || return 2
   mkdir -p "$f/plugins/demo/reference"
@@ -452,7 +369,18 @@ HTML
     bash "$f/scripts/check-html-assets.sh"
 }
 
-recipe::changelog_parity() { # <clean|violation>
+recipe::token_literals() {
+  local value="var(--clay)"
+  [[ "$1" == violation ]] && value="#123456"
+  fixture_tree::build f --sut "$SELF_DIR/check-token-literals.sh" --git --plugins || return 2
+  mkdir -p "$f/lib" "$f/plugins/demo/templates"
+  cp "$REPO_ROOT/lib/html-tokens.css" "$f/lib/html-tokens.css"
+  : >"$f/scripts/shared-copies.txt"
+  printf ':root { --accent: %s; }\n' "$value" >"$f/plugins/demo/templates/view.html"
+  capture run_in "$f" bash scripts/check-token-literals.sh
+}
+
+recipe::changelog_parity() {
   fixture_tree::build f --sut "$SELF_DIR/check-changelog-parity.sh" --plugins || return 2
   mkdir -p "$f/plugins/alpha/.claude-plugin"
   printf '%s\n' '{"name":"alpha","version":"0.1.0"}' >"$f/plugins/alpha/.claude-plugin/plugin.json"
@@ -462,7 +390,7 @@ recipe::changelog_parity() { # <clean|violation>
   capture run_in "$f" bash scripts/check-changelog-parity.sh --check
 }
 
-recipe::changelog_fragments() { # <clean|violation>
+recipe::changelog_fragments() {
   local listed=alpha
   [[ "$1" == violation ]] && listed=""
   fixture_tree::build f --sut "$SELF_DIR/check-changelog-fragments.sh" --plugins || return 2
@@ -473,7 +401,7 @@ recipe::changelog_fragments() { # <clean|violation>
   capture run_in "$f" bash scripts/check-changelog-fragments.sh --check
 }
 
-recipe::pipefail_grep_q() { # <clean|violation>
+recipe::pipefail_grep_q() {
   # shellcheck disable=SC2016  # literal shell source for the fixture; nothing here should expand
   local body='grep -q x <<<"$v"'
   # shellcheck disable=SC2016  # see above
@@ -483,7 +411,7 @@ recipe::pipefail_grep_q() { # <clean|violation>
   capture run_in "$f" bash scripts/check-pipefail-grep-q.sh
 }
 
-recipe::upstream_drift() { # <clean|violation>
+recipe::upstream_drift() {
   local pin=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa head=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
   local blob=1111111111111111111111111111111111111111
   fixture_tree::build f --sut "$SELF_DIR/check-upstream-drift.sh" --label upstream-drift || return 2
@@ -501,8 +429,41 @@ recipe::upstream_drift() { # <clean|violation>
   capture run_in "$f" env UPSTREAM_DRIFT_FIXTURE_DIR="$f/fx" bash scripts/check-upstream-drift.sh
 }
 
-# The finding each recipe's violation arm must produce, keyed by recipe slug.
+recipe::lifecycle_map() {
+  fixture_tree::build f --sut "$SELF_DIR/check-lifecycle-map.sh" --label lifecycle-map || return 2
+  mkdir -p "$f/.github/workflows" "$f/.claude-plugin" "$f/docs/conventions/lifecycle-map"
+  : >"$f/.github/workflows/ci.yml"
+  if [[ "$1" == violation ]]; then
+    printf '{"plugins":[{"name":"alpha"},{"name":"beta"}]}\n' >"$f/.claude-plugin/marketplace.json"
+  else
+    printf '{"plugins":[{"name":"alpha"}]}\n' >"$f/.claude-plugin/marketplace.json"
+  fi
+  cat >"$f/docs/conventions/lifecycle-map/README.md" <<'MD'
+# Lifecycle map
+
+## Pull request checks
+
+| Task | Shape | Component | Model | Trigger | Inputs | Outputs |
+|---|---|---|---|---|---|---|
+| CI (`ci.yml`) | own run | runner | no | push | diff | status |
+
+## Plugins
+
+### On the map
+
+| Plugin | Tasks that use it, and how |
+|---|---|
+| `alpha` | CI runs it |
+
+### Not an automated task
+
+None.
+MD
+  capture run_in "$f" bash scripts/check-lifecycle-map.sh --check
+}
+
 declare -A VIOLATION_NEEDLE=(
+  [lifecycle_map]='MISSING PLUGIN:'
   [hooks_description]='HOOKS DESCRIPTION:'
   [hook_userconfig_argv]='USERCONFIG ARGV:'
   [hook_exec_form]='EXEC-FORM HOOK:'
@@ -511,6 +472,7 @@ declare -A VIOLATION_NEEDLE=(
   [killswitch_hoist]='VIOLATION:'
   [queue_front_matter]='VIOLATION:'
   [html_assets]='MISSING:'
+  [token_literals]='TOKEN LITERAL: plugins/demo/templates/view.html:1:'
   [changelog_parity]='MISSING CHANGELOG:'
   [changelog_fragments]='NOT IN FRAGMENT MODE:'
   [docs_naming]='is not lower-kebab-case'

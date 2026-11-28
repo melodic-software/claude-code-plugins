@@ -1,5 +1,5 @@
 ---
-description: "Clean up low-value tests in one folder, or plan a repo as per-project batches: reads /testing:audit findings, its judge pass's FLAG verdicts and the tests the user names as flaky, has a fresh-context classifier pick quarantine, rewrite, delete, merge or keep per test, rewrites by default, and deletes or merges only with a stated no-contract reason and the user's yes on each item. A mutation gate records the mutants the tests kill before any edit and replays them after, blocking the batch when a kill is lost. An attended run commits the batch once it is shown; an unattended one does not. Use when: the user wants an existing suite of tautological, vacuous or low-value tests cleaned up ('clean up these tests', 'prune the useless tests in this folder', 'clean up the whole repo's tests', 'fix the tests audit flagged'), or audit findings need acting on rather than reporting. Needs the mutation-testing plugin set up, or --cannot-fail-only, which deletes only skeptic-cleared tests that cannot fail."
+description: "Clean up low-value/tautological/vacuous/flaky tests in folder/whole repo's tests via /testing:audit findings: quarantine, rewrite (default), delete, merge, keep per test; mutation gate or --cannot-fail-only; unattended never commits. Use on existing test suites/tests: 'clean up these tests', 'prune the useless tests', 'fix the tests audit flagged'."
 argument-hint: "<<folder>|<repo root>> [--max <n>] [--flaky <test> ...] [--cannot-fail-only] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -57,7 +57,7 @@ run each through the single-folder steps below. The plan edits and runs no test.
 
 1. **Findings.** Run the step 1 scanner command once with `CANT_FAIL_SCAN_ROOT` set to the
    repository root, and save its table as `findings.md` there.
-2. **Batches.** Group the rows by folder: a row whose `project:` names a `.csproj` belongs to that
+2. **Batches.** Group the rows by folder: a row whose `project:` names a `.csproj` belongs to that <!-- portability-ok: R6 kept-adapter output fields from testing:audit -->
    file's directory; any other row to its own file's directory. A folder inside another listed
    folder of the same language (the adapters' `language`, as step 0 reads it) joins that folder's
    batch, since a batch scans its whole folder; one holding a folder of another language is marked
@@ -66,7 +66,7 @@ run each through the single-folder steps below. The plan edits and runs no test.
    `skip: kind <kind>` when any of its rows has kind `live` or `operational`.
 3. **Show.** Write `plan.md` there, one row per batch ordered by finding count, most first:
    folder, findings, kind, ci, state (`pending`, `skip: <reason>`, then the outcome). Show it,
-   ask whether any `unknown`-kind batch's tests reach live or shared environments (outside C#,
+   ask whether any `unknown`-kind batch's tests reach live or shared environments (outside C#, <!-- portability-ok: R6 kept-adapter output fields from testing:audit -->
    every kind is `unknown`), mark each one the user names `skip: kind live`, and ask which
    batches to run; the default is every `pending` row in order. A `skip: kind` batch runs only
    when the user names its folder, and then only in

@@ -1,15 +1,3 @@
-/**
- * yt-dlp spawn with rate-limit retries and automatic browser-cookie fallback on
- * login-required failures.
- *
- * Classification is adapter-declared: the caller passes the source's error
- * pattern table and its browser-cookie-fallback capability, and this module
- * classifies stderr through the contract's `classifyErrorDetail`. The fallback
- * loop is CLOSED BY DEFAULT — a source that does not declare the capability
- * (e.g. a cookies-file-only source) never iterates browser profiles — and it
- * fires on login-required classification only.
- */
-
 import { classifyErrorDetail } from "../adapters/adapter-contract.js";
 import { spawnFailureDetail, spawnWithAcquireRetry } from "./acquire-with-retry.js";
 import {
@@ -30,7 +18,6 @@ import {
  * @typedef {(authOverride?: YtDlpAuthOverride) => string[]} BuildYtDlpArgs
  */
 
-/** Empty pattern table: classifies nothing, so no fallback can fire. */
 const NO_ERROR_PATTERNS = Object.freeze({
   retryable: Object.freeze([]),
   fatal: Object.freeze([]),

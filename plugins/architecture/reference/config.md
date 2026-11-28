@@ -79,7 +79,7 @@ cannot carry, so it skips that layer. Schema:
 | Key | Values | Default | Meaning |
 |---|---|---|---|
 | `adr_template` | a path to a Markdown file: repo-relative in the team and personal files, absolute or `~/`-relative in `userConfig` | the bundled `skills/adr/templates/adr.md` | The template `/architecture:adr` recommends when the repository has no ADR convention. A repository's own convention, found by discovery, always wins. A repo-relative path must name a regular file inside the repository, never a symlink |
-| `adr_extra_triggers` | a list of short phrases, for example `touches personal data`, `needs a compliance review` | none | Extra conditions that join the admission test's "at least one" list. They never remove the requirement that a real alternative was weighed. A layer that sets the list replaces a lower layer's list whole |
+| `adr_extra_triggers` | a list of short phrases, for example `touches personal data`, `needs a compliance review` | none | Decisions the team treats as one-way doors, which meet the admission test's one-way-door part. They never remove its other two parts: a real alternative was weighed, and the reason is not visible in the code. A layer that sets the list replaces a lower layer's list whole |
 | `adr_retirement` | `delete`, `supersede`, `archive` | `delete` | How `/architecture:adr` retires a record a new decision reverses, after the person's yes. `delete` removes the file and never reuses its number; `supersede` sets its status to superseded by the new record in the repository's own status words; `archive` moves it to the ADR folder's archive folder |
 
 ```yaml

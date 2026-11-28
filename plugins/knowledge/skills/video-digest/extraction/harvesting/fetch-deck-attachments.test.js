@@ -16,10 +16,8 @@ import {
   pinnedLookup,
 } from "./fetch-deck-attachments.js";
 
-/** Resolve every host to a public address so tests never touch real DNS. */
 const publicLookup = async () => [{ address: "93.184.216.34" }];
 
-/** Transport that delegates to the stubbed global fetch, recording the pinned address. */
 const fetchTransport = (url, address) => fetch(url, { redirect: "manual", address });
 
 /**
@@ -126,7 +124,6 @@ describe("fetchDeckAttachments", () => {
 
   it("aborts and removes the partial file when the streamed body exceeds the cap", async () => {
     writeLinks([{ type: "attachment", url: "https://example.com/lying.bin" }]);
-    // No content-length header — the byte-counting cap must catch it mid-stream.
     stubFetch(async () => fakeResponse(Buffer.from("x".repeat(100))));
 
     const result = await fetchDeckAttachments(sliceDir, { maxBytes: 10, lookup: publicLookup, transport: fetchTransport });
@@ -144,7 +141,6 @@ describe("fetchDeckAttachments", () => {
     fs.mkdirSync(path.dirname(destPath), { recursive: true });
     fs.writeFileSync(destPath, "previously-good-content");
 
-    // Retry that overruns the cap mid-stream — must not clobber the good file.
     stubFetch(async () => fakeResponse(Buffer.from("x".repeat(100))));
 
     const result = await fetchDeckAttachments(sliceDir, { maxBytes: 10, lookup: publicLookup, transport: fetchTransport });

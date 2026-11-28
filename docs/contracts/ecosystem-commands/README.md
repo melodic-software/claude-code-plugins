@@ -254,19 +254,19 @@ taken from the project's `CLAUDE.md` and rules rather than the verb keys, and be
 reads that command's `requires` (and a gate's own `requires`) from `docs/conventions/ecosystems/`, applying
 the `opt-in`, `probe`, `run-from`, `name` and `hint` rules of "Command prerequisites"
 (`plugins/verification/skills/confirm/SKILL.md:140`, `:144`). This table records plugins that read
-lane membership without running a verb:
+ecosystem records without running a verb:
 
 | Plugin | Keys | Use |
 |---|---|---|
-| `code-metrics` | `globs`, `enabled` only | `globs` replace the bundled extension map for that lane; a resolved `enabled: false` opts the lane out. No verb is run. An ecosystem file outside the supported YAML subset is ignored with a warning, and `/code-metrics:setup check` shows FAIL for it. |
+| `code-metrics` | `globs`, `enabled` only | `globs` replace the bundled extension map for that language; a resolved `enabled: false` opts the language out. No verb is run. An ecosystem file outside the supported YAML subset is ignored with a warning, and `/code-metrics:setup check` shows FAIL for it. |
 | `source-control` | `requires.*[].install`, `gates[].requires[].install`, and each such entry's `name` | The provisioning step (`scripts/provision-prerequisites.mjs`, run by `scripts/provision-prerequisites.sh` at worktree creation) installs each declared lockfile with scripts off, and, while no record declares one, the root lockfile with a notice. No verb is run. A record with no `install` key is not parsed; one with an `install` key outside the YAML subset is named on stderr and skipped. |
 
-**Claim:** `code-metrics` consumes `globs` and `enabled` from `docs/conventions/ecosystems/<lane>.yaml` and
+**Claim:** `code-metrics` consumes `globs` and `enabled` from `docs/conventions/ecosystems/<language>.yaml` and
 no other ecosystem-commands key. It fails soft, as the tolerant-reader paragraph above asks: an
 ecosystem file outside the supported YAML subset is warned about and read as absent
-(`plugins/code-metrics/scripts/resolve-config.py:132-141`, `:478-483`), and
+(`plugins/code-metrics/scripts/resolve-config.py:127-135`, `:469-474`), and
 `/code-metrics:setup check` reports it as FAIL
-(`plugins/code-metrics/skills/setup/scripts/setup-check.sh:227-228`). Parseable but
+(`plugins/code-metrics/skills/setup/scripts/setup-check.sh:223-224`). Parseable but
 schema-invalid content is not validated. **Basis:** `plugins/code-metrics/reference/config.md` "Layers and
 merge form", the paragraph on consumer ecosystems files. **Recheck:** when that paragraph names another key, or an audit skill starts running a verb from the ecosystem file.
 

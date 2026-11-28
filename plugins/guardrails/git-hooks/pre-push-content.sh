@@ -25,12 +25,13 @@ blocking="$CHECKS_TMP/blocking"
 
 if [[ "$CHECKS_MODE" == worktree ]]; then
   checks_changed_lines
+  checks_changed_lines --skip-reindent "$CHECKS_TMP/path-ranges"
   content_scan "$blocking"
   content_report "$blocking" 'the change (use a placeholder, an environment variable or a portable path)'
 fi
 
 commit_ranges() {
-  local c=$1 p first="" k=0
+  local c=$1 p r first="" k=0
   local -a ids=() parents=()
   read -r -a ids < <(git rev-list --parents -n 1 "$c" -- 2>/dev/null)
   ((${#ids[@]} > 1)) && parents=("${ids[@]:1}")
@@ -38,17 +39,23 @@ commit_ranges() {
   for p in "${parents[@]}"; do
     printf '%s %s\n' "$p" "$c" >"$CHECKS_TMP/push-ranges"
     : >"$CHECKS_TMP/ranges"
+    : >"$CHECKS_TMP/path-ranges"
     checks_added_ranges "$CHECKS_TMP/ranges" ACMRT
+    checks_added_ranges --skip-reindent "$CHECKS_TMP/path-ranges" ACMRT
     if ((k++ == 0)); then
       first="$p"
       mv "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.all"
+      mv "$CHECKS_TMP/path-ranges" "$CHECKS_TMP/path-ranges.all"
       continue
     fi
-    checks_intersect_ranges "$CHECKS_TMP/ranges" "$CHECKS_TMP/ranges.all" >"$CHECKS_TMP/ranges.both" ||
-      checks_tool_failed awk "$?" 'listing the lines the merge adds'
-    mv "$CHECKS_TMP/ranges.both" "$CHECKS_TMP/ranges.all"
+    for r in ranges path-ranges; do
+      checks_intersect_ranges "$CHECKS_TMP/$r" "$CHECKS_TMP/$r.all" >"$CHECKS_TMP/$r.both" ||
+        checks_tool_failed awk "$?" 'listing the lines the merge adds'
+      mv "$CHECKS_TMP/$r.both" "$CHECKS_TMP/$r.all"
+    done
   done
   mv "$CHECKS_TMP/ranges.all" "$CHECKS_TMP/ranges"
+  mv "$CHECKS_TMP/path-ranges.all" "$CHECKS_TMP/path-ranges"
   printf '%s %s\n' "$first" "$c" >"$CHECKS_TMP/push-ranges"
   other_parents=("${parents[@]:1}")
 }

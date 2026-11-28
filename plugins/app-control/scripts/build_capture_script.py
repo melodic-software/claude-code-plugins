@@ -155,7 +155,6 @@ def stat_fields(pid):
 
 
 def live(pid):
-    """The live parent pid, uid, start time and command line of pid."""
     try:
         ppid, start = stat_fields(pid)
         uids = []
@@ -254,7 +253,6 @@ def parse(argv):
 
 
 def bind(args):
-    """The checked processes, launched or attached first, and the label of each."""
     if args.attach_pid is not None:
         if not PID.fullmatch(args.attach_pid):
             raise NoMatch(f"attach pid {args.attach_pid!r} fails its format check")
@@ -293,8 +291,6 @@ def bind(args):
 def build(bound, recorder, capture, elevate):
     target = bound[-1][1]["pid"]
     to_file = any("<file>" in a for a in recorder)
-    # An elevated recorder writes into a directory only the elevated user can change, so a process
-    # of this user cannot plant a symlink where the elevated write lands.
     staged = elevate and to_file
 
     def word(a):
@@ -313,7 +309,6 @@ def build(bound, recorder, capture, elevate):
             f'stage=$({elevate} mktemp -d) || {{ printf \'could not make a stage directory\\n\' >&2; exit 1; }}\n'
             + run
         )
-    # A bound child also checks its parent pid.
     checks = [
         f"  check {p['pid']} {p['uid']} {p['start']} {p['sha256']}"
         + (f" {p['ppid']}" if i else "")
@@ -335,7 +330,6 @@ def build(bound, recorder, capture, elevate):
         "RUN": run,
         "HANDBACK": hand_back,
     }
-    # One pass, so a placeholder inside a filled value is never filled again.
     return PLACEHOLDER.sub(lambda m: values[m[1]], TEMPLATE)
 
 
@@ -367,8 +361,6 @@ def main(argv):
     except OSError as e:
         print(f"usage: cannot write a new script at {args.write}: {e.strerror}", file=sys.stderr)
         return 2
-    # Comment lines, so the whole of stdout is the script an elevated run feeds to sh. display()
-    # escapes every line break, so a command line cannot end the comment.
     for label, proc in bound:
         print(f"# {describe(label, proc)}")
     if args.elevate:

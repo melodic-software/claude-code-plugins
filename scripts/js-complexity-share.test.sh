@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Cross-platform contract wrapper for the js-complexity-share counter's test
-# suite.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

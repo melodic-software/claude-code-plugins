@@ -1,5 +1,5 @@
 ---
-description: "Verify the rate-limits plugin on this machine: node, whether its mod runs in this session, the snapshot file's freshness, the StopFailure hook, every option's effective value, and a directory left by the plugin's earlier name. Use when: 'set up rate-limits', 'is rate-limits working', the snapshot file is stale, a consuming loop lane reports guard mode unknown, or after a plugin update. Actions: check (read-only, default; prints every remediation and never edits settings, scripts or files), apply (on explicit request, migrates only the directory left by the earlier plugin name: merges its stop record into ~/.claude/rate-limits/stop-events.jsonl, old records first, and removes the directory)."
+description: "Verify rate-limits prerequisites, mod, snapshot, StopFailure hook, and options (check, read-only), or migrate an earlier-name directory (apply)."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -74,8 +74,9 @@ line.
 
 1. **`node`.** The pre-computed `node` row. FAIL if absent: the `StopFailure` row in
    `hooks/hooks.json` is exec form, `"command": "node"` with `hooks/exec-bash.mjs` in `args`, so
-   without `node` on `PATH` the hook never launches, a launch failure is non-blocking, and no
-   rate-limit stop is recorded; and the module writes the snapshot by running
+   without `node` on `PATH` the hook never launches and no rate-limit stop is recorded (what a
+   hook that cannot start does to the session:
+   [block the action when a hook fails](https://code.claude.com/docs/en/hooks#block-the-action-when-a-hook-fails)); and the module writes the snapshot by running
    `node lib/write-snapshot.mjs`, so no snapshot is written either. The module's lines, band row
    and status tool do not need it. Remediation: install Node.js (<https://nodejs.org/en/download>)
    yourself and restart Claude Code.
@@ -261,8 +262,8 @@ A second `apply` finds nothing to move and changes nothing; say so.
 
 ## Uninstalling
 
-Uninstalling the plugin removes the cache directory, not the files under
-`~/.claude/rate-limits/`. Consuming lanes then see no fresh snapshot and run reactive-only, as
+We treat the files under `~/.claude/rate-limits/` as left in place by an uninstall (what Claude
+Code deletes: [what an uninstall deletes and keeps](https://code.claude.com/docs/en/plugins/cli-reference#what-an-uninstall-deletes-and-keeps)). Consuming lanes then see no fresh snapshot and run reactive-only, as
 the reader contract says. To remove the files too, delete `~/.claude/rate-limits/` after the
 uninstall.
 

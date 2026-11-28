@@ -1,5 +1,5 @@
 ---
-description: "Start, restart, stop, and check loop lanes as named background Claude Code sessions seeded from canonical prompt files, the scripted replacement for the manual morning refresh (cancel loop, clear, re-paste the canonical prompt) across N lanes on a machine. `start`/`restart` first pull the repo and refresh the plugin marketplace, then launch each configured lane with its per-lane model/effort. `consume-restarts` reads each configured lane's telemetry `restart_request` and relaunches the stopped lanes that asked, the scheduled headless reader. `run-once` and `print-schedule` are the scheduled single-pass entry. Use when: 'launch my lanes', 'restart the loop lanes', 'start the work lanes', 'morning lane refresh', 'stop a lane', 'which lanes are running', 'lane status', 'consume restart requests', 'lane restart consumer', 'relaunch the lanes that asked', 'schedule the work-loop drain'. Mutating and operator-initiated; never touches a session whose name is not a configured lane."
+description: "Start, restart, stop, check, or schedule configured loop lanes (start, restart, stop, status, consume-restarts, run-once, print-schedule); mutating."
 argument-hint: "[start|restart|status|stop|run-once|print-schedule|consume-restarts] [lane...]"
 user-invocable: true
 disable-model-invocation: true
@@ -376,9 +376,8 @@ Basis: the plugins reference,
 
 Two lane-cycle mechanics need no reasoning, so they are scripted here and a lane
 prompt references the script instead of re-deriving the work every cycle. Both
-follow `lane-launcher.sh`'s conventions (jq CRLF wrapper, the `--help` header as
-the full contract, explicit exit codes). The header is the source of truth for
-each, the summary below is a pointer, not a copy.
+follow `lane-launcher.sh`'s conventions (jq CRLF wrapper, flags and exit codes in
+`--help`, explicit exit codes).
 
 - **`scripts/machine-behavior.sh`**. Emits the lane's MACHINE-BEHAVIOR block (gh
   identity, clone path, worktree inventory, installed plugin versions) as a
@@ -404,7 +403,7 @@ each, the summary below is a pointer, not a copy.
   scanned and withheld on a hit. With no resolvable
   write identity it writes nothing and exits 4. The marker grammar, the `<lane>@<instance>` writer-identity rule,
   the body-file containment and size limits, the pre-write and read-back checks,
-  and every exit code are in the script's `--help` header. Two rules the caller
+  and every exit code are in the script's `--help`. Two rules the caller
   must follow: pass the body as file contents or on stdin (see "Never pass a body
   as an `@path` string" below), and lead the body with a telemetry key such as
   `lane:` rather than a GitHub @mention, because a body whose first line begins

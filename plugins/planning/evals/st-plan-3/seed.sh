@@ -266,7 +266,6 @@ Vitest unit tests cover `renewOne` with a stubbed client and repository. One int
 | `tests/format.test.ts` | modify: money import |
 MD
 
-# Each phase heading takes its status tag here, outside the heredoc.
 plan=.work/review-target/PLAN.md
 text="$(cat "$plan")"
 printf '%s\n' "${text//'[STATUS]'/[TODO]}" >"$plan"

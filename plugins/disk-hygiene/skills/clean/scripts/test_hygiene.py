@@ -77,11 +77,6 @@ def candidate(path: str, tier: str = "high") -> dict[str, object]:
 
 
 def refuse_call(name: str):
-    """Patch a hygiene function to fail the test if it is ever called.
-
-    Used to prove an already-blocked, unvisited candidate short-circuits
-    before reaching a live, unbounded filesystem/VCS/process check.
-    """
     return mock.patch.object(
         hygiene,
         name,
@@ -2851,13 +2846,11 @@ class HygieneTests(unittest.TestCase):
                     ".devcache",
                     "Windows",
                     "builds",
+                    "orphan.tmp",
                 },
                 admitted,
             )
-            skipped = {
-                item["name"]: item["reason"] for item in payload["skipped_children"]
-            }
-            self.assertEqual({"orphan.tmp": "not-a-directory"}, skipped)
+            self.assertEqual([], payload["skipped_children"])
 
     def test_handoff_verify_clears_directory_from_root_children_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -2893,13 +2886,8 @@ class HygieneTests(unittest.TestCase):
             snapshot = json.loads(
                 (data_root / "snapshot.json").read_text(encoding="utf-8")
             )
-            self.assertEqual(
-                [("loose.tmp", "not-a-directory")],
-                [
-                    (item["name"], item["reason"])
-                    for item in snapshot["root_children_skipped"]
-                ],
-            )
+            self.assertEqual([], snapshot["root_children_skipped"])
+            self.assertNotIn("loose.tmp", {e["path"] for e in snapshot["entries"]})
             result = hygiene.handoff_verify(
                 snapshot, ["scratch", "scratch/deep/orphan.tmp"]
             )
@@ -3620,11 +3608,11 @@ class HygieneTests(unittest.TestCase):
             self.assertIn("scratch", admitted)
             self.assertIn("AppData", admitted)
             self.assertIn("tmp", admitted)
+            self.assertIn("loose.tmp", admitted)
             skipped = {
                 item["name"]: item["reason"] for item in payload["skipped_children"]
             }
-            self.assertEqual("not-a-directory", skipped["loose.tmp"])
-            self.assertEqual("baseline-protected-name", skipped["Documents"])
+            self.assertEqual({"Documents": "baseline-protected-name"}, skipped)
             self.assertFalse((data_root / "snapshot.json").exists())
 
     def test_root_children_on_home_inventories_approved_hidden_children(
@@ -3686,6 +3674,109 @@ class HygieneTests(unittest.TestCase):
             self.assertEqual({".dotnet", "scratch"}, set(rollup))
             self.assertTrue(rollup[".dotnet"]["walked"])
             self.assertTrue(rollup["scratch"]["walked"])
+
+    def _home_patches(self) -> list[Any]:
+        return [
+            mock.patch.object(hygiene, "is_volume_root", return_value=False),
+            mock.patch.object(hygiene, "is_os_managed_target", return_value=False),
+            mock.patch.object(hygiene, "mount_state", return_value=(False, None)),
+        ]
+
+    def test_root_children_on_home_plans_a_loose_file_and_a_folder_together(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "home"
+            data_root = base / "plugin-data"
+            (target / "scratch").mkdir(parents=True)
+            data_root.mkdir()
+            (target / "scratch" / "orphan.tmp").write_text("left", encoding="utf-8")
+            (target / "loose.tmp").write_text("root file", encoding="utf-8")
+            (target / "other.tmp").write_text("unselected", encoding="utf-8")
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._home_patches(),
+                extra_args=[
+                    "--root-children",
+                    "--root-child",
+                    "loose.tmp",
+                    "--root-child",
+                    "scratch",
+                ],
+            )
+            self.assertEqual(0, code, payload)
+            self.assertEqual("scan-complete", payload["status"])
+            self.assertEqual(
+                ["loose.tmp", "scratch"], payload["root_children_selected"]
+            )
+            snapshot = json.loads(
+                (data_root / "snapshot.json").read_text(encoding="utf-8")
+            )
+            by_path = {entry["path"]: entry for entry in snapshot["entries"]}
+            self.assertEqual(
+                {"loose.tmp", "scratch", "scratch/orphan.tmp"}, set(by_path)
+            )
+            self.assertEqual("file", by_path["loose.tmp"]["kind"])
+            self.assertEqual(9, by_path["loose.tmp"]["logical_size"])
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [candidate("loose.tmp"), candidate("scratch/orphan.tmp")],
+            }
+            with mock.patch.object(hygiene, "execution_blockers", return_value=[]):
+                ready = hygiene.preview(snapshot, plan)
+                self.assertEqual("ready-for-explicit-approval", ready["status"])
+                (target / "loose.tmp").unlink()
+                (target / "loose.tmp").write_text("replaced!", encoding="utf-8")
+                replaced = hygiene.preview(snapshot, plan)
+            self.assertEqual("blocked", replaced["status"])
+            blockers = {c["path"]: c["blockers"] for c in replaced["candidates"]}
+            self.assertIn("changed-since-scan", blockers["loose.tmp"])
+            self.assertEqual([], blockers["scratch/orphan.tmp"])
+
+    def test_root_children_on_home_withholds_unsafe_loose_files(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            target = base / "home"
+            data_root = base / "plugin-data"
+            target.mkdir()
+            data_root.mkdir()
+            (target / "real.tmp").write_text("x", encoding="utf-8")
+            (target / "link.tmp").symlink_to(target / "real.tmp")
+            (target / ".git").write_text("gitdir: elsewhere\n", encoding="utf-8")
+            (target / "NTUSER.DAT").write_text("hive", encoding="utf-8")
+            os.mkfifo(target / "pipe")
+            code, payload = self._scan_target(
+                target, data_root, self._home_patches(), extra_args=["--root-children"]
+            )
+            self.assertEqual(0, code)
+            admitted = {item["name"] for item in payload["admitted_children"]}
+            self.assertEqual({"real.tmp"}, admitted)
+            skipped = {
+                item["name"]: item["reason"] for item in payload["skipped_children"]
+            }
+            self.assertEqual(
+                {
+                    "link.tmp": "symlink-junction-or-reparse-point",
+                    ".git": "baseline-protected-name",
+                    "NTUSER.DAT": "baseline-protected-name",
+                    "pipe": "not-regular-file-or-directory",
+                },
+                skipped,
+            )
+            code, payload = self._scan_target(
+                target,
+                data_root,
+                self._home_patches(),
+                extra_args=["--root-children", "--root-child", "link.tmp"],
+            )
+            self.assertEqual(2, code)
+            self.assertIn(
+                "withheld (symlink-junction-or-reparse-point)", payload["error"]
+            )
+            self.assertFalse((data_root / "snapshot.json").exists())
 
     def test_root_children_home_snapshot_clears_truncated_handoff_block(
         self,
@@ -4317,7 +4408,7 @@ class HygieneTests(unittest.TestCase):
                 mock.patch.object(
                     hygiene,
                     "tracked_blocker",
-                    side_effect=[None, "vcs-tracked-content"],
+                    side_effect=["vcs-tracked-content"],
                 ),
                 mock.patch.object(hygiene, "execution_blockers", return_value=[]),
                 mock.patch.object(
@@ -6658,6 +6749,26 @@ class LeastObservableEnginePathTests(unittest.TestCase):
             )
         self.assertEqual(("open", "lsof-reported-open-file"), state)
         self.assertEqual(["--", str(probe)], captured["command"][-2:])
+
+    def test_posix_handle_directory_probe_reports_names_on_exit_one(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary) / "held-dir"
+            directory.mkdir()
+            held = directory / "held.log"
+            reported: set[Path] = set()
+            with (
+                mock.patch.object(
+                    hygiene.shutil, "which", return_value="/usr/bin/lsof"
+                ),
+                mock.patch.object(
+                    hygiene.subprocess,
+                    "run",
+                    return_value=self.lsof_result(1, stdout=f"p2388915\nn{held}\n"),
+                ),
+            ):
+                state = hygiene.posix_handle_state(directory, reported)
+        self.assertEqual(("open", "lsof-reported-open-file"), state)
+        self.assertEqual({held}, reported)
 
     def test_posix_handle_directory_probe_walks_descendants(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
@@ -17668,7 +17779,14 @@ class EngineOwnedStateTests(EngineFileArgumentCase):
         monitor = load_module("guard_launch_monitor", "guard_launch_monitor.py")
         log = guard.guard_decision_log
         self.assertEqual(
-            {log.LOG_DIRNAME, monitor._MARKER_DIRNAME, "clean-runs", "inventory"},
+            {
+                log.LOG_DIRNAME,
+                monitor._MARKER_DIRNAME,
+                "clean-runs",
+                "inventory",
+                "clean-invoked",
+                "guard-no-interpreter",
+            },
             set(grammar.ENGINE_OWNED_DIRS),
         )
         self.assertEqual("clean-runs", guard._run_marker_path("/r", "s").parent.name)
@@ -17885,6 +18003,82 @@ class InventoryCommandTests(unittest.TestCase):
         self.assertEqual("CANDIDATE", rows[str(cache / "1.0.0")]["disposition"])
         self.assertEqual("KEEP", rows[str(cache / "2.0.0")]["disposition"])
 
+    def test_home_npm_cache_is_one_bounded_row_and_the_summary_says_so(self) -> None:
+        for index in range(40):
+            self.write(f".npm/_cacache/content/{index:02d}", "abcd")
+        self.write("notes/todo.md", "12")
+        self.home.return_value = self.target
+        code, summary = self.run_inventory()
+        self.assertEqual(0, code, summary)
+        rows = self.rows(summary)
+        npm = rows[str(self.target / ".npm")]
+        self.assertEqual("bounded-store", npm["category"])
+        self.assertEqual("UNKNOWN", npm["disposition"])
+        self.assertEqual(160, npm["size"])
+        self.assertEqual(
+            {
+                "walk": "bounded-sum",
+                "store_glob": ".npm",
+                "store_reason": "npm cache directory",
+                "entries_counted": 42,
+                "entry_budget": hygiene.deep_inventory.STORE_ENTRY_BUDGET,
+                "size_is_lower_bound": False,
+                "incomplete_reason": None,
+            },
+            npm["coverage"],
+        )
+        self.assertEqual([], [n for n in rows if n.startswith(str(npm["name"]) + "/")])
+        self.assertEqual(162, rows[str(self.target)]["size"])
+        self.assertFalse(summary["fully_inventoried"])
+        self.assertEqual(1, summary["bounded_row_count"])
+        self.assertEqual(0, summary["bounded_lower_bound_count"])
+        self.assertEqual(
+            [
+                {
+                    "name": str(self.target / ".npm"),
+                    "size": 160,
+                    "store_glob": ".npm",
+                    "entries_counted": 42,
+                    "size_is_lower_bound": False,
+                }
+            ],
+            summary["bounded_rows"],
+        )
+
+    def test_plain_target_with_no_store_is_fully_inventoried(self) -> None:
+        self.write("a/b.txt")
+        code, summary = self.run_inventory("--deep")
+        self.assertEqual(0, code, summary)
+        self.assertTrue(summary["fully_inventoried"])
+        self.assertEqual(0, summary["bounded_row_count"])
+
+    def test_policy_overlay_adds_a_bounded_store(self) -> None:
+        self.write("datasets/big/part-1", "123")
+        self.write("datasets/big/part-2", "45")
+        overlay = self.data_root / "policy.json"
+        overlay.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "additional_inventory_bounded_stores": [
+                        {"glob": "datasets/*", "reason": "training data shards"}
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.home.return_value = self.target
+        code, summary = self.run_inventory("--policy", str(overlay))
+        self.assertEqual(0, code, summary)
+        rows = self.rows(summary)
+        big = rows[str(self.target / "datasets" / "big")]
+        self.assertEqual("datasets/*", big["coverage"]["store_glob"])
+        self.assertEqual(5, big["size"])
+        self.assertIn("training data shards", big["reason"])
+        self.assertNotIn(str(self.target / "datasets" / "big" / "part-1"), rows)
+        self.assertNotIn("coverage", rows[str(self.target / "datasets")])
+        self.assertIn(str(overlay), summary["policy_sources"])
+
     def test_mount_point_on_the_same_device_is_not_entered(self) -> None:
         self.write("bind/inside.txt")
         self.write("plain/file.txt")
@@ -17898,6 +18092,25 @@ class InventoryCommandTests(unittest.TestCase):
         self.assertEqual("not-walked", rows[str(self.target / "bind")]["category"])
         self.assertNotIn(str(self.target / "bind" / "inside.txt"), rows)
         self.assertIn(str(self.target / "plain" / "file.txt"), rows)
+
+    def test_shallow_walk_reports_a_nested_mount_and_is_not_fully_inventoried(
+        self,
+    ) -> None:
+        self.write("child/own.txt", "12")
+        self.write("child/bind/inside.txt", "12345")
+        mounted = {self.target / "child" / "bind"}
+        with mock.patch.object(
+            hygiene, "linux_mount_points", return_value=(mounted, None)
+        ):
+            code, summary = self.run_inventory()
+        self.assertEqual(0, code, summary)
+        self.assertFalse(summary["deep"])
+        rows = self.rows(summary)
+        bind = rows[str(self.target / "child" / "bind")]
+        self.assertEqual("not-walked", bind["category"])
+        self.assertEqual(2, rows[str(self.target / "child")]["size"])
+        self.assertEqual(1, summary["not_walked_row_count"])
+        self.assertFalse(summary["fully_inventoried"])
 
     def test_unreadable_mountinfo_is_reported_not_hidden(self) -> None:
         self.write("a.txt")
@@ -18052,7 +18265,9 @@ class InventoryCommandTests(unittest.TestCase):
             reason="tool-managed",
         )
         with mock.patch.object(
-            hygiene.deep_inventory, "category_rows", return_value={str(bad): row}
+            hygiene.deep_inventory,
+            "_default_classifiers",
+            return_value=(hygiene.deep_inventory.DictClassifierAdapter({str(bad): row}),),
         ):
             code, summary = self.run_inventory("--deep")
         self.assertEqual(hygiene.INVENTORY_VALIDATION_FAILED, code)
@@ -18090,6 +18305,332 @@ class InventoryCommandTests(unittest.TestCase):
         self.assertEqual(2, code)
         self.assertIn("--data-root", output.getvalue())
         self.assertEqual([], list(self.data_root.iterdir()))
+
+    def test_inventory_does_not_mutate_clean_run_markers(self) -> None:
+        self.write("a.txt")
+        runs = self.data_root / hygiene.engine_grammar.RUN_MARKER_DIRNAME
+        runs.mkdir(parents=True, exist_ok=True)
+        marker = runs / hygiene.engine_grammar.run_marker_filename("sess-inv-1")
+        marker.write_text(json.dumps({"ends_with": "/tmp/plan.json"}), encoding="utf-8")
+        old_stamp = time.time() - hygiene.engine_grammar.RUN_IDLE_TIMEOUT_SECONDS - 60
+        os.utime(marker, (old_stamp, old_stamp))
+        with mock.patch.dict(os.environ, {"CLAUDE_CODE_SESSION_ID": "sess-inv-1"}):
+            code, summary = self.run_inventory("--deep")
+        self.assertEqual(0, code, summary)
+        self.assertTrue(
+            marker.exists(),
+            "read-only inventory must not run close_clean_runs() and mutate clean-runs markers",
+        )
+
+
+class ApplyPlanSnapshotExactNamesRegressionTests(unittest.TestCase):
+    def test_apply_plan_inner_loop_honors_snapshot_protected_exact_names(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp).resolve()
+            target = root / "target"
+            target.mkdir()
+            victim_dir = target / "parent"
+            victim_dir.mkdir()
+            protected_child = victim_dir / "SnapshotCustomKeep"
+            protected_child.write_text("precious", encoding="utf-8")
+
+            policy = hygiene.baseline_policy()
+            snapshot = hygiene.scan_tree(target, policy)
+            snapshot["policy"]["protected_exact_names"] = [
+                *snapshot["policy"]["protected_exact_names"],
+                "SnapshotCustomKeep",
+            ]
+            plan = {
+                "version": 1,
+                "tier": "high",
+                "candidates": [
+                    {
+                        "path": "parent",
+                        "tier": "high",
+                        "provenance": "fixture",
+                        "reason": "fixture",
+                        "evidence": ["fixture"],
+                        "why_not_work_product": "fixture",
+                        "risk": "low",
+                        "owner": "unmanaged",
+                    }
+                ],
+            }
+            fake_preview = {
+                "status": "ready-for-explicit-approval",
+                "candidates": [{"path": "parent", "blockers": []}],
+            }
+            with (
+                mock.patch.object(hygiene, "preview", return_value=fake_preview),
+                mock.patch.object(hygiene, "execution_blockers", return_value=[]),
+                mock.patch.object(hygiene, "tracked_blocker", return_value=None),
+                mock.patch.object(hygiene, "handle_state", return_value=("clear", None)),
+            ):
+                report = hygiene.apply_plan(snapshot, plan)
+            self.assertTrue(
+                protected_child.exists(),
+                "apply_plan inner loop must honor snapshot policy protected_exact_names",
+            )
+            skipped_paths = {item["path"]: item for item in report["skipped"]}
+            self.assertIn("parent/SnapshotCustomKeep", skipped_paths)
+            self.assertEqual("protected", skipped_paths["parent/SnapshotCustomKeep"]["outcome"])
+            self.assertIn(
+                "baseline-protected-name",
+                skipped_paths["parent/SnapshotCustomKeep"]["detail"],
+            )
+
+    def test_scan_tree_reads_baseline_policy_once(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            target = Path(tmp).resolve() / "scan-target"
+            for i in range(5):
+                sub = target / f"dir-{i}" / "nested"
+                sub.mkdir(parents=True)
+                (sub / f"file-{i}.tmp").write_text("x", encoding="utf-8")
+                (sub / f"disk-{i}.vhdx").write_text("y", encoding="utf-8")
+
+            policy = hygiene.policy_cascade.baseline_policy()
+            hygiene.policy_cascade.load_baseline_snapshot.cache_clear()
+            real_read_text = Path.read_text
+            baseline_reads = 0
+
+            def spy(path_self: Path, *args: object, **kwargs: object) -> str:
+                nonlocal baseline_reads
+                if path_self.name == "baseline-policy.json":
+                    baseline_reads += 1
+                return real_read_text(path_self, *args, **kwargs)  # type: ignore[arg-type]
+
+            with mock.patch.object(Path, "read_text", spy):
+                hygiene.scan_tree(target, policy)
+            self.assertEqual(1, baseline_reads)
+
+
+@unittest.skipUnless(
+    hygiene.os_key() == "linux", "descriptor-relative removal is Linux-only"
+)
+class ApplyPerCandidateProbeTests(unittest.TestCase):
+    """Apply probes handles and repositories once per candidate, not per entry."""
+
+    def setUp(self) -> None:
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.target = Path(temporary.name).resolve() / "target"
+        self.batch = self.target / "batch"
+        self.batch.mkdir(parents=True)
+        self.calls: list[str] = []
+
+    def fixture(self, files: int) -> tuple[dict[str, Any], dict[str, Any]]:
+        for index in range(files):
+            (self.batch / f"file-{index}.tmp").write_text("x", encoding="utf-8")
+        snapshot = hygiene.scan_tree(self.target, hygiene.load_policy(None))
+        plan = {"version": 1, "tier": "high", "candidates": [candidate("batch")]}
+        return snapshot, plan
+
+    def apply(self, snapshot, plan, lsof_results: list[Any]) -> dict[str, Any]:
+        """Run apply with lsof answering from ``lsof_results`` in call order.
+
+        Git answers as outside a repository (exit 128), its documented status.
+        """
+        lsof_answers = iter(lsof_results)
+
+        def run(command, *args, **kwargs):
+            tool = Path(command[0]).name
+            self.calls.append(tool)
+            if tool == "lsof":
+                answer = next(lsof_answers)
+                if isinstance(answer, BaseException):
+                    raise answer
+                return subprocess.CompletedProcess(command, *answer)
+            return subprocess.CompletedProcess(
+                command, 128, "", "fatal: not a git repository\n"
+            )
+
+        with (
+            mock.patch.object(
+                hygiene.shutil, "which", side_effect=lambda name: f"/usr/bin/{name}"
+            ),
+            mock.patch.object(hygiene.subprocess, "run", side_effect=run),
+        ):
+            return hygiene.apply_plan(snapshot, plan)
+
+    def test_lsof_and_git_spawns_stay_fixed_as_entries_grow(self) -> None:
+        for files in (1, 50):
+            with self.subTest(files=files):
+                self.calls.clear()
+                self.batch.mkdir(exist_ok=True)
+                snapshot, plan = self.fixture(files)
+                with mock.patch.object(
+                    hygiene, "tracked_blocker", wraps=hygiene.tracked_blocker
+                ) as tracked:
+                    report = self.apply(snapshot, plan, [(1, "", ""), (1, "", "")])
+                self.assertEqual("completed", report["status"], report["skipped"])
+                self.assertEqual(files + 1, report["paths_removed"])
+                self.assertEqual(2, self.calls.count("lsof"), "preview + apply")
+                self.assertEqual(2, tracked.call_count, "preview + apply gate")
+                self.assertEqual(2, self.calls.count("git"), "one rev-parse per check")
+
+    def test_an_open_descendant_is_kept_and_its_siblings_removed(self) -> None:
+        (self.batch / "sub").mkdir()
+        (self.batch / "sub" / "held.log").write_text("x", encoding="utf-8")
+        (self.batch / "sub" / "free.tmp").write_text("x", encoding="utf-8")
+        snapshot, plan = self.fixture(1)
+        held = self.batch / "sub" / "held.log"
+        report = self.apply(
+            snapshot, plan, [(1, "", ""), (1, f"p4242\nn{held}\n", "")]
+        )
+        self.assertEqual(
+            {"batch/sub/free.tmp", "batch/file-0.tmp"},
+            {item["path"] for item in report["removed"]},
+        )
+        self.assertEqual(
+            {
+                "batch/sub/held.log": "locked",
+                "batch/sub": "locked",
+                "batch": "locked",
+            },
+            {item["path"]: item["outcome"] for item in report["skipped"]},
+        )
+        self.assertTrue(held.exists())
+        self.assertEqual(2, self.calls.count("lsof"))
+
+    def test_an_unattributable_open_name_holds_every_entry(self) -> None:
+        snapshot, plan = self.fixture(3)
+        late = self.batch / "created-after-scan.tmp"
+        report = self.apply(
+            snapshot, plan, [(1, "", ""), (1, f"p4242\nn{late}\n", "")]
+        )
+        self.assertEqual([], report["removed"])
+        self.assertEqual({"locked"}, {item["outcome"] for item in report["skipped"]})
+        self.assertEqual(4, len(report["skipped"]))
+
+    def test_an_unverifiable_probe_skips_the_whole_candidate(self) -> None:
+        cases = {
+            "diagnostic": (1, "", "lsof: WARNING: can't stat() fuse file system\n"),
+            "timeout": subprocess.TimeoutExpired("lsof", 20),
+        }
+        for name, answer in cases.items():
+            with self.subTest(case=name):
+                snapshot, plan = self.fixture(3)
+                report = self.apply(snapshot, plan, [(1, "", ""), answer])
+                self.assertEqual([], report["removed"])
+                self.assertEqual(
+                    {"handle-state-unverified"},
+                    {item["outcome"] for item in report["skipped"]},
+                )
+                self.assertEqual(4, len(report["skipped"]))
+                self.assertTrue((self.batch / "file-0.tmp").exists())
+
+    def test_the_apply_command_spawns_two_lsof_for_one_candidate(self) -> None:
+        snapshot, plan = self.fixture(50)
+        data_root = self.target.parent / "plugin-data"
+        data_root.mkdir()
+        snapshot_path = data_root / "snapshot.json"
+        plan_path = data_root / "plan.json"
+        snapshot_path.write_text(json.dumps(snapshot), encoding="utf-8")
+        plan_path.write_text(json.dumps(plan), encoding="utf-8")
+        arguments = [
+            "--snapshot",
+            str(snapshot_path),
+            "--plan",
+            str(plan_path),
+            "--data-root",
+            str(data_root),
+        ]
+
+        def run(command, *args, **kwargs):
+            tool = Path(command[0]).name
+            self.calls.append(tool)
+            if tool == "lsof":
+                return subprocess.CompletedProcess(command, 1, "", "")
+            return subprocess.CompletedProcess(
+                command, 128, "", "fatal: not a git repository\n"
+            )
+
+        with (
+            mock.patch.object(
+                hygiene.shutil, "which", side_effect=lambda name: f"/usr/bin/{name}"
+            ),
+            mock.patch.object(hygiene.subprocess, "run", side_effect=run),
+            redirect_stdout(io.StringIO()) as output,
+        ):
+            self.assertEqual(0, hygiene.main(["preview", *arguments]))
+            token = json.loads(output.getvalue())["approval_token"]
+            self.calls.clear()
+            code = hygiene.main(
+                [
+                    "apply",
+                    "--execute",
+                    *arguments,
+                    "--confirm-tier",
+                    "high",
+                    "--approval-token",
+                    token,
+                    "--report",
+                    str(data_root / "report.json"),
+                ]
+            )
+        self.assertEqual(0, code)
+        self.assertFalse(self.batch.exists())
+        self.assertEqual(2, self.calls.count("lsof"), "token preview + apply")
+
+    def test_is_within_matches_whole_components_only(self) -> None:
+        cases = {
+            ("/a/b", "/a"): True,
+            ("/a", "/a"): True,
+            ("/a", "/"): True,
+            ("/ab", "/a"): False,
+            ("/a", "/a/b"): False,
+            ("a/b", "/a"): False,
+        }
+        for (child, parent), expected in cases.items():
+            with self.subTest(child=child, parent=parent):
+                self.assertIs(expected, hygiene.is_within(Path(child), Path(parent)))
+
+    @unittest.skipUnless(shutil.which("lsof"), "the real lsof probe is required")
+    def test_a_file_held_open_by_another_process_keeps_only_its_branch(self) -> None:
+        (self.batch / "sub").mkdir()
+        held = self.batch / "sub" / "held.log"
+        held.write_text("x", encoding="utf-8")
+        (self.batch / "sub" / "free.tmp").write_text("x", encoding="utf-8")
+        snapshot, plan = self.fixture(1)
+        real_preview = hygiene.preview
+        holders: list[subprocess.Popen[str]] = []
+
+        def preview_then_hold(*args: Any) -> dict[str, Any]:
+            checked = real_preview(*args)
+            holder = subprocess.Popen(
+                [
+                    sys.executable,
+                    "-c",
+                    "import sys, time; handle = open(sys.argv[1]);"
+                    " print('held', flush=True); time.sleep(60)",
+                    str(held),
+                ],
+                stdout=subprocess.PIPE,
+                text=True,
+            )
+            holders.append(holder)
+            self.addCleanup(holder.stdout.close)
+            self.addCleanup(holder.wait)
+            self.addCleanup(holder.kill)
+            self.assertEqual("held", holder.stdout.readline().strip())
+            return checked
+
+        with mock.patch.object(hygiene, "preview", side_effect=preview_then_hold):
+            report = hygiene.apply_plan(snapshot, plan)
+        self.assertEqual(1, len(holders), "the file is held only after preview")
+        self.assertEqual(
+            {"batch/sub/free.tmp", "batch/file-0.tmp"},
+            {item["path"] for item in report["removed"]},
+        )
+        self.assertEqual(
+            {
+                "batch/sub/held.log": "locked",
+                "batch/sub": "locked",
+                "batch": "locked",
+            },
+            {item["path"]: item["outcome"] for item in report["skipped"]},
+        )
+        self.assertTrue(held.exists())
 
 
 if __name__ == "__main__":

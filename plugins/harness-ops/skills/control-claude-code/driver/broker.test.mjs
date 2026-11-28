@@ -191,7 +191,7 @@ test('the broker refuses to start on a driver inside a root, an empty key, or a 
   assert.throws(() => startAt(base, ''), /read from stdin, which was empty/);
   const open = join(b.top, 'open');
   mkdirSync(open);
-  chmodSync(open, 0o777); // mkdir's mode is masked by the umask
+  chmodSync(open, 0o777);
   assert.throws(() => startAt({ ...base, socket: join(open, 'broker.sock') }, KEY), /not a private directory/);
 });
 
@@ -382,7 +382,6 @@ test('the broker refuses over the socket: a bad session, an unknown verb, malfor
 });
 
 test('a driver spawn that throws answers with stderr and exit 1, and the broker keeps serving', unprivileged, async () => {
-  // A NUL in the key makes the child environment invalid, so spawn throws before any process starts.
   const b = box();
   stubClaude(b, 'ANTHROPIC_API_KEY');
   const sock = await startBroker(b, 'ccd-dummy-a\0b');

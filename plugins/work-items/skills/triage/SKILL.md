@@ -1,5 +1,5 @@
 ---
-description: "Evaluate raw intake, any untriaged item whoever filed it (bug reports, feature requests, unsolicited PRs, dogfood issues): raw, verified, briefed, autonomous-eligible, with exits to needs-info, human-gated, close. Use when: 'triage', 'what needs triage', 'triage this issue', 'triage this PR', 'evaluate this bug report', 'is this bug real', 'should we merge this unsolicited PR', 'attention view', 'what intake needs attention', 'sweep needs-human'. No number: the attention view. Escalations: /work-items:attend-queue."
+description: "Evaluate raw intake (untriaged bugs, requests, unsolicited PRs, dogfood issues): raw, verified, briefed, autonomous-eligible, or exit to needs-info/human-gated/close; bare shows attention view; sweep audits needs-human. Use when: 'triage this issue', 'triage this PR', 'what needs triage'. Not for escalations: /work-items:attend-queue."
 argument-hint: "[sweep] [--config-ref <ref>] [<number>]"
 user-invocable: true
 disable-model-invocation: false
@@ -16,6 +16,8 @@ Arguments: `$ARGUMENTS`. `[<number>]` is the issue or pull request number to tri
 a lane passes its base commit (a 40-hex commit id or `origin/<name>`) so the settings come from
 that commit, not from whatever branch is checked out. Any other token: stop and name the accepted
 set (`sweep`, `--config-ref <ref>`, a number).
+The accepted set also holds `--issue <n> --ci`, the CI mode below.
+**CI mode.** `--issue <n> --ci` is an intake lane's mode: read [`context/ci-mode.md`](context/ci-mode.md) first, follow it to the end (it names what the run reads and the verdict it returns as structured output), and skip every other section of this file except those it names. In that file `<plugin-root>` is `${CLAUDE_PLUGIN_ROOT}`. No other invocation reads it.
 
 ## Shared tracker context
 
@@ -259,7 +261,7 @@ test. It runs no state machine and changes nothing but that label and that statu
    - or a comment from such a user, never an App, whose first line is exactly
      `**Decision recorded.**` and which was never edited.
 
-   A cost decision (`**Decision recorded.** Cost:`) clears a cost hold only with its owner-decisions row link and a `verbatim:` owner quote ([the cost hold](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-local-babysit-lane)).
+   A cost decision (`**Decision recorded.** Cost:`) clears a cost hold only with a `verbatim:` owner quote ([the cost hold](https://github.com/melodic-software/claude-code-plugins/blob/main/docs/conventions/pr-pipeline/README.md#the-local-babysit-lane)).
    A consequential item (cross-repo, shared infrastructure, or security) also needs a verified basis
    for the recommendation, the decision-defaulted exit's bar. If any part may apply, it keeps the label.
 3. **Count first.** Before any change, state `<n> of <m> human-gated items fail the label test and

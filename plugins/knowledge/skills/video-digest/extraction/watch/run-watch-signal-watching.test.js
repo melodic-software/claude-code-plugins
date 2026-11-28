@@ -90,7 +90,6 @@ describe("run-watch interrupted during frame extraction", () => {
     vi.mocked(orchestrateWatching).mockImplementation(async () => {
       const handler = /** @type {() => void} */ (process.listeners("SIGTERM").at(-1));
       handler();
-      // A killed ffmpeg leaves a degraded result rather than a rejection.
       return /** @type {any} */ ({
         selectedFrames: [],
         targetMinFrames: 0,

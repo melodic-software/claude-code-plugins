@@ -45,7 +45,7 @@ are fixed upstream, never in this sweep; filter them out before fixing.
 
 - skill: testing:audit
 - args: .
-- applies-when: repo has tests in JavaScript, TypeScript, Python, or C#
+- applies-when: repo has tests in JavaScript, TypeScript, Python, or C# <!-- portability-ok: R6 kept-adapter language applicability for testing:audit -->
 - prime: false
 - checked: true
 
@@ -64,25 +64,25 @@ needs tracked work in the step's `Scope decisions:` instead.
 ### tidy
 
 - skill: code-tidying:tidy
-- args: <lane> | <lane1>,<lane2>,... | all
-- applies-when: repo has source code or prose that at least one tidy lane covers
+- args: <area> | <area1>,<area2>,... | all
+- applies-when: repo has source code or prose that at least one tidy focus area covers
 - checked: false
 
 #### Notes
 
-`code-tidying:tidy` runs one lane per invocation. When the sweep should tidy more than one lane,
-resolve `args` to a comma-separated lane list or `all` (every lane in the union of bundled and
-`.claude/tidy-lanes/*.md` names that applies to this repo, excluding the maintainer-only
-`self-update` lane). `next` invokes tidy once per lane in that list inside this single step.
-Present findings from every lane together for review; one step commit covers all lanes. Pass
+`code-tidying:tidy` runs one focus area per invocation. When the sweep should tidy more than one focus area,
+resolve `args` to a comma-separated focus area list or `all` (every focus area in the union of bundled and
+`.claude/tidy-areas/*.md` names that applies to this repo, excluding the maintainer-only
+`self-update` focus area). `next` invokes tidy once per focus area in that list inside this single step.
+Present findings from every focus area together for review; one step commit covers all focus areas. Pass
 `in-place` on every tidy invocation: it stays on the current branch, opens no branch or PR, and
 leaves the changes staged for the step commit. Glob scope runs through tidy's `<glob>...` row.
 
-Claim: tidy takes one lane per call, its catalog is the union of `.claude/tidy-lanes/*.md` and its
-bundled lanes, `self-update` is maintainer-only, and `in-place` is a flag on every invocation.
-Basis: `code-tidying` 0.23.20 `skills/tidy/SKILL.md` (argument-hint, Action Router `<glob>...`,
-`in-place`, and `self-update` rows). As of: 2026-09-29. Recheck: tidy accepts several lanes in one
-call, changes where it reads lanes from, or renames `in-place`; prefer the lane list tidy's own
+Claim: tidy takes one focus area per call, its catalog is the union of `.claude/tidy-areas/*.md` and its
+bundled focus areas, `self-update` is maintainer-only, and `in-place` is a flag on every invocation.
+Basis: `code-tidying` 1.0.0 `skills/tidy/SKILL.md` (argument-hint, Action Router `<glob>...`,
+`in-place`, and `self-update` rows). As of: 2026-11-25. Recheck: tidy accepts several focus areas in one
+call, changes where it reads focus areas from, or renames `in-place`; prefer the focus area list tidy's own
 `help` prints over this note when they differ.
 
 ## Phase 2: existence and copies
@@ -319,7 +319,7 @@ Pass the instruction roots (CLAUDE.md, AGENTS.md, .claude/, skill directories), 
 
 #### Override
 
-Stay on the current branch. Do not create a branch or a pull request, and do not commit per reduction; leave all changes uncommitted, repo-sweep makes the step commit. Record route-lane findings in the ledger; file tracker items only when the user approves.
+Stay on the current branch. Do not create a branch or a pull request, and do not commit per reduction; leave all changes uncommitted, repo-sweep makes the step commit. Record route-step findings in the ledger; file tracker items only when the user approves.
 
 ## Phase 5: prose
 

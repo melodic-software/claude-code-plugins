@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for lib/id.sh (CONTRACT.md "ID grammar").
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

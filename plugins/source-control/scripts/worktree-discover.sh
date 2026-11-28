@@ -1,57 +1,4 @@
 #!/usr/bin/env bash
-# worktree-discover.sh — cross-repository inventory for the worktree skill's
-# `status`, `audit` and `cleanup` when the session is not inside a repository.
-# Report only: it never writes git config, deletes, moves or repairs anything.
-#
-# Usage:
-#   worktree-discover.sh [--repo-dir REPO]... [--fallback-root-file PATH]
-#                        [--data-root-file PATH] [--project-dir DIR]
-#                        [--remove-input-files]
-#     --repo-dir            a repository to inventory (repeatable). When given,
-#                           only these repositories are discovered. Otherwise the
-#                           fleet audit's scope applies: fleet.root/fleet.repo
-#                           from <project-dir>/.claude/repo-fleet-hygiene.conf,
-#                           else ~/.claude/repo-fleet-hygiene.conf, else its
-#                           no-scope ladder (ghq roots, then an ancestor holding
-#                           2+ repositories)
-#     --project-dir         the session's project directory. A skill passes the
-#                           value its own body substituted for CLAUDE_PROJECT_DIR,
-#                           which the Bash tool's environment does not carry;
-#                           without the flag the environment variable is read, for
-#                           callers that have it
-#     --fallback-root-file  the worktree_root plugin option, as worktree-create.sh
-#     --data-root-file      the plugin data directory, as worktree-create.sh
-#     --remove-input-files  on exit, whatever the exit code, delete the files
-#                           handed to --fallback-root-file and --data-root-file,
-#                           then rmdir each one's directory (left in place when it
-#                           is not empty), as worktree-create.sh does. Armed when
-#                           the flag is parsed: a usage error before it leaves the
-#                           files. The files are read after every flag is parsed,
-#                           so an unreadable one is still removed
-#
-# Output, tab-separated:
-#   root      <path> <rung>         each distinct worktree root: the chain
-#                                   worktree-create.sh uses, evaluated once with no
-#                                   repository and once per repository (rung is
-#                                   git-config, plugin-option or plugin-data)
-#   repo      <path> <linked>       each canonical repository, with its count of
-#                                   linked worktrees anywhere on disk
-#   worktree  <path> <repo>         each direct child of a root holding a .git
-#                                   entry, with its owning repository, or `-` when
-#                                   git cannot resolve one (worktree-root-scan.sh
-#                                   classifies those); then each existing worktree
-#                                   a listed repository registers deeper below a
-#                                   root (nested inside another worktree, say),
-#                                   with that repository
-# A repository that owns a worktree under a root is listed even when discovery
-# did not reach it, and its own root is resolved and scanned in turn. A path
-# holding a tab or newline cannot be a TSV field: it is skipped with a warning
-# on stderr.
-#
-# Requires git >= 2.36.0 (`git worktree list --porcelain -z`); older git fails
-# closed with exit 5 and a message naming the floor and the installed version,
-# rather than printing an inventory that misses every linked worktree.
-#
 # Exit codes:
 #   0  inventory printed
 #   2  usage, or an unreadable root file or fleet config
@@ -69,8 +16,6 @@ fail() {
   exit 2
 }
 
-# Read-only: with this wrapper defined the resolver's retired-alias peel only
-# reads, as in the fleet audit.
 _worktree_root_git() { command git "$@"; }
 # shellcheck source=worktree-root-resolve.sh
 source "$SCRIPT_DIR/worktree-root-resolve.sh"
@@ -86,8 +31,6 @@ usage() {
   exit 2
 }
 
-# read_root_file <file>: the file's bytes verbatim; empty for an unexpanded
-# substitution token, which means the rung is unconfigured.
 read_root_file() {
   local value
   [[ -f "$1" ]] || fail "root file not found: $1"
@@ -102,9 +45,6 @@ read_root_file() {
   printf '%s' "$value"
 }
 
-# remove_input_files_on_exit: the EXIT trap behind --remove-input-files. Reads
-# the path variables at exit time. rm -f and rmdir only: a directory holding
-# anything else is left alone.
 # shellcheck disable=SC2329  # invoked by the EXIT trap
 remove_input_files_on_exit() {
   local file
@@ -118,7 +58,6 @@ remove_input_files_on_exit() {
 named=()
 fallback_root=""
 data_root=""
-# Unset until the flag appears, so an empty value is still read, and refused.
 unset fallback_root_file data_root_file
 project_dir="${CLAUDE_PROJECT_DIR:-}"
 while [[ $# -gt 0 ]]; do
@@ -161,8 +100,6 @@ SKIP_NAMES=()
 SKIP_APPEND_NAMES=()
 FLEET_CONFIG_ROOTS=()
 FLEET_CONFIG_REPOS=()
-# The fleet audit's config ladder: the project-scoped file, then the user-global
-# one. A literal ${...} that survived substitution is no project directory.
 # shellcheck disable=SC2016  # the literal token, not an expansion
 [[ "$project_dir" == '${'* ]] && project_dir=""
 conf=""
@@ -173,7 +110,6 @@ done
 if [[ -n "$conf" ]]; then
   git config --file "$conf" --list >/dev/null 2>&1 || fail "invalid Git config: $conf"
   fleet_load_config_skip "$conf"
-  # Named repositories replace the configured scope rather than adding to it.
   [[ ${#named[@]} -gt 0 ]] || fleet_load_config_scope "$conf" "${conf%/*}"
 fi
 fleet_finalize_skip_names
@@ -200,8 +136,6 @@ for r in ${search_roots[@]+"${search_roots[@]}"}; do
 done
 
 repos=()
-# owner_of <dir>: the canonical repository owning <dir>, or fail. A linked
-# worktree maps to its main checkout; a bare hub maps to its common dir.
 owner_of() {
   local common
   common="$(git -C "$1" rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
@@ -213,7 +147,6 @@ owner_of() {
     printf '%s' "$common"
   fi
 }
-# tsv_safe <path>: false, with a warning, when <path> cannot be a TSV field.
 tsv_safe() {
   [[ "$1" != *$'\t'* && "$1" != *$'\n'* ]] && return 0
   printf '%s: skipped a path holding a tab or newline: %q\n' "$PROG" "$1" >&2
@@ -243,11 +176,14 @@ add_root() {
   roots+=("$p")
   rungs+=("$2")
 }
-# The chain worktree-create.sh applies, below its explicit --root rung.
 machine_key=""
 while IFS= read -r line; do
   machine_key="${line%$'\r'}"
 done < <(git config --global --includes --type=path --get-all worktreeroot.path 2>/dev/null)
+while IFS= read -r line; do
+  line="${line%$'\r'}"
+  [[ -n "$line" ]] && add_root "$line" git-config
+done < <(worktree_root_list_all)
 rest_of_chain() {
   if [[ -n "$fallback_root" ]]; then
     add_root "$fallback_root" plugin-option
@@ -255,10 +191,8 @@ rest_of_chain() {
     add_root "$data_root/worktrees" plugin-data
   fi
 }
-if [[ -n "$machine_key" ]]; then add_root "$machine_key" git-config; else rest_of_chain; fi
+[[ -n "$machine_key" ]] || rest_of_chain
 
-# --- Resolve each repository's root and scan each root, until neither grows --
-# A root scan can find an owner discovery missed, whose own root may differ.
 wt_rows=""
 wt_seen=$'\n'
 resolved=0
@@ -290,16 +224,10 @@ while [[ $resolved -lt ${#repos[@]} || $scanned -lt ${#roots[@]} ]]; do
   done
 done
 
-# --- Registered worktrees the scan cannot see -------------------------------
-# The scan reads only a root's direct children, so a worktree nested deeper
-# (inside another worktree's .work/, or under a per-repository directory) is
-# found through its repository's own registration instead.
 roots_phys=()
 for i in ${roots[@]+"${!roots[@]}"}; do
   roots_phys[i]="$(cd -P -- "${roots[$i]}" 2>/dev/null && pwd)" || roots_phys[i]=""
 done
-# under_root <path>: true when a root holds <path>, which is put into UNDER
-# in that root's spelling, so it matches the scan's rows.
 under_root() {
   local i phys
   for i in ${roots[@]+"${!roots[@]}"}; do
@@ -317,7 +245,6 @@ under_root() {
 
 repo_rows=""
 for r in ${repos[@]+"${repos[@]}"}; do
-  # Fail closed: a git that rejects -z would otherwise read as no worktrees.
   porcelain="$(mktemp)" || fail "cannot create a temporary file"
   if ! git -C "$r" worktree list --porcelain -z >"$porcelain" 2>/dev/null; then
     rm -f -- "$porcelain"
@@ -327,7 +254,6 @@ for r in ${repos[@]+"${repos[@]}"}; do
   worktree_facts_parse_z "$porcelain"
   rm -f -- "$porcelain"
   linked=$((${#WT_FACT_PATH[@]} - 1))
-  # The first record is the main checkout or the bare hub.
   for i in ${WT_FACT_PATH[@]+"${!WT_FACT_PATH[@]}"}; do
     ((i > 0)) || continue
     under_root "${WT_FACT_PATH[$i]}" || continue

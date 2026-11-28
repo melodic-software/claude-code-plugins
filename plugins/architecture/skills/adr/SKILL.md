@@ -1,5 +1,5 @@
 ---
-description: "Architecture decision records in the repo's ADR convention: record one (retiring the record it reverses after a yes; with no convention, nothing is written until the human picks a shape), audit which records the code no longer backs (read-only), prune the records the person accepts. Use when 'record this decision', 'write an ADR', 'capture this decision', 'document why we chose X', 'we are reversing ADR 7', 'prune our ADRs', 'prune the ADRs', 'are our ADRs still current', or a design handoff or interview resolves a decision worth keeping. Skip when no real alternative was weighed, or the ask is an index, a template migration, or status lifecycle."
+description: "Architecture decision records: record (retires reversed record on yes; if no convention, writes nothing until human picks a shape), audit unbacked records (read-only), prune accepted. Use for 'write an ADR', 'record this decision', why we chose X, design interview, current ADRs. Skip if no alternative was weighed, or indices/migrations/status."
 argument-hint: "[record|audit|prune] [--repo <repo> ...] [decision and rationale, or a file holding them]"
 user-invocable: true
 disable-model-invocation: false
@@ -59,8 +59,8 @@ Never invent them.
 Three optional keys, all documented in
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md)
 "Decision-record keys", which owns the layers and the invalid-value rule: `adr_template`, a template
-file used when the repository has no ADR convention; `adr_extra_triggers`, triggers that join the
-admission test's "at least one" list; and `adr_retirement`, how a record is retired (`delete`, the
+file used when the repository has no ADR convention; `adr_extra_triggers`, decisions the team treats
+as one-way doors in the admission test; and `adr_retirement`, how a record is retired (`delete`, the
 default, `supersede` or `archive`). Resolve them once, before any action, and report each value with
 the layer that supplied it, `adr_retirement` in one line. The `userConfig` values are
 `${user_config.adr_template}` and `${user_config.adr_retirement}`; empty or a literal unexpanded

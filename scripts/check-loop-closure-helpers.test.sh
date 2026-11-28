@@ -1,20 +1,4 @@
 #!/usr/bin/env bash
-# Behavioral tests for the shared helpers carried by the loop-closure snippet
-# reference, plugins/visualization/reference/html-loop-closure.html.
-#
-#   bash scripts/check-loop-closure-helpers.test.sh
-#
-# WHY THIS EXISTS. That asset is a SNIPPET surface: every skill that adopts a
-# loop-closure or export pattern copies its helpers verbatim, so a helper that
-# silently loses a case is inherited by every copy and caught by nothing. The
-# html-assets gate lints the file's MARKUP; markup linting says nothing about
-# whether esc still escapes the single quote or whether safeHref still refuses
-# a javascript: URL. This suite is the discriminating check on the behavior.
-#
-# The helpers are extracted from the live asset between the two comment
-# markers the file uses to bound them, so this suite tests the shipped text
-# rather than a copy. Losing a marker fails the suite loudly.
-#
 # Exit 0 clean, 1 findings, 2 environment (node missing, markers missing).
 set -uo pipefail
 
@@ -47,15 +31,15 @@ const bad = (label) => { fail += 1; console.error(`FAIL: ${label}`); };
 const check = (cond, label) => (cond ? ok(label) : bad(label));
 
 // --- extract the helper block from the shipped asset ---------------------
-const OPEN = "/* ---- the four shared helpers ---- */";
-const CLOSE = "/* ---- pattern snippets, printed into their pre blocks as text ---- */";
+const OPEN = "function esc(";
+const CLOSE = "var SNIPPETS =";
 const from = src.indexOf(OPEN);
 const to = src.indexOf(CLOSE);
 if (from === -1 || to === -1 || to <= from) {
-  console.error("check-loop-closure-helpers: helper block markers not found in the asset");
+  console.error("check-loop-closure-helpers: helper block bounds not found in the asset");
   process.exit(2);
 }
-const helpers = src.slice(from + OPEN.length, to);
+const helpers = src.slice(from, to);
 
 // esc, safeHref and safeFilename are pure; copyText and downloadText touch the
 // DOM, so they are asserted at source level below rather than executed.

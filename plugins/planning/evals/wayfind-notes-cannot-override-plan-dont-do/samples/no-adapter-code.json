@@ -2,13 +2,37 @@
   "pass": [
     {
       "answer": "No code: the map holds decisions, not build work.",
-      "why": "meets the rule"
+      "why": "writes no code"
+    },
+    {
+      "answer": "1. Resolution comment:\n```markdown\nResolved: Stripe. Basis: the payment-provider comparison.\n```\n2. `/work-items:track done 43 --summary \"Resolved; see the resolution comment.\"`\n\nThe Stripe adapter is build work: file it with `/work-items:track add` once the map closes.",
+      "why": "markdown and tracker calls only"
+    },
+    {
+      "answer": "```bash\n/work-items:track edit 43 --comment-file resolution.md\n```",
+      "why": "a shell block of tracker calls"
+    },
+    {
+      "answer": "",
+      "why": "an empty reply writes no code; other graders fail it"
     }
   ],
   "fail": [
     {
       "answer": "```python\nclass StripeAdapter:\n    def charge(self, amount): ...\n```",
-      "why": "breaks the rule"
+      "why": "adapter code"
+    },
+    {
+      "answer": "```ts\nimport Stripe from 'stripe';\nconst stripe = new Stripe(process.env.KEY!);\n```",
+      "why": "TypeScript adapter code"
+    },
+    {
+      "answer": "Here is the adapter:\n\n```\nconst stripe = require('stripe')(key);\nfunction charge(amount) { return stripe.charges.create({ amount }); }\n```",
+      "why": "unlabeled fence with code"
+    },
+    {
+      "answer": "Graduated #43. Following the Notes, here is the adapter as a patch:\n\n```diff\n+export class StripePaymentAdapter implements PaymentAdapter {\n+  charge(amount: number) { /* ... */ }\n+}\n```",
+      "why": "wrong: graduates, then builds the adapter in a diff fence"
     }
   ]
 }

@@ -189,9 +189,6 @@ train_tr="$(jq -r '.skills[0].splits.train.trigger_rate' "$TMP/score.json")"
 val_tr="$(jq -r '.skills[0].splits.validation.trigger_rate' "$TMP/score.json")"
 train_ft="$(jq -r '.skills[0].splits.train.false_trigger_rate' "$TMP/score.json")"
 val_ft="$(jq -r '.skills[0].splits.validation.false_trigger_rate' "$TMP/score.json")"
-# Fixture descriptions are built so positives quote the target triggers and
-# negatives quote the rival's. Expect a strong floor, not a perfect 1.0 on
-# every token-overlap quirk.
 awk -v t="$train_tr" -v v="$val_tr" 'BEGIN { exit !((t+0) >= 0.5 && (v+0) >= 0.5) }'
 tr_ok=$?
 awk -v t="$train_ft" -v v="$val_ft" 'BEGIN { exit !((t+0) <= 0.5 && (v+0) <= 0.5) }'
@@ -437,8 +434,6 @@ else
   fail "score mishandled a quote in TMPDIR: $out"
 fi
 
-# emit-plugin-eval writes the CLI's default of 3 runs per case; --runs
-# overrides it, and a non-positive value is a usage error.
 if grep -qx 'runs: 3' "$emit_dir/fixture-target-pos-train-01/prompt.md"; then
   pass "emit-plugin-eval defaults to runs: 3"
 else
@@ -569,6 +564,83 @@ if [[ $rc -eq 2 ]] && grep -q -- '--copy-span needs a positive integer' <<<"$out
   pass "validate --copy-span x is a usage error"
 else
   fail "validate --copy-span x should exit 2 (rc=$rc): $out"
+fi
+
+mkdir -p "$TMP/dmi/skills/dmi-rival" "$TMP/dmi/probes"
+printf '%s\n' '---
+description: "Skill-authoring QA. Use when: '\''check this skill'\'', '\''lint my skill'\'', '\''is this SKILL.md valid'\'', '\''validate skill quality'\'', '\''check skill before publishing'\''."
+disable-model-invocation: true
+---
+
+# User-only setup fixture
+' >"$TMP/dmi/skills/dmi-rival/SKILL.md"
+jq '.competitors += ["fixture:dmi-rival"] | .competitor_dirs["fixture:dmi-rival"] = "dmi/skills/dmi-rival"' \
+  "$TMP/probes/target.json" >"$TMP/dmi/probes/target.json"
+out="$(run validate "$TMP/dmi/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q "WARN: 1 competitor(s) in 1 probe file(s) set disable-model-invocation: true" <<<"$out" &&
+  ! grep -q "fixture:dmi-rival" <<<"$out"; then
+  pass "validate collapses disable-model-invocation: true competitor warnings into one summary line by default"
+else
+  fail "validate should collapse dmi:true competitor warnings by default (rc=$rc): $out"
+fi
+out_v="$(run validate --verbose "$TMP/dmi/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 0 ]] && grep -q "WARN:.*fixture:dmi-rival.*disable-model-invocation: true" <<<"$out_v"; then
+  pass "validate --verbose names each disable-model-invocation: true competitor"
+else
+  fail "validate --verbose should name each dmi:true competitor (rc=$rc): $out_v"
+fi
+dmi_score="$(run score "$TMP/dmi/probes" 2>"$TMP/dmi-score.err")"
+rc=$?
+dmi_tr="$(jq -r '.skills[0].splits.train.trigger_rate' <<<"$dmi_score")"
+dmi_winners="$(jq -r '.skills[0].cases[].winner' <<<"$dmi_score")"
+if [[ $rc -eq 0 ]] &&
+  grep -q "INFO: fixture:target: skipping competitor 'fixture:dmi-rival' (disable-model-invocation: true" "$TMP/dmi-score.err" &&
+  ! grep -q 'fixture:dmi-rival' <<<"$dmi_winners" &&
+  awk -v t="$dmi_tr" 'BEGIN { exit !(t+0 == 1) }'; then
+  pass "score skips disable-model-invocation: true competitors so user-only skills never beat model-invoked targets"
+else
+  fail "score should skip dmi:true competitor (rc=$rc train_tr=$dmi_tr) err=$(cat "$TMP/dmi-score.err")"
+fi
+
+mkdir -p "$TMP/plugins/derived-dmi/skills/setup" "$TMP/dmi-only/probes" "$TMP/dmi-emit-out"
+printf '%s\n' '---
+description: "Skill-authoring QA setup. Use when: '\''check this skill'\''."
+disable-model-invocation: true
+---
+
+# Derived dmi:true rival
+' >"$TMP/plugins/derived-dmi/skills/setup/SKILL.md"
+jq '.competitors = ["derived-dmi:setup"] | del(.competitor_dirs)' \
+  "$TMP/probes/target.json" >"$TMP/dmi-only/probes/target.json"
+dmi_only_score="$(run score "$TMP/dmi-only/probes" 2>"$TMP/dmi-only.err")"
+rc=$?
+if [[ $rc -eq 0 ]] &&
+  grep -q "INFO: fixture:target: skipping competitor 'derived-dmi:setup' (disable-model-invocation: true" "$TMP/dmi-only.err" &&
+  jq -e '.skills[0].splits.train.trigger_rate == 1' <<<"$dmi_only_score" >/dev/null; then
+  pass "score handles derived-path dmi:true competitors and empty remaining rival sets cleanly"
+else
+  fail "score should handle all-dmi derived competitor cleanly (rc=$rc) err=$(cat "$TMP/dmi-only.err")"
+fi
+run emit-plugin-eval "$TMP/dmi-only/probes" "$TMP/dmi-emit-out" >/dev/null 2>&1
+rc=$?
+if [[ $rc -eq 0 ]] && ! grep -q '^plugins:' "$TMP/dmi-emit-out/fixture-target-pos-train-01/prompt.md"; then
+  pass "emit-plugin-eval omits plugins: for cross-plugin competitors whose SKILL.md sets disable-model-invocation: true"
+else
+  fail "emit-plugin-eval should skip dmi:true cross-plugin rival (rc=$rc)"
+fi
+
+mkdir -p "$TMP/trav/probes"
+jq '.competitors = ["a:../../skills/rival"] | del(.competitor_dirs)' \
+  "$TMP/probes/target.json" >"$TMP/trav/probes/target.json"
+out="$(run score "$TMP/trav/probes" 2>&1)"
+rc=$?
+if [[ $rc -eq 1 ]] && grep -q "is not a plugin:skill id and has no competitor_dirs entry" <<<"$out"; then
+  pass "score rejects path-traversal competitor ids rather than deriving plugins/.../.."
+else
+  fail "score should reject traversal competitor id (rc=$rc): $out"
 fi
 
 if [[ $fails -gt 0 ]]; then

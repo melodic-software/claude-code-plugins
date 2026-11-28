@@ -1,7 +1,4 @@
 #!/usr/bin/env node
-/**
- * Expand visual-gaps.md for densification windows without promoted frames.
- */
 
 import fs from "node:fs";
 import path from "node:path";

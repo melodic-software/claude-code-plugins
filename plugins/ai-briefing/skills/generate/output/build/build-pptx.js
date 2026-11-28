@@ -9,8 +9,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const { meta, theme, slides } = await loadSlidesData();
 const OUTPUT = deckPath(meta.meetingNumber, "pptx");
 
-// Optional org logo as base64 data URI (pptxgenjs needs path or base64). Empty
-// when the active brand ships no logo — the addImage sites below skip it.
 const logoWhiteData = meta.logoWhite
   ? `data:image/png;base64,${fs.readFileSync(path.resolve(__dirname, meta.logoWhite)).toString("base64")}`
   : "";

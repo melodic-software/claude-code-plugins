@@ -4,30 +4,19 @@
 ``${user_config.*}`` body-token expansion in skill content is not reliable
 enough to carry a safety report: an unexpanded token is indistinguishable from
 "unset" and would present the assumed default as the configured value. This
-probe reads the merged plugin options where Claude Code stores them —
-``pluginConfigs[<plugin-id>].options`` in the user ``settings.json`` — and
-reports the effective boolean with its provenance, degrading honestly when a
-definitive read is impossible.
-
-The read itself lives in the plugin-level ``lib/killswitch_config.py`` module so
-this report-only probe and the destructive-action guard resolve the switch the
-same single way (reuse-or-replace: one reader, not two). This file is the
-report-only CLI over that reader.
+probe reads the effective plugin option through ``lib/killswitch_config.py``
+(managed settings plus ``managed-settings.d/*.json`` over user ``settings.json``,
+narrowed to this install's ``plugin_id`` when present) and reports the effective
+boolean with its provenance, degrading honestly when a definitive read is
+impossible.
 
 Report-only: exit code is always 0 and the single-line JSON on stdout is the
 whole contract. This report is how the ``clean`` skill self-enforces audit-only
 mode when a body token arrives unexpanded.
 
-Scope: managed settings and a ``--settings`` flag can also carry
-``pluginConfigs`` and are not visible here; the ``detail`` sentence states the
-path actually probed so the reader can judge the claim.
-
 The report also carries ``hook_python`` and ``data_root``: the absolute
 interpreter and the ``--data-root`` value the destructive guard admits,
-computed by the guard's own ``launch_disclosure`` for this install root. The guard admits this probe only under its own interpreter, so
-under the ``clean`` belt ``hook_python`` is that interpreter by construction,
-and ``data_root`` is the value every engine call must pass. ``data_root`` is
-``null`` when the guard could resolve no authority either.
+computed by ``lib/install_authority.py`` for this install root.
 """
 
 from __future__ import annotations
@@ -38,14 +27,11 @@ import sys
 from pathlib import Path
 
 _PLUGIN_ROOT = Path(__file__).resolve().parents[3]
-for _module_dir in (
-    _PLUGIN_ROOT / "lib",
-    _PLUGIN_ROOT / "skills" / "clean" / "scripts",
-):
-    if str(_module_dir) not in sys.path:
-        sys.path.insert(0, str(_module_dir))
+_LIB_DIR = _PLUGIN_ROOT / "lib"
+if str(_LIB_DIR) not in sys.path:
+    sys.path.insert(0, str(_LIB_DIR))
 
-import destructive_guard  # noqa: E402  (path set above; plugin-bundled module)
+import install_authority  # noqa: E402  (path set above; plugin-bundled module)
 import killswitch_config  # noqa: E402  (path set above; plugin-bundled module)
 
 default_settings_path = killswitch_config.default_settings_path
@@ -53,10 +39,15 @@ probe = killswitch_config.probe
 
 
 def report(settings_path: Path) -> dict[str, object]:
-    """The kill-switch report plus the guard's launch disclosure."""
+    plugin_root = str(_PLUGIN_ROOT)
+    plugin_id = install_authority.plugin_id_from_root(plugin_root)
     return {
-        **probe(settings_path),
-        **destructive_guard.launch_disclosure(str(_PLUGIN_ROOT)),
+        **killswitch_config.probe_effective(
+            settings_path,
+            killswitch_config.managed_settings_path(),
+            plugin_id,
+        ),
+        **install_authority.launch_disclosure(plugin_root),
     }
 
 

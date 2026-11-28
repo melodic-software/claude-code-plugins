@@ -143,13 +143,10 @@ describe("buildPreflightArgs", () => {
     expect(args).toContain("--no-playlist");
     expect(args).toContain("--print");
     expect(args.at(-1)).toBe(DRIVER_WATCH_URL);
-    // default js-runtime auth flag is appended (env has no cookie config)
     expect(args).toContain("--js-runtimes");
   });
 
   it("threads a cookies-from-browser override into the probe for a capability-declaring source", () => {
-    // Production only supplies this override from the fallback loop, which is
-    // itself gated on the same capability the argv gate reads.
     const args = buildPreflightArgs(DRIVER_WATCH_URL, {
       env: {},
       authOverride: { cookiesFromBrowser: "edge" },
@@ -196,7 +193,6 @@ describe("preflightVideo", () => {
   });
 
   it("caps a long title before escaping it, so the cap never leaves a dangling backslash", async () => {
-    // 58 characters then a pipe at the cap's last kept position (59 kept + the ellipsis = 60).
     const title = `${"x".repeat(58)}|tail`;
     const stdout = ["7zZy1QTvokM", title, "Austin Marchese", "@austin.marchese"].join(PREFLIGHT_FIELD_SEP);
     const spawn = () => Promise.resolve(spawnResult({ success: true, code: 0, stdout }));

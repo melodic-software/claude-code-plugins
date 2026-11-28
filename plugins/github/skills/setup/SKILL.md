@@ -1,5 +1,5 @@
 ---
-description: "Verify the github plugin's prerequisites (gh CLI present and authenticated, credential-modality picture, consumer config layers) and write the consumer's .claude/github/ config (change routing + conventions stub). Actions: check (report-only) and apply (idempotent, interview-driven)."
+description: "Verify gh CLI prerequisites and auth scope (check, read-only) or write .claude/github/ routing and conventions config (apply)."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -25,7 +25,7 @@ Report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify nothing
    a needed scope is missing, report it as the honest-degradation gate and recommend the exact
    `gh auth refresh` command **for the user to run themselves**. Never auto-run a re-consent, no
    matter what standing "fix it automatically" instructions exist.
-4. **Config layers**. Resolve both files (`routing.yaml`,`conventions.md`) per
+4. **Config layers**. Resolve both files (`routing.yaml`, `conventions.md`) per
    `${CLAUDE_PLUGIN_ROOT}/reference/change-routing.md` and
    `${CLAUDE_PLUGIN_ROOT}/reference/conventions-file.md`, anchored at the repo root, and report a
    PASS/FAIL/INFO row per layer, with one remediation line per FAIL:

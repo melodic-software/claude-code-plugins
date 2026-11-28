@@ -1,5 +1,5 @@
 ---
-description: "Mutation analysis that reports surviving mutants, on the diff or, with `--exercised`, on the production code the changed tests call. Use when: the user asks to run mutation testing or for a mutation score on a change ('run mutation testing'), doubts a suite whose coverage looks healthy ('my coverage is high but I do not trust it'), asks whether the tests, including ones just written, actually check the code, asks to audit test quality, or wants the survivors persisted for the fix pass; after tests go green and before review."
+description: "Mutation analysis reporting surviving mutants on a change's diff or (`--exercised`) code called by changed tests; reverts tracked source and writes no tests (`--persist-findings` for a fix pass). Use when: 'run mutation testing', 'my coverage is high but I do not trust it', auditing a green test suite's quality, or checking if tests check code."
 argument-hint: "--exercised --full --paths --max --no-suppress --persist-findings [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -115,8 +115,8 @@ or `--exercised <test-path>` instead and inherit these limits; `--record-mutants
 no-coverage column, with that row's option and source cited in the scope report. Otherwise run the
 manual protocol ([Phase 2](#phase-2-generate)) with the config's `test-command`, replacing the
 `{tests}` word with the test paths, each wrapped in single quotes with every `'` inside it written
-as `'\''`, so no character in a file name reaches the shell unquoted. When `test-command` starts with `dotnet test`, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/dotnet-test-selection.sh" <test path>...`
-over the test set instead, as [`context/tool-test-restriction.md`](context/tool-test-restriction.md) "Running a .NET test set" says. No `test-command`, one where `{tests}` is not a standalone unquoted word, or another
+as `'\''`, so no character in a file name reaches the shell unquoted. When `test-command` starts with `dotnet test`, run `bash "${CLAUDE_PLUGIN_ROOT}/scripts/dotnet-test-selection.sh" <test path>...` <!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh -->
+over the test set instead, as [`context/tool-test-restriction.md`](context/tool-test-restriction.md) "Running a .NET test set" says. No `test-command`, one where `{tests}` is not a standalone unquoted word, or another <!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh -->
 runner that only filters by name: refuse, naming `/mutation-testing:setup apply`. This is decided in Phase 0 and never switched mid-run.
 
 **Phase 0, in this order:** config; tool availability; the test set; which files are tests; the

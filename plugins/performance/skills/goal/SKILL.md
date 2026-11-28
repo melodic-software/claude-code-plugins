@@ -1,5 +1,5 @@
 ---
-description: "Performance goal the data can settle: metric, command, realistic and ideal targets, and the floor computed before any work, surfacing 'your target is below the measured floor, no code change can reach it' up front. Human-gated, never unattended. Use when: 'set a performance target', 'is this target achievable', 'define done for this optimization', 'what is the floor here'. After /performance:target, before /performance:snapshot."
+description: "Data-settled performance goal: metric command, drift-immune counter, realistic/ideal target, and floor computed before work so a target below floor surfaces up front (human-gated, never unattended). Use when: 'set a performance target', 'define done for this optimization', 'what is the floor here'. Not for capture: /performance:snapshot."
 user-invocable: true
 argument-hint: "[<target>]"
 disable-model-invocation: false

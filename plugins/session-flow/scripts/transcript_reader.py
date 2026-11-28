@@ -88,7 +88,6 @@ TOKEN_FIELDS = (
     "cache_creation_5m",
 )
 
-# Text that arrives as a user record but was not typed by the human.
 INJECTED_PREFIXES = (
     "<local-command-caveat>",
     "<local-command-stdout>",
@@ -110,7 +109,6 @@ INJECTED_PREFIXES = (
     "Caveat:",
     "<user-prompt-submit-hook>",
 )
-# What Claude Code writes into a denied tool call's result text.
 CLASSIFIER_DENIAL = "denied by the Claude Code auto mode classifier"
 CLASSIFIER_REASON_RE = re.compile(r"Reason: \[([^\]\n]{1,80})\]")
 UNEXPLAINED_RE = re.compile(r"gave no explanation", re.I)
@@ -121,19 +119,18 @@ HOOK_LABEL_RE = re.compile(r"^([a-z0-9][\w.-]{1,40}): ")
 INTERRUPT_RE = re.compile(r"^\[Request interrupted by user( for tool use)?\]")
 LEADING_REMINDER_RE = re.compile(r"<system-reminder>.*?</system-reminder>\s*", re.S)
 TYPED_PROMPT_SOURCES = {"typed", "queued"}
-# Recognized but deliberately unread: each holds session or UI state that feeds no metric.
 IGNORED_RECORD_TYPES = frozenset(
     {
-        "atis-latch",  # a latched session flag
-        "mode",  # session mode, apart from permission-mode
-        "bridge-session",  # remote bridge id and sequence number
-        "relocated",  # the cwd a session moved to
-        "file-history-delta",  # one file backup for checkpoint rewind
-        "cost-state",  # running cost and duration totals
-        "fork-context-ref",  # pointer to a forked session's context
-        "frame-link",  # artifact links and their count
-        "artifact-comment-monitor",  # watched-artifact comment state
-        "artifact-autoreact-ledger",  # artifact auto-react state
+        "atis-latch",
+        "mode",
+        "bridge-session",
+        "relocated",
+        "file-history-delta",
+        "cost-state",
+        "fork-context-ref",
+        "frame-link",
+        "artifact-comment-monitor",
+        "artifact-autoreact-ledger",
     }
 )
 STREAM_RECORD_TYPES = frozenset(
@@ -149,7 +146,7 @@ STREAM_RECORD_TYPES = frozenset(
 )
 RECORD_TYPES = IGNORED_RECORD_TYPES | STREAM_RECORD_TYPES | frozenset(
     {
-        "ai-title",  # used: `aiTitle`, the generated session title, a predecessor link key
+        "ai-title",
         "user",
         "assistant",
         "system",
@@ -189,7 +186,6 @@ def decode_line(line: str, stats: dict[str, int] | None = None) -> dict | None:
     except json.JSONDecodeError:
         record = None
     if not isinstance(record, dict):
-        # Only the last line can lack its newline: a session still being written.
         counts["bad_lines" if line.endswith("\n") else "incomplete"] += 1
         return None
     counts["records"] += 1

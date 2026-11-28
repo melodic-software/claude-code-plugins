@@ -1,5 +1,5 @@
 ---
-description: "Audit the Claude Code instruction/memory layer covering CLAUDE.md, a root AGENTS.md, CLAUDE.local.md, .claude/rules/, and auto-memory against a codified checklist derived from official Claude Code documentation. Use when: 'audit CLAUDE.md', 'audit AGENTS.md', 'memory health', 'audit rules', 'is my CLAUDE.md too long', 'prune instructions', after CLAUDE.md/rules changes or a Claude Code upgrade; actions: audit (default), fix, update, report."
+description: "Audit Claude Code instruction/memory files (CLAUDE.md, root AGENTS.md, CLAUDE.local.md, .claude/rules/, auto-memory) against official-docs checks; actions: audit (default), fix, update, report. Use when: 'audit CLAUDE.md', 'audit AGENTS.md', 'memory health', or pruning rules. Not for config/hooks: /harness-config:audit."
 argument-hint: "[audit|fix|update|report] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -30,7 +30,7 @@ the `audit` and `audit-automation-gaps` skills in the `harness-config` plugin).
 | Entity | Location | Load model this audit uses | Audited here |
 |--------|----------|--------|-------------|
 | Project instructions | `CLAUDE.md` | Every session, full | Yes |
-| Project instructions in `AGENTS.md` | `AGENTS.md` and `.claude/AGENTS.md` at the root | Audited only where discovery reports Claude Code reads it; `scripts/lib/agents-md.sh` holds the condition and its record | Yes, as the project instructions (the C-checks) |
+| Project instructions in `AGENTS.md` | `AGENTS.md` and `.claude/AGENTS.md` at the root | Audited only where discovery reports Claude Code reads it; the condition and its record are in [official-guidance.md](reference/official-guidance.md#compaction-by-steering-method) | Yes, as the project instructions (the C-checks) |
 | Local overrides | `CLAUDE.local.md` | Every session, full | Yes |
 | Rules | `.claude/rules/**/*.md` | Every session (unconditional) or on-demand (path-scoped) | Yes |
 | **User instructions** | `${CLAUDE_CONFIG_DIR:-~/.claude}/CLAUDE.md` | Every session, full, in **every** project | Yes |
@@ -224,7 +224,7 @@ such findings under a `REPO` check-ID so they stay distinct from the doc-derived
 
 ## Next
 
-- A finding names a rule a check can enforce: /corrections:codify rules <file>.
+/corrections:codify rules <file>, when a finding names a rule a check can enforce.
 
 ## Related
 

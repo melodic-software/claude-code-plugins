@@ -9,14 +9,24 @@ SP_PYPROJECT='^[[:space:]]*\[tool\.typos(\]|[.])'
 SP_CARGO='^[[:space:]]*\[(workspace|package)\.metadata\.typos(\]|[.])'
 SP_INSTALL='cargo install typos-cli, or another method at https://github.com/crate-ci/typos#install'
 
-SP_CONFIG="${here:-.}/default-typos.toml"
-[[ -f "$SP_CONFIG" ]] || SP_CONFIG="${here:-.}/../config/default-typos.toml"
-if [[ -f "$SP_CONFIG" ]]; then
-  SP_CONFIG="$(cd "${SP_CONFIG%/*}" && pwd)/${SP_CONFIG##*/}"
+SP_BUNDLED="${here:-.}/default-typos.toml"
+[[ -f "$SP_BUNDLED" ]] || SP_BUNDLED="${here:-.}/../config/default-typos.toml"
+if [[ -f "$SP_BUNDLED" ]]; then
+  SP_BUNDLED="$(cd "${SP_BUNDLED%/*}" && pwd)/${SP_BUNDLED##*/}"
 else
-  SP_CONFIG=""
+  SP_BUNDLED=""
 fi
+SP_CONFIG="$SP_BUNDLED" SP_BASE_NOTE=""
 export SP_CONFIG
+
+# shellcheck disable=SC2154 # RT_STANDARDS_FILE is set by resolve-tool.sh's rt_standards_file
+sp__base() {
+  if rt_standards_file "$1" _typos.toml; then
+    SP_CONFIG="$RT_STANDARDS_FILE" SP_BASE_NOTE=" over the standards config"
+  else
+    SP_CONFIG="$SP_BUNDLED" SP_BASE_NOTE=""
+  fi
+}
 
 rt_wants() {
   return 0
@@ -85,10 +95,14 @@ sp__dir() {
 sp__detail() {
   local rel="${1#"$2"}"
   rel="${rel#/}"
-  RT_DETAIL="config ${rel:+$rel/}$SP_NAME; binary typos on PATH"
+  RT_DETAIL="config ${rel:+$rel/}$SP_NAME$SP_BASE_NOTE; binary typos on PATH"
 }
 sp__detail_none() {
-  RT_DETAIL="no typos config: typos defaults plus the bundled config; binary typos on PATH"
+  if [[ -n "$SP_BASE_NOTE" ]]; then
+    RT_DETAIL="no typos config: typos defaults plus the standards config; binary typos on PATH"
+  else
+    RT_DETAIL="no typos config: typos defaults plus the bundled config; binary typos on PATH"
+  fi
 }
 
 # shellcheck disable=SC2034 # RT_* are read by resolve-tool.sh and the entry
@@ -99,6 +113,7 @@ rt_adapter() {
     RT_DETAIL="generated (marker: $SP_MARKER)"
     return 1
   fi
+  sp__base "$3"
   if sp__walk "$(sp__dir "$2" "$3")" "$3"; then
     sp__detail "$SP_WALK_DIR" "$3"
   else
@@ -117,6 +132,7 @@ rt_adapter_in_repo() {
     RT_DETAIL="spelling ships no $1 adapter"
     return 1
   fi
+  sp__base "$2"
   if ! sp__config_name "$2"; then
     found=0
     while IFS= read -r f; do
@@ -134,7 +150,6 @@ rt_adapter_in_repo() {
   fi
 }
 
-# the repository's excludes and nested configs govern it as they do the file.
 # shellcheck disable=SC2154 # CHECKS_TMP is set by check-lib.sh's checks_init
 sp_mirror() {
   local f="$1" root="$CHECKS_TMP/mirror" rel="." rest="$1" name

@@ -1,165 +1,4 @@
 #!/usr/bin/env bash
-# cant-fail-scan.sh — deterministic detector for tests that cannot fail.
-#
-# Three rules, v1 (ids are the qualified detector-findings form; the per-file
-# engine and its heuristics live in cant-fail-scan.awk next to this driver):
-#
-#   testing/audit/rule-zero-assertion        a runnable test body containing 0
-#                                            assertion tokens (threshold: 0).
-#   testing/audit/rule-recomputed-expectation an equality assertion whose actual
-#                                            and expected sides are the identical
-#                                            expression, i.e. the expected value
-#                                            is recomputed rather than stated
-#                                            (threshold: >= 1 such assertion).
-#                                            v1 detects the decidable core —
-#                                            textually identical sides — not
-#                                            every recomputation shape.
-#   testing/audit/rule-mock-only-oracle      a test constructing mocks whose
-#                                            every assertion is a mock-interaction
-#                                            assertion, with no assertion on a
-#                                            real collaborator (threshold: 100%).
-#                                            Interaction-style tests are the known
-#                                            benign case, so this rule is advisory
-#                                            in --check unless --strict.
-#
-# Eight more rules print and count. inert-assertion and conditional-assertion
-# gate --check as zero-assertion does; the other six are report-only and never
-# gate, --strict included:
-#
-#   testing/audit/rule-inert-assertion       an assertion statement that never
-#                                            evaluates: an async matcher nothing
-#                                            awaits, a Python tuple assert, a
-#                                            bare .Should(), a bats run whose
-#                                            result nothing checks (threshold:
-#                                            >= 1 such statement). Can't fail.
-#   testing/audit/rule-constant-restatement  a constant, or a local literal the
-#                                            test never passes to code, compared
-#                                            to a literal (threshold: >= 1).
-#                                            A change detector: it can fail.
-#   testing/audit/rule-source-text-read      a read of a tracked, non-test
-#                                            source file by a static path
-#                                            (threshold: >= 1). A change
-#                                            detector: it can fail.
-#   testing/audit/rule-conditional-assertion every assertion inside an if, a
-#                                            catch or a loop over a result,
-#                                            with no else and no length check,
-#                                            or in C# a bare return; before
-#                                            every assertion (threshold: 100%).
-#                                            Can't fail on the path that skips
-#                                            them.
-#   testing/audit/rule-recomputed-derived    an expected value built from the
-#                                            arguments of the call under test
-#                                            with an operator or an aggregate
-#                                            (threshold: >= 1). Property-test
-#                                            files and Playwright are exempt.
-#   testing/audit/rule-snapshot-only         every assertion is a snapshot
-#                                            call (threshold: 100%); never an
-#                                            image comparison.
-#   testing/audit/rule-weak-oracle           every assertion is a weak matcher
-#                                            (toBeDefined, is not None,
-#                                            Assert.NotNull) or an over-broad
-#                                            exception check (threshold: 100%).
-#   testing/audit/rule-throw-only-oracle     every assertion checks only that a
-#                                            value the test built with new
-#                                            exists or has its type, so only a
-#                                            throwing constructor fails the test
-#                                            (threshold: 100%). A smoke test: it
-#                                            can fail.
-#
-# Two runner-config rules find the same shape one level up, in the Playwright
-# config rather than in a test body (engine: runner-config-scan.awk, one config
-# per invocation, loaded beside the shared masker mask-js.awk):
-#
-#   testing/audit/rule-flaky-passes-suite    retries are configured and
-#                                            failOnFlakyTests is absent or
-#                                            literal false, so a test that fails
-#                                            and passes on a retry leaves the run
-#                                            green.
-#   testing/audit/rule-only-not-forbidden    forbidOnly is absent or literal
-#                                            false, so a committed test.only
-#                                            shrinks the suite to one passing
-#                                            test instead of failing the run.
-#
-# rule-flaky-passes-suite also reads the other runners' retry settings (engine:
-# retry-config-scan.awk): pytest-rerunfailures reruns in a pytest config with
-# --fail-on-flaky absent from addopts, a Vitest config's test retry, and a Jest
-# jest.retryTimes call; Vitest and Jest have no fail-on-flaky switch, so a
-# retry count above zero is the finding.
-#
-# All are advisory in --check unless --strict, which gates them together with
-# mock-only-oracle; there is no finer switch. A config file is not a test file:
-# config findings are reported wherever they are found, but the exit-2 rule for
-# 0 examined TEST files is unchanged, and a config-only tree neither gates nor
-# persists them.
-#
-# Ecosystems: whatever the adapters/*.yaml files claim by their files: globs
-# or by content (JS/TS, Python, C#, Bash, bats, Pester, Go). An adapter marked
-# advisory (bash-harness) never gates --check without --strict. For bash
-# *.test.sh this scan owns assertions only;
-# scripts/check-discriminating-test-skips.sh keeps the skip-vacating shape.
-#
-# Skipped tests (it.skip/x-prefixed/@skip/[Fact(Skip=…)]/[Ignore…]) are not
-# judged — a test that does not run is the skip gate's concern, not this
-# rule set's. A finding is exempted by an in-file annotation
-# `cant-fail-ok: <reason>` on the test's declaration line, the line above it,
-# or inside the body — the same recorded-decision shape as the incumbent
-# discriminating-skip-ok annotation. Exemptions are counted, never silent.
-#
-# Remediation posture is REPAIR, not pruning: every Action proposes an
-# assertion; none proposes deleting a test.
-#
-# Modes:
-#   (default)    human-readable findings + coverage denominator; exit 0 on a
-#                completed scan (advisory), 2 on an environment/scan gap
-#   --check      gate mode, fail closed: exit 1 when a gating rule fired
-#                (zero-assertion / recomputed-expectation /
-#                conditional-assertion / inert-assertion; --strict adds
-#                mock-only-oracle), exit 2 when the scan could not run, could
-#                not fully read its inputs (unreadable files, walk errors), or
-#                examined 0 test files (a wrong or empty root and a healthy
-#                suite must not share an exit code), exit 0 only for a fully
-#                read, finding-free scan that examined at least one test file
-#   --findings   emit a findings file conforming to the detector-findings
-#                contract on stdout (coverage block on stderr); the caller
-#                resolves the destination per the contract
-#   --count      integer finding count on stdout, coverage on stderr
-#   --strict     with --check: mock-only-oracle findings gate too
-#   --inventory <text>  (repeatable, needs --file) no rules: count test starts,
-#                assertion tokens and skip markers per line of each <text>, and
-#                list its equalities with a literal side, judged with the
-#                adapter and config of the --file path; the test-weaken hook
-#                compares the old and new side of an edit this way
-#   --blocks     with the default mode: also print `block <file>:<start>-<end>
-#                <ordinal> <name>` per examined test block (in --lines scope);
-#                the ordinal tells same-named blocks apart and is the block's
-#                identity with its name, since line numbers drift
-#   --brief      with the default mode: finding lines with no threshold or
-#                Action, then one `action [rule-<slug>] <text>` line per
-#                distinct Action; the form the hooks pass to the agent
-#   --help
-#
-# Scan-root resolution: $CANT_FAIL_SCAN_ROOT (sanctioned operator lever, not a
-# test-only seam), else the cwd's git toplevel, else $CLAUDE_PROJECT_DIR.
-# Never $PWD: an unresolved root refuses (exit 2) rather than sweeping an
-# unknown tree — a completed-looking scan of the wrong tree is
-# indistinguishable from a clean bill.
-#
-# A whole-tree scan runs the per-file engine on $CANT_FAIL_SCAN_JOBS files at a
-# time (default: every core), then folds the records in scan order, so the
-# output is the serial run's. 1 runs it serially; --file is always serial.
-#
-# Config: docs/conventions/testing.yaml, docs/conventions/testing.md (its config block) or .claude/testing.yaml, resolved against the root's git toplevel (else
-# $CLAUDE_PROJECT_DIR) by ../../../scripts/resolve-config.sh, turns adapters
-# off or on (a file whose adapter is off is not scanned, never handed to
-# another), excludes or includes paths, extends adapter lists, loads consumer
-# adapters and sets rule levels (off drops a finding, warn keeps it out of the
-# gate, error gates it).
-# With no layer file present the scan is exactly the shipped one.
-#
-# Every run reports a DENOMINATOR (coverage block): files enumerated and
-# examined per ecosystem, test blocks parsed, exemptions, and what could not
-# be read. "0 findings" over 0 examined files is a scan of nothing and is
-# never reported as a clean bill.
 set -uo pipefail
 
 usage() {
@@ -263,9 +102,6 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-# dir_of <path>: dirname(1)'s answer, set in DIR_OF. A fork and exec cost tens
-# of milliseconds on Windows Git Bash, and a suite runs this script hundreds
-# of times.
 dir_of() {
   local p="$1"
   if [[ "$p" != *[!/]* ]]; then
@@ -285,14 +121,10 @@ dir_of() {
 dir_of "${BASH_SOURCE[0]}"
 SCRIPT_DIR="$(cd "$DIR_OF" && pwd)"
 AWK_PROG="$SCRIPT_DIR/cant-fail-scan.awk"
-# The JavaScript masker is shared by both engines and lives in mask-js.awk; awk
-# loads it as the first of two -f programs, so it is as load-bearing as the
-# engine itself and refuses the same way when missing.
 MASK_AWK="$SCRIPT_DIR/mask-js.awk"
 CONFIG_AWK="$SCRIPT_DIR/runner-config-scan.awk"
 RETRY_AWK="$SCRIPT_DIR/retry-config-scan.awk"
 require_readable() {
-  # require_readable <path> <what it is>
   [[ -r "$1" ]] && return 0
   printf 'ERROR: %s not found: %s\n' "$2" "$1" >&2
   exit 2
@@ -355,8 +187,6 @@ if [[ ! -d "$ROOT" ]]; then
   exit 2
 fi
 
-# One temporary directory holds every scratch file: each mktemp is a process.
-# The parallel engine's numbered records share it, beside these named files.
 SCRATCH="$(mktemp -d)" || {
   printf 'ERROR: could not create a temporary directory; refusing to scan.\n' >&2
   exit 2
@@ -368,12 +198,6 @@ ADAPTER_TABLE="$SCRATCH/adapters"
 EXTEND_FILE=""
 ENGINE_DIR=""
 
-# Location values are REPO-relative, not scan-root-relative: the fix action
-# fences each remediation to Location, so a subdirectory scan root must not
-# shorten the path. git's own prefix avoids any path-format reconciliation
-# (drive-letter vs POSIX) a toplevel string comparison would need. Outside a
-# repository the prefix is empty and Location degrades to root-relative.
-# The same call yields the toplevel the config layers resolve against.
 TOP=""
 REPO_PREFIX=""
 {
@@ -383,13 +207,6 @@ REPO_PREFIX=""
 TOP="${TOP//$'\r'/}"
 REPO_PREFIX="${REPO_PREFIX//$'\r'/}"
 
-# --- Config -------------------------------------------------------------------
-# The testing config, resolved by scripts/resolve-config.sh. With no layer
-# file present nothing below runs, so a repository without one pays five file
-# tests. Removals (adapters.disable, paths.exclude, rules off) apply here, so
-# every caller of this script goes silent with no plugin change.
-# The team and local layers are the scanned repository's own, so a file in a
-# sibling worktree gets that worktree's config.
 CFG_ROOT="${TOP:-${CLAUDE_PROJECT_DIR:-$ROOT}}"
 tc_layers=0 tc_read=0
 for f in ${HOME:+"$HOME/.claude/testing.yaml"} "$CFG_ROOT/docs/conventions/testing.yaml" "$CFG_ROOT/docs/conventions/testing.md" \
@@ -447,21 +264,14 @@ if ((tc_layers)); then
     esac
   done <<<"$tc_out"
 fi
-# adapter_on <id>: disable wins; a non-empty enable list is an allowlist.
 adapter_on() {
   [[ -z "${tc_off[$1]:-}" ]] && [[ ${#tc_enable[@]} -eq 0 || -n "${tc_on[$1]:-}" ]]
 }
 
-# --- Adapters -----------------------------------------------------------------
-# Every adapter is validated up front: a malformed one refuses the whole run
-# (exit 2), never a per-file engine error the aggregate could absorb.
 if ! awk -v EXTEND="$EXTEND_FILE" -f "$LOADER" "$ADAPTER_DIR"/*.yaml ${tc_extra[@]+"${tc_extra[@]}"} >"$ADAPTER_TABLE"; then
   printf 'ERROR: adapter load failed (see above); refusing to scan.\n' >&2
   exit 2
 fi
-# A disabled adapter still loads and still claims files: pick_adapter runs over
-# every adapter, and a file whose winner is off is not scanned, rather than
-# handed to a sibling that also matches its name (js-jest for a Vitest file).
 adapter_ids=()
 declare -A a_lang=() a_globs=() a_cglobs=() a_cregex=() a_detect=() a_advisory=()
 all_globs=()
@@ -484,15 +294,12 @@ while IFS=$'\t' read -r id key val; do
   esac
 done <"$ADAPTER_TABLE"
 
-# regex_args <newline-separated EREs>: sets PATS to grep's -e arguments.
 regex_args() {
   local re
   PATS=()
   while IFS= read -r re; do [[ -n "$re" ]] && PATS+=(-e "$re"); done <<<"$1"
 }
 
-# claims <id> <file>: a files: glob of <id> names the file, or a
-# claim_by_content.files glob does and the content matches its any_regex.
 claims() {
   local base="${2##*/}" glob
   while IFS= read -r glob; do
@@ -510,16 +317,10 @@ claims() {
   return 1
 }
 
-# pick_adapter <file>: the adapter claiming <file>; among several, the first in
-# load order whose detect.any_regex matches the content, else the first in load
-# order with no detect list, else the first in load order, set in PICKED (no
-# command substitution, so no subshell per file); empty when none claims it.
 pick_adapter() {
   local id first="" first_detects=""
   for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
     claims "$id" "$1" || continue
-    # The fallback is the first claimant with no detect list (the default
-    # for its language, as cs-xunit is), else the first claimant.
     if [[ -z "$first" || (-n "$first_detects" && -z "${a_detect[$id]:-}") ]]; then
       first="$id"
       first_detects="${a_detect[$id]:-}"
@@ -533,13 +334,6 @@ pick_adapter() {
   PICKED="$first"
 }
 
-# --- Walk ---------------------------------------------------------------------
-# Pruned: VCS/dependency/build trees, memory tiers, and evals/fixtures corpora
-# (a detector's fixture corpus is deliberately defective test code; scanning it
-# reports planted defects as the consumer's own). With --file the walk starts
-# at that one file, so the prune never applies and only its name is tested.
-# A leading -print or -print0 leaves the walk unsorted, for a caller that sorts
-# what it reads from it anyway; -print0 feeds xargs with no tr stage.
 collect_files() {
   local prune=(\( -name .git -o -name node_modules -o -name vendor -o -name dist
     -o -name build -o -name out -o -name obj -o -name bin -o -name target
@@ -554,10 +348,6 @@ collect_files() {
   find "${FILE:-$ROOT}" "${prune[@]}" -o -type f \( "$@" \) -print 2>>"$WALK_ERR" | sort
 }
 
-# The walk takes the union of every adapter's files: globs, plus the files
-# content_files claims. Each file is then bucketed by its adapter's language,
-# and the buckets scan in the fixed order js, python, cs, bash, pwsh, go, so
-# finding order does not depend on adapter file names.
 name_args=()
 declare -A glob_seen=()
 for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
@@ -570,9 +360,6 @@ for id in ${adapter_ids[@]+"${adapter_ids[@]}"}; do
 done
 [[ ${#name_args[@]} -gt 0 ]] || name_args=(-name '')
 
-# content_files: files a claim_by_content.files glob names whose content
-# matches that adapter's any_regex. Adapters sharing both lists (cs-nunit
-# inherits cs-xunit's) walk once.
 content_files() {
   local id glob args key
   local -A walked=()
@@ -590,11 +377,6 @@ content_files() {
   done
 }
 
-# include_files: files under the root that a paths.include glob names, walked
-# past the prunes above (only .git and node_modules stay pruned); each still
-# needs an adapter to claim it.
-# ponytail: walks the whole root per run when include is set; walk each glob's
-# literal leading directory instead if that shows up in a large tree.
 include_files() {
   [[ ${#tc_include_re[@]} -gt 0 && -z "$FILE" ]] || return 0
   local f rel re
@@ -609,7 +391,6 @@ include_files() {
   done < <(find "$ROOT" \( -name .git -o -name node_modules \) -prune -o -type f -print 2>>"$WALK_ERR")
 }
 
-# excluded <file>: a paths.exclude glob names its repo-relative path.
 excluded() {
   local rel="$REPO_PREFIX${1#"$ROOT"/}" re
   for re in ${tc_exclude_re[@]+"${tc_exclude_re[@]}"}; do
@@ -667,9 +448,6 @@ done < <(
   include_files
 )
 
-# --- Inventory ----------------------------------------------------------------
-# The texts are judged with the --file path's adapter; the path itself decided
-# exclusion and adapter choice above, so a fragment needs no git root or import.
 if [[ "$mode" == inventory ]]; then
   for key in "${!rule_level[@]}"; do printf 'rule\t%s\t%s\n' "$key" "${rule_level[$key]}"; done
   id="${file_adapter[$FILE]:-}"
@@ -683,20 +461,11 @@ if [[ "$mode" == inventory ]]; then
   exit 0
 fi
 
-# Playwright runner configs: the same pruned walk, for the six filenames the
-# runner probes. Playwright never walks upward, so every directory holding any
-# of the six is its own Playwright root; within one directory only the first in
-# probe order is loaded, and the rest are counted as shadowed without being read.
 mapfile -t cfg_files < <(collect_files \
   -name 'playwright.config.ts' -o -name 'playwright.config.js' \
   -o -name 'playwright.config.mts' -o -name 'playwright.config.mjs' \
   -o -name 'playwright.config.cts' -o -name 'playwright.config.cjs')
 
-# pytest, Vitest and Jest retry settings (engine: retry-config-scan.awk). The
-# pytest and Vitest files are configs, picked one per directory below; a Jest
-# retryTimes call sits in any JS/TS file, so every one that names it is read,
-# minus paths.exclude. An edit-scoped run (--lines) reads none of them: a
-# file-level setting is no finding about the lines an edit wrote.
 PYTEST_NAMES=(pytest.toml .pytest.toml pytest.ini .pytest.ini pyproject.toml tox.ini setup.cfg)
 VITEST_EXTS=(ts mts cts js mjs cjs)
 rc_py_files=()
@@ -718,7 +487,6 @@ if [[ -z "$LINES" ]]; then
     xargs -0 -r grep -lE 'retryTimes' -- 2>/dev/null | sort)
 fi
 
-# --- Denominator --------------------------------------------------------------
 enum_js="${#js_files[@]}"
 enum_py="${#py_files[@]}"
 enum_cs="${#cs_files[@]}"
@@ -735,8 +503,6 @@ cfg_examined=0
 cfg_shadowed=0
 cfg_unparsed=0
 cfg_unreadable=0
-# Retry settings: per runner, configs enumerated, examined and shadowed; Jest
-# files read. Their findings share rule-flaky-passes-suite, counted apart.
 rc_py_enum=0
 rc_py_exam=0
 rc_py_shadow=0
@@ -749,7 +515,6 @@ n_rcfg=0
 x_rcfg=0
 d_rcfg=0
 
-# Findings: parallel arrays, file order.
 f_rule=()
 f_loc=()
 f_detail=()
@@ -766,8 +531,6 @@ x_cfg1=0
 x_cfg2=0
 d_cfg1=0
 d_cfg2=0
-# Report-only rules: counted, printed, never in gating, advisory or n_adv;
-# n_ca (conditional-assertion) and n_ia (inert-assertion) gate as n_cf1 does.
 n_ia=0
 n_cr=0
 n_st=0
@@ -777,19 +540,12 @@ n_so=0
 n_wo=0
 n_to=0
 
-# source_target <test file> <path>: the repo-relative path <path> names when
-# resolved against the test file's directory, then the repository root, and
-# only when it is a git-tracked file with a source extension that no adapter
-# claims as a test file. Prints nothing otherwise: the engine cannot see git,
-# so this is where a candidate read becomes a finding or is dropped.
 SOURCE_EXT_RE='\.(ts|tsx|mts|cts|js|jsx|mjs|cjs|py|cs|razor|go|sh|bash|ps1|psm1|vue|svelte)$'
 source_target() {
   local file="$1" path="$2" cand dir rel glob top
   [[ "$path" =~ $SOURCE_EXT_RE && "$path" != /* ]] || return 0
   [[ -n "$TOP" ]] || TOP="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null | tr -d '\r')"
   [[ -n "$TOP" ]] || return 0
-  # Both sides of the prefix test come from pwd -P: git may spell the same
-  # directory another way (C:/... where Git Bash's pwd prints /c/...).
   top="$(cd "$TOP" 2>/dev/null && pwd -P)" || return 0
   for cand in "${file%/*}/$path" "$TOP/$path"; do
     [[ -f "$cand" ]] || continue
@@ -807,9 +563,6 @@ source_target() {
   done
 }
 
-# rule_override <slug> <1 when the finding gates --check by default>: apply
-# its rules.<slug> level from the testing config. off drops the finding
-# (return 1), warn keeps it out of the gate, error puts it in.
 tc_dropped=0
 tc_gate=0
 tc_ungate=0
@@ -827,15 +580,11 @@ rule_override() {
 }
 
 engine() {
-  # engine <file>: the per-file rule engine's records for <file>.
   awk -v ADAPTER="${file_adapter[$1]}" -v ADAPTER_TABLE="$ADAPTER_TABLE" -v SCOPE="$LINES" -v BLOCKS="$list_blocks" \
     -f "$MASK_AWK" -f "$AWK_PROG" "$1"
 }
 
 engine_records() {
-  # engine_records <file> <scan index>: the records the parallel pass left for
-  # the file, else the engine's run now. A missing result is logged, so the
-  # scan fails closed instead of reading it as a file with no findings.
   if [[ -z "$ENGINE_DIR" ]]; then
     engine "$1" 2>>"$WALK_ERR"
   elif [[ -f "$ENGINE_DIR/$2" ]]; then
@@ -847,7 +596,6 @@ engine_records() {
 }
 
 scan_one() {
-  # scan_one <file> <scan index>
   local file="$1" rel kind slug line detail target gates
   rel="$REPO_PREFIX${file#"$ROOT"/}"
   if [[ ! -f "$file" || ! -r "$file" ]]; then
@@ -857,7 +605,6 @@ scan_one() {
   fi
   examined=$((examined + 1))
   while IFS=$'\t' read -r kind slug line detail; do
-    # A source-read candidate: slug carries F or X, detail the static path.
     if [[ "$kind" == S ]]; then
       target="$(source_target "$file" "$detail")"
       [[ -n "$target" ]] || continue
@@ -895,7 +642,6 @@ scan_one() {
       throw-only-oracle) n_to=$((n_to + 1)) ;;
       *) printf 'engine drift: unknown finding rule %s\n' "$slug" >>"$WALK_ERR" ;;
       esac
-      # An advisory adapter's findings of the four gating rules stay out of the gate.
       case "$slug" in
       zero-assertion | recomputed-expectation | conditional-assertion | inert-assertion) [[ -n "${a_advisory[${file_adapter[$file]}]:-}" ]] && n_adv=$((n_adv + 1)) ;;
       *) ;;
@@ -905,9 +651,6 @@ scan_one() {
       exempted=$((exempted + 1))
       case "$slug" in
       zero-assertion) x_cf1=$((x_cf1 + 1)) ;;
-      # Recognized, no per-rule tally: nothing consumes an exempt count for the
-      # line-scoped rules — x_cf1/x_cf3 feed the block-rule fired/declined math
-      # below, and the aggregate `exempted` above already counted this record.
       recomputed-expectation | inert-assertion | constant-restatement | source-text-read | conditional-assertion | recomputed-derived | snapshot-only | weak-oracle | throw-only-oracle) ;;
       mock-only-oracle) x_cf3=$((x_cf3 + 1)) ;;
       *) printf 'engine drift: unknown exempt rule %s\n' "$slug" >>"$WALK_ERR" ;;
@@ -920,14 +663,9 @@ scan_one() {
 }
 
 scan_config() {
-  # scan_config <playwright config file>
   local file="$1" rel kind slug line detail
   rel="$REPO_PREFIX${file#"$ROOT"/}"
   if [[ ! -f "$file" || ! -r "$file" ]]; then
-    # Counted against the CONFIG denominator, never the test-file one: the
-    # test-file counters and their messages speak only about test files. The
-    # logged line keeps the run fail-closed through walk_errors, because an
-    # enumerated input the scan could not read is never a clean one.
     cfg_unreadable=$((cfg_unreadable + 1))
     printf 'unreadable playwright config: %s\n' "$rel" >>"$WALK_ERR"
     return 0
@@ -935,9 +673,6 @@ scan_config() {
   while IFS=$'\t' read -r kind slug line detail; do
     case "$kind" in
     C)
-      # An unanchorable config is a coverage boundary, not a rule decline: it is
-      # counted as enumerated and not examined, the same statement the test-file
-      # denominator makes about a file of another ecosystem.
       if [[ "$slug" == "1" ]]; then
         cfg_examined=$((cfg_examined + 1))
       else
@@ -995,8 +730,6 @@ if [[ "$max_jobs" -gt 1 ]]; then
       wait -n
       running=$((running - 1))
     fi
-    # The rename marks a finished engine run, whatever its exit status, as the
-    # serial run reads the records either way; a file without one is logged.
     { engine "$f" >"$ENGINE_DIR/$i.part" 2>"$ENGINE_DIR/$i.err"; mv "$ENGINE_DIR/$i.part" "$ENGINE_DIR/$i"; } &
     running=$((running + 1))
   done
@@ -1006,9 +739,6 @@ for i in "${!scan_files[@]}"; do
   scan_one "${scan_files[$i]}" "$i"
 done
 
-# One config per directory, in Playwright's probe order. Everything else the
-# walk enumerated in that directory is shadowed: the runner would never load it,
-# so judging it would report a file the suite does not run.
 cfg_dirs=()
 declare -A cfg_seen=()
 for f in ${cfg_files[@]+"${cfg_files[@]}"}; do
@@ -1030,12 +760,9 @@ for d in ${cfg_dirs[@]+"${cfg_dirs[@]}"}; do
 done
 
 scan_retry() {
-  # scan_retry <pytest|vitest|jest> <file>
   local kind="$1" file="$2" rel rec slug line detail
   rel="$REPO_PREFIX${file#"$ROOT"/}"
   if [[ ! -f "$file" || ! -r "$file" ]]; then
-    # Logged, so the run stays fail-closed through walk_errors, and counted in
-    # the retry-settings denominator, never as an unreadable test file.
     rc_unreadable=$((rc_unreadable + 1))
     printf 'unreadable %s retry setting file: %s\n' "$kind" "$rel" >>"$WALK_ERR"
     return 0
@@ -1074,10 +801,6 @@ scan_retry() {
   done < <(awk -v KIND="$kind" -v NAME="${file##*/}" -f "$MASK_AWK" -f "$RETRY_AWK" "$file" 2>>"$WALK_ERR")
 }
 
-# pytest: per directory, the first file in pytest's order that holds pytest's
-# section (pytest.toml and pytest.ini match even when empty); a file without
-# the section is no pytest config and is not counted. The rest that hold one
-# are shadowed: pytest never merges two config files.
 declare -A rc_seen=()
 for f in ${rc_py_files[@]+"${rc_py_files[@]}"}; do
   dir_of "$f"
@@ -1099,8 +822,6 @@ for f in ${rc_py_files[@]+"${rc_py_files[@]}"}; do
   done
   [[ -z "$picked" ]] || scan_retry pytest "$picked"
 done
-# Vitest: per directory, vitest.config.* before vite.config.*, each in Vitest's
-# extension order; the rest are shadowed.
 rc_seen=()
 for f in ${rc_vt_files[@]+"${rc_vt_files[@]}"}; do
   dir_of "$f"
@@ -1128,12 +849,10 @@ total=$((n_cf1 + n_cf2 + n_ca + n_ia + n_cf3 + cfg_findings + report_only))
 gating=$((n_cf1 + n_cf2 + n_ca + n_ia - n_adv))
 [[ "$strict" -eq 1 ]] && gating=$((gating + n_cf3 + cfg_findings + n_adv))
 gating=$((gating + tc_gate - tc_ungate))
-# Lines with a field in awk's default sense: some byte other than space or tab.
 walk_errors=0
 while IFS= read -r err_line || [[ -n "$err_line" ]]; do
   [[ "$err_line" == *[!$' \t']* ]] && walk_errors=$((walk_errors + 1))
 done <"$WALK_ERR"
-# read_gap: some input the scan enumerated was not fully read.
 read_gap() {
   ((unreadable > 0 || cfg_unreadable > 0 || walk_errors > 0))
 }
@@ -1147,8 +866,6 @@ rule_id() {
 }
 
 threshold_of() {
-  # threshold_of <slug> [<lexer language>]: the retry settings of the other
-  # runners share flaky-passes-suite and state their own condition.
   case "$1:${2:-}" in
   flaky-passes-suite:config-pytest) printf 'threshold: --reruns, --force-reruns or reruns > 0 or not an integer, --fail-on-flaky absent from addopts' ;;
   flaky-passes-suite:config-vitest) printf 'threshold: retry or retry.count under a test key > 0 or an expression; Vitest has no fail-on-flaky option' ;;
@@ -1171,10 +888,6 @@ threshold_of() {
 }
 
 action_of() {
-  # action_of <slug> <lexer language>. Repair, not pruning — every Action
-  # proposes an assertion, never a deletion. The inert-assertion remedy is
-  # scoped to the language it fires in: "await" means nothing to a Python
-  # tuple, and "assert_*" nothing to a Playwright matcher.
   case "$1:${2:-}" in
   inert-assertion:js)
     printf 'Make the assertion evaluate: await (or return) the async matcher so it settles before the test ends, and call a matcher on every expect(...).'
@@ -1203,7 +916,6 @@ action_of() {
     printf 'Exercise the code (render it, call it, run it) instead of reading its source text; a policy test over many files reads them through a glob or a directory walk.'
     ;;
   conditional-assertion:cs)
-    # xUnit v2 has no Assert.Skip, so the skip advice names both routes.
     printf 'Make every path assert: assert an expected error with the framework'"'"'s throws or rejects assertion instead of inside a catch, move the assertion out of the if, and assert the length of a result before looping over it, so an empty result fails. Where a return stands in for a skip, skip the test explicitly so the run does not report it as passed: Assert.Skip on xUnit v3, a skip package such as Xunit.SkippableFact on xUnit v2, Assert.Ignore on NUnit, Assert.Inconclusive on MSTest.'
     ;;
   conditional-assertion:*)
@@ -1218,12 +930,6 @@ action_of() {
   weak-oracle:*)
     printf 'Assert the value the code should produce (an exact value, or the exception type callers branch on) instead of only that a value exists or that something threw.'
     ;;
-  # pytest-rerunfailures added --fail-on-flaky in 15.0 and made it fire only
-  # when a rerun happened in 15.1 (CHANGES.rst, read 2026-10-06; recheck on a
-  # release that renames the option or adds an ini form). Vitest and Jest ship
-  # no such switch (vitest.dev/config/retry and the Jest object page, read
-  # 2026-10-06; recheck when either documents one), so their remedy is the
-  # retry count itself.
   flaky-passes-suite:config-pytest)
     printf 'Add --fail-on-flaky to addopts beside the reruns so a test that passes only on a rerun fails the run (pytest-rerunfailures 15.0 or later), or drop the reruns where the suite is meant to be deterministic. A deliberate flaky tolerance records that with a cant-fail-ok: annotation in the config.'
     ;;
@@ -1236,7 +942,6 @@ action_of() {
   throw-only-oracle:*)
     printf 'Assert what the constructed value should hold (a property the constructor sets, a result its first call returns) instead of only that it exists. A smoke test kept to prove construction or wiring succeeds records that with a cant-fail-ok: <why> annotation.'
     ;;
-  # inert-assertion in a language with no remedy above has no Action.
   inert-assertion:*) ;;
   zero-assertion:*)
     printf 'Add an assertion on the observable behavior this test exercises.'
@@ -1247,11 +952,6 @@ action_of() {
   mock-only-oracle:*)
     printf "Review whether the mock-interaction contract is the intended oracle; if not, assert on a real collaborator's output or state. A deliberate interaction-style test records that with a cant-fail-ok: annotation."
     ;;
-  # failOnFlakyTests as a config option shipped in Playwright 1.52, the
-  # --fail-on-flaky-tests CLI flag it mirrors in 1.45 (VR-2, verified against
-  # v1.63.0 as of 2026-09-11; recheck on a release note renaming or deprecating
-  # the option). The detector does not read the installed version, so the Action
-  # names the floor rather than assuming it.
   flaky-passes-suite:*)
     printf 'Set failOnFlakyTests: true in the Playwright config so a test that fails and passes on a retry fails the run (config option from Playwright 1.52; the --fail-on-flaky-tests CLI flag covers 1.45 and later), or set retries: 0 where the suite is meant to be deterministic. A deliberate flaky tolerance records that with a cant-fail-ok: annotation.'
     ;;
@@ -1263,19 +963,6 @@ action_of() {
 }
 
 confidence_of() {
-  # zero-assertion / recomputed-expectation / inert-assertion: the fired
-  # condition IS the defect —
-  # confidence-of-realness is high. mock-only-oracle: the pattern is certain but
-  # its defect-hood is not (interaction-style tests are legitimate), so the
-  # field is omitted per the contract's high-or-omitted rule — never 'low'.
-  # The two config rules omit it for the same reason: the configuration state is
-  # read exactly, but whether it is a defect is a team policy call (a team may
-  # accept flaky tolerance, or trust review to catch a committed .only).
-  # constant-restatement and source-text-read omit it too: a contract constant
-  # or a codegen test is the known benign case. So do the five heuristic rules:
-  # an if whose branch always runs, a derivation checked on purpose, a reviewed
-  # snapshot, a null check that is the contract and a smoke test kept to prove
-  # wiring are benign cases the text cannot tell apart.
   case "$1" in
   zero-assertion | recomputed-expectation | inert-assertion) printf 'high' ;;
   *) ;;
@@ -1283,10 +970,6 @@ confidence_of() {
 }
 
 tier_of() {
-  # The two change-detector rules flag tests that CAN fail, on a harmless
-  # change, and a derived expectation, a snapshot, a weak oracle or a throwing
-  # constructor can fail too, so all six sit below the can't-fail rules
-  # (detector-findings crosswalk).
   case "$1" in
   constant-restatement | source-text-read | recomputed-derived | snapshot-only | weak-oracle | throw-only-oracle) printf 'SUGGESTION' ;;
   *) printf 'IMPORTANT' ;;
@@ -1356,19 +1039,12 @@ coverage_block() {
 }
 
 config_findings_note() {
-  # Appended to the two 0-examined-test-files refusals. Config findings are
-  # reported wherever they are found, but a config file is not a test file:
-  # without an examined test file the run has no test denominator, so the
-  # findings are named rather than gated or persisted.
   if [[ "$cfg_findings" -gt 0 ]]; then
     printf ' (%d config finding(s) were reported; they are not gated or persisted without an examined test file)' "$cfg_findings"
   fi
 }
 
 advisory_note() {
-  # Printed only when the gate is not strict. One switch escalates
-  # mock-only-oracle and both config rules together, so the note counts them
-  # apart and names the switch.
   if [[ "$strict" -eq 0 && "$advisory" -gt 0 ]]; then
     local ids
     ids="$(printf '%s\n' "${!a_advisory[@]}" | sort | paste -sd, - | sed 's/,/, /g')"
@@ -1376,7 +1052,6 @@ advisory_note() {
       "$advisory" "$n_cf3" "$((n_cfg1 + n_cfg2))" "$ids" "$n_adv" \
       "$( ((n_rcfg)) && printf ', pytest/vitest/jest retry settings %d' "$n_rcfg")"
   fi
-  # A rule raised to error in the testing config gates, so it is not listed.
   local pair n=0 list=""
   for pair in "constant-restatement $n_cr" "source-text-read $n_st" \
     "recomputed-derived $n_rd" "snapshot-only $n_so" "weak-oracle $n_wo" "throw-only-oracle $n_to"; do
@@ -1389,11 +1064,6 @@ advisory_note() {
   fi
 }
 
-# --- Project context ----------------------------------------------------------
-# Each C# finding names its owning test project (the nearest .csproj above the
-# file), whether a repository workflow's `dotnet test` or `dotnet build` targets
-# it, and a project kind. All of it is read from files; no project is ever built
-# or run. Anything the evidence does not settle is `unknown`, never a guess.
 PJ_BASE="${TOP:-$ROOT}"
 f_proj=()
 f_ci=()
@@ -1407,7 +1077,6 @@ wf_unsure=0
 wf_targets=()
 declare -A pj_ci=() pj_kind=()
 
-# norm_path <path>: set NP to it with / separators and no ., .. or empty segment.
 norm_path() {
   local p="${1//\\//}" seg segs out=() IFS=/
   read -r -a segs <<<"$p"
@@ -1421,9 +1090,6 @@ norm_path() {
   NP="${out[*]-}"
 }
 
-# wf_runs_elsewhere <workflow>: true when a step may run tests the dotnet parse
-# cannot see: a local action (`uses: ./`, not a reusable workflow, which is
-# parsed itself) or a command that starts a script.
 wf_runs_elsewhere() {
   local body local_uses cmds
   body="$(LC_ALL=C sed -E -e 's/\r$//' -e '/^[[:space:]]*#/d' -e 's/[[:space:]]#.*$//' "$1" 2>/dev/null)"
@@ -1434,9 +1100,6 @@ wf_runs_elsewhere() {
   LC_ALL=C grep -qE '^(\./|\.\\|(bash|sh|pwsh|powershell)([[:space:]]+-[^[:space:]]+)*[[:space:]]+[^-[:space:]]|[^[:space:]]+\.(sh|ps1|cmd|bat)([[:space:]"'\'']|$))' <<<"$cmds"
 }
 
-# load_workflows: collect the targets of every `dotnet test` and `dotnet build`
-# in .github/workflows. A file that does not look like a workflow (no jobs: key,
-# a tab indent), a variable or a continued command leaves the answer unknown.
 load_workflows() {
   ((wf_loaded)) && return 0
   wf_loaded=1
@@ -1486,7 +1149,6 @@ load_workflows() {
   done
 }
 
-# sln_has <solution> <project>: true when the solution lists the project.
 sln_has() {
   local f="$1" proj="$2" d="" m pat='"[^"]+\.csproj"'
   if [[ "$f" == */* ]]; then d="${f%/*}"; fi
@@ -1500,7 +1162,6 @@ sln_has() {
   return 1
 }
 
-# ci_of <project>: set CI_R to yes, no or unknown.
 ci_of() {
   local proj="$1" t kind path f any
   load_workflows
@@ -1539,9 +1200,6 @@ ci_of() {
   fi
 }
 
-# kind_of_project <project>: set KIND_R. A project_kinds override wins; else the
-# kinds named by the project's name tokens and package references must agree,
-# except that operational, then live, win a disagreement so a warning is not lost.
 kind_of_project() {
   local proj="$1" i toks tk ks=() k pf="$PJ_BASE/$1"
   for i in ${tc_pk_re[@]+"${!tc_pk_re[@]}"}; do
@@ -1551,7 +1209,6 @@ kind_of_project() {
     fi
   done
   toks=" $(sed -E 's/([a-z0-9])([A-Z])/\1.\2/g' <<<"${proj%.csproj}" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9\n' ' ') "
-  # <name token>=<kind>, in the order the kinds are collected.
   for tk in unit=unit integration=integration smoke=live functional=functional \
     architecture=architecture provisioning=operational; do
     [[ "$toks" == *" ${tk%=*} "* ]] && ks+=("${tk#*=}")
@@ -1577,8 +1234,6 @@ kind_of_project() {
   KIND_R="${ks[0]}"
 }
 
-# resolve_contexts: fill f_proj, f_ci and f_kind per finding, and f_order, the
-# emission order: findings in CI-run unit projects first, the rest as found.
 resolve_contexts() {
   ((f_ctx_done)) && return 0
   f_ctx_done=1
@@ -1620,8 +1275,6 @@ resolve_contexts() {
   f_order=(${first[@]+"${first[@]}"} ${rest[@]+"${rest[@]}"})
 }
 
-# ctx_text <i>: the project, CI and kind of finding <i>, with a warning for a
-# project of kind operational or live.
 ctx_text() {
   local i="$1"
   printf '[project: %s; ci: %s; kind: %s]' "${f_proj[$i]}" "${f_ci[$i]}" "${f_kind[$i]}"
@@ -1632,31 +1285,10 @@ ctx_text() {
 }
 
 esc_cell() {
-  # detector-findings cell-escaping rule: literal | becomes \| ; the engine
-  # already flattened tabs/newlines out of details.
   printf '%s' "${1//|/\\|}"
 }
 
 yaml_scalar() {
-  # Quote a frontmatter value only when the plain form would misparse. git
-  # accepts branch names starting with a YAML indicator ("@foo", "!foo",
-  # "#foo"); emitted bare, "#foo" reads as a comment and the rest as
-  # indicators, so the value the consumer compares is not the branch name.
-  # The consumer (review/fanout fix-pass-mode.md "Step 1") admits a findings
-  # file only on an EXACT branch match, so a misparse silently drops every
-  # finding for that branch — the hidden-findings shape reached through the
-  # frontmatter rather than through the scan.
-  #
-  # Conditional, not unconditional: an ordinary name stays a byte-identical
-  # plain scalar, so the wire format for the common path does not move.
-  # Predicate deliberately IDENTICAL to the two sibling awk producers
-  # (harness-config/audit-instructions/scripts/emit-findings.sh and
-  # ai-slop/audit/scripts/emit-findings.sh) — three producers answering one
-  # frontmatter contract must agree, or a consumer sees three shapes. The
-  # indicator set below is the same 19 characters as their awk character
-  # class, and the ": " / " #" / empty / trailing-blank tests mirror theirs.
-  # Space and tab only in the trailing test (NOT [:space:]), matching awk's
-  # /[ \t]$/.
   local s="$1" needs_quote=0
   case "${s:0:1}" in
   '-' | '?' | ':' | ',' | '[' | ']' | '{' | '}' | '#' | '&' | '*' | '!' | '|' | '>' | '%' | '@' | '`' | '"' | "'")
@@ -1702,10 +1334,6 @@ emit_findings_file() {
     exit 2
   fi
   if [[ "$blocks" -eq 0 && "$walk_errors" -gt 0 ]]; then
-    # Dead-engine guard: files were enumerated but nothing parsed and errors
-    # occurred. Emitting here would hand the consumer a conforming file that
-    # asserts zero findings from a scan that read nothing — a caller that
-    # redirects stdout and drops the exit code would persist that lie.
     printf 'ERROR: --findings refused — 0 test blocks were parsed and %d error line(s) occurred; the scan did not actually read its inputs.\n' "$walk_errors" >&2
     exit 2
   fi
@@ -1732,7 +1360,6 @@ print_findings_lines() {
   local i a
   resolve_contexts
   if ((brief)); then
-    # One Action per distinct rule and text: inert-assertion's differs by language.
     local -A seen=()
     for i in ${f_order[@]+"${f_order[@]}"}; do
       printf 'finding [rule-%s] %s: %s%s\n' "${f_rule[$i]}" "${f_loc[$i]}" "${f_detail[$i]}" \
@@ -1772,10 +1399,6 @@ check)
     advisory_note
   fi
   coverage_block
-  # The 0-examined refusal is decided BEFORE the gating count, so a tree holding
-  # only a Playwright config exits 2 under --strict as well: a config file is
-  # not a test denominator, and every gating test-body finding implies an
-  # examined test file, so this order changes no test-file path.
   if [[ "$examined" -eq 0 ]]; then
     printf '\nFAIL (closed): 0 test files were examined — a scan of nothing is not a clean gate. A wrong or empty scan root and a healthy suite must not share an exit code; point the gate at a tree that contains test files.%s\n' "$(config_findings_note)"
     exit 2

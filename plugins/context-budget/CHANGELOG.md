@@ -7,6 +7,24 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 Versions 0.6.38 and 0.6.40 were reserved by parallel changes and never published.
 
+## [2.1.11] - 2026-11-28
+
+### Changed
+
+- Trimmed `context-budget` skill frontmatter descriptions (`audit`: 439 -> 348 chars; `setup`: 167 -> 145 chars; total 606 -> 493 chars, -113 chars) with zero body changes.
+
+## [2.1.10] - 2026-11-26
+
+### Changed
+
+- `audit` names its successors in `## Next`: its own `fix` action for a measured trim, `/plugin-profiles:profile` when most of the payload is plugins the folder does not use.
+
+## [2.1.9] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
 ## [2.1.8] - 2026-11-24
 
 ### Fixed

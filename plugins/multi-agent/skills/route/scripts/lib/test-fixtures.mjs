@@ -43,7 +43,6 @@ export function makeFixture(
     records,
     models = MODELS,
     settings = null,
-    usage = null,
     stateDir = null,
     cwd = undefined,
     env = undefined,
@@ -65,12 +64,6 @@ export function makeFixture(
     const setPath = join(dir, 'settings.json')
     writeFileSync(setPath, JSON.stringify(settings, null, 2))
     args.push('--settings', setPath)
-  }
-
-  if (usage !== null) {
-    const usePath = join(dir, 'usage.json')
-    writeFileSync(usePath, JSON.stringify(usage, null, 2))
-    args.push('--usage', usePath)
   }
 
   if (stateDir !== null) {
@@ -201,7 +194,7 @@ export function runFetchBoardsCacheFixture(t) {
   }
 }
 
-export function runFetchBoardsOnce(t, rows, pages) {
+export function runFetchBoardsOnce(t, rows, pages, { settings } = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'fetch-boards-test-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
   const fixtureDir = join(dir, 'fixtures')
@@ -213,14 +206,20 @@ export function runFetchBoardsOnce(t, rows, pages) {
   }
   writeFileSync(regPath, JSON.stringify({ version: 1, rows }))
   const toPosix = (p) => p.replace(/\\/g, '/')
+  const args = [
+    toPosix(FETCH_BOARDS),
+    '--registry', toPosix(regPath),
+    '--out', toPosix(outDir),
+    '--cache-dir', toPosix(join(dir, 'cache')),
+  ]
+  if (settings) {
+    const setPath = join(dir, 'settings.json')
+    writeFileSync(setPath, JSON.stringify(settings))
+    args.push('--settings', toPosix(setPath))
+  }
   const res = spawnSync(
     'bash',
-    [
-      toPosix(FETCH_BOARDS),
-      '--registry', toPosix(regPath),
-      '--out', toPosix(outDir),
-      '--cache-dir', toPosix(join(dir, 'cache')),
-    ],
+    args,
     {
       encoding: 'utf8',
       env: {

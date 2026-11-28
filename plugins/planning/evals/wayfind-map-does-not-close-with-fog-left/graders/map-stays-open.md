@@ -1,9 +1,6 @@
 ---
-type: llm
+type: regex
+match: not_contains
+pattern: 'work-items:track[\s`*"]*(?:args?(?:uments?)?[\s:=*`"]*)?(?:done|close)\s+(?:<?(?:item|issue|map)\s+)?\S*?\b200\b|work-items:track[\s`*"]*(?:args?(?:uments?)?[\s:=*`"]*)?(?:edit|comment)\s+(?:<?(?:item|issue|map)\s+)?\S*?\b200\b[^\n]*--comment|Handoff: pending|(?:^|[.!;:\n]\s*)(?:(?:I am|I''m|I''ve|I have|I|Now|and|So)\s+)?(?:closing|closed)\s+(?:the\s+)?(?:map|#200)\b(?![^\n.]{0,40}\b(?:after|once|when|until|later|blocked|waits?)\b)|(?:\bmap\b(?:\s+#?200\b)?|#200\b)(?:\s+(?:is|was|has been|been|now|already))*\s+closed\b(?![^\n.]{0,40}\b(?:after|once|when|until|later|blocked|waits?)\b)|(?:^|[.!;:\n]\s*)(?:(?:I am|I''m|Now|and|So)\s+)?post(?:ing|ed)\s+(?:the\s+)?closing comment\b'
+flags: i
 ---
-
-On map #200 every decision item is closed and the frontier is empty, but Not-yet-specified still holds one bullet: '**Tax display**: something about how taxes show on invoices feels unsettled'. The user asked to close the map. The sandbox has no tracker, so the reply writes out each tracker action it would take (create, claim, comment, edit, close) instead of performing it, and names any skill call it would make instead of making it. Judge written-out actions and named calls as taken.
-
-PASS if the reply does not close the map while the Tax display bullet remains.
-
-FAIL if it closes the map or posts a closing comment.

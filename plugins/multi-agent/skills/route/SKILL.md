@@ -1,12 +1,12 @@
 ---
-description: "Model and effort per agent role (orchestrator, worker, verifier, retrieval) for a multi-agent run, resolved through the bundled defaults and the user, team and personal override config layers into fenced JSON with single-agent and fan-out variants and the layer behind each value; fan-out stays off frontier models unless config opts in; `vendors` with a task picks vendor (Claude, Codex, Gemini), model and effort for one delegated task by work type using the benchmark trust model, defaults first. Use when asked 'which model for the subagents', 'route the roles', 'what effort should the workers use', 'roles for the workflow args', 'model routing', 'is fan-out on a frontier model', 'Codex or Gemini for this', 'which vendor and effort for this delegation', or before a skill launches a workflow that takes args.roles."
+description: "Resolve model/effort routing by agent role in a run (defaults/override config, single-agent/fan-out JSON; fan-out stays off frontier models unless config opts in); `vendors` picks Claude/Codex/Gemini model/effort by work type, defaults first. Use when 'model routing', 'which model for subagents', 'what effort for workers', or `args.roles` workflow."
 argument-hint: "<<role>|all|vendors <task>> [workload] [session=<alias>]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
   workflow-stage: session
   summary: Resolve model and effort per agent role for a multi-agent run
-allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/route.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/fetch-boards:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/vendor-decide:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/vendor-state:*)", "Bash(external-agents models:*)", "Bash(external-agents usage:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/delegate:*)", "Bash(command -v external-agents)"]
+allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/route.sh:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/fetch-boards:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/vendor-decide:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/vendor-state:*)", "Bash(external-agents models:*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/delegate:*)", "Bash(command -v external-agents)"]
 shell: bash
 ---
 
@@ -78,17 +78,7 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
 
    When any call reports new ids, relay one `registry recheck due` line in the reply. If
    `vendor-state seen` exits 2 because no plugin data folder is resolved, note it and continue.
-
-   **Plan usage (only when `most-usage-left` is in `vendors.tiebreak`):** if and only if the
-   resolved `vendors.tiebreak` in `<tmp-dir>/settings.json` names `most-usage-left`, run
-   `external-agents usage <product>` once per in-use, available vendor (`codex`, `antigravity`),
-   outside any delegated run. Read Claude's usage from the `rate-limits` status tool
-   (`mcp__rate-limits__status`, if enabled), normalizing its tightest window to `remaining`
-   (`1 - usedPercent / 100`); otherwise mark Claude's usage reading
-   `{"status": "unavailable", "reason": "rate-limits status tool unavailable"}`. Save the
-   per-vendor `UsageReading` map to `<tmp-dir>/usage.json`. Skip `external-agents usage` and
-   `mcp__rate-limits__status` completely when `vendors.tiebreak` does not name `most-usage-left`.
-4. Fetch enabled benchmark pages for `<work_type>` in one call into a temporary directory
+4. Fetch enabled benchmark pages for `<work_type>` (only rows that can lead) in one call into a temporary directory
    (appending `<repo>/docs/conventions/multi-agent/benchmarks.json` when present, and honoring
    `vendors.sources.<id>.enabled`). Each row is checked for its `expect` marker and, when the
    docs-cache `renderer` is `firecrawl`, a blocked or script-drawn page is rendered:
@@ -101,17 +91,24 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
    plus `<repo>/docs/conventions/multi-agent/benchmarks.json` when present). For every board entry
    in `manifest.json` with `state: "read"`, dispatch one `multi-agent:board-reader` subagent
    (`Read` only) with the board's `file` path, its registry row, `<work_type>`, and the candidate
-   vendors' current model ids. Save each reader's returned JSON to
-   `<tmp-dir>/records-<source_id>.json`. Do not read the page files in this session.
+   vendors' current model ids as `models.json` names them; each record's `model` is one of them
+   verbatim, or `null`. Save each reader's JSON to `<tmp-dir>/records-<source_id>.json`. Do not
+   read the page files in this session.
 6. Run the trust-model decider with the resolved `vendors` settings, binding each reader output to
    its manifest `source_id` (when zero pages were read, pass one empty JSON array file `[]`; pass
-   `--needs-tools <comma-list>`, `--context <tokens>`, and `--usage <tmp-dir>/usage.json` when
-   applicable). Pass `--use <use>`, with `<use>` as step 12 defines it, so a read-only brief is
-   gated on the vendor's `read_only_tools`:
+   `--needs-tools <comma-list>` and `--context <tokens>` when applicable). Pass `--use <use>`,
+   with `<use>` as step 12 defines it, so a read-only brief is gated on the vendor's
+   `read_only_tools`:
 
    ```bash
-   ${CLAUDE_SKILL_DIR}/scripts/vendor-decide --task-type <work_type> --task-class <everyday|heavy> --settings <tmp-dir>/settings.json --manifest <tmp-dir>/manifest.json --models <tmp-dir>/models.json [--needs-tools <tools>] [--use <investigate|task>] [--context <tokens>] [--usage <tmp-dir>/usage.json] --records <source_id>=<tmp-dir>/records-<source_id>.json
+   ${CLAUDE_SKILL_DIR}/scripts/vendor-decide --task-type <work_type> --task-class <everyday|heavy> --settings <tmp-dir>/settings.json --manifest <tmp-dir>/manifest.json --models <tmp-dir>/models.json [--needs-tools <tools>] [--use <investigate|task>] [--context <tokens>] --records <source_id>=<tmp-dir>/records-<source_id>.json
    ```
+
+   For a heavy task while trials are active, read each candidate vendor's own effort guidance
+   from the `docs_index` its `external-agents models` output names, through `/discovery:read-docs`
+   (if enabled; otherwise the shared docs cache). When it gives a level for this kind of task, add
+   `--heavy-effort <vendor>=<level>` to the command above and cite that page section in step 7's
+   reason. Without such guidance, the trial runs one step above the model's default effort.
 
 7. Print the recommendation and per-vendor lines grounded in `vendor-decide`'s Decision JSON,
    Claude first. When `Decision.basis` is `routing-off`, print the routing-off note and recommend
@@ -134,11 +131,12 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
    (`<vendor>: unavailable (<reason>)`). Breaker-open vendors (naming `reset_at`), tool-gated
    harnesses, and context-gated models each get one line from `Decision.notes`.
 8. Cite every source in `Decision.sources` by `source_id` with its read state (`live`,
-   `cached-stale` with age, or `unread` with reason), `page_date`, and `role`. Never drop an
+   `cached-stale` with age, `unread` with reason, or `not-read` for a support-only or
+   provider-own row not fetched, named with its link), `page_date`, and `role`. Never drop an
    unread source silently. On a tie (`Decision.ties` non-empty), list every tied vendor with its
-   published token counts and the tiebreak outcome (or note that the caller keeps its vendor when
-   no tiebreak is set). Relay every entry of `Decision.notes` (for flagged pages, relay only
-   `vendor-decide`'s fixed note; never copy text from `board-reader`'s `findings` array).
+   published token counts and say the work stays on Claude unless `vendor-decide` picked the one
+   eligible non-Claude vendor. Relay every entry of `Decision.notes` (for flagged pages, relay
+   only `vendor-decide`'s fixed note; never copy text from `board-reader`'s `findings` array).
 9. **MCP vs CLI choice**: when the task involves choosing between a tool's MCP server and its CLI,
    name that tool's own skill to make the choice rather than ranking tools here.
 10. **Image work and auto-delegation**: Claude cannot generate images (`basis: claude-cannot`, or
@@ -177,9 +175,9 @@ keep routing authority fixed to `vendor-decide`'s closed Decision JSON.
     ```
 
     Pass `--tokens <n>` when the run's token count is known. With trials off or either count
-    unset, `vendor-state record` writes nothing. For a `proven` pair, do not call `record`
-    (outcomes stand until the user sends the pair back with `vendor-state send-back --key <pair_key>`);
-    if the review rejects a proven pair's routed result, report that rejection in that reply.
+    unset, `vendor-state record` writes nothing. For a `proven` pair, record the verdict the same
+    way: when its output reports `sent_back: true`, say in that reply that the pair went back to
+    trial.
 
 12. **Delegation for other work types** (`coding`, `web-ui`, `knowledge`): with
     `vendors.auto_delegation` off, print nothing beyond step 7. With it on and a vendor other than

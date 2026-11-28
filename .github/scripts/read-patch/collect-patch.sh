@@ -1,33 +1,4 @@
 #!/usr/bin/env bash
-# Writes everything a read activity changed against the gated head, committed,
-# staged, unstaged or untracked, as one `git diff --binary` patch, for the
-# patch output mode of pr-run-activity-read.yml. An exact rename (100%
-# similarity) is a rename header with no content, so a moved file costs a few
-# lines of the patch cap; a rename with edits is a deletion and an addition.
-# The apply side checks each rename's old and new path as a deletion and an
-# addition of the tree it builds, whatever the patch's form. Runs from the checkout after
-# the activity, through a temporary index, so the checkout's own index is
-# untouched. Ignored files, .lane/ and the CLI's empty scrub stubs are left
-# out.
-#
-# Usage: collect-patch.sh <head-sha> <patch-file> [<from-tree>]
-# With <from-tree> (merge-base mode: the conflict tree prepare.sh wrote, whose
-# objects the checkout holds), the patch is measured from that tree instead of
-# the head, so it holds only what the activity changed after the merge.
-# Prints `state=empty` (no change, no patch file) or `state=written`, then
-# `sha256=<hex>` of the patch file (empty when there is none): lines for
-# $GITHUB_OUTPUT. Exit 2 for bad arguments, 1 when git fails, 3 when a scrub
-# stub name the head does not track holds anything but an empty regular file
-# (nothing printed, no patch file).
-#
-# The activity ran in this checkout and could write its .git, so git never
-# reads that directory's config, hooks or info files: it runs against a fresh
-# repository in a scratch directory that borrows only the checkout's objects,
-# with no global or system config. No filter, hook, fsmonitor or include the
-# activity planted runs, and every diff option that changes the patch's form
-# is passed explicitly. The patch is still the activity's output: its
-# consumer validates it.
-# Contract: docs/conventions/pr-pipeline/pr-run-activity.md, patch output mode.
 set -euo pipefail
 
 usage() {
@@ -62,12 +33,6 @@ g=("${clean[@]}" GIT_DIR="$scratch/git" GIT_WORK_TREE="$work" GIT_INDEX_FILE="$s
 [[ $from == "$head" || $("${g[@]}" cat-file -t "$from" 2>/dev/null) == tree ]] || fail "$from is not a tree here"
 
 paths=(':(top)' ':(top,exclude).lane')
-# The CLI's Bash, under the environment scrub run-claude-cli sets, leaves
-# these as empty files at the top of the checkout, hidden only by an
-# .git/info/exclude this repository never reads. One the head does not track
-# is left out while it is still empty; with content, or as a link or
-# directory, it is refused, since it is no stub. Names as of CLI 2.1.304,
-# which documents none; recheck when run-claude-cli's cli-version pin moves.
 stubs=(bunfig.toml package.json .npmrc .yarnrc .yarnrc.yml .gitmodules package-lock.json yarn.lock
   pnpm-lock.yaml .env .env.local .env.development .env.development.local .env.test .env.test.local
   .env.production .env.production.local)

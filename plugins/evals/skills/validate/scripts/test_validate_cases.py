@@ -30,9 +30,6 @@ SCRIPT = Path(__file__).resolve().parent / "validate-cases.py"
 REPO_ROOT = Path(__file__).resolve().parents[5]
 PILOT_SUITE = REPO_ROOT / "plugins" / "evals" / "evals"
 
-# One shared shape every FAIL fixture must emit, so a finding can never regress
-# into a WARN at exit 0. Each test also asserts its own message below, which is
-# what keeps the fixtures discriminating: this pattern alone does not.
 FAIL_LINE = re.compile(
     r"^FAIL .*(unknown frontmatter key|duplicate grader|no grader|runs|not parsed"
     r"|not loadable|schema_version|is required|requires|no prompt|sample"
@@ -155,8 +152,6 @@ class ValidatorTestCase(unittest.TestCase):
             0, result.returncode, "expected exit 0\n" + result.stdout + result.stderr
         )
         self.assertNotIn("FAIL", result.stdout)
-        # A sample set that could not be graded is a WARN, which would otherwise
-        # let a broken mirror read as a clean pass.
         self.assertNotIn("samples not checked", result.stdout)
 
 
@@ -179,8 +174,6 @@ class UnknownKeyFixture(ValidatorTestCase):
         self.assertIn("unknown-key/prompt.md", result.stdout)
 
     def test_undocumented_keys_the_binary_accepts_warn_without_failing(self):
-        # Claude Code 2.1.287's case schema accepts both keys; the reference
-        # page's prompt.md field table lists neither.
         self.case(
             "undocumented-keys",
             prompt="""\
@@ -400,8 +393,6 @@ class UnparsedFixture(ValidatorTestCase):
         self.assert_fail(result, "not parsed (anchor)")
 
     def test_unsupported_double_quoted_escape_fails_closed(self):
-        # "\d+" is not a valid YAML escape, so translating it to "d+" would
-        # green-light a pattern the binary refuses and run a grader nobody wrote.
         self.case(
             "unparsed-escape",
             prompt=CLEAN_PROMPT,
@@ -418,8 +409,6 @@ class UnparsedFixture(ValidatorTestCase):
         self.assert_fail(result, "not parsed (unsupported escape)")
 
     def test_indented_nested_sequence_fails_closed(self):
-        # The compact `- - x` spelling is already rejected; the indented one is
-        # the same construct and must fail the same way.
         self.case(
             "unparsed-nested-sequence",
             case_yaml="""\
@@ -453,8 +442,6 @@ class UnparsedFixture(ValidatorTestCase):
         self.assert_fail(result, "not parsed (unterminated frontmatter)")
 
     def test_dashes_inside_a_grader_frontmatter_value_fail(self):
-        # `claude plugin eval` rejects this grader with "invalid YAML
-        # frontmatter: YAML Parse error: Unexpected EOF" and runs nothing.
         self.case(
             "dashes-in-grader",
             prompt=CLEAN_PROMPT,
@@ -558,9 +545,6 @@ class SchemaFixture(ValidatorTestCase):
         )
 
     def test_case_yaml_beside_prompt_md_still_requires_name(self):
-        # A case `claude plugin eval` (2.1.295) refused with "invalid case.yaml:
-        # name: Required": a case.yaml turns off the directory-name default
-        # even when prompt.md carries the prompt.
         case_dir = self.case(
             "demo",
             prompt="""\
@@ -613,9 +597,6 @@ class SchemaFixture(ValidatorTestCase):
         self.assertNotIn("FAIL", result.stdout)
 
     def test_an_empty_case_yaml_keeps_the_identity_default(self):
-        # `claude plugin eval` (2.1.296) loads an empty, comment-only or
-        # bare-marker case.yaml as no case.yaml: it reported only a grader
-        # error for each, never "name: Required".
         for name, text in (("empty", ""), ("comment", "# x\n"), ("marker", "---\n")):
             self.case(
                 name,
@@ -628,8 +609,6 @@ class SchemaFixture(ValidatorTestCase):
         self.assertNotIn("is required", result.stdout)
 
     def test_a_case_with_no_prompt_fails(self):
-        # `claude plugin eval` refuses this case: "execution.prompt is required
-        # (a prompt.md body, or execution.prompt in case.yaml)".
         self.case(
             "no-prompt",
             case_yaml="""\
@@ -679,8 +658,6 @@ class SchemaFixture(ValidatorTestCase):
         self.assert_fail(result, 'schema_version "2.0" is a major newer than 1')
 
     def test_a_schema_version_with_no_leading_major_fails(self):
-        # `claude plugin eval` refuses it: 'schema_version "next" is not a valid
-        # version string'.
         self.case(
             "odd-version",
             prompt="""\
@@ -716,9 +693,6 @@ class SchemaFixture(ValidatorTestCase):
         )
 
     def test_each_grader_type_requires_its_options(self):
-        # Messages `claude plugin eval` gave for the same shapes:
-        # "graders.0.pattern: Required", "graders.2.tool: Required",
-        # "graders.0.path: Required". An llm .md body stands in for criteria.
         self.case(
             "missing-options",
             prompt="Say hi.\n",
@@ -786,8 +760,6 @@ class UnknownGraderOptionFixture(ValidatorTestCase):
 
 class GraderLookAtFixture(ValidatorTestCase):
     def test_an_unknown_focus_or_target_fails_naming_the_file_and_field(self):
-        # Claude Code 2.1.318 refused `focus: reply` at load with
-        # "graders.0.focus: Invalid input".
         self.case(
             "bad-focus",
             case_yaml="""\
@@ -898,8 +870,6 @@ class CleanFixture(ValidatorTestCase):
         self.assertNotIn("https", result.stdout)
 
     def test_grader_list_item_may_carry_a_block_mapping(self):
-        # Three mapping levels: the document, the grader item, and target. The
-        # graders sequence is not a level, so this is inside the subset.
         self.case(
             "block-target",
             case_yaml="""\
@@ -1017,8 +987,6 @@ class WarnTier(ValidatorTestCase):
         self.assertIn("judge grader", result.stdout)
 
     def test_a_sibling_write_case_does_not_silence_a_read_only_case(self):
-        # Each case runs in its own throwaway workspace, so the write tool one
-        # case asks for cannot make another case's file_exists satisfiable.
         self.case(
             "writes",
             prompt="""\
@@ -1098,8 +1066,6 @@ class SkillBashGrant(ValidatorTestCase):
         self.assertIn("the skill fails to load", result.stdout)
 
     def test_prose_mention_after_whitespace_warns(self):
-        # skill-authoring's shape: a code span holding a placeholder after a
-        # space, which Claude Code ran and failed on every load (#16146).
         self.skill(
             "setup",
             "---\ndescription: x\n---\n\nInline it\nwith `` !`command` `` at load.\n",
@@ -1108,8 +1074,6 @@ class SkillBashGrant(ValidatorTestCase):
         self.assertIn("skills/setup/SKILL.md has a pre-computed", result.stdout)
 
     def test_prose_mention_after_another_character_does_not_warn(self):
-        # plugin-eval's shape: ``!`command` `` puts a backtick before the !, so
-        # Claude Code leaves it as text and the skill loaded in every run.
         self.skill(
             "setup",
             "---\ndescription: x\n---\n\nA (``!`command` ``) line needs a writable TMPDIR.\n",
@@ -1505,7 +1469,6 @@ class SampleAnswers(ValidatorTestCase):
                 "g": REGEX_GRADER,
             },
         )
-        # Samples a regex would sort the other way: a judge's are not graded.
         self.samples("c", "judge", passing=[""], failing=["conftest.py"])
         result = self.validate()
         self.assertEqual(0, result.returncode, result.stdout)
@@ -1592,7 +1555,6 @@ class R2Regression(ValidatorTestCase):
             regex_grader(self.R2_PATTERN, "flags: i\narm: both\n"),
         )
         result = self.validate()
-        # Samples 1 and 5 carry the two phrasings the R2 with-arm used.
         self.assert_fail(
             result,
             "must-pass sample 1 (",
@@ -1609,8 +1571,6 @@ class R2Regression(ValidatorTestCase):
 
 
 HAS_NODE = shutil.which("node") is not None
-# Runs the real node under the caller's PATH, so a validator whose PATH holds
-# only this wrapper sees node and never an installed bun.
 REAL_NODE = 'PATH=%s\nexport PATH\nexec node "$@"\n' % shlex.quote(
     os.environ.get("PATH", "")
 )
@@ -1679,8 +1639,6 @@ class JavaScriptSyntax(ValidatorTestCase):
         self.assertNotIn("Python-only", self.validate().stdout)
 
     def test_brace_escapes_and_class_members_are_not_flagged(self):
-        # `\u{41}+` is a code point escape then a quantifier; without the `u` or
-        # `v` flag `[\A]` holds a literal A in JavaScript. Neither is Python-only.
         self.case(
             "c",
             prompt=CLEAN_PROMPT,
@@ -1691,7 +1649,6 @@ class JavaScriptSyntax(ValidatorTestCase):
         self.assertNotIn("Python-only", self.validate().stdout)
 
     def test_class_escape_is_flagged_under_the_unicode_flags(self):
-        # Under `u` or `v`, `[\A]` is an invalid escape in JavaScript.
         for flag in ("u", "v"):
             self.case(
                 "c",
@@ -1702,7 +1659,6 @@ class JavaScriptSyntax(ValidatorTestCase):
 
     @unittest.skipUnless(HAS_NODE, "node is not installed")
     def test_a_sample_javascript_sorts_the_other_way_fails(self):
-        # Python reads `\A` as the start of the text; JavaScript as a literal A.
         self.case("c", prompt=CLEAN_PROMPT, graders={"g": regex_grader("\\\\Aabc")})
         self.samples("c", "g", passing=["abc here"], failing=["nothing"])
         result = self.validate()
@@ -1743,7 +1699,6 @@ class JavaScriptSyntax(ValidatorTestCase):
 
     @unittest.skipUnless(HAS_NODE, "node is not installed")
     def test_a_javascript_only_pattern_is_graded_where_python_cannot(self):
-        # `\p{L}` needs the u flag in JavaScript and does not compile in `re`.
         self.case(
             "c",
             prompt=CLEAN_PROMPT,
@@ -1753,15 +1708,12 @@ class JavaScriptSyntax(ValidatorTestCase):
         result = self.validate()
         self.assertEqual(0, result.returncode, result.stdout)
         self.assertNotIn("FAIL", result.stdout)
-        # `re` cannot grade it, but the JavaScript pass did, and found it sound.
         self.assertIn("samples not checked", result.stdout)
         self.samples("c", "g", passing=["123"], failing=["abc"])
         self.assert_fail(self.validate(), "under JavaScript")
 
     @unittest.skipUnless(HAS_NODE, "node is not installed")
     def test_an_input_match_is_graded_by_javascript(self):
-        # `[^]` is any character in JavaScript and an unterminated class in `re`,
-        # so only the JavaScript pass can grade these samples.
         self.case(
             "c",
             prompt=CLEAN_PROMPT,
@@ -1800,7 +1752,6 @@ def probe_stub(output, status=0, stderr=""):
     return body + "exit %d\n" % status
 
 
-# Probe output for one grader over a must-pass then a must-fail sample.
 SORTED = '[{"answers":[{"found":true,"count":1},{"found":false,"count":0}]}]'
 NO_MATCH = '[{"answers":[{"found":false,"count":0},{"found":false,"count":0}]}]'
 
@@ -1874,8 +1825,6 @@ class BunEngine(ValidatorTestCase):
 
 
 def history_records(*links):
-    """One user/assistant record per (uuid, parentUuid) pair; a pair member
-    of Ellipsis leaves that key out of the record."""
     records = []
     for number, (uuid, parent) in enumerate(links, start=1):
         record = {"type": "user" if number % 2 else "assistant"}
@@ -2123,7 +2072,6 @@ class PilotSuite(unittest.TestCase):
             "the live fixture must validate clean\n" + result.stdout + result.stderr,
         )
         self.assertNotIn("FAIL", result.stdout)
-        # Every deterministic grader in the pilot suite carries checked samples.
         self.assertNotIn("no sample answers", result.stdout)
         self.assertNotIn("samples not checked", result.stdout)
 

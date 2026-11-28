@@ -1,5 +1,3 @@
-// Starts one registration's stdio server: bind the registration, build its
-// executor, serve until stdin ends. Returns the process exit code.
 import { readFileSync } from 'node:fs';
 import { ConfigError, loadConfig } from './config.mjs';
 import { createTediousExecutor } from './executor.mjs';
@@ -28,7 +26,6 @@ export async function main({
     throw error;
   }
   const executor = createExecutor(registration);
-  // The write principal gets its own pool, so a read never runs as it.
   const writeExecutor = registration.write ? createExecutor({ ...registration, auth: registration.write.auth }) : undefined;
   const server = createServer({
     databases: registration.databases,

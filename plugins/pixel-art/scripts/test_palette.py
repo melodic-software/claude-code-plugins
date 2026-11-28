@@ -1,5 +1,4 @@
 # test-scope: plugins/pixel-art/palettes/*.json
-"""Preset resolution and palette snapping."""
 import json
 import pathlib
 import struct
@@ -90,7 +89,6 @@ class PaletteTest(unittest.TestCase):
             self.assertEqual(read_png(out / "fade-out.png")[0][0], (0, 0, 0, 0))
 
     def test_reads_sub_filtered_rgb_and_rejects_other_pngs(self):
-        # one RGB pixel, filter Sub: stored byte is the sample itself because left is 0
         raw = raw_png(1, 1, 8, 2, 0, [bytes([1, 10, 20, 30])])
         with tempfile.TemporaryDirectory() as tmp:
             path = pathlib.Path(tmp) / "rgb.png"

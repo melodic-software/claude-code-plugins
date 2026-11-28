@@ -1,43 +1,4 @@
 #!/usr/bin/env bash
-# Detect eval fixtures that no grader consumes: a file under a skill's
-# evals/fixtures/ that no eval case references and no test asserts on. An
-# ungraded fixture is dead weight that reads as tested.
-#
-#   scripts/check-orphaned-fixtures.sh          discover: list every fixture
-#                                                under **/evals/fixtures/ and
-#                                                whether a grader consumes it
-#   scripts/check-orphaned-fixtures.sh --check  fail if an un-grandfathered
-#                                                fixture is orphaned, or a
-#                                                baseline entry is now stale
-#
-# A fixture at <skill>/evals/fixtures/<sub> is CONSUMED when any of:
-#   * its skill-relative path (evals/fixtures/<sub>) appears in the sibling
-#     grader <skill>/evals/evals.json — an eval `files[]` entry;
-#   * its basename appears as a whole token in that evals.json (a files[] form
-#     that spells the path differently still names the file);
-#   * its basename appears as a whole token in any *.test.* file in the plugin
-#     — a test that asserts on the fixture is a grader too.
-# Consumption matching is deliberately generous (path OR basename, across the
-# grader and every test): a false "consumed" only under-reports one orphan,
-# whereas a false "orphaned" red-lines a legitimate fixture. The baseline
-# absorbs the remaining known-orphan debt.
-#
-# Scope is **/evals/fixtures/ specifically — eval-grader fixtures, the gate's
-# target. Unit-test fixture dirs (…/tests/fixtures, …/scripts/fixtures) are out
-# of scope: those are often generated or loaded by directory, not named, and a
-# name-matcher cannot honestly grade them.
-#
-# Existing orphan debt owned by another issue is grandfathered in
-# scripts/orphaned-fixtures-baseline.txt (exact fixture paths, one file per
-# line — matched by full-string equality, NOT prefix, so a baselined
-# `<name>.json` never shadows a new `<name>.json.bak` or `<name>.jsonl`
-# sibling). An entry there is a promise the owning issue burns it down; --check
-# fails on a stale entry (one that no longer shadows any orphan) so the baseline
-# cannot outlive its debt.
-#
-# Fail-closed: a fixture with no resolvable grader is an orphan unless
-# explicitly grandfathered. FIXTURES_BASELINE overrides the baseline path (test
-# injection).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
@@ -56,18 +17,11 @@ discover | --check) ;;
   ;;
 esac
 
-# Active baseline entries. `inline`: each entry is one exact fixture path, never
-# a regex, so a `#` anywhere on the line is a comment (scripts/lib/read-list.sh
-# owns the two comment families and why they must stay distinct). Matched by
-# full-string equality below.
 entries=()
 if [[ -f "$BASELINE" ]]; then
   read_list::into entries "$BASELINE" --comments inline || exit 2
 fi
 
-# matched_baseline <fixture-path> -> print the baseline entry that grandfathers
-# it and return 0, or return 1 when none does. Callers that only need the
-# yes/no answer discard stdout.
 matched_baseline() {
   local path="$1" entry
   for entry in "${entries[@]}"; do
@@ -79,25 +33,17 @@ matched_baseline() {
   return 1
 }
 
-# plugin root that owns a path under plugins/<name>/… -> plugins/<name>
 plugin_root_of_to() {
   local rest="${2#plugins/}"
   printf -v "$1" 'plugins/%s' "${rest%%/*}"
 }
 
-# ere_escape_to <var> <string>
-# Write the ERE-escaped form into <var> in THIS shell. GNU Bash runs command
-# substitution in a subshell even for builtins (Command Substitution, Bash
-# Reference Manual; https://mywiki.wooledge.org/CommandSubstitution).
 ere_escape_to() {
   local __s="$2" __out="" __c
   local -i __i
   for ((__i = 0; __i < ${#__s}; __i++)); do
     __c="${__s:__i:1}"
     case "$__c" in
-    # Unquoted `\\` is one backslash. A quoted `'\\'` arm is two backslash
-    # characters, so a basename containing a single `\` would not be escaped
-    # and `grep -E` would treat `\b` as a word boundary.
     \\ | '.' | '|' | '$' | '(' | ')' | '[' | ']' | '{' | '}' | '?' | '+' | '*' | '^')
       __out+="\\$__c"
       ;;
@@ -109,7 +55,6 @@ ere_escape_to() {
   printf -v "$1" '%s' "$__out"
 }
 
-# jq files[] extract, once per evals.json: many fixtures share one grader.
 declare -A EVAL_FILES_VALUES
 eval_files_values_to() {
   local __dest="$1" __path="$2"
@@ -123,7 +68,6 @@ eval_files_values_to() {
   printf -v "$__dest" '%s' "$__v"
 }
 
-# consumed <fixture-path> -> 0 if some grader consumes it
 consumed() {
   local fixture="$1"
   local fixtures_dir evals_dir skill_dir evals_json rel base plugin plugin_rel files_values
@@ -131,32 +75,21 @@ consumed() {
   local -a skill_tests plugin_other_tests
 
   fixtures_dir="${fixture%/*}"
-  # walk up to the nearest 'fixtures' segment (fixtures may nest a subdir)
   while [[ "$fixtures_dir" == */* && "${fixtures_dir##*/}" != "fixtures" ]]; do
     fixtures_dir="${fixtures_dir%/*}"
   done
-  evals_dir="${fixtures_dir%/fixtures}" # …/evals
-  skill_dir="${evals_dir%/evals}"       # dir that owns evals/
+  evals_dir="${fixtures_dir%/fixtures}"
+  skill_dir="${evals_dir%/evals}"
   evals_json="$evals_dir/evals.json"
-  rel="${fixture#"$skill_dir"/}" # evals/fixtures/<sub>
+  rel="${fixture#"$skill_dir"/}"
   base="${fixture##*/}"
 
-  # Basename matches are bounded by NON-FILENAME characters on both sides:
-  # grep -w treats "." as a word boundary, so a referenced valid.json would
-  # wrongly consume a new unconsumed valid.json.bak sibling. Escape ERE
-  # metacharacters in the basename, then require the neighbors (if any) to be
-  # outside [A-Za-z0-9._-] so a longer filename never satisfies the match.
   ere_escape_to esc_base "$base"
+  # Not grep -w: it ends a word at ".", so valid.json would match valid.json.bak:
+  # https://www.gnu.org/software/grep/manual/grep.html#index-_002dw
   base_re="(^|[^A-Za-z0-9._-])${esc_base}([^A-Za-z0-9._-]|$)"
 
   if [[ -f "$evals_json" ]]; then
-    # Consumption via evals.json is limited to files[] VALUES: a fixture named
-    # only in a prompt or unrelated metadata string is NOT consumed. Extract every
-    # files[] string (at any nesting), then match $rel by whole-value equality, or
-    # the basename bounded within a value (a files[] form that spells the path
-    # differently still names the file). A shorter $rel is not a substring of a
-    # longer value under -x. jq failure (missing/invalid json) -> empty -> falls
-    # through to the test-file check below.
     eval_files_values_to files_values "$evals_json"
     if [[ -n "$files_values" ]]; then
       while IFS= read -r line || [[ -n "$line" ]]; do
@@ -168,12 +101,20 @@ consumed() {
     fi
   fi
 
-  # A `claude plugin eval` case consumes a fixture its scaffold.sh, or a seed
-  # script beside the fixtures that some scaffold runs, seeds by name. Seeders
-  # often name the stem without the .txt suffix fixtures carry so no linter
-  # reads them as source.
-  local seeder esc_stem stem_re
-  local -a seeders=() scaffolds=()
+  local seeder esc_stem stem_re fixture_path esc_path path_re
+  local -a seeders=() scaffolds=() plugin_scaffolds=()
+  plugin_root_of_to plugin "$fixture"
+  fixture_path="${fixture#"$fixtures_dir"/}"
+  if [[ "$evals_dir" != "$plugin/evals" && "$fixture_path" == */* ]]; then
+    for seeder in "$plugin"/evals/*/scaffold.sh; do
+      [[ -f "$seeder" ]] && plugin_scaffolds+=("$seeder")
+    done
+    ere_escape_to esc_path "$fixture_path"
+    path_re="(^|[^A-Za-z0-9._/-])${esc_path}([^A-Za-z0-9._/-]|$)"
+    if ((${#plugin_scaffolds[@]} > 0)) && grep -qE -- "$path_re" "${plugin_scaffolds[@]}"; then
+      return 0
+    fi
+  fi
   for seeder in "$evals_dir"/*/scaffold.sh; do
     [[ -f "$seeder" ]] && scaffolds+=("$seeder")
   done
@@ -193,12 +134,6 @@ consumed() {
     fi
   fi
 
-  # Test-file consumption is scoped: a bounded-basename match counts only inside
-  # the OWNING skill, so same-named fixtures in sibling skills are never
-  # conflated. A test elsewhere in the plugin must name the fixture by its
-  # plugin-relative path (fixed string), which is unambiguous across skills.
-  # ALL_TEST_FILES is indexed once below — not `find` per fixture.
-  plugin_root_of_to plugin "$fixture"
   plugin_rel="${fixture#"$plugin"/}"
   skill_tests=()
   plugin_other_tests=()
@@ -220,10 +155,6 @@ consumed() {
   return 1
 }
 
-# Collect every fixture under a **/evals/fixtures/ directory, sorted. One find
-# of every plugin `*.test.*` indexes the test-file graders, rather than a find
-# per fixture: each find is a process, and Cygwin's fork is a non-copy-on-write
-# Win32 CreateProcess (Cygwin User's Guide, Process Creation).
 mapfile -t -d '' fixtures < <(find plugins -type f -path '*/evals/fixtures/*' -print0 2>/dev/null | sort -z)
 mapfile -t -d '' ALL_TEST_FILES < <(find plugins -type f -name '*.test.*' -print0 2>/dev/null)
 
@@ -246,8 +177,6 @@ for f in "${fixtures[@]}"; do
     continue
   fi
   if p="$(matched_baseline "$f")"; then
-    # The entry is shadowing a real orphan, so it has not outlived what it
-    # excuses. scripts/lib/read-list.sh owns the consumed-set.
     read_list::mark_used "$p"
     continue
   fi

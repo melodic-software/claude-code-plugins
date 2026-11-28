@@ -301,9 +301,6 @@ test("a graphql or search stop does not refuse gh run download, which spends cor
   }
 });
 
-// A one-entry zip with the entry stored uncompressed, laid out as PKWARE's
-// APPNOTE.TXT section 4.3 gives a local header, its data, the central
-// directory header and the end of central directory record.
 function storedZip(name, text) {
   const data = Buffer.from(text);
   const file = Buffer.from(name);

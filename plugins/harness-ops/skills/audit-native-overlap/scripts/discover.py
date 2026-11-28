@@ -84,8 +84,6 @@ SUFFIXES = (
 TOKEN_RE = re.compile(r"[a-z0-9]+")
 SCORED_FIELDS = ("description", "argument_hint", "search_hint")
 CAMEL_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])")
-# Classes whose store rows take `route` or `suggest`, never `wrap`: a Native
-# step invokes through the Skill tool, and none of these is a skill.
 ROUTE_ONLY_CLASSES = frozenset(
     {"builtin-command", "bundled-workflow", "builtin-agent", "builtin-tool"}
 )
@@ -166,8 +164,6 @@ class Surface:
             }
         )
         text = scored_text(registrations)
-        # A tool's user-facing name ("Claude Design", "Update") is scored but
-        # not fingerprinted: a dismissal resurfaces on the scored_text fields.
         shown = " ".join(
             r["user_facing_name"]
             for r in registrations
@@ -215,7 +211,6 @@ def idf_table(bags: Iterable[Counter]) -> dict[str, float]:
 
 
 def _vector(bag: Counter, idf: dict[str, float]) -> tuple[dict[str, float], float]:
-    """A bag's TF-IDF vector and its norm (1.0 for an empty vector)."""
     vec = {t: (1 + math.log(w)) * idf.get(t, 1.0) for t, w in bag.items() if w > 0}
     return vec, math.sqrt(sum(v * v for v in vec.values())) or 1.0
 

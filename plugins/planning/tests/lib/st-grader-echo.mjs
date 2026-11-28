@@ -1,9 +1,3 @@
-// Exits 1, naming the grader and file, when a detection grader of an st-* case matches the text of
-// a file in that case's seeded workspace. Each file is tested as a stand-in for a report that
-// quotes it back. A must-not-flag grader (match: not_contains) is skipped: a match there fails the
-// run, so quoting cannot raise a score.
-//
-//   st-grader-echo.mjs <case dir> <workspace dir>
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 import process from "node:process";

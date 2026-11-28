@@ -1,5 +1,5 @@
 ---
-description: "Report (check, the default) or resolve (apply) the knowledge plugin's library_dir against the repository's artifact convention and its extraction prerequisites; apply install-deps provisions the extraction node deps and Chromium."
+description: "Report (check, default) or resolve (apply) knowledge library_dir and extraction prerequisites; apply install-deps provisions node deps and Chromium."
 argument-hint: "[check|apply] [install-deps]"
 user-invocable: true
 disable-model-invocation: true
@@ -122,7 +122,7 @@ prerequisite, and the exact next action (`/plugin configure knowledge` for `libr
 or `apply install-deps` for provisioning). A `library_dir` change takes effect in a fresh session,
 not this one. Do not claim it this session.
 
-## Boundaries
+## What this skill does not do
 
 - Do not run an ingestion pipeline. Provisioning dependencies is not the same as running one.
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`.

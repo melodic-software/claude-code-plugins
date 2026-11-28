@@ -1,5 +1,90 @@
 # Changelog: docs-hygiene plugin
 
+## [5.0.5] - 2026-11-28
+
+### Changed
+
+- Trimmed all 10 skill frontmatter descriptions (`audit-derivability`: 500 -> 346, `audit-encapsulation`: 438 -> 350, `audit-noise`: 498 -> 339, `audit-progressive-disclosure`: 498 -> 348, `compress`: 697 -> 343, `extract-ssot`: 436 -> 350, `rename-references`: 465 -> 342, `setup`: 461 -> 145, `write-for-agents`: 602 -> 344, `write-for-humans`: 497 -> 335; total 5,092 -> 3,242 chars, saving 1,850 chars) with zero SKILL.md body changes.
+
+## [5.0.4] - 2026-11-28
+
+### Fixed
+
+- **`/docs-hygiene:compress compare` reads the labeler prompt by its full path.** The step now names `${CLAUDE_SKILL_DIR}/context/compare-prompt.md` and forbids searching the plugin's install directory for it; a session that could not find the relative path searched there, was denied, and wrote the labeler's brief itself.
+
+## [5.0.3] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [5.0.2] - 2026-11-27
+
+### Fixed
+
+- **`/docs-hygiene:compress` runs each lint-gate step as its own plain command.** Each copy, status read, hash, lint run, restore and delete is a separate Bash call, with no command chains, shell functions or multi-line scripts and no `cd` (a `--repo` pass runs its lint command from the worktree it edited with `env -C <repository root>`), so a permission system that refuses compound calls no longer leaves the lint gate unrun. Each pre-lint copy is kept until the check after that lint run and any restore it calls for are done. The lint baseline is now named as the step before the snapshot and the first edit, and compress never probes for a linter the repository's command does not name ([#19128](https://github.com/melodic-software/claude-code-plugins/pull/19128) post-merge suite).
+
+## [5.0.1] - 2026-11-27
+
+### Changed
+
+- Synced shared `reference/detector-findings.md` with `portability-ok` annotations from `docs/contracts/detector-findings/README.md` and annotated surviving ecosystem specifics under ADR 0101 (#17746); no behavior change.
+
+## [5.0.0] - 2026-11-27
+
+### Changed
+
+- **Breaking:** `/docs-hygiene:compress` no longer runs `markdownlint-cli2` from `PATH` or `node_modules/.bin`, and no longer stops when it is absent. It finds your repository's own markdown lint command through the plugin's new copy of the ecosystem resolution steps (`reference/ecosystem-resolution.md`) and runs it scoped to each edited file, passing the file when the command lints only the paths it is given. It runs the same command once before the edit and blocks a ship only on a new failure of the file: one that names it, counted per file and rule, never matched by line number, or, when the file was passed to a command that lints only its arguments, any new failure message, named or not, or an exit status that was 0 before the edit and non-zero after it. `lint=PASS` means the edit added no new failure; a target that already failed before the edit is named as such. It runs only a command that reads: one that can write files (a `--fix` or `--write` flag, a fix or write option in the linter's config file, or a recorded `fix-cmd`) is never run, and the target reports `lint=unresolved`. Just before each lint run, the baseline included, it copies every target to a temporary file, deleted when the run ends, and before and after the run it records `git status --porcelain -uall` and the hashes of the files that output reports plus every target, recording a missing or non-regular path as absent; if any file changed, tracked or untracked, a target included, it restores each changed target from that copy, never runs the lint command again in that run, reports every target `lint=unresolved`, names the changed files and keeps compressing. A failure in another file that was already there before the edit no longer reverts a compression. A new one counts against the target: when a whole-tree run names another file whose failure count for a rule rose since the run before the edit, and no other target was edited since that run, it reverts the target and reports `lint=FAIL`; with another target edited since, the target reports `lint=unresolved` and the file is named. A command it cannot scope passes every target when it exits 0 after the edit, and marks the target `lint=unresolved` when it fails without naming a file, unless the run before the edit exited 0 and no other target was edited since, in which case it reverts the target and reports `lint=FAIL`. When none resolves, it skips the lint step, marks each target `lint=unresolved` and ships after every other check. The summary field is now `lint=PASS|FAIL|unresolved`, not `markdownlint=PASS|FAIL`. To keep the lint gate, record the command in `docs/conventions/ecosystems/<ecosystem>.yaml` (`/toolchain:setup apply <ecosystem>`), state it in your instructions, or declare it as a manifest script ([#17773](https://github.com/melodic-software/claude-code-plugins/issues/17773)).
+- **`compress`, `audit-derivability` and `rename-references` no longer name tools from one ecosystem.** The code-file extension examples, the named cross-vendor advisor plugin, the `package.json` / `pyproject.toml` / `Cargo.toml` manifest examples in the container-mode ladder and Form 14, and the Python / C# / JS rename examples are gone; the rules now state them in general terms ([#17773](https://github.com/melodic-software/claude-code-plugins/issues/17773)).
+
+### Removed
+
+- **`/docs-hygiene:setup` no longer checks `markdownlint-cli2`.** It validates the `compress_articles` setting only ([#17773](https://github.com/melodic-software/claude-code-plugins/issues/17773)).
+
+## [4.4.9] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [4.4.8] - 2026-11-26
+
+### Changed
+
+- `write-for-agents`: the "After writing" section becomes `## Next`, one target per result (`/docs-hygiene:extract-ssot`, `/domain-driven-design:ubiquitous-language curate`, `/docs-hygiene:audit-noise`); `/docs-hygiene:audit-derivability` moves to `## Related`.
+
+## [4.4.7] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [4.4.6] - 2026-11-26
+
+### Changed
+
+- `/docs-hygiene:audit-derivability` keeps its rule that a spot-test never runs in a `fork` subagent, and its Sources section now points at the subagent and skills docs for what a fork and a `context: fork` skill start with, instead of the body describing either.
+
+## [4.4.5] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+- Shared detector-findings contract synced where this plugin carries it: it registers `code-tidying/remove-comments/rule-glossary-candidate`; no other change to this plugin.
+
+## [4.4.4] - 2026-11-25
+
+### Changed
+
+- The detector-findings reference links the organization's `REVIEW.md` on melodic-software/standards main as the live severity-crosswalk instance.
+
+## [4.4.3] - 2026-11-25
+
+### Changed
+
+- The issue house style also reads `issue-tracker.md` from the org layer, the standards repository `standards_repository` names, when the repository has none of its own.
+
 ## [4.4.2] - 2026-11-24
 
 ### Changed

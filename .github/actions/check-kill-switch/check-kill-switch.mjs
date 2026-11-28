@@ -1,31 +1,14 @@
-// Gate for CI lanes: two manual switches, then, on a gate that starts new
-// work, the GITHUB_TOKEN budget.
-//
-// - The org switch and the repository switch each proceed only on exactly
-//   `false`. Unset, empty and every other value stop the lane (fail closed).
-// - With BUDGET_CHECK=true (the action's `budget: "true"`, set only on gates
-//   that start new work) and both switches proceeding, one GET /rate_limit
-//   with the job's token reads the core pool: x-ratelimit-limit, -remaining
-//   and -reset when the response carries all three, else the body's
-//   resources.core. The lane stops while remaining < start-gate x limit and
-//   the reset is still ahead; start-gate is github-token's entry in
-//   ../log-api-budget/rate-limits.json. A refused read (403, 429, retry-after
-//   or x-ratelimit-remaining 0) stops, since more calls would be refused too.
-//   A read that fails otherwise (transport, timeout, 5xx, 401) or cannot be
-//   parsed, or a share that cannot be read, proceeds with a warning; the rate guard's
-//   stop-floor (log-api-budget/rate-guard.mjs) is the backstop. GitHub counts
-//   this call against the secondary limit, not the primary one, so it is made
-//   once, with no retry. A gate that finishes or judges existing work leaves
-//   the budget off, so a low budget never throws that work away.
 import { randomUUID } from "node:crypto";
-import { appendFileSync, readFileSync } from "node:fs";
+import { appendFileSync } from "node:fs";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
-import { projectedLeft } from "./projection.mjs";
+import { budgetPolicy, clean, gateDecision, show } from "./budget-policy.mjs";
+import { stopRecordLine } from "./stop-record.mjs";
+
+export { budgetStops, deferGate, projectionGate, startGateShare } from "./budget-policy.mjs";
 
 const READ_TIMEOUT_MS = 10_000;
-const RATE_LIMITS = new URL("../log-api-budget/rate-limits.json", import.meta.url);
 
 export function checkKillSwitch(value, repoValue) {
   return value === "false" && repoValue === "false"
@@ -33,17 +16,8 @@ export function checkKillSwitch(value, repoValue) {
     : { proceed: "false", reason: "kill-switch", cause: "switch" };
 }
 
-// Whether `reading` ({ limit, remaining, reset }, reset in epoch seconds) is
-// under `share` of its limit with its reset after `now` (epoch seconds).
-// Anything unreadable never stops.
-export function budgetStops({ limit, remaining, reset } = {}, share, now) {
-  return [limit, remaining, reset, share].every(Number.isFinite) && limit > 0 && reset > now && remaining < share * limit;
-}
-
 const HEADERS = ["limit", "remaining", "reset", "used", "resource"];
 
-// The reading from one GET /rate_limit response: its headers when limit,
-// remaining and reset all parse, else the body's resources.core.
 export function readingOf(headers, body) {
   const header = Object.fromEntries(HEADERS.map((name) => [name, headers?.get?.(`x-ratelimit-${name}`) ?? null]));
   const fromHeaders = Object.fromEntries(["limit", "remaining", "reset"].map((name) => [name, /^\d+$/.test(header[name] ?? "") ? Number(header[name]) : Number.NaN]));
@@ -54,17 +28,9 @@ export function readingOf(headers, body) {
   return { reading, header, core };
 }
 
-// A value from a response, kept to one line with no workflow command in it.
-const clean = (text) => String(text).replace(/[\r\n%:]/g, " ");
-const show = (fields) => Object.entries(fields ?? {}).map(([name, value]) => `${name}=${clean(value ?? "na")}`).join(" ");
-
 const DEFAULT_WAIT_S = 60;
 const whole = (value) => (/^\d+$/.test(value ?? "") ? Number(value) : Number.NaN);
 
-// A response that says the token is already limited (403, 429, retry-after, or
-// no requests remaining) stops the lane rather than proceeding into more calls
-// that would be refused too. Its reset is always ahead of now: the header's
-// reset, else now + retry-after, else now + 60.
 function refusal(response, now, title) {
   const { status, headers } = response;
   const header = (name) => headers?.get?.(name) ?? null;
@@ -81,25 +47,7 @@ function refusal(response, now, title) {
   };
 }
 
-const START_LABELS = { share: "start-project", minutes: "start-run-minutes" };
-
-export function projectionStops(reading, { share, minutes, labels = START_LABELS }, now) {
-  const left = projectedLeft(reading, now, minutes * 60);
-  if (left === null) {
-    return { stop: false, left: null, text: `projection unreadable for this reading, so it does not hold the start (${labels.minutes}=${minutes})` };
-  }
-  const stop = left < share;
-  const shown = Math.round(left * 100) / 100;
-  return {
-    stop,
-    left: shown,
-    text: `projected left ${shown} of the limit ${minutes} min ahead or at the reset, against ${labels.share}=${share} (${labels.minutes}=${minutes}) stop=${stop}${stop ? `: the run would end in a window with under its ${labels.share} share of the limit left` : ""}`,
-  };
-}
-
-// The budget half of the gate: { stop, reset, line } where line is the run's
-// one notice or warning. Never throws.
-export async function checkBudget({ token, api = "https://api.github.com", share, projection = null, now = Date.now() / 1000, fetchImpl = fetch, title = "start-gate" } = {}) {
+export async function checkBudget({ token, api = "https://api.github.com", share, projection = null, now = Date.now() / 1000, fetchImpl = fetch, title = "start-gate", decide = (reading, at) => gateDecision({ share, projection, title }, reading, at) } = {}) {
   if (!token) {
     return { stop: false, line: `::warning title=${title}::no token to read the GITHUB_TOKEN budget; the lane proceeds` };
   }
@@ -119,80 +67,14 @@ export async function checkBudget({ token, api = "https://api.github.com", share
     if (![reading.limit, reading.remaining, reading.reset].every(Number.isFinite)) {
       throw new Error("neither the headers nor the body's resources.core carry limit, remaining and reset");
     }
-    const low = share !== null && budgetStops(reading, share, now);
-    const ahead = !low && projection ? projectionStops(reading, projection, now) : null;
-    const stop = low || ahead?.stop === true;
-    const coreFields = core && { limit: core.limit, remaining: core.remaining, reset: core.reset, used: core.used };
-    return {
-      stop,
-      reset: reading.reset,
-      projected: ahead?.left ?? null,
-      line:
-        `::notice title=${title}::github-token ${share === null ? "defer" : `start-gate=${share}`} decided from ${reading.source}: limit=${reading.limit} remaining=${reading.remaining} reset=${reading.reset} stop=${stop}; ` +
-        `${ahead ? `${ahead.text}; ` : ""}body core ${core ? show(coreFields) : "absent"}; headers ${show(header)}`,
-    };
+    return decide({ ...reading, header, core }, now);
   } catch (error) {
     return { stop: false, line: `::warning title=${title}::the GITHUB_TOKEN budget was not read (${clean(error?.message ?? error)}); the lane proceeds` };
   }
 }
 
-// github-token's start-gate share from rate-limits.json, the only copy, or
-// null with a warning when it cannot be read.
-export function startGateShare(path = RATE_LIMITS, log = (line) => console.log(line)) {
-  try {
-    const share = JSON.parse(readFileSync(path, "utf8"))?.["github-token"]?.["start-gate"];
-    if (typeof share !== "number" || share < 0 || share > 1) {
-      throw new Error("github-token start-gate is not a share from 0 to 1");
-    }
-    return share;
-  } catch (error) {
-    log(`::warning title=start-gate::rate-limits.json gave no start-gate share (${clean(error?.code ?? error?.message)}); the lane proceeds without a budget read`);
-    return null;
-  }
-}
-
-export function projectionGate(path = RATE_LIMITS, log = (line) => console.log(line)) {
-  try {
-    const entry = JSON.parse(readFileSync(path, "utf8"))?.["github-token"];
-    const share = entry?.["start-project"];
-    const minutes = entry?.["start-run-minutes"];
-    if (typeof share !== "number" || !(share > 0 && share <= 1)) throw new Error("github-token start-project is not a share over 0 up to 1");
-    if (!Number.isInteger(minutes) || minutes < 1) throw new Error("github-token start-run-minutes is not a whole number of minutes");
-    return { share, minutes };
-  } catch (error) {
-    log(`::warning title=start-gate::the projection gate could not be set up (${clean(error?.code ?? error?.message)}); the lane proceeds on the start-gate share alone`);
-    return null;
-  }
-}
-
-const MINUTES = (value) => Number.isInteger(value) && value >= 1;
-
-export async function deferGate({ rateLimits = RATE_LIMITS, resolvedPath = "", minutes = "", job = "", log = (line) => console.log(line) } = {}) {
-  try {
-    const { apiLimits } = await import("../log-api-budget/rate-guard.mjs");
-    const entry = apiLimits({ resolvedPath, defaultsPath: rateLimits })["github-token"];
-    const share = entry?.["defer-project"];
-    if (share === 0) {
-      log("check-kill-switch: github-token defer-project is 0, so deferral is off");
-      return null;
-    }
-    if (typeof share !== "number" || !(share > 0 && share <= 1)) throw new Error("github-token defer-project is not a share from 0 to 1");
-    if (job !== "" && !/^[a-z0-9][a-z0-9-]*$/.test(job)) throw new Error("defer-job is not a key suffix of lowercase letters, digits and hyphens");
-    const jobKey = `defer-run-minutes-${job}`;
-    const key = minutes !== "" ? "defer-minutes" : job !== "" && entry?.[jobKey] !== undefined ? jobKey : "defer-run-minutes";
-    const horizon = key === "defer-minutes" ? (/^\d+$/.test(minutes) ? Number(minutes) : Number.NaN) : entry?.[key];
-    if (!MINUTES(horizon)) throw new Error(`${key} is not a whole number of minutes`);
-    return { share, minutes: horizon, labels: { share: "defer-project", minutes: key } };
-  } catch (error) {
-    log(`::warning title=defer-gate::the defer gate could not be set up (${clean(error?.code ?? error?.message)}); the job proceeds`);
-    return null;
-  }
-}
-
 const isoOf = (seconds) => new Date(seconds * 1000).toISOString().replace(".000Z", "Z");
 
-// Every value is written in the delimited form, so no value can start a
-// second output line.
 export function writeOutputs(outputs, outputPath = process.env.GITHUB_OUTPUT) {
   if (!outputPath) {
     throw new Error("GITHUB_OUTPUT is not set");
@@ -223,14 +105,14 @@ async function waitBudget(value, log) {
 
 export async function main(
   env = process.env,
-  { fetchImpl = fetch, now = Date.now, log = (line) => console.log(line), rateLimits = RATE_LIMITS, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } = {},
+  { fetchImpl = fetch, now = Date.now, log = (line) => console.log(line), rateLimits, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)) } = {},
 ) {
+  const policy = budgetPolicy({ resolvedPath: env.RESOLVED_CONFIG ?? "", defaultsPath: rateLimits, log });
   let result = { ...checkKillSwitch(env.KILL_SWITCH_VALUE, env.REPO_KILL_SWITCH_VALUE), reset: "" };
   if (result.proceed === "true" && env.BUDGET_CHECK === "true") {
-    const share = startGateShare(rateLimits, log);
-    if (share) {
-      const projection = env.PROJECT_CHECK === "true" ? projectionGate(rateLimits, log) : null;
-      const read = () => checkBudget({ token: env.BUDGET_TOKEN, api: env.GITHUB_API_URL || undefined, share, projection, now: now() / 1000, fetchImpl });
+    if (await policy.ready("start", { project: env.PROJECT_CHECK === "true" })) {
+      const decide = (reading, at) => policy.decide("start", reading, at);
+      const read = () => checkBudget({ token: env.BUDGET_TOKEN, api: env.GITHUB_API_URL || undefined, now: now() / 1000, fetchImpl, decide });
       const stoppedAt = Math.floor(now() / 1000);
       let budget = await read();
       log(budget.line);
@@ -254,22 +136,26 @@ export async function main(
     if (env.RUN_ATTEMPT !== "1") {
       log(`check-kill-switch: run attempt ${clean(env.RUN_ATTEMPT || "unknown")} is not the first, so it never defers`);
     } else {
-      const gate = await deferGate({ rateLimits, resolvedPath: env.RESOLVED_CONFIG ?? "", minutes: env.DEFER_MINUTES ?? "", job: env.DEFER_JOB ?? "", log });
-      if (gate) {
-        const budget = await checkBudget({ token: env.BUDGET_TOKEN, api: env.GITHUB_API_URL || undefined, share: null, projection: gate, now: now() / 1000, fetchImpl, title: "defer-gate" });
+      if (await policy.ready("defer", { minutes: env.DEFER_MINUTES ?? "", job: env.DEFER_JOB ?? "" })) {
+        const decide = (reading, at) => policy.decide("defer", reading, at);
+        const budget = await checkBudget({ token: env.BUDGET_TOKEN, api: env.GITHUB_API_URL || undefined, now: now() / 1000, fetchImpl, title: "defer-gate", decide });
         log(budget.line);
         if (budget.stop) {
           result = { proceed: "false", reason: "kill-switch", cause: "defer", reset: String(budget.reset) };
-          const why =
-            budget.projected === null || budget.projected === undefined
-              ? "the budget read was refused"
-              : `the window is projected to have ${budget.projected} of its limit left ${gate.minutes} min ahead or at the reset, under defer-project=${gate.share}`;
+          const why = budget.why ?? "the budget read was refused";
           log(`::notice title=defer::deferred until the GITHUB_TOKEN window resets at ${budget.reset} (${isoOf(budget.reset)}): ${why}; cause=defer, so a later run after the reset does this work`);
         }
       }
     }
   }
   writeOutputs(result, env.GITHUB_OUTPUT);
+  if (result.proceed === "false") {
+    try {
+      log(stopRecordLine({ pool: result.reset ? "core" : null, cause: result.cause, reset: result.reset ? Number(result.reset) : null }));
+    } catch (error) {
+      log(`::warning title=stop-record::the stop was not recorded (${clean(error?.message ?? error)}); its outputs stand`);
+    }
+  }
   log(`check-kill-switch: proceed=${result.proceed} reason=${result.reason} cause=${result.cause}${result.reset ? ` reset=${result.reset}` : ""}`);
 }
 

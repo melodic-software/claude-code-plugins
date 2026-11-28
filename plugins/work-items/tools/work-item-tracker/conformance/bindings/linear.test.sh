@@ -1,12 +1,6 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced lib
 # shellcheck disable=SC2030,SC2031  # each guard case runs in its own ( ) so its env changes stay local — that isolation is the point, not an accident
-# linear.sh is a sourceable conformance binding — assert it sources cleanly, exposes the
-# cb_setup/cb_teardown contract, and refuses to run without an explicitly named
-# throwaway target, all without touching the network.
-#
-# It does NOT run the suite, which mutates real issues; the live pass is recorded as
-# deferred in the adapter's README.
 set -uo pipefail
 
 TMP_ROOT="$(mktemp -d)"
@@ -22,8 +16,6 @@ for fn in cb_setup cb_teardown; do
   assert_succeeds "linear binding exposes $fn" "declared" "missing" declare -F "$fn"
 done
 
-# No default for either half of the target: a destructive suite must never fall back to a
-# live workspace. Both guards fire before any network call.
 if (
   unset WIT_CONFORMANCE_LINEAR_HOST
   export WIT_CONFORMANCE_LINEAR_SCOPE="throwaway/SBX"
@@ -44,11 +36,6 @@ else
   pass "cb_setup requires an explicit scope (no retained default)"
 fi
 
-# With both named, cb_setup writes a binding the seam can actually read — a shape error
-# here would surface as an opaque exit 3 partway through a live run.
-#
-# `curl` is PATH-stubbed to one empty page so cb_setup's clean-at-start pass runs
-# offline rather than being bypassed.
 CB_STUB_DIR="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
 cat >"$CB_STUB_DIR/curl" <<'STUB'
 #!/usr/bin/env bash
@@ -74,9 +61,6 @@ chmod +x "$CB_STUB_DIR/curl"
 )
 assert_eq "cb_setup writes a well-formed linear binding" "0" "$?"
 
-# --- the clean-at-start pass actually archives what it finds -------------------
-# Assert the archive mutation is really sent, not just that cb_setup exits 0: a no-op
-# cleanup leaves the suite flapping on a previous run's leftovers.
 CB_LOG="$CB_STUB_DIR/requests.log"
 cat >"$CB_STUB_DIR/curl" <<'STUB'
 #!/usr/bin/env bash
@@ -109,19 +93,13 @@ chmod +x "$CB_STUB_DIR/curl"
   exit $rc
 ) >/dev/null 2>&1
 assert_eq "clean-at-start completes when the provider answers" "0" "$?"
-# grep -c prints 0 AND exits 1 on no match, so `|| echo 0` would append a second 0;
-# default only when grep printed nothing (missing file).
 archive_count="$(grep -c 'issueArchive' "$CB_LOG" 2>/dev/null || true)"
 assert_eq "…and archives the issue it found" "1" "${archive_count:-0}"
-# Linear's filter takes the TEAM KEY alone; the whole scope would silently match nothing
-# and look like a successful cleanup, so assert the split.
 assert_eq "…filtering on the bare team key" "yes" \
   "$(grep -q '"t":"SBX"' "$CB_LOG" && echo yes || echo no)"
 assert_eq "…and never sending the workspace-qualified scope as the key" "no" \
   "$(grep -q '"t":"throwaway/SBX"' "$CB_LOG" && echo yes || echo no)"
 
-# --- a provider error is surfaced, never swallowed -----------------------------
-# Returning success here would let the suite run against an unknown starting state.
 cat >"$CB_STUB_DIR/curl" <<'STUB'
 #!/usr/bin/env bash
 cat >/dev/null

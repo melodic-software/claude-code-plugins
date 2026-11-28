@@ -1,10 +1,5 @@
 #!/usr/bin/env bash
-# The shared session through a real cloudflared quick tunnel. SKIPs in CI and when no cloudflared
-# is given or on PATH, because it opens a public address and needs Cloudflare's edge.
-#   bash tracer-live.test.sh [CLOUDFLARED]
-# ensure-running -> the guest link loads through the tunnel -> a guest joins through it -> kill
-# cloudflared -> the server starts a new one -> the new link loads and the owner's view records
-# the change -> stop.
+# test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/shared/web/core.js
 set -u
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 shared=$(cd "$here/.." && pwd)
@@ -29,7 +24,6 @@ bad() {
   echo "FAIL: $1"
   fail=$((fail + 1))
 }
-# verdict <status> <ok message> <failure message>: the status of the check just before it.
 verdict() { if [[ $1 == 0 ]]; then ok "$2"; else bad "$3"; fi; }
 py=$(command -v python3 || command -v python)
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/shared-live.XXXXXX")
@@ -44,8 +38,7 @@ cleanup() {
 trap cleanup EXIT
 jget() { "$py" -c 'import json, sys; j = json.loads([x for x in sys.stdin.read().splitlines() if x.startswith("{")][-1]); v = eval(sys.argv[1]); print(v if isinstance(v, str) else json.dumps(v))' "$1"; }
 
-# Until the URL answers 200 through Cloudflare (a new quick-tunnel name takes a while to resolve).
-reach() { # url seconds
+reach() {
   local end=$((SECONDS + $2)) body
   while [[ $SECONDS -lt $end ]]; do
     body=$(curl -s --max-time 10 "${1%%#*}api/state" 2>/dev/null)

@@ -1,18 +1,14 @@
 # test-scope: plugins/planning/surface/tests/fixtures/ledger-legacy/*
+# test-scope: plugins/planning/scripts/testdata/interview-ledger-glossary.md
 # test-scope: plugins/planning/surface/schema/*.schema.json plugins/planning/.claude-plugin/plugin.json
-# test-scope: .markdownlint-cli2.jsonc plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json
-"""Tests for the exporters and import-ledger (AC27 to AC29), driven through round.py's CLI.
-
-Sessions are built in temporary data dirs: questions.json written directly, responses.json
-derived from a hand-written event log with the server's own rebuild function. The ledger and
-Brief outputs are graded by the plugin's `scripts/check-open-questions.sh`.
-"""
+# test-scope: lib/org-standards.sh docs/conventions/source-control.yaml plugins/planning/shared/schema/event.schema.json plugins/planning/shared/schema/question-shape.schema.json
 
 from __future__ import annotations
 
 import base64
 import html.parser
 import json
+import os
 import random
 import re
 import shutil
@@ -31,9 +27,9 @@ from interview_server import rebuild_responses  # noqa: E402
 
 ROUND = HERE / "round.py"
 CHECK = HERE.parent / "scripts" / "check-open-questions.sh"
+SESSION_LEDGER = HERE.parent / "scripts" / "testdata" / "interview-ledger-glossary.md"
 REPO = HERE.parents[2]
 BASH = shutil.which("bash")
-# The repository's locked install, else one on PATH; None when neither resolves.
 MARKDOWNLINT = shutil.which(
     str(REPO / "node_modules" / ".bin" / "markdownlint-cli2")
 ) or shutil.which("markdownlint-cli2")
@@ -62,8 +58,6 @@ def event(seq, qid, kind, alt=None, text=""):
     return {"seq": seq, "id": qid, "kind": kind, "alt": alt, "text": text, "at": AT}
 
 
-# A confirmed restatement's goal and criteria: what a page export needs to pass the --brief
-# gate once a question is answered, for a test that grades the Brief for something else.
 RESTATED = {
     "goal": "Ship the build cache.\n- Finish line: merged — checked by ci-status via the pull request's checks",
     "acceptance": "- builds reuse the cache",
@@ -155,6 +149,17 @@ class SessionCase(unittest.TestCase):
             event(5, "Q1", "confirm", alt="1"),
         ]
         self.session(qs, events)
+
+
+def with_records(path):
+    """The ledger at `path` with the glossary-lookup and ADR-outcome records the procedure
+    check needs under --brief appended."""
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(
+            "\n## Glossary lookup\n\noff (domain_docs)\n\n## ADR outcomes\n\n"
+            "- every other decision | declined: easy to reverse\n"
+        )
+    return path
 
 
 def register_rows(path):
@@ -628,12 +633,10 @@ class TestExportBrief(SessionCase):
             ],
         )
         self.assertIn("Export test", text)
-        # Q1's own answer replaced the recommendation, so its commitment is no risk.
         self.assertNotIn("Unticked promise", text)
         self.assertRegex(text, r"- Q2: .*\*\*arbiter: USER-RESERVED\*\*")
         self.assertTrue(text.rstrip().endswith("## Plan"))
         self.assertNotIn("superseded-by-plan", text)
-        # Field labels from context/problem-framing.md "Problem fields" and "Work size".
         self.assertIn(
             "### Problem\n\n- Gap: unknown\n- Who / how many: unknown\n- Frequency: unknown\n"
             "- Trend: unknown\n- Cost: unknown\n- Evidence: unknown\n\n### Intent",
@@ -649,7 +652,7 @@ class TestExportBrief(SessionCase):
         self.deferred_session(restated=True)
         rc, out = self.check(
             "--ledger",
-            self.export("ledger"),
+            with_records(self.export("ledger")),
             "--brief",
             self.export("brief"),
             "--procedure",
@@ -692,7 +695,7 @@ class TestExportBrief(SessionCase):
         self.assertEqual(
             merged, self.PLAN_HEAD + self.brief_section(ledger) + self.PLAN_TAIL
         )
-        rc, out = self.check("--ledger", ledger, "--brief", plan, "--procedure")
+        rc, out = self.check("--ledger", with_records(ledger), "--brief", plan, "--procedure")
         self.assertEqual(rc, 0, out)
         self.assertIn("brief=ok", out)
 
@@ -725,8 +728,6 @@ class TestExportBrief(SessionCase):
         )
 
     def test_into_reads_fences_as_the_gate_does(self):
-        # A four-backtick fence quoting a three-backtick one and a tilde line: the fenced
-        # `## Plan` is content, and the section ends at the real one.
         nested = "## Brief\n\n### TLDR\n\n````markdown\n```\n## Plan\n```\n~~~\n````\n\n"
         ledger, plan = self.merged_plan(self.PLAN_HEAD + nested + self.PLAN_TAIL)
         self.assertEqual(
@@ -770,8 +771,20 @@ class TestExportBrief(SessionCase):
         if not MARKDOWNLINT:
             self.skipTest("markdownlint-cli2 not installed; `npm ci` at the repository root")
         _, plan = self.merged_plan(self.PLAN_HEAD + self.STALE + self.PLAN_TAIL)
-        # markdownlint-cli2 reads its config from its working directory.
-        shutil.copy(REPO / ".markdownlint-cli2.jsonc", self.tmp)
+        org = subprocess.run(
+            ["bash", str(REPO / "lib" / "org-standards.sh"), "dir", "--root", str(REPO)],
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        config = Path(org.stdout.strip()) / ".markdownlint-cli2.jsonc"
+        if (org.returncode != 0 or not config.is_file()) and (
+            os.environ.get("CI") or os.environ.get("STANDARDS_DIR")
+        ):
+            self.fail("the standards org layer's .markdownlint-cli2.jsonc could not be read, and CI or STANDARDS_DIR says it must be")
+        if org.returncode != 0 or not config.is_file():
+            self.skipTest("the standards org layer's .markdownlint-cli2.jsonc could not be read")
+        shutil.copy(config, self.tmp)
         p = subprocess.run(
             [MARKDOWNLINT, plan.name],
             cwd=self.tmp,
@@ -1550,8 +1563,6 @@ class TestBriefDecisionsOnce(SessionCase):
                 q28 = [x for x in text.splitlines() if re.search(r"\bQ28\b", x)]
                 self.assertEqual(len(q28), 1, q28)
                 if name == "restated":
-                    # The recap carries every answered row, Q28 marked as Q13's replacement
-                    # in Decisions.
                     self.assertEqual(
                         self.section(text, "Constraints").strip(), "- none recorded"
                     )
@@ -1562,7 +1573,6 @@ class TestBriefDecisionsOnce(SessionCase):
     def test_no_decision_line_appears_twice(self):
         for name, text in self.briefs(constraints="- stdlib only (Q2)"):
             with self.subTest(name):
-                # A decision line is a bullet naming a Q<N>; `- none` repeats by design.
                 lines = [
                     x
                     for x in text.splitlines()
@@ -1578,7 +1588,6 @@ class TestBriefDecisionsOnce(SessionCase):
                 self.assertEqual(twice, [])
                 answered = {f"Q{i}" for i in range(1, 29)} - {"Q13"}
                 if name == "restated":
-                    # The recap carries Q2; the constraint citing it stays as written.
                     self.assertNotIn("- Q2 Short Q2:", text)
                     self.assertIn("- stdlib only (Q2)", self.section(text, "Constraints"))
                 self.assertEqual(set(leads), answered)
@@ -1594,7 +1603,6 @@ class TestBriefDecisionsOnce(SessionCase):
         own = "Q3 Short Q3: accepted: Recommended answer for Q3."
         text = self.confirmed(
             qs,
-            # Q2's answer changes after the recap was taken.
             [*events, event(5, "Q2", "alt", alt="a")],
             decisions="\n".join(cut),
             constraints=f"- launch before Q4 2026\n- {own}",
@@ -1619,8 +1627,6 @@ class TestBriefDecisionsOnce(SessionCase):
         self.assertRegex(recap, r"Q4 open: .*…\)")
         text = self.confirmed(
             qs,
-            # "Tick these and confirm" ticks Q1's commitment after the recap was taken; Q2 then
-            # takes an alternative, so its answer changed and its line stays as written.
             [
                 *events,
                 event(5, "Q1", "confirm", alt="0"),
@@ -1643,7 +1649,6 @@ class TestBriefDecisionsOnce(SessionCase):
         self.assertIn("- Q2 open: ", self.section(text, "Decisions"))
         constraints = self.section(text, "Constraints")
         self.assertIn("- Q2 Short Q2: alt a: Alt a of Q2\n", constraints)
-        # Q4's recap line cut its long answer; it still reads once, whole.
         q4 = [x for x in text.splitlines() if re.match(r"^- Q4\b", x)]
         self.assertEqual(
             q4,
@@ -1656,45 +1661,201 @@ class TestBriefDecisionsOnce(SessionCase):
 
 
 class TestChangedRowsRecap(SessionCase):
-    """confirmation_recap with `since` lists only the rows changed since that recap, plus a
-    count per status for the rest; with no data dir it reads the ledger text alone."""
+    """confirmation_recap read from the ledger alone (the terminal lane) prints, in order, Needs
+    your eye, the summary grouped by each row's topic (untagged rows under Other), Changed after
+    you first saw it, and Terms and ADRs: one plain `<title>: <answer>` line per question, each
+    section only when it has a line, nothing cut. A data dir keeps the page's line per row."""
 
     LEDGER = (
-        "# Interview ledger\n\n## Open-question register\n\n"
-        "- Q1 | answered | round 1 | Share the cache? | answer:: accepted: share it\n"
-        "- Q2 | open | round 1 | Which runner image? |\n"
-        "- Q3 | withdrawn | round 2 | Split the job? | answer:: archived: folded into Q1\n"
+        "# Interview ledger\n\n## Terminology matrix\n\n"
+        "| Term | Definition | Source | Status |\n|---|---|---|---|\n"
+        "| head SHA | the commit the branch points at | user, round 1 | agreed |\n"
+        "| tip | the newest commit | user, round 2 | proposed |\n\n"
+        "## Open-question register\n\n"
+        "- Q1 | answered | round 1 | Share the cache? | answer:: accepted: share it; "
+        "topic:: Caching\n"
+        "- Q2 | answered | round 1 | Which runner image? | the slim image; topic:: Runners\n"
+        "- Q3 | answered | round 1 | Keep the lock file? | answer:: hedged: keep it; "
+        "note:: if the build stays under ten minutes\n"
+        "- Q4 | deferred | round 2 | Who pays for storage? | arbiter: USER-RESERVED\n"
+        "- Q5 | answered | round 2 | Cache size cap? (part of Q1) | answer:: accepted: 5 GB; "
+        "topic:: Caching\n"
+        "- Q6 | answered | round 2 | Evict old entries? | answered through Q1: evict after "
+        "a week\n"
+        "- Q7 | withdrawn | round 2 | Split the job? | answer:: archived: folded into Q1\n"
+        "- Q8 | answered | round 3 | Retry flaky steps? | answer:: accepted: twice; "
+        "topic:: Runners; reopened:: round 3\n"
+        "- Q9 | answered | round 3 | Publish the report? | accepted: weekly\n\n"
+        "## ADR outcomes\n\nChecked with the admission test.\n"
+        "- Q1 (shared cache) | record: other repositories read it\n"
+        "- every other decision | declined: easy to reverse\n\n"
+        "## Reopened answers\n\n"
+        "- Q8 | round 3 | was: accepted: once | fact: ci.md:4 says retries are cheap\n"
     )
+    TERMS = [
+        "head SHA: the commit the branch points at",
+        "shared cache: record: other repositories read it",
+        "every other decision: declined: easy to reverse",
+    ]
 
-    def test_the_ledger_alone_gives_one_line_per_row(self):
+    @staticmethod
+    def sections(recap):
+        """{section heading: [line without its `- `]} in print order; every line in a section."""
+        out = {}
+        for block in recap.rstrip("\n").split("\n\n") if recap else ():
+            head, *lines = block.split("\n")
+            stray = [x for x in lines if not x.startswith("- ")]
+            if stray or not (head.startswith("**") and head.endswith("**")):
+                raise AssertionError(f"not a section: {block!r}")
+            out[head.strip("*")] = [x[2:] for x in lines]
+        return out
+
+    @staticmethod
+    def titles(lines):
+        return [x.split(": ", 1)[0] for x in lines]
+
+    def test_the_ledger_alone_prints_the_sections_in_order(self):
         recap, fits = exporters.confirmation_recap(None, 20000, self.LEDGER)
         self.assertTrue(fits)
+        got = self.sections(recap)
         self.assertEqual(
-            recap.splitlines(),
-            [
-                "Q1 answered: Share the cache? (accepted: share it)",
-                "Q2 open: Which runner image? ()",
-                "Withdrawn (1): Q3",
-            ],
+            list(got), ["Needs your eye", "Caching", "Runners", "Other", "Terms and ADRs"]
         )
+        eye = got["Needs your eye"]
+        self.assertEqual(
+            self.titles(eye), ["Keep the lock file", "Who pays for storage", "Retry flaky steps"]
+        )
+        self.assertIn("if the build stays under ten minutes", eye[0])
+        self.assertTrue(eye[0].startswith("Keep the lock file: keep it"), eye[0])
+        self.assertEqual(
+            eye[2], "Retry flaky steps: twice (changed from once after a new finding)"
+        )
+        (caching,) = got["Caching"]
+        self.assertTrue(caching.startswith("Share the cache: share it; "), caching)
+        for part in ("Cache size cap: 5 GB", "evict after a week"):
+            self.assertIn(part, caching)
+        self.assertNotIn("Evict old entries", recap)
+        self.assertNotIn("Split the job", recap)
+        self.assertEqual(got["Runners"], ["Which runner image: the slim image"])
+        self.assertEqual(got["Other"], ["Publish the report: weekly"])
+        self.assertEqual(got["Terms and ADRs"], self.TERMS)
+        self.assertNotIn("tip", self.titles(got["Terms and ADRs"]))
+        for word in ("::", "accepted", "hedged", "arbiter", "USER-RESERVED", "Q1", "answered"):
+            self.assertNotIn(word, recap)
 
-    def test_only_changed_rows_are_listed_and_the_rest_counted(self):
-        since = exporters.recap_state(exporters.recap_rows(None, self.LEDGER))
-        changed = self.LEDGER.replace(
-            "Which runner image? |", "Which runner image? | the slim image"
-        ).replace("- Q2 | open", "- Q2 | answered")
-        recap, _ = exporters.confirmation_recap(None, 20000, changed, since)
-        self.assertEqual(
-            recap.splitlines(),
-            [
-                "Q2 answered: Which runner image? (the slim image)",
-                "Unchanged since the last recap (2): 1 answered, 1 withdrawn",
-            ],
+    def test_changed_rows_compare_against_the_first_recap_and_appear_once(self):
+        first = exporters.first_recap_state(None, exporters.recap_rows(None, self.LEDGER))
+        second = self.LEDGER.replace("the slim image", "the full image")
+        kept = exporters.first_recap_state(first, exporters.recap_rows(None, second))
+        self.assertEqual(kept["Q2"], first["Q2"])
+        third = (
+            self.LEDGER.replace("the slim image", "the medium image")
+            .replace("hedged: keep it", "hedged: drop it")
+            .replace(
+                "\n\n## ADR outcomes",
+                "\n- Q10 | answered | round 3 | Name the job? | accepted: ci\n\n## ADR outcomes",
+            )
         )
-        recap, _ = exporters.confirmation_recap(None, 20000, self.LEDGER, since)
+        recap, _ = exporters.confirmation_recap(None, 20000, third, kept)
+        got = self.sections(recap)
         self.assertEqual(
-            recap, "Unchanged since the last recap (3): 1 answered, 1 open, 1 withdrawn\n"
+            list(got),
+            ["Needs your eye", "Caching", "Other", "Changed after you first saw it",
+             "Terms and ADRs"],
         )
+        changed = got["Changed after you first saw it"]
+        self.assertEqual(self.titles(changed), ["Which runner image", "Keep the lock file"])
+        self.assertEqual(changed[0], "Which runner image: the medium image")
+        self.assertIn("drop it", changed[1])
+        self.assertEqual(self.titles(got["Needs your eye"]), ["Who pays for storage",
+                                                             "Retry flaky steps"])
+        self.assertEqual(self.titles(got["Other"]), ["Publish the report", "Name the job"])
+        self.assertNotIn("Unchanged", recap)
+        said = [x for lines in got.values() for x in lines]
+        self.assertEqual(len(said), len(set(said)), said)
+
+    def test_with_nothing_changed_there_is_no_changed_section(self):
+        first = exporters.first_recap_state(None, exporters.recap_rows(None, self.LEDGER))
+        recap, _ = exporters.confirmation_recap(None, 20000, self.LEDGER, first)
+        self.assertEqual(recap, exporters.confirmation_recap(None, 20000, self.LEDGER)[0])
+
+    def test_a_section_with_no_line_is_left_out(self):
+        ledger = (
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | Share the cache? | answer:: accepted: share it\n"
+        )
+        recap, _ = exporters.confirmation_recap(None, 20000, ledger)
+        self.assertEqual(recap, "**Other**\n- Share the cache: share it\n")
+
+    def test_commitments_fold_into_their_line_and_an_unconfirmed_one_needs_your_eye(self):
+        ledger = (
+            "# Interview ledger\n\n## Open-question register\n\n"
+            "- Q1 | answered | round 1 | One writer? | answer:: accepted: yes; "
+            "commitments:: +admins only; +no network\n"
+            "- Q2 | open | round 1 | Two writers? | answer:: accepted: no; "
+            "commitments:: +a lock; -a queue\n"
+            "- Q3 | open | round 1 | Which runner image? |\n\n"
+            "## Captured assumptions\n\n- Quality bar: production\n"
+        )
+        recap, _ = exporters.confirmation_recap(None, 20000, ledger)
+        got = self.sections(recap)
+        self.assertEqual(list(got), ["Needs your eye", "Other"])
+        eye = got["Needs your eye"]
+        self.assertEqual(self.titles(eye), ["Two writers", "Which runner image", "Quality bar"])
+        self.assertTrue(eye[0].startswith("Two writers: no; "), eye[0])
+        self.assertLess(eye[0].index("a lock"), eye[0].index("a queue"))
+        self.assertEqual(eye[2], "Quality bar: production")
+        (one,) = got["Other"]
+        self.assertTrue(one.startswith("One writer: yes; "), one)
+        self.assertLess(one.index("admins only"), one.index("no network"))
+        self.assertNotIn("commitments", recap)
+
+    def test_a_long_answer_is_never_cut_and_an_oversize_recap_says_so(self):
+        long = " ".join(["Keep the build cache on the runner's local disk."] * 60)
+        ledger = (
+            "# Interview ledger\n\n## Open-question register\n\n"
+            f"- Q1 | answered | round 1 | Where is the cache? | answer:: accepted: {long}\n"
+        )
+        recap, fits = exporters.confirmation_recap(None, 20000, ledger)
+        self.assertIn(f"- Where is the cache: {long}\n", recap)
+        self.assertNotIn("…", recap)
+        self.assertTrue(fits)
+        recap, fits = exporters.confirmation_recap(None, 1000, ledger)
+        self.assertIn(long, recap)
+        self.assertFalse(fits)
+
+    def test_a_real_ledger_reads_in_plain_words(self):
+        text = SESSION_LEDGER.read_text(encoding="utf-8")
+        recap, fits = exporters.confirmation_recap(None, 20000, text)
+        self.assertTrue(fits)
+        lines = recap.splitlines()
+        self.assertEqual(
+            [x for x in lines if x.startswith("**")],
+            ["**Needs your eye**", "**Other**", "**Terms and ADRs**"],
+        )
+        self.assertNotIn("…", recap)
+        for marker in ("::", "answered", "accepted:", "withdrawn", "arbiter", "Q30"):
+            self.assertNotIn(marker, recap)
+        rows = {f"Q{n}": (title, res) for n, _, _, title, res, _ in exporters.parse_register(text)}
+        q38_title = rows["Q38"][0].rstrip("?")
+        (q38,) = [x for x in lines if x.startswith(f"- {q38_title}: ")]
+        self.assertIn("/planning:design", q38)
+        q31_title, q31_answer = rows["Q31"]
+        q18_title, q18_answer = rows["Q18"]
+        (q31,) = [x for x in lines if x.startswith(f"- {q31_title.rstrip('?')}: ")]
+        self.assertIn(f": {q31_answer}; ", q31)
+        cited = q18_answer.removeprefix("answered through Q31: ")
+        self.assertNotEqual(cited, q18_answer)
+        self.assertGreater(q31.index(cited), q31.index(q31_answer))
+        self.assertNotIn(q18_title.rstrip("?"), recap)
+        self.assertIn("- Where is the limit set: an account setting with a team default. "
+                      "Basis: docs/settings.md:40-52", lines)
+        self.assertIn("- Is there a per-section item limit today: No: \"no limit on items per "
+                      "section except the shared digest's\"", lines)
+        self.assertIn("- every other decision: declined: layout rules with no trigger beyond "
+                      "the weighed alternative", lines)
+        said = [x for x in lines if x]
+        self.assertEqual(len(said), len(set(said)), said)
 
     def test_a_page_answer_since_the_last_recap_is_the_changed_row(self):
         qs = [question(f"Q{i}") for i in (1, 2, 3)]
@@ -2009,7 +2170,6 @@ class TestBriefIntent(SessionCase):
                 question("Q1", basis=basis),
                 question("Q2", basis="Shared buckets leak between forks."),
                 question("Q3"),
-                # The basis argues for the recommendation, which an alternative turned down.
                 question("Q4", basis="Why the recommendation wins."),
             ],
             events,
@@ -2182,7 +2342,6 @@ class TestCommitmentsCarriedByAnswerKind(SessionCase):
         self.assertIn("- 0 commitments confirmed; 0 unconfirmed", brief)
         self.assertIn("free-text: Run it at 03:00, after backups finish.", brief)
         self.assertNotIn("nightly report", brief)
-        # The ledger keeps the tick, so an import restores it.
         self.assertIn(
             "commitments:: +Cleanup runs after the nightly report",
             register_rows(self.export("ledger"))[0],
@@ -2902,7 +3061,6 @@ class TestImportLedger(SessionCase):
             )
             for i, t in enumerate(terminals, 1)
         ]
-        # A head that reads like the tail, with no commitment and with only an empty one.
         own = {"decision": "own", "updatedAt": AT}
         qs += [
             question("Q5", terminal=dict(own, text="mine; confirmed:: y")),
@@ -3323,7 +3481,6 @@ class TestSupersededByPlan(SessionCase):
     RES = "plan proposes: admin only; was: any enrolled user"
     ROW = "proposal:: admin only; was:: any enrolled user"
     FIELDS = {"proposal": "admin only", "was": "any enrolled user", "note": None}
-    # After the import's own stamp, so a page answer given after a re-import counts.
     AFTER = "2999-01-01T00:00:00Z"
 
     def seed(self, res=RES):
@@ -3487,7 +3644,6 @@ class TestSupersededByPlan(SessionCase):
             ("admin only", "any enrolled user"),
         )
         self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
-        # An accept reconfirms the proposal and keeps the commitments on the answered row.
         ops.write_text(
             json.dumps(
                 {"ops": [{"op": "record-terminal", "id": "Q1", "decision": "accept"}]}
@@ -3820,7 +3976,6 @@ def corpus_wait(waits, by="claude"):
 
 
 def corpus_cases():
-    """The merge gate's adversarial held-row corpus (corpus.py, corpus2.py, corpus3.py): name -> (ops, seed ledger)."""
     base = [corpus_add()]
     cases = {}
     for tag, waits in [
@@ -3911,8 +4066,6 @@ def corpus_cases():
 
 
 def held_state(doc, resp):
-    """Per question: the hold, the decision that counts, else the newest one a user hold set
-    aside, the confirmed commitments and the plan proposal."""
     responses = resp.get("responses") or {}
     events = resp.get("events") or []
     seeds = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
@@ -3954,9 +4107,6 @@ def load_state(d):
 
 
 def resumed_state(d):
-    """held_state plus what a resumed session must get back: every commitment in order with its
-    confirmation, the withdrawal, the seeded text of an unheld row still unsettled, and the
-    register's status, arbiter and whether the decision carries the commitments."""
     doc = json.loads((d / "questions.json").read_text(encoding="utf-8"))
     path = d / "responses.json"
     resp = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
@@ -3966,7 +4116,6 @@ def resumed_state(d):
     state = held_state(doc, resp)
     for q in doc["questions"]:
         r = rows[q["id"]]
-        # A held row shows no seed text until its hold clears, when the property test compares it.
         unsettled = (
             r["status"] in exporters.UNSETTLED
             and not q.get("waiting")
@@ -4111,8 +4260,6 @@ class TestHeldRowProperty(SessionCase):
         rnd = random.Random(seed)
         qs, rows = [], {}
         expect = {"open": 0, "superseded": 0, "answered": 0, "deferred": 0}
-        # Unheld superseded-by-plan rows reconfirmed by an accept or kept by a defer: the row
-        # keeps the proposal, not the decision, so only their confirmed commitments are compared.
         expect["loose"] = set()
         for i, (by, decision, superseded, confirmed) in enumerate(self.SHAPES, 1):
             qid = f"Q{i}" if seed % 2 == 0 else f"H{i}"
@@ -4166,9 +4313,6 @@ class TestHeldRowProperty(SessionCase):
             expect["superseded" if superseded else "open"] += 1
             qs.append(q)
         n = len(self.SHAPES)
-        # Never-held rows: an open row with confirmed commitments, superseded-by-plan rows
-        # without and with confirmed commitments, answered and deferred rows with confirmed
-        # commitments, and superseded-by-plan rows reconfirmed by an accept or kept by a defer.
         unheld = [
             (None, False, True),
             (None, True, False),
@@ -4225,7 +4369,6 @@ class TestHeldRowProperty(SessionCase):
                 }
                 if structured:
                     rows[qid]["proposal"] = [new, old]
-            # An accept that leaves a commitment unticked reads open.
             unticked = len(q.get("commitsConfirmed", [])) < len(q["commits"])
             if decision == "accept" and unticked:
                 expect["open"] += 1
@@ -4236,8 +4379,6 @@ class TestHeldRowProperty(SessionCase):
             else:
                 expect["superseded" if superseded else "open"] += 1
             qs.append(q)
-        # Never-held superseded-by-plan rows whose resolution is not a proposal, some with
-        # confirmed commitments, some holding the confirmed tail's mark.
         for mark in ("", "", "; confirmed::", "; confirmed:: x"):
             qid = f"Q{len(qs) + 1}" if seed % 2 == 0 else f"H{len(qs) + 1}"
             commits = [self.text(rnd) for _ in range(rnd.randint(0, 3))]
@@ -4326,7 +4467,6 @@ class TestHeldRowProperty(SessionCase):
             cleared,
             f"seed {seed}",
         )
-        # The cleared rows round-trip too, each with its confirmed commitments.
         again = self.tmp / f"again-{seed}"
         again.mkdir()
         rc, out = self.rp("import-ledger", "--ledger", str(cleared_ledger), d=again)
@@ -4351,11 +4491,6 @@ LEGACY_SHAPES = 36
 
 
 def legacy_state(doc):
-    """What an import left in questions.json, from its raw fields and none of its timestamps: per
-    question the commitments with their confirmation, the terminal decision (an accept's or an
-    alternative's text is its note), the recommendation and alternatives (a plan proposal's
-    `was` is the alternative keyed was), the archived reason, the hold, the set-aside keys and
-    the seeded row with its proposal pair."""
     seeds = ((doc.get("meta") or {}).get("seededFrom") or {}).get("rows") or {}
     state = {}
     for q in doc["questions"]:
@@ -4690,7 +4825,6 @@ class TestResumedState(SessionCase):
         self.assertIn("- Q1 confirmed so far: One writer\n", brief)
         self.assertIn("- risk: No network (unconfirmed); from Q1\n", brief)
 
-    # Every combination: seed x hold x decision x commitment set, one question each.
     SEEDS = {
         None: None,
         "proposal": {
@@ -4742,8 +4876,6 @@ class TestResumedState(SessionCase):
             for d in self.DECISIONS
             for c in self.TICKS
         ):
-            # A withdrawn row carries only its withdrawal: a hold or a seeded deferral on it
-            # does not export.
             if (
                 decision
                 and decision[0] == "withdraw"
@@ -4849,8 +4981,6 @@ class TestResumedState(SessionCase):
                 self.assertEqual(after[qid], before[qid], rows[i - 1])
         self.assertEqual(len(after), len(combos))
         self.assertEqual(register_rows(self.export("ledger", d=fresh)), rows)
-        # Clearing every hold on both sides leaves the same state, except for the combinations
-        # held_loss names, which the grammar has no field for and this pins as still lost.
         for d in (self.dir, fresh):
             path = d / "questions.json"
             doc = json.loads(path.read_text(encoding="utf-8"))
@@ -5087,7 +5217,6 @@ class TestLedgerRoundCellsAndMerge(SessionCase):
         rc, out = self.rp("validate", d=fresh)
         self.assertEqual(rc, 0, out)
         self.assertEqual(register_rows(self.export("ledger", d=fresh)), labeled)
-        # A round the page changes no longer matches the label, so the plain cell is written.
         doc = self.doc(fresh)
         doc["questions"][0]["round"] = 2
         (fresh / "questions.json").write_text(json.dumps(doc), encoding="utf-8")
@@ -5659,6 +5788,145 @@ class TestNeverAssigned(SessionCase):
             "- gap | Q2-Q2 | never assigned\n",
             self.export("ledger").read_text(encoding="utf-8"),
         )
+
+
+class TestTopicTag(SessionCase):
+    """`topic:: <plain words>` is a register tag like the rest: split off the answer, read by
+    the gate as a tag, and written back byte for byte through an import and an export."""
+
+    ROWS = [
+        "- Q1 | answered | round 1 | Which store? | answer:: accepted: Postgres; "
+        "topic:: Data and storage",
+        "- Q2 | open | round 1 | Which cache? | depends:: Q1; topic:: Data and storage",
+        "- Q3 | answered | round 2 | Which queue? | answer:: accepted: SQS; kind:: discovery; "
+        "topic:: Messaging: queues & topics",
+    ]
+    LEDGER = "# Interview ledger\n\n## Open-question register\n\n" + "\n".join(ROWS) + "\n"
+
+    def test_split_tags_peels_a_topic(self):
+        cases = {
+            "answer:: accepted: x; topic:: Data and storage": (
+                "answer:: accepted: x",
+                "topic:: Data and storage",
+            ),
+            "topic:: Layout; recheck:: Q2": ("", "topic:: Layout; recheck:: Q2"),
+            "free-text: a; topic:: ": ("free-text: a; topic::", ""),
+            "answer:: a\\; topic:: Layout": ("answer:: a\\; topic:: Layout", ""),
+        }
+        for res, want in cases.items():
+            with self.subTest(res=res):
+                self.assertEqual(exporters.split_tags(res.rstrip()), want)
+                self.assertEqual(exporters.join_tags(*want), res.rstrip())
+
+    def test_the_gate_reads_a_topic_as_a_tag(self):
+        rows = [
+            "- Q1 | answered | round 1 | a | topic:: Layout",
+            "- Q2 | answered | round 1 | b | answer:: x\\; topic:: Layout; recheck:: Q1",
+        ]
+        ledger = self.tmp / "topic.md"
+        ledger.write_bytes(
+            ("# Interview ledger\n\n## Open-question register\n\n" + "\n".join(rows) + "\n").encode()
+        )
+        _, out = self.check("--ledger", ledger, "--procedure")
+        self.assertIn(" recheck=1 ", out)
+        self.assertEqual(re.findall(r"(Q\d+): answered row has an empty resolution", out), ["Q1"])
+        self.assertEqual(exporters.split_tags(rows[0].split(" | ")[-1]), ("", "topic:: Layout"))
+
+    def test_an_import_then_export_and_sync_write_each_topic_back_byte_for_byte(self):
+        ledger = self.tmp / "topics.md"
+        ledger.write_bytes(self.LEDGER.encode("utf-8"))
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        doc = json.loads((self.dir / "questions.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            doc["meta"]["seededFrom"]["tags"]["Q3"],
+            "kind:: discovery; topic:: Messaging: queues & topics",
+        )
+        self.assertEqual(register_rows(self.export("ledger")), self.ROWS)
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        self.assertEqual(ledger.read_bytes(), self.LEDGER.encode("utf-8"))
+
+
+class TestLedgerSectionsCarry(SessionCase):
+    """A page export keeps the ledger's glossary lookup, ADR outcomes, round counts,
+    self-answered facts and assumption sweep, as it keeps its problems and reopened answers."""
+
+    SECTIONS = {
+        "glossary lookup": "## Glossary lookup\n\noff (domain_docs)\n",
+        "adr outcomes": "## ADR outcomes\n\n- every other decision | declined: easy to reverse\n",
+        "round counts": "## Round counts\n\n- round 1 | opened 2 | closed 1\n",
+        "self-answered facts": "## Self-answered facts\n\n- F1 | answered-from-codebase | "
+        "Which queue? | SQS | infra.md:3 \"queue: sqs\"\n",
+        "assumption sweep": "## Assumption sweep\n\n- sweep 1 | register through Q1\n"
+        "- S1 | sweep 1 | undecided | decision | Q1 recommendation, retries | Q2\n\n"
+        "- sweep 2 | register through Q2\n"
+        "- S2 | sweep 2 | hidden-default | fact | Q2, region | F1\n",
+    }
+    LEDGER = (
+        "# Interview ledger\n\n"
+        + SECTIONS["glossary lookup"]
+        + "\n## Open-question register\n\n"
+        "- Q1 | answered | round 1 | Which store? | answer:: accepted: Postgres\n"
+        "- Q2 | open | round 1 | Retry how often? |\n\n"
+        + SECTIONS["round counts"]
+        + "\n"
+        + SECTIONS["self-answered facts"]
+        + "\n"
+        + SECTIONS["assumption sweep"]
+        + "\n"
+        + SECTIONS["adr outcomes"]
+    )
+
+    def imported(self, text):
+        ledger = self.tmp / "ledger.md"
+        ledger.write_bytes(text.encode("utf-8"))
+        rc, out = self.rp("import-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        return ledger
+
+    def exported(self, ledger, name="exported.md"):
+        out = self.tmp / name
+        rc, text = self.rp("export-ledger", "--ledger", str(ledger), "--out", str(out))
+        self.assertEqual(rc, 0, text)
+        return out
+
+    def test_an_export_keeps_each_section_once_and_is_a_fixed_point(self):
+        first = self.exported(self.imported(self.LEDGER))
+        text = first.read_text(encoding="utf-8")
+        for name, block in self.SECTIONS.items():
+            with self.subTest(name):
+                self.assertEqual(text.count(block), 1, text)
+        again = self.exported(first, "again.md")
+        self.assertEqual(again.read_bytes(), first.read_bytes())
+
+    def test_a_sync_leaves_each_section_as_it_was(self):
+        ledger = self.imported(self.LEDGER)
+        rc, out = self.rp("sync-ledger", "--ledger", str(ledger))
+        self.assertEqual(rc, 0, out)
+        text = ledger.read_text(encoding="utf-8")
+        for name, block in self.SECTIONS.items():
+            with self.subTest(name):
+                self.assertEqual(text.count(block), 1, text)
+
+    def test_a_real_ledger_exported_from_the_page_still_passes_the_procedure_check(self):
+        exported =self.exported(self.imported(SESSION_LEDGER.read_text(encoding="utf-8")))
+        text = exported.read_text(encoding="utf-8")
+        for heading in ("## Glossary lookup", "## ADR outcomes", "## Assumption sweep",
+                        "## Self-answered facts", "## Reopened answers"):
+            self.assertEqual(text.count(f"\n{heading}\n"), 1, heading)
+        brief = self.tmp / "PLAN.md"
+        brief.write_text(
+            "## Brief\n\n### TLDR\n- x\n\n### Problem\n- x\n\n### Goal\nx\n"
+            "- Finish line: merged — checked by ci-status via the pull request's checks\n\n"
+            "### Work size\n- x\n\n### Constraints\n- x\n\n### Acceptance criteria\n- x\n\n"
+            "### Captured assumptions\n- x\n\n### Out-of-scope\n- x\n\n"
+            "### Deferred questions\n- Q38: x\n\n## Plan\n",
+            encoding="utf-8",
+        )
+        rc, out = self.check("--ledger", exported, "--brief", brief, "--procedure")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("procedure=ok", out)
 
 
 class TestNoEmojiNoSkillNames(SessionCase):

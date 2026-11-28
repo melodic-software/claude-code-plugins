@@ -21,12 +21,12 @@ set -euo pipefail
 fixtures="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 now="$(date +%s)"
 
-put() { # put <fixture-name> <destination>
+put() {
   mkdir -p "$(dirname "$2")"
   cp "$fixtures/$1.txt" "$2"
 }
 
-commit_hours_ago() { # commit_hours_ago <hours> <message>
+commit_hours_ago() {
   local stamp="$((now - $1 * 3600)) +0000"
   git add -A
   GIT_AUTHOR_DATE="$stamp" GIT_COMMITTER_DATE="$stamp" \
@@ -36,7 +36,6 @@ commit_hours_ago() { # commit_hours_ago <hours> <message>
 git init -q
 git symbolic-ref HEAD refs/heads/main
 
-# C1: initial tree, with earlier versions of the files B2 later changes.
 put bs-CLAUDE.md CLAUDE.md
 put bs-legacy.sh src/legacy.sh
 mkdir -p src repo vendor .github/workflows docs tests
@@ -55,18 +54,15 @@ printf '%s\n' '# Release history' '' 'This log is append-only. Do not edit histo
 printf '%s\n' '#!/usr/bin/env bash' 'echo "all tests passed"' >tests/run.sh
 commit_hours_ago 960 "feat: initial greeter toolkit"
 
-# C2: the branch point.
 put bs-old.sh lib/old.sh
 commit_hours_ago 840 "feat: add old status script"
 
 git checkout -q -b feature/tidy
 
-# B1: ten days old, on the branch only.
 put bs-helpers.sh src/helpers.sh
 put bs-branch-util.sh lib/branch-util.sh
 commit_hours_ago 240 "feat: add helper and branch utility scripts"
 
-# B2: inside every time window the cases use.
 put bs-greet.sh src/greet.sh
 put bs-tool.sh repo/tool.sh
 put bs-gen.sh vendor/gen.sh
@@ -78,7 +74,6 @@ put bs-adr-0001.md docs/adr/0001-greeting-function.md
 put bs-run-tests.sh tests/run.sh
 commit_hours_ago 20 "refactor: rename say_hello to greet and extend scripts"
 
-# M3: a main-only change after the branch point, to a file the branch never touched.
 git checkout -q main
 sed -i.bak 's/# Prints the legacy status\./# Prints the legacy flag status./' src/legacy.sh
 rm -f src/legacy.sh.bak

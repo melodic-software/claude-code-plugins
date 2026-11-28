@@ -56,23 +56,24 @@ import detached  # noqa: E402
 import session_bridge as bridge  # noqa: E402
 import tunnel  # noqa: E402
 
-NAME = "shared"  # matches server.py and session-bridge.conf
+NAME = "shared"
 SECRETS = ".shared-secrets.json"
 PORTS = ".shared-ports.json"
 OWNER_LINK = ".owner-link"
-REPORTED = ".shared-reported"  # the guest link the last ensure-running printed
+REPORTED = ".shared-reported"
 SERVER_ERR = ".shared-server.err"
 LOCK = ".shared.lock"
 OPS_MAX = 1024 * 1024
-START_SECONDS = float(os.environ.get("SHARED_START_SECONDS") or 15.0)  # tests shorten it
-NAMED_PORT = 8765  # judgment: a named tunnel's guest port when none is given and no API token routes it; its ingress rule names this port
-LEASE_SECONDS = 5.0  # judgment: how long the lease probe waits for the tunnel's hostname to answer
-SYNC_SECONDS = 5.0  # how long the server may take to pick up a new tunnel record
+START_SECONDS = float(os.environ.get("SHARED_START_SECONDS") or 15.0)
+NAMED_PORT = 8765
+LEASE_SECONDS = 5.0
+SYNC_SECONDS = 5.0
+PORT_FREE_SECONDS = float(os.environ.get("SHARED_PORT_FREE_SECONDS") or 5.0)
 SERVER_MARKER = "python" if detached.WINDOWS else "server.py"
-OPEN_PAGE = ".owner-open-{}.html"  # the page --open hands the browser; it holds the owner link
-OPEN_SECONDS = 30.0  # judgment: a browser started cold has read the page well within this
+OPEN_PAGE = ".owner-open-{}.html"
+OPEN_SECONDS = 30.0
 LOG = "server.log"
-LOG_TAIL = 200  # judgment: the most lines `logs` prints, the newest
+LOG_TAIL = 200
 FORGET_PAGE = "import contextlib, os, sys, time\ntime.sleep(float(sys.argv[2]))\nwith contextlib.suppress(OSError):\n    os.unlink(sys.argv[1])\n"
 
 
@@ -101,13 +102,11 @@ def read_json(path):
 
 
 def live(d):
-    """The running server's session record, or None."""
     s = bridge.read_session(d, NAME)
     return s if s and bridge.running(d, s) else None
 
 
 def call(s, method, path, body=None, timeout=30):
-    """One request to the control listener with the token; (status, parsed body)."""
     conn = http.client.HTTPConnection("127.0.0.1", int(s["port"]), timeout=timeout)
     try:
         headers = {bridge.token_header(NAME): s["token"]}
@@ -150,7 +149,6 @@ def watch_command(d):
 
 
 def start_server(d, guest, control, *, defaults_file=None):
-    """Start server.py detached on the given ports (0 picks one) and wait for its ping."""
     nonce = secrets.token_hex(8)
     cmd = detached.python(str(HERE / "server.py"), "--dir", str(d), "--guest-port", str(guest), "--control-port", str(control), "--nonce", nonce)
     if defaults_file:
@@ -186,15 +184,35 @@ def stop_server(d, s):
     deadline = time.monotonic() + START_SECONDS
     while asked and time.monotonic() < deadline and detached.alive(pid, SERVER_MARKER):
         time.sleep(0.05)
-    detached.stop(pid, SERVER_MARKER)  # nothing to end once it has exited
+    detached.stop(pid, SERVER_MARKER)
     deadline = time.monotonic() + START_SECONDS
     while time.monotonic() < deadline and bridge.ping(s["port"], timeout=0.5):
         time.sleep(0.05)
     return True
 
 
+def wait_ports_free(*ports, seconds=None):
+    """Wait until each non-zero port is free, or refuse naming the port still busy."""
+    wanted = list(dict.fromkeys(p for p in ports if p))
+    if not wanted:
+        return
+    timeout = PORT_FREE_SECONDS if seconds is None else seconds
+    deadline = time.monotonic() + timeout
+    while True:
+        busy = [p for p in wanted if not bridge.port_free(p)]
+        if not busy:
+            return
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        time.sleep(min(0.05, remaining))
+    if len(busy) == 1:
+        raise Refused(2, f"port {busy[0]} is still busy after {timeout:g} s: the server cannot restart there")
+    names = ", ".join(str(p) for p in busy)
+    raise Refused(2, f"ports {names} are still busy after {timeout:g} s: the server cannot restart there")
+
+
 def wait_public(s, want, seconds=SYNC_SECONDS):
-    """Until the server allows the tunnel address `want`; the last ping."""
     deadline = time.monotonic() + seconds
     p = bridge.ping(s["port"]) or {}
     while p.get("publicUrl") != want and time.monotonic() < deadline:
@@ -231,7 +249,6 @@ def open_link(d, url):
 
 
 def report(d, s, rec, resumed, *, opened=None):
-    """The ensure-running and restart answer."""
     st = status_of(s)
     url = guest_url(rec["url"] if rec else "", st.get("guestKey"))
     before = (d / REPORTED).read_text(encoding="utf-8").strip() if (d / REPORTED).exists() else ""
@@ -253,7 +270,6 @@ def report(d, s, rec, resumed, *, opened=None):
 
 
 def tunnel_check(s, url):
-    """Why the server says `url` does not reach it (its probe), or None when it does."""
     code, body = call(s, "POST", "/api/tunnel-check", {"url": url}, timeout=float(os.environ.get("SHARED_PROBE_SECONDS") or 30) + 30)
     if code != 200:
         return f"the tunnel check was refused: HTTP {code} {body.get('error', '')}"
@@ -266,11 +282,6 @@ def kind(rec):
 
 
 def named_config(d, a):
-    """(hostname, token file, API token file, why a quick tunnel stands in or None) from the command line, ("", "", "",
-    None) for a quick tunnel. Without --tunnel-hostname the recorded tunnel's kind, token file and API token file stay:
-    only an explicit empty hostname switches back to quick. A file path may start with ~/ (the options are set
-    fleet-wide). A hostname that is no DNS name refuses; a token file that cannot be used falls back to a quick tunnel, so
-    the options may be set on machines that do not hold the files yet."""
     if a.tunnel_hostname is None:
         rec = tunnel.read(d) or {}
         hostname, token_file = tunnel.config(rec)
@@ -284,7 +295,7 @@ def named_config(d, a):
         raise Refused(1, f"refused: {problem}")
     if a.adopt_tunnel:
         raise Refused(1, "--adopt-tunnel records a quick tunnel; leave out --tunnel-hostname with it")
-    if api_file.startswith("${user_config."):  # an unset option can arrive as its unexpanded token: its default, empty
+    if api_file.startswith("${user_config."):
         api_file = ""
     token_file, api_file = (os.path.normpath(os.path.expanduser(f)) if f.startswith("~") else f for f in (token_file, api_file))
     why = tunnel.token_file_problem(token_file) or (api_file and tunnel.token_file_problem(api_file, "tunnel API token file", "tunnel_api_token_file"))
@@ -300,9 +311,6 @@ def lease_target(hostname):
     return http.client.HTTPSConnection(hostname, 443, timeout=LEASE_SECONDS, context=ssl.create_default_context())
 
 
-# Cloudflare's no-connector page, its tags stripped. A browser gets HTML holding <span>Error</span> <span>1033</span>;
-# a client like this one gets text/plain "error code: 1033" (both read from a stopped tunnel's hostname on 2026-10-29).
-# The words are matched apart from the markup, never a bare "1033".
 NO_CONNECTOR = re.compile(r"\berror(?: code)?:? 1033\b", re.IGNORECASE)
 
 
@@ -373,7 +381,6 @@ def routed(config, hostname, port):
 
 
 def tunnel_api(token_file, api_file):
-    """(API token, the tunnel's API path) for the route calls; raises cfdns.Refused."""
     account, tunnel_id = run_token_ids(token_file)
     return cfdns.api_token(api_file), f"/accounts/{account}/cfd_tunnel/{tunnel_id}"
 
@@ -488,20 +495,15 @@ def creation(d, a, resumed):
 
 
 def ended_session(d):
-    """True when the data folder's state.json says the session has ended."""
     return (((read_json(d / "state.json") or {}).get("session") or {}).get("phase") or {}).get("kind") == "ended"
 
 
 def kept_notice(ports):
-    """D11: a server the owner runs on a port is theirs; ending its live prototype never stops it."""
     for port in sorted(set(ports)):
         print(f"the server on port {port} that a live prototype showed keeps running: it is yours, so stop it yourself when you are done", file=sys.stderr)
 
 
 def end_lives(d, s, lid=None):
-    """End one live prototype (`lid`) or every one: through the running server, so the page says so at once, then
-    straight from the records (`.shared-live/`) for whatever the server did not end, as when it is down. The ids ended,
-    and the ports of the owner's servers that keep running."""
     ended, ports = [], []
     if s is not None:
         code, body = call(s, "POST", "/api/live/stop", {} if lid is None else {"id": lid})
@@ -522,7 +524,6 @@ def end_lives(d, s, lid=None):
 
 
 def bring_up(d, a):
-    """ensure-running: start or reuse the server and the tunnel."""
     problem = detached.data_dir_problem(d)
     if problem:
         raise Refused(1, f"refused: {problem}")
@@ -535,10 +536,10 @@ def bring_up(d, a):
         resumed = (d / "state.json").exists()
         hostname, token_file, api_file, fallback = named_config(d, a)
         before = tunnel.read(d) if hostname else None
-        before = before if before and tunnel.config(before)[0] == hostname else None  # its last record for the link
-        own = tunnel.alive(d) if before else None  # this session already serves the link
+        before = before if before and tunnel.config(before)[0] == hostname else None
+        own = tunnel.alive(d) if before else None
         settled = bool(own and fallback)
-        if settled:  # its files matter only at cloudflared's next start, so the running link stays
+        if settled:
             print(f"named tunnel {hostname}: {fallback}; its running tunnel keeps serving this session", file=sys.stderr)
             hostname, token_file = tunnel.config(own)
             api_file, fallback = own.get("apiTokenFile") or "", None
@@ -547,7 +548,7 @@ def bring_up(d, a):
         requested = hostname
         if fallback:
             hostname, token_file, api_file = "", "", ""
-        fixed = hostname and not api_file  # no API token routes the tunnel, so its ingress rule names a fixed port
+        fixed = hostname and not api_file
         wanted, adopt = creation(d, a, resumed)
         ports = read_json(d / PORTS) or {}
         if fixed and wanted is None and not ports.get("guest"):
@@ -556,13 +557,13 @@ def bring_up(d, a):
             raise Refused(1, f"this session's guest port is {ports['guest']}; --guest-port applies only when a session is created")
         s = live(d)
         stale = s and bridge.stale_build(s)
-        if stale:  # a server started before a plugin update runs the old code: restart it on its ports, as `restart` does
+        if stale:
             stop_server(d, s)
             s = start_server(d, ports.get("guest", 0), ports.get("control", s["port"]))
             print(f"restarted the {NAME} server: {stale}", file=sys.stderr)
         if s is None:
             over = ended_session(d)
-            for rec in tunnel.sweep_live(d, every=over, reason="session-ended" if over else "failed"):  # after a reboot or a crash
+            for rec in tunnel.sweep_live(d, every=over, reason="session-ended" if over else "failed"):
                 print(f"live prototype {rec['id']}: nothing of it was running any more, so it has ended", file=sys.stderr)
             if wanted is not None and not bridge.port_free(wanted):
                 raise Refused(2, f"port {wanted} is busy: the guest listener cannot start there")
@@ -583,11 +584,11 @@ def bring_up(d, a):
             try:
                 s = start_server(d, guest, control, defaults_file=a.defaults_file)
             except BaseException:
-                if adopt:  # forget the adopted tunnel, never stop it: it still serves whoever ran it
+                if adopt:
                     (d / tunnel.RECORD).unlink(missing_ok=True)
                 raise
         port = (bridge.ping(s["port"]) or {}).get("guestPort")
-        if type(port) is not int:  # a tunnel to no port would replace one that works
+        if type(port) is not int:
             raise Refused(2, "the server did not name its guest port; run ensure-running again")
         if api_file and not settled and not (own and own.get("port") == port):
             fallback = route(hostname, token_file, api_file, port, own, before)[0]
@@ -603,7 +604,7 @@ def bring_up(d, a):
                     rec = tunnel.fall_back(d, port)
         except (tunnel.TunnelDown, TimeoutError) as exc:
             down = str(exc)
-            rec = kept = tunnel.alive(d)  # a refused switch leaves the running tunnel, and its link, in place
+            rec = kept = tunnel.alive(d)
         if fallback:
             print(f"named tunnel {requested}: {fallback}; a quick tunnel serves this session instead", file=sys.stderr)
         if fixed and hostname:
@@ -633,7 +634,7 @@ def cmd_stop(d, a):
     stopped = []
     with detached.locked(d / LOCK):
         s = bridge.read_session(d, NAME)
-        lives, ports = end_lives(d, s if s and bridge.running(d, s) else None)  # every live prototype ends with the session's server
+        lives, ports = end_lives(d, s if s and bridge.running(d, s) else None)
         if lives:
             stopped.append("lives")
         if s and bridge.running(d, s):
@@ -645,7 +646,7 @@ def cmd_stop(d, a):
                 stopped.append("server")
         bridge.clear_session(d, NAME)
         keep = read_json(d / SECRETS) or {}
-        if "control" in keep:  # a stopped session's next start gets a new control token
+        if "control" in keep:
             keep.pop("control")
             detached.write_private(d / SECRETS, json.dumps(keep) + "\n")
         adopted = (tunnel.read(d) or {}).get("adopted") and tunnel.alive(d)
@@ -679,8 +680,10 @@ def cmd_restart(d, a):
         if s is None:
             raise Refused(1, "not running: run ensure-running")
         ports = read_json(d / PORTS) or {}
+        guest, control = ports.get("guest") or 0, ports.get("control") or s["port"]
         stop_server(d, s)
-        s = start_server(d, ports.get("guest", 0), ports.get("control", s["port"]))
+        wait_ports_free(guest, control)
+        s = start_server(d, guest, control)
         rec = tunnel.alive(d)
         if rec:
             wait_public(s, rec["url"])
@@ -719,7 +722,6 @@ def cmd_status(d, a):
 
 
 def stopped_lives(d, doc):
-    """status with the server down: each live entry as state.json last had it, and whether anything of it still runs."""
     records = {rec["id"]: rec for _, rec in tunnel.live_records(d)}
     out = []
     for e in doc.get("lives") or []:
@@ -822,7 +824,7 @@ def log_lines(d):
     lines = []
     for f in [*rotated, d / LOG]:
         with contextlib.suppress(OSError):
-            lines += [line for line in f.read_text(encoding="utf-8", errors="replace").split("\n") if line]  # not splitlines(): only a newline ends an entry
+            lines += [line for line in f.read_text(encoding="utf-8", errors="replace").split("\n") if line]
     return lines
 
 
@@ -841,16 +843,14 @@ def cmd_logs(d, a):
     return {"ok": True, "lines": lines[-LOG_TAIL:]}
 
 
-# ---------- logs --summary: what the pages' telemetry adds up to (README "Logs") ----------
 FIELD = re.compile(r' (\w+)=(?:"([^"]*)"|(\S*))')
 ESCAPE = re.compile(r"\\x([0-9a-f]{2})|\\u([0-9a-f]{4})")
-LAT_EDGES = (100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000)  # ms; web/core.js LAT_EDGES, plus one bucket above the last
-SLOW_GAP = 10000  # ms: a reconnect gap the summary counts as slow
-TOP = 10  # judgment: the most error fingerprints the summary lists
+LAT_EDGES = (100, 200, 300, 500, 750, 1000, 1500, 2000, 3000, 5000, 10000)
+SLOW_GAP = 10000
+TOP = 10
 
 
 def entry_of(line):
-    """A log line's entry kind and its fields, unescaped; (None, {}) for a line that is not an entry."""
     parts = line.split(" ", 4)
     if len(parts) < 4:
         return None, {}
@@ -859,18 +859,15 @@ def entry_of(line):
 
 
 def tokens(message):
-    """A summary or layout message's `name=value` tokens."""
     return dict(t.split("=", 1) for t in message.split(" ") if "=" in t)
 
 
 def rank(values, q):
-    """The nearest-rank q-quantile of `values`."""
     s = sorted(values)
     return s[max(0, math.ceil(q * len(s)) - 1)] if s else None
 
 
 def bucket_rank(counts, q):
-    """The upper edge in ms of the latency bucket holding the q-quantile; None for the bucket above the last edge."""
     need, seen = math.ceil(q * sum(counts)), 0
     for edge, n in zip((*LAT_EDGES, None), counts):
         seen += n
@@ -885,7 +882,6 @@ def device(ua):
 
 
 def browser(ua):
-    """The browser class of a page's `ua`."""
     words = (ua or "").split(" ")
     return words[0] if len(words) > 1 and words[0] else "unknown"
 
@@ -901,7 +897,6 @@ def summarize(lines):
     pages, taps = set(), {k: collections.Counter() for k in ("use", "rage", "dead")}
 
     def count(key, n, at):
-        """A `rep:<fp>`, `use:`, `rage:` or `dead:<component>` count, from a batch's counts or an older summary."""
         kind, _, name = key.partition(":")
         if kind == "rep" and name:
             repeats[name] += n
@@ -910,7 +905,6 @@ def summarize(lines):
             taps[kind][name] += n
 
     def fold(message, ua, at):
-        """One summary from a batch written at `at`."""
         t = tokens(message)
         sm["count"] += 1
         pv = t.get("pv") or f"summary{sm['count']}"
@@ -946,7 +940,7 @@ def summarize(lines):
             try:
                 items = json.loads(line.split(" data=", 1)[1])
             except (IndexError, ValueError):
-                continue  # cut short: not a batch this can read
+                continue
             sm["batches"] += 1
             sm["dropped"] += int(f.get("dropped", "0")) if _digits(f.get("dropped", "")) else 0
             with contextlib.suppress(ValueError):
@@ -959,7 +953,7 @@ def summarize(lines):
                     fold(*item, line[:19])
         elif kind == "client" and f.get("kind") in ("error", "rejection", "api", "layout"):
             if f["kind"] == "layout" and not f.get("message", "").startswith("anomaly="):
-                continue  # a keyboard readout, not an anomaly
+                continue
             fp = f.get("fp") or "|".join((f["kind"], f.get("message", ""), f.get("source", ""), f.get("route", "") if f["kind"] == "api" else ""))
             g = faults.setdefault(fp, {"fp": f.get("fp", ""), "kind": f["kind"], "message": f.get("message", ""), "source": f.get("source", ""), "route": f.get("route", ""), "code": f.get("code", ""),
                                        "count": 0, "firstSeen": line[:19], "lastSeen": line[:19], "devices": collections.Counter(), "browsers": collections.Counter()})
@@ -992,7 +986,7 @@ def summarize(lines):
         t = tokens(g["message"])
         for dev, n in g["devices"].items():
             anomalies[(t.get("anomaly", ""), t.get("at", ""), dev)] += n
-        if g["count"] > sum(g["devices"].values()):  # repeats: on the device of the first entry
+        if g["count"] > sum(g["devices"].values()):
             anomalies[(t.get("anomaly", ""), t.get("at", ""), next(iter(g["devices"])))] += g["count"] - sum(g["devices"].values())
     return {
         "errors": [{k: g[k] for k in ("fp", "kind", "message", "source", "count", "firstSeen", "lastSeen", "devices", "browsers")} for g in group(("error", "rejection"))][:TOP],
@@ -1042,12 +1036,11 @@ def summary_sections(s):
 
 
 def summary_text(s):
-    """summarize's counts as plain text, for a person to read: summary_sections, a titled section's lines indented."""
     return "\n\n".join("\n".join([x["title"], *(f"  {line}" for line in x["lines"])] if x["title"] else x["lines"]) for x in summary_sections(s))
 
 
 class Parser(argparse.ArgumentParser):
-    def error(self, message):  # bad arguments are a refusal: exit 1, not argparse's 2
+    def error(self, message):
         self.print_usage(sys.stderr)
         self.exit(1, f"{self.prog}: error: {message}\n")
 
@@ -1096,10 +1089,9 @@ def parser():
 
 
 def main(argv=None):
-    # A Windows pipe takes the ANSI code page, which has no room for an emoji or an arrow in a name or a log line (#8239).
     for stream in (sys.stdout, sys.stderr):
         if isinstance(stream, io.TextIOWrapper):
-            stream.reconfigure(encoding="utf-8", errors=stream.errors)  # encoding alone would reset errors to strict
+            stream.reconfigure(encoding="utf-8", errors=stream.errors)
     p = parser()
     a = p.parse_args(argv)
     if a.cmd == "list":

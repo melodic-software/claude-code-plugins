@@ -1,7 +1,3 @@
-/**
- * Deterministic post-bootstrap steps after run-watch.js (before agent vision phases).
- */
-
 import path from "node:path";
 
 import { exportSheetFrameIndex } from "./export-sheet-frame-index.js";
@@ -21,7 +17,6 @@ export function postBootstrapSlice(sliceDir) {
   try {
     bootstrapSnapshot = snapshotBootstrapContactSheets(absSlice);
   } catch {
-    // The snapshot is optional: a failure leaves it out of the result.
   }
 
   return { sheetIndexPath, checklistPath, bootstrapSnapshot };

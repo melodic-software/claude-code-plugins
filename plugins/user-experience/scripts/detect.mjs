@@ -1,19 +1,4 @@
 #!/usr/bin/env node
-// Prints the project's user-experience signals, the routed tools that are installed, the routes and
-// the team file's settings, as JSON:
-//   {"project": {...}, "installed": [row ids] | null, "reachable": {row id: true | false | null},
-//    "reason"?: "why installed is null, or why a list was matched by name",
-//    "uncertain"?: {row id: "why it was left out of installed"},
-//    "routes": [bundled rows merged with the team file's, in rank order, each with "present": true | false | null],
-//    "team": {"path", "loaded", "warnings": [...], "skipped_reason"?, "jtbd_school", "research_paths",
-//             "persona_paths", "output_home"}}
-// `present` comes from the row's own kind and detect, and is null when installed is null. Detection rules live in lib/installed.mjs; which team
-// rows are admitted lives in lib/team-policy.mjs. A team file that is missing, malformed, unreadable
-// or of an unknown version leaves the built-in routes and default settings, with skipped_reason
-// naming the file and the cause. Team-file text appears in warnings only as JSON-quoted data.
-// Usage: detect.mjs [--project DIR] [--home DIR] [--plugin-list-json FILE] [--mcp-list FILE] [--team FILE]
-// The two list flags replace the live `claude plugin list --json` and `claude mcp list` calls;
-// --team replaces the team file the convention home resolves to.
 import { spawnSync } from "node:child_process";
 import { existsSync, lstatSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
@@ -31,8 +16,6 @@ const ROW_SCHEMA = JSON.parse(readFileSync(join(ROOT, "reference/routing.schema.
 const TEAM_SCHEMA = JSON.parse(readFileSync(join(ROOT, "reference/team.schema.json"), "utf8"));
 const PLUGIN = "user-experience";
 const TEAM_FILE = `${PLUGIN}.yaml`;
-// What the resolver is told of the team file's shape: each key is an open leaf, because this script
-// checks the values itself, entry by entry, so one bad value drops alone with its own warning.
 const TEAM_LAYOUT = { type: "object", properties: Object.fromEntries(Object.keys(TEAM_SCHEMA.properties).map((k) => [k, {}])) };
 const DEFAULT_HOME = "docs/conventions";
 const SETUP = "/user-experience:setup";
@@ -42,7 +25,6 @@ const RESEARCH_DIRS = ["research", "user-research", "ux-research", "docs/researc
 const PERSONA_DIRS = ["personas", "docs/personas"];
 const PERSONA_FILE = /^personas?\.md$/i;
 const PERSONA_FILE_DIRS = ["", "docs"];
-// Product-analytics and session-replay SDKs. An entry ending in "/" is a scope prefix.
 const ANALYTICS = [
   "@amplitude/", "@segment/", "@rudderstack/", "@snowplow/", "@fullstory/", "@hotjar/", "@heap/", "@vercel/analytics",
   "@datadog/browser-rum", "mixpanel", "mixpanel-browser", "posthog-js", "posthog-node", "analytics-node", "rudder-sdk-js",
@@ -104,13 +86,11 @@ function claude(args) {
   return r.stdout;
 }
 const fromFileOr = (file, args) => () => (file ? readFileSync(file, "utf8") : claude(args));
-/** A reader that runs once: installed() is asked twice when a team file adds rows. */
 const once = (read) => {
   let text;
   return () => (text ??= read());
 };
 
-/** A team-file value as JSON data, cut short, for a warning or a reason. */
 const quote = (value) => {
   const cut = (text) => (text.length > 80 ? `${text.slice(0, 80)}...` : text);
   return typeof value === "string" ? JSON.stringify(cut(value)) : cut(String(JSON.stringify(value)));
@@ -135,13 +115,13 @@ function inside(p) {
       try {
         stat = lstatSync(at);
       } catch (err) {
-        if (err.code === "ENOENT" || err.code === "ENOTDIR") break; // the rest does not exist yet
-        return null; // any other error leaves containment unproven
+        if (err.code === "ENOENT" || err.code === "ENOTDIR") break;
+        return null;
       }
       if (stat.isSymbolicLink() && escapes(relative(realRoot, realpathSync(at)))) return null;
     }
   } catch {
-    return null; // a dangling symlink, or a root that cannot be resolved
+    return null;
   }
   return rel.split(sep).join("/") || ".";
 }
@@ -152,8 +132,6 @@ function inside(p) {
 function teamSurface() {
   if (opts.team) return { path: opts.team, file: resolve(opts.team), seam: true };
   const r = spawnSync("bash", [join(ROOT, "lib/resolve-convention-home.sh"), "--root", opts.project], { cwd: ROOT, encoding: "utf8", timeout: 15_000 });
-  // 4 declined and 5 not applicable (the project is $HOME, an ancestor of it, or outside git): no
-  // repository file is read, so the bundled defaults apply. 1 (no pointer) keeps the default home.
   if (r.status === 4) return { path: null, cause: "the repository declined a convention home" };
   if (r.status === 5) return { path: null, cause: "convention home not applicable (the project is $HOME, an ancestor of it, or outside git)" };
   if (r.status !== 0 && r.status !== 1) {
@@ -168,9 +146,6 @@ function teamSurface() {
 
 const notRead = (e) => (e.code === "ENOENT" ? "not found" : `unreadable (${e.code ?? e.message})`);
 
-/** {path, doc, notes} for a team file that resolves at a known version, or {path, cause}. The
- * shared resolver finds and parses the file; a --team file is copied under a scratch home first,
- * so it stands in for the one the convention home names and the other layers are not read. */
 function readTeam({ path, file, home, seam, cause }) {
   if (cause) return { path, cause };
   if (!seam) return checkTeam(path, home, false);
@@ -189,26 +164,20 @@ function readTeam({ path, file, home, seam, cause }) {
   }
 }
 
-/** The resolver's merged team settings in `home`, held to the layout versions this plugin reads. */
 function checkTeam(path, home, seam) {
-  // Under --team the scratch home is also the user home, so only the --team file is read.
   const out = resolveConfig({ plugin: PLUGIN, projectRoot: opts.project, home, schema: TEAM_LAYOUT, teamOnly: ["routing", "version"], userHome: seam ? home : opts.home });
   const layer = out.layers.find((l) => l.name === "team");
   const prefix = `team (${layer.path}): `;
   const shown = (m) => m.replaceAll(layer.path, path);
   const own = layer.errors.filter((e) => e.startsWith(prefix)).map((e) => e.slice(prefix.length));
-  // A file-level refusal or parse error; a rejected value starts with its quoted key.
   const fileError = own.find((m) => !m.startsWith('"'));
   const outside = layer.errors.find((e) => e.includes("resolves outside the project"));
   if (outside) return { path, cause: "resolves outside the project" };
   if (fileError) return { path, cause: /^(is a symlink|is not a regular file)/.test(fileError) ? `unreadable (${fileError})` : `malformed: ${fileError === "the top level must be a mapping" ? "the top level is not a mapping" : fileError}` };
   if (!existsSync(layer.path)) return { path, cause: "not found" };
-  // The resolver reads an empty file as an empty mapping; for this plugin it is malformed.
   if (parseYaml(readFileSync(layer.path, "utf8")) == null) return { path, cause: "malformed: the top level is not a mapping" };
-  // The user and local layers merge into out.values too, so their refusals are warnings as well.
   const notes = out.layers.filter((l) => ["team", "local", "user"].includes(l.name)).flatMap((l) => l.errors).map((e) => shown(e));
   const doc = out.values;
-  // A setting's warning names the local layer when that layer supplied the value.
   const local = out.layers.find((l) => l.name === "local");
   const from = (k) => (out.provenance[k] === "local" ? `local (${local.path}): ` : "");
   const { version, routing: routingSchema } = TEAM_SCHEMA.properties;
@@ -223,7 +192,6 @@ function checkTeam(path, home, seam) {
   return { path, doc, notes, from };
 }
 
-/** Errors for `value` against the row-schema keywords routing.schema.json uses. */
 function violations(s, value, at = "row") {
   const errors = [];
   const fail = (msg) => errors.push(`${at} ${msg}`);
@@ -248,7 +216,6 @@ function violations(s, value, at = "row") {
   return errors;
 }
 
-/** The team file's list at `label`, or [] with a warning when it is not a list. */
 function listAt(value, label, warn) {
   if (value == null) return [];
   if (Array.isArray(value)) return value;
@@ -256,7 +223,6 @@ function listAt(value, label, warn) {
   return [];
 }
 
-/** A copy of `entry` holding only `allowed` keys; each other key drops with a warning naming it. */
 function knownKeys(entry, allowed, label, warn) {
   const kept = {};
   for (const [k, v] of Object.entries(entry)) {
@@ -266,13 +232,8 @@ function knownKeys(entry, allowed, label, warn) {
   return kept;
 }
 
-// A skill or plugin detect names a skill directory or a plugin, never a path: installed() joins a
-// skill detect onto the skills directories, so a team row must not reach outside them.
 const DETECT_NAME = /^(?!\.\.?(?:@|$))[A-Za-z0-9._-]+(?:@[A-Za-z0-9._-]+)?$/;
 
-/** Bundled rows with the team's routing applied: `rows` re-rank or add (each admitted by
- * team-policy), `disable` and `deny` skip. Returns the rows and the set the team changed, which win
- * rank ties. `presence` maps a row list to each row's own presence. */
 function mergeRoutes(bundled, teamRouting, path, warn, presence) {
   const key = (r) => `${r.job}\u0000${r.id}`;
   const routingProps = TEAM_SCHEMA.properties.routing.properties;
@@ -331,7 +292,6 @@ function mergeRoutes(bundled, teamRouting, path, warn, presence) {
 
 const DEFAULTS = { jtbd_school: "unset", research_paths: [], persona_paths: [], output_home: null };
 
-/** The team file's settings beyond routing; a bad value falls back to its default with a warning. */
 function teamSettings(doc, warn, from) {
   const props = TEAM_SCHEMA.properties;
   const at = (k) => (m) => warn(`${from(k)}${m}`);
@@ -341,27 +301,15 @@ function teamSettings(doc, warn, from) {
     at("jtbd_school")(`jtbd_school ${quote(school)} is not one of ${props.jtbd_school.enum.join(", ")}; unset used`);
     school = DEFAULTS.jtbd_school;
   }
-  // A project path with no segment that is a dotfile or dot-directory, at any depth: a deliverable
-  // under .claude would become a standing project rule, and research read from .claude, .git, .env
-  // or .aws (docs/.env and a/b/.git included) is configuration or secrets, not research. The
-  // project root (".") counts too, since a research path there reads every dot location under it
-  // and an output home there writes beside tool config at the root.
   const reserved = (rel) => rel.split(/[\\/]/).some((s) => s.startsWith("."));
-  // Checked as written and as resolved, so a symlink inside the project that points at a dot
-  // location cannot carry a path there.
   const resolved = (rel) => {
     const root = realpathSync(resolve(opts.project));
     const abs = resolve(opts.project, rel);
     let at = abs;
     while (!existsSync(at)) at = dirname(at);
-    // A missing tail is appended to its deepest existing ancestor's real path, so a link in the
-    // ancestry carries the tail to where the link leads.
     const real = [relative(root, realpathSync(at)), relative(at, abs)].filter(Boolean).join("/");
     return { real, exists: at === abs };
   };
-  // relative() gives "" for the root, so an existing path that resolves there (a symlink to the
-  // root) is the root; a missing path whose nearest existing ancestor is the root is not, and
-  // resolves to its tail under the root.
   const resolvesToRoot = ({ real, exists }) => exists && real === "";
   const usable = (p) => {
     const rel = inside(p);
@@ -369,7 +317,6 @@ function teamSettings(doc, warn, from) {
     const r = resolved(rel);
     return resolvesToRoot(r) || reserved(r.real) ? null : rel;
   };
-  // Why `p` is not usable: the repository root has its own reason.
   const why = (p) => {
     const rel = inside(p);
     return rel === "." || (rel !== null && resolvesToRoot(resolved(rel)))

@@ -1,8 +1,7 @@
 # Script contracts: `fleet-state.sh`, `cache-content-check.sh`, `converge-plan.sh`, `normalize-enabled-plugins.sh`
 
-The four read-and-write contracts `sync-run.sh` and `converge` are bound to. Each script's own
-header carries the same contract; this file restates it once for the caller's side. Read it when a
-step misbehaves, when `converge` needs an id list, or when a caller other than `sync-run.sh` is
+The four read-and-write contracts `sync-run.sh` and `converge` are bound to, stated once for the
+caller's side. Read it when a step misbehaves, when `converge` needs an id list, or when a caller other than `sync-run.sh` is
 about to invoke one of the scripts.
 
 ## `fleet-state.sh`: the only reader of the internal files
@@ -18,15 +17,24 @@ files directly, and never write them. `converge`'s committed-enable check
 "<skill-dir>/scripts/fleet-state.sh" --ids <selector> --from <report.json>
 ```
 
-The second form emits the plain id list a mutating step loops, instead of the JSON report. One
-tab-separated record per line, first field always the fully-qualified `<name>@<marketplace>`. Use it
-whenever a step needs ids; never hand-write a `jq` extraction over the JSON, which reintroduces a
+The second form emits the records a mutating step loops, instead of the JSON report. One
+tab-separated record per line, first field always the fully-qualified `<name>@<marketplace>`, then
+the fields the step needs. One selector table in `fleet-state.sh` defines each selector's report
+fields, its record filter and its columns; `--help` prints every selector with its columns, and an
+unknown selector is rejected with the same list. A column that can be empty is always last, since a
+tab-split `read` folds an empty middle field into the next. Use it whenever a step needs ids or
+their fields; never hand-write a `jq` extraction or join over the JSON, which reintroduces a
 trailing `\r` on Windows and silently corrupts every id but the last (see
-[gotchas.md](gotchas.md)).
+[gotchas.md](gotchas.md)). A step that needs a field no selector returns gets a column or a
+selector in the table.
 
 The third form projects that same id list from a report already on disk rather than recomputing the
 fleet, and is the form `sync`'s steps use: each step re-reads the full report anyway, and every
 selector is derivable from it. Same script, same projection, so the `\r` protection is unchanged.
+
+`fleet-state.sh --fingerprint` prints the environment inputs a report depends on, one
+`name=value` line each, and reads no file; `sync-run.sh` keys its snapshot reuse on it beside the
+paths `FLEET_STATE_READ_LIST` collects.
 
 `sync-run.sh` is what calls these scripts during `sync` and `audit`; the contracts here are what it
 and any other caller are bound to.
@@ -47,6 +55,12 @@ files in a plugin's cache directory actually match the commit its install record
 "<skill-dir>/scripts/cache-content-check.sh" --marketplace <name> --ids
 ```
 
+It reads no internal file itself: it runs `fleet-state.sh` (`--marketplace <name>` or `--all`) and
+checks the records of that report, using each record's `gitCommitSha`, `installPath` and
+`projectPathPresent` and the marketplace's `installLocation`. A marketplace `fleet-state.sh` cannot
+read, unknown or with no readable catalog, is exit `2` with its reason for `--marketplace`, and
+`{error: …}` under `--all`.
+
 `--ids` emits the stale ids alone, one per line, CR-free, the same contract and for the same reason
 as `fleet-state.sh --ids`. Step 5b does not use it beside the JSON form: the ids are already in that
 JSON, and a second call would repeat the run's most expensive read. It is the fallback for a JSON
@@ -56,6 +70,31 @@ compares only installs recorded at the marketplace clone's HEAD, and reports eve
 [sync.md](sync.md) Step 5b, [stale-records-cache-content.md](stale-records-cache-content.md) for
 how the finding is reported, and [scope-semantics.md](scope-semantics.md) for the mechanism that
 makes a cache directory and its recorded sha disagree in the first place.
+
+Each install record gets one `verdict`:
+
+| Verdict | Meaning |
+|---|---|
+| `match` | every file at the recorded sha is in the cache with the same blob id, and the cache has no extra file |
+| `stale-content` | at least one file differs, is missing from the cache, or is in the cache and not at the sha; `paths[]` lists some of them |
+| `not-at-head` | the recorded `gitCommitSha` is not the clone's HEAD, so the record is not compared; counted in `not_checked` |
+| `no-clone-head` | the clone's HEAD names no commit (an unborn branch) |
+| `no-git-commit-sha` | the record has no `gitCommitSha` |
+| `no-install-location` | the marketplace has no `installLocation`, or it is not a directory here |
+| `not-a-git-worktree` | the `installLocation` is not a git work tree |
+| `no-source` | the plugin is absent from `marketplace.json` at the recorded sha, its `source` is not a plain path, or that commit has no `marketplace.json` |
+| `no-source-at-sha` | the plugin's source directory names no path at that sha, so there is no expected tree to compare |
+| `install-path-missing` | the record's `installPath` is not a directory |
+| `hash-batch-misaligned` | `git hash-object --stdin-paths` returned fewer hashes than paths, so the two sides cannot be lined up |
+
+The JSON object is `{marketplace, scope, checked, match, stale_content, unverifiable, not_checked,
+skipped_absent_project_paths, installs: […]}`. `unverifiable` counts every verdict other than
+`match`, `stale-content` and `not-at-head`; `checked` is the sum of `match`, `stale_content`,
+`unverifiable` and `not_checked`. `skipped_absent_project_paths` counts the project and local
+records `fleet-state.sh` reports with `projectPathPresent` not true; they are not in `checked`.
+`installs[].unreleased_changes` is true when the clone's work tree holds `.changes/<plugin>/`. With
+`--all` the output is `{marketplaces: {"<name>": <one marketplace's object>}}`, and a marketplace
+that fails appears as `{"<name>": {error: …}}` without stopping the others.
 
 ## `converge-plan.sh`: the converge plan, read-only
 
@@ -71,7 +110,7 @@ The first form runs `fleet-state.sh` itself; the second plans a single-marketpla
 disk. Exit `0` is a plan (an empty one is success), `1` a marketplace that could not be resolved, `2`
 a usage error or an unusable report (an `--all` envelope is refused by name). The script never runs a
 `claude plugin` command and never writes a file. The classes, the strategy rules and the
-committed-enable read are in its header comment and in [converge.md](converge.md) Steps 1 and 2.
+committed-enable read are in [converge.md](converge.md) Steps 1 and 2.
 
 ## `normalize-enabled-plugins.sh`: the one writer, user scope only
 
@@ -90,4 +129,8 @@ fewest keys the reorder moves, so one appended key reads `moved=1` at any N. `--
 `would-normalize moved=K keys=N` and exits `1`. A map already in order prints
 `already-sorted keys=N`. A `--file` path that does not exist prints `missing-file keys=0` and exits
 `0`: nothing is written, and it is never reported as `already-sorted`. The report renders it as
-`Normalized: skipped, no user settings file` (`Would normalize:` in audit).
+`normalize: skipped, no user settings file` in the marketplace block, in both modes. `sync-run.sh` parses
+that line once into the digest's `normalize` fields, `status` (the first word, or `refused`),
+`moved`, `keys` and `reason` (the text after `refused:`), beside the raw `output` the journal
+keeps; `scripts/digest-contract.json` `shapes.normalize` holds the shape, and the report reads the
+fields.

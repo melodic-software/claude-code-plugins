@@ -1,0 +1,25 @@
+{
+  "number": 99910,
+  "title": "docs-site: show the plugin index as cards in the chosen design",
+  "author": "kyle-sexton",
+  "labels": [
+    "needs-triage"
+  ],
+  "body": "## Problem\n\nThe plugin index page lists each plugin as a plain text row, so a reader cannot tell where one\nplugin's entry ends and the next begins.\n\n## Requested behavior\n\nShow each plugin as a card, in the design picked at the last design review (no other layout is\nin scope):\n\n- a 1px `#d0d7de` border, a 6px corner radius and 16px padding;\n- the plugin name in 16px semibold, with its one-line description below it in 14px regular;\n- three cards per row at viewport widths of 1012px and above, one card per row below that.\n\n## Done when\n\n- [ ] The plugin index page shows each plugin as a card with exactly the border, radius, padding and\n  type sizes above.\n- [ ] At 1280px wide the page shows three cards per row; at 600px wide it shows one.\n",
+  "comments": [],
+  "open_issues": [
+    {
+      "number": 99950,
+      "title": "docs: fix a broken link in the hooks reference"
+    },
+    {
+      "number": 99949,
+      "title": "ci: cache the markdownlint install"
+    },
+    {
+      "number": 99948,
+      "title": "review: shorten the security lane's summary"
+    }
+  ],
+  "merged_pulls": []
+}

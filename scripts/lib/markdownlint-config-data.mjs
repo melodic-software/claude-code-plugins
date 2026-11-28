@@ -1,21 +1,3 @@
-// Decide whether a branch's markdownlint config is data, so the pre-push copy
-// of scripts/check-affected.sh may lint with it without running branch code.
-//
-//   node scripts/lib/markdownlint-config-data.mjs options|config < file
-//
-// `options` is a .markdownlint-cli2.jsonc file, `config` a .markdownlint.jsonc
-// or .markdownlint.json file. Exit 0 prints the parsed object as JSON, which the
-// caller writes in place of the original, so markdownlint-cli2 reads exactly
-// what was checked here. Exit 1 prints why the file is refused.
-//
-// Options keys come from the markdownlint-cli2 README's `.markdownlint-cli2.jsonc`
-// section. Allowed are the ones that only hold data; customRules,
-// markdownItPlugins, outputFormatters and modulePaths load modules, `extends`
-// in a config reads another file that may be a module, and `fix` rewrites the
-// files under check, so a finding would pass. overrides and any key the README
-// adds later are refused until listed here. A __proto__ key at any depth is
-// refused: markdownlint-cli2's JSONC parser assigns keys, so it would set the
-// object's prototype and hide an inherited customRules or extends from a key check.
 import { readFileSync } from "node:fs";
 
 const OPTIONS_KEYS = new Set([
@@ -24,8 +6,6 @@ const OPTIONS_KEYS = new Set([
 ]);
 const CODE_KEYS = new Set(["customRules", "markdownItPlugins", "outputFormatters", "modulePaths"]);
 
-// rewrite(text, step): copies strings whole and hands every other position to
-// step(i), which returns [text to emit, next position].
 const rewrite = (text, step) => {
   let out = "";
   let i = 0;
@@ -43,7 +23,6 @@ const rewrite = (text, step) => {
   return out;
 };
 
-// JSONC to JSON: drop comments, then trailing commas, outside strings.
 const stripJsonc = (text) => {
   const bare = rewrite(text, (i) => {
     if (text.startsWith("//", i)) {

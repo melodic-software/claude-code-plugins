@@ -1,45 +1,4 @@
 #!/usr/bin/env bash
-# Read which pre-flip steps `/source-control:pull-request ready` runs, from the
-# `pre_ready` list in docs/conventions/source-control.yaml as the base branch
-# holds it. Each item is a mapping `{step: <name>, enabled: true|false}`; a step
-# the list does not name stays enabled. Parsing is lib/yaml-subset.awk's, the
-# shared YAML-subset parser; the reader is at least as strict as
-# schemas/source-control.schema.json.
-#
-# Usage:
-#   read-pre-ready.sh --repo <owner/repo> --base <b>
-#       fetches the file at <b> and the repository's default branch with gh,
-#       reading no stdin
-#   read-pre-ready.sh --base <b> --default-branch <d> -
-#       the file's text on stdin
-#   read-pre-ready.sh --base <b> --default-branch <d> --http-response
-#       a `gh api -i` response on stdin: a 200 is read as the file, a 404
-#       means no file, anything else fails closed
-#
-# --base is the pull request's base branch and --default-branch the base
-# repository's default branch; --repo reads that default branch itself and
-# takes none from the caller. The list is honored only when the two match:
-# any other base is a branch the PR's author may have pushed unreviewed. An
-# empty value or a mismatch fails closed. There is no file-path form: the head
-# branch must not choose its own gates, so only the base's copy is read
-# (https://github.com/melodic-software/claude-code-plugins/issues/18112).
-#
-# Output, tab-separated. First a source line:
-#   source  default                 no file, no pre_ready key, or an empty list
-#   source  config                  the list was read
-#   source  fail-closed  <reason>   the list cannot be trusted: the base is
-#                                   not the default branch, the base read
-#                                   failed, the input holds a NUL byte, the
-#                                   file does not parse, pre_ready
-#                                   repeats or is not a list, an item is not a
-#                                   {step, enabled} mapping or holds another
-#                                   key, an item or a key's value is empty,
-#                                   a step is missing, unknown or repeated,
-#                                   or enabled is missing, quoted, or not true
-#                                   or false
-# Then one `<step>  enabled|disabled` line per step, in run order. Under
-# default and fail-closed every step is enabled.
-#
 # Exit 0, or 2 for a usage error.
 
 # portability-scope: the GitHub implementation of the base read under --repo; the other forms read stdin.
@@ -68,7 +27,6 @@ emit() {
   exit 0
 }
 
-# The reason can quote the file or the response, so control characters become spaces.
 fail_closed() { emit "fail-closed"$'\t'"${1//[[:cntrl:]]/ }" " "; }
 
 mode="" base="" default="" repo="" has_base=0 has_default=0
@@ -118,16 +76,12 @@ failed) fail_closed "$BASE_FILE_REASON" ;;
 *) doc="$BASE_FILE_DOC" ;;
 esac
 
-# The parser's records drop quoting, and an empty first pre_ready leaves no
-# record of itself, so a repeated top-level key and a quoted enabled are found
-# in the text.
 q="[\"']?"
 (($(grep -cE "^[[:space:]]*${q}pre_ready${q}[[:space:]]*:" <<<"$doc") <= 1)) ||
   fail_closed "pre_ready appears more than once"
 
 base_file_records || fail_closed "$BASE_FILE_REASON"
 
-# A fresh array, so nothing inherited from the environment reads as an item.
 unset ITEM
 declare -A ITEM=()
 seen=$'\n' max=-1

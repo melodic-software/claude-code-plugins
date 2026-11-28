@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 # test-scope: plugins/source-control/skills/pull-request/SKILL.md
 # test-scope: plugins/source-control/skills/pull-request/reference/ready-for-review.md
-# Skill-text tests for the ready action's CI test-lane skip: the verify step reads
-# review-venue.sh's tests line for the head it flips, reports a skip as
-# `skipped (CI covers it)`, and `ready --verify-local` runs the suites anyway.
 
 set -uo pipefail
 

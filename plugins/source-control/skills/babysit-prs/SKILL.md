@@ -1,5 +1,5 @@
 ---
-description: "Babysit the user's own open GitHub pull requests as a tiered fleet loop. The safe default discovers the user's own PRs under the current repo's owner, checks readiness, fixes clear branch-owned issues, and reports, it never resolves threads or merges. Explicit 'worker' tier adds auto-resolving outdated bot threads and gate-proven merges; explicit 'autopilot' adds all authors under the watched owners. Use when asked to babysit, watch, or advance open pull requests as a fleet (the safe tier), to run the worker or autopilot tier by name, or when pairing with /loop for continuous coverage; not for the single-PR lifecycle: prep, create, monitor one PR, or merge (use /pull-request)."
+description: "Babysit open GitHub pull requests as a repo fleet loop: safe default checks own PRs, fixes branch issues (no thread resolve/merge); 'worker' resolves outdated bot threads, gate-proven merges; 'autopilot' adds all authors under watched owners. Use to babysit/watch/advance a PR fleet or pair with /loop. Not for one PR: /source-control:pull-request."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[worker|autopilot|help] [--unattended] [owner/repo|#n|owner/repo#n]"
@@ -146,11 +146,12 @@ never routed around. Advisory-only fix attempts are bounded per PR (the fix-roun
 never merged autonomously by this skill in any tier (a pr-merge lane with its Dependabot class on owns those merges);
 the merge gate refuses it absent `--allow-dependency`, passed only on an explicit user instruction to merge that specific PR.
 
-**Do-not-merge hold:** a PR whose body says "do not merge" (or "don't merge"), or has a line
-starting `Hold:`, is held in any tier: the merge gate reads the live body and reports a blocker, and a PR carrying a `do-not-merge`
-label is held the same way: the gate blocks on that label unconditionally (an `--unattended` run or the autopilot merge
-tier also on the human-gated label, `needs-human` by default), and `--block-labels` adds further labels in the autopilot
-merge tier. The PR is reported and left unmerged. The hyphenated label name in a body is not a hold.
+**Do-not-merge hold:** a PR carrying a `do-not-merge` label is held in any tier: the merge gate
+blocks on that label unconditionally (an `--unattended` run or the autopilot merge tier also on the
+human-gated label, `needs-human` by default), and `--block-labels` adds further labels in the
+autopilot merge tier. The PR is reported and left unmerged. No wording in a PR body or comment is
+a hold. Two comment readers remain, neither a hold: a member's blocking-defect comment (`blocking`,
+`regression`, `CRITICAL`, and the like) refuses the autopilot tier, the Dependabot gate and a queued entry off pr-merge as review feedback; "do not merge" from a maintainer revokes a decision-default ratification.
 
 **Draft policy (per tier).** Drafts enter evaluation scope in every tier. There is no blanket
 draft skip. Safe: evaluate and report draft status, never flip a draft ready. Worker and
@@ -348,7 +349,7 @@ switch APIs rather than to re-authenticate (the signal, the REST routes and the 
 provider reference "Sandboxed sessions"). The engine re-sources its pull-request reads over REST by itself, so
 discovery, classification, and the branch-rule and freshness checks keep working unchanged.
 
-Review-thread **resolution** is the one fact with no REST equivalent, and it is not approximated.
+Review-thread **resolution** is the one fact with no REST equivalent (GitHub: the `isResolved` field of [`PullRequestReviewThread`](https://docs.github.com/en/graphql/reference/pulls#object-pullrequestreviewthread)), and it is not approximated.
 The merge gate reports `threadResolutionProven: false` and `unresolvedThreadCount: null`, never `0`,
 and holds the PR with a blocker naming the restriction: an empty thread list would read as "zero
 unresolved threads", the false-clean signal [reference/safety.md](reference/safety.md) exists to

@@ -50,7 +50,6 @@ public static extern bool GetFileInformationByHandleEx(SafeFileHandle hFile, int
 '@
 }
 
-# FILE_FLAG_OPEN_REPARSE_POINT | SECURITY_SQOS_PRESENT; SECURITY_ANONYMOUS is 0.
 $script:NoFollowOpenFlags = [uint32](0x00200000 -bor 0x00100000)
 
 function Test-FileIdFormat {
@@ -71,13 +70,10 @@ function Open-NoFollowFile {
     [OutputType([Microsoft.Win32.SafeHandles.SafeFileHandle])]
     param(
         [Parameter(Mandatory = $true)] [string] $Path,
-        # Attributes: identity reads only, every sharing mode allowed.
-        # ReadWrite: the writer's handle; other handles may only read meanwhile.
         [ValidateSet('Attributes', 'ReadWrite')] [string] $Access = 'Attributes'
     )
 
     $fullPath = [System.IO.Path]::GetFullPath($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($Path))
-    # The extended-length form, so a path past MAX_PATH opens as it does through .NET.
     $nativePath = if ($fullPath.StartsWith('\\?\') -or $fullPath.StartsWith('\\.\')) {
         $fullPath
     } elseif ($fullPath.StartsWith('\\')) {
@@ -87,11 +83,11 @@ function Open-NoFollowFile {
     }
     $openExisting = 3
     if ($Access -eq 'ReadWrite') {
-        $desired = 0xC0000000u          # GENERIC_READ | GENERIC_WRITE
-        $share = [uint32]1              # FILE_SHARE_READ
+        $desired = 0xC0000000u
+        $share = [uint32]1
     } else {
-        $desired = [uint32]0x80         # FILE_READ_ATTRIBUTES
-        $share = [uint32]7              # FILE_SHARE_READ | WRITE | DELETE
+        $desired = [uint32]0x80
+        $share = [uint32]7
     }
 
     $handle = [MachineHealth.NoFollowFileNative]::CreateFileW($nativePath, $desired, $share, [IntPtr]::Zero,

@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# Runs the `Require a broker deploy PR for a resolve-config dependency change` step body of
-# .github/workflows/pr-require-checks.yml's ci-status under the shell Actions
-# gives a step with no `shell:` (bash -e), against a stub `gh` that prints a
-# pull-request files fixture. The step leaves the pages it read under
-# RUNNER_TEMP for the review-lane step.
-#
-# The lanes token broker in melodic-software/azure-iac loads resolve-config's
-# modules from main's tip but imports ajv and yaml from its own deployment, and
-# denies every token while main's package.json or package-lock.json under
-# .github/actions/resolve-config differs from the deployed one. A pull request
-# that changes either file must name the azure-iac pull request that deploys
-# the new dependencies.
 # test-scope: .github/workflows/pr-require-checks.yml
 set -uo pipefail
 
@@ -51,8 +39,6 @@ else
   fail "step is not inside ci-status before the aggregate (lines: $order)"
 fi
 
-# The stub logs its arguments, fails the first STUB_FAILS calls, then prints
-# STUB_JSON, one page.
 mkdir -p "$TMP_ROOT/bin"
 cat >"$TMP_ROOT/bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -67,14 +53,12 @@ chmod +x "$TMP_ROOT/bin/gh" "$TMP_ROOT/bin/sleep"
 RC=.github/actions/resolve-config
 LINE='Broker deploy: melodic-software/azure-iac#44'
 
-# files <path>... : a pulls/<n>/files page with one entry per path.
 files() {
   local p out='['
   for p in "$@"; do out+="{\"filename\":\"$p\",\"status\":\"modified\"},"; done
   printf '%s]' "${out%,}"
 }
 
-# expect <label> <want-rc> <want-gh-calls> <STUB_JSON> <PR_BODY> <STUB_FAILS> [want-out]
 expect() {
   local label="$1" want_rc="$2" want_calls="$3" out rc calls
   : >"$TMP_ROOT/log"

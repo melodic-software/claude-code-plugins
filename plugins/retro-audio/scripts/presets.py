@@ -14,7 +14,6 @@ def _chip(bass_wave):
 
 CHIPS = {"gameboy": _chip("wave"), "nes": _chip("triangle"), "pico-8": _chip("triangle")}
 
-# Times are seconds. freq and freq_slide are Hz and Hz/second.
 SFX_PRESETS = {
     "coin": {
         "wave": "square",

@@ -1,8 +1,3 @@
-"""Contract tests for handoff_chain.py: the section-table guards, the move-pointer
-form, the chain walk's link statuses, and retired-id collection. Expected values
-come from reference/structure.md ("Shape 3: hot file and per-hop archive", "Shape 4") and from the
-hand-written fixture files below."""
-
 from __future__ import annotations
 
 import sys
@@ -20,6 +15,8 @@ HOP3 = "20260903T100000Z-handoff-widget.md"
 SID_A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
 SID_B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
 SID_C = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+STANDING_NEW = "standing-rules/20260901T100000Z-handoff-widget.md"
+STANDING_LEGACY = "archive/20260901T100000Z-handoff-widget/standing-rules.md"
 
 
 def hot(
@@ -91,9 +88,9 @@ def test_move_pointer_parses_the_design_form():
     [
         "archive/20260901T100000Z-handoff-widget/h3-abcdef12.md",
         "archive/20260901T100000Z-handoff-widget/notes.md#Observations",
-        "See the hop file for Observations.",
+        "See the archive file for Observations.",
     ],
-    ids=["no-heading", "not-a-hop-file", "prose"],
+    ids=["no-heading", "not-an-archive-file", "prose"],
 )
 def test_move_pointer_refuses_other_text(text):
     assert hc.MovePointer.parse(text) is None
@@ -163,6 +160,38 @@ def test_link_section_is_none_when_the_pointed_heading_is_gone(tmp_path):
     )
     hop_file(tmp_path, 2, SID_B, "\n## Notes\n\n- Something else.\n")
     assert hc.read_chain(path).links[0].section("Observations") is None
+
+
+def standing_hot(directory: Path, rel: str) -> Path:
+    target = directory / rel
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(
+        "---\ntype: handoff-standing-rules\n---\n\n## Current rules\n\n- [R1] Ship small.\n",
+        encoding="utf-8",
+    )
+    return hot(
+        directory,
+        HOP2,
+        SID_B,
+        2,
+        None,
+        f"## Current rules\n\n- Standing rules: {rel}#Current rules\n",
+    )
+
+
+def test_standing_rules_new_path_sits_in_a_subfolder_beside_the_handoff_file(
+    tmp_path,
+):
+    assert hc.standing_rel(ROOT) == STANDING_NEW
+    path = standing_hot(tmp_path, STANDING_NEW)
+    link = hc.read_chain(path).links[0]
+    assert link.section("Current rules") == ["", "- [R1] Ship small."]
+
+
+def test_standing_rules_legacy_path_still_resolves_for_an_existing_chain(tmp_path):
+    path = standing_hot(tmp_path, STANDING_LEGACY)
+    link = hc.read_chain(path).links[0]
+    assert link.section("Current rules") == ["", "- [R1] Ship small."]
 
 
 def test_retired_ids_read_every_hop_file_with_the_oldest_retirement_winning(tmp_path):

@@ -102,7 +102,7 @@ The git guards reduce a PowerShell command to text they parse as Bash (`lib/powe
 |---|---|---|---|
 | `Write-Host ""; & $py script.py`, `& $w 'f.txt'` | `&` calls the command `$py` names | the `&` is dropped: `$py script.py` | handled |
 | `iex x; git status` with the dynamic-invocation sink allowed | the blanked statement leaves `; git status` | the empty `;` is dropped | handled |
-| ``gh pr merge 42 --body "line`nnext"`` (block-unresolved-pr-merge, which parses the PowerShell text without a reduction) | a backtick escape | an unclosed Bash backtick | handled: that guard parses PowerShell text with every backtick dropped |
+| ``gh pr merge 42 --body "line`nnext"`` (merge-guard, which parses the PowerShell text without a reduction) | a backtick escape | an unclosed Bash backtick | handled: that guard parses PowerShell text with every backtick dropped |
 
 ## Other forms
 

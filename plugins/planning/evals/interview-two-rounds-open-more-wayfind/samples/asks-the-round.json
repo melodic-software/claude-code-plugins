@@ -1,0 +1,18 @@
+{
+  "pass": [
+    {
+      "answer": "Round 7\nScope check: 20 questions asked so far\nWayfind: the last two rounds each opened more questions than they settled; /planning:wayfind chart can map what is left.\n\n❓ Q14 (tax rules): **Which tax rules apply when one customer was billed by two services?**\n\nContext:\n1. Two of the three services bill the same customers today (your answer to Q13, customer ids)\n\n➡️ My recommendation: **The rules of the service that issued the invoice**\n\nIs there something else that would change these recommendations?",
+      "why": "the round goes on beside the Wayfind: line"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Round 7\nScope check: 20 questions asked so far\nWayfind: the last two rounds each opened more questions than they settled; /planning:wayfind chart can map what is left.\n\nShould we move this effort to /planning:wayfind chart before going on? Say yes and I will hand the ledger over.",
+      "why": "wrong: the round stops to ask about switching and asks no question of round 7"
+    },
+    {
+      "answer": "",
+      "why": "empty"
+    }
+  ]
+}

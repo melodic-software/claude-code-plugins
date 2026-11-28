@@ -56,7 +56,7 @@ stale_run_roots:     <n> run roots (<m> claude-eval-* sandboxes, <total size>): 
 eval_tmpdir:         <dir> (<n> characters) | too long: <dir> (<n> characters) | n/a
 ```
 
-`stale_run_roots` lists the run roots under `$HOME/.ev` older than 3 days on Linux and WSL2, else `n/a`. `eval_tmpdir` is the `<dir>` the run step will pass as `TMPDIR` on Linux and WSL2, the run directory `$HOME/.ev/<short-run-id>` with each `X` of Run step 3's template standing for one character of the id, else `n/a`. **Refuse before any spend** when it is longer than 24 characters, the longest length measured to work ([Sandbox start](reference/sandboxes.md#sandbox-start)), and any case requests `Bash` or `PowerShell`; the route is fewer `X`s in Run step 3's template, and when even three do not fit, `$HOME` is too long for the bound: say so and stop.
+`stale_run_roots` lists the run roots under `$HOME/.ev`, and the legacy `$HOME/.ev*` and `$HOME/ev*` run roots, older than 3 days on Linux and WSL2, else `n/a`. `eval_tmpdir` is the `<dir>` the run step will pass as `TMPDIR` on Linux and WSL2, the run directory `$HOME/.ev/<short-run-id>` with each `X` of Run step 3's template standing for one character of the id, else `n/a`. **Refuse before any spend** when it is longer than 24 characters, the longest length measured to work ([Sandbox start](reference/sandboxes.md#sandbox-start)), and any case requests `Bash` or `PowerShell`; the route is fewer `X`s in Run step 3's template, and when even three do not fit, `$HOME` is too long for the bound: say so and stop.
 
 Preflight removes nothing and blocks on none of `leftover_sandboxes`, `stale_run_roots` and `tmp_free`. It prints no removal command either: `<tmp>` can be shared with another session's run, whose live or kept sandboxes a glob over `<tmp>/claude-eval-*` would delete. When `leftover_sandboxes` is above zero, point at the removal by results file instead ([sandboxes.md](reference/sandboxes.md#leftover-sandboxes)); when `stale_run_roots` is above zero, say the next run's start removes the ones no run still uses ([Pruning stale run roots](reference/sandboxes.md#pruning-stale-run-roots)). Report an unreadable path as `unknown`, never `0`.
 
@@ -103,14 +103,14 @@ rather than measuring anything, and the route.
   from fetching [What's available in cloud sessions](https://code.claude.com/docs/en/cloud-environments#what%E2%80%99s-available-in-cloud-sessions) (host) and [Installed tools](https://code.claude.com/docs/en/cloud-environments#installed-tools) (packages) live and applying the matching table row.
 - `not-ready`: the backend is present and the packages resolve; the cause is the named links, and
   the route is to resolve them or run on a host without them. Never suggest repointing
-  `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check. On `platform: wsl2`, when `DOCKER_CONFIG` is unset (the swap changes only `~/.docker`), every link (or `~/.docker` itself) points under `/mnt/`, and no link target holds a `tls/` directory (the script refuses one), run the CLI through the link swap without asking, and say so in the run report (`<skill-dir>` there is `${CLAUDE_SKILL_DIR}`), so the run sees no links: [sandboxes.md, Docker link swap](reference/sandboxes.md#docker-link-swap). When any of the three fails, refuse and name the links.
+  `DOCKER_CONFIG` to get past the check, which bypasses a sandbox safety check. On `platform: wsl2`, when `DOCKER_CONFIG` is unset (the swap changes only `~/.docker`, and keeps its manifest and lock under `~/.ev`), every link (or `~/.docker` itself) points under `/mnt/`, and no link target holds a `tls/` directory (the script refuses one), run the CLI through the link swap without asking, and say so in the run report (`<skill-dir>` there is `${CLAUDE_SKILL_DIR}`), so the run sees no links: [sandboxes.md, Docker link swap](reference/sandboxes.md#docker-link-swap). When any of the three fails, refuse and name the links.
 
 Read-only suites run anywhere: `Read`, `Glob`, `Grep`, `NotebookRead`, `Skill`, `AskUserQuestion`,
 `Agent`, `TodoWrite`, `TaskCreate`, `TaskGet`, `TaskList`, `TaskUpdate`, `TaskStop` (the
 validator's `READ_ONLY_TOOLS`). `suite_tools` is `read-only` when every case's `allowed_tools` sits
 inside that set; otherwise it lists the gated tools, which are exactly the ones needing an
-`--allow-tools` grant. Neither a case nor a skill's own `allowed-tools` can widen that grant; an
-ungranted tool is removed and reported on stderr as `not granted`.
+`--allow-tools` grant. Grant each gated tool with `--allow-tools`, never relying on a case's or a
+skill's own `allowed-tools` for it (why: [trust the plugin directory](https://code.claude.com/docs/en/plugin-evals#trust-the-plugin-directory); how an ungranted tool is reported: [grant tools](https://code.claude.com/docs/en/plugin-evals#grant-tools)).
 
 ### Route per environment
 
@@ -167,9 +167,9 @@ is "this plugin versus no plugin".
 | A plugin root with `plugin.json` or `.claude-plugin/plugin.json` plus an eval dir | `plugin` | Direct. This is the designed path |
 | A bare skill directory | `wrapped-skill` | Wrap it in a minimal `.claude-plugin/plugin.json` so it loads as `<name>@skills-dir`; `claude plugin init <name>` scaffolds that. Assert with a `tool_used` grader on `tool: Skill` with `input_match` naming the skill |
 | An agent definition | `wrapped-agent` | Ship it in the wrapping plugin's `agents`, list `Agent` in the case's `allowed_tools`, assert `tool_used` on `Agent`. No first-party text describes this route; it composes documented parts, so treat a null result as a route defect before a plugin defect |
-| Hooks and slash commands | component of `plugin` | Loaded as plugin components. Hooks run outside the sandbox, so a score for hooks you did not write is advisory unless the run is in a container or a CI runner. Nothing first-party grades command invocation as such |
+| Hooks and slash commands | component of `plugin` | Loaded as plugin components. We treat a score for hooks you did not write as advisory unless the run is in a container or a CI runner (why: [trust the plugin directory](https://code.claude.com/docs/en/plugin-evals#trust-the-plugin-directory)). Nothing first-party grades command invocation as such |
 | MCP servers | component of `plugin` | Mocked by default from `evals/mocks/<server>/<tool>.md`; a real server needs `--allow-real-servers` or `--mocks off` plus an `--allow-tools "mcp__plugin_<plugin>_<server>__*"` grant, and runs as you, outside the sandbox |
-| `CLAUDE.md`, `.claude/rules`, user settings, memory | `rules` | **Refused.** Every run starts from a throwaway home with user settings, hooks, `CLAUDE.md`, memory, MCP servers, and other plugins absent, so a shim that re-injects the rule measures the shim, not the rule |
+| `CLAUDE.md`, `.claude/rules`, user settings, memory | `rules` | **Refused.** Every run starts from a throwaway home and loads none of these ([how runs are isolated](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)), so a shim that re-injects the rule measures the shim, not the rule |
 
 A skill or agent that is not yet wrapped is not a target: report the wrap route, print it, and stop.
 The next preflight sees `wrapped-skill` or `wrapped-agent` and proceeds.
@@ -452,8 +452,8 @@ reader which one happened and whether the arms were comparable at all (pointer: 
 - `--trust-plugin` persists (observed: [records.md](reference/records.md#ceiling-trust-and-report-behavior)), so later non-TTY runs launch instead of being refused. How far a yes at the trust prompt reaches: [Trust the plugin directory](https://code.claude.com/docs/en/plugin-evals#trust-the-plugin-directory).
 - Without `--keep-temp` the per-run `tracePath` points at a directory the runner has already
   deleted, so decide on `--keep-temp` before the run, not after reading a surprising score.
-- A typo in `--case` exits 1 and no exit code separates it from a real failure, so read the CLI's
-  message before treating an exit 1 as a failing case.
+- Read the CLI's message before treating an exit 1 as a failing case: a typo in `--case` also
+  exits 1 (what each exit code means: [run evals in CI](https://code.claude.com/docs/en/plugin-evals#run-evals-in-ci)).
 - `partial` is never this skill's signal for a usage or rate limit: a suite that hit one partway
   through is not marked partial, so `partial: false` does not show every run ended normally, and its later runs then read as a regression (pointer: when a suite's scores drop partway through, fetch [Runs fail with a usage-limit or rate-limit error partway through](https://code.claude.com/docs/en/plugin-evals#runs-fail-with-a-usage-limit-or-rate-limit-error-partway-through) live). Check each affected run's `error`
   (`cases[].arms.with[].error`, `cases[].arms.without[].error`) before believing a drop; when it

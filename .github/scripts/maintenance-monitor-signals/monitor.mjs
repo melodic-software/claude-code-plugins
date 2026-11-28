@@ -1,13 +1,3 @@
-// The monitoring lane's job: collect, detect, write every signal's state and
-// evidence to the job summary, then keep at most one open incident issue per
-// signal (issues.mjs planIssues). Writes with the job's own token, 1 s apart,
-// within the call budget, and only to the issues it files. No model.
-//
-// Environment: GITHUB_TOKEN, REPOSITORY, AGENT_IDENTITY, CALL_BUDGET,
-// WINDOW_MINUTES, GITHUB_API_URL, GITHUB_SERVER_URL, GITHUB_RUN_ID, RUNNER_TEMP,
-// JOBS_CARRY_PATH (read the last run's job reads and episodes and write this
-// run's there), GITHUB_STEP_SUMMARY. For a replay: NOW (an ISO time) and
-// DRY_RUN=1, which reads and plans but writes nothing.
 import { execFileSync } from "node:child_process";
 import { appendFileSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -28,16 +18,6 @@ import { ghDownloadArtifact, newestTrustedArtifact } from "../pr-merge/rotation.
 const WORKFLOW_PATH = ".github/workflows/maintenance-monitor-signals.yml";
 const CONFIG = fileURLToPath(new URL("../../../docs/conventions/pr-pipeline.yaml", import.meta.url));
 
-// The last run's carry, from the newest scheduled or hand-started run of
-// main's copy of this workflow that holds the JOBS_ARTIFACT, this run aside:
-// only a run's own steps upload its artifacts. `jobs` is its completed job
-// reads (collect.mjs parseJobsCarry), empty with a warning when there is none
-// or it cannot be read, so every run's jobs are read as before. `held` is its
-// held runs (parseHeldCarry), null when there is none or, with a warning, when
-// it cannot be read. `episodes` is the signals' timers (parseEpisodeCarry),
-// empty when there is none or, with a warning, when it cannot be read, so a
-// timer restarts and an incident opens later, never earlier. Off unless
-// JOBS_CARRY_PATH is set.
 export async function readJobsCarry({ env, repo, actions, download, now = new Date() }) {
   const carry = { jobs: new Map(), held: null, episodes: {} };
   if (!env.JOBS_CARRY_PATH) return carry;
@@ -100,7 +80,6 @@ export async function writePlan({ plan, call, repo, runUrl, leaveAgentReady = as
       await wait();
       const issue = await call("POST", `/repos/${repo}/issues`, { title: FILING[family.signal].title, type: INCIDENT_TYPE, body: renderBody(family, runUrl) });
       done.filed.push(issue.number);
-      // GitHub drops a type the token may not set without an error.
       if (issue.type?.name !== INCIDENT_TYPE) console.log(`::warning::#${issue.number} came back without Issue Type ${INCIDENT_TYPE}`);
       await wait();
       await setFields(issue.number, incidentFields(family.signal)).catch((error) => console.log(`::warning::#${issue.number}'s field values were not set: ${error.message}`));
@@ -148,8 +127,6 @@ export const statusLines = (plan) =>
     ...(findings.length > 0 ? [""] : []),
   ]);
 
-// Signals the owner asked to surface as an ::error on the monitoring run too,
-// each run while they fire (#9170). The text is already inert.
 const ERROR_SIGNALS = new Set(["11 post-merge unreadable"]);
 export const errorLines = (findings) => findings.filter((f) => ERROR_SIGNALS.has(f.signal)).map((f) => `::error::${f.title}: ${f.summary}`);
 
@@ -176,7 +153,7 @@ async function main(env = process.env) {
       rmSync(dir, { recursive: true, force: true });
     }
   };
-  // GET /rate_limit does not count against the limit.
+  // GET /rate_limit does not count against the rate limit: https://docs.github.com/en/rest/rate-limit/rate-limit
   const ownRate = replay ? null : ((await get("/rate_limit").catch(() => null))?.resources?.core ?? null);
   const carry = await readJobsCarry({ env, repo, actions: call, now });
 
@@ -210,8 +187,6 @@ async function main(env = process.env) {
 
   let done = nothingDone();
   if (!env.DRY_RUN) {
-    // The field write sends its own API version, which `call` cannot, so it
-    // goes through its own client, outside the call budget.
     const github = createGitHub({ token: env.GITHUB_TOKEN, apiUrl: env.GITHUB_API_URL || undefined });
     const { leaveAgentReady } = await statusWriter({ env, github, repository: repo });
     const setFields = (number, values) => github("POST", `/repos/${repo}/issues/${number}/issue-field-values`, { issue_field_values: values }, FIELD_API);

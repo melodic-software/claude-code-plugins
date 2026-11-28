@@ -67,38 +67,34 @@ import share as share_cli  # noqa: E402  (state() has a local named share)
 import tunnel  # noqa: E402
 from session import DomainError  # noqa: E402
 
-NAME = "shared"  # names the session files and the token header; matches session-bridge.conf
+NAME = "shared"
 SECRETS = ".shared-secrets.json"
 PORTS = ".shared-ports.json"
 OWNER_LINK = ".owner-link"
 STATE = "state.json"
 DEFAULTS = "defaults.json"
-IMPORT_DEFAULTS = ("guestPort", "adoptTunnel")  # defaults.json keys share.py reads; the server ignores them
-MIN_OWNER_TOKEN = 16  # an owner token as short as the prototype's (token_urlsafe(12)) is kept: its owner link survives a restart
+IMPORT_DEFAULTS = ("guestPort", "adoptTunnel")
+MIN_OWNER_TOKEN = 16
 WEB = HERE / "web"
 STATIC = {
     "/": ("index.html", "text/html"),
     "/core.js": ("core.js", "text/javascript"),
     "/app.js": ("app.js", "text/javascript"),
     "/connect.js": ("connect.js", "text/javascript"),
-    "/question-shape.js": ("question-shape.js", "text/javascript"),  # surface/interview_server.py serves it too
+    "/question-shape.js": ("question-shape.js", "text/javascript"),
     "/core.css": ("core.css", "text/css"),
     "/app.css": ("app.css", "text/css"),
     "/question-shape.css": ("question-shape.css", "text/css"),
     "/proto.js": ("proto.js", "text/javascript"),
-    "/web-vitals.attribution.iife.js": ("web-vitals.attribution.iife.js", "text/javascript"),  # vendored, unedited (web/web-vitals.LICENSE)
+    "/web-vitals.attribution.iife.js": ("web-vitals.attribution.iife.js", "text/javascript"),
 }
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 ASSET_CSP = "sandbox"
-# An html variant runs scripts in a sandbox with no same origin (no cookies, storage or session access), and only
-# the session's own pages may frame it: the prototype page does (Q98).
 HTML_ASSET_CSP = (
     "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src data:; "
     "connect-src 'none'; frame-ancestors 'self'"
 )
 PROTO = re.compile(r"/proto/(Q[1-9][0-9]{0,5})")
-# The pin helper (web/proto-pin.js) the prototype page asks for with /assets/<id>.html?pin=1: appended to the
-# variant as an inline script, the only kind its CSP runs. It talks to the page by postMessage alone.
 def pin_helper(text):
     """The pin helper's text, refused when it holds `</script`, `<script` or `<!--`: inside a script element any of
     them could end it early or hide its end from the parser."""
@@ -113,7 +109,6 @@ SECURITY_HEADERS = {"Cache-Control": "no-store", "X-Content-Type-Options": "nosn
 ERROR_CODES = {400: "bad-request", 408: "body-timeout", 414: "uri-too-long", 431: "headers-too-large", 501: "not-implemented", 505: "bad-version"}
 ASSET = re.compile(r"/assets/([0-9a-f]{16}\.(png|jpg|webp|svg|html))")
 ASSET_TYPES = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "svg": "image/svg+xml", "html": "text/html"}
-# Control characters, a backslash, and U+2028 and U+2029, which str.splitlines() also ends a line on.
 CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f-\x9f\\\u2028\u2029]")
 
 
@@ -135,59 +130,41 @@ def entry(what, /, **fields):
     for k, v in fields.items():
         if v is None:
             continue
-        v = loggable(v, FIELD_LIMITS.get(k, 80)).replace('"', "\\x22").encode("utf-8", "backslashreplace").decode("utf-8")  # a lone surrogate too
+        v = loggable(v, FIELD_LIMITS.get(k, 80)).replace('"', "\\x22").encode("utf-8", "backslashreplace").decode("utf-8")
         out.append(f'{k}="{v}"' if " " in v else f"{k}={v}")
     return " ".join(out)
 
 
-TRACE_LIMIT = 8000  # judgment: a traceback's characters kept on its one log line, enough for a deep stack
+TRACE_LIMIT = 8000
 CLIENT_MESSAGE_MAX = 500
 FIELD_LIMITS = {"method": 16, "message": CLIENT_MESSAGE_MAX, "trace": TRACE_LIMIT, "route": 200, "source": 200}
 LOG_BYTES = 1024 * 1024
 LOG_KEEP = 3
-# POST /api/client-log: what a joined person's page reports (web/core.js telemetry): faults under the person's pid,
-# and a usage summary, which names no one, when the page hides. Summaries reach server.log only in a summary-batch
-# entry every SUMMARY_BATCH_SECONDS and at shutdown, never with a time or a request entry of their own: the page
-# sends its summary as it sends a heartbeat, whose request entry names the person.
 CLIENT_LOG = "/api/client-log"
-CLIENT_LOG_MAX = 4096  # bytes: a 500-character message in any script, plus the other fields
+CLIENT_LOG_MAX = 4096
 CLIENT_FIELDS = {"kind": 20, "message": CLIENT_MESSAGE_MAX, "source": 200, "route": 200, "code": 60, "ua": 60, "fp": 16}
 CLIENT_KINDS = ("error", "rejection", "api", "layout", "summary")
-USAGE_KINDS = ("summary",)  # held for the next summary batch, on their own rate bucket
-IMAGE_PER_MINUTE = 120  # judgment: pictures one person's pages read back a minute; a page holds at most a few dozen tiles
-CLIENT_PER_MINUTE = 20  # judgment: entries one person's page may log a minute; a page in an error loop stops there
-SUMMARY_PER_MINUTE = 6  # judgment: a page sends one summary each time it hides; tab switching rarely passes this
-SUMMARY_BATCH_SECONDS = 600  # judgment: summaries held per batch; long enough that many people's summaries share one
-SUMMARY_BATCH_BYTES = 100_000  # judgment: the most one batch entry holds; a summary past it is counted as dropped
-SUMMARY_MIN_SENDERS = 2  # judgment: a batch is written only once this many guests sent to it (or only the owner did),
-# so its counts and pairs are never one guest's; below it a batch waits for the next, and at shutdown is only counted,
-# except in a session only one guest ever joined (one on one), whose held counts, and no pair, are written at shutdown
-# A summary's count tokens, added up per batch and never left in its pair: a component's taps (use, rage, dead) are no
-# one's. Any other token with one of these prefixes is dropped, so no text rides along; that includes an older page's
-# `rep:<fp>` repeat, whose fingerprint is also on its fault entry, which names the person.
+USAGE_KINDS = ("summary",)
+IMAGE_PER_MINUTE = 120
+CLIENT_PER_MINUTE = 20
+SUMMARY_PER_MINUTE = 6
+SUMMARY_BATCH_SECONDS = 600
+SUMMARY_BATCH_BYTES = 100_000
+SUMMARY_MIN_SENDERS = 2
 COUNT_PREFIXES = ("rep:", "use:", "rage:", "dead:")
-# A fault spike (README "Logs"): SPIKE_THRESHOLD faults of one kind within SPIKE_WINDOW seconds write one `fault-spike`
-# event for Claude, then none until SPIKE_COOLDOWN seconds pass. A kind is a SPIKE_KINDS client entry or `request`, an
-# answer with a 5xx status; `layout` also carries the phone keyboard readout, which is no fault. Kept logs of three real
-# sessions held at most 2 faults of a kind in any 300 s window, so 3 fires on none of them.
 SPIKE_KINDS = ("error", "rejection", "api")
-SPIKE_REFUSALS = (501, 505)  # http.server's refusals of a malformed request, sent before any Host check: no fault
+SPIKE_REFUSALS = (501, 505)
 SPIKE_THRESHOLD = 3
-SPIKE_WINDOW = 300  # judgment: the logs above stay under the threshold in every window from 60 to 600 s
-SPIKE_COOLDOWN = 600  # judgment, as SUMMARY_BATCH_SECONDS: those logs hold no spike to measure
-SPIKE_KEPT = 1000  # the most fault times kept per kind, so a flood of 503s costs bounded memory; a count stops there
+SPIKE_WINDOW = 300
+SPIKE_COOLDOWN = 600
+SPIKE_KEPT = 1000
 COUNT_TOKEN = re.compile(r"((?:use|rage|dead):(?:vf|core)-[a-z-]{1,60})=(\d{1,6})", re.ASCII)
-DEVICES = ("phone", "tablet", "computer")  # web/core.js deviceKind(); a summary keeps only this word of its ua
-TUNNEL_POLL = 1.0  # seconds between tunnel checks
+DEVICES = ("phone", "tablet", "computer")
+TUNNEL_POLL = 1.0
 TUNNEL_BACKOFF_MAX = 60.0
-PRESENCE_TICK = 5  # the snapshot ETag moves at least this often, so expired presence shows
-ASSET_COOKIE_SECONDS = 900  # judgment: an asset cookie's life; every /api/state answer renews it, so an open page keeps it
+PRESENCE_TICK = 5
+ASSET_COOKIE_SECONDS = 900
 
-# The guest routes: path -> (auth class, session method). Classes (Contracts, "Auth classes"):
-# public needs no identity; person needs a secret or the owner token; moderator is a person whose
-# role session.py checks; owner needs the X-Owner-Token header itself, the owner link's token or a signed-in device's
-# credential; host needs the owner link's token, never a device's. The upload chunk route takes raw bytes,
-# not JSON, so GuestHandler.upload_chunk serves it (UPLOAD_CHUNK).
 ROUTES = {
     "/api/join": ("public", "join"),
     "/api/heartbeat": ("person", "heartbeat"),
@@ -229,7 +206,7 @@ ROUTES = {
     "/api/session/intro": ("owner", "set_intro"),
     "/api/annotate": ("person", "annotate"),
     "/api/request": ("person", "request"),
-    "/api/request/act": ("person", "act_on_request"),  # session.py: move is the asker's or the owner's, the rest the owner's
+    "/api/request/act": ("person", "act_on_request"),
     "/api/result/share": ("person", "share_result"),
     "/api/round/ready": ("moderator", "ready_round"),
     "/api/round/send": ("owner", "send_round"),
@@ -250,7 +227,7 @@ ROUTES = {
     "/api/session/goal": ("owner", "set_goal"),
     "/api/session/end": ("owner", "end_session"),
     "/api/link/guest": ("owner", "rotate_guest_link"),
-    "/api/link/owner": ("host", "rotate_owner_link"),  # it answers the new owner token, which no other device holds
+    "/api/link/owner": ("host", "rotate_owner_link"),
     "/api/owner/pair": ("host", "pair_device"),
     "/api/owner/pair/redeem": ("public", "redeem_pairing"),
     "/api/owner/devices/revoke": ("owner", "revoke_device"),
@@ -260,24 +237,22 @@ ROUTES = {
     "/api/watcher": ("person", "issue_watcher"),
     "/api/watcher/revoke": ("person", "revoke_watcher"),
     "/api/upload/offer": ("person", "offer_upload"),
-    "/api/upload/act": ("person", "act_on_upload"),  # session.py: accept and decline the owner's, withdraw the uploader's
+    "/api/upload/act": ("person", "act_on_upload"),
     "/api/report": ("person", "report"),
     "/api/report/act": ("owner", "act_on_report"),
     "/api/report/add": ("person", "add_to_report"),
     "/api/live/approve": ("owner", "approve_live"),
     "/api/live/stop": ("owner", "stop_live"),
 }
-LIVE_ENDERS = {"stop_live", "update_settings", "end_session"}  # the routes that can end a live prototype
+LIVE_ENDERS = {"stop_live", "update_settings", "end_session"}
 UPLOAD_CHUNK = "/api/upload/chunk"
 UPLOAD_IMAGE = "/api/upload/image"
 CHUNK_HEADERS = {"id": "X-Upload-Id", "index": "X-Chunk-Index", "total": "X-Chunk-Total", "sha256": "X-Chunk-Sha256", "fileSha256": "X-File-Sha256"}
-HEALTH = "/api/owner/health"  # owner: share.sh logs --summary on the page (App.health)
+HEALTH = "/api/owner/health"
 GET_ROUTES = {"/api/chat": ("person", "chat_page"), "/api/mine/requests": ("person", "my_requests"), "/api/card/history": ("owner", "card_history"), "/api/report/image": ("owner", "report_image"),
               "/api/upload/image": ("person", "upload_image")}
-# The only routes a watcher key (X-Watcher-Key) works on: a guest's own Claude reads and answers their own self
-# requests. Anywhere else the header answers 401, so the key never acts as the person's session secret.
 WATCHER_ROUTES = {"/api/mine/requests", "/api/mine/requests/claim", "/api/mine/requests/result", "/api/mine/requests/fail"}
-BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX, "/api/report": session.REPORT_SEND_MAX, "/api/report/add": session.REPORT_MAX, CLIENT_LOG: CLIENT_LOG_MAX}  # path -> bytes, where not session.BODY_MAX
+BODY_CAPS = {"/api/upload/offer": session.OFFER_MAX, "/api/report": session.REPORT_SEND_MAX, "/api/report/add": session.REPORT_MAX, CLIENT_LOG: CLIENT_LOG_MAX}
 SERVER_ERROR = ("state-invalid", "The server could not do that; nothing was written.")
 
 
@@ -300,7 +275,7 @@ def client_fields(body):
             raise DomainError(400, "bad-field", f"{k} must be a string.", field=k)
         if len(v) > limit:
             raise DomainError(400, "too-long", f"{k} allows at most {limit} characters.", field=k, max=limit)
-    out = {k: None if body.get(k) is None else session._visible(body[k]) for k in CLIENT_FIELDS}  # what a guest's text may hold
+    out = {k: None if body.get(k) is None else session._visible(body[k]) for k in CLIENT_FIELDS}
     if out["kind"] not in CLIENT_KINDS:
         raise DomainError(400, "bad-field", f"kind must be one of {', '.join(CLIENT_KINDS)}.", field="kind")
     if not out["message"]:
@@ -308,15 +283,13 @@ def client_fields(body):
     return out
 
 
-LIVE_COPIES = "live"  # <data_dir>/live/<id>/: the copy of a build folder a live prototype serves, made at its start
-LIVE_RESTARTS = 5  # judgment: restarts in a row that may fail before a live prototype ends
-LIVE_BACKOFF = 2.0  # seconds before the first restart after a failed one, doubling up to LIVE_BACKOFF_MAX
+LIVE_COPIES = "live"
+LIVE_RESTARTS = 5
+LIVE_BACKOFF = 2.0
 LIVE_BACKOFF_MAX = 32.0
 
 
 def control_listener(port):
-    """True when 127.0.0.1:<port> answers the session-bridge ping the way a session's control listener does, with its
-    pid and data folder (a dev server's own /api/ping does not)."""
     p = session_bridge.ping(port, timeout=1.0)
     return isinstance(p, dict) and "pid" in p and "dataDir" in p
 
@@ -332,7 +305,7 @@ class QuickTunnelStarter:
 
     def __init__(self, app):
         self.app, self.d = app, app.dir
-        self.retry = {}  # live id -> (monotonic time of the next try, failures in a row)
+        self.retry = {}
 
     def path(self, lid):
         return tunnel.live_path(self.d, lid)
@@ -357,7 +330,7 @@ class QuickTunnelStarter:
             raise DomainError(502, "live-failed", f"{LIVE_COPIES}/ in the data folder is a link, so no copy is made.")
         dest = detached.make_private_dir(self.d / LIVE_COPIES) / lid
         if fresh:
-            src = session._live_folder(str(self.d / target["folder"]), self.d)  # still a folder under staging/
+            src = session._live_folder(str(self.d / target["folder"]), self.d)
             try:
                 liveserve.copy_build(self.d / src, dest)
             except (liveserve.BuildRefused, OSError) as exc:
@@ -378,14 +351,14 @@ class QuickTunnelStarter:
         if not tunnel.binary():
             raise DomainError(503, "live-unavailable", f"A live prototype needs cloudflared: {tunnel.MISSING}")
         lid, path = entry["id"], self.path(entry["id"])
-        tunnel.end_live(path, "stopped")  # whatever an earlier start of this entry left
+        tunnel.end_live(path, "stopped")
         port, srv = self.serve(entry)
         try:
             tunnel.write_live(path, {"id": lid, "port": port, **({"server": srv} if srv else {})})
             rec = tunnel.start_live(path, port, fresh=True)
         except (tunnel.TunnelDown, TimeoutError, OSError) as exc:
             if srv:
-                detached.stop(srv["pid"], srv["marker"], srv["processStart"])  # the record may not have been written
+                detached.stop(srv["pid"], srv["marker"], srv["processStart"])
             self.end(entry, "failed")
             self.app.log.warning("live %s: the tunnel did not start: %s", lid, loggable(str(exc), 300))
             raise DomainError(502, "live-failed", "The live prototype's tunnel did not start; it waits for Approve again.") from None
@@ -428,7 +401,7 @@ class QuickTunnelStarter:
             try:
                 return tunnel.start_live(path, port, server=srv)["url"]
             except BaseException:
-                detached.stop(srv["pid"], srv["marker"], srv["processStart"])  # recorded nowhere yet
+                detached.stop(srv["pid"], srv["marker"], srv["processStart"])
                 raise
         return tunnel.start_live(path, port)["url"]
 
@@ -447,12 +420,10 @@ class QuickTunnelStarter:
             begun = dict(app._live_begun)
         for lid, entry in begun.items():
             rec = tunnel.read_live(self.path(lid)) or {}
-            if rec.get("reason") == "stopped":  # ended from outside (share.sh): end the entry, never restart it
+            if rec.get("reason") == "stopped":
                 self.forget(lid, entry, "stopped")
                 continue
             if entry["target"]["kind"] == "port" and not self.listening(entry["target"]["port"]):
-                # The owner's server is gone: whatever binds the port next is not what they attested, so it never
-                # inherits the public address. A new server needs a new add-live and Approve.
                 self.forget(lid, entry, "failed", record=False)
                 app.log.info("live %s: nothing listens on port %d any more, so it ended", lid, entry["target"]["port"])
                 if app.session.live_ended(lid, "failed"):
@@ -470,7 +441,7 @@ class QuickTunnelStarter:
             except (DomainError, tunnel.TunnelDown, TimeoutError, OSError) as exc:
                 with app._live_lock:
                     gone = lid not in app._live_begun or app.session.live_status(lid) != "running"
-                if gone:  # stopped while it restarted: end what the restart began
+                if gone:
                     self.retry.pop(lid, None)
                     self.end(entry, "stopped")
                     continue
@@ -492,7 +463,7 @@ class QuickTunnelStarter:
             elif moved:
                 app.log.info("live %s: restarted at a new address", lid)
                 app.changed()
-            else:  # stopped while it restarted
+            else:
                 self.forget(lid, entry, "stopped", record=False)
 
     def resume(self):
@@ -501,20 +472,20 @@ class QuickTunnelStarter:
             lid, kind = e["id"], e["status"]["kind"]
             rec = tunnel.read_live(self.path(lid))
             if kind == "running" and rec and "endedAt" not in rec and (tunnel.tunnel_running(rec) or tunnel.server_running(rec)):
-                app._live_begun[lid] = e  # the watch brings back whichever part has exited
+                app._live_begun[lid] = e
                 continue
             if kind in ("starting", "running"):
                 self.end(e, "failed")
                 if kind == "starting":
-                    app.session.live_start_failed(lid)  # the server stopped while it started: it waits for Approve again
+                    app.session.live_start_failed(lid)
                 else:
                     app.session.live_ended(lid, "stopped" if (rec or {}).get("reason") == "stopped" else "failed")
-        for path, rec in tunnel.live_records(self.d):  # a record no running entry claims
+        for path, rec in tunnel.live_records(self.d):
             if "endedAt" not in rec and rec["id"] not in app._live_begun:
                 tunnel.end_live(path, "failed")
 
 
-LIVE_STARTER = None  # None: App starts live prototypes with QuickTunnelStarter; a test fixture sets its own
+LIVE_STARTER = None
 
 
 class StartRefused(Exception):
@@ -529,7 +500,6 @@ def plugin_version():
 
 
 def build_hash():
-    """Changes whenever a served web file does, so an open page can tell it must reload."""
     h = hashlib.sha256()
     for path, name in [*sorted((p, n) for p, (n, _) in STATIC.items()), ("/proto/", "proto.html"), ("?pin=1", "proto-pin.js")]:
         f = WEB / name
@@ -539,7 +509,7 @@ def build_hash():
 
 
 PROBE_PATH = re.compile(r"/api/tunnel-probe/([0-9a-f]{32})")
-PROBE_SECONDS = 30.0  # judgment: how long a new tunnel address may take to start reaching this server
+PROBE_SECONDS = 30.0
 
 
 def probe_target(url):
@@ -553,7 +523,6 @@ def probe_target(url):
 
 
 def tunnel_kind(rec, up):
-    """What a status says of the tunnel: named or quick while it runs, down when it does not, off with no record."""
     if not rec:
         return "off"
     return ("named" if tunnel.config(rec)[0] else "quick") if up else "down"
@@ -691,7 +660,7 @@ class ControlHub(session_bridge.LoopbackWatcher):
     def __init__(self, port, data_dir, app):
         super().__init__(port, data_dir)
         self.app = app
-        self.token = app.secrets["control"]  # from the 0600 file, so a restart keeps armed watchers
+        self.token = app.secrets["control"]
 
     def read_log(self):
         return self.app.session.log_copy()
@@ -767,8 +736,8 @@ class ControlHandler(session_bridge.LoopbackHandler):
             return self.send(200, {"ok": problem is None, **({"error": problem} if problem else {})})
         if path == "/api/live/stop":
             return self.stop_lives(msg)
-        if path == "/api/shutdown":  # share.py stop: the exit SIGTERM starts, which Windows' TerminateProcess skips
-            self.send(200, {"ok": True})  # answered before the shutdown starts, so share.py reads it
+        if path == "/api/shutdown":
+            self.send(200, {"ok": True})
             return app.quit.set()
         if path != "/api/ops":
             return self.send(404, {"error": "not found"})
@@ -813,10 +782,9 @@ class GuestServer(ThreadingHTTPServer):
 
     daemon_threads = True
     request_queue_size = 128
-    allow_reuse_address = not detached.WINDOWS  # on Windows the option lets another bind steal the port
+    allow_reuse_address = not detached.WINDOWS
     BUSY_MESSAGE = "The session is busy; try again in a moment."
     BUSY = raw_answer(503, "Service Unavailable", {"error": "busy", "message": BUSY_MESSAGE})
-    # judgment: how long, how much and how many refused clients are read after their 503, so a flood costs little.
     DRAIN_SECONDS = 2.0
     DRAIN_BYTES = 64 * 1024
     DRAINS = 8
@@ -833,9 +801,8 @@ class GuestServer(ThreadingHTTPServer):
 
     def process_request(self, request, client_address):
         if not self.slots.acquire(blocking=False):
-            # No request was read, so the entry has no method, route or pid, and no traceback: nothing failed.
             self.app.log.error("%s", entry("request", method="-", route="-", status=503, ms="0.0", code="busy", message=self.BUSY_MESSAGE))
-            self.app.note_fault("request", background=True)  # this thread accepts every connection
+            self.app.note_fault("request", background=True)
             if self.drains.acquire(blocking=False):
                 threading.Thread(target=self.refuse, args=(request,), daemon=True).start()
             else:
@@ -873,7 +840,7 @@ class GuestHandler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.1"
     server_version = "shared-session"
     sys_version = ""
-    timeout = 30  # an idle or trickling connection is dropped
+    timeout = 30
     body_left = 0
 
     def version_string(self):
@@ -914,7 +881,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         """The session-bridge headers on every answer, the page CSP on HTML, plus `extra`."""
         raw = body if isinstance(body, bytes) else json.dumps(body, ensure_ascii=False).encode("utf-8")
         if code >= 400:
-            self.close_connection = True  # an unread body must not become the next request
+            self.close_connection = True
         self.send_response(code)
         text = ctype.startswith("text/") or ctype == "application/json"
         self.send_header("Content-Type", ctype + "; charset=utf-8" if text else ctype)
@@ -929,16 +896,13 @@ class GuestHandler(BaseHTTPRequestHandler):
         for k, v in extra.items():
             self.send_header(k, v)
         self.end_headers()
-        self.log_request_entry(code)  # before the body goes out, so a client that has its answer finds the entry
+        self.log_request_entry(code)
         if code >= 500 and code not in SPIKE_REFUSALS:
-            self.app.note_fault("request")  # likewise its fault-spike event
+            self.app.note_fault("request")
         if code != 304:
             with contextlib.suppress(*session_bridge.DISCONNECTS):
                 self.wfile.write(raw)
 
-    # The acting pid, the refusal and the traceback of the request being answered, and whether the answer goes
-    # unlogged (a usage summary taken); send() logs and clears them, since one handler serves every request on a
-    # kept-alive connection.
     pid = refusal = failure = None
     unlogged = False
 
@@ -1015,7 +979,7 @@ class GuestHandler(BaseHTTPRequestHandler):
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
                     raise TimeoutError("the body did not arrive in time")
-                self.connection.settimeout(min(remaining, self.timeout))  # a stalled sender is dropped after self.timeout
+                self.connection.settimeout(min(remaining, self.timeout))
                 chunk = self.rfile.read1(min(left, 65536))
                 if not chunk:
                     self.close_connection = True
@@ -1050,7 +1014,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         if auth in ("owner", "host") and not self.headers.get("X-Owner-Token"):
             raise DomainError(403, "owner-only", "Only the owner can do that.")
         if auth == "host" and not self.app.session.is_owner_token(self.headers["X-Owner-Token"]):
-            self.identity()  # a stale credential answers 401 as anywhere else
+            self.identity()
             raise DomainError(403, "host-device-only", "Do that on the device that opened your owner link.")
         pid = self.identity()
         if pid is None:
@@ -1059,7 +1023,7 @@ class GuestHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         probe = PROBE_PATH.fullmatch(urlparse(self.path).path)
-        if probe:  # before the Host check: the probe arrives on an address not yet allowed; it answers a pending nonce only
+        if probe:
             answer = self.app.answer_probe(probe.group(1))
             return self.send(200, {"probe": answer}) if answer else self.send(404, {"error": "not-found"})
         if self.refused():
@@ -1090,7 +1054,7 @@ class GuestHandler(BaseHTTPRequestHandler):
                 return self.send(200, {"ok": True, **getattr(self.app.session, method)(pid, query)})
         except DomainError as exc:
             return self.fail(exc)
-        except Exception:  # a bug: a read writes nothing
+        except Exception:
             return self.crash()
         return self.fail(DomainError(404, "not-found", "Nothing here."))
 
@@ -1127,7 +1091,7 @@ class GuestHandler(BaseHTTPRequestHandler):
     def asset(self, aid, ext, *, pin=False):
         pid = self.asset_reader()
         f = self.app.dir / "assets" / aid
-        if not f.is_file() or self.app.session.asset_hidden(pid, aid):  # a view switched off reads as no such asset
+        if not f.is_file() or self.app.session.asset_hidden(pid, aid):
             return self.fail(DomainError(404, "not-found", "No such asset."))
         if ext != "html":
             return self.send(200, f.read_bytes(), ASSET_TYPES[ext], {"Content-Security-Policy": ASSET_CSP, "Content-Disposition": "inline"})
@@ -1136,16 +1100,16 @@ class GuestHandler(BaseHTTPRequestHandler):
 
     def state(self):
         app = self.app
-        if app.moved(self.headers.get("Host", "")):  # the old address after a switch: only where the session went
+        if app.moved(self.headers.get("Host", "")):
             return self.send(200, {"moved": app.public_url})
         pid = self.identity()
         if pid is None:
             return self.send(200, app.session.anonymous_view())
         tag, sent = app.etag(pid), self.headers.get("If-None-Match") or ""
         extra = {"ETag": tag, "Set-Cookie": self.asset_cookie(pid)}
-        if sent == tag:  # identity() already refused a removed or waiting person
+        if sent == tag:
             return self.send(304, b"", extra=extra)
-        if sent.rsplit(".", 2)[0] == tag.rsplit(".", 2)[0]:  # only presence or the clock moved: send just that part
+        if sent.rsplit(".", 2)[0] == tag.rsplit(".", 2)[0]:
             return self.send(200, {"rev": app.session.state["rev"], "presenceOnly": True, **app.session.presence_view(pid)}, extra=extra)
         snap = app.session.snapshot(pid)
         snap["build"] = app.build
@@ -1165,7 +1129,7 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.upload_chunk()
         if path not in ROUTES and path != CLIENT_LOG:
             return self.fail(DomainError(404, "not-found", "Nothing here."))
-        if path != CLIENT_LOG:  # who sends it is settled from headers before any of the body is read
+        if path != CLIENT_LOG:
             auth, method = ROUTES[path]
             try:
                 pid = self.authorize(auth)
@@ -1179,7 +1143,7 @@ class GuestHandler(BaseHTTPRequestHandler):
             return self.fail(DomainError(400, "bad-json", "The request needs a Content-Length."))
         if length > cap:
             return self.fail(DomainError(413, "body-too-large", f"The body allows at most {cap} bytes.", max=cap))
-        seconds = session.REPORT_SECONDS if path == "/api/report" else session.BODY_SECONDS  # up to four pictures take longer
+        seconds = session.REPORT_SECONDS if path == "/api/report" else session.BODY_SECONDS
         try:
             raw = self.read_body(length, seconds)
         except TimeoutError:
@@ -1200,14 +1164,14 @@ class GuestHandler(BaseHTTPRequestHandler):
             out = fn(pid, body, address=self.address()) if method in ("join", "redeem_pairing") else fn(pid, body)
         except DomainError as exc:
             return self.fail(exc)
-        except Exception:  # a bug: the transaction rolled back, so nothing was written
+        except Exception:
             return self.crash()
         if method == "rotate_owner_link":
             app.write_owner_link()
         if method in ("rotate_owner_link", "revoke_device", "end_session"):
-            app._asset_key = secrets.token_bytes(32)  # an asset cookie names the host, not the device: every one ends
+            app._asset_key = secrets.token_bytes(32)
         if method == "approve_live":
-            app.changed()  # the entry reads starting while it starts
+            app.changed()
             try:
                 out = app.start_live(out)
             except DomainError as exc:
@@ -1238,7 +1202,7 @@ class GuestHandler(BaseHTTPRequestHandler):
             meta = {k: self.headers.get(h) for k, h in CHUNK_HEADERS.items()}
             plan = app.session.chunk_plan(pid, meta)
             if "received" in plan:
-                self.close_connection = True  # its body stays unread
+                self.close_connection = True
                 return self.send(200, {"ok": True, "received": plan["received"], "repeat": True})
             if length != plan["length"]:
                 code = 413 if length > plan["length"] else 400
@@ -1256,7 +1220,7 @@ class GuestHandler(BaseHTTPRequestHandler):
                 out = app.session.upload_chunk(pid, meta, raw)
         except DomainError as exc:
             return self.fail(exc)
-        except Exception:  # a bug: the transaction rolled back, so nothing was written
+        except Exception:
             return self.crash()
         app.changed()
         return self.send(200, {"ok": True, **out})
@@ -1269,7 +1233,7 @@ class GuestHandler(BaseHTTPRequestHandler):
             pid = self.authorize("person")
             usage = body.get("kind") in USAGE_KINDS
             if usage:
-                self.pid = None  # before any refusal, so a refused summary's request entry names no one either
+                self.pid = None
             fields = client_fields(body)
             if not (self.app.summary_bucket if usage else self.app.client_bucket).take(pid):
                 n, what = (SUMMARY_PER_MINUTE, "summaries") if usage else (CLIENT_PER_MINUTE, "error reports")
@@ -1289,7 +1253,7 @@ class GuestHandler(BaseHTTPRequestHandler):
         if not self.refused():
             self.fail(DomainError(404, "not-found", "Nothing here."))
 
-    do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = refuse_method  # no CORS preflight is ever answered
+    do_PUT = do_DELETE = do_PATCH = do_OPTIONS = do_HEAD = refuse_method
 
 
 class App:
@@ -1310,35 +1274,35 @@ class App:
         if swept:
             self.log.info("uploads: deleted %d partial or unclaimed files", swept)
         self.build = build_hash()
-        self._asset_key = secrets.token_bytes(32)  # signs asset cookies; a restart ends them, and the next poll renews them
+        self._asset_key = secrets.token_bytes(32)
         self.bucket = Bucket(session.RATE_PER_SECOND, session.RATE_BURST)
-        self.client_bucket = Bucket(CLIENT_PER_MINUTE / 60, CLIENT_PER_MINUTE)  # keyed by pid
-        self.image_bucket = Bucket(IMAGE_PER_MINUTE / 60, IMAGE_PER_MINUTE)  # GET /api/upload/image, keyed by pid
-        self.summary_bucket = Bucket(SUMMARY_PER_MINUTE / 60, SUMMARY_PER_MINUTE)  # keyed by pid, kept in memory only
+        self.client_bucket = Bucket(CLIENT_PER_MINUTE / 60, CLIENT_PER_MINUTE)
+        self.image_bucket = Bucket(IMAGE_PER_MINUTE / 60, IMAGE_PER_MINUTE)
+        self.summary_bucket = Bucket(SUMMARY_PER_MINUTE / 60, SUMMARY_PER_MINUTE)
         self._summary_lock, self._summaries, self._counts, self._senders, self._summary_bytes, self._dropped = threading.Lock(), [], collections.Counter(), set(), 0, 0
         self._batch_at = time.monotonic() + SUMMARY_BATCH_SECONDS
-        self._spike_lock, self._faults, self._spike_quiet_until = threading.Lock(), {}, 0.0  # fault kind -> recent times
+        self._spike_lock, self._faults, self._spike_quiet_until = threading.Lock(), {}, 0.0
         self.watch_tunnel = watch_tunnel
         self.public_url = ""
         self.tunnel_host = ""
-        self.retired_host = ""  # the address before a switch, while its tunnel still runs
+        self.retired_host = ""
         self.tunnel_up = False
         self._next_tunnel_try = 0.0
         self._backoff = 2.0
         self._last_sync = 0.0
         self._sync_lock = threading.Lock()
         self._stop = threading.Event()
-        self.quit = threading.Event()  # main() runs shutdown() once it is set: SIGTERM or POST /api/shutdown
+        self.quit = threading.Event()
         self._chunk_lock, self._chunk_readers = threading.Lock(), set()
-        self._probe_lock, self._probes = threading.Lock(), {}  # nonce asked -> (answer, expiry)
+        self._probe_lock, self._probes = threading.Lock(), {}
         self.live_starter = LIVE_STARTER
-        self._live_lock, self._live_begun = threading.Lock(), {}  # live id -> the entry its starter began, until stopped
+        self._live_lock, self._live_begun = threading.Lock(), {}
         self.guest = GuestServer(("127.0.0.1", guest_port), GuestHandler)
         self.guest.app = self
         self.guest_port = self.guest.server_address[1]
         self.local_hosts = {f"127.0.0.1:{self.guest_port}", f"localhost:{self.guest_port}"}
-        self.asset_cookie = f"shared-assets-{self.guest_port}"  # cookies ignore the port: two local sessions keep their own
-        handler = type("SharedControlHandler", (ControlHandler,), {})  # its own class: start() sets hub on it
+        self.asset_cookie = f"shared-assets-{self.guest_port}"
+        handler = type("SharedControlHandler", (ControlHandler,), {})
         self.control, self.hub = session_bridge.start(handler, lambda port: ControlHub(port, self.dir, self), control_port, nonce)
         self.control_port = self.hub.port
         detached.write_private(self.dir / PORTS, json.dumps({"guest": self.guest_port, "control": self.control_port}) + "\n")
@@ -1346,7 +1310,7 @@ class App:
             self.live_starter = QuickTunnelStarter(self)
             self.live_starter.resume()
         self.write_owner_link()
-        self.sync_tunnel(restart=False)  # a tunnel start can outlast share.py's wait for this one: share.py or the watch starts it
+        self.sync_tunnel(restart=False)
         self.log.info("started: guest %d, control %d, build %s", self.guest_port, self.control_port, self.build)
 
     def start_live(self, approved):
@@ -1364,7 +1328,7 @@ class App:
             self._stop_live(entry)
             self.session.live_start_failed(lid)
             raise DomainError(502, "live-failed", "The live prototype did not start; it waits for Approve again.") from None
-        with self._live_lock:  # held from running to recorded, so an end landing between them still finds it to stop
+        with self._live_lock:
             try:
                 running = self.session.live_started(lid, url)
             except DomainError:
@@ -1383,7 +1347,7 @@ class App:
     def _stop_live(self, entry):
         try:
             self.live_starter.stop(entry)
-        except Exception:  # a stop that fails is logged; the entry has ended either way
+        except Exception:
             self.log.exception("live %s: the stop failed", entry["id"])
 
     def stop_ended_lives(self):
@@ -1437,10 +1401,10 @@ class App:
     def _write_spike(self, kind, count):
         try:
             self.session.fault_spike(kind, count, SPIKE_WINDOW, SPIKE_THRESHOLD)
-        except Exception:  # a spike event that fails to write is logged; the request it rode on is still answered
+        except Exception:
             self.log.exception("fault-spike: the event was not written")
             with self._spike_lock:
-                self._spike_quiet_until = 0.0  # no event went out, so the next fault may try again
+                self._spike_quiet_until = 0.0
             return
         self.changed()
 
@@ -1518,7 +1482,7 @@ class App:
         public = self.public_hosts()
         if host not in self.local_hosts and host not in public:
             now = time.monotonic()
-            if now - self._last_sync > 1.0:  # a tunnel share.py just started may not be seen yet
+            if now - self._last_sync > 1.0:
                 self._last_sync = now
                 self.sync_tunnel(restart=False)
             public = self.public_hosts()
@@ -1641,7 +1605,7 @@ class App:
             why, sure = share_cli.confirm(hostname, token_file, api_file, self.guest_port, live, rec)
             if why:
                 if not sure:
-                    detached.stop(live["pid"], live["marker"], live["processStart"])  # the record stays, so the watch retries
+                    detached.stop(live["pid"], live["marker"], live["processStart"])
                     raise tunnel.TunnelDown(f"named tunnel {hostname} stopped: {why}")
                 self.log.warning("named tunnel %s: %s; a quick tunnel serves this session instead", hostname, loggable(why))
                 return tunnel.fall_back(self.dir, self.guest_port)
@@ -1656,7 +1620,7 @@ class App:
                 continue
             try:
                 watch()
-            except Exception:  # the watch must outlive any one bad pass
+            except Exception:
                 self.log.error("%s", entry("live-watch", trace=trace()))
 
     def watch(self):
@@ -1664,12 +1628,12 @@ class App:
             try:
                 tunnel.sweep(self.dir)
                 self.sync_tunnel()
-            except Exception:  # the watch must outlive any one bad pass
+            except Exception:
                 self.log.error("%s", entry("tunnel-watch", trace=trace()))
             if time.monotonic() >= self._batch_at:
                 try:
                     self.flush_summaries()
-                except Exception:  # nor may a failed batch stop the tunnel watch
+                except Exception:
                     self.log.error("%s", entry("summary-batch-failed", trace=trace()))
 
     def serve(self):
@@ -1682,18 +1646,18 @@ class App:
 
     def shutdown(self):
         self._stop.set()
-        serving = getattr(self, "threads", None)  # shutdown() waits for serve_forever, so only once serving
+        serving = getattr(self, "threads", None)
         if serving:
             self.guest.shutdown()
-        self.flush_summaries(stopping=True)  # before the control listener goes, so `share.sh stop` returns after it
+        self.flush_summaries(stopping=True)
         if serving:
             self.control.shutdown()
         self.guest.server_close()
         self.control.server_close()
         live_thread = getattr(self, "_live_thread", None)
         if live_thread is not None:
-            live_thread.join(tunnel.START_SECONDS + 10)  # a restart under way ends before the sweep, never after it
-        try:  # a live prototype whose processes are gone ends; a running one outlives a restart, unless the session ended
+            live_thread.join(tunnel.START_SECONDS + 10)
+        try:
             over = self.session.state["session"]["phase"]["kind"] == "ended"
             for rec in tunnel.sweep_live(self.dir, every=over, reason="session-ended" if over else "failed"):
                 self.log.info("live %s: ended at shutdown", rec["id"])
@@ -1721,7 +1685,7 @@ def main(argv=None):
         print(f"cannot start: {exc}", file=sys.stderr)
         return 2
     app.serve()
-    with contextlib.suppress(ValueError):  # signals only reach the main thread
+    with contextlib.suppress(ValueError):
         signal.signal(signal.SIGTERM, lambda *_: app.quit.set())
     try:
         while not app.quit.wait(1.0):

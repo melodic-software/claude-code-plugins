@@ -1,4 +1,4 @@
-# Session mode, arm, evidence bar, research gate, review seams
+# Session mode, evidence bar, research gate, review seams
 
 The bulk behind the short pointers in [`../SKILL.md`](../SKILL.md). Every entry here feeds the
 existing pipeline; none adds a step.
@@ -6,7 +6,6 @@ existing pipeline; none adds a step.
 ## Contents
 
 - [Entry rules](#entry-rules)
-- [`arm`](#arm)
 - [`session`](#session)
 - [Evidence bar](#evidence-bar)
 - [Research gate](#research-gate)
@@ -14,30 +13,15 @@ existing pipeline; none adds a step.
 
 ## Entry rules
 
-- `session` and `arm` run only when the operator types them. No hook starts either, no schedule
-  does, and the model never selects one. A model that judges a session worth the pass says so in
-  one line and waits; it does not run the mode.
-- Each is a whole argument. Beside any other token, stop and name the accepted set
-  (`<plugin>[:<component>]`, `session`, `arm`); never guess which one was meant.
+- `session` runs only when the operator types it. No hook starts it, no schedule does, and the
+  model never selects it. A model that judges a session worth the pass says so in one line and
+  waits; it does not run the mode.
+- It is a whole argument. Beside any other token, stop and name the accepted set
+  (`<plugin>[:<component>]`, `session`); never guess which one was meant.
+- `arm` is not an argument: the session-flow observer needs no arming. Say it runs by itself
+  when session-flow's `observer_enabled` is on, launch nothing, and stop.
 - Nothing here changes step 6. An unattended `session` run falls to rung 4 like any other
   unattended run.
-
-## `arm`
-
-Run at session start. It audits nothing.
-
-1. If `<plugin-data-dir>/armed/<session_id>.json` already exists, report it and stop before any
-   launch; never start a second observer for one session. `<plugin-data-dir>` and `<session_id>`
-   resolve exactly as the evidence packet's layout resolves them.
-2. Invoke `/session-flow:running-retro arm` when the session-flow plugin is enabled. Absent:
-   say the observer cannot be armed here and stop. Do not build a substitute observer.
-3. When the launcher reports the observer armed, write that file with `armed_at` (UTC),
-   `session_id`, and the launcher's one-line result verbatim. The directory sits beside
-   `evidence/`, never under it, so retention and the resume rule never read it as a packet.
-4. If the launcher reports it did not arm, write nothing and relay its message.
-
-The observer files its findings into the session's running-retro ledger only after the session
-ends, so a `session` run inside the live session does not find them from the observer.
 
 ## `session`
 
@@ -54,9 +38,10 @@ Run at session end, over what the session used.
    skill invocations only, because `plugin_usage` counts skills and attributes no hook run to a
    plugin. No ledger, or no such key: tell the operator to run
    `/session-flow:running-retro` and re-run this mode, name the by-name form above, and stop, with
-   no second parser: no count over the transcript by any tool. An
-   armed observer writes the ledger only after the session ends, so inside the live session the
-   key comes from a checkpoint.
+   no second parser: no count over the transcript by any tool. With
+   session-flow's `observer_enabled` on, live checks write the ledger during the session but do
+   not stamp `plugin_usage`, and a later session start's catch-up stamps it only for a session
+   that got no live checks, so inside the live session the key comes from a checkpoint.
 3. **Build the list.** One row per used skill (`<plugin>:<skill>`, count), ordered by count. Drop
    this audit's own row unless the operator adds it back. A plugin whose hooks ran but whose
    skills did not is added by hand at the confirm step.

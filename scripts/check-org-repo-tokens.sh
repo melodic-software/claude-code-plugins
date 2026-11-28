@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Rule: https://github.com/melodic-software/claude-code-plugins/blob/main/docs/plugin-philosophy.md#design-boundary
 set -uo pipefail
 
 ORG=melodic-software

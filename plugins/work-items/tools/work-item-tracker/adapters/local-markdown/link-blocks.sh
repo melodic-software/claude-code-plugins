@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# link-blocks <id> --blocked-by <id> — CONTRACT.md "Verbs (core public surface)".
-# Appends a structured "Blocked by:" line; get-item/list-items resolve blocker state
-# by number. cross_repo_edges is unsupported (single-namespace store) — a blocker in
-# another namespace is recorded as a text pointer only, never a resolvable edge.
 set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
@@ -26,7 +22,7 @@ while [[ $# -gt 0 ]]; do
 done
 [[ -n "$blocker" ]] || wit_usage_error "--blocked-by is required"
 wit_require_local_id "$id" || wit_usage_error "malformed or non-local-markdown id: $id"
-number="$WIT_ID_NUMBER" # capture before the blocker parse overwrites WIT_ID_NUMBER
+number="$WIT_ID_NUMBER"
 wit_require_local_id "$blocker" || wit_usage_error "malformed or non-local-markdown --blocked-by id: $blocker"
 blocker_number="$WIT_ID_NUMBER"
 

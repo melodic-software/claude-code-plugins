@@ -79,7 +79,6 @@ test("resolve-conflicts's own escalation or a person's label holds it", async ()
 });
 
 test("a person's inline review-thread reply since the label, or an unread review listing, holds it", async () => {
-  // GitHub's timeline has no event for a reply inside an existing review thread.
   const reply = (user) => ({ id: 2, in_reply_to_id: 1, user, body: "Wait.", created_at: "2026-10-22T11:00:00Z", updated_at: "2026-10-22T11:00:00Z" });
   assert.equal(await outputs("resolve-conflicts", { reviewComments: [reply(PERSON)] }), "held=true\nlane-escalated=false\n");
   assert.equal(await outputs("resolve-conflicts", { reviewComments: [reply(APP)] }), "held=false\nlane-escalated=true\n");

@@ -1,6 +1,3 @@
-// The interview surface registry (surfaces/registry.mjs): AC5 (medium never moves the surface),
-// AC13 surface part (unset surface with alternatives prints exactly one offer line) and AC15
-// (a new surface entry needs no edit to the interview skill).
 import { after, test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
@@ -13,7 +10,6 @@ import { ENTRIES_DIR, loadEntries, resolveSurface } from '../surfaces/registry.m
 const here = dirname(fileURLToPath(import.meta.url))
 const REGISTRY = join(here, '..', 'surfaces', 'registry.mjs')
 const SKILL = join(here, '..', 'skills', 'interview', 'SKILL.md')
-// What an unset userConfig key looks like in skill content: the literal token (lane-page.md).
 const UNSET = '${user_config.surface}'
 const made = []
 const tmp = () => made[made.push(mkdtempSync(join(tmpdir(), 'surface-registry-'))) - 1]
@@ -32,7 +28,7 @@ const EVAL_OPENING_LINES_GRADER = /^\W*Asking here\b[^\n]*\.[^\S\n]+[^\n]*\balso
 test('AC13: surface unset and two surfaces available opens with the owner-approved lines', async () => {
   const { env } = emptyProject()
   const r = await resolveSurface({ userConfig: { surface: UNSET }, env, context: PAGE_ONLY, ledger: '.work/t/interview-checklist.md' })
-  assert.equal(r.surface, 'terminal') // plugin.json userConfig.surface.default
+  assert.equal(r.surface, 'terminal')
   assert.equal(r.decidedBy, 'default')
   assert.deepEqual(r.line.split('\n'), [
     'Asking here, one round at a time. A local page is also available; say which to switch.',
@@ -261,7 +257,7 @@ test('the gate sections name no surface value: each lane\'s part lives in its sp
   const gated = [
     ['## Gates', '## Action Router'],
     ['## Action Router', '## Stance: supportive, depth-first, opinionated'],
-    ['### Step 2. Drive the frontier-rounds loop', '### Step 3. Recognize the stop condition'],
+    ['### Step 2. Drive the rounds of ready questions', '### Step 3. Recognize the stop condition'],
     ['### Step 3. Recognize the stop condition', '### Step 4. Persist the Brief'],
     ['### Step 4. Persist the Brief', '### Step 5. Hand off'],
   ]

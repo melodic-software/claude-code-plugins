@@ -3,6 +3,160 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.3] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across all 7 `code-tidying` skills (total 3458 -> 2175 chars, -1283 chars): `/code-tidying:audit-comment-residue` (457 -> 349), `/code-tidying:audit-dead-code` (553 -> 340), `/code-tidying:batch-simplify` (396 -> 324), `/code-tidying:remove-comments` (488 -> 347), `/code-tidying:setup` (553 -> 142), `/code-tidying:tidy-diff` (552 -> 334), and `/code-tidying:tidy` (459 -> 339) while preserving read-only contracts, bundled-simplify gates, posture modes, and sibling exclusions.
+
+## [2.2.2] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+- Remove stale opening comment naming `lane`/`context/lanes.md` from `audit-dead-code/evals/fixtures/cs-orders.cs`.
+
+## [2.2.1] - 2026-11-27
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_files` leaves out an exact rename (the same blob and mode under a new path), so a pure move is no longer formatted or linted as a changed file. `checks_files --include-exact-renames` keeps the full list for checks whose verdict depends on a file's name or location: the guardrails content scan and reference verify, and the spelling lint. A rename with an edit or a mode change is still listed and judged on its added lines only; a copy, an add and a modify are listed as before.
+
+## [2.2.0] - 2026-11-27
+
+### Added
+
+- `comment_lint_keep_opening`, a team-file list of repository-relative path globs in `comment_lint_exclude`'s syntax: for a matching file the comment lint passes its opening comment block (the comment lines after an optional shebang and any blank or `set -` lines, up to the first other line) and judges every other comment as before. The plugin ships no entries.
+
+## [2.1.0] - 2026-11-27
+
+### Added
+
+- The comment lint, `/code-tidying:remove-comments` scope and the comment census also judge `.awk`, `.cc`, `.css`, `.scss`, `.html`, `.htm`, `.xml`, `.editorconfig`, `.jsonc` (read as JSON), `.kt` and `.psd1` (read as PowerShell) files, and extensionless scripts whose first line is an sh, bash, dash, zsh, node or python3 shebang (`scripts/code-shebang.ere`). A consumer that wants a type left out lists it in `comment_lint_exclude`. `change-shape.py` and `commented-out-code.py` have no grammar for these types, so a deletion there is a proposal.
+- `stylelint-disable`/`stylelint-enable` (with `-next-line` and `-line`) and `sourceMappingURL` or `sourceURL` comments are directives the lint keeps.
+
+### Fixed
+
+- An upper-case extension such as `.CSS` gets its lexer instead of being skipped.
+- A regular expression literal after `=>` in JavaScript and TypeScript, and the pattern after `=~` in a Bash `[[ ]]`, are no longer read as comments, and neither is the code after them.
+- A generated-file marker counts only on a comment line or at the start of a line (a docstring or block comment body), so a description, string or JSON value that mentions `@generated` or `DO NOT EDIT` no longer skips a hand-written file.
+- `cr_is_code_file` reads the shared `scripts/code-extensions.txt` instead of its own list, `cr_comment_text` reads `<!-- -->` comments, and a remove-comments audit of a directory skips everything under a `.git` folder.
+
+## [2.0.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [2.0.0] - 2026-11-26
+
+### Changed
+
+- **`/code-tidying:audit-dead-code` takes `--analyzer`, not `--lane`.** "Lane" now means only a
+  worker that serves one pipeline stage, so the four detectors (knip, vulture, gopls, grep) are
+  analyzers: run `dead-code-scan.sh --analyzer <name>` (`--lane` is gone, with no alias), and the
+  scan prints `Analyzer:` lines and a `Summary analyzers:` line. Its reference moves to
+  `context/analyzers.md`. `/code-tidying:remove-comments` says "no focus-area rotation".
+
+## [1.0.3] - 2026-11-26
+
+### Fixed
+
+- The comment lint now passes `spellchecker:ignore-next-line` as a tool directive, alongside
+  `spellchecker:on`, `off` and `disable-line`.
+
+## [1.0.2] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [1.0.1] - 2026-11-26
+
+### Fixed
+
+- The comment lint no longer judges a reworded full-line comment that adds no comment lines, so a stale prose comment can be corrected instead of deleted. In a hunk that adds as many lines as it removes, a changed comment run (consecutive comment lines with no code) passes when it has no more lines than the base run on the removed line at the same place. In any other hunk, the removed lines must touch one base run and the added lines one run, and the added lines must hold no more lines of their run than the removed lines hold of the base run. A new comment, a run that grew, a run with no base run in its hunk, and a comment that replaces code are still judged.
+
+## [1.0.0] - 2026-11-26
+
+### Changed
+
+- **`/code-tidying:tidy` hunts focus areas, not lanes.** "Lane" now means only a worker that serves
+  one pipeline stage, so the glob-scoped slice tidy rotates through is a focus area. Project focus
+  areas live in `.claude/tidy-areas/<area>.md` (move any `.claude/tidy-lanes/` files there), the
+  required section `## Lane-specific extra exclusions` is now `## Area-specific extra exclusions`,
+  the bundled focus areas are under `skills/tidy/areas/`, and the templates are
+  `templates/*-area.template.md`. `/code-tidying:setup` checks and scaffolds the new paths, and
+  `batch-simplify` and `audit-dead-code` use the same word.
+
+## [0.60.1] - 2026-11-26
+
+### Fixed
+
+- The comment lint treats a TypeScript triple-slash directive written with a space, `/// <reference path="..." />`, as a directive; before, only `///<reference` matched.
+
+- The comment lint no longer judges a changed line whose trailing comment text is byte-identical to that of the base line it replaces, so a formatter that respaces or rewraps the code before an existing comment passes. A comment whose text changed, a new trailing comment and a full-line comment still fail. Lines pair in order within a hunk that adds as many lines as it removes; in any other hunk, a line pairs only with the one removed code line carrying the same comment, and otherwise it is judged.
+
+## [0.60.0] - 2026-11-25
+
+### Added
+
+- `git-hooks/comment-lint-ci.sh <head> <base>` re-runs the comment lint over a change in any CI system, judged against the base branch's settings; it takes both commits as arguments and reads no CI vendor variable. A shared hook install commits it beside the hook.
+- `/code-tidying:setup apply install-ci` finds the repository's CI system, how its jobs get Python and their change's commits, asks only what that leaves open, and proposes the step in that system's own format, written only on the user's yes. No CI system is a default.
+- `/code-tidying:setup check` reports the CI job that runs the script, a hand-run recipe, or drift when a call no longer matches the script's interface.
+
+- `/code-tidying:remove-comments` lists each domain term an ADR-candidate comment uses that the consumer's glossary lacks, found through `/domain-driven-design:ubiquitous-language lookup` (if enabled), as a glossary-candidate row in its findings file (`code-tidying/remove-comments/rule-glossary-candidate`), for `/domain-driven-design:ubiquitous-language curate`.
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+## [0.59.6] - 2026-11-25
+
+### Fixed
+
+- The comment lint passes a URL or RFC only in its own paragraph, the consecutive comment lines holding a word character, and only when that paragraph runs at most `class_c_max_lines` lines (team file or personal override, default 2). Before, a blank `#` line counted as prose, so one link anywhere in a comment passed every line of it, and no line budget applied.
+
+## [0.59.5] - 2026-11-25
+
+### Changed
+
+- The issue house style also reads `issue-tracker.md` from the org layer, the standards repository `standards_repository` names, when the repository has none of its own.
+- The ecosystem-resolution copy (1.1.2) reads the standards index over the org layer's index when the repository names a `standards_repository`.
+
+## [0.59.4] - 2026-11-24
+
+### Fixed
+
+- `change-shape.py` no longer holds every function docstring in a file that reads a bare `__doc__` name, such as `argparse.ArgumentParser(description=__doc__)`: that name refuses removal of the module docstring only, and `f.__doc__` refuses removal of f's. `__doc__` on any other expression (`obj.__doc__` for a name owning no removed docstring, `x.f.__doc__`, `f().__doc__`, a string), `__dict__`, and the reader identifiers still return CODE-CHANGED for the whole file.
+
+## [0.59.3] - 2026-11-24
+
+### Fixed
+
+- `/code-tidying:tidy` names Beck tidyings without a bare `#` (`Beck 8, Explaining Variables`) in its taxonomy, lanes, lane templates and deferred-issue body, and its PR body and audit comment say to, pointing at GitHub's autolinked-references docs for the reason, so GitHub no longer links the tidying number to an unrelated issue or PR.
+
+## [0.59.2] - 2026-11-24
+
+### Fixed
+
+- Shared `check-lib.sh` synced where this plugin carries it: `checks_changed_lines` and `checks_added_ranges` take an opt-in `--skip-reindent`, which leaves out an added line equal, leading and trailing whitespace aside, to a line the same file's diff removes (a reindent, or a move within the file). Without it, every added line still counts.
+- The comment lint passes `--skip-reindent`, so it passes a pre-existing comment a formatter only reindented, and still fails a comment the change adds or rewords beside it.
+
+- `change-shape.py` now reads CODE-CHANGED (exit 20), not COMMENT-ONLY or DOCSTRING-ONLY, when an edit changes whitespace on a code line (`x = (` to `x =(`, a reindent, a line split or joined); deleting whole comments, trailing ones included, still passes.
+
+## [0.59.1] - 2026-11-24
+
+### Fixed
+
+- `change-shape.py` no longer reads a `help=` keyword argument (or any other docstring-reader name used as a keyword argument or parameter name, directly after `(` or `,` and before `=`) as a run-time docstring read, so a docstring deletion in a file with argparse options can return DOCSTRING-ONLY. `help(...)`, `help` passed as a value, and any `__doc__` or `__dict__` token still return CODE-CHANGED.
+
+## [0.59.0] - 2026-11-24
+
+### Added
+
+- `comment_lint_exclude`, a team-file list of repository-relative path globs the comment lint skips, each skip named on stderr. `*` and `?` match within one path segment and `**` spans segments; the plugin ships no entries.
+
 ## [0.58.2] - 2026-11-24
 
 ### Changed

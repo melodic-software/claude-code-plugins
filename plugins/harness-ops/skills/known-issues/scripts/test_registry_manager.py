@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-"""Contract tests for registry_manager.py: the write gate and the read paths."""
 
 from __future__ import annotations
 

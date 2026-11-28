@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-// Exit 0 = in sync (or rewritten); 1 = drift / parse failure; 2 = usage error.
-
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, sep } from "node:path";
 import process from "node:process";

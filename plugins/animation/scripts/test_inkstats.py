@@ -52,7 +52,6 @@ def write_work(root, starts, duration, grays):
 @unittest.skipUnless(not MISSING, f'numpy/opencv missing: {MISSING}')
 class WorkDirFinalHold(unittest.TestCase):
     def test_last_drawing_uses_index_t1_not_one_frame(self):
-        # 3, 2, then 4 frames at 24 fps: extract.py stores the 4-frame tail as the last t1.
         starts = [0.0, 3 / FPS, 5 / FPS]
         duration = 9 / FPS
         want = [3 / FPS, 2 / FPS, 4 / FPS]
@@ -102,10 +101,10 @@ class Offstep(unittest.TestCase):
         return [{'hold': n / FPS} for n in frames]
 
     def test_a_two_then_four_pair_is_not_counted_but_its_neighbors_are(self):
-        self.assertEqual(inkstats.offstep(self.rows([3, 3, 2, 4, 3, 3]), FPS), 0.4)   # (3,2) and (4,3) of 5
+        self.assertEqual(inkstats.offstep(self.rows([3, 3, 2, 4, 3, 3]), FPS), 0.4)
 
     def test_a_lone_two_counts_in_both_of_its_pairs(self):
-        self.assertEqual(inkstats.offstep(self.rows([3, 3, 2, 3, 3]), FPS), 0.5)   # (3,2) and (2,3) of 4
+        self.assertEqual(inkstats.offstep(self.rows([3, 3, 2, 3, 3]), FPS), 0.5)
 
 
 @unittest.skipUnless(not MISSING, f'numpy/opencv missing: {MISSING}')

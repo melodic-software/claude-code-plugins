@@ -9,7 +9,6 @@ const source = readFileSync(join(here, '..', 'workflows', 'fanout-sweep.js'), 'u
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor
 const body = source.replace(/^export const meta\b/m, 'const meta')
 
-// Banned by the bundled /workflow-authoring skill's determinism rules; the test enforces the same list.
 for (const banned of ['Date.now(', 'Math.random(', 'new Date()']) {
   test(`script does not call ${banned}`, () => assert.ok(!source.includes(banned)))
 }
@@ -93,9 +92,6 @@ test('every slice runs as review:brief-reviewer and the extractor as review:stag
   assert.equal(extract(calls).opts.agentType, 'review:stage-normalizer')
 })
 
-// A general-purpose agent holds Agent and Skill, so every call must name a plugin agent, and each
-// named definition must withhold both. docs/plugin-philosophy.md "Named agents keep their pins":
-// a definition that pins effort gets neither option; one that inherits and pins none gets the route.
 const agentsDir = join(here, '..', 'agents')
 const frontmatter = type => readFileSync(join(agentsDir, type.replace(/^review:/, '') + '.md'), 'utf8').split('\n---')[0]
 
@@ -109,8 +105,6 @@ test('every call names a plugin agent whose tools exclude Agent and Skill', asyn
   }
 })
 
-// The fan-out frontier guard (docs/plugin-philosophy.md): a stage running several agents never
-// runs them on the session's model, which may be the frontier one.
 const NON_FRONTIER = ['opus', 'sonnet', 'haiku']
 test('every fan-out (Review stage) agent pins a non-frontier model, or its call passes one', async () => {
   const roles = { retrieval: { single: { model: 'sonnet', effort: 'low' } } }
@@ -145,8 +139,6 @@ test('roster, diff base in prompts, and the returned shape', async () => {
   for (const c of calls.filter(x => x.opts.phase === 'Review')) assert.ok(c.prompt.includes('git diff abc123'))
 })
 
-// reference/reviewer-handback.md: the caller's findings path reaches only its own leaf, and the
-// extractor reads the file from the caller's list, never from a reply.
 test('findingsPaths reach only their own leaves and the extractor brief', async () => {
   const findingsPaths = {
     'code-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-code-reviewer.md',
@@ -162,8 +154,6 @@ test('findingsPaths reach only their own leaves and the extractor brief', async 
   assert.deepEqual(result.findingsPaths, findingsPaths)
 })
 
-// A workflow leaf cannot be resumed, so a checkpoint file is all that survives a turn-cap stop:
-// its findings reach the merge, marked incomplete, never read as a clean surface.
 test('the extractor brief keeps a checkpoint file\'s findings and marks that surface incomplete', async () => {
   const findingsPaths = { 'security-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-security-reviewer.md' }
   const { calls } = await run({ ...BUNDLED, diffBase: 'abc', findingsPaths })
@@ -172,8 +162,6 @@ test('the extractor brief keeps a checkpoint file\'s findings and marks that sur
   assert.match(brief, /extract its findings and also emit one record for that surface whose raw_text says its report is incomplete/)
 })
 
-// A workflow leaf cannot be resumed, so a report that skipped files or carries no Coverage line must
-// reach the merge marked incomplete, whether or not the caller passed findings paths.
 test('the extractor judges only the handback reviewers by their Coverage line', async () => {
   for (const findingsPaths of [undefined, { 'code-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-code-reviewer.md' }]) {
     const { calls } = await run({ ...BUNDLED, diffBase: 'abc', slices: ['a.md'], findingsPaths })
@@ -239,7 +227,7 @@ test('a slice may reply no findings only when the diff touches neither its conce
 const SETTINGS = 'loosened_check_verdict: fail (default)\nloosened_check_patterns: []'
 const SETTINGS_BLOCK = 'The resolved settings of the criterion "Fail a change that loosens a check":\n' + SETTINGS
 
-test('code-reviewer, every slice and every model tier carry the criterion and the settings block; the other named leaves carry neither', async () => {
+test('code-reviewer, every slice and every fan-out model carry the criterion and the settings block; the other named leaves carry neither', async () => {
   const lens = await run({ ...BUNDLED, diffBase: 'abc', slices: ['a.md', 'b.md'], loosenedSettings: SETTINGS })
   const roles = { orchestrator: { fanout: { model: 'opus', effort: 'high' } }, retrieval: { fanout: { model: 'sonnet', effort: 'low' } } }
   const model = await run({ ...BUNDLED, diffBase: 'abc', roles, diversity: 'model', loosenedSettings: SETTINGS })
@@ -407,6 +395,20 @@ test('model-diversity arms are not judged by a Coverage line', async () => {
   assert.ok(!extract(calls).prompt.includes('Coverage line'))
 })
 
+test('a model-diversity leaf runs an agent that pins no effort, so its fan-out model and effort apply', async () => {
+  const roles = { orchestrator: { fanout: { model: 'opus', effort: 'high' } }, retrieval: { fanout: { model: 'sonnet', effort: 'low' } } }
+  const { calls } = await run({ ...BUNDLED, diffBase: 'abc', roles, diversity: 'model' })
+  const leaves = calls.filter(c => c.opts.phase === 'Review')
+  assert.deepEqual(leaves.map(c => c.opts.label), ['model:opus', 'model:sonnet'])
+  for (const c of leaves) {
+    const fm = frontmatter(c.opts.agentType)
+    assert.ok(!/^effort:/m.test(fm), `${c.opts.agentType} pins no effort`)
+    assert.match(fm, /^model:\s*inherit\b/m, `${c.opts.agentType} inherits the model`)
+    assert.equal(c.opts.model, c.opts.label.slice('model:'.length), `${c.opts.label} passes its fan-out model`)
+    assert.ok(c.opts.effort, `${c.opts.label} passes an effort`)
+  }
+})
+
 test('a handback leaf that returned nothing still has its findings file extracted', async () => {
   const findingsPaths = { 'security-reviewer': '/repo/.work/reviews/feat-x/20261102T000000Z-security-reviewer.md' }
   const { result, calls } = await run({ ...BUNDLED, diffBase: 'abc', findingsPaths }, {
@@ -502,9 +504,6 @@ test('string args are parsed as JSON', async () => {
   assert.equal(result.diffBase, 'abc')
 })
 
-// Diversity: `lens` (the default) runs one agent per concern; `model` sends one prompt to each
-// distinct fan-out model in the role map. Expected labels and agent come from the /review:fanout
-// run-everything contract, not from the script's output.
 const review = c => c.filter(x => x.opts.phase === 'Review')
 const LENS_RAN = ['security-reviewer', 'architecture-guardian', 'code-reviewer', 'doc-drift-detector', 'slice:a.md']
 const routed = (o, w, v, r) => ({
@@ -513,9 +512,7 @@ const routed = (o, w, v, r) => ({
   verifier: { single: { model: 'inherit', effort: 'high' }, fanout: v },
   retrieval: { single: { model: 'sonnet', effort: 'low' }, fanout: r },
 })
-// Two explicit tiers. `inherit` is the session model, which these runs pass no args.session
-// for, so an inherit fan-out variant names no known tier and cannot stand for one here.
-const TWO_TIERS = routed(
+const TWO_FANOUT_MODELS = routed(
   { model: 'opus', effort: 'high' },
   { model: 'opus', effort: 'xhigh' },
   { model: 'opus', effort: 'medium' },
@@ -523,18 +520,18 @@ const TWO_TIERS = routed(
 )
 
 test('diversity absent, null and "lens" dispatch the same lens roster and report lens', async () => {
-  const base = await run({ ...BUNDLED, diffBase: 'abc', slices: ['a.md'], roles: TWO_TIERS })
+  const base = await run({ ...BUNDLED, diffBase: 'abc', slices: ['a.md'], roles: TWO_FANOUT_MODELS })
   for (const diversity of [undefined, null, 'lens', ' lens ']) {
-    const got = await run({ ...BUNDLED, diffBase: 'abc', slices: ['a.md'], roles: TWO_TIERS, diversity })
+    const got = await run({ ...BUNDLED, diffBase: 'abc', slices: ['a.md'], roles: TWO_FANOUT_MODELS, diversity })
     assert.deepEqual(got.calls, base.calls, `diversity ${JSON.stringify(diversity)} dispatches the lens calls`)
     assert.deepEqual(got.result.ran, LENS_RAN)
     assert.equal(got.result.diversity, 'lens')
-    assert.ok(!('tiers' in got.result), 'lens returns no tiers')
+    assert.ok(!('fanoutModels' in got.result), 'lens returns no fanoutModels')
   }
 })
 
-test('model sends the one review prompt to each distinct fan-out tier and runs no lens leaf', async () => {
-  const { result, calls } = await run({ ...BUNDLED, diffBase: 'abc', slices: ['a.md'], roles: TWO_TIERS, diversity: 'model' })
+test('model sends the one review prompt to each distinct fan-out model and runs no lens leaf', async () => {
+  const { result, calls } = await run({ ...BUNDLED, diffBase: 'abc', slices: ['a.md'], roles: TWO_FANOUT_MODELS, diversity: 'model' })
   const leaves = review(calls)
   assert.deepEqual(leaves.map(c => c.opts.label), ['model:opus', 'model:sonnet'])
   for (const c of leaves) {
@@ -547,7 +544,7 @@ test('model sends the one review prompt to each distinct fan-out tier and runs n
   assert.equal(leaves[1].opts.model, 'sonnet')
   assert.equal(slices(calls).length, 0)
   assert.equal(result.diversity, 'model')
-  assert.deepEqual(result.tiers, ['opus', 'sonnet'])
+  assert.deepEqual(result.fanoutModels, ['opus', 'sonnet'])
   assert.deepEqual(result.ran, ['model:opus', 'model:sonnet'])
   assert.ok(extract(calls), 'the extractor still runs')
 })
@@ -560,7 +557,7 @@ test('inherit is the session model: it dedupes with the same explicit alias', as
     { model: 'opus', effort: 'low' },
   )
   const { result, calls } = await run({ ...BUNDLED, diffBase: 'abc', slices: ['a.md'], roles, session: 'opus', diversity: 'model' })
-  assert.equal(result.diversity, 'lens', 'inherit under an opus session and opus are one tier, fewer than two')
+  assert.equal(result.diversity, 'lens', 'inherit under an opus session and opus are one fan-out model, fewer than two')
   assert.deepEqual(result.ran, LENS_RAN)
   assert.ok(!calls.some(c => (c.opts.label || '').startsWith('model:')))
 })
@@ -573,10 +570,10 @@ test('inherit resolves to the session alias and its leaf omits model', async () 
     undefined,
   )
   const { result, calls } = await run({ ...BUNDLED, diffBase: 'abc', roles, session: 'sonnet', diversity: 'model' })
-  assert.deepEqual(result.tiers, ['sonnet', 'opus'])
+  assert.deepEqual(result.fanoutModels, ['sonnet', 'opus'])
   const leaves = review(calls)
   assert.deepEqual(leaves.map(c => c.opts.label), ['model:sonnet', 'model:opus'])
-  assert.ok(!('model' in leaves[0].opts), 'the session tier runs on the session model')
+  assert.ok(!('model' in leaves[0].opts), 'the session fan-out model runs on the session model')
   assert.equal(leaves[1].opts.model, 'opus')
 })
 
@@ -589,15 +586,15 @@ test('inherit under an unknown or frontier session is left out of model diversit
   )
   for (const session of [undefined, 'fable', 'best', 'gpt', 'inherit']) {
     const { result, logs } = await run({ ...BUNDLED, diffBase: 'abc', roles, session, diversity: 'model' })
-    assert.deepEqual(result.tiers, ['opus', 'sonnet'], `session ${session}: inherit is no non-frontier tier`)
+    assert.deepEqual(result.fanoutModels, ['opus', 'sonnet'], `session ${session}: inherit adds no non-frontier fan-out model`)
     assert.ok(logs.some(l => l.includes('roles.orchestrator.fanout')), `session ${session}: the dropped inherit is logged`)
   }
   const one = routed({ model: 'inherit', effort: 'high' }, { model: 'sonnet', effort: 'high' }, undefined, undefined)
   const { result } = await run({ ...BUNDLED, diffBase: 'abc', roles: one, diversity: 'model' })
-  assert.equal(result.diversity, 'lens', 'inherit plus one explicit tier, session unknown, is fewer than two')
+  assert.equal(result.diversity, 'lens', 'inherit plus one explicit fan-out model, session unknown, is fewer than two')
 })
 
-test('model tiers keep first-seen order over orchestrator, worker, verifier, retrieval', async () => {
+test('fan-out models keep first-seen order over orchestrator, worker, verifier, retrieval', async () => {
   const roles = routed(
     { model: 'sonnet', effort: 'high' },
     { model: 'opus', effort: 'high' },
@@ -605,7 +602,7 @@ test('model tiers keep first-seen order over orchestrator, worker, verifier, ret
     { model: 'haiku', effort: 'low' },
   )
   const { result, calls } = await run({ ...BUNDLED, diffBase: 'abc', roles, diversity: 'model' })
-  assert.deepEqual(result.tiers, ['sonnet', 'opus', 'haiku'])
+  assert.deepEqual(result.fanoutModels, ['sonnet', 'opus', 'haiku'])
   assert.deepEqual(review(calls).map(c => c.opts.model), ['sonnet', 'opus', 'haiku'])
 })
 
@@ -616,7 +613,7 @@ test('model leaves run at high effort when the verifier fan-out variant has none
   for (const c of review(calls)) assert.equal(c.opts.effort, 'high')
 })
 
-test('fable and best tiers are dropped from model diversity with a log', async () => {
+test('fable and best are dropped from model diversity with a log', async () => {
   const roles = routed(
     { model: 'fable', effort: 'high' },
     { model: 'best', effort: 'high' },
@@ -624,13 +621,13 @@ test('fable and best tiers are dropped from model diversity with a log', async (
     { model: 'sonnet', effort: 'low' },
   )
   const { result, calls, logs } = await run({ ...BUNDLED, diffBase: 'abc', roles, diversity: 'model' })
-  assert.deepEqual(result.tiers, ['opus', 'sonnet'])
+  assert.deepEqual(result.fanoutModels, ['opus', 'sonnet'])
   for (const c of calls) assert.ok(!['fable', 'best'].includes(c.opts.model), `${c.opts.label} stays off the frontier`)
-  assert.ok(logs.some(l => l.includes('fable')), 'the fable tier is logged')
-  assert.ok(logs.some(l => l.includes('best')), 'the best tier is logged')
+  assert.ok(logs.some(l => l.includes('fable')), 'fable is logged')
+  assert.ok(logs.some(l => l.includes('best')), 'best is logged')
 })
 
-test('model with fewer than two tiers runs the lens roster, logs it and reports lens', async () => {
+test('model with fewer than two fan-out models runs the lens roster, logs it and reports lens', async () => {
   const one = routed(
     { model: 'opus', effort: 'high' },
     { model: 'opus', effort: 'high' },
@@ -643,13 +640,13 @@ test('model with fewer than two tiers runs the lens roster, logs it and reports 
     assert.deepEqual(got.calls, lens.calls)
     assert.deepEqual(got.result.ran, LENS_RAN)
     assert.equal(got.result.diversity, 'lens')
-    assert.ok(got.logs.some(l => /tier/.test(l) && /lens/.test(l)), 'the fallback to lens is logged')
+    assert.ok(got.logs.some(l => /fan-out model/.test(l) && /lens/.test(l)), 'the fallback to lens is logged')
   }
 })
 
 test('an unknown diversity value is refused before any dispatch', async () => {
   for (const diversity of ['models', '', 7, {}, ['model'], true]) {
-    const { result, calls } = await run({ ...BUNDLED, diffBase: 'abc', slices: ['a.md'], roles: TWO_TIERS, diversity })
+    const { result, calls } = await run({ ...BUNDLED, diffBase: 'abc', slices: ['a.md'], roles: TWO_FANOUT_MODELS, diversity })
     assert.equal(result.error, 'bad-diversity', `diversity ${JSON.stringify(diversity)} is refused`)
     assert.equal(typeof result.next, 'string')
     assert.equal(calls.length, 0)
@@ -657,7 +654,7 @@ test('an unknown diversity value is refused before any dispatch', async () => {
 })
 
 test('every model-mode call names a plugin agent whose tools exclude Agent and Skill', async () => {
-  const { calls } = await run({ ...BUNDLED, diffBase: 'abc', slices: ['a.md'], roles: TWO_TIERS, diversity: 'model' })
+  const { calls } = await run({ ...BUNDLED, diffBase: 'abc', slices: ['a.md'], roles: TWO_FANOUT_MODELS, diversity: 'model' })
   assert.equal(review(calls).filter(c => c.opts.label.startsWith('model:')).length, 2, 'the model leaves ran')
   for (const c of calls) {
     assert.match(c.opts.agentType || '', /^review:/, `${c.opts.label} names an agent`)

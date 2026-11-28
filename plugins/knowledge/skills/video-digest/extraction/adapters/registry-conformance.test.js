@@ -1,21 +1,8 @@
-/**
- * Full-registry conformance: insurance for adapter three. A new adapter lands
- * by adding a registry row and a canonical example URL here; these tests then
- * prove at CI time that its URLs dispatch to IT (round-trip), that no two
- * adapters claim the same or overlapping hosts, and that the registry map and
- * the adapters' declared hosts stay in lockstep.
- */
-
 import { describe, expect, it } from "vitest";
 
 import { resolveSourceAdapter, SOURCE_MODULES, sourceAdapters, supportedHosts } from "./registry.js";
 import { findHostCollisions } from "./shared-adapter-suite.js";
 
-/**
- * One canonical example URL per registered adapter id. A registered adapter
- * with no row here fails the coverage test below — add the row with the
- * adapter, never after.
- */
 const CANONICAL_EXAMPLE_URLS = {
   youtube: "https://www.youtube.com/watch?v=7zZy1QTvokM",
   x: "https://x.com/someuser/status/1720000000000000000",

@@ -3,6 +3,316 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [16.0.1] - 2026-11-28
+
+### Changed
+
+- Backfilled invocation probe sets (`probes/*.json`) for `/source-control:babysit-loop`, `/source-control:babysit-prs`, `/source-control:commit`, `/source-control:pull-request`, and `/source-control:worktree`, and trimmed all 6 skill frontmatter descriptions (4,262 -> 1,871 chars, -2,391c / -56.1%: `babysit-loop` 708 -> 303, `babysit-prs` 685 -> 348, `commit` 710 -> 345, `pull-request` 767 -> 408, `worktree` 705 -> 341, `setup` 687 -> 126) with zero body changes and zero probe trigger-rate or false-positive regressions.
+
+## [16.0.0] - 2026-11-28
+
+### Changed
+
+- **Breaking:** the `do-not-merge` label is the one pull request hold. To hold a pull request, set the `do-not-merge` label instead of a body `Hold:` line or a "do not merge" comment. The babysit merge gates (`babysit_merge.py`, `babysit_merge_policy.py`, `babysit_merge_prefilter.py`, `babysit_whole_review.py`) and the pull-request scripts (`check-ready-holds.sh`, `reassess-limits.sh`, `check-gate-lines.sh`) no longer read body hold phrases, the lanes' hold line or member comments as holds.
+- **Breaking:** `/source-control:pull-request create --hold` takes no value; drop the reason a caller passed after it. It it opens the pull request with the `do-not-merge` label (`gh pr create --label do-not-merge`, or a labels write after a REST create or after a `gh pr create` that could not set the label) and leaves it a draft when labeling fails.
+- `/source-control:pull-request ready` flips a draft that carries `do-not-merge` and leaves the label on: the label holds the merge, not the flip. `check-ready-holds.sh` reads no labels, label events, comments or trusted-actors list; a WIP title, a `Draft:` line on an unattended run and a closed linked issue still refuse.
+
+### Fixed
+
+- `babysit-prs`: a Merge run's gate processes serve a shared run-artifacts read only when it holds a FAIL, the only kind they store; a stored set without one is read again from GitHub.
+
+## [15.3.5] - 2026-11-28
+
+### Changed
+
+- The babysit-prs verdict reader reads the standards trusted-actor list from the job's standards checkout when that checkout holds the same commit the API read would use, and skips the contents probe for a `.github/standards/` copy the tip checkout shows absent.
+
+## [15.3.4] - 2026-11-28
+
+### Changed
+
+- babysit-prs: the gate processes of one pr-merge run share a draft-run judgment of a FAIL (the checks-run listing, verifier run and jobs reads) through the run cache, so only the first process reads them; an answer cut short by a failed read is not shared.
+
+## [15.3.3] - 2026-11-28
+
+### Changed
+
+- `worktree-include.sh diff` compares carried files against the main checkout with two batched `git hash-object` calls in place of one `cmp` per file, in the default diff and in the `--worktree-only` check of a worktree with no carried manifest. Rows and exit codes are unchanged; it falls back to `cmp` when the two repositories use different object formats or a file changes during the run.
+
+- The babysit-prs verdict reader shares a FAIL index's run artifacts across one pr-merge run's gate processes (`BABYSIT_RUN_CACHE`, section `run-artifacts`, for `run_cache.MAX_AGE`) when the set holds a FAIL, noting when it was read. A set with no FAIL is read by every process, since a re-run keeps the run's id. One Merge job made 40 `runs/{id}/artifacts` reads, none shared.
+
+## [15.3.2] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [15.3.1] - 2026-11-28
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources, and from its eval fixtures; no behavior change.
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
+## [15.3.0] - 2026-11-27
+
+### Added
+
+- `worktree-reap.sh` writes a run record, `runs/<utc>.jsonl` beside its log: one line per examined worktree with its facts, verdict (`remove`, `keep` or `review`), reason and outcome, and one closing run line with wall time per phase, bytes removed, the memory peak and the `.work` items with no file modified in 30 days. One `decide` function sets every verdict; `remove` needs every guard to pass, and any other combination reads `keep unknown`. Run and review files older than 14 days are deleted at start, and `--report [<run-file>]` prints a run's report.
+
+### Changed
+
+- The reap's reasons split: `unsafe-work` becomes `stranded` and `unknown-work` (both `review`), `dirty` and `not-landed`; `carried-file` becomes `carried-edited` and `no-manifest` (both `review`) and `carried-unreadable`. Worktrees of a repo whose fetch failed or that declares a Workspace `down` are counted per worktree.
+
+## [15.2.0] - 2026-11-27
+
+### Changed
+
+- `owner_decisions_record` is now optional: when unset, cost-hold decisions (`cost_decision`) and spec amendments clearing an earlier verify FAIL (`_spec_amended`) require only a `verbatim:` owner quote (plus the existing unedited trusted-actor checks) instead of refusing every decision when no record is configured.
+
+### Fixed
+
+- `babysit_postmerge.py` reads a pull request whose newest lanes App pin record is a `babysit-merge-unpin` comment as unpinned, matching the merge queue's pin hold, instead of falling back to the older pin.
+
+## [15.1.0] - 2026-11-27
+
+### Added
+
+- `worktree-include.sh copy` records what it carried in the worktree's `carried.index` (a git index holding stat and object ids, no blobs). `diff --worktree-only` judges against it, so a later edit to main's copy no longer blocks a finished worktree: `MODIFIED` is a carried file edited in the worktree, `NEW` an included file never carried, a carried file deleted in the worktree is no loss, and a worktree with no manifest is compared with main as before, one `NO-MANIFEST` row marking it only when a copy differs. `sync-back` refuses (exit 2) a file main changed since the copy.
+- `worktree-claim.sh stale` proves a session-less `lane active on <host> since <utc>` lock stale when it is from this host and older than the idle window, every live registered session records a cwd outside the path, no process's cwd is at or under it, and no transcript changed within the window (at any depth, so subagents count) names the path in any string, a cwd, a file path or a command. An unreadable recent transcript, and any host other than Linux, leave it not provable. The session registry read takes each entry's optional `cwd`.
+- `/source-control:worktree review` reads the newest nightly reap run file's `review` rows, writes a cited verdict per worktree to `reviews/<run-utc>.<review-utc>.jsonl` beside it, and resolves a row only by a push or `sync-back`. It never deletes.
+
+## [15.0.6] - 2026-11-27
+
+### Fixed
+
+- `worktree-claim.sh handover` releases the lock instead of passing it to the new session when the worktree's branch is `[gone]` upstream, matching `claim --all-unclaimed`. Before, each session handover re-locked every finished worktree it held, and the nightly reap skipped them while the new session ran: 302 landed worktrees on one host were held this way.
+
+## [15.0.5] - 2026-11-27
+
+### Fixed
+
+- `/source-control:worktree create` and entering an existing worktree now work by explicit path, with no `EnterWorktree` call, when the worktree root is one of the session's working directories, so the person is not asked to approve a move the session does not need. A session that cannot reach the root still enters with `EnterWorktree(path:)`.
+
+## [15.0.4] - 2026-11-27
+
+### Fixed
+
+- `worktree-create.sh` refuses (exit 4) when the main checkout's `.git` directory holds a `commondir` file, and creates nothing. That file makes `EnterWorktree(path:)` fail with `fatal: not a git repository: '/dev/null/not-a-git-repository'`. The refusal names the file and the fix. The worktree `audit` checklist reports the file, and `create` says an `EnterWorktree(path:)` failure in an attended session is diagnosed, never worked around by explicit paths.
+
+## [15.0.3] - 2026-11-27
+
+### Changed
+
+- The shared redactor copy (`redact.py`) gains a published-output redactor for fleet identifiers; this plugin's own redaction is unchanged.
+- The shared redactor copy (`redact.py`) can leave report field names its caller lists unredacted; this plugin lists none, so its redaction is unchanged.
+
+### Fixed
+
+- Redacting a secret at the end of a line no longer joins the next line onto the redacted one.
+- A secret whose gitleaks rule marks only part of it, such as a base64 JWT, a Teams webhook URL or a Kubernetes Secret's later data values, is redacted whole; only line breaks and a trailing quote, space or semicolon are kept.
+
+## [15.0.2] - 2026-11-27
+
+### Changed
+
+- The pull-request skill's merge readiness check reads the reviews, check runs, commit statuses, review threads and pr-verify settings in parallel once the pull request itself is read, about 2 s faster on a ready PR. What it checks is unchanged.
+
+## [15.0.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [15.0.0] - 2026-11-26
+
+### Added
+
+- `scripts/worktree-include.sh` owns `.worktreeinclude` copy, diff (`--worktree-only`, `--unified`), and validated `sync-back` over one NUL-safe `git ls-files -o -i -z --exclude-from` + `git check-ignore --stdin -z` intersection, shared by `worktree-create.sh`, `pull-request/reference/create.md`, `worktree/context/cleanup.md`, and `worktree-reap.sh`.
+- `scripts/worktree-reap.sh` owns unattended multi-root worktree reaping inside `source-control`, composing `worktree-root-resolve.sh --all`, `landed-work.sh --stats-file`, `worktree-include.sh diff --worktree-only`, and batched `worktree-claim.sh stale --batch`, honoring `userConfig.worktree_reap_after_hours`, counting both `project` and `local` scope plugin records, and preserving lock rollback and `/proc` double-scan guards.
+- `scripts/worktree-root-resolve.sh --all` (`worktree_root_collect_includes` and `worktree_root_list_all`) enumerates global, unconditional `[include]`, and readable `[includeIf]` worktree roots for `worktree-discover.sh`, `worktree-root-doctor.sh`, and `worktree-reap.sh`.
+- `scripts/landed-work.sh --stats-file <path>` writes `gh_calls` and `rate_limited` counters.
+- `scripts/worktree-claim.sh claim --all-unclaimed --include-gone` opts into claiming `[gone]` upstream branches.
+
+### Changed
+
+- Synced shared `scripts/fleet-discovery.sh` from `lib/fleet-discovery.sh` with the shared `fleet_resolve_config` helper.
+
+### Removed
+
+- **The three Loosened checks keys are gone** from the schema and from
+  `reference/config-resolution.md`: the heading, record pattern and verbatim marker keys that
+  the guardrails PR-body hook read. A team file that still sets one fails schema validation;
+  delete those lines. pr-verify alone judges a `## Loosened checks` section, by the review
+  plugin's loosened-check rule ([#19312](https://github.com/melodic-software/claude-code-plugins/issues/19312)).
+
+### Fixed
+
+- `scripts/landed-work.sh` enforces strict 9-level risk precedence (`notgit > bare > superseded > STRANDED > UNKNOWN > in-progress > dirty > landed > ok`), includes untracked files in `dirty`, maps unreadable status (`?`) to `UNKNOWN`, and proves base ancestry (`landed=yes`, `method=ancestor`) when `unpushed == 0` so `--no-track` merged branches qualify as landed.
+- `scripts/worktree-claim.sh` uses one 4-state lock classifier (`unlocked`, `ours`, `foreign`, `reasonless`) mapping reasonless manual locks to exit `4` across `claim`, `check-enter`, `release`, and `handover`, reporting `LOCKED_NO_REASON` in `report`, and skipping `[gone]` branches and reasonless locks in `claim --all-unclaimed`; `skills/worktree/context/status.md` now defines `unclaimed` as `locked=no`.
+
+## [14.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+## [13.21.10] - 2026-11-26
+
+### Changed
+
+- `/source-control:worktree`, `/source-control:setup`, `/source-control:pull-request` and `/source-control:babysit-prs` point at the Claude Code worktree docs, Microsoft's long-path page and GitHub's `pull_request` event and `PullRequestReviewThread` references for the `EnterWorktree`/`ExitWorktree` behavior, the Windows path limit, CI on a conflicted PR and the thread-resolution field with no REST equivalent, instead of restating them ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [13.21.9] - 2026-11-26
+
+### Changed
+
+- `/source-control:babysit-loop` points at the scheduled-tasks docs for the delay range a self-paced loop allows, instead of stating the `ScheduleWakeup` clamp in seconds ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [13.21.8] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+- The babysit-prs scripts are reformatted by the pinned Ruff (import sort and format); no behavior change.
+
+## [13.21.7] - 2026-11-26
+
+### Fixed
+
+- The merge gate's approval carry (`babysit_merge_policy.carried_lifters`) carries at any pull request size, as `merge-holds.mjs` does: its compares are read with commits paged past 250 (`_whole_commits`), `exact_base_carry` judges merges and base ranges at 300 files on their two diffs, and `ungated_since` judges a push of 300 files or more on the files of its diff. A page or diff that does not read, or a diff naming fewer files than its listing, carries nothing.
+
+## [13.21.6] - 2026-11-26
+
+### Fixed
+
+- The merge gate's cost-decision carry (`babysit_merge_policy._carries`) reads a compare whose unpaged commit list stops short of `total_commits` again in pages of 100 (`_whole_commits`), as `merge-holds.mjs` does, so a range of more than 250 commits carries. A page that does not read, or a list still shorter than `total_commits`, carries nothing.
+
+## [13.21.5] - 2026-11-26
+
+### Fixed
+
+- The merge gate's approval and cost-decision carries (`babysit_merge_policy.same_net_change`, `carried_lifters`, `_carries`) judge a pull request whose compare lists 300 files or more: when either listing caps or gives a file no patch, the two compares' `application/vnd.github.diff` texts decide, every file's patch and mode compared (`diff_files`, `needs_diff`, `_cap_diffs`), as `merge-holds.mjs` does. A binary file, a diff that does not parse, or a diff naming fewer files than the pull request changes carries nothing.
+
+## [13.21.4] - 2026-11-26
+
+### Fixed
+
+- The babysit merge gate's cost-decision lane vetting (`babysit_merge_policy._noticed_head`) no longer holds every lane run on a head whose compare lists 300 files or more: past the compare API's cap it compares the review-lane workflows' blobs at the compare's merge base and the head, and still holds when either listing cannot be read.
+
+## [13.21.3] - 2026-11-25
+
+### Changed
+
+- `babysit-prs` `CARRY_REFUSES` adds the work-items triage skill's `scripts/` and `schemas/`, which the intake lane's workflow now loads, so a push that touches one stops an approval carrying, as `merge-holds.mjs` does.
+
+- `babysit_verify_evidence.py evidence` takes `--pass-out <file>`: for an allow at the head it
+  writes the counted passes with their runs, the first pass's verdict.json and the closing issues
+  the judgment read, so ci-status's merge-queue step can hand them to merge-holds.mjs without
+  reading them again. The printed report does not change, and a caller that does not pass the flag
+  sees no difference.
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
+### Fixed
+
+- `/source-control:babysit-prs` stops an approval carry over a push that changes `plugins/code-tidying/git-hooks/comment-lint-ci.sh`, which the required checks now run.
+
+- `read-pr.sh view --diff` reads a pull request of any size: when GitHub refuses the pull request's own diff with HTTP 406 (over 300 files), it reads the diff from the compare endpoint between the pull request's base and head commits instead. A smaller pull request still reads through the pull request endpoint, so a token with only Pull requests read keeps working ([#19124](https://github.com/melodic-software/claude-code-plugins/issues/19124)). The merge-risk, explain-change and PR-mode quality-gate reviews that read the diff through it now work on large pull requests.
+
+## [13.21.2] - 2026-11-25
+
+### Changed
+
+- The babysit merge policy reads a branch tip (`base_tip`) with one unauthenticated
+  `git ls-remote https://github.com/<owner>/<name> refs/heads/<base> refs/tags/<base>` first, so
+  the read spends no REST quota. It takes the SHA only when the listing names `refs/heads/<base>`
+  once as 40 hex and holds no tag of the same name, the rule the CI workflows' main's-tip listing
+  uses. Anything else (a failed or timed-out listing, no `git`, a private repository, a
+  tag named like the branch, or `GH_HOST` naming a host other than github.com) reads
+  `git/ref/heads/<base>` over REST as before, and an unreadable tip still fails closed. The read
+  happens at the same moment as before, so the default-branch config, the trusted-actor list and
+  the standards repository's tip are judged at a tip as fresh as the REST read gave.
+
+## [13.21.1] - 2026-11-25
+
+### Fixed
+
+- The reviewer-media `redact.py` now redacts the whole value of a bare `sk-ant-oat02-` OAuth
+  token, the same way it redacts `sk-ant-oat01-`. Claude Code 2.1.332 lets
+  `CLAUDE_CODE_OAUTH_TOKEN` start with either prefix
+  ([#18984](https://github.com/melodic-software/claude-code-plugins/issues/18984)).
+
+## [13.21.0] - 2026-11-25
+
+### Changed
+
+- The babysit merge gate reads the Dependabot policy only from the repository `standards_repository` names in `docs/conventions/source-control.yaml`, never from the repository's `.github/standards/dependabot-policy/policy.json` copy. A repository that sets no `standards_repository` gets `dependabot-policy-unreadable`, so the lane merges no Dependabot update there until it names its standards repository.
+
+## [13.20.1] - 2026-11-25
+
+### Fixed
+
+- The pull-request skill's merge preflight (`merge-readiness.sh`) reads every page of a pull request's reviews, check runs and commit statuses (and of the changed files, branch rules, annotations and pr-verify artifacts it reads), not only the first 100 ([#18954](https://github.com/melodic-software/claude-code-plugins/issues/18954)). A change request in a later review, or a failed or pending check past the first 100, now holds the merge, and a list longer than 20 pages is `UNCHECKED`.
+
+## [13.20.0] - 2026-11-25
+
+### Added
+
+- `pull-request` monitor: the poll script's watch prints a `PR-VERIFY <pass|pass-notes|fail> <head-sha>` line once for each pr-verify verdict that lands at the PR's current head, read by exact artifact name only where the base branch holds `.github/workflows/pr-verify.yml`, and counted only when the run behind the artifact is pr-verify's own (the check `merge-readiness.sh` applies, now shared as `scripts/pr-verify-run.jq`); a FAIL line points at the `pr-verify-failed` label and the fail-note review threads. A re-arm snapshot carries the verdicts, so a re-armed watch does not report them again.
+- `pull-request` monitor and `status`: `monitor-poll.sh --verdict` reads the verdict at the head once and prints it, `PR-VERIFY none`, or `PR-VERIFY off`; the per-iteration checklist (B3) and the readiness verdict include it.
+
+## [13.19.1] - 2026-11-24
+
+### Fixed
+
+- The pr-verify evidence reader no longer refuses every pass that records no `trusted_actors_blob` once the repository's `.github/standards/trusted-actors/` copy is gone. Such a pass is now `verify:spec-changed` only when it did not start after the newest standards commit touching the trusted-actor list, as the pr-verify resolver (`resolve-pr.mjs` `specChanged`) judges it, so the gate and the resolver agree and an already-judged pull request no longer sticks.
+
+## [13.19.0] - 2026-11-24
+
+### Added
+
+- New keys for the Loosened checks heading, record pattern and verbatim marker in `docs/conventions/source-control.yaml` and its personal override, read by the guardrails plugin to refuse a Loosened checks section that no linked issue authorizes.
+
+## [13.18.0] - 2026-11-24
+
+### Added
+
+- New keys `issue_body_required_sections` (a mapping of issue kind to required headings, or `none`) and `issue_body_format_gate` (boolean, default `true`) in `docs/conventions/source-control.yaml` and its personal override, read by the guardrails plugin to refuse an issue body that completes no declared kind.
+
+### Changed
+
+- The pull-request skill's merge preflight runs `skills/pull-request/scripts/merge-readiness.sh`, the same readiness script the guardrails merge guard runs ([#18822](https://github.com/melodic-software/claude-code-plugins/issues/18822)), at the pinned head, so the skill and the guard cannot judge a merge differently, and the skill alone still checks everything when guardrails is not installed. It holds on any read it cannot make.
+- Hold labels (`do-not-merge`, `pr-verify-failed`, `security: outside-actor`) now hold in any case, a reviewer whose latest review requests changes holds, and a `timed_out`, `cancelled`, `action_required`, `startup_failure` or `stale` check holds.
+- A failed check is never classified informational: it clears only by passing or through the guardrails `merge_guard_ignored_checks` setting.
+- The pr-verify wait ends 30 minutes after the head's last check finished, measured from the checks rather than from when the session started waiting, and does not start while any check on the head is still running.
+- The merge preflight reads the guardrails `merge_guard_ignored_checks` setting from the operator's settings (the `guardrails@<marketplace>` entry of the marketplace source-control was installed from, through the shared channel-F reader `lib/plugin-options.mjs`), so a custom value clears the same failed checks for the skill as for the merge guard. Without one it applies the option's default; an unreadable settings file, or no `node` on PATH, is `UNCHECKED`. A `CLAUDE_PLUGIN_OPTION_MERGE_GUARD_IGNORED_CHECKS` the skill's shell inherits is ignored.
+
+## [13.17.0] - 2026-11-24
+
+### Added
+
+- New key `pr_body_format_gate` (boolean, default `true`) in `docs/conventions/source-control.yaml` and its personal override: `false` turns off the guardrails plugin's refusal of a pull request body that breaks the repository's declared format.
+
+## [13.16.0] - 2026-11-24
+
+### Added
+
+- The pr-verify evidence reader refuses a pass `verify:spec-changed` when the repository reads its trusted-actors list from standards (`trusted_actors_source: standards`) and the list changed since the pass judged it: the verdict's `trusted_actors_blob` is not the git blob id of the live standards list. A pass that records no blob still counts while the repository's `.github/standards/trusted-actors/` copy is at the branch tip, and is refused once that copy is gone. A repository that reads its copy compares no blob.
+
+## [13.15.0] - 2026-11-24
+
+### Changed
+
+- The babysit merge gate reads the Dependabot policy (`components/dependabot-policy/policy.json`) from the repository `standards_repository` names in `docs/conventions/source-control.yaml` whenever that key is set, whatever `trusted_actors_source` says; the trusted-actors list still moves there only with `trusted_actors_source: standards`. A repository with neither key reads its `.github/standards/` copies as before, and a `standards_repository` that is not an `owner/repo` pair fails the policy read, so the lane merges no Dependabot update.
+- `config-resolution.md` and the `trusted_actors_source` schema description state that setting `standards` widens which pull requests the babysit lane adopts and merges unattended, so a repository sets it only once its owner has approved that.
+
 ## [13.14.0] - 2026-11-24
 
 ### Added
@@ -7376,7 +7686,7 @@ Internal simplification, no behavior change.
   against nothing.** The autonomy-table pointer read
   `skills/babysit-prs/SKILL.md`, whose implied base is the plugin root while its
   real base is `reference/`, the defect class
-  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  retired ADR 0018 (treat the plugin as the encapsulation boundary for skill citation)'s
   correction 1 names. It now names the public invocation,
   `/source-control:babysit-prs`, keeping the section name.
 
@@ -7386,7 +7696,7 @@ Internal simplification, no behavior change.
   the `work-items` installation, so the anchor resolved to a `babysit-prs` skill
   that does not exist there. This sentence is the doc's address for the autonomy
   obligation, which is the case
-  [ADR 0018](../../docs/adr/0018-treat-the-plugin-as-the-encapsulation-boundary-for-skill-citation.md)'s
+  retired ADR 0018 (treat the plugin as the encapsulation boundary for skill citation)'s
   2026-08-28 amendment routes to the invocation rather than to a path whose
   meaning depends on which plugin fetched the document. Found by a third
   derivation over the plugin-level `reference/`, `context/` and `agents/` trees

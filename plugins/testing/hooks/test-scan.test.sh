@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for test-scan.sh, the testing plugin's PostToolUse-shaped scan
-# wrapper. No shipped hook row runs it; /testing:audit is the shipped route.
-#
-# Builds a throwaway git repository per run, writes test files into it, and
-# pipes hand-built PostToolUse payloads through the hook. Covers the option
-# gate (through the exec-form launcher), findings on a create, the once-per-
-# file-per-agent rules note, Edit scoping to the changed block, the scanner
-# timeout, gitignored paths, one Action per rule (recomputed and derived
-# expectations, constant restatements), the lead for findings of tests that
-# can fail, the marker prune, the per-call dedup that keeps two
-# overlapping `if` rows from reporting twice, and the per-write session state
-# (blocks, project key, prune).
 # test-scope: plugins/testing/hooks/hooks.json plugins/testing/skills/audit/adapters/*.yaml
 
 # shellcheck disable=SC2016 # fence lines in fixtures are literal text
@@ -26,9 +14,6 @@ source "$HOOK_DIR/../lib/test-ok-fail.sh"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
-# The recorders skip files under the temp root. These fixtures live under the
-# real temp dir, so point that root at a directory that holds none of them.
-# A case below aims it at its own copy (#6037).
 export TEST_SCAN_SKIP_ROOT="$TMP/scan-skip-root"
 mkdir -p "$TEST_SCAN_SKIP_ROOT"
 REPO="$TMP/repo"
@@ -114,8 +99,6 @@ EOF
 
 cp "$REPO/src/sum.test.ts" "$REPO/scratch/ignored.test.ts"
 
-# payload <tool> <file> <session> <agent> <tool_use_id> <tool_response json>;
-# TPATH (empty: no transcript_path) and PCWD fill the session-state fields.
 TPATH="$TMP/transcripts/-repo/main.jsonl"
 PCWD="$REPO"
 payload() {
@@ -126,9 +109,7 @@ payload() {
      | if $a == "" then . else . + {agent_id: $a} end
      | if $tp == "" then del(.transcript_path) else . end'
 }
-# rec <session> <tool_use_id>: the session file written for that call, or "".
 rec() { find "$CLAUDE_PLUGIN_DATA/sessions" -path "*/$1/$2.json" 2>/dev/null | head -1; }
-# assert_jq <name> <file> <jq filter that must print true>
 assert_jq() {
   if [[ -f "$2" ]] && [[ "$(jq "$3" "$2" 2>/dev/null)" == true ]]; then ok "$1"; else fail "$1 ($3 on ${2:-no file}: $(cat "$2" 2>/dev/null))"; fi
 }
@@ -140,7 +121,6 @@ run() {
   rc=$?
 }
 
-# (a) option unset: the launcher never starts the hook.
 out="$(payload Write "$REPO/src/sum.test.ts" s0 "" call-a "$CREATE" |
   CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED='' node "$HOOK_DIR/exec-bash.mjs" \
     --require-true TEST_GUARDS_ENABLED "$HOOK" 2>&1)"
@@ -149,26 +129,22 @@ out="$(payload Write "$REPO/src/sum.test.ts" s0 "" call-a2 "$CREATE" |
   CLAUDE_PLUGIN_OPTION_TEST_GUARDS_ENABLED='' bash "$HOOK" --enabled 2>&1)"
 assert_contains "(a) --enabled, the consumer-entry form, runs with the option unset" "$out" rule-zero-assertion
 
-# (b) a zero-assertion Vitest create reports the rule, with the rules note.
 run Write "$REPO/src/sum.test.ts"
 if [[ $rc -eq 0 ]]; then ok "(b) exits 0"; else fail "(b) exit $rc"; fi
 assert_contains "(b) names rule-zero-assertion" "$out" "rule-zero-assertion"
 assert_contains "(b) goes back through additionalContext" "$out" '"additionalContext"'
 assert_contains "(b) first write carries the rules note" "$out" "testing:test-value"
 
-# (c) the note is once per session + agent + file.
 run Write "$REPO/src/sum.test.ts"
 assert_contains "(c) findings still reported on a repeat write" "$out" "rule-zero-assertion"
 assert_not_contains "(c) same session and agent: no second note" "$out" "testing:test-value"
 run Write "$REPO/src/sum.test.ts" s1 agent-2
 assert_contains "(c) a different agent_id gets the note" "$out" "testing:test-value"
 
-# (c2) a clean first write of a file gets no note: it has nothing to act on.
 printf '%s\n' "import { test, expect } from 'vitest';" "test('caps', () => {" "  expect(cap(60)).toBe(50);" "});" >"$REPO/src/quiet.test.ts"
 run Write "$REPO/src/quiet.test.ts" s-quiet
 assert_empty "(c2) clean first write: no context at all" "$out"
 
-# (c3) two findings of one rule: both listed, the Action once, no threshold.
 printf '%s\n' "import { test } from 'vitest';" "test('a', () => {" "  sum(1, 2);" "});" \
   "test('b', () => {" "  sum(2, 2);" "});" >"$REPO/src/twice.test.ts"
 run Write "$REPO/src/twice.test.ts" s-twice
@@ -177,7 +153,6 @@ if [[ "$(grep -c '^  \[rule-zero-assertion\] ' <<<"$ctx3")" == 2 ]]; then ok "(c
 if [[ "$(grep -c '^Action \[rule-zero-assertion\]: ' <<<"$ctx3")" == 1 ]]; then ok "(c3) one Action for the rule"; else fail "(c3) one Action for the rule (got: $ctx3)"; fi
 assert_not_contains "(c3) no threshold in the context" "$ctx3" "threshold:"
 
-# (c4) twelve findings: ten listed, then one line counting the rest.
 {
   echo "import { test } from 'vitest';"
   for k in $(seq 1 12); do printf '%s\n' "test('t$k', () => {" "  sum($k, 0);" "});"; done
@@ -187,7 +162,6 @@ ctx4="$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")"
 if [[ "$(grep -c '^  \[rule-zero-assertion\] ' <<<"$ctx4")" == 10 ]]; then ok "(c4) ten findings listed"; else fail "(c4) ten findings listed (got: $ctx4)"; fi
 if [[ "$(grep -cxF '  ... and 2 more (/testing:audit lists the rest)' <<<"$ctx4")" == 1 ]]; then ok "(c4) the rest counted, with the audit pointer"; else fail "(c4) the rest counted, with the audit pointer (got: $ctx4)"; fi
 
-# (c5) ten findings with 2 KB test names still fit the 10000-character context cap.
 long="$(printf 'n%.0s' $(seq 1 2000))"
 {
   echo "import { test } from 'vitest';"
@@ -198,7 +172,6 @@ ctx5="$(jq -r '.hookSpecificOutput.additionalContext' <<<"$out")"
 if ((${#ctx5} < 10000)); then ok "(c5) context stays under 10000 characters"; else fail "(c5) context is ${#ctx5} characters"; fi
 assert_contains "(c5) a cut context says where the rest is" "$ctx5" "(truncated; /testing:audit lists the rest)"
 
-# (d) an Edit touching only the good block leaves the bad block silent.
 EDIT_GOOD='{"structuredPatch":[{"oldStart":9,"oldLines":1,"newStart":9,"newLines":1,
   "lines":["-  expect(sum(1, 2)).toBe(4);","+  expect(sum(1, 2)).toBe(3);"]}]}'
 run Edit "$REPO/src/mixed.test.ts" s1 "" "" "$EDIT_GOOD"
@@ -208,7 +181,6 @@ EDIT_BAD='{"structuredPatch":[{"oldStart":5,"oldLines":1,"newStart":5,"newLines"
 run Edit "$REPO/src/mixed.test.ts" s1 "" "" "$EDIT_BAD"
 assert_contains "(d) an Edit inside the bad block reports it" "$out" "rule-zero-assertion"
 
-# (e) a hanging scanner is cut off: exit 0 and a log line.
 cat >"$TMP/hang.sh" <<'EOF'
 #!/usr/bin/env bash
 sleep 30
@@ -226,7 +198,6 @@ fi
 assert_contains "(e) logs the timeout" "$(cat "$CLAUDE_PLUGIN_DATA/test-scan.log" 2>/dev/null)" "timed out"
 assert_jq "(e) a timed-out scan records blocks:null, meaning the whole file" "$(rec s9 call-e)" '.blocks == null'
 
-# (e) the timeout ends the scanner's children too, not just its shell.
 cat >"$TMP/spawn.sh" <<EOF
 #!/usr/bin/env bash
 sleep 30 &
@@ -243,33 +214,26 @@ else
   ok "(e) the timeout kills the scanner's children"
 fi
 
-# (f) a gitignored test file is left alone.
 run Write "$REPO/scratch/ignored.test.ts"
 assert_empty "(f) gitignored path: no output" "$out"
 
-# (g) a recomputed expectation carries its Action and no order.
 run Write "$REPO/src/again.test.ts"
 assert_contains "(g) names rule-recomputed-expectation" "$out" "rule-recomputed-expectation"
 assert_contains "(g) carries the rule's Action" "$out" "Action [rule-recomputed-expectation]: State the expected value independently"
 assert_not_contains "(g) gives no order to state a source" "$out" "Before you continue"
 
-# (h) a constant restatement carries its Action, under a change-detector
-# lead rather than the can't-fail one.
 run Write "$REPO/src/limit.test.ts"
 assert_contains "(h) names rule-constant-restatement" "$out" "rule-constant-restatement"
 assert_contains "(h) carries the rule's Action" "$out" "Action [rule-constant-restatement]: "
 assert_contains "(h) leads with change detectors" "$out" "fail on harmless changes"
 assert_not_contains "(h) does not call a change detector a test that cannot fail" "$out" "tests that cannot fail"
 
-# The markers are files created exclusively, not directories.
 if [[ -f "$CLAUDE_PLUGIN_DATA/marks/call-call-1" ]] && [[ -z "$(find "$CLAUDE_PLUGIN_DATA/marks" -mindepth 1 -type d)" ]]; then
   ok "markers are plain files"
 else
   fail "markers are plain files"
 fi
 
-# The 7-day prune removes old markers of both shapes: files, and the
-# directories the earlier mkdir scheme left behind.
 mkdir -p "$CLAUDE_PLUGIN_DATA/marks/call-old-dir"
 touch "$CLAUDE_PLUGIN_DATA/marks/call-old-file"
 touch -d '10 days ago' "$CLAUDE_PLUGIN_DATA/marks/call-old-dir" "$CLAUDE_PLUGIN_DATA/marks/call-old-file"
@@ -281,35 +245,28 @@ else
 fi
 if [[ -f "$CLAUDE_PLUGIN_DATA/marks/call-call-1" ]]; then ok "prune: a fresh marker stays"; else fail "prune: a fresh marker stays"; fi
 
-# (i) a recomputed-derived expectation carries its Action.
 run Write "$REPO/src/derived.test.ts"
 assert_contains "(i) names rule-recomputed-derived" "$out" "rule-recomputed-derived"
 assert_contains "(i) carries the rule's Action" "$out" "Action [rule-recomputed-derived]: "
 assert_contains "(i) leads with tests that check little" "$out" "tests that check little"
 assert_not_contains "(i) does not call a derived expectation a test that cannot fail" "$out" "tests that cannot fail"
 
-# (j) a weak oracle alone can fail, so it is not called a test that cannot fail.
 run Write "$REPO/src/weak.test.ts"
 assert_contains "(j) names rule-weak-oracle" "$out" "rule-weak-oracle"
 assert_not_contains "(j) does not call a weak oracle a test that cannot fail" "$out" "tests that cannot fail"
 assert_contains "(j) carries the weak-oracle Action" "$out" "Action [rule-weak-oracle]: "
 
-# (k) a throw-only oracle fails when the constructor throws, so it checks
-# little and is not called a test that cannot fail.
 run Write "$REPO/src/WidgetTests.cs"
 assert_contains "(k) names rule-throw-only-oracle" "$out" "rule-throw-only-oracle"
 assert_contains "(k) leads with tests that check little" "$out" "tests that check little"
 assert_not_contains "(k) does not call a throw-only oracle a test that cannot fail" "$out" "tests that cannot fail"
 
-# Two overlapping `if` rows run the hook twice for one call; only one reports.
 run Write "$REPO/src/sum.test.ts" s1 "" dup-call
 first="$out"
 run Write "$REPO/src/sum.test.ts" s1 "" dup-call
 assert_contains "dedup: first run for a tool_use_id reports" "$first" "rule-zero-assertion"
 assert_empty "dedup: second run for the same tool_use_id is silent" "$out"
 
-# An invalid .claude/testing.yaml is named back to the agent, at its line, and
-# the resolver's own message is logged.
 mkdir -p "$REPO/.claude"
 printf 'adapters:\n  enable: [js-vitset]\n' >"$REPO/.claude/testing.yaml"
 run Write "$REPO/src/sum.test.ts"
@@ -317,12 +274,10 @@ assert_contains "config error: the agent is told the config is invalid" "$out" "
 assert_contains "config error: in additionalContext" "$out" '"additionalContext"'
 assert_contains "config error: the log holds the resolver's message" "$(cat "$CLAUDE_PLUGIN_DATA/test-scan.log")" "unknown adapter: js-vitset"
 rm -f "$REPO/.claude/testing.yaml"
-# The same error in a docs convention file's config block names the .md file and line.
 mkdir -p "$REPO/docs/conventions"
 printf '# Testing\n\nRules.\n\n```yaml config\nadapters:\n  enable: [js-vitset]\n```\n' >"$REPO/docs/conventions/testing.md"
 run Write "$REPO/src/sum.test.ts"
 assert_contains "docs block config error: named at the .md file and its line" "$out" "docs/conventions/testing.md:7: unknown adapter: js-vitset"
-# With a .claude file too, the resolver's both-exist warning is not the error the agent is told.
 printf 'paths:\n  exclude: [x]\n' >"$REPO/.claude/testing.yaml"
 run Write "$REPO/src/sum.test.ts"
 assert_contains "both locations: the agent is told the block's error, not the warning" "$out" "docs/conventions/testing.md:7: unknown adapter: js-vitset"
@@ -348,8 +303,6 @@ for f in testing.yaml testing.local.yaml; do
 done
 rm -rf "$REPO/docs" "$REPO/src/two.test.ts"
 
-# The plugin hook and the consumer settings entry share one marker directory,
-# so the same call through both reports once and notes once.
 C="$HOME/.claude/plugins/cache/mk/testing"
 mkdir -p "$C"
 ln -s "$(cd "$HOOK_DIR/.." && pwd)" "$C/1.0.0"
@@ -372,9 +325,6 @@ else
   fail "outside the plugin cache, markers go under XDG_STATE_HOME, never TMPDIR"
 fi
 
-# Session state: one file per scanned write under
-# sessions/<pkey>/<session_id>/<tool_use_id>.json, naming the blocks the
-# write created or changed, for the task-end judge.
 S="$CLAUDE_PLUGIN_DATA/sessions"
 run Write "$REPO/src/mixed.test.ts" st1 "" st-create
 f="$(rec st1 st-create)"
@@ -402,14 +352,10 @@ run Edit "$REPO/src/mixed.test.ts" st1 "" st-del "$DEL"
 assert_jq "state: a deletion-only edit records blocks:null and lines:null" "$(rec st1 st-del)" '.blocks == null and .lines == null'
 run Edit "$REPO/src/mixed.test.ts" st1 "" st-nopatch '{}'
 assert_jq "state: an edit with no patch records blocks:null and lines:null" "$(rec st1 st-nopatch)" '.blocks == null and .lines == null'
-# A block the lexer loses (a string open at the end of the file) is not
-# listed, so the record says the whole file rather than only the blocks
-# the scanner could read.
 printf '%s\n' '@test "a" {' "  run greet" "  [ \"\$status\" -eq 0 ]" "}" '@test "b" {' '  run greet "x' "}" >"$REPO/src/lost.bats"
 run Write "$REPO/src/lost.bats" st1 "" st-lost
 assert_jq "state: a block the lexer lost makes the record blocks:null" "$(rec st1 st-lost)" '.blocks == null'
 
-# Two writes in parallel leave two files.
 payload Write "$REPO/src/sum.test.ts" st2 "" st-par-1 "$CREATE" | bash "$HOOK" >/dev/null 2>&1 &
 payload Write "$REPO/src/sum.test.ts" st2 "" st-par-2 "$CREATE" | bash "$HOOK" >/dev/null 2>&1 &
 wait
@@ -419,8 +365,6 @@ else
   fail "state: two parallel writes give two whole files"
 fi
 
-# Nothing is written for an ignored path, an unsafe or empty id, or a payload
-# with no transcript_path.
 run Write "$REPO/scratch/ignored.test.ts" st1 "" st-ign
 assert_empty "state: a gitignored path writes nothing" "$(rec st1 st-ign)"
 run Write "$REPO/src/sum.test.ts" "../x" "" st-dots
@@ -433,9 +377,6 @@ assert_empty "state: an unsafe tool_use_id writes nothing" "$(find "$S" -path '*
 TPATH="" run Write "$REPO/src/sum.test.ts" st4 "" st-notp
 assert_empty "state: a missing transcript_path writes nothing" "$(find "$S" -path '*/st4/*')"
 
-# The project key: the first 16 hex of the sha256 of the project directory, a
-# newline and the transcript directory. The literal was worked out once from
-# that formula with sha256sum, outside this hook.
 P=/nonexistent/proj
 TP=/nonexistent/transcripts/-proj
 CLAUDE_PROJECT_DIR=$P TPATH="$TP/a.jsonl" run Write "$REPO/src/sum.test.ts" pk1 "" pk-a
@@ -450,8 +391,6 @@ if [[ -n "$f" && "$f" != */297a19f13bd5fbd8/* ]]; then ok "pkey: another transcr
 out="$(PCWD=$P TPATH="$TP/e.jsonl" payload Write "$REPO/src/sum.test.ts" pk5 "" pk-e "$CREATE" | env -u CLAUDE_PROJECT_DIR bash "$HOOK" 2>/dev/null)"
 assert_contains "pkey: without CLAUDE_PROJECT_DIR the payload cwd is the project directory" "$(rec pk5 pk-e)" "/sessions/297a19f13bd5fbd8/pk5/"
 
-# Session state and the Phase 3 judge state are pruned after 7 days, at every
-# depth.
 mkdir -p "$S/oldkey/oldsid" "$CLAUDE_PLUGIN_DATA/verdicts/oldkey/oldsid" "$CLAUDE_PLUGIN_DATA/locks" \
   "$CLAUDE_PLUGIN_DATA/pending/oldkey/oldsid" "$CLAUDE_PLUGIN_DATA/runs/oldkey/oldsid" "$CLAUDE_PLUGIN_DATA/findings"
 old=("$S/oldkey/oldsid/old.json" "$CLAUDE_PLUGIN_DATA/verdicts/oldkey/oldsid/v.json" "$CLAUDE_PLUGIN_DATA/locks/l"
@@ -471,15 +410,10 @@ run Write "$REPO/src/sum.test.ts" st5 "" st-prune2
 if [[ ! -e "$S/emptykey/emptysid" ]]; then ok "prune: an empty directory over an hour old is removed"; else fail "prune: an empty directory over an hour old is removed"; fi
 if [[ -d "$S/newkey/newsid" ]]; then ok "prune: a fresh empty directory stays for its writer"; else fail "prune: a fresh empty directory stays for its writer"; fi
 
-# A working copy under the temp root, or in a Claude session scratchpad, is
-# not a test the session authored: no judge record (#6037). The skip root is
-# injectable so the fixtures above still record.
 mkdir -p "$REPO/hold" "$REPO/claude/proj/sess/scratchpad" "$REPO/KYLESE~1"
 cp "$REPO/src/sum.test.ts" "$REPO/hold/copied.test.ts"
 cp "$REPO/src/sum.test.ts" "$REPO/claude/proj/sess/scratchpad/pad.test.ts"
 cp "$REPO/src/sum.test.ts" "$REPO/KYLESE~1/short.test.ts"
-# The assignment has to sit on the hook, not the payload: a prefix on the
-# left of a pipeline does not reach the right-hand command.
 out="$(payload Write "$REPO/hold/copied.test.ts" stskip "" sk-temp "$CREATE" |
   TEST_SCAN_SKIP_ROOT="$REPO/hold" bash "$HOOK" 2>/dev/null)"
 assert_empty "temp copy: no judge record" "$(rec stskip sk-temp)"
@@ -495,10 +429,6 @@ out="$(payload Write "$REPO/KYLESE~1/short.test.ts" stskip "" sk-short "$CREATE"
   TEST_SCAN_SKIP_ROOT="$TEST_SCAN_SKIP_ROOT" TESTING_OSTYPE=msys PATH="$TMP/shortbin:$PATH" bash "$HOOK" 2>/dev/null)"
 assert_empty "8.3 short temp copy: no judge record" "$(rec stskip sk-short)"
 
-# With TMPDIR, TMP and TEMP all unset, the POSIX defaults /tmp and /var/tmp
-# are still the temp root. The fixtures are made there by name, not through
-# mktemp's TMPDIR. The control shows the same copy records once the root is
-# elsewhere, so the quiet cases are not quiet for another reason.
 DEF_TMP="$(mktemp -d /tmp/test-scan-default.XXXXXX)"
 VAR_TMP="$(mktemp -d /var/tmp/test-scan-default.XXXXXX 2>/dev/null)" || VAR_TMP=""
 trap 'rm -rf "$TMP" "$DEF_TMP" ${VAR_TMP:+"$VAR_TMP"}' EXIT
@@ -515,9 +445,6 @@ if [[ -n "$VAR_TMP" ]]; then
   assert_empty "temp vars unset: a /var/tmp copy leaves no judge record" "$(rec stskip sk-var)"
 fi
 
-# Git Bash reports TMP and TEMP as /tmp, its usertemp mount of the Windows
-# temp folder, while the payload names the file by its long drive path. The
-# stub answers cygpath -l with the long spelling and -s with the short one.
 mkdir -p "$REPO/posixtmp" "$REPO/Long Temp" "$REPO/LONGTE~1"
 cp "$REPO/src/sum.test.ts" "$REPO/Long Temp/long.test.ts"
 cp "$REPO/src/sum.test.ts" "$REPO/LONGTE~1/short.test.ts"
@@ -542,6 +469,25 @@ assert_empty "POSIX-spelled temp var, long payload path: no judge record" "$(rec
 out="$(payload Write "$REPO/LONGTE~1/short.test.ts" stskip "" sk-long-short "$CREATE" |
   TEST_SCAN_SKIP_ROOT="$REPO/posixtmp" TESTING_OSTYPE=msys PATH="$TMP/formbin:$PATH" bash "$HOOK" 2>/dev/null)"
 assert_empty "POSIX-spelled temp var, short payload path: no judge record" "$(rec stskip sk-long-short)"
+
+judge_lib() { bash -c 'source "$1/scanner-run.sh" && source "$1/judge-lib.sh" && eval "$2"' _ "$HOOK_DIR" "$1"; }
+rule="$(judge_lib 'judge::read_rule r "/tmp/a*b[c]?"; printf %s "$r"')"
+assert_contains "read rule escapes glob characters in the directory" "$rule" 'Read(//tmp/a\*b\[c\]\?/**)'
+
+FD="$TMP/findings-dir"
+mkdir -p "$FD/repo" "$FD/outside" "$FD/data"
+ln -s "$FD/outside" "$FD/repo/.work"
+fdir_cd() { (cd "$FD/repo" && DATA="$FD/data" judge_lib 'judge::findings_dir "$PWD" main; printf %s "$FDIR"' 2>/dev/null); }
+fdir="$(fdir_cd)"
+assert_contains "a symlinked .work sends findings to the data dir" "$fdir" "$FD/data/findings"
+assert_empty "nothing is written through a symlinked .work" "$(ls -A "$FD/outside")"
+rm "$FD/repo/.work"
+mkdir -p "$FD/repo/.work"
+printf 'keep\n' >"$FD/outside/target"
+ln -s "$FD/outside/target" "$FD/repo/.work/.gitignore"
+fdir="$(fdir_cd)"
+assert_contains "a symlinked .work/.gitignore sends findings to the data dir" "$fdir" "$FD/data/findings"
+assert_contains "the symlinked .gitignore's target is untouched" "$(cat "$FD/outside/target")" "keep"
 
 echo
 echo "$PASS passed, $FAIL failed"

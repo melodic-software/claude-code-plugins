@@ -68,8 +68,6 @@ function Invoke-DriversCheck {
     [OutputType([pscustomobject])]
     param(
         [switch] $Human,
-        # Tests dot-source this script and read the object. The script entry
-        # point omits -PassThru so the envelope writes the result.
         [switch] $PassThru
     )
 
@@ -90,18 +88,12 @@ function Invoke-DriversCheck {
         $drivers = @(Get-CimInstance -ClassName Win32_PnPSignedDriver -ErrorAction Stop |
                 Select-Object DeviceName, DriverVersion, DriverDate, Manufacturer)
 
-        # The driver store (pnputil) is the signature authority: an empty SignerName is truly
-        # unsigned, while WMI IsSigned=false is noise for cross- and attestation-signed drivers.
         $driverStore = @(Get-DriverStoreInventory)
         $unsignedInStore = @($driverStore | Where-Object {
                 -not $_.PSObject.Properties['SignerName'] -or
                 [string]::IsNullOrWhiteSpace($_.SignerName)
             })
 
-        # The kernel logs CodeIntegrity 3001/3004 when it refuses an image for signature or
-        # catalog violations. Events under the active Defender platform folder follow a
-        # platform rollover and are excluded; a survivor is WARN here, and the trend
-        # engine raises it to CRIT only when it recurs across runs (check-catalog.md section 8).
         $ciCutoff = (Get-Date).AddDays(-7)
         $ciEvents = @()
         try {
@@ -140,8 +132,6 @@ function Invoke-DriversCheck {
             }
         }
 
-        # Admin-gated (pnputil problem devices, PSWindowsUpdate driver catalog): non-elevated
-        # runs emit these fields as null with needs_admin: true. See lib/Get-ElevationMatrix.ps1.
         $elevated = Test-IsElevated
         $adminFields = [System.Collections.Generic.List[string]]::new()
 
@@ -174,7 +164,6 @@ function Invoke-DriversCheck {
             $adminFields.Add('pending_driver_updates')
         }
 
-        # GPU info + vendor CLIs are not admin-gated.
         $gpus = @()
         try { $gpus = @(Get-GpuDriverInfo) } catch {
             Write-Verbose "Test-Drivers: GPU probe failed. $($_.Exception.Message)"
@@ -184,9 +173,6 @@ function Invoke-DriversCheck {
             Write-Verbose "Test-Drivers: vendor CLI probe failed. $($_.Exception.Message)"
         }
 
-        # Severity rubric: pnputil problem devices + pending driver updates upgrade
-        # severity even past the existing signing + age rules. One run's CodeIntegrity
-        # reading caps at WARN; CRIT needs the repeat Invoke-TrendAnalysis checks.
         $hasPendingUpdates = $null -ne $pendingDriverUpdates -and $pendingDriverUpdates.Count -gt 0
         $severity = 'OK'
         if ($ciEvents.Count -gt 0 -or $unsignedInStore.Count -gt 0 -or $problemDevices.Count -gt 0) {
@@ -221,10 +207,6 @@ function Invoke-DriversCheck {
             unsigned_in_store_count    = $unsignedInStore.Count
             unsigned_in_store          = @($unsignedInStore | Select-Object -First 20)
             code_integrity_event_count = $ciEvents.Count
-            # Unix seconds, not an ISO string: ConvertFrom-Json turns ISO strings into
-            # DateTime, which the history flattener drops. The trend engine's repeat
-            # rule needs a newer event than the prior run's newest, not the same
-            # event re-read inside the 7-day window.
             code_integrity_newest_event_unix = $ciNewest ?
                 ([datetimeoffset]$ciNewest.TimeCreated).ToUnixTimeSeconds() : $null
             code_integrity_platform_excluded_count = $platformEventCount
@@ -256,8 +238,6 @@ function Invoke-DriversCheck {
     if ($PassThru) { return $result }
 }
 
-# Dot-source guard: the tests dot-source this script so Pester mocks of lib functions
-# apply (mocks do not reach `&`-invoked scripts); skip the check body then.
 if ($MyInvocation.InvocationName -eq '.') { return }
 
 Invoke-DriversCheck -Human:$Human

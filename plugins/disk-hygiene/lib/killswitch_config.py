@@ -291,17 +291,23 @@ def _managed_settings_files(managed_settings_path: Path) -> list[Path]:
     order or the drop-in directory name.
     """
     files: list[Path] = []
-    if managed_settings_path.is_file():
-        files.append(managed_settings_path)
+    try:
+        if managed_settings_path.is_file():
+            files.append(managed_settings_path)
+    except OSError:
+        pass
     dropin = managed_settings_path.parent / _MANAGED_DROPIN_DIRNAME
-    if dropin.is_dir():
-        files.extend(
-            sorted(
-                child
-                for child in dropin.iterdir()
-                if child.suffix == ".json" and child.is_file()
+    try:
+        if dropin.is_dir():
+            files.extend(
+                sorted(
+                    child
+                    for child in dropin.iterdir()
+                    if child.suffix == ".json" and child.is_file()
+                )
             )
-        )
+    except OSError:
+        pass
     return files
 
 
@@ -369,10 +375,10 @@ def _read_managed_file(
     return _report_from_text(text, path, plugin_id), trusted
 
 
-def _managed_effective(
+def _managed_effective_report(
     managed_settings_path: Path, plugin_id: str | None
-) -> bool | None:
-    """The managed-scope verdict, or ``None`` when managed configures no value.
+) -> dict[str, object] | None:
+    """The winning managed-scope probe report, or ``None`` when managed configures no value.
 
     Reads the primary managed file and the ``managed-settings.d/`` drop-ins in
     precedence order; the last file that *configures* ``disk_hygiene_enabled``
@@ -383,7 +389,7 @@ def _managed_effective(
     verdict either, so it cannot force-enable over the user's setting; a
     configured restriction counts from any file.
     """
-    verdict: bool | None = None
+    winning: dict[str, object] | None = None
     for path in _managed_settings_files(managed_settings_path):
         report, trusted = _read_managed_file(path, plugin_id)
         if report["source"] != "configured":
@@ -391,8 +397,38 @@ def _managed_effective(
         effective = bool(report["effective"])
         if effective and not trusted:
             continue
-        verdict = effective
-    return verdict
+        winning = report
+    return winning
+
+
+def _managed_effective(
+    managed_settings_path: Path, plugin_id: str | None
+) -> bool | None:
+    """The managed-scope verdict, or ``None`` when managed configures no value."""
+    report = _managed_effective_report(managed_settings_path, plugin_id)
+    return None if report is None else bool(report["effective"])
+
+
+def probe_effective(
+    settings_path: Path | None,
+    managed_settings_path: Path | None = None,
+    plugin_id: str | None = None,
+) -> dict[str, object]:
+    """Read the effective kill switch with provenance, honoring managed precedence.
+
+    Managed settings (primary file plus ``managed-settings.d/*.json`` drop-ins,
+    gated by ``_is_trusted_managed_file`` for enabling values on Linux/WSL) take
+    precedence over ``settings_path``. When managed configures no value and
+    ``settings_path`` is provided, ``probe(settings_path, plugin_id)`` decides;
+    when ``settings_path`` is ``None``, fails closed to enabled (``default``).
+    """
+    if managed_settings_path is not None:
+        managed_report = _managed_effective_report(managed_settings_path, plugin_id)
+        if managed_report is not None:
+            return managed_report
+    if settings_path is None:
+        return _unconfigured("No trusted user settings path resolved", Path(""), [])
+    return probe(settings_path, plugin_id)
 
 
 def resolve_effective(
@@ -402,26 +438,9 @@ def resolve_effective(
 ) -> bool:
     """The boolean kill switch, honoring managed precedence, closed to enabled.
 
-    Managed settings are the highest-precedence, non-overridable scope, so an
-    explicitly *configured* value there — in ``managed-settings.json`` or a
-    ``managed-settings.d/`` drop-in — wins over the user settings, which is how an
-    organization enforces audit-only mode. A value that enables execution counts
-    only from a trusted file (``_is_trusted_managed_file``). When managed
-    configures no value (all managed sources absent, entry-less, untrusted
-    enabling, or unreadable/ambiguous) the user settings decide.
-
-    ``settings_path`` is ``None`` when the caller has no *trusted* user-settings
-    location (e.g. a ``--plugin-dir`` install whose root carries no ``plugins/cache``
-    marker and sits in no local-directory marketplace, where the only remaining
-    locator would be a repo-tamperable environment variable). In that case the
-    user scope contributes no verdict and, absent a managed one, the switch
-    fails **closed to enabled**. Every file read is
-    ``probe()``'s effective value, itself closed to enabled.
+    Delegates directly to ``probe_effective`` so the destructive guard and the
+    report-only probe share one exact precedence implementation.
     """
-    if managed_settings_path is not None:
-        managed_verdict = _managed_effective(managed_settings_path, plugin_id)
-        if managed_verdict is not None:
-            return managed_verdict
-    if settings_path is None:
-        return True
-    return bool(probe(settings_path, plugin_id)["effective"])
+    return bool(
+        probe_effective(settings_path, managed_settings_path, plugin_id)["effective"]
+    )

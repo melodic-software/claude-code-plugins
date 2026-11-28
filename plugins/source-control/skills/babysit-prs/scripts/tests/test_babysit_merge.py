@@ -24,14 +24,13 @@ import refresh_pr_branch as refresh
 REAL_ROLE_LABEL = postmerge._role_label
 
 HEAD = "a" * 40
-# The base compare the freshness hold reads for an otherwise-ready PR.
 UP_TO_DATE = {"status": "ahead", "ahead_by": 1, "behind_by": 0}
 STALE = "b" * 40
 LANE = "lane-bot"
 APPROVER = "approver-bot"
 PR_NUMBER = 476
 MERGE_DECISION = {"method": "merge", "reason": "no row calls for a rewrite"}
-LINKED_ISSUE = 999  # distinct from the PR so the two comment fetches are separable
+LINKED_ISSUE = 999
 LINKED_REF = f"owner/repo#{LINKED_ISSUE}"
 
 
@@ -73,7 +72,6 @@ def _queue_read(
     position: int | None = None,
     failed_ejections: int | None = 0,
 ) -> dict[str, Any]:
-    """A `read_merge_queue` answer; the default is a base with no merge queue."""
     return {
         "readError": None,
         "merged": False,
@@ -136,8 +134,6 @@ def _pr(**overrides: Any) -> dict[str, Any]:
     return pr
 
 
-# A branch rule requiring one approving review and no required status contexts:
-# the base is protected (so no unprotected hold) and needs reviewDecision APPROVED.
 RULES = [{"type": "pull_request", "parameters": {"required_approving_review_count": 1}}]
 
 
@@ -280,7 +276,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertTrue(any("pipeline lane" in b for b in result["blockers"]))
 
     def test_same_identity_approval_is_not_distinct(self) -> None:
-        # Author and approver are the same login: author != approver fails.
         result = self._evaluate(
             _pr(author={"login": f"{APPROVER}[bot]"}),
             reviews=[_approval(f"{APPROVER}[bot]", HEAD)],
@@ -305,8 +300,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertIsNone(result["autopilotMergeTier"]["distinctBotApproval"])
 
     def test_unconfigured_bot_approval_is_rejected(self) -> None:
-        # An unrelated installed App's [bot] approval must not satisfy the tier:
-        # being a bot is not enough, it must be the configured approver identity.
         result = self._evaluate(_pr(), reviews=[_approval("random-app[bot]", HEAD)])
         self.assertIsNone(result["autopilotMergeTier"]["distinctBotApproval"])
         self.assertFalse(result["ready"])
@@ -324,9 +317,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertTrue(any("human blocking comment" in b for b in result["blockers"]))
 
     def test_superseded_bot_approval_is_ignored(self) -> None:
-        # The approver bot approved, then requested changes on the same head; a
-        # human approval keeps the base reviewDecision APPROVED. The bot's latest
-        # decisive state is CHANGES_REQUESTED, so it is not a valid tier approver.
         result = self._evaluate(
             _pr(),
             reviews=[
@@ -344,20 +334,24 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertIsNone(result["autopilotMergeTier"]["distinctBotApproval"])
         self.assertFalse(result["ready"])
 
-    def test_plain_do_not_merge_comment_blocks(self) -> None:
+    def test_a_do_not_merge_comment_holds_nothing_but_the_label_does(self) -> None:
         comment = {
             "author": {"login": "maintainer", "__typename": "User", "is_bot": False},
             "body": "Please do not merge this PR yet.",
         }
         result = self._evaluate(_pr(), issue_comments=[comment])
-        self.assertIn(
-            "maintainer", result["autopilotMergeTier"]["humanBlockingComments"]
+        self.assertEqual(result["autopilotMergeTier"]["humanBlockingComments"], [])
+        self.assertTrue(result["ready"], result["blockers"])
+        labeled = self._evaluate(
+            _pr(labels=[{"name": "do-not-merge"}]), issue_comments=[comment]
         )
-        self.assertFalse(result["ready"])
+        self.assertFalse(labeled["ready"])
+        self.assertTrue(
+            any("'do-not-merge' label" in b for b in labeled["blockers"]),
+            labeled["blockers"],
+        )
 
     def test_inline_review_comment_veto_blocks(self) -> None:
-        # A human inline review comment on a since-resolved thread escapes the
-        # base unresolved-thread gate; the tier still catches it.
         row = {
             "user": {"login": "maintainer", "type": "User"},
             "body": "This is a blocking regression.",
@@ -391,14 +385,11 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
 
     def test_decision_default_fetch_error_holds(self) -> None:
-        # Fail closed: a comment-fetch failure holds the PR for the human list.
         result = self._evaluate(_pr(), linked_issue_error=True)
         self.assertFalse(result["ready"])
         self.assertTrue(any("could not verify" in b for b in result["blockers"]))
 
     def test_cross_repo_linked_issue_read_from_its_own_repo(self) -> None:
-        # A PR closing an issue in another repo must have the veto read from that
-        # repo, not the PR's repo where a same-numbered issue could lack the marker.
         cross = _pr(
             closingIssuesReferences=[
                 {
@@ -422,8 +413,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
 
     def test_unrelated_maintainer_comment_does_not_ratify(self) -> None:
-        # A later maintainer comment with no explicit ratification signal (a bare
-        # "thanks") must not clear the veto.
         chatter = _comment(
             "maintainer",
             "thanks, nice work here",
@@ -450,8 +439,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
 
     def test_negated_approval_does_not_ratify(self) -> None:
-        # A withheld/negated approval must not clear the veto even though it
-        # contains an approval token.
         negated = _comment(
             "maintainer",
             "not approved yet — hold this",
@@ -521,8 +508,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertEqual(result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [])
 
     def test_same_timestamp_ratify_and_revoke_holds(self) -> None:
-        # Ambiguity is fail-closed: a ratify/revoke tie at the same timestamp holds
-        # (ratification must be strictly newer than every revocation to clear).
         ratify = _comment(
             "maintainer",
             "Ratified — proceed.",
@@ -543,6 +528,19 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
             result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
         )
 
+    def test_dont_merge_until_i_approve_does_not_ratify(self) -> None:
+        mixed = _comment(
+            "maintainer",
+            "Don't merge until I approve the migration.",
+            association="OWNER",
+            created_at="2026-02-01T00:00:00Z",
+        )
+        result = self._evaluate(_pr(), linked_issue_comments=[DECISION_MARKER, mixed])
+        self.assertFalse(result["ready"])
+        self.assertEqual(
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
+        )
+
     def test_bot_comment_with_blocking_prose_does_not_block(self) -> None:
         comment = {
             "author": {"login": "some-bot[bot]", "__typename": "Bot", "is_bot": True},
@@ -553,11 +551,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertTrue(result["ready"], result["blockers"])
 
     def test_configured_user_approver_body_is_not_a_human_block(self) -> None:
-        # The configured distinct-bot approver GitHub reports as a `User` (no
-        # [bot] suffix): its own approving review body carrying blocking-looking
-        # prose must not count as a human stop against the very approval it
-        # provides. The same review satisfies find_distinct_bot_approval and no
-        # longer self-blocks the merge.
         review = _approval(APPROVER, HEAD, typename="User")
         review["body"] = (
             "Approved. This change resolves the blocking regression "
@@ -569,11 +562,6 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         self.assertIsNotNone(result["autopilotMergeTier"]["distinctBotApproval"])
 
     def test_configured_user_lane_does_not_ratify_decision_default(self) -> None:
-        # A pipeline lane account GitHub reports as a `User` is automation for the
-        # ratification scan: its "ratified" comment after the marker must not
-        # clear the decision-default veto (the #450 hazard of automation ratifying
-        # its own default). The OWNER association proves the bot classification --
-        # not the association -- holds it.
         ratify = _comment(
             LANE,
             "Ratified — proceed.",
@@ -614,8 +602,6 @@ class TierApprovalBodySeverityGate(TierEvaluateHarness):
         )
 
     def test_approval_with_shields_p1_badge_body_rejected(self) -> None:
-        # A Codex-style shields.io P1 badge in the approval body is a structured
-        # blocking finding; the approve-with-P1-body verdict is not clean (#621).
         review = self._approval_body(
             "Approved overall. "
             "![P1 Badge](https://img.shields.io/badge/P1-orange?style=flat) "
@@ -667,34 +653,26 @@ class TierAbsentIsInert(TierEvaluateHarness):
 
 
 class PullRequestBodyHold(TierEvaluateHarness):
-    def test_body_saying_do_not_merge_blocks_with_and_without_the_tier(self) -> None:
+    def test_body_hold_text_holds_nothing_but_the_label_does(self) -> None:
         for body in (
             "Superseded. Do not merge this draft.",
             "Please don't merge until the migration lands.",
-        ):
-            for tier in (TIER, None):
-                with self.subTest(body=body, tier=tier is not None):
-                    result = self._evaluate(_pr(body=body), tier=tier)
-                    self.assertFalse(result["ready"])
-                    self.assertTrue(
-                        any("body holds the merge" in b for b in result["blockers"]),
-                        result["blockers"],
-                    )
-
-    def test_body_line_starting_hold_blocks_with_and_without_the_tier(self) -> None:
-        for body in (
             "Refs: #1\r\n\r\nHold: a human merges this\r\n",
             "## Summary\n  hold: until the release ships",
-            "Refs: #1\n Hold: pasted from a rich-text editor",
+            "Refs: #1\n\u00a0Hold: pasted from a rich-text editor",
             "Refs: #1\rHold: a bare CR line break",
         ):
             for tier in (TIER, None):
                 with self.subTest(body=body, tier=tier is not None):
                     result = self._evaluate(_pr(body=body), tier=tier)
-                    self.assertFalse(result["ready"])
+                    self.assertTrue(result["ready"], result["blockers"])
+                    labeled = self._evaluate(
+                        _pr(body=body, labels=[{"name": "do-not-merge"}]), tier=tier
+                    )
+                    self.assertFalse(labeled["ready"])
                     self.assertTrue(
-                        any("body holds the merge" in b for b in result["blockers"]),
-                        result["blockers"],
+                        any("'do-not-merge' label" in b for b in labeled["blockers"]),
+                        labeled["blockers"],
                     )
 
     def test_hold_word_inside_a_line_does_not_block(self) -> None:
@@ -718,8 +696,6 @@ class PullRequestBodyHold(TierEvaluateHarness):
                     )
 
     def test_needs_human_label_does_not_block_an_attended_merge(self) -> None:
-        # The person the label asks for may merge; autonomous runs hold on it
-        # (test_babysit_merge_unattended.NeedsHumanHoldsOnlyAutonomous).
         result = self._evaluate(_pr(labels=[{"name": "needs-human"}]), tier=None)
         self.assertTrue(result["ready"], result["blockers"])
 
@@ -759,8 +735,6 @@ class DistinctBotApprovalUnit(unittest.TestCase):
         self.assertEqual(match["commit"]["oid"], HEAD)
 
     def test_approver_matched_by_configured_login_without_bot_suffix(self) -> None:
-        # A bot account whose review author carries no [bot] suffix and no Bot
-        # typename is still an approver when named in approver_bot_logins.
         reviews = [_approval(APPROVER, HEAD, typename="User")]
         match = merge.find_distinct_bot_approval(
             reviews, LANE, HEAD, frozenset({APPROVER})
@@ -1109,8 +1083,6 @@ class RequiredSignaturesEnforcement(unittest.TestCase):
         self.assertIn("'gpgverify_error'", blocker)
 
     def test_verification_read_failure_holds(self) -> None:
-        # Fail closed: over-report is the one allowed error direction, and the
-        # message says "could not be read", never a fabricated reason.
         result = self._evaluate(rules=self.SIGNED_RULES, commits_error=True)
         [blocker] = self._signature_blockers(result)
         self.assertFalse(result["ready"])
@@ -1129,10 +1101,6 @@ class RequiredSignaturesEnforcement(unittest.TestCase):
 
 class NoAbbreviatedFlags(unittest.TestCase):
     def test_merge_abbreviation_is_rejected(self) -> None:
-        # The permission grants state "no --merge means check-only" as a
-        # condition on literal command text; an abbreviation resolving to
-        # --merge while the text lacks it would let the written command and
-        # resolved behavior diverge.
         with (
             mock.patch.object(
                 sys,
@@ -1750,9 +1718,6 @@ class AutoMergeArming(unittest.TestCase):
         return code, calls
 
     def test_auto_on_a_queue_base_reports_queued_with_its_position(self) -> None:
-        # The rules read missed the queue, so the arm ran `gh pr merge --auto`,
-        # which GitHub answered by putting the PR in the queue with no auto-merge
-        # request.
         code, _ = self._main(
             True,
             "--merge",
@@ -1922,7 +1887,6 @@ class RefreshRefusesDependencyManagerPrs(unittest.TestCase):
             self._validate("acme-deps[bot]", frozenset({"acme-deps"}))
 
     def test_dependabot_pr_is_refused(self) -> None:
-        # `gh pr view` reports app/dependabot; REST reports dependabot[bot].
         for login in (
             "dependabot",
             "app/dependabot",
@@ -1941,7 +1905,6 @@ class RefreshRefusesDependencyManagerPrs(unittest.TestCase):
         self.assertEqual(str(caught.exception), "past the author check")
 
 
-# A Dependabot pull request's commits as `pulls/{n}/commits` lists them.
 DEPENDABOT_PARENT, BASE_PARENT = "1" * 40, "2" * 40
 STRAY_SHA, EDITED_SHA = "4" * 40, "5" * 40
 DEPENDABOT_COMMIT = {
@@ -1956,8 +1919,6 @@ DEPENDABOT_COMMIT = {
         "verification": {"verified": True},
     },
 }
-# The stray update-branch shape (#9131's ad32a613): a person's merge of the
-# base that GitHub committed and signed, head parent first.
 STRAY_MERGE = {
     "sha": STRAY_SHA,
     "parents": [{"sha": DEPENDABOT_PARENT}, {"sha": BASE_PARENT}],
@@ -1967,9 +1928,7 @@ STRAY_MERGE = {
         "verification": {"verified": True},
     },
 }
-# A merge GitHub committed that also changes a file the base never touched.
 EDITED_MERGE = {**STRAY_MERGE, "sha": EDITED_SHA}
-# A person's one-parent fix commit.
 FIX_COMMIT = {
     "sha": "6" * 40,
     "parents": [{"sha": DEPENDABOT_PARENT}],
@@ -1982,11 +1941,8 @@ FIX_COMMIT = {
 _COMPARE = "repos/owner/repo/compare/"
 _BASE_FILE = {"filename": "docs/a.md", "status": "modified", "sha": "a1"}
 STRAY_MERGE_COMPARES = {
-    # The base parent is on main: main is ahead of it.
     f"{_COMPARE}{BASE_PARENT}...main": {"status": "ahead"},
-    # The merge brings in the base's file as the base has it...
     f"{_COMPARE}{DEPENDABOT_PARENT}...{STRAY_SHA}": {"files": [_BASE_FILE]},
-    # ...and the edited one also changes a file the base did not.
     f"{_COMPARE}{DEPENDABOT_PARENT}...{EDITED_SHA}": {
         "files": [
             _BASE_FILE,
@@ -2008,7 +1964,6 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
     REPO = "owner/repo"
     TIP = "b" * 40
     COMMENTS = f"repos/{REPO}/issues/{PR_NUMBER}/comments"
-    # The command alone on line one, the marker naming the base tip on line two.
     BODY = f"@dependabot rebase\n<!-- babysit-dependabot-rebase base={TIP} -->"
     RECREATE = f"@dependabot recreate\n<!-- babysit-dependabot-rebase base={TIP} -->"
 
@@ -2179,7 +2134,6 @@ class RefreshAsksDependabotToRebase(unittest.TestCase):
         self.assertEqual(result["rebase"], "would-request @dependabot rebase")
 
     def test_the_lane_apps_own_request_is_not_repeated(self) -> None:
-        # An App identity's comment carries association NONE.
         own = {
             "id": 1,
             "body": self.BODY,
@@ -2558,8 +2512,6 @@ class RepoPolicyReachesTheGate(unittest.TestCase):
                 "gh_capture",
                 return_value=mock.Mock(returncode=0, stdout="", stderr=""),
             ),
-            # Not the default branch: the merge stays on `gh pr merge`, which is
-            # the path these method-resolution tests read.
             mock.patch.object(merge, "repository_default_branch", return_value=None),
             mock.patch.object(merge, "read_merge_queue", return_value=_queue_read()),
             contextlib.redirect_stdout(out),
@@ -2919,9 +2871,6 @@ class ForcePushedHeadsTests(unittest.TestCase):
         self.assertNotIn("c=next", read.call_args_list[0].args[0])
         self.assertIn("c=next", read.call_args_list[1].args[0])
 
-    # Recorded GitHub answers to the gate's query with totalCount,
-    # filteredCount and pageCount added: totalCount counts every timeline
-    # item, whatever itemTypes names. Nine items, none a force push:
     NO_FORCE_PUSH = {
         "totalCount": 9,
         "filteredCount": 0,
@@ -2929,7 +2878,6 @@ class ForcePushedHeadsTests(unittest.TestCase):
         "pageInfo": {"hasNextPage": False, "endCursor": None},
         "nodes": [],
     }
-    # Nine items, one a force push:
     ONE_FORCE_PUSH = {
         "totalCount": 9,
         "filteredCount": 1,

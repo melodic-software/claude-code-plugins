@@ -28,7 +28,7 @@ WHAT IS PINNED, exactly:
     rows fails, because then it is unclear which row states its default.
   * Every table row documents at least one defaults leaf, unless its default
     cell is the bare word `absent`, which is how the document marks a key that
-    has no bundled default (`lanes.<lane>.collectors.<measure>`). A row that
+    has no bundled default (`languages.<language>.collectors.<measure>`). A row that
     stops matching any leaf -- the shape of a key REMOVED from the defaults --
     fails and names the key.
   * Each row's default cell equals the canonical rendering of the value, which
@@ -59,9 +59,8 @@ import re
 import sys
 from pathlib import Path
 
-# `from __future__ import annotations` is a SyntaxError below 3.7, before any
-# runtime check here could run, so the sibling .test.sh parses this tuple as
-# text to pick a qualifying interpreter BEFORE invoking this file.
+# `from __future__ import annotations` needs Python 3.7:
+# https://docs.python.org/3/library/__future__.html
 MIN_PYTHON = (3, 7)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -70,25 +69,16 @@ DEFAULT_DEFAULTS = (
 )
 DEFAULT_DOC = REPO_ROOT / "plugins" / "code-metrics" / "reference" / "config.md"
 
-# Top-level defaults members that are not consumer configuration. The document
-# says so itself, under "Reserved keys": `thresholds` and anything starting
-# with `_` belong to the bundled defaults and the resolver's output.
 RESERVED_PREFIX = "_"
 RESERVED_KEYS = frozenset({"thresholds"})
 
-# The heading whose first table is the key contract, and the literal a row uses
-# for a documented key that the defaults file deliberately does not default.
 SECTION_HEADING = "## Keys"
 NO_DEFAULT = "absent"
 
-# A `<name>` segment in a documented key stands for exactly one path segment,
-# which is how one row documents `lanes.<lane>.enabled` for all five lanes.
 WILDCARD = re.compile(r"^<[A-Za-z_][A-Za-z0-9_]*>$")
 
-# A cell boundary is a pipe that is not backslash-escaped.
 CELL_SPLIT = re.compile(r"(?<!\\)\|")
 
-# A code span: a run of backticks, optional one-space padding, then the content.
 CODE_SPAN = re.compile(r"^(?P<fence>`+)(?P<body>.*)(?P=fence)$", re.DOTALL)
 
 
@@ -101,11 +91,6 @@ class Unrepresentable(Exception):
 
 
 def leaves(node, prefix: str = ""):
-    """Yield (dotted path, value) for every non-mapping value in the tree.
-
-    A list is a leaf, not a branch: the document and the resolver both treat
-    `scope.exclude` as one closed value, never as indexed sub-keys.
-    """
     if isinstance(node, dict):
         for key, value in node.items():
             yield from leaves(value, f"{prefix}{key}.")
@@ -114,7 +99,6 @@ def leaves(node, prefix: str = ""):
 
 
 def default_leaves(defaults: dict) -> dict[str, object]:
-    """The consumer-configurable leaves, reserved members dropped at the root."""
     return {
         path: leaf
         for key, value in defaults.items()
@@ -146,7 +130,6 @@ def render_default(value) -> str:
 
 
 def read_code_span(cell: str) -> str | None:
-    """The content of a code-span cell with `\\|` unescaped, or None."""
     match = CODE_SPAN.match(cell.strip())
     if match is None or not match.group("body"):
         return None
@@ -157,7 +140,6 @@ def read_code_span(cell: str) -> str | None:
 
 
 def split_row(line: str) -> list[str]:
-    """The cells of a markdown table row, outer pipes discarded."""
     cells = CELL_SPLIT.split(line.strip())
     if cells and not cells[0].strip():
         cells = cells[1:]
@@ -167,7 +149,6 @@ def split_row(line: str) -> list[str]:
 
 
 def key_table(doc_text: str) -> list[tuple[int, list[str]]]:
-    """The first table under `## Keys`, as (1-based line number, cells) rows."""
     lines = doc_text.splitlines()
     start = next(
         (index + 1 for index, line in enumerate(lines) if line.strip() == SECTION_HEADING),
@@ -188,7 +169,6 @@ def key_table(doc_text: str) -> list[tuple[int, list[str]]]:
             continue
         seen_table = True
         cells = split_row(line)
-        # The delimiter row (`|---|---|---|`) carries no content.
         if cells and all(re.fullmatch(r":?-{2,}:?", cell) for cell in cells):
             continue
         rows.append((index + 1, cells))
@@ -204,7 +184,6 @@ def key_table(doc_text: str) -> list[tuple[int, list[str]]]:
 
 
 def matches(pattern: str, path: str) -> bool:
-    """Does a documented key, wildcards included, name this defaults leaf?"""
     want = pattern.split(".")
     have = path.split(".")
     if len(want) != len(have):
@@ -213,7 +192,6 @@ def matches(pattern: str, path: str) -> bool:
 
 
 def check(defaults: dict, doc_text: str, doc_name: str) -> list[str]:
-    """Every disagreement between the two surfaces, each naming its key."""
     problems: list[str] = []
     expected = default_leaves(defaults)
     rows = key_table(doc_text)
@@ -290,7 +268,6 @@ def check(defaults: dict, doc_text: str, doc_name: str) -> list[str]:
 
 
 def cannot_run(path: Path, error: object) -> int:
-    """Report why the gate could not run; return the fail-closed exit code."""
     print(f"CANNOT RUN: {path}: {error}", file=sys.stderr)
     return 2
 

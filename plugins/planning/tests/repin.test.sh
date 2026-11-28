@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# repin.sh rewrites exactly the named digest pins of a copy of the test file: per pin, one sha
-# literal and one justification comment change, every other line stays byte-identical; an
-# unknown or ambiguous label is refused and a matching digest is a no-op, and with several
-# labels either refuses the whole call before any write. It runs with no terminal, as a lane
-# runs it. The copy is a stand-in test with the real call shape (label, then the sha256
-# literal alone on the last line) that fails a stale pin as the real test does, so the real
-# pins are never touched.
-#
 # test-scope: plugins/planning/tests/repin.sh
 # test-scope: plugins/planning/scripts/repin-digests.sh
 set -uo pipefail
@@ -33,8 +25,6 @@ DELTA="$(sha_of "$WORK/delta.txt")"
 OMEGA="$(sha_of "$WORK/omega.txt")"
 STALE="$(printf '%064d' 7)"
 
-# A stand-in for interview-defenses.test.sh: pin_file <label> <file> <sha256>.
-# Both pins start out matching; each test makes one stale.
 make_fixture() {
   local alpha_sha="$1" beta_sha="$2" dest="$3"
   cat >"$dest" <<EOF
@@ -74,7 +64,6 @@ exit \$FAILS
 EOF
 }
 
-# No terminal on stdin or stdout, as a lane runs it.
 run_repin() { bash "$REPIN" "$@" </dev/null 2>&1; }
 
 t="$WORK/stale.test.sh"
@@ -121,9 +110,6 @@ out="$(run_repin --test-file "$t" 'alpha file' $'two\nlines')"
 rc=$?
 if [[ $rc -eq 2 ]]; then ok "multi-line justification: exit 2"; else fail "multi-line justification: expected exit 2, got $rc: $out"; fi
 
-# --- several labels in one call: each named pin is re-pinned, the test runs to PASS -------
-# All three stale pins share one stale literal, so each new digest must come from its own
-# failure line.
 t="$WORK/several.test.sh"
 make_quad_fixture "$STALE" "$STALE" "$STALE" "$OMEGA" "$t"
 cp "$t" "$WORK/several.before"

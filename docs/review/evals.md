@@ -17,7 +17,11 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   action files, or an agent body, including a verbatim move into a file that loads on demand.
   Added text is not a cut, except a word that flips an existing instruction (`not`, `never`, `no`,
   `only`, `except`, `unless` and their contractions) inserted into it; script changes are covered
-  by tests (Q5, Q48).
+  by tests (Q5, Q48). An edit inside a skill's `## Next`, `## Related` or `## See also` section is
+  not a cut: those sections name other skills for the person and change no tool call (owner,
+  2026-11-24, after #18922; Q2212). Nor is renaming a routing heading (Boundaries, Scope boundary,
+  Siblings, Routing, Handoff, Composition, Integration, Workflow position, What this skill does not
+  do) to another of those names or to Next or Related (Q2212).
 - **Suite run** (`mode: suite`), **label run** (the `eval: run` label, advisory, posts no record),
   **compare run** (`mode: compare`, posts the eval-pair record on a PASS): the three modes of
   [`pr-run-plugin-evals.yml`](../../.github/workflows/pr-run-plugin-evals.yml) (Q62).
@@ -29,6 +33,72 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - A skill `description` or `when_to_use` edit, additive included, runs that plugin's triggering
   and no-fire cases (Q7). An additive-only one merges before that run, which follows on the
   default branch as below; a reworded one is a cut and runs before merge (Q11).
+- Except a routing-only `description` or `when_to_use` edit, which runs nothing: with its routing
+  clauses removed (a `Not for <case>: /plugin:skill`, `Skip when ... /plugin:skill` or
+  `prefer /plugin:skill` clause, added, removed or reworded), a skill token's change of form
+  (`plugin:skill` to `/plugin:skill`; a token is a skill when it has the slash or its plugin part
+  names a plugin in the repository, so `mode:fast` to `mode:slow` still counts, as does swapping
+  in another skill), and decided-term swaps (next rule) removed, the old and new text are equal.
+  `select` lists the skill under `no-run-exempt:` with that reason (owner, 2026-11-25, Q2212).
+- A decided-term swap or a comment-line deletion runs nothing, wherever `select` looks. A hunk is
+  not a cut when it only swaps a term for the word [`docs/glossary.md`](../glossary.md) "Rejected
+  terms" decided (or that word's last word, so `--lane` becomes `--area` for **focus area**), in
+  either number, so that old and new are byte-identical once each swap is replaced, or only deletes
+  lines a comment fills in a code, YAML or shell file (`#` for YAML, shell, Python, TOML and
+  PowerShell; `//` and `/* */` for JS, TS, JSONC, Go and C#; `#` or `;` opening a line of
+  `.editorconfig`, whose comments only start a line; code before or after the comment
+  disqualifies the line, and markdown is excluded because an HTML comment can carry instructions a
+  model reads; so is a line inside a shell heredoc or multi-line quoted string, PowerShell here-string, YAML block scalar,
+  Python, TOML or C# triple-quoted string, or JS, TS or Go backtick string, where a comment-shaped
+  line is content). That holds for a skill body, reference or agent hunk, a frontmatter value such
+  as `argument-hint` or `metadata.summary`, an eval case's prompt, `case.yaml`, grader, scaffold,
+  fixture or sample, and a renamed file whose path and content differ only by such changes. The
+  decided terms are read from the glossary at the merge base, so a row the branch adds exempts
+  nothing on that branch. A directive comment (`//go:build`, `// +build`, `/// <reference`,
+  `// @ts-ignore`, `# shellcheck`, `# type: ignore`, `# noqa`, `# coding:`, `#requires` and the like) is
+  never a deletable comment, nor is any comment in a Go file that imports `"C"` (its preamble is C
+  code), nor a `/*` opener whose closing `*/` the same hunk keeps, nor a PowerShell `#>` closer. A
+  swap in a skill's `name`, or a rename of a skill or agent, renames what people invoke and runs its
+  cases. A script file gets no swap exemption, a change with no hunks is never exempt, and a
+  plugin-wide file (hooks, `.mcp.json`, `plugin.json`) is always listed. A hunk with any other
+  change keeps the rules above (owner, 2026-11-25, Q2212; comment deletions per ADR 0110). A swap
+  may also drop a rejected word left after its decided one (`concern lane` to `concern`), and mix
+  number across the two sides (owner, 2026-11-25, Q2217). A comment deletion in an eval case's own
+  files (anything under `evals/`) still runs that case, since the model running it may read them;
+  a swap there stays exempt (owner, 2026-11-25, Q2218). Except a comment the agent under test
+  cannot see, whose deletion runs nothing: a comment line in a case's `case.yaml`, and a shell
+  comment line outside any heredoc or multi-line quoted string in a script the case's scaffold
+  runs but never copies, prints or writes into the workspace (the `scaffold.sh` its
+  `context.scaffold_script` names, and the helper scripts that runs). Fixtures, prompts, graders
+  (a judge model reads them), samples, and anything a scaffold copies, cats, installs or writes
+  into the workspace keep running their case. `select` decides it statically and keeps running
+  the case when unsure: a script counts as hidden only when a case's scaffold runs it, no file of
+  a case that reaches it names it, any folder holding it (the evals folder and those above
+  included), or a glob or unresolved path that could match it in any other form, and it never
+  reads its own source; `case.yaml` counts as hidden only when no file of a case that reaches it
+  names its case folder, the evals folder or a folder above, and no script under the evals folder
+  that names `case.yaml` holds the deleted comment's text or a quoted pattern matching it, as
+  `revert-cases.sh` does for `# confirmed-by: pending` (owner, 2026-11-27, narrowing Q2218: "The
+  eval dir itself is hidden from the agent",
+  [case-authoring.md:56-57](../../plugins/evals/skills/plugin-eval/reference/case-authoring.md), and a
+  probe of 150 scaffolds found none of their non-heredoc comments in any workspace file or git
+  history). A trailing comment (a `#` comment after code, the code left byte for byte) in a shell file
+  or a `case.yaml` counts like a whole comment line under that rule, in `case.yaml` only when the
+  file parses the same without it, and a `case.yaml` edit that drops one is never a
+  description-only edit. The static check sets aside only these reference forms: a `plugins: [...]` entry naming the suite's own
+  plugin, a `(cd <dir> && bash <script>)` run whose `<dir>` is outside the suite, and `$0` inside an `awk`, `sed`, `grep` or `jq` program. A file that pipes into a shell, runs a string or
+  sources a stream gets no quote reading, and a case file that `cd`s or `pushd`es into the suite or
+  finds its own folder in an unresolved form keeps the script visible (owner, 2026-11-27, "Go with
+  recommendations": extend the tooling so more eval comment deletions are proven hidden, sweep
+  what it proves, and bring back the rest with an exact case and run count). A
+  `plugins/*/skills/*/evals/` file is not in the plugin's eval directory, the only one a run hides
+  ([plugin-evals](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)), so the
+  agent can read it with the skill and its comments get no hidden exemption. Deleting whole-line
+  `#` or `;` comments from an `.editorconfig` anywhere under an `evals/` folder runs nothing,
+  whether or not the agent can see the folder; any other `.editorconfig` edit keeps the rules
+  above (owner, 2026-11-27, "Go with recommendations" on: "(a) exempt comment-only deletions in
+  `.editorconfig` files under eval folders, so deleting them runs nothing; an editor-settings
+  comment can't change what the agent does").
 - No run for a description-only case edit, an additive skill edit (added instructions can still
   lower adherence to the rest, so `select` lists its cases as affected but not run, Q8), a restated upstream fact swapped
   for a pointer to its source ([skills-and-agents.md](skills-and-agents.md), C3), or a repair that
@@ -60,40 +130,55 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   compare run before merge, whose PASS releases the eval hold (Q7).
 - A compare run's arms also carry the plugin's `context/**/*.md` under the markdown rules
   `select-plugins.mjs` applies to `skills/` and `agents/`; `plugin.json` and `probes/` stay refused
-  (owner decision,
-  [owner-decisions.md#L380](https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380)).
+  (owner decision).
 - A cut whose only covering cases are judged adds a deterministic case for the changed behavior in
   the same PR (Q45).
-- Four kinds of PR merge before their run, once `/evals:validate` passes: one that adds or edits
+- Five kinds of PR merge before their run, once `/evals:validate` passes: one that adds or edits
   cases with deterministic graders only and changes no skill text, because compare mode refuses
   arms that do not differ (Q43, Q56); a cut whose changed behavior cannot be checked without a
   judge (Q45); one that adds or edits a script or a case scaffold and cuts no existing skill
   text, since compare mode never runs a script beside a credential (`select-plugins.mjs`; owner
-  decision, melodic-software/architecture#208); and a skill rename, since compare mode refuses its
-  manifest and probe edits and a renamed skill has no comparable base arm (owner decision,
-  [owner-decisions.md#L380](https://github.com/melodic-software/architecture/blob/3534f80d3eea2c08a582d1899c2862af44880b64/docs/owner-decisions.md#L380)).
-  Any other cut keeps its compare run before merge: split it from the script change. One suite run
-  on the default branch, scoped to the affected cases, follows; a rename's run uses
-  `credential: subscription` and `runs: 3`. For a judged case, the dispatching session posts the
+  decision); a skill rename, since compare mode refuses its
+  manifest and probe edits and a renamed skill has no comparable base arm (owner decision);
+  and one whose compare run cannot start, because the org API key is off or compare mode refuses
+  the PR, where a FAIL of the run that follows reverts it (owner decision).
+  Any other cut keeps its compare run before merge. One suite run
+  on the default branch, scoped to the affected cases, follows; a rename's run uses `runs: 3`.
+  For a judged case, the dispatching session posts the
   record by hand under [Graders](#graders).
+- Only the compare run's own record that it cannot start counts. A run that passes its
+  dispatcher, input and head checks and then finds `compare-arms.sh` refusing the PR
+  (`compare-refused`) runs no arm and succeeds its `Compare Cannot Start: compare-refused` job.
+  pr-merge's release step lifts the eval hold only when, for every plugin whose skill, agent or
+  context text the PR changes (or, when it changes none, every plugin it changes), the newest compare run at the current head since the label was last
+  added that names that plugin as its target is such a run, read back under the same checks as a
+  compare record; a refusal for one plugin never lifts a hold over another plugin's cut. It comments
+  `<!-- eval-hold-released head=<sha> cannot-start=compare-refused run=<run ids> -->`. A missing
+  record alone keeps the hold, and so do a PR file list that does not read in full and, for a
+  plugin, an older run at that head since the label that failed its `Compare Verdict` (a LOSS or
+  VOID), is still going, or was re-run
+  ([`release-eval-hold.mjs`](../../.github/scripts/pr-merge/release-eval-hold.mjs)).
 - The session that merged the PR dispatches that run, states its cost first and watches it; it
   fixes or reverts a failing case. With no live session, the next session that takes up the PR's
-  follow-up does (Q57).
+  follow-up does (Q57). The merged PRs that owe their run are those whose comments contain the
+  text `cannot-start=compare-refused`; read comment bodies for it, since GitHub search splits the
+  marker into words and matches far more.
 - An eval-pair record names one head. A push before the hold releases needs a new compare run (Q58).
-- Every run uses the maintenance API key and stops at its credit stop, except a compare run
-  dispatched with `credential: subscription`: both its passes run on the maintenance subscription
-  token, and only for a PR whose author is a human on the trusted-actor list; `compare-prepare`
-  refuses any other, a listed bot included, since a bot's PR can start from public issue text. A
-  suite run dispatched with `credential: subscription` also runs on that token, only on
-  the default branch and only with `case`, `cases` or `tag` set; `run-eval-subscription` refuses
-  any other. Each keeps the affected cases, the per-run ceiling (a list-price estimate, not a
-  plan-usage cap), `--no-publish`, the kill switch and the `CLAUDE_EVALS_DISABLED` switch. No
-  fallback token follows either: a limit stop ends the run. The label run and every other eval run
-  use no subscription token (Q14, Q53, as amended by the owner decision "Eval runs on a
-  subscription token, case pruning, and how #18356 lands", 2026-11-23, in
-  [owner-decisions.md](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md),
-  and extended to suite runs by
-  [owner-decisions.md#L370](https://github.com/melodic-software/architecture/blob/9fecf3f103380aa38f9a7936c4209330f9ab4bcd/docs/owner-decisions.md#L370)).
+- Every eval run reads only the `EVALS` role's secrets, `EVALS_CLAUDE_API_KEY` and
+  `EVALS_CLAUDE_CODE_OAUTH_TOKEN`, never another role's and never the fallback token. A dispatched
+  run spends the API key's credit first and moves to the subscription token when the key stops
+  (unassigned, empty, or at its credit stop), with no input to choose. A compare run moves both its
+  passes only for a PR whose author is a human on the trusted-actor list; for any other, a listed
+  bot included (a bot's PR can start from public issue text), `compare-prepare` passes no token and
+  the arms stay on the key. A suite run moves only on the default branch and only with `case`,
+  `cases` or `tag` set; `run-eval-subscription` refuses any other. Each keeps the affected cases,
+  the per-run ceiling (a list-price estimate, not a plan-usage cap), `--no-publish`, the kill switch
+  and the `CLAUDE_EVALS_DISABLED` switch. A limit stop on the token ends the run. When both halves
+  are unassigned or used up, the run fails with an `::error::` naming the `EVALS` role; the owner
+  reassigns it through the account rotation tool. The label run and the hill climb run on the key
+  alone (Q14, Q53, as amended by the owner decision "Eval runs on a subscription token, case
+  pruning, and how #18356 lands", 2026-11-23, extended to suite runs and moved to the `EVALS`
+  role, key first, by owner decision).
 
 ## Budget
 
@@ -142,4 +227,7 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 
 - The org variable `CLAUDE_EVALS_DISABLED` stops every eval path; an eval job runs only while it
   reads exactly `false` (Q52).
-- A session may set it to `false` for a decided, costed run and back to `true` after (Q52, Q55).
+- It stays `false`: every eval workflow is started deliberately (dispatch or the `eval: run`
+  label), none runs on a schedule. `true` is the owner's emergency kill switch; sessions never
+  change it (owner decision 2026-11-24, replacing the reset to `true` after a run). Scoping is
+  unchanged: run only the cases the change affects (Q52, Q55).

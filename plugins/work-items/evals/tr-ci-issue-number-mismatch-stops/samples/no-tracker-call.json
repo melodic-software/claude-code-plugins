@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "cat .lane/scratch/issue.json"
+          }
+        }
+      ],
+      "why": "reads the scratchpad only"
+    },
+    {
+      "answer": [],
+      "why": "nothing"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "gh issue view 12 --json number,title,body"
+          }
+        }
+      ],
+      "why": "reads the tracker instead of stopping"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash tools/work-item-tracker/work-item-tracker.sh claim 12 --phase triage"
+          }
+        }
+      ],
+      "why": "claims the issue"
+    }
+  ]
+}

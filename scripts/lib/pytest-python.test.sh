@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for scripts/lib/pytest-python.sh through scripts/run-test-file.sh, in
-# a throwaway checkout and a linked worktree of it. python3, the venv's python
-# and scripts/setup-env.sh are stubs that log what they were asked to run.
 # The stubs and the checks hold shell source as literal data on purpose.
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -19,7 +16,6 @@ log="$TMP_ROOT/calls.log"
 stubs="$TMP_ROOT/stubs"
 mkdir -p "$stubs"
 
-# A python3 without pytest unless PY3_PYTEST=1; a pytest run exits 5.
 cat >"$stubs/python3" <<'EOF'
 #!/usr/bin/env bash
 if [[ $1 == -I ]]; then [[ ${PY3_PYTEST:-} == 1 ]]; exit; fi
@@ -28,7 +24,6 @@ exit 5
 EOF
 chmod +x "$stubs/python3"
 
-# venv_python <venv>: a venv python that imports pytest and logs its runs.
 venv_python() {
   mkdir -p "$1/bin"
   printf '%s\n' '#!/usr/bin/env bash' '[[ $1 == -I ]] && exit 0' "echo \"venv $1 \$*\"" >"$1/bin/python"
@@ -57,7 +52,6 @@ git -C "$c" -c user.email=t@example.invalid -c user.name=t -c commit.gpgsign=fal
 w="$TMP_ROOT/worktree"
 git -C "$c" worktree add -q --detach "$w"
 
-# run_in <dir> [VAR=value...]: run-test-file on tests/test_a.py; sets OUT, ERR, RC.
 run_in() {
   local dir=$1
   shift
@@ -86,7 +80,6 @@ run_in "$w" SETUP_ENV_VENV="$TMP_ROOT/elsewhere"
 check "SETUP_ENV_VENV comes first" \
   '[[ $RC == 0 && $OUT == "venv $TMP_ROOT/elsewhere -m pytest -q -p no:cacheprovider -- tests/test_a.py" ]]'
 
-# venv_bin_in <dir> [VAR=value...]: pytest_python::venv_bin from <dir>; sets OUT, RC.
 venv_bin_in() {
   local dir=$1
   shift

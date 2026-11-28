@@ -58,7 +58,7 @@ The simulation skill reads and writes boards through named board operations
   Miro's official hosted server (`mcp.miro.com`) was evaluated and **rejected** as the target (no
   board-delete tool for teardown; third-party remote egress). Trust record in the marketplace
   repo's plugin-acceptance review records (the miro record in
-  `docs/adr/0093-record-plugin-acceptance-security-reviews.md`; the carry verdict is
+  `docs/plugin-acceptance-security-reviews.md`; the carry verdict is
   `docs/adr/0092-carry-only-the-miro-mcp-server-in-a-plugin.md`).
 
 A run picks its backend from, in order: a `--backend markdown|miro` argument, the board you name

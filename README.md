@@ -71,7 +71,7 @@ to add them.
 | [`AGENTS.md`](AGENTS.md) | Operating rules for agents working in this repository (`CLAUDE.md` imports it) |
 | [`docs/migration-playbook.md`](docs/migration-playbook.md) | Design charter, extensibility model, the per-plugin migration gate, and the local development loop |
 | [`scripts/README.md`](scripts/README.md) | Validating a change before you push: affected tests, local forms of CI gates, the check-script contract |
-| [`REVIEW.md`](REVIEW.md) and [`docs/review/`](docs/review/README.md) | Review criteria |
+| [`REVIEW.md`](https://github.com/melodic-software/standards/blob/main/REVIEW.md) (the organization's) and [`docs/review/`](docs/review/README.md) | Review criteria |
 | [`docs/official-docs.md`](docs/official-docs.md) | Where to find the official Claude Code docs, and how to cite them |
 | `lib/` | The shared shell helpers. `scripts/sync-<helper>.sh` copies each into the plugins that use it, and CI rejects a copy that differs, so edit `lib/`, never a copy |
 | `prompts/` | Launch-prompt templates to fill in and paste into a session |

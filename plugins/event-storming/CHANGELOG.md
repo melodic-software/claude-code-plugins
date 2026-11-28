@@ -3,6 +3,42 @@
 All notable changes to the `event-storming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.3] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across both `event-storming` skills (1,219 -> 696 chars, -523 / -42.9%): `methodology` (564 -> 348) and `simulation` (655 -> 348), while preserving all three workshop formats, all ten simulation action modes, markdown/Miro backends, and sibling exclusions. The `simulation` Miro trigger is scoped to EventStorming (`'Miro EventStorming'`), so a plain Miro board request does not match it.
+
+## [0.10.2] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
+## [0.10.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [0.10.0] - 2026-11-26
+
+### Changed
+
+- Shared `html-escape.mjs` synced: the report validator admits a base64 `data:` URL in two places only, a PNG or JPEG as the `.rv-logo` rule's one `background-image`, and a WOFF2, WOFF, TTF or OTF font inside `@font-face`. Every other `url(`, scheme and URL-bearing attribute is still refused. Pages built today look the same; no other change to this plugin.
+
+## [0.9.9] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [0.9.8] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk`, `host.html` and `frames.css` synced where this plugin carries them (comment-only removal); no other change to this plugin.
+
 ## [0.9.7] - 2026-11-24
 
 ### Changed

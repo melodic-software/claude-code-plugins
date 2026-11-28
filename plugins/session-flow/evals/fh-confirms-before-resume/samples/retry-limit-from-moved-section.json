@@ -5,14 +5,14 @@
       "why": "states the interval"
     },
     {
-      "answer": "Retry limit: one every 40s per card (from the hop file's Observations).",
+      "answer": "Retry limit: one every 40s per card (from the archive file's Observations).",
       "why": "abbreviated unit"
     }
   ],
   "fail": [
     {
       "answer": "The handoff does not say how often the processor allows a retry.",
-      "why": "read only the hot file"
+      "why": "read only the handoff file"
     },
     {
       "answer": "Charges retry three times before the customer email.",

@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Owns lib/prerequisites.test.mjs for the plugin test lane, then tests the sh and
-# pwsh stubs: with node absent each prints one fixed line and exits 1; with node
-# present each hands its arguments and exit code to prerequisites.mjs.
-# scripts/run-outside-node-suites.sh treats a sibling .test.sh as the runner.
 # test-scope: plugins/*/prerequisites.json plugins/*/.claude-plugin/plugin.json
 # test-scope: lib/hook-utils.sh
 set -uo pipefail
@@ -48,7 +44,6 @@ else
   fail "sh stub: node present gave rc=$rc out=$out"
 fi
 
-# A missing hook dependency's notice ends with the command that runs the plugin's own checker.
 PROBE="$WORK/probe-plug"
 mkdir -p "$PROBE"
 printf '%s' '{"requires":[{"id":"zz-tool","kind":"cli","need":"required","for":["hook:a.sh"],"detect":{"any":["zz-absent-x9"]},"degrade":"D.","install":{"docs":"https://example.invalid"},"check":"/probe-plug:check"}]}' >"$PROBE/prerequisites.json"
@@ -60,7 +55,6 @@ else
 fi
 
 if PWSH="$(command -v pwsh)"; then
-  # A version-manager shim (mise, asdf) puts its tools, node included, back on PATH: run the real binary.
   real="$("$PWSH" -NoProfile -NonInteractive -Command '[Environment]::ProcessPath')"
   real="${real%$'\r'}"
   [[ -n "$real" ]] && PWSH="$real"
@@ -83,18 +77,15 @@ else
   printf 'NOTE: pwsh is not on PATH; the pwsh stub cases did not run.\n'
 fi
 
-# node-notice: the SessionStart mode that must work with node absent. The stub PATH
-# carries the coreutils the sh stub calls and no node.
 TOOLS="$WORK/tools-path"
 mkdir -p "$TOOLS" "$WORK/tmp" "$WORK/tmp-ps"
 for t in sed tr find mkdir cat rm; do ln -s "$(command -v "$t")" "$TOOLS/$t"; done
-notice_sh() { # <session-json> <args...>
+notice_sh() {
   local payload="$1"
   shift
   printf '%s' "$payload" | PATH="$TOOLS" TMPDIR="$WORK/tmp" "$SH" "$LIB/prerequisites.sh" node-notice "$@"
 }
-notice_shape() { # reads a notice on stdin; prints ok when it is exactly the user-channel line for <plugin>
-  # Only the user can install node; a model copy would only relay "tell the user".
+notice_shape() {
   node -e 'const j=JSON.parse(require("fs").readFileSync(0,"utf8"));const p=process.argv[1];const want=p+": node is not on PATH, so hooks that launch through node (this plugin'"'"'s and others'"'"') do not run. Install Node.js (https://nodejs.org/en/download), restart Claude Code, then run /"+p+":check.";process.stdout.write(Object.keys(j).join()==="systemMessage"&&j.systemMessage===want?"ok":"bad")' "$1"
 }
 s1='{"session_id":"sess-1","hook_event_name":"SessionStart"}'
@@ -136,8 +127,6 @@ if [[ -n "$a" && -n "$b" ]]; then
 else
   fail "sh node-notice: no session id gave a=$a b=$b"
 fi
-# Run from a plugin's lib/, the notice names that plugin, the one whose hook printed it; a check
-# skill of another plugin is named with the condition under which it can run.
 CARRIER="$WORK/carrier"
 mkdir -p "$CARRIER/lib" "$CARRIER/.claude-plugin"
 cp "$LIB/prerequisites.sh" "$LIB/prerequisites.ps1" "$CARRIER/lib/"
@@ -157,7 +146,7 @@ else
 fi
 
 if [[ -n "${PWSH:-}" ]]; then
-  notice_ps() { # <session-json> <args...>
+  notice_ps() {
     local payload="$1"
     shift
     printf '%s' "$payload" | PATH="$EMPTY" TMPDIR="$WORK/tmp-ps" "$PWSH" -NoProfile -NonInteractive -File "$LIB/prerequisites.ps1" node-notice "$@"

@@ -110,9 +110,6 @@ describe("expandVisualGaps", () => {
   });
 
   it("treats both window boundaries as covered and one second outside as a gap", () => {
-    // The filter is `ts >= startSec && ts <= endSec`, so a frame landing exactly
-    // on either edge closes the window. Minute rows parse as whole minutes, so
-    // the windows here are minute-aligned to let a frame sit on each edge.
     const covering = expandVisualGaps(
       seedSlice(
         [

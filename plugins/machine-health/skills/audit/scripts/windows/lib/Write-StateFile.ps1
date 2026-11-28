@@ -100,7 +100,6 @@ function Write-StateFile {
         }
     }
 
-    # The destination appeared after the existence test: apply the change to it instead.
     try {
         $newText = & $Update (& $readCurrent)
     } catch {

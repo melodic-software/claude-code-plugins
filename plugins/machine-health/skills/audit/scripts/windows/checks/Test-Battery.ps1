@@ -40,8 +40,6 @@ function Get-CapacityFromBatteryReport {
         return $null
     }
 
-    # Match "<number> mWh" values, not the English labels (translated on localized Windows):
-    # design capacity comes first, then full charge; comma or dot thousands separators.
     $mwhMatches = [regex]::Matches($html, '([\d][\d.,]*)\s*mWh', 'IgnoreCase')
     if ($mwhMatches.Count -lt 2) {
         Write-Verbose "Get-CapacityFromBatteryReport: expected at least 2 mWh values, found $($mwhMatches.Count)."
@@ -79,8 +77,6 @@ $CheckBody = {
                 if ($reportDir -and -not (Test-Path -LiteralPath $reportDir)) {
                     New-Item -ItemType Directory -Path $reportDir -Force | Out-Null
                 }
-                # Only generate when the file doesn't already exist (tests
-                # seed the HTML directly to avoid running powercfg).
                 if (-not (Test-Path -LiteralPath $ReportPath)) {
                     $null = powercfg /batteryreport /output "$ReportPath" /duration 30 2>&1
                 }

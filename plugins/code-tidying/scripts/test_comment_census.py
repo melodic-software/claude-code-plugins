@@ -60,7 +60,6 @@ def _clear_readonly(func, path, _error):  # noqa: ANN001 - shutil callback signa
 
 
 def rmtree_force(path: Path) -> None:
-    # `onerror` is deprecated from 3.12 and `onexc` does not exist before it; the repo floor is 3.10.
     if sys.version_info >= (3, 12):
         shutil.rmtree(path, onexc=_clear_readonly)
     else:
@@ -239,8 +238,6 @@ class SccArgv(unittest.TestCase):
         shim_dir = tmp / "bin"
         shim_dir.mkdir()
         if sys.platform == "win32":
-            # Windows cannot execute a shebang script: put a .cmd wrapper on
-            # PATH that runs the current interpreter on the recording script.
             recorder = shim_dir / "scc_recorder.py"
             recorder.write_text(FAKE_SCC)
             (shim_dir / "scc.cmd").write_text(
@@ -406,8 +403,6 @@ class Degradation(unittest.TestCase):
 
     @unittest.skipUnless(pygments_present(), "pygments not installed")
     def test_tracked_subdirectory_target_lists_its_files(self):
-        # `git ls-files -- <dir>` run from inside <dir> looks for <dir>/<dir> and
-        # matches nothing, so a directory target would census zero files.
         tmp = Path(tempfile.mkdtemp())
         self.addCleanup(rmtree_force, tmp)
         env = git_env()
@@ -438,7 +433,7 @@ class Degradation(unittest.TestCase):
 
 UNION = (
     "cs ts tsx mts cts js jsx mjs cjs py pyi sh bash ps1 psm1 go rs java rb lua "
-    "sql c h cpp hpp yaml yml toml"
+    "sql c h cpp hpp yaml yml toml awk css scss html htm xml jsonc psd1 kt cc"
 ).split()
 
 
@@ -461,6 +456,41 @@ class SharedExtensionList(unittest.TestCase):
         census = load_census()
         found = census.tracked_files([tmp])
         self.assertEqual(sorted(p.name for p in found), sorted(f"f.{e}" for e in UNION))
+
+    def test_dotfile_upper_case_and_shebang_scripts_are_selected(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(rmtree_force, tmp)
+        files = {
+            ".editorconfig": "root = true\n",
+            "UPPER.CSS": "a { }\n",
+            "tool": "#!/usr/bin/env bash\n",
+            "run": "#!/usr/bin/env -S node --no-warnings\n",
+            "gen": "#!/usr/bin/python3\n",
+            "dsh": "#!/bin/dash\n",
+            "old": "#!/usr/bin/perl\n",
+            "NOTES": "x\n",
+            "tool.bak": "#!/bin/sh\n",
+        }
+        for name, text in files.items():
+            (tmp / name).write_text(text)
+        found = load_census().tracked_files([tmp])
+        self.assertEqual(sorted(p.name for p in found), [".editorconfig", "UPPER.CSS", "dsh", "gen", "run", "tool"])
+
+    @unittest.skipUnless(pygments_present(), "pygments not installed")
+    def test_a_shebang_script_is_counted_with_its_interpreters_lexer(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(rmtree_force, tmp)
+        census = load_census()
+        cases = {
+            "tool": ("#!/bin/sh\nx=1 # a\n[[ $x =~ ^(#|a) ]]\n", "Bash", 1),
+            "run": ("#!/usr/bin/env node\nconst r = (p) => /a\\/b/.test(p); // a\n", "JavaScript", 1),
+            "gen": ("#!/usr/bin/env python3\nx = 1  # a\n", "Python", 1),
+        }
+        for name, (text, language, comments) in cases.items():
+            with self.subTest(name=name):
+                (tmp / name).write_text(text)
+                counts = census.pygments_counts(tmp / name)
+                self.assertEqual((counts["language"], counts["comment_lines"]), (language, comments))
 
     def test_missing_extension_list_exits_4_naming_its_path(self):
         lone = Path(tempfile.mkdtemp())

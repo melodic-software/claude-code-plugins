@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Self-contained tests for user-scope.sh: every fixture root lives under a
-# mktemp directory, with HOME and CLAUDE_CONFIG_DIR pointed there, so the real
-# ~/.claude is never read.
 set -uo pipefail
 
 export LC_ALL=C
@@ -11,9 +8,6 @@ US="$SCRIPT_DIR/user-scope.sh"
 DETECT="$SCRIPT_DIR/detect.sh"
 RAW_TMPDIR="$(mktemp -d)" || { echo "mktemp failed" >&2; exit 2; }
 [[ -n "$RAW_TMPDIR" && -d "$RAW_TMPDIR" ]] || { echo "mktemp gave no directory: $RAW_TMPDIR" >&2; exit 2; }
-# The script prints Windows form under MSYS (`pwd -W`), plain pwd elsewhere;
-# expected paths are built the same way. The result is checked again before
-# the trap is armed and before any fixture is written.
 TEST_TMPDIR="$(cd -P "$RAW_TMPDIR" && { pwd -W 2>/dev/null || pwd; })"
 [[ -n "$TEST_TMPDIR" && -d "$TEST_TMPDIR" ]] || { echo "cannot canonicalize $RAW_TMPDIR" >&2; exit 2; }
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
@@ -24,13 +18,11 @@ mkdir -p "$HOME/.claude" "$CLAUDE_PROJECT_DIR"
 
 # shellcheck source=lib/test-helpers.sh
 source "$SCRIPT_DIR/lib/test-helpers.sh"
-# PASS + FAIL + SKIP when every case runs; see detect.test.sh for the contract.
 EXPECTED_CASES=62
 
 assert_eq() {
   if [[ "$2" == "$3" ]]; then pass "$1"; else fail "$1" "$3" "$2"; fi
 }
-# assert_line <name> <text> <line>: the text holds that exact line.
 assert_line() {
   if grep -qxF -- "$3" <<<"$2"; then pass "$1"; else fail "$1" "line: $3" "$2"; fi
 }
@@ -42,8 +34,6 @@ mkfile() {
   mkdir -p "$(dirname "$1")"
   printf 'text\n' >"$1"
 }
-
-# --- fixture root ----------------------------------------------------------------
 
 F="$TEST_TMPDIR/cfg"
 listed=(
@@ -80,8 +70,6 @@ mkfile "$HOME/.claude/CLAUDE.md"
 
 expected="$(for f in "${listed[@]}"; do printf '%s\n' "$F/$f"; done | sort)"
 
-# --- default listing -------------------------------------------------------------
-
 out="$(CLAUDE_CONFIG_DIR="$F" bash "$US" 2>"$TEST_TMPDIR/err")"
 rc=$?
 assert_exit "default: exit 0" 0 "$rc"
@@ -96,8 +84,6 @@ assert_no_line "default: leaves out a directory named y.md" "$out" "$F/rules/y.m
 assert_no_line "default: leaves out auto memory" "$out" "$F/${memory[0]}"
 assert_no_line "default: leaves out agent memory" "$out" "$F/${memory[2]}"
 assert_no_line "default: CLAUDE_CONFIG_DIR wins over HOME" "$out" "$HOME/.claude/CLAUDE.md"
-
-# --- --memory --------------------------------------------------------------------
 
 out="$(CLAUDE_CONFIG_DIR="$F" bash "$US" --memory 2>/dev/null)"
 rc=$?
@@ -114,8 +100,6 @@ err="$(CLAUDE_CONFIG_DIR="$AM" bash "$US" --memory 2>&1 >/dev/null)"
 assert_contains "memory: a relocated auto memory directory is named on stderr" "$err" "autoMemoryDirectory"
 err="$(CLAUDE_CONFIG_DIR="$AM" bash "$US" 2>&1 >/dev/null)"
 assert_eq "memory: without --memory the relocation is not mentioned" "$err" ""
-
-# --- root resolution -------------------------------------------------------------
 
 out="$(CLAUDE_CONFIG_DIR="" bash "$US" 2>/dev/null)"
 assert_eq "root: an empty CLAUDE_CONFIG_DIR falls back to HOME" "$out" "$HOME/.claude/CLAUDE.md"
@@ -136,16 +120,12 @@ assert_exit "root: an empty root exits 0" 0 "$rc"
 assert_eq "root: an empty root prints nothing" "$out" ""
 assert_contains "root: an empty root notes the root on stderr" "$(cat "$TEST_TMPDIR/err")" "$TEST_TMPDIR/empty"
 
-# --- usage -----------------------------------------------------------------------
-
 CLAUDE_CONFIG_DIR="$F" bash "$US" --bogus >/dev/null 2>&1
 assert_exit "usage: an unknown argument exits 2" 2 "$?"
 out="$(bash "$US" --help 2>&1)"
 rc=$?
 assert_exit "usage: --help exits 0" 0 "$rc"
 assert_contains "usage: --help prints usage" "$out" "user-scope.sh [--memory] [--help]"
-
-# --- non-regular and odd paths ---------------------------------------------------
 
 FF="$TEST_TMPDIR/fifo"
 mkfile "$FF/rules/ok.md"
@@ -179,8 +159,6 @@ if printf 'text\n' >"$TB/rules/a"$'\t'"b.md" 2>/dev/null && [[ -f "$TB/rules/a"$
 else
   skip "tab: a path holding a tab is skipped" "file system refuses a tab in a name"
 fi
-
-# --- symlinks --------------------------------------------------------------------
 
 SL="$TEST_TMPDIR/links"
 link_cases=(
@@ -227,8 +205,6 @@ if command -v timeout >/dev/null 2>&1 && ln -s target "$SL/probe/link" 2>/dev/nu
   assert_contains "${link_cases[7]}" "$err" "skipped symlink: $SL/rules/out.md"
   assert_no_line "${link_cases[8]}" "$out" "$SL/rules/creds.md"
   assert_no_line "${link_cases[9]}" "$out" "$SL/rules/loop.md"
-  # A cleanly named link whose target holds a tab: the target keys a
-  # tab-separated row, so it must be skipped, never split.
   ST="$TEST_TMPDIR/tablink"
   mkfile "$ST/rules/ok.md"
   if printf 'text\n' >"$ST/rules/real"$'\t'"name.md" 2>/dev/null; then
@@ -244,16 +220,12 @@ else
   for c in "${link_cases[@]}"; do skip "$c" "no ln -s or timeout"; done
 fi
 
-# --- detect.sh consumes the list -------------------------------------------------
-
 CLAUDE_CONFIG_DIR="$F" bash "$US" >"$TEST_TMPDIR/list.txt" 2>/dev/null
 bash "$DETECT" --list-targets --paths-file "$TEST_TMPDIR/list.txt" >"$TEST_TMPDIR/targets.tsv" 2>"$TEST_TMPDIR/err"
 rc=$?
 assert_exit "detect: --list-targets --paths-file accepts the list" 0 "$rc"
 assert_eq "detect: one target row per listed file" \
   "$(awk 'NF' "$TEST_TMPDIR/targets.tsv" | wc -l | tr -d ' ')" "${#listed[@]}"
-
-# --- Result ---------------------------------------------------------------------
 
 echo
 TOTAL=$((CASE_NUM + SKIPPED))

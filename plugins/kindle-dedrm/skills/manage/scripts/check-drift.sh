@@ -1,21 +1,10 @@
 #!/usr/bin/env bash
-# check-drift.sh — drift report against captured baselines in reference/.
-# Walks every upstream source listed in reference/sources.md and reports
-# OK / STALE / UNREACHABLE for each. No mutations.
-#
-# Usage: check-drift.sh
-
 set -uo pipefail
 
-# Captured pins — parsed from reference/versions.md (single source of truth;
-# a re-pin edits that file once and this script follows). Parsing is fail-hard:
-# a pin this script cannot read is a pin it must not silently skip verifying.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERSIONS_MD="${SCRIPT_DIR}/../reference/versions.md"
 SOURCES_MD="${SCRIPT_DIR}/../reference/sources.md"
 
-# pin <file> <section-heading> <row-label> — value of `| label | `value` |`
-# within the named "## section", first match wins.
 pin() {
   local file="$1" section="$2" label="$3" value
   value=$(awk -v sec="## ${section}" -v lab="${label}" '
@@ -52,77 +41,8 @@ stale() { echo "  [STALE]   $*"; }
 unreachable() { echo "  [UNREACH] $*"; }
 note() { echo "            $*"; }
 
-# HEAD probe: prints the HTTP status code. An unreachable host prints "000000" (curl's
-# %{http_code} emits its own "000" for a request that never completed and the fallback
-# appends another), so it lands in the callers' catch-all arm; a bare "000" means curl
-# itself is missing and lands in their "000" arm.
 http_status() { curl -sI -o /dev/null -w "%{http_code}" "$1" 2>/dev/null || echo "000"; }
 
-echo "=== kindle-dedrm: drift report ==="
-echo
-echo "Captured baselines from reference/versions.md (see each row's Captured date)."
-echo
-
-# --- Source 1: Kindle for PC installer URL ---
-echo "Kindle for PC installer:"
-HTTP=$(http_status "${PINNED_KFC_URL}")
-case "${HTTP}" in
-200) ok "${PINNED_KFC_URL} → HTTP 200 (URL still serving 2.8.0.70980)" ;;
-403 | 404)
-  unreachable "${PINNED_KFC_URL} → HTTP ${HTTP} (Amazon may have revoked)"
-  note "Find alternate mirror — see reference/sources.md 'How to add a new source'"
-  ;;
-000) unreachable "${PINNED_KFC_URL} → no response (network or DNS issue)" ;;
-*) stale "${PINNED_KFC_URL} → HTTP ${HTTP} (unexpected)" ;;
-esac
-echo
-
-# --- Source 2: DeDRM_tools latest pre-release ---
-echo "DeDRM_tools (Satsuoni fork) latest pre-release:"
-LATEST_TAG=$(gh api repos/Satsuoni/DeDRM_tools/releases --jq '[.[] | select(.prerelease == true)][0].tag_name' 2>/dev/null || echo "")
-if [[ -z "${LATEST_TAG}" ]]; then
-  unreachable "gh api Satsuoni/DeDRM_tools/releases → no response (network, gh auth, or repo gone)"
-elif [[ "${LATEST_TAG}" == "${PINNED_DEDRM_TAG}" ]]; then
-  ok "latest pre-release ${LATEST_TAG} == pinned ${PINNED_DEDRM_TAG}"
-else
-  stale "latest pre-release ${LATEST_TAG} != pinned ${PINNED_DEDRM_TAG}"
-  note "Update reference/versions.md DeDRM section, re-fetch DeDRM_tools.zip, recompute SHA256"
-fi
-echo
-
-# --- Source 3: Kindle_Key_Finder zip — HEAD the pinned direct URL ---
-# The subscriber-gated article body carries no zip link (reference/sources.md). A non-200
-# here means the author revoked or rolled the zip; a subscriber must re-pin by hand.
-echo "Kindle_Key_Finder zip (pinned direct URL — article-body discovery paywalled):"
-KKF_HTTP=$(http_status "${PINNED_KKF_URL}")
-case "${KKF_HTTP}" in
-200) ok "${PINNED_KKF_URL} → HTTP 200 (${PINNED_KKF_FILENAME} still served)" ;;
-403 | 404)
-  stale "${PINNED_KKF_URL} → HTTP ${KKF_HTTP} (revoked or rolled forward)"
-  note "Subscriber must read the current techy-notes article for the new zip URL, then re-pin reference/versions.md + recompute SHA256"
-  ;;
-000) unreachable "${PINNED_KKF_URL} → no response (network or DNS issue)" ;;
-*) stale "${PINNED_KKF_URL} → HTTP ${KKF_HTTP} (unexpected)" ;;
-esac
-echo
-
-# --- Source 4: Tutorial article reachability (informational) ---
-# Subscriber-gated, so only a HEAD probe that the slug resolves. A 404 means the
-# page moved or was unpublished again; re-discover via the site sitemap.
-echo "Tutorial article (techy-notes.com — subscriber-gated):"
-ART_HTTP=$(http_status "${PINNED_TUTORIAL_URL}")
-case "${ART_HTTP}" in
-200) note "${PINNED_TUTORIAL_URL} → HTTP 200 (slug resolves; body paywalled, not diffable)" ;;
-000) unreachable "${PINNED_TUTORIAL_URL} → no response" ;;
-*)
-  stale "${PINNED_TUTORIAL_URL} → HTTP ${ART_HTTP} (article moved again)"
-  note "Re-discover via https://techy-notes.com/sitemap-posts.xml, update reference/sources.md"
-  ;;
-esac
-echo
-
-# --- Source 5: Local download SHAs ---
-echo "Local downloads (verify SHA256 if files present):"
 DL_DIR="${HOME}/Downloads"
 verify_sha() {
   local path="$1" expected="$2" label="$3" actual
@@ -139,6 +59,63 @@ verify_sha() {
     note "  actual:   ${actual}"
   fi
 }
+
+echo "=== kindle-dedrm: drift report ==="
+echo
+echo "Captured baselines from reference/versions.md (see each row's Captured date)."
+echo
+
+echo "Kindle for PC installer:"
+HTTP=$(http_status "${PINNED_KFC_URL}")
+case "${HTTP}" in
+200) ok "${PINNED_KFC_URL} → HTTP 200 (URL still serving 2.8.0.70980)" ;;
+403 | 404)
+  unreachable "${PINNED_KFC_URL} → HTTP ${HTTP} (Amazon may have revoked)"
+  note "Find alternate mirror — see reference/sources.md 'How to add a new source'"
+  ;;
+000) unreachable "${PINNED_KFC_URL} → no response (network or DNS issue)" ;;
+*) stale "${PINNED_KFC_URL} → HTTP ${HTTP} (unexpected)" ;;
+esac
+echo
+
+echo "DeDRM_tools (Satsuoni fork) latest pre-release:"
+LATEST_TAG=$(gh api repos/Satsuoni/DeDRM_tools/releases --jq '[.[] | select(.prerelease == true)][0].tag_name' 2>/dev/null || echo "")
+if [[ -z "${LATEST_TAG}" ]]; then
+  unreachable "gh api Satsuoni/DeDRM_tools/releases → no response (network, gh auth, or repo gone)"
+elif [[ "${LATEST_TAG}" == "${PINNED_DEDRM_TAG}" ]]; then
+  ok "latest pre-release ${LATEST_TAG} == pinned ${PINNED_DEDRM_TAG}"
+else
+  stale "latest pre-release ${LATEST_TAG} != pinned ${PINNED_DEDRM_TAG}"
+  note "Update reference/versions.md DeDRM section, re-fetch DeDRM_tools.zip, recompute SHA256"
+fi
+echo
+
+echo "Kindle_Key_Finder zip (pinned direct URL — article-body discovery paywalled):"
+KKF_HTTP=$(http_status "${PINNED_KKF_URL}")
+case "${KKF_HTTP}" in
+200) ok "${PINNED_KKF_URL} → HTTP 200 (${PINNED_KKF_FILENAME} still served)" ;;
+403 | 404)
+  stale "${PINNED_KKF_URL} → HTTP ${KKF_HTTP} (revoked or rolled forward)"
+  note "Subscriber must read the current techy-notes article for the new zip URL, then re-pin reference/versions.md + recompute SHA256"
+  ;;
+000) unreachable "${PINNED_KKF_URL} → no response (network or DNS issue)" ;;
+*) stale "${PINNED_KKF_URL} → HTTP ${KKF_HTTP} (unexpected)" ;;
+esac
+echo
+
+echo "Tutorial article (techy-notes.com — subscriber-gated):"
+ART_HTTP=$(http_status "${PINNED_TUTORIAL_URL}")
+case "${ART_HTTP}" in
+200) note "${PINNED_TUTORIAL_URL} → HTTP 200 (slug resolves; body paywalled, not diffable)" ;;
+000) unreachable "${PINNED_TUTORIAL_URL} → no response" ;;
+*)
+  stale "${PINNED_TUTORIAL_URL} → HTTP ${ART_HTTP} (article moved again)"
+  note "Re-discover via https://techy-notes.com/sitemap-posts.xml, update reference/sources.md"
+  ;;
+esac
+echo
+
+echo "Local downloads (verify SHA256 if files present):"
 verify_sha "${DL_DIR}/$(basename "${PINNED_KFC_URL}")" "${PINNED_KFC_SHA}" "KindleForPC installer"
 KKF_MATCHES=("${DL_DIR}"/Kindle_Key_Finder_*.JH.zip)
 KKF_LOCAL="${KKF_MATCHES[0]}"

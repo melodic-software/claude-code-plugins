@@ -29,7 +29,7 @@ const EXAMPLE = read(
   "../../../docs/conventions/pr-pipeline/examples/claude-code-plugins.yaml",
 );
 const LIVE_VOCABULARY = new URL(
-  "../../standards/github-actions-conventions/vocabulary.json",
+  "../../scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.json",
   import.meta.url,
 );
 const VOCABULARY = JSON.parse(fixture("vocabulary.json"));
@@ -66,14 +66,11 @@ const assertRejected = (fn, code) =>
     assert.equal(error.code, code, error.message);
     return true;
   });
-// valid.yaml with an edit applied to its parsed form.
 const edited = (edit) => {
   const doc = parse(fixture("valid.yaml"));
   edit(doc);
   return stringify(doc);
 };
-
-// Rejection 1
 
 test("rejection 1: a schema-invalid config is rejected", () => {
   assertRejected(() => run(fixture("schema-invalid.yaml")), "invalid-config");
@@ -110,8 +107,6 @@ test("rejection 1: a YAML alias is rejected rather than expanded", () => {
   );
 });
 
-// Rejection 2
-
 test("rejection 2: extends with a value is rejected", () => {
   assertRejected(() => run(fixture("extends.yaml")), "extends");
 });
@@ -124,8 +119,6 @@ test("rejection 2: extends is rejected whatever its value, even one the schema r
     );
   }
 });
-
-// Rejection 3
 
 test("rejection 3: an effect the lane forbids is rejected (mutate-branch in pr-run-checks)", () => {
   assertRejected(
@@ -149,8 +142,6 @@ test("rejection 3: a merge effect outside pr-merge is rejected in a lane the run
   assertRejected(() => run(config), "forbidden-by-lane");
 });
 
-// A skill runs only in the read runner: the schema and the reader each refuse
-// a skill whose effect is not read, in any lane.
 test("a skill with an effect other than read fails the schema and the reader", () => {
   const schemaWithoutRule = structuredClone(SCHEMA);
   schemaWithoutRule.$defs.leaf.allOf = schemaWithoutRule.$defs.leaf.allOf.filter(
@@ -169,8 +160,6 @@ test("a skill with an effect other than read fails the schema and the reader", (
   }
 });
 
-// Rejection 4
-
 test("rejection 4: a lane whose stage differs from lane-rules.json is rejected", () => {
   assertRejected(() => run(fixture("stage-mismatch.yaml")), "lane-stage");
 });
@@ -182,16 +171,12 @@ test("rejection 4: a lane with no lane-rules.json row is rejected", () => {
   );
 });
 
-// Rejection 5
-
 test("rejection 5: a needs entry naming an activity outside the lane is rejected", () => {
   assertRejected(
     () => run(fixture("needs-outside-lane.yaml")),
     "needs-outside-lane",
   );
 });
-
-// Rejection 6
 
 test("rejection 6: an activity name the vocabulary refuses is rejected", () => {
   assertRejected(
@@ -221,8 +206,6 @@ test("rejection 6: a missing or malformed vocabulary is rejected", () => {
     "vocabulary",
   );
 });
-
-// Rejection 7
 
 test("rejection 7: a slot naming an undefined activity is rejected", () => {
   assertRejected(
@@ -258,8 +241,6 @@ test("rejection 7: an activity in two slots of the requested lane cannot be sele
     "undefined-activity",
   );
 });
-
-// Rejection 8
 
 test("rejection 8: an absolute config-path is rejected", () => {
   assertRejected(() => checkConfigPath("/etc/pr-pipeline.yaml"), "config-path");
@@ -308,8 +289,6 @@ test("rejection 8: a relative config-path named pr-pipeline.yaml elsewhere is ac
   assert.equal(checkConfigPath(CONFIG_PATH), undefined);
 });
 
-// Rejection 9
-
 test("rejection 9: an activity named run is rejected", () => {
   assertRejected(() => run(fixture("reserved-run.yaml")), "reserved-name");
 });
@@ -317,9 +296,6 @@ test("rejection 9: an activity named run is rejected", () => {
 test("rejection 9: an activity named report is rejected", () => {
   assertRejected(() => run(fixture("reserved-report.yaml")), "reserved-name");
 });
-
-// Denied paths: the config's own, nothing forced (owner direction
-// 2026-10-24: a trusted path alone holds nothing).
 
 test("no denied path is added when the config sets no merge section", () => {
   assert.deepEqual(
@@ -345,24 +321,15 @@ test("the config's own denied paths resolve once each, with nothing added", () =
   });
 });
 
-// Defaults
-
-// The values the lanes must keep with no limits leaf, as the request for the
-// leaf states them: a 5-hour fallback reset, a 1-hour to 7-day clamp, 5
-// restarts per sweep, 3 limit stops per head and per issue; and no restart
-// after a turn cap, the lane's behavior before the leaf existed.
 const LIMITS = {
   "fallback-reset": 5,
   "reset-clamp-min": 1,
   "reset-clamp-max": 168,
   "restarts-per-run": 5,
-  // Kill-switch re-fires fill the issue lane to two runs per slot (owner decision Q109).
   "refire-queue-per-slot": 2,
   // Budget-stop re-fires fill it to one run per slot: https://github.com/melodic-software/architecture/blob/c3a36f0e86c268cd6a427abd344c69d76c03d654/docs/owner-decisions.md#L237
   "refire-budget-per-slot": 1,
-  // A lane run still queued an hour after it was created is lost, not counted.
   "stale-queued-minutes": 60,
-  // A work-resolve-issue run's sweep waits 15 minutes after the last full sweep.
   "sweep-gap-minutes": 15,
   "readmit-per-run": 20,
   "parent-rescan-per-run": 5,
@@ -371,19 +338,13 @@ const LIMITS = {
   "wip-cap": 60,
   "turn-cap-restarts": 0,
   "stop-retries": 2,
-  // The fix-ci defaults the owner chose (2026-10-18 interview).
   "fix-ci-per-run": 2,
   "fix-ci-restarts": 1,
   "fix-docs-per-run": 2,
-  // The queued cap's pace the owner chose (2026-10-19).
   "admission-factor": 0.8,
-  // The release-point floor the owner chose (2026-10-21 interview).
   "admission-min-per-hour": 1,
-  // work-unblock's stranded re-fire backoff starts at 3 hours for every cause.
   "stranded-backoff-hours": { "no-run": 3, "no-report": 3, "failed-again": 3, "failed-mint": 3, "kill-switch": 3 },
-  // Passed through as set; rate-guard.mjs fills it from the schema's defaults.
   api: {},
-  // The adaptive lane level's bounds and streak (owner decision Q111, 2026-11-10).
   "lane-level": { floor: 2, ceiling: 4, default: 3, "clean-windows": 2, pools: ["lanes-app"], shadow: true, variable: "CLAUDE_LANE_LEVEL", "valid-minutes": 150 },
 };
 
@@ -523,10 +484,6 @@ test("limits: an unknown key, a value that is not an integer, or one out of its 
   }
 });
 
-// The owner-set WIP values: a 2-hour target lead time over a 24-hour window,
-// admissions at 0.8 of merges, a held buffer of 60 with a 24-hour alarm, and
-// no pause date. The resolver passes the leaf through as set; its readers
-// apply these defaults.
 const WIP = {
   "target-lead-time-hours": 2,
   "min-cap": 1,
@@ -655,8 +612,6 @@ test("a slot's applies-when replaces its activity's", () => {
   assert.equal(selected["skip-reason"], "not-applicable-paths");
 });
 
-// Skip reasons
-
 test("enabled false on the lane skips every slot with disabled-by-config", () => {
   const config = edited((doc) => {
     doc.lanes["pr-run-checks"].enabled = false;
@@ -767,11 +722,6 @@ test("with an activity, another slot's undecidable predicate leaves that slot un
   );
 });
 
-// Effect grants (contract-spec.md EffectGrant)
-
-// Owner rule (#7032 amendment): a token with contents: write and
-// pull-requests: write can enqueue a pull request, so only merge holds both;
-// the broker refuses any other such grant.
 test("no effect but merge grants both contents: write and pull-requests: write", () => {
   const both = Object.entries(EFFECT_GRANTS)
     .filter(([, grant]) => grant.contents === "write" && grant["pull-requests"] === "write")
@@ -830,8 +780,6 @@ test("an effect with no grant row fails rather than mint an empty grant", () => 
     "effect-grant",
   );
 });
-
-// resolveGrant: the token broker's entry point, which decides no predicate
 
 const grantOf = (config, options = {}, overrides = {}) =>
   resolveGrant(files(config, overrides), {
@@ -1078,8 +1026,6 @@ test("resolveGrant rejects a non-string lane or activity", () => {
   );
 });
 
-// The changed-paths input
-
 const CODEOWNERS = `# owned and unowned entries
 /plugins/ai-slop/** @owner
 /docs/conventions/pr-pipeline/** @owner
@@ -1175,8 +1121,6 @@ test("an activity with the changed-paths input needs the changed files even with
     ["changedPaths"],
   );
 });
-
-// Composite activities
 
 const COMPOSITE = `version: 2
 activities:
@@ -1490,9 +1434,6 @@ test("selecting a composite key is rejected as undefined-activity", () => {
   );
 });
 
-// prepare
-
-// simplify hands its change on as a patch to apply-simplify, which needs it.
 const withPrepare = (edit) =>
   composite((doc) => {
     doc.activities.simplify.prepare = "merge-base";
@@ -1532,8 +1473,6 @@ test("prepare: review-threads on a skill leaf that hands on a patch and replies 
   assert.equal(runRefine(config, { activity: "simplify", facts: LINT_FACTS }).selected.prepare, "review-threads");
 });
 
-// A read merge-base skill must hand its resolutions on as a patch: the schema
-// requires applied-by.patch of it.
 test("prepare on a read skill leaf with no applied-by.patch is rejected", () => {
   const config = withPrepare((doc) => {
     delete doc.activities.simplify["applied-by"];
@@ -1552,8 +1491,6 @@ test("prepare on a script leaf, or a value other than merge-base, fails the sche
   assertRejected(() => runRefine(otherMode), "invalid-config");
 });
 
-// A read ci-context skill that hands on its patch resolves: the live fix-ci
-// (live-config.test.mjs). Without applied-by.patch its edits would leave nowhere.
 test("prepare: ci-context resolves on a skill that hands on a patch, and fails the schema without one", () => {
   const handsOn = withPrepare((doc) => {
     doc.activities.simplify.prepare = "ci-context";
@@ -1580,8 +1517,6 @@ test("prepare: apply-patch is the one mode a script may set, and it needs effect
   });
   assertRejected(() => runRefine(onSkill), "invalid-config");
 });
-
-// Activity rules (trust root, beside lane-rules.json)
 
 test("an activity rule's forbidden effect rejects the leaf whatever lane it is in", () => {
   const activityRules = {
@@ -1658,7 +1593,7 @@ activities:
     reads-untrusted: false
 lanes:
   pr-unblock:
-    stage: unblock
+    stage: fix
     slots:
       - activity: report-escalation
 `;
@@ -1668,8 +1603,6 @@ lanes:
   );
 });
 
-// Owner shape (#7032 amendment): the model job only pushes, the reply job
-// only posts.
 const feedbackLeaf = (activity, effect) => `version: 2
 activities:
   ${activity}:
@@ -1679,19 +1612,16 @@ activities:
     reads-untrusted: true
 lanes:
   pr-unblock:
-    stage: unblock
+    stage: fix
     slots:
       - activity: ${activity}
 `;
 
-// address-feedback runs on the read runner: it neither pushes nor posts. As a
-// skill, the schema refuses any other effect before its activity rule does.
 for (const [activity, allowed, forbidden, code] of [
   ["address-feedback", "read", ["mutate-branch", "publish-artifact", "mutate-tracker", "merge"], "invalid-config"],
   ["publish-feedback", "publish-artifact", ["mutate-branch", "mutate-tracker", "merge"], "forbidden-by-activity"],
 ]) {
   test(`the shipped activity rules give ${activity} ${allowed} and nothing that ${allowed === "read" ? "pushes or posts" : "pushes"}`, () => {
-    // The live vocabulary: the fixture lacks the verb "publish".
     const live = { vocabulary: JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")) };
     assert.equal(run(feedbackLeaf(activity, allowed), { lane: "pr-unblock", activity }, live).selected.effect, allowed);
     for (const effect of forbidden) {
@@ -1700,9 +1630,7 @@ for (const [activity, allowed, forbidden, code] of [
   });
 }
 
-// Stages
-
-test("the respond stage is gone; pr-unblock has stage unblock", () => {
+test("the unblock stage is gone; pr-unblock has stage fix", () => {
   const lane = (stage) => `version: 2
 activities:
   report-escalation:
@@ -1717,16 +1645,14 @@ lanes:
       - activity: report-escalation
 `;
   assert.equal(
-    run(lane("unblock"), { lane: "pr-unblock" }).lane.stage,
-    "unblock",
+    run(lane("fix"), { lane: "pr-unblock" }).lane.stage,
+    "fix",
   );
   assertRejected(
-    () => run(lane("respond"), { lane: "pr-unblock" }),
+    () => run(lane("unblock"), { lane: "pr-unblock" }),
     "invalid-config",
   );
 });
-
-// The README example
 
 const EXAMPLE_FACTS = {
   event: "synchronize",
@@ -1753,10 +1679,8 @@ function resolveEveryExampleSlot(vocabulary) {
 
 test("the README example validates and resolves for each of its lanes", () => {
   const results = resolveEveryExampleSlot(VOCABULARY);
-  assert.equal(Object.keys(results).length, 17);
-  // The example's models block routes claude to review and leaves the rest
-  // on default-profile standard.
-  assert.deepEqual(results["pr-review / claude"].models, {
+  assert.equal(Object.keys(results).length, 15);
+  assert.deepEqual(results["pr-review-hosted / claude"].models, {
     profile: "review",
     model: "opus",
     effort: null,
@@ -1789,26 +1713,18 @@ test("the README example validates and resolves for each of its lanes", () => {
     "apply-conflict-patch",
   ]);
   assert.equal(
-    results["post-merge-sweep-comments / sweep-comments"]["skip-reason"],
+    results["pr-explain / explain"]["skip-reason"],
     "disabled-by-config",
   );
   assert.equal(results["pr-merge / merge"].grant.contents, "write");
 });
 
-test("integration: the README example resolves against the synced standards vocabulary", {
-  skip: existsSync(LIVE_VOCABULARY)
-    ? false
-    : "the synced .github/standards/github-actions-conventions/vocabulary.json is absent until the standards sync lands",
-}, () => {
+test("integration: the README example resolves against the captured standards vocabulary", () => {
   const results = resolveEveryExampleSlot(
     JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")),
   );
-  assert.equal(Object.keys(results).length, 17);
+  assert.equal(Object.keys(results).length, 15);
 });
-
-// applied-by: a read skill names the script activity that applies each thing
-// it hands on (README.md, Activities). The live vocabulary: the fixture lacks
-// the verb "apply".
 
 const liveVocabulary = () => ({ vocabulary: JSON.parse(readFileSync(LIVE_VOCABULARY, "utf8")) });
 const APPLIED_BY = fixture("invalid-applied-by-missing-needs.yaml").replace(
@@ -1823,8 +1739,6 @@ const appliedByEdit = (edit) => {
   return stringify(doc);
 };
 
-// review-threads also hands on its replies, which the schema requires: the
-// reply job is the only way they reach the pull request.
 test("prepare: a read skill that hands on a patch may set a writing skill's prepare mode; without applied-by.patch it may not", () => {
   for (const prepare of ["review-threads", "dependency-review", "merge-base"]) {
     const handsOn = appliedByEdit((doc) => {
@@ -1837,14 +1751,12 @@ test("prepare: a read skill that hands on a patch may set a writing skill's prep
       doc.activities["fix-ci"].prepare = prepare;
       delete doc.activities["fix-ci"]["applied-by"];
     });
-    // The schema requires applied-by.patch of a read skill in each mode.
     assertRejected(() => unblock(noPatch), "invalid-config");
   }
   const noReplies = appliedByEdit((doc) => {
     doc.activities["fix-ci"].prepare = "review-threads";
   });
   assertRejected(() => unblock(noReplies), "invalid-config");
-  // A read dependency-review skill hands on its verdict too.
   const noVerdict = appliedByEdit((doc) => {
     doc.activities["fix-ci"].prepare = "dependency-review";
   });
@@ -1856,7 +1768,6 @@ test("applied-by: a read skill whose patch an apply-patch script in its lane nee
   assert.equal(Object.hasOwn(unblock(APPLIED_BY, "apply-patch"), "applied-by"), false);
 });
 
-// Each fixture breaks one rule, and the message names that rule.
 const assertAppliedByRejected = (fn, message) =>
   assert.throws(fn, (error) => {
     assert.ok(error instanceof Rejection, `expected a Rejection, got ${error}`);
@@ -1958,8 +1869,6 @@ for (const [key, value] of [
   }
 }
 
-// Only the launcher's no-prepare patch skill stages tidy, so a patch skill
-// with a prepare mode cannot ask for it.
 test("tidy on a read skill that hands on a patch with a prepare mode fails the schema", () => {
   const config = appliedByEdit((doc) => {
     doc.activities["fix-ci"].prepare = "merge-base";
@@ -1994,9 +1903,6 @@ test("changed-paths: a read skill that hands on a patch is not asked to fix inst
   ).selected;
   assert.deepEqual(selected["changed-paths"], ["docs/guide.md"]);
 });
-
-// patch-rules.json: apply-patch's registry, one row per prepare mode
-// (README.md, Patch rules).
 
 const PATCH_RULES = JSON.parse(read("./patch-rules.json"));
 const PATCH_RULES_SCHEMA = JSON.parse(read("./patch-rules.schema.json"));

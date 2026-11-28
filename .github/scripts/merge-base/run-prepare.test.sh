@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Tests for run-prepare.sh with a stand-in prepare.sh that prints what each
-# case names, so every output rule is checked without a merge; prepare.sh's
-# own tests cover the merge.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,8 +25,6 @@ BIN="$TMP/bin"
 mkdir -p "$BIN"
 printf '#!/usr/bin/env bash\nexit 0\n' >"$BIN/resolve-version-bump-conflict.sh"
 
-# run <prepare-output> [env assignments...]: runs the step with a prepare.sh
-# that prints <prepare-output>; sets RC, OUTPUT (GITHUB_OUTPUT) and LOG.
 run() {
   printf '#!/usr/bin/env bash\nprintf %%s %q\n' "$1" >"$BIN/prepare.sh"
   shift

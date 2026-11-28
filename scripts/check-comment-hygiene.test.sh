@@ -1,12 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for scripts/check-comment-hygiene.sh: where it reads the pin and
-# the exclusions, which files it scans, and how it reports, against a fixture
-# repository and a file:// stand-in for the ci-workflows raw content. The
-# stand-in library flags a comment line holding the word BANNED; what the real
-# patterns ban is the ci-workflows suite's business.
-#
-#   bash scripts/check-comment-hygiene.test.sh
-#
 # The cases hold shell source as literal data on purpose.
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -20,8 +12,6 @@ SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 SCRIPT="$SELF_DIR/check-comment-hygiene.sh"
 
 if ! command -v curl >/dev/null 2>&1; then
-  # silent-skip-ok: the script itself exits 2 without curl, which
-  # check-script-contract.test.sh holds; these cases need curl to read file://.
   ok "SKIP every case (curl not installed)"
   test_harness::report
   exit
@@ -39,7 +29,6 @@ action_dir="$tmp/raw/$pin_a/.github/actions/check-comment-markers"
 mkdir -p "$action_dir"
 export CHECK_COMMENT_HYGIENE_RAW_BASE="file://$tmp/raw"
 
-# workflow <sha> <exclude token>: the fixture's pr-require-checks.yml.
 workflow() {
   printf '%s\n' \
     'jobs:' \
@@ -92,7 +81,6 @@ git_test_config "$repo" add -A
 git_test_config "$repo" commit -q -m base
 git_test_config "$repo" branch -q base
 
-# run <env...> -- <args...>: runs the script in the fixture; sets RC, OUT, ERR.
 run() {
   local -a envs=()
   while [[ "$1" != -- ]]; do
@@ -136,7 +124,6 @@ if [[ -L "$repo/src/link.sh" ]]; then
   check "a symlink is not scanned, as git grep skips it in CI" \
     '[[ $RC == 0 && $OUT == *"none of the 1 files"* ]]'
 else
-  # silent-skip-ok: Git Bash's ln -s copies the file, so there is no symlink to skip.
   ok "SKIP the symlink case (ln -s made no symlink here)"
 fi
 rm -f "$repo/src/link.sh"
@@ -147,8 +134,6 @@ ERR="$(cat "$tmp/err")"
 check "CHECK_DATA_ROOT names the tree whose files are read" \
   '[[ $RC == 1 && $ERR == *"src/bad.sh:2:marker:BANNED"* ]]'
 
-# A branch that moves the pin: the pin is read from <pin-rev>, the exclusions
-# from HEAD.
 workflow "$pin_b" ':(exclude)src/bad.sh'
 git_test_config "$repo" commit -q -am "move the pin"
 run -- base src/bad.sh src/bad.py
@@ -165,8 +150,6 @@ run -- base src/bad.py
 check "an exclusion naming a directory removes what lies under it" \
   '[[ $RC == 0 && $OUT == *"none of the 1 files"* ]]'
 
-# The exclude input written before the uses line, and a comment naming the
-# action above the step, still find the step's own exclusions.
 printf '%s\n' \
   'jobs:' \
   '  lint-repo:' \

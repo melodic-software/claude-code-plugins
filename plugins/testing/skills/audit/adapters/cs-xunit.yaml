@@ -1,26 +1,14 @@
-# xUnit, and the default for any C# test file cs-nunit and cs-mstest do not
-# detect, so it also knows their test attributes. The assertion tokens cover
-# FluentAssertions, Shouldly and Verify snapshots; the mock fields cover Moq,
-# NSubstitute and FakeItEasy. cs-nunit and cs-mstest extend this adapter.
-# Schema and YAML subset: scripts/adapter-load.awk.
 id: cs-xunit
 language: cs
 block_model: brace
-# Reqnroll step definitions and the project template's UnitTest1.cs too.
 files: ['*Test.cs', '*Tests.cs', '*StepDefinitions.cs', 'UnitTest*.cs']
-# Any other C# file holding a test attribute, as *Specs.cs or *TestsExtra.cs
-# does. cs-nunit and cs-mstest inherit this and pick theirs by detect.
 claim_by_content:
   files: ['*.cs']
   any_regex:
     - '^[[:space:]]*\[[[:space:]]*(Fact|Theory|Test|TestCase|TestCaseSource|[A-Za-z]*TestMethod)([^A-Za-z0-9_]|$)'
-# Test attributes; the method signature that follows opens the block. A
-# Reqnroll [Then] step is where a scenario asserts, so it is judged as a test;
-# [Given] and [When] steps arrange and act, and are not.
 test_start:
   - '^[[:space:]]*\[[[:space:]]*(Fact|Theory|Test([^A-Za-z0-9_]|$)|TestMethod|TestCase|DataTestMethod)'
   - '^[[:space:]]*\[[[:space:]]*(global::)?(Reqnroll\.)?Then(Attribute)?([^A-Za-z0-9_]|$)'
-# Matched in any attribute of the same stack, before or after the test one.
 test_skip:
   - 'Skip[[:space:]]*='
   - 'Ignore'
@@ -39,32 +27,19 @@ assertion:
     - '[Cc]heck'
     - '[Ee]nsure'
     - '[Vv]alidate'
-    # Microsoft.CodeAnalysis.Testing's analyzer and code-fix test types. The
-    # engine adds }.RunAsync( on their initializer in a file that imports the
-    # harness (cant-fail-scan.awk, BEGIN).
     - 'CSharp(Analyzer|CodeFix|CodeRefactoring|SourceGenerator)Test[[:space:]]*<'
-  # xUnit's *Async assertions return a Task (xUnit2021).
   async:
     - 'Assert[[:space:]]*\.[[:space:]]*[A-Za-z]+Async[[:space:]]*[<(]'
-  # .Should() with no matcher chained, as a whole statement. A literal
-  # condition always passes. typeof, nameof and a type's Name are never null
-  # (Namespace and FullName can be), and comparing
-  # two of them is settled at compile time, and so is Equal, NotEqual or Same
-  # (AreEqual, AreNotEqual or AreSame in NUnit) on two typeof operands; a
-  # runtime GetType() operand is not. cs-nunit inherits these.
   inert:
     - '[^=;]*\.[[:space:]]*Should[[:space:]]*\([[:space:]]*\)[[:space:]]*;$'
     - 'Assert[[:space:]]*\.[[:space:]]*(True[[:space:]]*\([[:space:]]*true|False[[:space:]]*\([[:space:]]*false)[[:space:]]*[,)]'
     - 'Assert[[:space:]]*\.[[:space:]]*NotNull[[:space:]]*\([[:space:]]*(typeof|nameof)[[:space:]]*\([^()]*\)(\.Name)?[[:space:]]*\)'
     - 'Assert[[:space:]]*\.[[:space:]]*(Equal|NotEqual|Same|AreEqual|AreNotEqual|AreSame)[[:space:]]*\([[:space:]]*typeof[[:space:]]*\([^()]*\)[[:space:]]*,[[:space:]]*typeof[[:space:]]*\([^()]*\)[[:space:]]*[,)]'
     - 'Assert[[:space:]]*\.[[:space:]]*(True|False)[[:space:]]*\([[:space:]]*(typeof|nameof)[[:space:]]*\([^()]*\)(\.(Name|FullName|Namespace))?[[:space:]]*(==|!=)[[:space:]]*(typeof|nameof)[[:space:]]*\([^()]*\)(\.(Name|FullName|Namespace))?[[:space:]]*[,)]'
-  # Not null, and a throw of any exception. cs-nunit and cs-mstest inherit these.
   weak:
     - '(Classic)?Assert[[:space:]]*\.[[:space:]]*(NotNull|IsNotNull)[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
     - 'Assert[[:space:]]*\.[[:space:]]*That[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*,[[:space:]]*Is[[:space:]]*\.[[:space:]]*Not[[:space:]]*\.[[:space:]]*Null[[:space:]]*\)'
     - 'Assert[[:space:]]*\.[[:space:]]*ThrowsAny(Async)?[[:space:]]*<[[:space:]]*(System[[:space:]]*\.[[:space:]]*)?Exception[[:space:]]*>[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\)'
-  # One named value is not null, or has a type: on a value the test built with
-  # new, only a throwing constructor fails it. cs-nunit and cs-mstest inherit these.
   exists:
     - '(Classic)?Assert[[:space:]]*\.[[:space:]]*(NotNull|IsNotNull)[[:space:]]*\([[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\)'
     - 'Assert[[:space:]]*\.[[:space:]]*IsType[[:space:]]*<[^<>()]*>[[:space:]]*\([[:space:]]*[A-Za-z_][A-Za-z0-9_]*[[:space:]]*\)'
@@ -92,10 +67,6 @@ mock:
     - '\.DidNotReceive'
     - 'MustHaveHappened'
     - 'MustNotHaveHappened'
-  # Each chain is stripped as a BOUNDED expression, never to end of line, so a
-  # same-line real assertion after the chain survives the strip. Verify and
-  # Received.InOrder allow parentheses three deep, as in It.IsAny<T>() inside
-  # the verified call.
   strip:
     - '\.[[:space:]]*Verify(All|NoOtherCalls|Get|Set|Add|Remove)?(<[^<>]*>)?[[:space:]]*\([^()]*(\([^()]*(\([^()]*\)[^()]*)*\)[^()]*)*\)'
     - 'Received\.InOrder[[:space:]]*\([^()]*(\([^()]*(\([^()]*\)[^()]*)*\)[^()]*)*\)'
@@ -103,14 +74,8 @@ mock:
     - '\.[[:space:]]*DidNotReceive(WithAnyArgs)?[[:space:]]*(\(\))?(\.[A-Za-z_]+[[:space:]]*\([^()]*(\([^()]*\)[^()]*)*\))?'
     - 'MustHaveHappened[A-Za-z]*[[:space:]]*(\([^()]*\))?'
     - 'MustNotHaveHappened[A-Za-z]*[[:space:]]*(\([^()]*\))?'
-# Verify, statement-initial: Moq's mock.Verify( is a mock assertion instead.
 snapshot:
   - '^[[:space:]]*(return[[:space:]]+|await[[:space:]]+)*(Verifier[[:space:]]*\.[[:space:]]*)?Verify(Json|Xml|File)?[[:space:]]*\('
-# FsCheck and CsCheck: the expected value is derived from generated inputs on purpose.
-# cs-nunit and cs-mstest inherit this list. A marker exempts only the test whose
-# body or attribute stack holds it. FsCheck's Check.Quick and QuickCheck forms run a
-# property with no attribute integration, the MSTest route; CsCheck's Sample runs a
-# generator held in a field, whose Gen. line sits outside the test.
 property_markers:
   - '\[[[:space:]]*(FsCheck[[:space:]]*\.[[:space:]]*)?(Xunit[[:space:]]*\.[[:space:]]*)?Property([[:space:]]*[](]|$)'
   - 'Prop[[:space:]]*\.[[:space:]]*ForAll'
@@ -120,6 +85,5 @@ property_markers:
   - '\.[[:space:]]*Sample(Async)?[[:space:]]*\('
 equality:
   call2: [assert.equal, assert.strictEqual, assert.deepEqual, assert.deepStrictEqual, assertEqual, assertEquals, assertAlmostEqual, Assert.Equal, Assert.StrictEqual, Assert.Same, Assert.AreEqual, Assert.AreSame, Assert.Equivalent]
-# C# constants are PascalCase, so an uppercase name says nothing about constness.
 rules_off: [constant-restatement]
 suppress_marker: 'cant-fail-ok:'

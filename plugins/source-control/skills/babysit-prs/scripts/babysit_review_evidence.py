@@ -58,8 +58,6 @@ LANES: dict[str, tuple[str, tuple[str, ...]]] = {
 }
 
 
-# Lane id -> the names of the caller job that calls the lane's reusable
-# workflow: the part of each status job name in LANES before ` / `.
 CALLER_JOBS: dict[str, frozenset[str]] = {
     lane: frozenset(name.split(" / ", 1)[0] for name in jobs)
     for lane, (_, jobs) in LANES.items()
@@ -71,27 +69,6 @@ def lane_of_job(name: Any) -> str:
     return next((lane for lane, (_, jobs) in LANES.items() if name in jobs), "")
 
 
-# What a pull request's own checkout can feed or forge for its own review:
-# its workflows (a pull_request event runs the head's copy of the callers, and
-# a workflow it adds or edits whose token can write posts as
-# github-actions[bot], the reviewed-head marker's author, so it could forge a
-# marker or a `critical-findings:` count; `readonly_workflow` clears the
-# workflows that cannot),
-# Claude Code project config and instruction files at any depth, the criteria the lane skills read from the checkout (REVIEW.md,
-# the standards index, the per-concern review rules in docs/review/, the instruction exception register, the
-# untrusted-content contract, at docs/contracts/ and at the docs/conventions/
-# stubs installed plugin versions still read), the lane's input directory
-# .claude-lane/ (the code lane falls back to a context file there), and
-# .gitattributes, which can hide a hunk from the lane's `git diff`. The callers run every local action
-# from a checkout of main and the reusable runs its composites from its own
-# repository, so the rest of .github/ feeds no review. A pull request that
-# changes any listed path may have changed its own review, so its records
-# prove no review by the default branch's lane; only a main-run review
-# (MAIN_REVIEW_WORKFLOW, `_main_bound`) binds it. plugins/review/ is not listed:
-# the reusable pr-review-cli.yml stages the review plugin from
-# claude-code-plugins' default-branch tip, never the head, and
-# scripts/ci-review-plugin-source.test.sh fails if a caller stops calling it
-# pinned to a SHA or passes it a plugin path.
 LANE_SOURCE_PREFIXES = (
     ".github/workflows/",
     "docs/standards/",
@@ -112,12 +89,6 @@ LANE_SOURCE_NAMES = (
     ".gitattributes",
 )
 
-# The review lanes run again from main for a pull request that changes a lane
-# source: `workflow_run` runs the default branch's copy of this file, never a
-# head's, and it reads the head's diff as data. Each lane's verdict is the
-# artifact `main_review_name` names, keyed on the head's tree, holding
-# `verdict.json`. Only a run's own steps upload its artifacts, so the run
-# record authenticates the name (`_main_review_counted`), as for pr-verify.
 MAIN_REVIEW_WORKFLOW = ".github/workflows/pr-review-main.yml"
 MAIN_REVIEW_PREFIX = "pr-review-main"
 MAIN_REVIEW_SCHEMA = 1
@@ -136,12 +107,7 @@ def main_review_name(lane: str, pr: int, tree: str) -> str:
     return f"{MAIN_REVIEW_PREFIX}-{lane}-{pr}-{tree}"
 
 
-# A changed workflow file `readonly_workflow` may clear: a top-level `.yml`.
-# A `.yaml` stays a lane source, since its stem could repeat a `.yml`'s name
-# (the name rule below).
 WORKFLOW_PATH_RE = re.compile(r"^\.github/workflows/([a-z0-9][a-z0-9_-]*)\.yml$")
-# The review callers stay lane sources whatever their content: the head's copy
-# runs the review itself.
 REVIEW_CALLERS = frozenset(path for path, _ in LANES.values() if path)
 WORKFLOW_KEYS = frozenset(
     {"name", "run-name", "on", "permissions", "env", "defaults", "concurrency", "jobs"}
@@ -169,16 +135,9 @@ JOB_KEYS = frozenset(
         "with",
     }
 )
-# Triggers that run a privileged default-branch copy on another run's behalf,
-# and `workflow_call`: a privileged caller run on the branch would act on the
-# head copy's outputs with its own write token.
 DENIED_TRIGGERS = frozenset({"pull_request_target", "workflow_run", "workflow_call"})
-# Any secret can carry a credential (a GitHub App private key, a PAT) whose
-# token ignores `permissions:`; GITHUB_TOKEN is the job's own token.
 SECRETS_RE = re.compile(r"\bsecrets\b", re.IGNORECASE)
 GITHUB_TOKEN_SECRET_RE = re.compile(r"\bsecrets\.github_token\b", re.IGNORECASE)
-# Raw-text backstops, so a parser difference between PyYAML and GitHub's
-# cannot hide a write grant or a denied trigger.
 WORKFLOW_DENIED_TEXT_RE = re.compile(
     r"id-token|pull_request_target|workflow_run|workflow_call"
     r"|:\s*['\"]?write(?:-all)?['\"]?\s*(?:[,}\]#]|$)",
@@ -194,18 +153,11 @@ RECORD_RE = re.compile(
     rf"scope=(?:(?P<whole>whole)|incremental since=(?P<since>{_SHA}))"
     rf"|skip=no-change through=(?P<through>{_SHA})"
     rf"|skip=(?P<skip>[\w-]+))"
-    # The subscription leg's review (ci-workflows pr-review-cli.yml).
     rf"(?: account=fallback)?$"
 )
 SHA_RE = re.compile(rf"^{_SHA}$")
 HUNK_HEADER_RE = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@")
-# The reconciler re-runs any failed lane run once; attempt 2 binds only when
-# attempt 1 failed on a usage limit: the message's lane-outcome record
-# (ci-workflows docs/lane-outcome.md) has class `rate-limit`, or it carries the
-# review lane's own `failure-class=rate-limit` line (ci-workflows pr-review.yml).
-# The legacy `class=rate-limit` token alone is not read (ADR 0087 slice 3).
 LANE_OUTCOME_MARKER = "lane-outcome "
-# The record's own cap, with room for its whitespace.
 LANE_OUTCOME_MAX = 1224
 RATE_LIMIT_FAILURE_RE = re.compile(r"(?<![\w-])failure-class=rate-limit(?![\w-])")
 
@@ -219,7 +171,9 @@ def record_class(message: str) -> str | None:
         return None
     start = at + len(LANE_OUTCOME_MARKER)
     try:
-        value, _ = json.JSONDecoder().raw_decode(message[start : start + LANE_OUTCOME_MAX])
+        value, _ = json.JSONDecoder().raw_decode(
+            message[start : start + LANE_OUTCOME_MAX]
+        )
     except ValueError:
         return None
     if not isinstance(value, dict) or value.get("v") != 1:
@@ -229,69 +183,29 @@ def record_class(message: str) -> str | None:
 
 
 def _rate_limited(message: str) -> bool:
-    return record_class(message) == "rate-limit" or RATE_LIMIT_FAILURE_RE.search(message) is not None
+    return (
+        record_class(message) == "rate-limit"
+        or RATE_LIMIT_FAILURE_RE.search(message) is not None
+    )
 
 
-# Or on a rejected Claude credential: this lane's publish-review failure line
-# (ci-workflows publish.cjs `fail`) with class `auth`. Like a usage limit,
-# attempt 1 then left no verdict, so a re-run cannot trade one review for
-# another. It binds a re-run but does not start one (GATE_RERUN_CLASSES), since a
-# re-run before the secret is fixed would spend the one allowed attempt. A
-# spent key needs no entry: publish.cjs reports it as `rate-limit`.
 AUTH_FAILURE_RE = re.compile(r"(?P<lane>[\w-]+): failure-class=auth: ")
-# Or when the review's own post hit GitHub's API rate limit: the message opens
-# with this lane's publish-review failure line (ci-workflows publish.cjs `fail`)
-# whose detail, the request error's message, opens with GitHub's primary or
-# secondary rate-limit text
-# (https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api).
-# Any other publish failure stays refused, so a re-run cannot hide one.
 PUBLISH_RATE_LIMIT_RE = re.compile(
     r"(?P<lane>[\w-]+): failure-class=publish-failed: [^(\n]*"
     r"\((?:API rate limit exceeded|You have exceeded a secondary rate limit)\b"
 )
-# Or when the runner isolation or the Claude Code CLI install failed before the
-# review ran: this lane's publish-review failure line (ci-workflows publish.cjs
-# `fail`) with class `install-failed`, which a failed `Isolate the runner` step
-# reports from ci-workflows v0.65.14 (ci-workflows#893). Attempt 1 then left no
-# verdict, often on a slow package mirror, so a re-run trades no review away.
 INSTALL_FAILED = "install-failed"
 INSTALL_FAILURE_RE = re.compile(
     rf"(?P<lane>[\w-]+): failure-class={re.escape(INSTALL_FAILED)}: "
 )
-# Or when the lane job ended before it reported an outcome: this lane's
-# publish-review failure line (ci-workflows publish.cjs `fail`) with class
-# `no-outcome`. A runner loss or a defect in the lane's own outcome step (the
-# 2026-11-01 outage, fixed by ci-workflows#952) both end there, so attempt 2
-# binds only when the lane posted nothing on the head (`_unposted`). It binds a
-# re-run but does not start one (GATE_RERUN_CLASSES): a defect fails every run
-# until its fix ships, and a re-run before then would spend the one attempt.
 NO_OUTCOME = "no-outcome"
-# Or when the review leg reached its time limit (class `timeout`), as every
-# review did while its subscription credential was rejected at a usage limit
-# (run 41626484307). The same unposted proof applies: attempt 1 left no verdict
-# on the head, so attempt 2 is the only review.
 TIMEOUT = "timeout"
 NO_OUTCOME_RE = re.compile(
     rf"(?P<lane>[\w-]+): failure-class="
     rf"(?:{re.escape(NO_OUTCOME)}|{re.escape(TIMEOUT)}): "
 )
-# Or when a kill switch stopped attempt 1 before the review started: the
-# caller's `kill-switch` job succeeded and its `Report the kill switch` step
-# wrote this lane's notice, whose `if` is the negation of the `proceed` output
-# the lane job needs, and attempt 1 has no lane job. Attempt 1 then left no
-# verdict. The step's text comes from the switch values only, and a head that
-# edits a caller to forge it unbinds through `lane_source`. Like `auth`, it
-# binds a re-run but does not start one: the gate cannot read the switch.
-# Or when an outage ended attempt 1 without a result: a run GitHub concluded
-# cancelled, timed out or never started (the lost-run reconciler's `LOST` in
-# .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs). Attempt 1
-# then left no verdict unless its lane already posted on the head
-# (`_lost_unposted`), which leaves the run to a person.
 LOST = "lost"
 LOST_CONCLUSIONS = frozenset({"cancelled", "timed_out", "startup_failure"})
-# The check-kill-switch job's display name, `Check Kill Switch`; `Kill Switch`
-# is its name before that rename, and `kill-switch` a head tested before an
-# earlier rename, or a repository whose job has no display name.
 KILL_SWITCH_JOBS = frozenset({"Kill Switch", "kill-switch", "Check Kill Switch"})
 KILL_SWITCH_NOTICE_RE = {
     "claude-review": re.compile(r"a kill switch stops this review \("),
@@ -299,15 +213,6 @@ KILL_SWITCH_NOTICE_RE = {
         r"a kill switch stops this security review \("
     ),
 }
-# Or when the upstream-status gate stopped attempt 1 before the review
-# started: the caller's `kill-switch` job failed at its `Stop on upstream
-# status` step, which wrote this lane's error while GitHub Actions or npm
-# listed an outage (.github/actions/check-upstream-status), and attempt 1 has
-# no lane job. Attempt 1 then left no verdict. The step's text comes from the
-# status pages only, and a head that edits a caller to forge it unbinds
-# through `lane_source`. The lost-run reconciler re-runs such a run once
-# (reconcile.mjs `upstream`); like the kill switch, the merge gate starts no
-# re-run of its own.
 UPSTREAM_DEGRADED = "upstream-degraded"
 UPSTREAM_STOP_RE = {
     "claude-review": re.compile(r"an upstream outage stops this review \("),
@@ -321,18 +226,11 @@ MARKER_RE = re.compile(
 )
 CLAUDE_APP_LOGINS = frozenset({"claude", "claude[bot]"})
 LANE_TAG_RE = re.compile(r"^\s*`?claude-lane: ([\w-]+)`?\s*$", re.MULTILINE)
-# ci-workflows pr-review-cli.yml posts as github-actions[bot] (REST login;
-# GraphQL drops the suffix). Such a comment is the lane's only when its last
-# non-blank line is that lane's footer and the lane-binding check accepts it
-# (`_actions_verdict`).
 ACTIONS_LOGINS = frozenset({"github-actions", "github-actions[bot]"})
-# Every author a lane comment can have; the caller attaches each one's edit
-# record (babysit_merge._attach_edits).
 LANE_AUTHORS = ACTIONS_LOGINS | CLAUDE_APP_LOGINS
 
 
 def _marker(body: str) -> re.Match[str] | None:
-    """The reviewed-head marker on a body's first line, else None."""
     return MARKER_RE.match(body.split("\n", 1)[0].rstrip("\r"))
 
 
@@ -384,12 +282,6 @@ def _lane_body(login: object, body: str) -> str:
     return lane_binding.without_binding(body) if login in ACTIONS_LOGINS else body
 
 
-# The lane whose findings hold the merge only at its top tier, CRITICAL
-# (/review:security-review, "Reporting"): each inline
-# comment carries one `severity:` line, and the summary one
-# `critical-findings:` line counting its CRITICAL findings with no inline
-# comment. A comment or summary without exactly one readable line counts every
-# finding it holds as CRITICAL.
 SEVERITY_LANE = "claude-security-review"
 SEVERITY_RE = re.compile(
     r"^\s*`?severity: (CRITICAL|IMPORTANT|SUGGESTION)`?\s*$", re.MULTILINE
@@ -398,9 +290,6 @@ SUMMARY_CRITICAL_RE = re.compile(
     r"^\s*`?critical-findings: (\d{1,6})`?\s*$", re.MULTILINE
 )
 MAX_CHAIN = 100
-# How many earlier heads a no-change skip chain may pass through to reach a
-# review (`_skip_target`); ci-status's `carried` in pr-require-checks.yml
-# follows the same cap, so the two gates agree on every chain.
 SKIP_HOPS = 10
 
 
@@ -410,10 +299,10 @@ class _Record:
     findings: int | None = None
     inline: int | None = None
     whole: bool = False
-    since: str | None = None  # incremental review base
-    through: str | None = None  # no-change skip target
-    skip: str | None = None  # any other skip
-    completed: datetime | None = None  # when the lane job that left it completed
+    since: str | None = None
+    through: str | None = None
+    skip: str | None = None
+    completed: datetime | None = None
 
 
 class Unbound(Exception):
@@ -495,9 +384,6 @@ def bind(
                 )
                 for lane in LANES
             )
-        # Thread ids already standing for a recorded finding in some lane.
-        # LANES order matters: claude-review claims first, so a doubtful
-        # untagged thread leaves the count on the security lane.
         claimed: set[str] = set()
         return tuple(
             _bind_lane(
@@ -535,7 +421,6 @@ def needs_main_review(
     if not isinstance(changed_paths, list | tuple):
         return True
     sources = [path for path in changed_paths if lane_source(path)]
-    # Paths first, so no file is read when one source can never clear.
     return not all(_readonly_candidate(path, floor) for path in sources) or not all(
         readonly_workflow(path, head_file, base_sha, floor) for path in sources
     )
@@ -584,10 +469,6 @@ def _main_lane(
 
 
 def _head_stop(lane: str, context: Mapping[str, Any] | None) -> str | None:
-    """The first designed stop pr-review-main's report-review-counts job posted for `lane`
-    on the pinned head (`main_context["head_stops"]`, read from the closed
-    set `babysit_gh.MAIN_REVIEW_STOP_TITLE` matches), or None. It only names
-    why no verdict binds: a stop never binds a lane."""
     found = context.get("head_stops") if isinstance(context, Mapping) else None
     stops = found.get(lane) if isinstance(found, Mapping) else None
     if not isinstance(stops, list | tuple):
@@ -715,8 +596,6 @@ def _main_review_counted(
     done = run.get("status") == "completed" and run.get("conclusion") == "success"
     findings, critical = verdict.get("findings"), verdict.get("critical")
     reviewed = verdict.get("head_sha")
-    # The longest diff line write-verdict.mjs measured: past what the review
-    # reads whole, or not recorded, and the verdict does not count.
     longest = verdict.get("max_line_bytes")
     if not (
         _count(longest)
@@ -744,7 +623,6 @@ def lane_source(path: Any) -> bool:
     own review; a path that is not a string counts as one."""
     if not isinstance(path, str):
         return True
-    # A bare directory path (a symlink in its place) counts as the directory.
     parts = path.split("/")
     return (
         f"{path}/".startswith(LANE_SOURCE_PREFIXES)
@@ -790,8 +668,6 @@ def readonly_workflow(
     return isinstance(text, str) and _readonly_workflow_text(text, stem)
 
 
-# The standards vocabulary's displayWords: this script runs outside the
-# repository that holds it, so a test asserts the two stay equal.
 WORKFLOW_NAME_WORDS = {
     "acl": "ACL",
     "api": "API",
@@ -906,7 +782,6 @@ def _yaml_mapping(node: Any, yaml: Any) -> dict[str, Any] | None:
 
 def _check_yaml_tree(node: Any, yaml: Any) -> None:
     if isinstance(node, yaml.ScalarNode):
-        # A double-quoted escape can spell `secrets` the raw text hides.
         if _mentions_secrets(str(node.value)):
             raise ValueError("secrets")
         return
@@ -918,8 +793,6 @@ def _check_yaml_tree(node: Any, yaml: Any) -> None:
         raise ValueError("node")
     seen: set[str] = set()
     for key, value in node.value:
-        # GitHub reads every key as a string: PyYAML's YAML 1.1 bool tag on
-        # a plain `on` does not matter, and the parse refused explicit tags.
         if not isinstance(key, yaml.ScalarNode):
             raise ValueError("key")
         folded = str(key.value).casefold()
@@ -1028,10 +901,6 @@ def _carried_blocking(
     is_human: Callable[[Any], bool],
     head_file: Callable[[str, str], str | None] | None,
 ) -> int | None:
-    """The security lane's blocking findings at the newest head of this pull
-    request its evidence binds at, the pinned head first, judged as at that
-    head against the threads and comments read now; None when none binds.
-    It reads only what the caller already read."""
     try:
         lane_runs = _lane_runs(SEVERITY_LANE, runs)
         ordered = sorted(lane_runs, key=_run_order, reverse=True)
@@ -1085,8 +954,6 @@ def _lane_runs(lane: str, runs: Sequence[Mapping[str, Any]]) -> list[Mapping[str
     return selected
 
 
-# Whether a lane posted on a head between two times (`lane_posted`, bound to
-# the pull request's comments and threads by `_poster`).
 Poster = Callable[[str, str, Any, Any], bool]
 
 
@@ -1097,16 +964,6 @@ def _resolve(
     posted: Poster,
     after: datetime | None = None,
 ) -> tuple[str, list[_Record]]:
-    """Require a bound run at `head` whose record leads back to a whole review,
-    and return the head of the review that covers `head` with the chain of
-    review records that covers it, newest first, back to the whole review.
-
-    A no-change skip binds to the review it names, following further
-    no-change skips back to it (`_skip_target`); an incremental
-    review needs every earlier link bound, back to a whole review. Each link
-    is the newest run's latest attempt at its head (`_bound_record`), created
-    after `after` when it is set.
-    """
     rec = _bound_record(lane, head, lane_runs, posted, after)
     seen = {head}
     if rec.skip is not None:
@@ -1135,11 +992,6 @@ def _skip_target(
     posted: Poster,
     after: datetime | None = None,
 ) -> _Record:
-    """The review a no-change skip carries forward: its `through` head, and
-    on through each further no-change skip (one per push that changed no file
-    of the pull request, such as a clean base merge) to the first head the
-    lane reviewed, at most `SKIP_HOPS` heads back. A head whose content
-    changed has its own review record, so the chain stops there."""
     for _ in range(SKIP_HOPS):
         rec = _link(lane, sha, lane_runs, seen, posted, after)
         if rec.skip is not None:
@@ -1158,9 +1010,6 @@ def _link(
     posted: Poster,
     after: datetime | None = None,
 ) -> _Record:
-    """An earlier head in the chain; any failure to bind it is a gap, but
-    for a review from before the newest retarget, which a whole review of
-    the head clears."""
     if sha in seen:
         raise Unbound("incremental-gap")
     seen.add(sha)
@@ -1210,7 +1059,6 @@ def _bound_record(
     if latest is None:
         raise Unbound("evidence-missing")
     if max(attempts) != latest_n:
-        # The listing predates a re-run the attempts already show.
         raise Unbound("evidence-error")
     if (
         latest.get("status") != "completed"
@@ -1288,20 +1136,12 @@ def _lane_line(pattern: re.Pattern[str], lane: str, message: str) -> bool:
     return found is not None and found["lane"] == lane
 
 
-# The failure classes of a failed attempt 1 after which attempt 2 binds
-# (`rerun_binds`), each with its test of one failure annotation's message.
-# `NO_OUTCOME` binds too, but only after the posted check, so it is not here.
 RERUN_CLASSES: dict[str, Callable[[str, str], bool]] = {
     "rate-limit": lambda lane, m: _rate_limited(m),
     "publish-rate-limit": lambda lane, m: _lane_line(PUBLISH_RATE_LIMIT_RE, lane, m),
     "auth": lambda lane, m: _lane_line(AUTH_FAILURE_RE, lane, m),
     INSTALL_FAILED: lambda lane, m: _lane_line(INSTALL_FAILURE_RE, lane, m),
 }
-# The ones the merge gate re-runs itself (babysit_merge
-# `rerun_rate_limited_review`): those failure classes, and `LOST`, which a
-# run's conclusion names rather than an annotation. A rejected credential and
-# `NO_OUTCOME` are left to a person: a re-run before the secret or the lane is
-# fixed would spend the one allowed attempt.
 GATE_RERUN_CLASSES = frozenset(
     {"rate-limit", "publish-rate-limit", INSTALL_FAILED, LOST}
 )
@@ -1558,7 +1398,6 @@ def _poster(comments: Any, threads: Any) -> Poster:
 
 
 def _kill_switch_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
-    """Whether a kill switch stopped this attempt before its lane job existed."""
     return _gate_stopped(
         lane, run_id, attempt, "success", "notice", KILL_SWITCH_NOTICE_RE
     )
@@ -1571,10 +1410,6 @@ LEG_RATE_REFUSAL_RE = re.compile(
 
 
 def _rate_held(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
-    """Whether a leg's hold on a GitHub API rate limit kept this attempt from
-    reviewing: its lane job holds no completion record and its `held:` notice
-    for this head, and another job of the attempt (the leg, whose annotations
-    babysit_gh reads) shows the hold beside such a refusal."""
     jobs = attempt.get("jobs")
     if not isinstance(jobs, list | tuple) or not _has_lane_job(lane, jobs):
         return False
@@ -1603,8 +1438,6 @@ def _rate_held(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
 
 
 def _upstream_stopped(lane: str, run_id: int, attempt: Mapping[str, Any]) -> bool:
-    """Whether the upstream-status gate stopped this attempt before its lane
-    job existed (`UPSTREAM_DEGRADED`)."""
     return _gate_stopped(lane, run_id, attempt, "failure", "failure", UPSTREAM_STOP_RE)
 
 
@@ -1616,8 +1449,6 @@ def _gate_stopped(
     level: str,
     patterns: Mapping[str, re.Pattern[str]],
 ) -> bool:
-    """Whether the caller's one `kill-switch` job, ended `conclusion`, wrote
-    this lane's `patterns` annotation at `level` while no lane job exists."""
     jobs = attempt.get("jobs")
     if not isinstance(jobs, list | tuple) or not all(
         isinstance(job, Mapping) for job in jobs
@@ -1644,7 +1475,6 @@ def _gate_stopped(
 
 
 def _record(lane: str, sha: str, job: Mapping[str, Any]) -> _Record | None:
-    """The job's one completion record for `sha`, None when it left none."""
     found = [
         a
         for a in job["annotations"]
@@ -1677,10 +1507,6 @@ def _require_marker(
     comments: Sequence[Mapping[str, Any]],
     newest_only: bool = True,
 ) -> str:
-    """The newest reviewed-head marker the lane job wrote must name `head`;
-    its body, which carries the covering review's summary. With
-    `newest_only` False, the newest marker naming `head` will do, for a
-    review a newer marker has passed."""
     if not isinstance(comments, list | tuple):
         raise Unbound("evidence-error")
     newest: tuple[str, int, str, str] | None = None
@@ -1690,8 +1516,6 @@ def _require_marker(
         user = comment.get("user")
         if not isinstance(user, Mapping) or user.get("login") != MARKER_AUTHOR:
             continue
-        # Before the body is read: an edit could change the line that makes
-        # it a marker.
         if _edited_by_another(user, comment.get("edit")):
             raise Unbound("comment-edited")
         match = _marker(str(comment.get("body") or ""))
@@ -1713,9 +1537,6 @@ def _require_marker(
 def _summary_comments(
     lane: str, comments: Sequence[Mapping[str, Any]]
 ) -> list[tuple[datetime | None, str]]:
-    """Each lane comment of `lane` (`_lane_comment`) but a reviewed-head
-    marker, which the caller reads already, with its creation time: the
-    summary comments a lane producer posted."""
     found = []
     for comment in comments:
         user = comment.get("user")
@@ -1725,13 +1546,10 @@ def _summary_comments(
         created = _time(comment.get("created_at"))
         if MARKER_RE.match(body.split("\n", 1)[0]):
             continue
-        # A REST comment always carries the bot's suffixed login and type.
         if user.get("login") in ACTIONS_LOGINS and (
             user.get("login") != MARKER_AUTHOR or user.get("type") != "Bot"
         ):
             continue
-        # Before the body is read: an edit could drop the footer that makes
-        # it the lane's.
         if user.get("login") in LANE_AUTHORS and _edited_by_another(
             user, comment.get("edit")
         ):
@@ -1885,29 +1703,15 @@ def _open_findings(
     span: tuple[datetime | None, datetime | None] | None = None
     windows: list[tuple[datetime | None, datetime | None, int]] = []
     window_trees: list[str] = []
-    # When the first review at `reviewed` started; unknown keeps every
-    # thread's human test.
     first: datetime | None = None
-    # Per reviewed head sha, its tree: findings are keyed on the tree, so a
-    # new commit with the same tree (an empty one) re-rolls no review.
     trees: dict[str, str] = {}
-    # Per tree, the most findings and the most summary findings any completed
-    # review of it, whole or incremental, reported.
     head_max: dict[str, int] = {}
     summary_max: dict[str, int] = {}
-    # Per tree, how many reviews of it reported a summary finding, and the
-    # (head sha, job started, job completed, summary findings) of the last.
     summary_reviews: dict[str, int] = {}
     reporter: dict[str, tuple[str, datetime | None, datetime | None, int]] = {}
     spent: set[str] = set()
     for item in lane_runs:
         for attempt in _attempts(item).values():
-            # A draft-skipped, kill-switched or upstream-stopped run reviewed
-            # nothing, nor did a lost one that never reached its lane job, nor
-            # a successful one whose caller job was skipped: that job never
-            # ran, so the attempt has no record (Wait For Refine skips it when the
-            # head moved while it waited). At the pinned head such a run still
-            # unbinds (`_bound_record`).
             if (
                 attempt.get("status") != "completed"
                 or attempt.get("conclusion") == "skipped"
@@ -1951,18 +1755,14 @@ def _open_findings(
                 first = started
     if any(rec.sha not in trees for rec in chain):
         raise Unbound("tree-unread")
-    # The chain's trees, the covering review's first; links that share one
-    # count once.
     chain_trees = list(dict.fromkeys(trees[rec.sha] for rec in chain))
     head_spent = chain_trees[0] in spent
     summary = sum(summary_max.get(tree, 0) for tree in chain_trees)
     cleared = not any(head_max.get(tree) for tree in chain_trees)
-    # The covering review read only threads opened before its job completed.
     read_through = chain[0].completed
     if not isinstance(threads, list | tuple):
         raise Unbound("evidence-error")
     covered = [0] * len(windows)
-    # Open threads: unresolved ones, and resolved ones nothing closed.
     unresolved = held = critical = 0
     for thread in threads:
         if not isinstance(thread, Mapping):
@@ -1991,7 +1791,6 @@ def _open_findings(
             held += 1
         else:
             continue
-        # `_lane_thread` read the first comment's author as a mapping.
         first_comment = thread["comments"][0]
         severities = SEVERITY_RE.findall(
             _lane_body(
@@ -2001,16 +1800,12 @@ def _open_findings(
         )
         if len(severities) != 1 or severities[0] == "CRITICAL":
             critical += 1
-    # Inline findings with no thread left, counted like summary findings:
-    # per chain tree, the most any review of it left.
     gone = [max(k - n, 0) for (_, _, k), n in zip(windows, covered)]
     missing = sum(
         max((g for g, at in zip(gone, window_trees) if at == tree), default=0)
         for tree in chain_trees
     )
     count = summary + unresolved + held + missing
-    # The covering review's summary findings, when it was the head's only
-    # summary count and its line reads no more than it reported.
     own = chain[0].findings - chain[0].inline  # type: ignore[operator]
     start, end = span or (None, None)
     lines = [
@@ -2103,7 +1898,6 @@ def _line_changed(
                 if start <= number:
                     flagged.append(row[1:])
                 number += 1
-        # The hunk must end on the range's last line and hold all of it.
         if number - 1 != end or len(flagged) != end - start + 1:
             return False
         flagged = [line for line in flagged if line.strip()]
@@ -2149,7 +1943,6 @@ def _bare_login(login: Any) -> str | None:
 
 
 def _time(value: Any) -> datetime | None:
-    """An aware timestamp, or None when absent or unreadable."""
     if not isinstance(value, str):
         return None
     try:
@@ -2174,8 +1967,6 @@ def _lane_thread(lane: str, thread: Mapping[str, Any], posted: bool = False) -> 
     author = first.get("author")
     if not isinstance(author, Mapping) or author.get("__typename") != "Bot":
         return False
-    # Before the body is read: an edit could drop the footer that makes it
-    # the lane's.
     if author.get("login") in LANE_AUTHORS and _edited_by_another(author, first):
         raise Unbound("comment-edited")
     return _lane_comment(

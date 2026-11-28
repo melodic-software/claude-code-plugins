@@ -13,8 +13,6 @@ const budgeted = ({ fail = () => {}, ...options }) =>
     ...options,
   });
 
-// GitHub's answers: a 200 with an ETag, then 304 for a request that names it
-// (docs.github.com rest/using-the-rest-api/best-practices-for-using-the-rest-api#use-conditional-requests).
 function github(responses) {
   const sent = [];
   const fetch = async (url, init) => {
@@ -66,9 +64,6 @@ test("a POST is never conditional, and GraphQL calls are counted apart", async (
   );
 });
 
-// A rate-limited call waits, then is sent once more: retry-after seconds when
-// present, else until x-ratelimit-reset when remaining is 0, else one minute
-// (docs.github.com rest/using-the-rest-api/best-practices-for-using-the-rest-api#handle-rate-limit-errors-appropriately).
 const RESET = 1792378942;
 const limited = (overrides = {}) => ({
   status: 403,
@@ -190,8 +185,6 @@ test("a secondary limit with no retry-after waits one minute", async () => {
   assert.deepEqual(time.slept, [61_000]);
 });
 
-// The only guessed stop short enough to wait out is the documented minute; a
-// primary limit with no time is guessed at an hour, past the cap.
 test("a primary limit with no reset header, a guessed hour, is not waited on or resent", async () => {
   const gh = github([{ status: 403, body: '{"message":"API rate limit exceeded for installation."}', headers: {} }]);
   const time = clock(RESET - 3000);
@@ -342,11 +335,6 @@ test("a GraphQL query answered 502 is sent again; a GraphQL mutation answered 50
   }
 });
 
-// A document can hold several operations and the request picks one by
-// operationName (https://spec.graphql.org/October2021/#sec-Executing-Requests),
-// so a document that starts with a query can still run a mutation. A mutation
-// is never resent: one that names any mutation or subscription, or any request
-// that names an operation, is sent once.
 test("a document that starts with a query but holds a mutation, or names an operation, answered 502 is returned at once", async () => {
   const arm = "query Read { viewer { login } }\nmutation Arm($id: ID!) { enablePullRequestAutoMerge(input: { pullRequestId: $id }) { clientMutationId } }";
   const bodies = [

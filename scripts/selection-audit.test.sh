@@ -1,16 +1,8 @@
 #!/usr/bin/env bash
-# Tests for scripts/selection-audit.sh: the strace read parser, the trace audit
-# end to end against a stub selector and a stub pr-require-checks.yml fallback (a suite that
-# reads a file the selector does not map to it is a gap, and so is an unmapped
-# read by a suite the fallback does not run; a mapped, a fallback-run, an
-# unchecked and an untracked read are not), the replay verdicts including
-# selector errors, and usage errors. The trace case needs strace, as
-# the audit does, so it fails rather than skips where strace is missing.
+# test-scope: plugins/code-tidying/scripts/change-shape.py plugins/code-tidying/skills/remove-comments/scripts/change-shape.sh
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
-# On a runner the audit would wrap its gh calls and record into the job's
-# RUNNER_TEMP; the stubs here answer the unwrapped calls.
 unset RUNNER_TEMP
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -28,8 +20,6 @@ git_repo() {
     git -C "$1" config commit.gpgsign false
 }
 
-# ci_fallback <repo> <suite>...: a pr-require-checks.yml whose UNMAPPED branch calls
-# run-plugin-tests.sh, and a run-plugin-tests.sh whose --list is the suites given.
 ci_fallback() {
   local repo="$1"
   shift
@@ -43,7 +33,6 @@ ci_fallback() {
     >"$repo/scripts/run-plugin-tests.sh"
 }
 
-# --- reads: the parser -------------------------------------------------------
 repo="$TMP_ROOT/repo"
 mkdir -p "$repo" "$TMP_ROOT/repo2"
 real="$(cd "$repo" && pwd -P)"
@@ -65,7 +54,6 @@ else
   fail "reads: got [$got] want [$want]"
 fi
 
-# --- trace: end to end against a stub selector ---------------------------------
 if ! strace -qq -o /dev/null -e trace=openat true >/dev/null 2>&1; then
   fail "strace is missing or cannot trace here; the trace audit cannot be exercised"
 else
@@ -77,12 +65,10 @@ else
   echo named >"$t/data/named.txt"
   echo odd >"$t/data/unmapped.txt"
   echo broken >"$t/data/broken.txt"
-  # The root toolchain files every suite reads are no gap.
   echo '{}' >"$t/package.json"
   echo 22 >"$t/.node-version"
   echo '*.log' >"$t/.gitignore"
   echo '* text=auto' >"$t/.gitattributes"
-  # So are the nested copies git reads when a suite walks the tree.
   echo '*.tmp' >"$t/data/.gitignore"
   echo '*.bin binary' >"$t/data/.gitattributes"
   mkdir -p "$t/.github"
@@ -90,13 +76,10 @@ else
   printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt data/recorded.txt data/named.txt data/unmapped.txt data/untracked.txt data/broken.txt' \
     'cat package.json .node-version .gitignore .gitattributes data/.gitignore data/.gitattributes .github/npm-fetch.npmrc' >"$t/suites/reader.test.sh"
   printf '%s\n' '#!/usr/bin/env bash' 'true' >"$t/suites/quiet.test.sh"
-  # Reads the unmapped file too, but the fallback corpus does not run it.
   printf '%s\n' '#!/usr/bin/env bash' 'cat data/unmapped.txt' >"$t/suites/zz-outside.test.sh"
-  # An eval fixture is data no lane runs, so the corpus leaves it untraced.
   mkdir -p "$t/plugins/x/evals/fixtures"
   printf '%s\n' 'open("data/hidden.txt").read()' >"$t/plugins/x/evals/fixtures/test_fake.py"
   ci_fallback "$t" suites/reader.test.sh suites/quiet.test.sh
-  # The audit's own suite runs strace, which fails under the audit's strace.
   printf '%s\n' '#!/usr/bin/env bash' 'cat data/hidden.txt' >"$t/scripts/selection-audit.test.sh"
   git -C "$t" add -A && git -C "$t" commit -qm base
   echo untracked >"$t/data/untracked.txt"
@@ -199,8 +182,6 @@ EOF
     fail "trace: ci.yml-named fallback exit $rc, want 0"
   fi
 
-  # A Python suite runs under scripts/lib/pytest-python.sh's choice: here the
-  # checkout's setup-env venv, whose python imports pytest and logs its run.
   echo 'def test_v(): pass' >"$t/suites/test_v.py"
   mkdir -p "$t/.work/venv/bin"
   # shellcheck disable=SC2016 # the stub's $1 is its own argument, written literally
@@ -276,9 +257,60 @@ EOF
   else
     fail "trace: budget without --strict exit $rc, want 0"
   fi
+  shards=""
+  for k in 0 1; do
+    (cd "$t" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-changed.sh" \
+      bash "$AUDIT" trace --strict --shard "$k/2" --out "$TMP_ROOT/out-named-$k" suites/declared.test.sh suites/node.test.mjs) >/dev/null 2>&1 &&
+      shards+="$(cut -f1 "$TMP_ROOT/out-named-$k/suites.tsv")|"
+  done
+  rc=0
+  (cd "$t" && bash "$AUDIT" trace --shard 2/3 --out "$TMP_ROOT/out-named-empty" suites/declared.test.sh suites/node.test.mjs) >/dev/null 2>&1 || rc=$?
+  if [[ "$shards" == "suites/declared.test.sh|suites/node.test.mjs|" && "$rc" -eq 2 ]]; then
+    ok "trace --shard: named suites split across shards, one each, and a shard holding none of them exits 2"
+  else
+    fail "trace --shard over named suites: shards [$shards], empty-shard exit $rc, want 2"
+  fi
+
+  s="$TMP_ROOT/stale-repo"
+  git_repo "$s"
+  mkdir -p "$s/suites" "$s/data"
+  echo stale >"$s/data/stale.txt"
+  printf '%s\n' '#!/usr/bin/env bash' 'git status --porcelain >/dev/null' >"$s/suites/status.test.sh"
+  ci_fallback "$s" suites/status.test.sh
+  git -C "$s" add -A && git -C "$s" commit -qm base
+  find "$s" -path "$s/.git" -prune -o -type f -exec touch -d 2000-01-01 {} +
+  rc=0
+  (cd "$s" && SELECTION_AUDIT_SELECTOR="$TMP_ROOT/stub-changed.sh" \
+    bash "$AUDIT" trace --strict --out "$TMP_ROOT/out-stale" suites/status.test.sh) >/dev/null 2>&1 || rc=$?
+  if [[ "$rc" -eq 0 ]] && ! grep -qF data/stale.txt "$TMP_ROOT/out-stale/edges.tsv"; then
+    ok "trace: a stale index is refreshed first, so git re-hashing tracked files is not counted as the suite's reads"
+  else
+    fail "trace: stale index exit $rc, edges [$(cat "$TMP_ROOT/out-stale/edges.tsv" 2>/dev/null)]"
+  fi
 fi
 
-# --- replay: verdict per commit ------------------------------------------------
+c="$TMP_ROOT/comment-repo"
+git_repo "$c"
+mkdir -p "$c/suites"
+printf '%s\n' '#!/usr/bin/env bash' '# test-scope: data/*' '# Reads the data.' 'cat data/a.txt' >"$c/suites/comment.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '# test-scope: data/*' '# Reads the data.' 'cat data/a.txt' >"$c/suites/scope.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '# Reads the data.' 'cat data/a.txt' >"$c/suites/code.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '# Reads the data.' 'if true; then' >"$c/suites/broken.test.sh"
+git -C "$c" add -A && git -C "$c" commit -qm base
+comment_base="$(git -C "$c" rev-parse HEAD)"
+printf '%s\n' '#!/usr/bin/env bash' '# test-scope: data/*' '' 'cat data/a.txt' >"$c/suites/comment.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '# Reads the data.' 'cat data/a.txt' >"$c/suites/scope.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' '# Reads the data.' 'cat data/b.txt' >"$c/suites/code.test.sh"
+printf '%s\n' '#!/usr/bin/env bash' 'if true; then' >"$c/suites/broken.test.sh"
+git -C "$c" add -A && git -C "$c" commit -qm change
+got="$(cd "$c" && bash "$AUDIT" changed --base "$comment_base" 2>"$TMP_ROOT/changed.err")"
+want=$'suites/broken.test.sh\nsuites/code.test.sh\nsuites/scope.test.sh'
+if [[ "$got" == "$want" ]] && grep -qF '1 suite(s) left out: their change is comment-only' "$TMP_ROOT/changed.err"; then
+  ok "changed: a comment-only change is left out and counted; a removed test-scope: line, a code change and an unparsable file stay listed"
+else
+  fail "changed comment-only: got [$got] want [$want], stderr [$(cat "$TMP_ROOT/changed.err")]"
+fi
+
 r="$TMP_ROOT/replay-repo"
 git_repo "$r"
 mkdir -p "$r/scripts" "$r/suites"
@@ -345,9 +377,6 @@ else
   fail "replay left a worktree: $(git -C "$r" worktree list)"
 fi
 
-# A tree whose pr-require-checks.yml plans its lanes with scripts/plan-test-lanes.sh: the
-# selector itself adds an unmapped file's language corpus (--unmapped-corpus,
-# exit 4), so a suite in that corpus is selected and one outside it is not.
 # shellcheck disable=SC2016 # workflow text, written literally
 printf '%s\n' '          scripts/plan-test-lanes.sh --base "$DIFF_BASE"' >"$r/.github/workflows/pr-require-checks.yml"
 cat >"$r/scripts/affected-tests.sh" <<'EOF'
@@ -383,7 +412,6 @@ else
   fail "replay planned outside the corpus: exit $rc: $out"
 fi
 
-# --- usage ---------------------------------------------------------------------
 for args in "trace --shard 2/2" "bogus" "replay --suite x"; do
   rc=0
   # shellcheck disable=SC2086 # each case is a word list on purpose

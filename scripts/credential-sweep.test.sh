@@ -1,16 +1,4 @@
 #!/usr/bin/env bash
-# Contract test for credential-sweep.sh against a stub `gh` that serves fixture
-# responses keyed by API path, and a stub `gitleaks` unless the case needs the
-# real scanner.
-#
-# Expected values come from the sweep's contract: a hit is reported by rule and
-# location and never by value, anything readable but unread is listed under
-# GAPS, what the API serves to nobody is listed apart and leaves the exit code
-# alone, every request is a GET, the first rate-limit error stops the sweep,
-# and the exit code is 0 clean, 1 hits, 2 gaps and no hits, 3 could not start.
-#
-# The planted token is assembled at run time from two halves, so no line of
-# this file matches a gitleaks or GitGuardian token pattern.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -27,8 +15,6 @@ prefix='gh''p_'
 body='R7kT2vXq9LmN4bWc8YdF3hJs6PzA1uEo5iGt'
 PLANTED="$prefix$body"
 SINCE=2026-10-01
-# The pinned default config's shape, cut to one rule: a global [allowlist]
-# whose paths list skips node_modules, the way the upstream default does.
 CONFIG_FIXTURE="$(
   cat <<'EOF'
 title = "fixture"
@@ -53,10 +39,6 @@ EOF
 )"
 
 mkdir -p "$TMP/bin" "$TMP/stub-gitleaks"
-# gh: logs its arguments, then serves $STUB_FIX/<key> (or <key>.err to stderr
-# with exit 1), where <key> is the API path with / ? & = : turned into _. With
-# --include it first prints a header block in gh's shape, carrying
-# $STUB_REMAINING and $STUB_RESET. A run-list window with no fixture is empty.
 cat >"$TMP/bin/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$STUB_LOG"
@@ -87,13 +69,10 @@ fi
 echo "gh: Not Found (HTTP 404)" >&2
 exit 1
 EOF
-# sleep: logs its argument and returns at once.
 cat >"$TMP/bin/sleep" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$1" >>"${STUB_SLEEP_LOG:-/dev/null}"
 EOF
-# gitleaks: reports $STUB_LEAK_FILE (relative to the scanned dir) as an
-# unredacted github-pat hit when set, else nothing.
 cat >"$TMP/stub-gitleaks/gitleaks" <<'EOF'
 #!/usr/bin/env bash
 if [[ "$1" == version ]]; then
@@ -117,15 +96,11 @@ EOF
 chmod +x "$TMP/bin/gh" "$TMP/bin/sleep" "$TMP/stub-gitleaks/gitleaks"
 
 key() { printf '%s' "$1" | tr '/?&=:' '_____'; }
-# runs_path <repo> <from> <to>: the run-list page 1 of one created window.
 runs_path() { printf 'repos/o/%s/actions/runs?exclude_pull_requests=true&created=%s..%s&per_page=100&page=1' "$1" "$2" "$3"; }
-# day_runs <repo> <YYYY-MM-DD>: the run-list page 1 of one UTC day.
 day_runs() { runs_path "$1" "$2T00:00:00Z" "$2T23:59:59Z"; }
-# fix <fixture-dir> <api-path> <content>
 fix() { printf '%s\n' "$3" >"$1/$(key "$2")"; }
 fix_err() { printf '%s\n' "$3" >"$1/$(key "$2").err"; }
 
-# base_fixture <dir> <repo>: repo o/<repo> with every list empty.
 base_fixture() {
   local d="$1" b="repos/o/$2" pages='per_page=100&page=1'
   mkdir -p "$d"
@@ -139,8 +114,6 @@ base_fixture() {
   printf '%s\n' "$CONFIG_FIXTURE" >"$d/$(key "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=83d9cd684c87d95d656c1458ef04895a7f1cbd8e")"
 }
 
-# one_run <dir> <repo> <check-runs-json>: run 11 (attempt 1, suite 21),
-# listed in the 2026-10-05 window.
 one_run() {
   local d="$1" b="repos/o/$2"
   fix "$d" "$(day_runs "$2" 2026-10-05)" \
@@ -148,8 +121,6 @@ one_run() {
   fix "$d" "$b/check-suites/21/check-runs?filter=all&per_page=100&page=1" "$3"
 }
 
-# artifact_zip <dir> <repo> <member=content>...: artifact 5 ("a") since
-# --since, whose zip holds each member; content \x00 marks a binary member.
 artifact_zip() {
   local d="$1" b="repos/o/$2"
   shift 2
@@ -165,10 +136,6 @@ z.close()
 PY2
 }
 
-# artifact_record <dir> <repo> <blob-content> [<victim>]: artifact 5
-# ("x.dockerbuild") uploaded unzipped, so its download is a Docker build
-# record's own bytes: a gzipped tar of an OCI layout. With <victim>, the tar
-# also holds a symlink bin.strings.txt to it beside a binary bin.
 BLOB=blobs/sha256/0000000000000000000000000000000000000000000000000000000000000001
 artifact_record() {
   local d="$1" b="repos/o/$2"
@@ -193,7 +160,6 @@ t.close()
 PY
 }
 
-# log_zip <dir> <repo> <text>: run 11's log archive holds build/1_step.txt.
 log_zip() {
   local d="$1" src="$TMP/zipsrc-$RANDOM"
   mkdir -p "$src/build"
@@ -202,8 +168,6 @@ log_zip() {
     fail "could not build a fixture zip"
 }
 
-# sweep <gitleaks-bin-dir> <fixture> <out> [args...]: runs the sweep; sets RC,
-# OUT (stdout and stderr) and LOG (the gh calls).
 sweep() {
   local gl="$1" f="$2" out="$3"
   shift 3
@@ -238,7 +202,6 @@ if [[ -z "$PYTHON" ]]; then
   exit 1
 fi
 
-# --- A hit is reported by rule and location, never by value -----------------
 F="$TMP/hit"
 base_fixture "$F" r
 one_run "$F" r '{"check_runs":[{"id":31,"name":"build","output":{"title":"ok","summary":"","text":null}}]}'
@@ -258,14 +221,12 @@ else
 fi
 if [[ ! -e "$TMP/out-hit/downloads" ]]; then ok "downloads are removed without --keep"; else fail "downloads left behind"; fi
 
-# Same tree through the real pinned scanner, when this host has it.
 if [[ "$(gitleaks version 2>/dev/null)" == 8.30.1 ]]; then
   sweep "$TMP/no-such-dir" "$F" "$TMP/out-real" --repo r
   expect_rc "the real scanner finds the planted token" 1
   expect_out "the real scanner's hit names rule and location" '| github-pat | r/logs/run-11-attempt-1/build/1_step.txt | 3 |'
   expect_no_value "the real scanner's hit is redacted" "$TMP/out-real"
 
-  # A path the default config allowlists is still scanned.
   F="$TMP/allowlisted"
   base_fixture "$F" r
   artifact_zip "$F" r "node_modules/x/.env=token $PLANTED"
@@ -273,7 +234,6 @@ if [[ "$(gitleaks version 2>/dev/null)" == 8.30.1 ]]; then
   expect_rc "a token under a default-allowlisted path is found" 1
   expect_out "the allowlisted-path hit names its location" '| github-pat | r/artifacts/5-a/node_modules/x/.env |'
 
-  # A token inside a Docker build record artifact is found.
   F="$TMP/record-real"
   base_fixture "$F" r
   artifact_record "$F" r "token $PLANTED"
@@ -284,16 +244,12 @@ else
   printf 'SKIP: gitleaks 8.30.1 not on PATH; the real-scanner cases did not run\n'
 fi
 
-# The scanner config is fetched at the pin; an unreadable one stops the sweep.
 F="$TMP/noconfig"
 base_fixture "$F" r
 rm -f "$F/$(key "repos/gitleaks/gitleaks/contents/config/gitleaks.toml?ref=83d9cd684c87d95d656c1458ef04895a7f1cbd8e")"
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-noconfig" --repo r
 expect_rc "an unreadable scanner config exits 3" 3
 
-# --- The global path allowlist is stripped; rule allowlists are kept ---------
-# strip_case <name> <global-allowlist-block>: sweeps a config holding the block
-# and two rules, the first with its own path allowlist; sets TOML.
 strip_case() {
   F="$TMP/strip-$1"
   base_fixture "$F" r
@@ -326,13 +282,11 @@ expect_stripped "a one-line global paths list is removed"
 strip_case comment "$(printf '%s\n' '[allowlist] # global' 'paths = [' "    '''GLOBALPATH1'''," ']' "regexes = ['''GLOBALREGEX''']")"
 expect_stripped "a global allowlist header with a trailing comment is handled"
 
-# A global paths key the strip does not remove stops the sweep before it starts.
 strip_case quoted "$(printf '%s\n' '[allowlist]' "\"paths\" = ['''GLOBALPATH1''']" "regexes = ['''GLOBALREGEX''']")"
 expect_rc "a global paths key left in place exits 3" 3
 expect_out "the unstripped allowlist is named" 'still has a paths key'
 if [[ "$LOG" != *actions/* ]]; then ok "nothing is swept with the allowlist in place"; else fail "swept with the allowlist: $LOG"; fi
 
-# --- Check runs of every attempt are swept, not only the latest -------------
 F="$TMP/attempts"
 base_fixture "$F" r
 one_run "$F" r '{"check_runs":[{"id":30,"name":"build","output":{"title":"first attempt","summary":"","text":""}},{"id":31,"name":"build","output":{"title":"rerun","summary":"","text":""}}]}'
@@ -345,7 +299,6 @@ else
   fail "check run 30 missing: $LOG"
 fi
 
-# --- A downloaded file is never overwritten by a strings(1) copy ------------
 F="$TMP/sidecar"
 base_fixture "$F" r
 artifact_zip "$F" r 'payload=\x00BINARYCONTENTLINE\x00' 'payload.strings.txt=downloaded text'
@@ -361,7 +314,6 @@ else
   fail "no strings copy of the binary under r/strings"
 fi
 
-# --- An undownloadable log is a gap, not a pass -----------------------------
 F="$TMP/gone"
 base_fixture "$F" r
 one_run "$F" r '{"check_runs":[]}'
@@ -373,7 +325,6 @@ expect_out "the undownloadable log is listed under GAPS" '- r: logs: run 11 atte
 expect_out "no hits is stated" $'## Hits (0)\n\nNone'
 if [[ "$LOG" != *repos/o/p/* ]]; then ok "the default listing sweeps public repos only"; else fail "private repo p was swept: $LOG"; fi
 
-# Control characters in API text never reach the report.
 F="$TMP/ctrl"
 base_fixture "$F" r
 one_run "$F" r '{"check_runs":[]}'
@@ -381,7 +332,6 @@ fix_err "$F" "repos/o/r/actions/runs/11/attempts/1/logs" $'gh: \e[2Jbad (HTTP 50
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-ctrl" --repo r
 if ! grep -q $'\e' "$TMP/out-ctrl/summary.md"; then ok "control characters are stripped from the report"; else fail "ESC in the report"; fi
 
-# A skipped run's empty log archive holds nothing to read: no gap.
 F="$TMP/empty"
 base_fixture "$F" r
 one_run "$F" r '{"check_runs":[]}'
@@ -390,7 +340,6 @@ sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-empty" --repo r
 expect_rc "an empty log archive exits 0" 0
 expect_out "an empty log archive is no gap" $'## GAPS (0)\n\nNone'
 
-# A skipped run is counted, and its logs and check runs are not fetched.
 F="$TMP/skipped"
 base_fixture "$F" r
 fix "$F" "$(day_runs r 2026-10-06)" \
@@ -404,7 +353,6 @@ else
   fail "skipped run fetched: $LOG"
 fi
 
-# A re-run whose latest attempt was skipped still has its earlier attempts read.
 F="$TMP/rerun"
 base_fixture "$F" r
 fix "$F" "$(day_runs r 2026-10-06)" \
@@ -427,7 +375,6 @@ if [[ "$(gitleaks version 2>/dev/null)" == 8.30.1 ]]; then
     '| github-pat | r/logs/run-11-attempt-1/build/1_step.txt | 3 |'
 fi
 
-# A run listed in two windows is swept once.
 F="$TMP/dupe"
 base_fixture "$F" r
 one_run "$F" r '{"check_runs":[]}'
@@ -438,7 +385,6 @@ sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-dupe" --repo r
 expect_out "a run listed twice is counted once" '| r | 1 | 1 |'
 if [[ "$(grep -c 'runs/11/attempts/1/logs' <<<"$LOG")" -eq 1 ]]; then ok "a run listed twice is fetched once"; else fail "run 11 fetched more than once: $LOG"; fi
 
-# Expired logs (HTTP 410) are served to nobody: listed apart, exit 0.
 F="$TMP/expired"
 base_fixture "$F" r
 one_run "$F" r '{"check_runs":[]}'
@@ -447,7 +393,6 @@ sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-expired" --repo r
 expect_rc "expired logs alone exit 0" 0
 expect_out "expired logs are counted as unreadable by design" '- r: logs: run 11 attempt 1: logs expired or deleted (HTTP 410)'
 
-# --- A filtered list keeps paging past a page its filter thins out -----------
 F="$TMP/paging"
 base_fixture "$F" r
 humans="$(jq -cn '[range(100) | {id: ., user: {login: "h", type: "User"}, body: "hi", html_url: "u"}]')"
@@ -463,7 +408,6 @@ else
   fail "page 2 bot comment missing: $LOG"
 fi
 
-# --- Bot review bodies on pull requests updated since --since are swept ------
 F="$TMP/reviews"
 base_fixture "$F" r
 fix "$F" "repos/o/r/pulls?state=all&sort=updated&direction=desc&per_page=100&page=1" \
@@ -480,7 +424,6 @@ else
 fi
 if [[ "$LOG" != *pulls/3/reviews* ]]; then ok "a pull request before --since is not fetched"; else fail "pull 3 reviews fetched: $LOG"; fi
 
-# --- A symlink in an archive is deleted, never written through ---------------
 F="$TMP/symlink"
 base_fixture "$F" r
 one_run "$F" r '{"check_runs":[]}'
@@ -498,7 +441,6 @@ PY
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-symlink" --repo r
 if [[ "$(cat "$TMP/victim")" == untouched ]]; then ok "a symlink in an archive is not written through"; else fail "victim overwritten: $(cat "$TMP/victim")"; fi
 
-# --- A Docker build record artifact (a gzipped tar, not a zip) is scanned ----
 F="$TMP/record"
 base_fixture "$F" r
 artifact_record "$F" r "token $PLANTED"
@@ -525,9 +467,6 @@ else
   fail "the build record's symlink survives"
 fi
 
-# record_tar <dir> <mode> <member:mode[:content]>...: artifact 5 ("x.dockerbuild")
-# is a tar written with tarfile mode <mode> ("w:xz", "w:gz"); a member whose
-# name ends in / is a directory.
 record_tar() {
   local d="$1" mode="$2"
   shift 2
@@ -551,8 +490,6 @@ t.close()
 PY
 }
 
-# A tar compressed other than with gzip is never handed to tar, which would
-# decompress it without a bound: it is kept as one file and scanned as bytes.
 F="$TMP/record-xz"
 base_fixture "$F" r
 record_tar "$F" w:xz "inner.txt:644:token $PLANTED"
@@ -565,8 +502,6 @@ else
   fail "an xz tar was extracted or lost: $(find "$x" 2>&1)"
 fi
 
-# A tar that fails partway is cleaned up: no read-only directory or member is
-# left behind once the sweep removes its downloads.
 F="$TMP/record-partial"
 base_fixture "$F" r
 record_tar "$F" w:gz "d/:555" "d/f:444:partial" "../x:644:escape"
@@ -579,7 +514,6 @@ else
   fail "left on disk: $(find "$TMP/out-record-partial/downloads" "$TMP/x" 2>&1)"
 fi
 
-# --- A --repo that is not public is refused ----------------------------------
 F="$TMP/private"
 base_fixture "$F" r
 fix "$F" "repos/o/r" '{"private":true}'
@@ -587,7 +521,6 @@ sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-private" --repo r
 expect_rc "a private --repo exits 3" 3
 if [[ "$(wc -l <<<"$LOG")" -eq 1 ]]; then ok "nothing of a private repo is swept"; else fail "requests after the public check: $LOG"; fi
 
-# --- Nothing unread and nothing found is a clean exit ------------------------
 F="$TMP/clean"
 base_fixture "$F" r
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-clean" --repo r --keep
@@ -595,7 +528,6 @@ expect_rc "no hits and no gaps exit 0" 0
 expect_out "no gaps is stated" $'## GAPS (0)\n\nNone'
 if [[ -d "$TMP/out-clean/downloads/r" ]]; then ok "--keep keeps the downloads"; else fail "--keep removed the downloads"; fi
 
-# --- What the API serves to nobody is listed apart and exits 0 --------------
 F="$TMP/by-design"
 base_fixture "$F" r
 one_run "$F" r '{"check_runs":[{"id":31,"name":"build","output":{"title":"ok","summary":"","text":null}},{"id":32,"name":"lint","output":{}}]}'
@@ -613,7 +545,6 @@ sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-cache" --repo r
 expect_rc "cache entries alone exit 0" 0
 expect_out "the caches are counted as unreadable by design" '- r: caches: 2 entries listed'
 
-# --- A run window listed short of its total_count is a gap ------------------
 F="$TMP/short"
 base_fixture "$F" r
 fix "$F" "$(day_runs r 2026-10-03)" '{"total_count":3,"workflow_runs":[]}'
@@ -622,7 +553,6 @@ expect_rc "a short run window exits 2" 2
 expect_out "the short window is listed under GAPS" \
   '- r: logs: run list for 2026-10-03T00:00:00Z..2026-10-03T23:59:59Z: listed 0 of total_count 3'
 
-# A window over the 1,000-result cap is halved, and each half is listed.
 F="$TMP/split"
 base_fixture "$F" r
 fix "$F" "$(day_runs r 2026-10-04)" '{"total_count":1500,"workflow_runs":[]}'
@@ -641,7 +571,6 @@ else
   fail "split window requests wrong: $LOG"
 fi
 
-# --- Below the reserve, the sweep waits for the reset ------------------------
 F="$TMP/reserve"
 base_fixture "$F" r
 : >"$F.sleep"
@@ -665,7 +594,6 @@ STUB_REMAINING=100 STUB_RESET="$(($(date +%s) - 30))" STUB_SLEEP_LOG="$F.sleep" 
   sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-reserve-past" --repo r --interval 0
 if [[ ! -s "$F.sleep" ]]; then ok "a reset already past is not waited for"; else fail "slept for a past reset: $(cat "$F.sleep")"; fi
 
-# --- The first rate-limit error stops every later request -------------------
 F="$TMP/limit"
 base_fixture "$F" r
 base_fixture "$F" s
@@ -676,7 +604,6 @@ expect_out "the stop is reported as a gap" 'stopped mid-repo: rate limit on GET'
 expect_out "the repo after the stop is a gap" '- s: all: not swept'
 if [[ "$(tail -n 1 <<<"$LOG")" == *actions/runs* ]]; then ok "no request follows the rate-limit error"; else fail "requests after the limit: $LOG"; fi
 
-# A secondary-limit 403 stops the sweep the same way.
 F="$TMP/secondary"
 base_fixture "$F" r
 base_fixture "$F" s
@@ -692,8 +619,6 @@ else
   fail "requests after the secondary limit: $LOG"
 fi
 
-# --- Requests start at least --interval seconds apart ------------------------
-# The stub sleep logs each spacing wait and returns at once.
 F="$TMP/interval"
 base_fixture "$F" r
 : >"$F.sleep"
@@ -716,9 +641,6 @@ else
   fail "spacing waits wrong for --interval 1.5: '$(cat "$F.sleep")'"
 fi
 
-# Two requests through a stub gh that stamps its start, with the real sleep:
-# the second starts at least the interval after the first. Process start-up
-# jitter between the two stub runs is allowed 100 ms. Interval 0 is the control.
 mkdir -p "$TMP/timed-bin"
 cat >"$TMP/timed-bin/gh" <<'EOF'
 #!/usr/bin/env bash
@@ -726,7 +648,6 @@ printf '%s\n' "${EPOCHREALTIME/[.,]/}" >>"$STUB_TIME_LOG"
 printf 'HTTP/2.0 200 OK\r\n\r\n{}\n'
 EOF
 chmod +x "$TMP/timed-bin/gh"
-# two_requests <interval>: prints the microseconds between the two stub starts.
 two_requests() {
   local log="$TMP/timed-$1.log"
   : >"$log"
@@ -757,7 +678,6 @@ else
   fail "requests ${gap_us:-?} us apart with interval 0"
 fi
 
-# --- Could not start ---------------------------------------------------------
 sweep "$TMP/stub-gitleaks" "$F" "$TMP/out-bogus" --bogus
 expect_rc "an unknown option exits 3" 3
 expect_out "usage describes --keep" '--keep     keep the downloads'

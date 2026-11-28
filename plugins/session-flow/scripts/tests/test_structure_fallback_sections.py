@@ -9,7 +9,7 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS))
 
-from handoff_chain import SHAPES  # noqa: E402
+from handoff_chain import NEWEST_SHAPE, SHAPES  # noqa: E402
 
 STRUCTURE = SCRIPTS.parent / "reference" / "structure.md"
 
@@ -21,8 +21,8 @@ def _fallback_rows() -> list[str]:
     return re.findall(r"^\| \d+ \| ([^|]+?) \|", text[start:end], re.M)
 
 
-def test_fallback_lists_every_shape4_section_in_shapespec_order():
-    assert _fallback_rows() == [s.name for s in SHAPES[4].sections]
+def test_fallback_lists_every_newest_shape_section_in_shapespec_order():
+    assert _fallback_rows() == [s.name for s in SHAPES[NEWEST_SHAPE].sections]
 
 
 def _fallback_block() -> str:
@@ -31,9 +31,11 @@ def _fallback_block() -> str:
     return text[start : text.index("\n### ", start)]
 
 
-def test_fallback_names_every_shape4_retire_heading_and_the_pointer_lines():
+def test_fallback_names_every_newest_shape_retire_heading_and_the_pointer_lines():
     block = _fallback_block()
-    headings = {s.retire_heading for s in SHAPES[4].sections if s.retire_heading}
+    headings = {
+        s.retire_heading for s in SHAPES[NEWEST_SHAPE].sections if s.retire_heading
+    }
     missing = [h for h in sorted(headings) if f"## {h}" not in block]
     assert not missing, missing
     for pointer in ("- Retired entries:", "- Folded:", "Retired:"):
@@ -42,7 +44,7 @@ def test_fallback_names_every_shape4_retire_heading_and_the_pointer_lines():
 
 def _frontmatter_block() -> str:
     text = STRUCTURE.read_text(encoding="utf-8")
-    start = text.index("### Frontmatter shape 4")
+    start = text.index(f"### Frontmatter shape {NEWEST_SHAPE}")
     return text[start : text.index("\n### ", start + 1)]
 
 
@@ -50,7 +52,7 @@ def test_fallback_frontmatter_holds_every_floor_key_new_writes():
     from save_point import FLOOR_KEYS
 
     block = _frontmatter_block()
-    assert "handoff_shape: 4" in block
+    assert f"handoff_shape: {NEWEST_SHAPE}" in block
     missing = [key for key in FLOOR_KEYS if f"\n{key}: " not in block]
     assert not missing, missing
 

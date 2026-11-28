@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""Self-test for the contract-clause coverage gate.
-
-Every case builds a throwaway git repo with its own registry, so the suite
-proves the DETECTOR rather than the current state of this checkout — a gate
-whose only evidence is "the repo is green" cannot distinguish a clean corpus
-from a broken detector, which is the exact failure this repo's self-test-first
-CI convention exists to prevent.
-
-The failure cases carry the weight. A gate that only proves it passes on
-clean input is a gate that would stay green after someone deleted its
-qualifier list.
-"""
 
 from __future__ import annotations
 
@@ -21,17 +9,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-# FIXTURE ISOLATION. This suite builds its fixture with `git init`
-# under `cwd=`, with no path argument at all — so an exported ABSOLUTE GIT_DIR
-# does not merely misdirect the identity write, it makes `git init` initialize
-# the CALLER's gitdir and every later `git add -A` stage into the caller's
-# index. Cleared once at import, mirroring the variable list in
-# scripts/test-git-helpers.sh; scripts/check-fixture-git-isolation.sh keeps it
-# true.
-# GIT_CONFIG is in the list and is a DISTINCT leak path rather than another
-# spelling of the discovery one: it replaces the file the `git config`
-# subcommand reads and writes, so an identity write follows it regardless of
-# `-C`, of GIT_DIR, and of the working directory.
 for _leaked_git_var in (
     "GIT_DIR",
     "GIT_WORK_TREE",

@@ -43,6 +43,7 @@ describe("usesOf ignores a mention", () => {
     ["a.sh", "# jq is required here"],
     ["a.sh", 'echo "install jq first"'],
     ["a.sh", "  node | python | go)"],
+    ["a.sh", "  python | python[0-9]* | py | node)"],
     ["a.sh", "grep -E '^(go|node)$' f"],
     ["a.sh", "awk '/WebFetch|curl |gh api/ { print NR }' f"],
     ["a.sh", "RESERVED='anthropic claude'"],
@@ -76,7 +77,6 @@ const jqEntry = {
   check: "/alpha:check",
 };
 
-// repo({ plugins: { name: { manifest, files } }, shared, baseline }) -> root
 function repo({ plugins, shared = [], baseline = [] }) {
   const root = path.join(work, `repo${++n}`);
   mkdirSync(path.join(root, "scripts"), { recursive: true });

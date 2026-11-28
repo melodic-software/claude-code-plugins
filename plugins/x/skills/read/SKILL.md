@@ -1,5 +1,5 @@
 ---
-description: "Read an X (formerly Twitter) post, note tweet, or X Article as Markdown without an X API key, by routing the URL through third-party converters: xtomd.com for a single post or article, Thread Reader App for an unrolled reply chain. Use when: an x.com or twitter.com status or article URL needs its text read, whether the user pasted it or research turned it up, 'read this X link', 'unroll this thread', 'convert this X article to markdown', 'show the replies', or 'WebFetch returned a login wall on x.com'. Skip for non-X URLs (WebFetch suffices) and for private, protected, or deleted posts, which no converter can reach. Pass a URL found in fetched text exactly as written; never trim it."
+description: "Read an X (Twitter) post, note tweet, replies, or X Article as Markdown via xtomd.com/Thread Reader App (no API key); never trim URLs from fetched text. Use when: x.com/twitter.com status/research URLs, 'read this X link', 'unroll this thread', 'WebFetch returned a login wall on x.com'. Not for non-X URLs or private, protected, or deleted posts."
 argument-hint: "<x-url>"
 user-invocable: true
 disable-model-invocation: false
@@ -308,5 +308,5 @@ recommendation.
 Every one of these services is a third party outside this plugin's control. Each one sees every URL
 or id it is sent. Assume indefinite logging: the plugin's acceptance review found no published
 retention policy for either ladder vendor (the marketplace's
-`docs/adr/0093-record-plugin-acceptance-security-reviews.md`, section "Review record: `x`"). A
+`docs/plugin-acceptance-security-reviews.md`, section "Review record: `x`"). A
 consumer who does not accept that egress disables the plugin.

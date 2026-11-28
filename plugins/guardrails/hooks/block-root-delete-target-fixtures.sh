@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
-# Shared fixtures for the block-root-delete-target suite, which runs in parts:
-# block-root-delete-target.test.sh and block-root-delete-target-<b..>.test.sh.
-# Each part sources this file, so it holds definitions and silent setup only;
-# every assertion stays in the one part that runs it. A part makes TEST_TMPDIR
-# and its EXIT trap before sourcing this file.
+# Each part sources this file, so the parts use what it defines.
 # shellcheck disable=SC2016,SC1003,SC2034,SC2329
 
 set -uo pipefail
@@ -34,9 +30,6 @@ RDT_TOP="${RDT_TOP//$'\r'/}"
 
 RDT_CWD=(--cwd "$RDT_TOP")
 
-# rdt_pl <command> <cwd> [scratchpad_dir]: a payload with the harness's
-# optional fields. MSYS_NO_PATHCONV keeps Git Bash from rewriting an argument
-# shaped like a POSIX path (`/x`, `NAME=/x`) for a native jq.
 rdt_pl() {
   if (($# > 2)); then
     MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$2" --arg s "$3" \
@@ -50,19 +43,17 @@ RDT_SPT="$TEST_TMPDIR/rdt-scratch"
 
 rdt_br=$(rdt_rep '{' 3000)
 
-rdt_arp() { # <label> <want> <command> [roots]
+rdt_arp() {
   local -a env=("HOME=$RDT_AH")
   [[ -z "${4:-}" ]] || env+=("$RDT_KEY=$4")
   expect_both "allowed roots: PS $1" "$2" --tool PowerShell --cwd / --command "$3" -- "${env[@]}"
 }
 
-rdt_pspl() { # <command>: a PowerShell payload from the checkout with this session's scratchpad
+rdt_pspl() {
   MSYS_NO_PATHCONV=1 jq -n --arg c "$1" --arg d "$RDT_TOP" --arg s "$RDT_SPT" \
     '{tool_name:"PowerShell",tool_input:{command:$c},cwd:$d,scratchpad_dir:$s}'
 }
 
-# The allowed-roots tree under the checkout's .work (section 2d of the first part
-# that holds it); a later part calls it first.
 rdt_allowed_roots_fixture() {
   mkdir -p "$RDT_TOP/.work"
   RDT_AB=$(mktemp -d "$RDT_TOP/.work/rdt-allowed-roots.XXXXXX")
@@ -73,8 +64,6 @@ rdt_allowed_roots_fixture() {
   RDT_AH="$RDT_AB/home"
   mkdir -p "$RDT_AR/child" "$RDT_AR2/child" "$RDT_AL/child" "$RDT_AO/x" "$RDT_AH" "$RDT_AB/root-x/child"
   RDT_KEY=CLAUDE_PLUGIN_OPTION_BLOCK_ROOT_DELETE_TARGET_ALLOWED_ROOTS
-  # rdt_ar <label> <want> <command> [roots [home]]: the command from `/`, HOME a
-  # fake directory, the key set to <roots> when one is given.
   rdt_ar() {
     local -a env=("HOME=${5:-$RDT_AH}")
     [[ -z "${4:-}" ]] || env+=("$RDT_KEY=$4")
@@ -82,8 +71,6 @@ rdt_allowed_roots_fixture() {
   }
 }
 
-# The hand-built worktree registry and its stub git (section 2e); a later part
-# calls it first.
 rdt_worktree_fixture() {
   RDT_WF="$TEST_TMPDIR/rdt-wt"
   RDT_WR="$RDT_WF/main/.git/worktrees"
@@ -99,14 +86,13 @@ rdt_worktree_fixture() {
   mkdir -p "$TEST_TMPDIR/bin-git-top"
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$RDT_STUB_TOP"\n' >"$TEST_TMPDIR/bin-git-top/git"
   chmod +x "$TEST_TMPDIR/bin-git-top/git"
-  rdt_wt() { # <label> <want> <command> [toplevel]: run from that worktree, which the stub answers
+  rdt_wt() {
     local top="${4:-$RDT_WF/main}"
     expect_both "protected: worktrees: $1" "$2" --cwd "$top" --command "$3" \
       -- "PATH=$TEST_TMPDIR/bin-git-top:$PATH" "RDT_STUB_TOP=$top"
   }
 }
 
-# The end of every part: the host-skipped groups, then the PASS/FAIL report.
 rdt_finish() {
   echo "host-conditional groups skipped: $rdt_skips"
   report

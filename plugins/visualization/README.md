@@ -144,6 +144,14 @@ reports its absolute path. Your resolved `medium` does not override it; a medium
 argument, a form you name, or a calling skill that needs the diagram inline in its own document
 does. Outside a repository it falls back to `auto`.
 
+**Collaborative canvas mode.** Ask for it, or accept the offer `/planning:design`,
+`/planning:interview` or `/planning:wayfind` makes on a structural question, and you and the agent
+draw and revise one live Excalidraw or tldraw canvas over several turns. It uses a canvas server
+you connected, under the same surface and `hosted_canvas` rules as the `excalidraw` and `tldraw`
+targets, so it does not run in the Claude Code terminal. When you call the canvas done, the agent
+writes the final text diagram; that text is the record, and the canvas is not saved in the
+repository.
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -154,6 +162,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `medium` | string | `"auto"` | Preferred delivery medium. auto (default) defers to the shared medium resolver, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact or hosted prefers a published Artifact, else a file. |
+| `branding` | string | *(none)* | Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored. |
 | `thin_context_prompt` | string | `"auto"` | What the skill does when code is pasted with little context and no form named. auto (default) asks one ranked question only when two or more code-shape forms fit about equally; always offers the ranked menu on any bare code paste; never renders the recommended form without asking. |
 | `hosted_canvas` | string | `"allow"` | Whether diagram content may go to a canvas server reached over the network (a remote MCP server). allow (default) permits it where the surface renders a canvas; deny keeps diagrams local or on a local server. deny from any layer wins. |
 | `diagram_target` | string | `"auto"` | Where a diagram is drawn. auto (default) picks by surface; terminal: inline Mermaid or ASCII; local-page: a local HTML file; excalidraw or tldraw: that connected canvas server; excalidraw-file: a docs/diagrams/ file, never committed. An unavailable target, or one hosted_canvas forbids, uses auto. |

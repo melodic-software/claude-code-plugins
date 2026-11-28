@@ -1,84 +1,4 @@
 #!/usr/bin/env node
-// reenter.mjs: sends an answered issue back to intake triage. The issue's
-// status is its label names as the Work status field decides them
-// (read-status.mjs statusReader; a hold label still holds on top). On a new
-// comment on an open issue (never a pull request):
-//
-// - `needs-owner-decision` and a decision comment (select-trusted-text's
-//   isDecisionComment, the rule write-issue.mjs marks `decision: true` by);
-// - `status: confirmed` as the only status, with no `agent-ready` (where
-//   admission parks a refusal no person must answer, or a person confirmed
-//   the issue before any admission), and a decision comment;
-// - `needs-reporter-info` and a comment by the issue's author or a listed
-//   human, not posted through an App;
-// - no `status:`, `agent-ready`, `needs-human`, `needs-triage` or
-//   `admission-deferred`, and a listed human's decision comment;
-// - EVENT_NAME `issues` (no comment) with REMOVED_LABEL `needs-human` (the
-//   default; any other removed label changes nothing): a listed human removed
-//   it, and the issue carries no status label but `needs-owner-decision`, and no
-//   `agent-ready`, `needs-human` or `needs-triage`. The newest `needs-human`
-//   removal in the issue's history (read-status.mjs statusEvents, so a
-//   person's change of the field away from needs-human counts) must be that
-//   person's;
-// - EVENT_NAME `issues` with EVENT_ACTION `field_added` or `field_removed`: a
-//   listed human (SENDER_ID) changed the Work status field. Past this lane's
-//   own needs-triage writes, the issue's newest Work status field events must
-//   be that person's, from a hold state (read-status.mjs HOLD_STATES) to none
-//   or needs-triage; the issue must carry no status label but `needs-triage`
-//   and intake must admit its author. The claim is a marked comment keyed to
-//   the event that left the hold, posted first, since the field may already
-//   read needs-triage before the run: a re-run of that release finds it and
-//   dispatches nothing. A release that left the field empty then sets it to
-//   needs-triage, and intake is dispatched;
-//
-// A decision on an issue that carries `needs-human`, on its label or its Work
-// status field, re-enters nothing: only a listed human releases that hold
-// (docs/contracts/loop-lane/README.md, the label table), and their release
-// re-enters an issue at `needs-owner-decision` (owner decision on #10735). At
-// `status: confirmed` a label removal re-enters nothing, so the decision is
-// posted again after it. The run instead posts one reply saying how the hold
-// is released (HOLD_MARKER, once per issue). A listed human's comment whose
-// first line opens with "decision recorded" in any other case or punctuation
-// gets one reply naming the exact first line (FORM_MARKER, once per issue),
-// unless it answered the issue anyway
-// (https://github.com/melodic-software/claude-code-plugins/issues/18251).
-// Nothing changes on an issue whose own labels hold a routing label
-// (check-born-triaged.mjs routingLabel): intake skips it;
-//
-// then, on a comment or a needs-human removal, it sets the Work status field
-// to needs-triage and dispatches intake-triage.yml once, only for an issue
-// whose author intake admits (a listed human or the lanes App). Anything
-// else changes nothing. It never adds `agent-ready`. The answered status's
-// label, when the issue still carries it, is taken off first: when GitHub
-// answers 404 another run already took it, and nothing is dispatched. The
-// field at needs-triage is the claim otherwise: the runs wait in line per
-// issue, and a second one reads it and stops. When a later call fails, the
-// run sets the field back to the answered status, puts back a label it took,
-// and fails, so a re-run can claim again; with no status answered (a
-// statusless decision, a lift from no status) the field stays at
-// needs-triage, which the triage sweep dispatches. Every fact is read from
-// the API; the event supplies only the issue and comment numbers and, on
-// `issues`, the removed label or the field change's action and sender. A
-// Work status read or write that fails fails the run.
-//
-// Environment:
-//   GITHUB_TOKEN          the job's token: issues write, actions write
-//   GITHUB_REPOSITORY     owner/repo
-//   ISSUE_NUMBER, COMMENT_ID (not read when EVENT_NAME is `issues`)
-//   EVENT_NAME            `issues` for a label removal or a field change,
-//                         else a comment
-//   EVENT_ACTION          on `issues`, `field_added` or `field_removed` for a
-//                         field change; anything else is a label removal
-//   SENDER_ID             on a field change, the account that made it
-//   REMOVED_LABEL         on a label removal, the label removed (default
-//                         `needs-human`)
-//   BASE_PATH             the default branch checkout (default `.base`), whose
-//                         models.issue-status the Work status is read and
-//                         written by
-//   TRUSTED_ACTORS_PATH   the default branch's trusted-actor list
-//   LANES_APP_ID          the lanes App bot's user id, or empty
-//   KILL_SWITCH           `proceed`, or the run stops before any API call
-//   GITHUB_API_URL
 import { join } from "node:path";
 import process from "node:process";
 import { pathToFileURL } from "node:url";
@@ -86,7 +6,7 @@ import { pathToFileURL } from "node:url";
 import { readRouting, ROUTED_BY, routingLabel } from "../../actions/check-born-triaged/check-born-triaged.mjs";
 import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { loadTrustedList } from "../../actions/check-trusted-trigger/check-trusted-trigger.mjs";
-import { authorAdmitted, confirmedOnly } from "../intake-triage/admit.mjs";
+import { AGENT_DECIDED, authorAdmitted, confirmedOnly } from "../intake-triage/admit.mjs";
 import { isDecisionComment, selectTrustedIssueComments } from "../../actions/select-trusted-text/select-trusted-text.mjs";
 import { carried, DECISION_LABELS, HOLD_STATES, INFO_LABELS, isStatusLabel, statusReader } from "../../actions/resolve-config/read-status.mjs";
 import { statusWriter } from "../../actions/resolve-config/write-status.mjs";
@@ -95,15 +15,11 @@ import { ownComment } from "../lib/upsert-comment.mjs";
 
 export { NEEDS_DECISION, NEEDS_HUMAN };
 export const NEEDS_INFO = "needs-reporter-info";
-// Where admission parks a refusal no person must answer (admit.mjs CONFIRMED),
-// or a person confirmed the issue before any admission.
 export const CONFIRMED = "status: confirmed";
 export const NEEDS_TRIAGE = "needs-triage";
 const DEFERRED = "admission-deferred";
 const WORKFLOW = "intake-triage.yml";
-// The issues actions a Work status field change starts this run with.
 const FIELD_ACTIONS = new Set(["field_added", "field_removed"]);
-// The holds other than needs-info, as the field-first names carry them.
 const INFO_HOLDS = new Set([NEEDS_HUMAN, NEEDS_DECISION, "needs-spec"]);
 const NUMBER = /^[1-9][0-9]{0,9}$/;
 const REPOSITORY = /^[A-Za-z0-9-]+\/(?!\.\.?$)[A-Za-z0-9_.-]+$/;
@@ -125,18 +41,11 @@ const openIssue = (issue) => !issue.pull_request && issue.state === "open";
 const positiveId = (value) => (/^[1-9][0-9]*$/.test(value ?? "") ? Number(value) : null);
 const notFound = (error) => error instanceof GitHubError && error.status === 404;
 
-// The issue's label names as its Work status field decides them:
-// `statusOf(number, names)` (read-status.mjs statusReader). With no
-// `statusOf`, its own.
 export async function answerLabels(issue, statusOf) {
   const own = labelNames(issue);
   return statusOf ? statusOf(Number(issue.number), own) : own;
 }
 
-// Which answer the comment is, or null: `decision`, `parked` (a decision on a
-// status: confirmed issue no admission took), `info`, or `statusless` (a
-// decision on an issue with no status). `labels` are the issue's label
-// names, by default its own (answerLabels).
 export async function classify({ github, repository, issue, comment, humans, ids, lanesAppId, labels = labelNames(issue) }) {
   if (!openIssue(issue)) {
     return null;
@@ -149,6 +58,12 @@ export async function classify({ github, repository, issue, comment, humans, ids
     const { kept: list } = await selectTrustedIssueComments({ github, repository, issueNumber: issue.number, ids });
     return list.find((item) => item.comment.id === comment.id) ?? null;
   };
+  if (labels.includes(AGENT_DECIDED) && humans.has(user.id) && !carried(labels, DECISION_LABELS) && !confirmedOnly(labels)) {
+    const item = await kept();
+    if (item && isDecisionComment(item, humans)) {
+      return "agent";
+    }
+  }
   if (!labels.some((name) => isStatusLabel(name))) {
     if (!humans.has(user.id) || [NEEDS_HUMAN, NEEDS_TRIAGE, AGENT_READY, DEFERRED].some((name) => labels.includes(name))) {
       return null;
@@ -162,8 +77,6 @@ export async function classify({ github, repository, issue, comment, humans, ids
       return "decision";
     }
   }
-  // A listed human's decision re-enters a status: confirmed issue whether
-  // admission parked it there or a person confirmed it before any admission.
   if (humans.has(user.id) && confirmedOnly(labels)) {
     const item = await kept();
     if (item && isDecisionComment(item, humans)) {
@@ -193,10 +106,6 @@ async function removeLabel(github, base, name) {
   }
 }
 
-// A listed human lifted `needs-human` and left the issue parked nowhere or at
-// `needs-owner-decision`: true when intake should take it again. `labels`
-// are the issue's names as the field decides them; `events()` its
-// statusEvents, whose newest `needs-human` removal names who lifted it.
 async function liftReenters({ issue, humans, lanesAppId, labels, events }) {
   if (!openIssue(issue)) {
     return false;
@@ -212,16 +121,6 @@ async function liftReenters({ issue, humans, lanesAppId, labels, events }) {
   return actor?.type === "User" && humans.has(actor.id);
 }
 
-// A listed human released a hold the Work status field held, on an issue no
-// status label holds or moves. Walking back from the newest Work status event,
-// past this lane's own needs-triage writes (the job token's or the lanes
-// App's), the sender's run of newest events (a listed human's, as a User)
-// must start from a hold state and end at none or the floor, so a removal and
-// then a needs-triage add release too, and a re-run that sees its own write
-// still finds the release. Every value an event names must be an option the
-// config maps, so a renamed option fails the run instead of hiding a release.
-// Returns {from, to, event}, `to` the field's state now and `event` the one
-// that left the hold, or null when intake should not take the issue.
 async function fieldReleases({ github, repository, issue, humans, lanesAppId, senderId, config, fieldEvents }) {
   const states = new Set(Object.values(config.options));
   const unknown = HOLD_STATES.find((state) => !states.has(state));
@@ -258,19 +157,12 @@ async function fieldReleases({ github, repository, issue, humans, lanesAppId, se
   if (i < 0 || !sender(events[i])) {
     return null;
   }
-  // A removal followed by an add names no earlier value on the add; read the
-  // sender's removal before it. Stop there, so a hold the sender set earlier
-  // never hides the release.
   while (i > 0 && events[i].from === null && sender(events[i - 1])) {
     i -= 1;
   }
   return HOLD_STATES.includes(events[i].from) ? { from: events[i].from, to: now, event: events[i] } : null;
 }
 
-// The record of one release: a job token comment opening with a marker keyed
-// to the event that left the hold, so a re-run of that release finds it and a
-// later release, a new event, does not. The body is fixed text: the triage
-// run reads the job token's comments as trusted.
 const releaseMarker = (event) => {
   if (!event.actorId || !event.at) {
     throw new Error("the release's Work status event names no actor or time");
@@ -288,14 +180,6 @@ async function dropRecord(client, repository, id) {
   }
 }
 
-// The Work status field path: a listed human's release (fieldReleases) posts
-// its record (releaseMarker), sets the field to needs-triage when the release
-// left it empty, and dispatches intake once; it writes no label. Runs for one
-// issue wait in line, so only a re-run can see the same release again, and it
-// finds the record and dispatches nothing. A hold a person set since then
-// keeps the field and takes the record back. A failed field write or
-// dispatch takes the record back, leaves the field as written and fails the
-// run, so a re-run, which walks past the field write, can claim again.
 async function releaseField({ client, repository, base, issue, humans, lanesAppId, env, log }) {
   const senderId = positiveId(env.SENDER_ID);
   const { fieldEvents, issueStatusFromBase } = await import("../../actions/resolve-config/resolve-config.mjs");
@@ -382,8 +266,6 @@ const dispatch = (client, repository, issue) =>
     inputs: { "issue-number": String(issue.number) },
   });
 
-// Puts back `label` when the run took it off, and sets the Work status back
-// to `state`, when given, unless a person's hold landed since (keepHold).
 async function restore({ set, client, base, number, state, label, log, next = "; re-run the job to send the issue back to triage" }) {
   const back = async (what, write) => {
     try {
@@ -401,17 +283,14 @@ async function restore({ set, client, base, number, state, label, log, next = ";
   }
 }
 
-// Each answer's status: the label it takes off when the issue carries it, and
-// the Work status state a failed run sets back. A statusless answer has neither.
 const ANSWERED = {
   decision: [DECISION_LABELS, "needs-owner-decision"],
+  agent: [[AGENT_DECIDED], null],
   parked: [[CONFIRMED], "confirmed"],
   info: [INFO_LABELS, "needs-reporter-info"],
   statusless: [[], null],
 };
 
-// `routing` overrides the binding's routing labels, read by default from
-// BASE_PATH's work-items.yaml (check-born-triaged.mjs readRouting).
 export async function main({ env = process.env, github, log = console.log, statusOf, routing } = {}) {
   try {
     if (env.KILL_SWITCH !== "proceed") {
@@ -461,8 +340,6 @@ export async function main({ env = process.env, github, log = console.log, statu
       if (!kind) {
         return await replyUnanswered({ client, repository, base, issue, comment, humans, ids, labels, own, log });
       }
-      // A reply sets needs-triage, so it must not overwrite a hold only the
-      // field holds beside the needs-info it answers; a hold label stays on.
       const held = kind === "info" && labels.find((name) => INFO_HOLDS.has(name) && !own.includes(name));
       if (held) {
         log(`intake-reenter: ${held} holds the issue, so a reply changes nothing`);
@@ -485,27 +362,20 @@ export async function main({ env = process.env, github, log = console.log, statu
     }
     const removed = took ? `removed ${status}, ` : "";
     const { set } = await statusWriter({ env, github: client, repository });
-    // Past the claim, a failed call sets the answered status back, so a re-run
-    // of the job finds the issue parked and the answer is not lost.
     try {
-      // A hold a person set since the read stands (write-status.mjs
-      // keepHold), except the hold this answer releases.
       const moved = await set(number, NEEDS_TRIAGE, { keepHold: true, releases: prior });
       if (moved?.outcome === "held") {
         await restore({ set, client, base, number, state: null, label: took ? status : null, log, next: "" });
         log(`intake-reenter: a person's Work status ${moved.state} holds the issue, so the answer changes nothing; nothing dispatched`);
         return 0;
       }
-      // Intake admits an issue only from a listed human or the lanes App; any
-      // other issue waits in needs-triage for a person, so its author cannot
-      // start a model run with each reply.
       if (!authorAdmitted(issue, humans, lanesAppId)) {
         log(`intake-reenter: ${removed}set Work status to ${NEEDS_TRIAGE}; the author is not one intake admits, so nothing dispatched`);
         return 0;
       }
       await dispatch(client, repository, issue);
     } catch (error) {
-      if (prior) {
+      if (prior || took) {
         await restore({ set, client, base, number, state: prior, label: took ? status : null, log });
       }
       throw error;

@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/handoffs/x.slots.json",
+            "content": "{\"retire\": [{\"ref\": \"[M1]\", \"reason\": \"ran h2\"}]}"
+          }
+        }
+      ]
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/.work/handoffs/x.slots.json",
+            "content": "{\"reminders-new\": \"None.\"}"
+          }
+        }
+      ],
+      "why": "drops it without retire"
+    },
+    {
+      "answer": []
+    }
+  ]
+}

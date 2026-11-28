@@ -1,3 +1,0 @@
-[type.dependabot-fragment]
-extend-glob = ["dependabot-[0-9]*-*.md"]
-check-filename = false

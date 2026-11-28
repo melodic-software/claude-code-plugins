@@ -53,11 +53,6 @@ def _csv(value: str | None) -> frozenset[str]:
 
 def build_config(args: argparse.Namespace) -> delta.ClassifyConfig:
     extra_bot_logins = _csv(getattr(args, "extra_bot_logins", None))
-    # `self_logins` (the posting identities whose comments to suppress) is resolved
-    # by `resolve_self_logins` from the dedicated self flags, never from the
-    # `--author` discovery filter (#511). A hand-built Namespace that omits
-    # `resolved_self_logins` supplies no self set; `--author` is deliberately not
-    # consulted as a fallback, so no discovery author can leak in.
     return delta.ClassifyConfig(
         allowed_owners=_csv(getattr(args, "owners", None)),
         self_logins=frozenset(getattr(args, "resolved_self_logins", None) or ()),
@@ -150,7 +145,6 @@ def resolve_self_logins(self_csv: str | None, extra_self_csv: str | None) -> lis
 def resolve_scope_repos(
     args: argparse.Namespace, owners: frozenset[str]
 ) -> tuple[str, ...]:
-    """Validate --repo against the watched-owner set and the queue lease."""
     repo_arg = getattr(args, "repo", None)
     if not repo_arg:
         return ()
@@ -170,14 +164,6 @@ def resolve_scope_repos(
 
 
 def substantive_errors(errors: list[str]) -> list[str]:
-    """Errors that mark the sweep incomplete -- everything but advisory ones.
-
-    An advisory head-ref alias failure leaves every per-PR classification and
-    the persisted state intact, so it neither forces the tight cadence nor
-    holds back full-sweep advancement; only substantive errors (per-PR
-    hydration or discovery failures) do. The single source of truth for the
-    advisory predicate is ``babysit_delta.is_head_ref_alias_error``.
-    """
     return [message for message in errors if not delta.is_head_ref_alias_error(message)]
 
 
@@ -188,16 +174,6 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
     previous_prs = json_object(state.get("prs"))
     mutation_ledger = json_object(state.get("mutation_ledger"))
 
-    # Resolve the self-identity set from the dedicated `--self`/`--extra-self`
-    # flags, independent of the `--author` discovery filter and of `--pr` vs
-    # `--queue` scope (#511). `self_logins` gates same-login classification
-    # (foreign-activity and attribution-drift) and self-comment suppression
-    # whether or not discovery runs; resolving it here (before the scope split)
-    # covers single-PR scope too and never inherits a discovery author. Autopilot
-    # widening drops `--author` but keeps `--extra-self`, so configured extra
-    # identities still hold. build_snapshot also runs from hand-built Namespaces
-    # (tests, callers) that may omit optional flags; default them rather than
-    # require them.
     authors = gh.resolve_authors(getattr(args, "author", None))
     args.resolved_self_logins = resolve_self_logins(
         getattr(args, "self_logins", None), getattr(args, "extra_self_logins", None)
@@ -226,8 +202,6 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
     for repo, number in targets:
         key = f"{repo}#{number}"
         try:
-            # An unreadable repository config leaves the PR unclassified (never
-            # merge-ready) and is recorded like a hydration failure.
             pr_config = repo_classify_config(config, args, repo)
             trigger_config = pr_config.review_trigger
             pr = gh.view_pr(repo, number)
@@ -298,10 +272,6 @@ def build_snapshot(args: argparse.Namespace) -> dict[str, Any]:
             prs, complete=not errors, errors=errors, previous_prs=previous_prs
         )
 
-    # Persistent-error quarantine: a PR that has errored several consecutive
-    # cycles stops forcing the cadence to "active" (its errors stay visible)
-    # until its quarantine TTL lapses -- one broken PR must not pin the whole
-    # queue at the tightest cadence forever.
     pr_errors, quarantined = state_store.update_error_quarantine(
         state.get("pr_errors"), pr_error_keys, generated_at
     )
@@ -391,8 +361,6 @@ def print_text(snapshot: dict[str, Any]) -> None:
             print("  material:")
             for finding in pr["material_findings"]:
                 print(f"  - {finding}")
-        # Check names are attacker text on a fork PR: the id leads each line and
-        # the name is JSON-escaped, so no name can forge a line or another id.
         for identity in pr["checks"]["failing_identities"]:
             print(
                 f"  failing check: rerun_id={identity['rerun_id']} "

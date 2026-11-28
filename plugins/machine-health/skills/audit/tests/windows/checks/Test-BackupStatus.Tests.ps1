@@ -1,14 +1,6 @@
 #Requires -Version 7.4
 #Requires -Modules @{ ModuleName = 'Pester'; ModuleVersion = '5.7.0' }
 
-<#
-.SYNOPSIS
-Tests for scripts/windows/checks/Test-BackupStatus.ps1 with Get-BackupSignal mocked.
-The severity rule is reference/windows/check-catalog.md section 27: WARN when no
-source is present, UNKNOWN when any source needs admin. The deprecation sentence
-is the one that section names.
-#>
-
 BeforeAll {
     . "$PSScriptRoot\..\..\helpers\Initialize-CheckSuite.ps1" -Check 'Test-BackupStatus' `
         -AsObject 'Invoke-BackupStatus' -LibScript 'Get-BackupSignal.ps1', 'Test-IsElevated.ps1'

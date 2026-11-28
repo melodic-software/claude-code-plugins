@@ -2,7 +2,6 @@ export const WORK_TYPES = new Set(['coding', 'web-ui', 'knowledge', 'image'])
 export const VERDICTS = new Set(['lead', 'tie', 'behind', 'abstain'])
 export const READ_STATES = new Set(['live', 'cached-stale', 'unread'])
 export const ROW_STATUSES = new Set(['permanent', 'support-only'])
-export const TIEBREAK_STEPS = new Set(['vendor-order', 'fewest-tokens', 'most-usage-left'])
 export const TASK_CLASSES = new Set(['everyday', 'heavy'])
 export const EFFORT_LADDER = ['low', 'medium', 'high', 'xhigh', 'max']
 

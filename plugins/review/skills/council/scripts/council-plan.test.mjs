@@ -1,7 +1,3 @@
-// Tests for council-plan.mjs. Expected values come from the council keys' schema
-// (plugins/review/schemas/review.schema.json), the adapter records under ../adapters, the
-// flagship pointer file, and the selection rules ADR 0097 states (first match wins, every term
-// must match, a member that cannot run as written is skipped and never replaced).
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";

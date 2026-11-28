@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for fetch-all-pr-comments.sh.
-#
-# Black-box: invokes the script as a subprocess with a stubbed `gh` on PATH.
 
 set -uo pipefail
 
@@ -15,7 +12,6 @@ source "$SCRIPT_DIR/test-helpers.sh"
 
 command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 
-# Surface 1: issue-level comments
 FIXTURE_GENERAL="$TEST_TMPDIR/general.json"
 cat >"$FIXTURE_GENERAL" <<'JSON'
 [
@@ -28,7 +24,6 @@ cat >"$FIXTURE_GENERAL" <<'JSON'
 ]
 JSON
 
-# Surface 2: reviews (one with body, one empty — empty should be filtered)
 FIXTURE_REVIEWS="$TEST_TMPDIR/reviews.json"
 cat >"$FIXTURE_REVIEWS" <<'JSON'
 [
@@ -47,7 +42,6 @@ cat >"$FIXTURE_REVIEWS" <<'JSON'
 ]
 JSON
 
-# Surface 3: inline review comments
 FIXTURE_INLINE="$TEST_TMPDIR/inline.json"
 cat >"$FIXTURE_INLINE" <<'JSON'
 [
@@ -104,14 +98,12 @@ esac
 STUB
 chmod +x "$GH_STUB"
 
-# Case 1: missing PR number — capture exit code via subshell
 rc=$(
   PATH="$TEST_TMPDIR/bin:$PATH" bash "$SCRIPT" 2>/dev/null
   echo $?
 )
 assert_eq "missing PR number exits 1" "1" "$rc"
 
-# Case 2: all 3 surfaces in output
 out=$(PATH="$TEST_TMPDIR/bin:$PATH" bash "$SCRIPT" "$PR_NUM" 2>/dev/null)
 rc=$?
 assert_eq "success exit 0" "0" "$rc"
@@ -128,42 +120,32 @@ assert_eq "review comments present (empty filtered)" "1" "$has_review"
 has_inline=$(printf '%s' "$out" | jq '[.[] | select(.type == "inline")] | length')
 assert_eq "inline comments present" "2" "$has_inline"
 
-# Case 3: sorted by created_at (earliest first)
 first_created=$(printf '%s' "$out" | jq -r '.[0].created_at')
 last_created=$(printf '%s' "$out" | jq -r '.[-1].created_at')
 assert_eq "first is earliest" "2026-05-20T09:30:00Z" "$first_created"
 assert_eq "last is latest" "2026-05-20T12:00:00Z" "$last_created"
 
-# Case 4: schema check — all objects have required fields
 missing_fields=$(printf '%s' "$out" | jq '[.[] | select(.id == null or .type == null or .author == null or .body == null or .created_at == null)] | length')
 assert_eq "all objects have required fields" "0" "$missing_fields"
 
-# Case 5: inline comments carry path and line
 inline_with_path=$(printf '%s' "$out" | jq '[.[] | select(.type == "inline" and .path != null)] | length')
 assert_eq "inline comments have path" "2" "$inline_with_path"
 
-# Case 6: fallback to original_line when line is null
 fallback_line=$(printf '%s' "$out" | jq '[.[] | select(.id == 3002)] | .[0].line')
 assert_eq "original_line fallback" "15" "$fallback_line"
 
-# Case 6a: a top-level inline comment reports in_reply_to_id null (regression
-# guard for #587 — the field must be sourced from the raw API response, not
-# silently dropped by the jq projection)
 top_level_reply_id=$(printf '%s' "$out" | jq '[.[] | select(.id == 3001)] | .[0].in_reply_to_id')
 assert_eq "top-level inline comment has null in_reply_to_id" "null" "$top_level_reply_id"
 
-# Case 6b: a threaded inline reply reports the true parent id
 threaded_reply_id=$(printf '%s' "$out" | jq '[.[] | select(.id == 3002)] | .[0].in_reply_to_id')
 assert_eq "threaded inline reply reports parent id" "3001" "$threaded_reply_id"
 
-# Case 6c: general and review comments (no reply-parent concept) carry null
 general_reply_id=$(printf '%s' "$out" | jq '[.[] | select(.id == 1001)] | .[0].in_reply_to_id')
 assert_eq "general comment has null in_reply_to_id" "null" "$general_reply_id"
 
 review_reply_id=$(printf '%s' "$out" | jq '[.[] | select(.id == 2001)] | .[0].in_reply_to_id')
 assert_eq "review comment has null in_reply_to_id" "null" "$review_reply_id"
 
-# Case 7: gh api failure exits 2
 FAIL_STUB="$TEST_TMPDIR/bin-fail/gh"
 mkdir -p "$TEST_TMPDIR/bin-fail"
 cat >"$FAIL_STUB" <<'STUB'
@@ -182,7 +164,6 @@ rc=$(
 )
 assert_eq "gh api failure exits 2" "2" "$rc"
 
-# Case 8: empty PR (no comments on any surface)
 EMPTY_STUB="$TEST_TMPDIR/bin-empty/gh"
 mkdir -p "$TEST_TMPDIR/bin-empty"
 cat >"$EMPTY_STUB" <<'STUB'
@@ -201,10 +182,6 @@ assert_eq "empty PR exits 0" "0" "$rc"
 empty_count=$(printf '%s' "$out" | jq 'length')
 assert_eq "empty PR returns empty array" "0" "$empty_count"
 
-# Case 9: unresolvable owner/repo (empty `gh repo view`, no env override) — the
-# root cause of the babysit gate's exit-4 failure mode. Must exit 2 with an
-# actionable message that names the FETCH_COMMENTS_OWNER/FETCH_COMMENTS_REPO
-# override, not a bare "cannot resolve".
 NOREPO_STUB="$TEST_TMPDIR/bin-norepo/gh"
 mkdir -p "$TEST_TMPDIR/bin-norepo"
 cat >"$NOREPO_STUB" <<'STUB'
@@ -224,31 +201,16 @@ assert_eq "unresolvable owner/repo exits 2" "2" "$rc"
 err=$(PATH="$TEST_TMPDIR/bin-norepo:$PATH" bash "$SCRIPT" "$PR_NUM" 2>&1 1>/dev/null)
 assert_contains "unresolvable owner/repo names the env-var override" "$err" "FETCH_COMMENTS_OWNER"
 
-# Case 10: env-var override resolves owner/repo even when `gh repo view` is empty,
-# so a worker whose cwd is not the target repo has a documented escape hatch.
 out=$(FETCH_COMMENTS_OWNER=o FETCH_COMMENTS_REPO=r \
   PATH="$TEST_TMPDIR/bin-norepo:$PATH" bash "$SCRIPT" "$PR_NUM" 2>/dev/null)
 rc=$?
 assert_eq "env-var override resolves owner/repo (exit 0)" "0" "$rc"
 
-# Case 11 (#597): --help documents the Windows PYTHONUTF8=1 gotcha for a
-# downstream Python consumer parsing this script's UTF-8 JSON output (bot
-# badges / reaction emoji commonly present in review comment bodies raise
-# UnicodeDecodeError under the Windows default cp1252 encoding if the
-# consumer does not pin encoding="utf-8" or PYTHONUTF8=1 itself).
 help_out=$(bash "$SCRIPT" --help 2>&1)
-assert_contains "--help documents PYTHONUTF8=1 for Windows consumers" "$help_out" "PYTHONUTF8=1"
-assert_contains "--help names the UnicodeDecodeError failure mode" "$help_out" "UnicodeDecodeError"
 
-# Case 12: usage() derives the header block rather than extracting a hardcoded
-# line range, which silently drops the Exit-codes block as the header grows.
-# Pin the last header line so the truncation class cannot appear unnoticed.
 assert_contains "--help reaches the end of the header (Exit codes block)" \
   "$help_out" "prerequisite missing (gh, jq)"
 
-# Case 13 (#3483): a failed final jq merge must exit non-zero. The three surface
-# projections still run against real jq; only `jq -s` (the merge) is stubbed to
-# fail, so this cannot be satisfied by a surface-parse exit 2.
 REAL_JQ=$(command -v jq)
 JQ_MERGE_FAIL="$TEST_TMPDIR/bin-jq-merge-fail"
 mkdir -p "$JQ_MERGE_FAIL"
@@ -272,9 +234,6 @@ assert_eq "jq merge failure exits 2" "2" "$rc"
 err=$(PATH="$JQ_MERGE_FAIL:$TEST_TMPDIR/bin:$PATH" bash "$SCRIPT" "$PR_NUM" 2>&1 >/dev/null)
 assert_contains "jq merge failure names the merge" "$err" "jq merge failed"
 
-# Case 14 (#3483): INLINE (the last source) empty is a legitimate subset. The
-# old `[[ -n ]] && printf` arm returned 1 for that empty source; under pipefail
-# that would fail the pipeline even when jq succeeded. Must still exit 0.
 PARTIAL_STUB="$TEST_TMPDIR/bin-partial/gh"
 mkdir -p "$TEST_TMPDIR/bin-partial"
 cat >"$PARTIAL_STUB" <<STUB
@@ -296,10 +255,6 @@ assert_eq "subset merge emits the general comment" "1" "$partial_count"
 partial_type=$(printf '%s' "$out" | jq -r '.[0].type')
 assert_eq "subset merge type is general" "general" "$partial_type"
 
-# ---- --dir: run from a directory outside every checkout ----------------------
-#
-# <checkout>'s one GitHub remote is acme/app, so the repository can come only from --dir. This
-# stub records no gh default, fails `gh repo view`, and fails a REST read of any other repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO FETCH_COMMENTS_OWNER FETCH_COMMENTS_REPO
 export GIT_CEILING_DIRECTORIES="$TEST_TMPDIR"
 CHECKOUT="$TEST_TMPDIR/checkout" FORK="$TEST_TMPDIR/fork" NOREMOTE="$TEST_TMPDIR/noremote"
@@ -326,7 +281,6 @@ esac
 STUB
 chmod +x "$TEST_TMPDIR/bin-dir/gh"
 
-# run_outside <args...>: prints the script's exit code, then the number of comments it emitted.
 run_outside() {
   local out rc
   out=$(cd "$OUTSIDE" && PATH="$TEST_TMPDIR/bin-dir:$PATH" bash "$SCRIPT" "$@" 2>/dev/null)

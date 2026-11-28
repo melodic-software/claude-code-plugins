@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for branch-update-signals.sh and stale-base-overlap.sh, black
-# box over a fake gh on PATH and fixture git repositories. Each expected signal
-# is written by hand from that signal's rule in branch-update-signals.sh and
-# reference/providers/github/branch-update-signals.md. Every run's output is
-# also fed to branch-update-method.sh, which must accept it.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GH_REPO
 
@@ -27,11 +22,6 @@ ROOT="$WORKDIR/gh"
 mkdir -p "$FAKE" "$SHIM" "$ROOT/example-org"
 export FAKE
 
-# Answers each read the script makes. The JSON shapes are GitHub's published
-# REST schemas for a pull request, its commits and reviews, repository rules and
-# compare (reference/providers/github/branch-update-signals.md points at each);
-# the file each case writes is the only input. FAKE_REFUSE is a regex of calls
-# to fail, as a refused read does.
 cat >"$SHIM/gh" <<'EOF'
 #!/usr/bin/env bash
 printf '%s\n' "$*" >>"$FAKE/calls"
@@ -97,9 +87,6 @@ EOF
 chmod +x "$SHIM/gh" "$SHIM/git"
 export PATH="$SHIM:$PATH"
 
-# make_repo <name>: a clone of a fresh bare at github.com/example-org/<name>
-# (through the shim), main holding a.txt and b.txt, on feat/x with one commit
-# touching a.txt. Sets WC and BARE.
 make_repo() {
   BARE="$ROOT/example-org/$1.git"
   WC="$WORKDIR/$1"
@@ -119,7 +106,6 @@ make_repo() {
   git -C "$WC" remote set-url origin "https://github.com/example-org/$1.git"
 }
 
-# advance_main <file>: land one commit on the fixture's main, as another PR would.
 advance_main() {
   local other="$WC.other"
   [[ -d "$other" ]] || {
@@ -133,7 +119,6 @@ advance_main() {
   git -C "$other" push -q origin main 2>/dev/null
 }
 
-# reset_fake <head-sha>: the plain PR 7, one commit by alice, nothing else set.
 reset_fake() {
   rm -f "$FAKE"/*
   jq -cn --arg sha "$1" '{
@@ -149,13 +134,11 @@ reset_fake() {
   unset FAKE_REFUSE
 }
 
-# patch <file> <jq filter>
 patch() {
   local out
   out="$(jq -c "$2" "$FAKE/$1")" && printf '%s\n' "$out" >"$FAKE/$1"
 }
 
-# run <dir> <args...>: run the signals script; every run must pass validation.
 run() {
   local dir="$1" label="${LABEL:-run}"
   shift
@@ -171,10 +154,8 @@ sig() { jq -r ".$1" <<<"$OUT" | tr -d '\r'; }
 method() { jq -r .method <<<"$DECISION" | tr -d '\r'; }
 rule() { jq -r .rule <<<"$DECISION" | tr -d '\r'; }
 
-# expect <label> <signal> <value>: assert one signal of the last run.
 expect() { assert_eq "$1" "$3" "$(sig "$2")"; }
 
-# one_signal <label> <signal> <value> [args]: re-run the PR and assert.
 one_signal() {
   local label="$1" signal="$2" value="$3"
   shift 3
@@ -201,14 +182,11 @@ assert_contains "overlap, ref starting with - is unknown" "$(bash "$OVERLAP" "$W
 bash "$OVERLAP" "$WC" >/dev/null 2>&1
 assert_exit "overlap, one argument is a usage error" 2 "$?"
 
-# put_rule <repo-side-marker> <exit>: write the overlap rule that records its run.
 put_rule() {
   mkdir -p "$1/scripts"
   printf '#!/usr/bin/env bash\ntouch "%s"\nexit %s\n' "$2" "$3" >"$1/scripts/check-stale-base-overlap.sh"
 }
 
-# The base's rule runs from a temporary copy; the head's edit and a dirty
-# working copy are never run, and the base's verdict is what comes back.
 make_repo rule
 put_rule "$WC" "$WORKDIR/base-ran" 1
 git -C "$WC" add -A
@@ -225,7 +203,6 @@ assert_file_exists "overlap, the base's copy ran" "$WORKDIR/base-ran"
 assert_file_absent "overlap, the head's copy never ran" "$WORKDIR/head-ran"
 assert_file_absent "overlap, the working tree's copy never ran" "$WORKDIR/wt-ran"
 
-# Through the signals script: same fixture, HEAD is the PR head.
 SHA="$(git -C "$WC" rev-parse HEAD)"
 rm -f "$WORKDIR/base-ran"
 reset_fake "$SHA"
@@ -234,8 +211,6 @@ assert_file_exists "signals, base rule ran" "$WORKDIR/base-ran"
 assert_file_absent "signals, head rule never ran" "$WORKDIR/head-ran"
 assert_file_absent "signals, working tree rule never ran" "$WORKDIR/wt-ran"
 
-# With the default branch unread, the base's rule does not run and the paths
-# (disjoint here, though the rule says overlap) decide.
 rm -f "$WORKDIR/base-ran"
 reset_fake "$SHA"
 FAKE_REFUSE='^repo view example' one_signal "default branch unread: paths only" base_change_needed no --repo example-org/rule
@@ -245,7 +220,6 @@ assert_file_absent "overlap --paths-only: the rule never ran" "$WORKDIR/base-ran
 bash "$OVERLAP" --paths-only "$WC" >/dev/null 2>&1
 assert_exit "overlap --paths-only, one argument is a usage error" 2 "$?"
 
-# A non-default base holding a rule: never run, overlap still computed.
 make_repo rule-nondefault
 git -C "$WC" checkout -q -b release main
 put_rule "$WC" "$WORKDIR/release-rule-ran" 0
@@ -307,7 +281,6 @@ reset_fake "$(git -C "$WC" rev-parse HEAD)"
 LABEL="overlap" run "$WC" --pr 7 --repo example-org/overlapping
 expect "overlap: base_change_needed yes" base_change_needed yes
 
-# A disjoint fixture for the rest of PR mode.
 WC="$WORKDIR/app"
 reset_fake "$SHA"
 
@@ -392,7 +365,6 @@ for login in "app/dependabot" "dependabot[bot]" "Renovate[bot]" "app/renovate-bo
 done
 reset_fake "$SHA"
 
-# The dependency-manager list and its normalization are held equal to babysit's.
 CLASSIFY_DIR="$SCRIPT_DIR/../skills/babysit-prs/scripts"
 PYTHON="$(command -v python3 || command -v python || true)"
 if [[ -z "$PYTHON" ]]; then
@@ -428,7 +400,6 @@ reset_fake "$SHA"
 FAKE_REFUSE='rules/branches/main' one_signal "up_to_date_required: unreadable" up_to_date_required unknown
 reset_fake "$SHA"
 
-# Classic protection, read when no ruleset says strict.
 echo '{"strict":true}' >"$FAKE/protection"
 one_signal "up_to_date_required: classic strict" up_to_date_required yes
 echo '{"strict":false}' >"$FAKE/protection"
@@ -445,7 +416,6 @@ echo '{"strict":true}' >"$FAKE/protection"
 FAKE_REFUSE='rules/branches/main' one_signal "up_to_date_required: rules unread, classic strict" up_to_date_required yes
 reset_fake "$SHA"
 
-# A head that merged the base holds it; a merge of something else does not.
 make_repo merged
 advance_main b.txt
 git -C "$WC" fetch -q origin main 2>/dev/null
@@ -473,20 +443,12 @@ GH_REPO=example-org/app LABEL="GH_REPO" run "$WC" --pr 7
 assert_contains "GH_REPO: the pull request is read from GH_REPO's repository" "$(cat "$FAKE/calls")" "api repos/example-org/app/pulls/7"
 expect "GH_REPO: head_sha read" head_sha "$SHA"
 
-########################################################################
-# --dir: a shell outside the checkout reads the checkout and its repository
-########################################################################
-# The fake records no gh default, and its {owner}/{repo} placeholder names
-# upstream-org/app, which serves no pull request, so example-org/app can come
-# only from the checkout's one GitHub remote.
 reset_fake "$SHA"
 LABEL="--dir" run "$WORKDIR" --pr 7 --dir "$WC"
 assert_contains "--dir: the pull request is read from the checkout's repository" "$(cat "$FAKE/calls")" "api repos/example-org/app/pulls/7"
 expect "--dir: head_sha read" head_sha "$SHA"
 expect "--dir: overlap read in the checkout" base_change_needed no
 
-# Under an exported CDPATH, a relative --dir resolved through it would print the directory ahead
-# of the JSON.
 reset_fake "$SHA"
 CDPATH="$WORKDIR" LABEL="--dir under CDPATH" run "$WORKDIR" --pr 7 --dir app
 assert_eq "--dir under CDPATH: stdout is one JSON object" "1 object" \
@@ -602,7 +564,6 @@ branch_run "pushed, rule" --allow-rewrite
 expect "branch: non_fast_forward stays blocked" rewrite blocked
 rm "$FAKE/head_rules"
 
-# A push remote other than the repository asked about is never rewritten.
 mkdir -p "$ROOT/fork-owner"
 git init -q --bare -b main "$ROOT/fork-owner/$REPO_NAME.git"
 git -C "$WC" remote add fork "https://github.com/fork-owner/$REPO_NAME.git"
@@ -653,7 +614,6 @@ expect "setting: an unknown value is auto" setting auto
 expect "setting: not the repository level" setting_level default
 assert_contains "setting: unknown value notice" "$ERR" "'fast'"
 
-# Every value the schema allows reaches `setting` and the decision accepts it.
 SCHEMA="$SCRIPT_DIR/../schemas/source-control.schema.json"
 values="$(jq -r '.properties.pr_update_method.enum[]' "$SCHEMA" | tr -d '\r')"
 assert_contains "the schema's values were read" "$values" "rebase"
@@ -701,8 +661,6 @@ expect "setting: non-default base value ignored" setting auto
 assert_not_contains "setting: non-default base level" "$(sig setting_level)" "repository"
 assert_contains "setting: non-default base notice" "$ERR" "not the default branch"
 
-########################################################################
-# PR-supplied text is data
 ########################################################################
 # shellcheck disable=SC2016 # False positive: the literal text is the fixture's branch name.
 EVIL='feat/$(touch${IFS}evil-marker)'

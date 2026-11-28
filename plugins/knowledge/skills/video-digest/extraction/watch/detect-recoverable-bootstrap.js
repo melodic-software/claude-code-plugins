@@ -80,9 +80,6 @@ export function detectRecoverableBootstrap(sliceDir) {
   const frameCount = countMatchingFiles(framesDir, (n) => n.endsWith(".png"));
   const sheetCount = countMatchingFiles(contactSheetsDir, (n) => /^sheet_\d+\.jpg$/i.test(n));
 
-  // recover-watch-bootstrap.js reads mp4/vtt/info.json from workDir and throws
-  // when they are gone, so a slice is only recoverable when workDir survives
-  // too — advertising recovery without it hands the user a command that fails.
   const recoverable = frameCount > 0 && sheetCount > 0 && hasWork;
 
   const reason = recoverable

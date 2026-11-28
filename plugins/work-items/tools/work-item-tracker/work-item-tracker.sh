@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Core dispatcher for the work-item tracker seam. Contract: CONTRACT.md (verbs, JSON
-# shapes, exit codes).
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,12 +17,8 @@ readonly EX_AUTH=4
 readonly EX_NOT_FOUND=5
 readonly EX_CAPABILITY=6
 
-# The organization issue field that holds item status when the tracker offers it
-# (CONTRACT.md "Verbs", status-storage).
 readonly WIT_STATUS_FIELD="Work status"
 
-# wit_resolve_adapter_dir <provider>: CONTRACT.md "Adapter resolution". When none
-# exists the bundled path is echoed so the caller emits one not-found error.
 wit_resolve_adapter_dir() {
   local provider="$1" root
   if [[ -n "${WIT_ADAPTERS_DIR:-}" ]]; then
@@ -46,7 +40,7 @@ usage() {
 Usage: work-item-tracker.sh <verb> [args]
 Verbs:
   create-item --title <t> [--body <b> | --body-file <path>] [--labels a,b]
-              [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <owner>/<repo>]
+              [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--native-status <name>] [--repo <owner>/<repo>]
   get-item <id> [--history]
   claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only]
         [--phase triage|discovery|implementation]
@@ -63,11 +57,19 @@ Verbs:
   list-frontier [--autonomous] [--parent <container-id>] [--repo <owner>/<repo>] [--label <name>]
   label-provenance <id> --label <name> [--label <name> ...]
   set-fields <id> --field <field-id>=<option-id> [--field <field-id>=<option-id> ...]
+  set-native-status <id> --status <name>
   get-field-options --field <name-or-id> [--repo <owner>/<repo>]
   get-statuses --field <name> <id>...
   status-storage [--repo <owner>/<repo>]
   change-link (<id> | --branch-ref <ref> | --branch <name>) [--repo <owner>/<repo>]
   add-recurrence <id> --source-link <url> --note <text>
+  put-artifact <id> (--body-file <path> | --body <text> | --url <url>) [--name <name>]
+               [--type generic|plan|embedded_html] [--artifact <number>]
+  list-artifacts <id> [--type generic|plan|link|embedded_html] [--limit <n>]
+  get-artifact <id> (--artifact <number> | --name <name>) [--version <n>] [--versions]
+  link-relates <id> --related-to <id>
+  unlink-relates <id> --related-to <id>
+  list-relates <id>
   wayfind-labels
   capabilities
 Contract: tools/work-item-tracker/CONTRACT.md
@@ -84,15 +86,11 @@ fail_config() {
   exit "$EX_CONFIG"
 }
 
-# Presence is checked apart from version so a gh-less session gets a clean exit 3
-# (CONTRACT.md "Degradation without gh"), not `gh: command not found` in an adapter.
 check_gh_present() {
   command -v gh >/dev/null 2>&1 ||
     fail_config "prerequisite missing: gh (GitHub CLI) — see CONTRACT.md Prerequisites"
 }
 
-# check_gh_version [feature]: the flag or verb that needs 2.94, named in the exit-3
-# message; the default covers verbs with no user-facing flag.
 check_gh_version() {
   check_gh_present
   local feature="${1:-native sub-issue/dependency flags}"
@@ -105,11 +103,6 @@ check_gh_version() {
   fail_config "gh >= ${WIT_GH_NATIVE_SURFACE_MAJOR}.${WIT_GH_NATIVE_SURFACE_MINOR} required for ${feature} (found: ${raw:-unknown})"
 }
 
-# wit_detect_status_storage <adapter-dir> <manifest> [--repo <o>/<r>]: CONTRACT.md
-# "Verbs", status-storage. Sets WIT_STATUS_STORAGE (`field` or `labels`) and
-# WIT_STATUS_REASON and returns 0; when the provider did not answer, returns 1 with
-# the adapter's exit code in WIT_STATUS_RC and its stderr in WIT_STATUS_ERR, so each
-# caller chooses whether that fails it.
 wit_detect_status_storage() {
   local adapter_dir="$1" manifest="$2" fields_out fields_rc errfile refused
   shift 2
@@ -123,8 +116,6 @@ wit_detect_status_storage() {
   fields_rc=$?
   WIT_STATUS_ERR="$(<"$errfile")"
   rm -f "$errfile"
-  # GitHub answers a rate limit with 403 too, which the adapter maps to exit 4; only
-  # a refusal of the read itself means status is not in a field.
   refused="false"
   case "$fields_rc" in
   "$EX_NOT_FOUND") refused="true" ;;
@@ -149,13 +140,6 @@ wit_detect_status_storage() {
   return 0
 }
 
-# wit_attach_statuses <adapter-dir> <manifest> [--repo <o>/<r>]: stdin a list envelope,
-# stdout the same envelope whose frontier candidates (open, unblocked, unassigned) carry
-# `status`, their Work status value or null, when the tracker stores status in that
-# field (CONTRACT.md "Verbs", list-frontier). A failed status-storage or get-statuses
-# read prints one stderr line and returns the adapter's code with nothing on stdout; a
-# malformed answer returns 1. `labels` storage and an adapter without get-statuses pass
-# the envelope through.
 wit_attach_statuses() {
   local adapter_dir="$1" manifest="$2" envelope ids out errfile i n id statuses='{}' chunk=() rc
   shift 2
@@ -212,7 +196,6 @@ main() {
     fail_config "prerequisite missing: jq — see CONTRACT.md Prerequisites"
 
   if [[ "$verb" == "wayfind-labels" ]]; then
-    # Core-derived from the binding alone: no adapter, and the defaults when none binds.
     (($# == 0)) || fail_usage
     local labels
     labels="$(wit_wayfind_labels)" || exit "$EX_CONFIG"
@@ -229,7 +212,6 @@ main() {
   local adapter_dir manifest
   adapter_dir="$(wit_resolve_adapter_dir "$WIT_PROVIDER")"
   if [[ ! -d "$adapter_dir" && -d "$SCRIPT_DIR/seeds/$WIT_PROVIDER" ]]; then
-    # A seed is never dispatched from the plugin (CONTRACT.md "Adapter resolution").
     fail_config "provider '$WIT_PROVIDER' ships as a seed the consuming repo owns; run /work-items:setup apply to copy it into tools/work-item-tracker/adapters/$WIT_PROVIDER/"
   fi
   [[ -d "$adapter_dir" ]] ||
@@ -241,17 +223,13 @@ main() {
   wit_check_contract_version "$WIT_PROVIDER" "$manifest" ||
     exit "$EX_CONFIG"
 
-  # A consumer-local adapter's own ../../lib may not exist, so export THIS engine's
-  # lib dir; only exported vars cross into `bash <verb>.sh`. Bundled adapters ignore it.
   export WIT_SEAM_LIB_DIR="$SCRIPT_DIR/lib"
 
   local adapter_verb="$verb"
   case "$verb" in
-  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | set-fields | get-field-options | get-statuses | change-link | add-recurrence | capabilities) ;;
+  create-item | get-item | claim | renew-lease | release | reclaim | link-blocks | add-sub-item | list-sub-items | label-provenance | set-fields | set-native-status | get-field-options | get-statuses | change-link | add-recurrence | put-artifact | list-artifacts | get-artifact | link-relates | unlink-relates | list-relates | capabilities) ;;
   list-items | status-storage) ;;
   list-frontier)
-    # Chosen BEFORE the capability gate, so an adapter without list-sub-items
-    # degrades with exit 6 on --parent instead of failing the scoped call.
     adapter_verb="list-items"
     local a
     for a in "$@"; do
@@ -264,8 +242,6 @@ main() {
   *) fail_usage ;;
   esac
 
-  # Gate only paths that pass gh 2.94 native flags or read its fields, so plain creates
-  # work on older gh. list-items stays gated: silent blockedBy zeros would unblock items.
   if [[ "$WIT_PROVIDER" == "github" ]]; then
     case "$adapter_verb" in
     create-item)
@@ -292,7 +268,6 @@ main() {
       check_gh_version "--parent"
       ;;
     list-items)
-      # A GraphQL-refusing session reads blockers over REST (adapter README "List items").
       if wit_gh_session_refuses_graphql; then
         check_gh_present
       else
@@ -300,7 +275,6 @@ main() {
       fi
       ;;
     capabilities | change-link)
-      # Read the JSON manifest or format text only; never shell out to gh.
       ;;
     *)
       check_gh_present
@@ -309,8 +283,6 @@ main() {
   fi
 
   if [[ "$verb" == "status-storage" ]]; then
-    # Core-derived, so it bypasses the capability gate: an adapter without
-    # get-field-options stores status in labels, which is an answer, not exit 6.
     local repo_args=()
     while [[ $# -gt 0 ]]; do
       case "$1" in
@@ -373,20 +345,14 @@ main() {
       esac
     done
     if [[ -n "$parent" && ${#list_args[@]} -gt 0 ]]; then
-      # Rejected loudly: accepting --repo here would silently discard it.
       printf 'work-item-tracker: --repo is not valid with --parent (container id carries the repo)\n' >&2
       exit "$EX_USAGE"
     fi
-    # CONTRACT.md "Adapter contract": an adapter that declares the label filter narrows
-    # its provider query, so list_items_max counts only matching items. Any other adapter
-    # gets no --label (it would be a usage error there) and lists unfiltered.
     if [[ -n "$label" && -z "$parent" &&
       "$(jq -r '.features.list_items_label_filter // false' "$manifest")" == "true" ]]; then
       list_args+=(--label "$label")
     fi
     if [[ -n "$parent" ]]; then
-      # The same filter's container exclusion keeps a nested sub-map among the
-      # children from being a frontier item itself.
       out="$(bash "$adapter_dir/list-sub-items.sh" "$parent" --state open)"
     else
       out="$(bash "$adapter_dir/list-items.sh" --state "$state" "${list_args[@]+"${list_args[@]}"}")"
@@ -394,8 +360,6 @@ main() {
     rc=$?
     ((rc == 0)) || exit "$rc"
     out="$(printf '%s\n' "$out" | wit_strip_cr)"
-    # Exact match core-side in every case: it is the whole filter for an adapter without
-    # the provider filter, and the guard against a provider that matches loosely.
     if [[ -n "$label" ]]; then
       out="$(printf '%s\n' "$out" | wit_filter_label "$label")" || exit 1
     fi
@@ -403,20 +367,15 @@ main() {
       printf '%s\n' "$out"
       exit 0
     fi
-    # The autonomous floor reads each candidate's Work status when the tracker
-    # stores status there; the default frontier reads no status.
     if [[ "$autonomous" == "true" ]]; then
       out="$(printf '%s\n' "$out" | wit_attach_statuses "$adapter_dir" "$manifest" "${repo_args[@]+"${repo_args[@]}"}")" || exit $?
     fi
-    # wit_read_binding above guarantees both labels; no inline defaults here.
     printf '%s\n' "$out" |
       wit_filter_frontier "$autonomous" "$WIT_HUMAN_GATED_LABEL" "$WIT_CONTAINER_LABEL"
     exit 0
   fi
 
   if [[ "$verb" == "change-link" ]]; then
-    # --branch <name> is core-side: apply the manifest's branch grammar (CONTRACT.md
-    # "Change links") and hand the adapter the captured ref, so adapters only qualify refs.
     local cl_args=() branch="" pattern
     while [[ $# -gt 0 ]]; do
       if [[ "$1" == "--branch" ]]; then
@@ -442,8 +401,6 @@ main() {
   fi
 
   if [[ "$verb" == "create-item" ]]; then
-    # --body-file is core-side (CONTRACT.md "Verbs"): the file's content becomes --body, so
-    # adapters see one flag and a caller passes the body with no command substitution.
     local ci_args=() body_file="" has_body="false"
     while [[ $# -gt 0 ]]; do
       case "$1" in
@@ -452,7 +409,7 @@ main() {
         body_file="$2"
         shift 2
         ;;
-      --title | --body | --labels | --type | --parent | --blocked-by | --repo)
+      --title | --body | --labels | --type | --parent | --blocked-by | --native-status | --repo)
         [[ "$1" == "--body" ]] && has_body="true"
         ci_args+=("$1")
         shift
@@ -486,9 +443,6 @@ main() {
   fi
 
   if [[ "$verb" == "get-item" ]] && [[ " $* " == *" --history "* ]]; then
-    # --history is core-gated (CONTRACT.md "Verbs", state history): only an adapter that
-    # declares features.state_history receives it; for any other, core says the history is
-    # not available, which a caller tells apart from an empty one.
     [[ $# -eq 2 && "$2" == "--history" ]] || fail_usage
     if [[ "$(jq -r '.features.state_history // false' "$manifest")" == "true" ]]; then
       out="$(bash "$adapter_dir/get-item.sh" "$1" --history)"

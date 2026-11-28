@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Regression tests for review-venue.sh, black-box with a stubbed `gh` on PATH.
-# Expected verdicts come from the rule the script header and
-# reference/review-venue.md state: healthy only when the newest run with a
-# verdict (completed, not skipped or cancelled, and not a skipped-validation
-# red) succeeded within the window.
 
 set -uo pipefail
 
@@ -36,10 +31,6 @@ command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 
 STUB_DIR="$TEST_TMPDIR/stubs"
 mkdir -p "$STUB_DIR"
-# The repository's run listing page N comes from $TEST_TMPDIR/page-N.json, a
-# lane workflow's runs from $TEST_TMPDIR/wf-<id>.json, a run's jobs from
-# jobs-<run-id>.json, a job's annotations from ann-<job-id>.json and a commit's
-# check runs page N from checks-N.json; a missing file fails.
 cat >"$STUB_DIR/gh" <<STUB_EOF
 #!/usr/bin/env bash
 printf '%s\n' "\$*" >>"$TEST_TMPDIR/calls"
@@ -84,7 +75,6 @@ case "\$2" in
 esac
 STUB_EOF
 chmod +x "$STUB_DIR/gh"
-# The pause before a re-read is logged, not waited out.
 cat >"$STUB_DIR/sleep" <<STUB_EOF
 #!/usr/bin/env bash
 printf 'sleep %s\n' "\$*" >>"$TEST_TMPDIR/calls"
@@ -94,18 +84,14 @@ chmod +x "$STUB_DIR/sleep"
 CODE='melodic-software/ci-workflows/.github/workflows/pr-review.yml@a623e29085a3be885718cf9c0c0eca85bb53dd97'
 SEC='melodic-software/ci-workflows/.github/workflows/pr-review-security.yml@a623e29085a3be885718cf9c0c0eca85bb53dd97'
 
-# ago <hours> -> an ISO-8601 UTC time that many hours before now
 ago() { jq -nr --argjson h "$1" '(now - $h * 3600) | floor | todate'; }
 
-# lane_run <workflow-id> <path> <reusable> -> one run of the repository listing
 lane_run() {
   jq -nc --argjson w "$1" --arg p "$2" --arg r "$3" \
     '{id: 1, workflow_id: $w, path: $p, status: "completed", conclusion: "skipped", referenced_workflows: [{path: $r}]}'
 }
 other_run() { jq -nc '{id: 2, workflow_id: 999, path: ".github/workflows/ci.yml", status: "completed", conclusion: "success"}'; }
 
-# page <n> <run-json>... -> page-n.json, whose total_count says the listing ends
-# on this page
 page() {
   local n="$1"
   shift
@@ -113,18 +99,11 @@ page() {
     <<<"$(printf '%s\n' "$@")" >"$TEST_TMPDIR/page-$n.json"
 }
 
-# set_total <file> <count>: overwrite the total_count a stand-in listing reports
 set_total() {
   jq -c --argjson t "$2" '.total_count = $t' "$TEST_TMPDIR/$1" >"$TEST_TMPDIR/total.tmp" &&
     mv "$TEST_TMPDIR/total.tmp" "$TEST_TMPDIR/$1"
 }
 
-# wf <id> <status:conclusion:hours-ago[:event[:class]]>... -> wf-id.json,
-# newest first, event pull_request unless given; the workflow itself reads
-# active. A failed run gets one failed lane job whose annotations carry
-# `failure-class=<class>` as the reusable workflow's last step writes it
-# (ci-workflows .github/workflows/pr-review.yml), class `other` unless given;
-# a startup_failure run has no jobs.
 NEXT_RUN=1000
 wf() {
   local id="$1" spec runs=() rid
@@ -150,11 +129,8 @@ wf() {
   wf_state "$id" active
 }
 
-# wf_state <id> <state> -> the workflow's state, as GET .../actions/workflows/<id> returns it
 wf_state() { jq -nc --arg s "$2" '{state: $s}' >"$TEST_TMPDIR/wfmeta-$1.json"; }
 
-# checks <n> <name:status:conclusion[:app-slug]>... -> checks-n.json, the app
-# github-actions unless given; ids rise in call order, so a later spec is newer
 NEXT_CHECK=1
 checks() {
   local n="$1" spec runs=()
@@ -204,8 +180,6 @@ assert_contains "a lane whose newest verdict failed runs locally" "$out" "code-r
 assert_contains "the failing line names the conclusion" "$out" "concluded failure"
 assert_contains "the other lane keeps its own verdict" "$out" "security-review ci healthy"
 
-# #8867: a pull request that edits a review caller workflow ends both lanes red
-# by design (failure-class=skipped-validation); that says nothing about the lane.
 reset
 page 1 "${BOTH_PAGE[@]}"
 wf 11 completed:failure:1::skipped-validation completed:success:3
@@ -405,8 +379,6 @@ echo 'not json' >"$TEST_TMPDIR/page-1.json"
 run >/dev/null 2>&1
 assert_exit "an unparsable run listing fails closed" 2 "$?"
 
-# #9086: a listing page that parses but is not whole says nothing about the
-# lanes: it reads unreadable, never absent or stale.
 reset
 echo '{"total_count": 3}' >"$TEST_TMPDIR/page-1.json"
 out=$(run)
@@ -466,9 +438,6 @@ printf 'null\n' >"$TEST_TMPDIR/page-1.json"
 run >/dev/null 2>&1
 assert_exit "a null run listing fails closed" 2 "$?"
 
-# pr-review-cli.yml serves either lane; it counts for security-review only from
-# a caller whose path names security, so the security lane never takes a
-# code-lane caller of it.
 CLI='melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@83b739f625b501ad40c65dee7168d836883195e1'
 reset
 page 1 "$(other_run)" "$(lane_run 11 .github/workflows/pr-review-hosted.yml "$CODE")" \
@@ -483,8 +452,6 @@ assert_contains "a security caller of pr-review-cli covers the security lane" "$
 assert_contains "the security line names the pr-review-cli caller" "$out" \
   ".github/workflows/pr-review-security-hosted.yml"
 
-# Both lanes on pr-review-cli: code-review takes the caller whose path does not
-# name security, even when the security caller's run is listed first.
 reset
 page 1 "$(other_run)" "$(lane_run 22 .github/workflows/pr-review-security-hosted.yml "$CLI")" \
   "$(lane_run 11 .github/workflows/pr-review-hosted.yml "$CLI")"
@@ -499,7 +466,6 @@ assert_contains "the code line names its own caller" "$out" \
 assert_contains "the security lane keeps its own caller's verdict" "$out" \
   "security-review local failing"
 
-# pr-review-cli writes the class after the lane id: still a skipped-validation red.
 reset
 page 1 "${BOTH_PAGE[@]}"
 wf 11 completed:success:2
@@ -510,7 +476,6 @@ out=$(run)
 assert_contains "a lane-prefixed skipped-validation red reaches no verdict" "$out" \
   "security-review ci healthy"
 
-# --head adds a tests line from the head's GitHub Actions check runs named test*.
 HEAD_SHA=0123456789abcdef0123456789abcdef01234567
 reset
 page 1 "${BOTH_PAGE[@]}"
@@ -526,9 +491,6 @@ assert_contains "the tests line names each lane once" "$out" "(Test Bash, Test N
 assert_eq "the tests line comes last" "tests" "$(tail -n1 <<<"$out" | cut -d' ' -f1)"
 assert_contains "every check run on the head is read" "$(cat "$TEST_TMPDIR/calls")" "commits/$HEAD_SHA/check-runs?filter=all"
 
-# A label or body edit re-runs the workflow on the same commit and posts each
-# test lane skipped; that skip must not hide the lane's failure. The lanes go by
-# their job ids, as on a head tested before the jobs got display names.
 reset
 page 1 "${BOTH_PAGE[@]}"
 wf 11 completed:success:1

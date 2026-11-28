@@ -181,8 +181,6 @@ class StalenessGuardTests(unittest.TestCase):
                 },
                 updated_at="2026-07-10T02:00:00Z",
             )
-            # Global updated_at (02:00) is newer than this scoped run's
-            # generated_at (01:00); a non-scope-aware guard would raise here.
             save(
                 path,
                 make_snapshot([], generated_at="2026-07-10T01:00:00Z"),
@@ -281,8 +279,6 @@ class AdvisoryOnlySweepTests(unittest.TestCase):
     def test_substantive_error_still_blocks_sweep_and_forces_active(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
             path = state.state_path_for(state_dir)
-            # No `complete` / `cadence_blocking_errors` keys: save_state falls
-            # back to raw errors, so a substantive error blocks the sweep.
             save(
                 path,
                 make_snapshot(
@@ -357,8 +353,6 @@ class LedgerTombstoneTests(unittest.TestCase):
     def test_complete_queue_prunes_live_prs_but_keeps_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as state_dir:
             path = state.state_path_for(state_dir)
-            # A human comment gives the PR real mutation-ledger content, so the
-            # tombstone survives when the complete queue run prunes the live PR.
             human = [
                 {
                     "id": 1,
@@ -424,8 +418,6 @@ class FlakeRerunCapTests(unittest.TestCase):
         self.assertEqual(state.rerun_count(ledger, "owner/a#2", FIRST_HEAD, LINT), 0)
 
     def test_the_rerun_key_follows_check_identity_key(self) -> None:
-        # Whatever babysit_checks counts as one check is what the cap counts:
-        # with an identity that ignores the name's case, LINT is lint.
         def case_folded(identity: dict) -> tuple[str, str, str]:
             return (
                 str(identity.get("type") or ""),

@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# create-item — Linear adapter.
-#
-# Contract: tools/work-item-tracker/CONTRACT.md — "Verbs", "JSON output contract",
-# "Exit codes".
-#
 # shellcheck disable=SC2016  # single-quoted `$name` here is a GraphQL variable, not a shell one
 set -uo pipefail
 
@@ -32,7 +27,7 @@ while [[ $# -gt 0 ]]; do
     --type) TYPE="$2" ;;
     --parent) PARENT="$2" ;;
     --blocked-by) BLOCKED_BY="$2" ;;
-    *) REPO="$2" ;; # --repo, the one option left
+    *) REPO="$2" ;;
     esac
     shift 2
     ;;
@@ -44,8 +39,6 @@ done
 wit_need_linear_config
 
 if [[ -z "$REPO" ]]; then
-  # With exactly one declared team the target is unambiguous. With several, picking one
-  # would quietly file into the wrong team, so it is a usage error naming the fix.
   if [[ "$(jq 'length' <<<"$WIT_LINEAR_SCOPES")" != "1" ]]; then
     wit_usage_error "--repo is required when config.linear.scopes declares more than one team"
   fi
@@ -58,10 +51,6 @@ wit_linear_scope_in_scope "$REPO" ||
 wit_linear_scope_parts "$REPO"
 TARGET_TEAM="$WIT_LINEAR_TEAM"
 
-# Everything referenced by id is validated and RESOLVED before the item is created.
-# Parent and blocker links are separate operations, so a bad id discovered afterwards
-# would leave a created item whose declared relationships were never written — an item
-# that then looks ready.
 PARENT_UUID=""
 if [[ -n "$PARENT" ]]; then
   wit_linear_require_scoped_id "$PARENT"
@@ -79,11 +68,6 @@ if [[ -n "$BLOCKED_BY" ]]; then
   done
 fi
 
-# Sibling dedupe (CONTRACT.md "Verbs"): a direct child of the parent with the same trimmed
-# title, open or closed within 24 hours, is returned instead of a new issue. The close time
-# is the later of Issue.completedAt and Issue.canceledAt (Linear's schema.graphql); a closed
-# child with neither counts as closed earlier. An open match wins over a closed one. A failed
-# read exits inside wit_linear_gql, so nothing is created on a read that did not complete.
 if [[ -n "$PARENT_UUID" ]]; then
   CHILD_QUERY='query($id: String!, $first: Int!, $after: String) {
     issue(id: $id) {
@@ -103,18 +87,12 @@ if [[ -n "$PARENT_UUID" ]]; then
         '{id: $id, first: $f, after: (if ($a | length) > 0 then $a else null end)}')" \
       "listing children of $PARENT"
     CHILD_PAGE="$(jq -c '.issue.children // {nodes: [], pageInfo: {hasNextPage: false}}' <<<"$WIT_LINEAR_DATA")"
-    # Accumulator and page both on stdin. A page of full child nodes can pass the per-argument
-    # exec limit on its own, so neither travels in argv; a failed exec would otherwise drop
-    # children and let a duplicate through.
     CHILDREN="$(printf '%s\n%s\n' "$CHILDREN" "$CHILD_PAGE" | jq -cs '.[0] + (.[1].nodes // [])')" || {
       printf 'create-item.sh: could not accumulate the children of %s\n' "$PARENT" >&2
       exit "$EX_INTERNAL"
     }
     CHILD_SEEN=$((CHILD_SEEN + $(jq '(.nodes // []) | length' <<<"$CHILD_PAGE" 2>/dev/null || echo 0)))
     CHILD_PAGES=$((CHILD_PAGES + 1))
-    # Bounded by the label walk's ceiling. A truncated child list would read as "no
-    # duplicate" and file one, so passing the ceiling is an error, never a partial check.
-    # Pages are counted too, so a server sending empty pages forever also stops.
     if ((CHILD_SEEN > WIT_LINEAR_LIST_ITEMS_MAX || CHILD_PAGES > WIT_LINEAR_LIST_ITEMS_MAX)); then
       printf 'create-item.sh: the children of %s passed the declared ceiling of %s items; created nothing rather than check a partial list for a duplicate\n' \
         "$PARENT" "$WIT_LINEAR_LIST_ITEMS_MAX" >&2
@@ -142,11 +120,6 @@ if [[ -n "$PARENT_UUID" ]]; then
   fi
 fi
 
-# The team's UUID, and the label ids for any requested label names. Linear's
-# IssueCreateInput takes `labelIds`, not names — the same shape trap as Gitea's — so
-# names are resolved here and an unknown one is REFUSED rather than dropped: an item
-# filed without its type or priority label is invisible to the selection tiers that
-# would have picked it up.
 wit_linear_gql \
   'query($key: String!) { teams(filter: { key: { eq: $key } }, first: 1) { nodes { id } } }' \
   "$(jq -cn --arg k "$TARGET_TEAM" '{key: $k}')" \
@@ -160,12 +133,6 @@ TEAM_UUID="$(jq -r '.id' <<<"$TEAM_NODE")"
 
 LABEL_IDS='[]'
 if [[ -n "$LABELS" ]]; then
-  # Labels come from the ROOT `issueLabels` connection, PAGINATED: 250 is Linear's per-page
-  # maximum, and only the root query is documented to return "both workspace-level and
-  # team-scoped labels". An unresolved name is REFUSED below, so a missed label is a hard exit.
-  #
-  # Filtering to this team OR workspace-level (`team: { null: true }`) keeps the resolution
-  # scoped — a same-named label on some other team is still not silently borrowed.
   LABEL_QUERY='query($team: ID!, $first: Int!, $after: String) {
     issueLabels(
       filter: { or: [{ team: { id: { eq: $team } } }, { team: { null: true } }] }
@@ -186,9 +153,6 @@ if [[ -n "$LABELS" ]]; then
         '{team: $t, first: $f, after: (if ($a | length) > 0 then $a else null end)}')" \
       "resolving labels for team $TARGET_TEAM"
     LABEL_PAGE="$(jq -c '.issueLabels // {nodes: [], pageInfo: {hasNextPage: false}}' <<<"$WIT_LINEAR_DATA")"
-    # Accumulator on stdin, page in argv. The reverse puts an unboundedly growing array on
-    # jq's command line; past ARG_MAX the exec fails, ALL_LABELS is left empty, and every
-    # requested label then reads as nonexistent and is refused.
     ALL_LABELS="$(jq -c --argjson page "$LABEL_PAGE" '. + ($page.nodes // [])' <<<"$ALL_LABELS")" || {
       printf 'create-item.sh: could not accumulate a label page for team %s\n' "$TARGET_TEAM" >&2
       exit "$EX_INTERNAL"
@@ -196,12 +160,7 @@ if [[ -n "$LABELS" ]]; then
     LABEL_SEEN=$((LABEL_SEEN + $(jq '(.nodes // []) | length' <<<"$LABEL_PAGE" 2>/dev/null || echo 0)))
     [[ "$(jq -r '.pageInfo.hasNextPage // false' <<<"$LABEL_PAGE")" == "true" ]] || break
     LABEL_CURSOR="$(jq -r '.pageInfo.endCursor // ""' <<<"$LABEL_PAGE")"
-    # endCursor is nullable in the schema; without a cursor the next request would restart
-    # from the beginning and loop forever, so stop rather than spin.
     [[ -n "$LABEL_CURSOR" ]] || break
-    # Bounded like every other paginated loop in this seam. hasNextPage plus a fresh cursor is
-    # the server's word, and a server that keeps saying "there is more" would otherwise hang
-    # create-item indefinitely with ALL_LABELS growing without limit.
     if ((LABEL_SEEN > WIT_LINEAR_LIST_ITEMS_MAX)); then
       LABEL_TRUNCATED=1
       break
@@ -210,10 +169,6 @@ if [[ -n "$LABELS" ]]; then
   MISSING="$(jq -rcn --arg names "$LABELS" --argjson all "$ALL_LABELS" \
     '[($names | split(",") | .[] | select(length > 0)) as $n | select([$all[].name] | index($n) | not) | $n]')"
   if [[ "$MISSING" != "[]" ]]; then
-    # The ceiling changes what "not found" is allowed to mean. Stopping early makes an unseen
-    # label indistinguishable from a nonexistent one, and telling someone to create a label
-    # that already exists sends them to do the wrong thing — so say which case this is. Same
-    # distinction the gitea adapter draws for the same reason.
     if ((LABEL_TRUNCATED)); then
       printf 'create-item.sh: label(s) not found in the first %s labels visible to team %s: %s — the label list was truncated at the declared ceiling, so these may exist beyond it; narrow --labels or raise the ceiling rather than re-creating them\n' \
         "$WIT_LINEAR_LIST_ITEMS_MAX" "$TARGET_TEAM" "$MISSING" >&2
@@ -223,20 +178,13 @@ if [[ -n "$LABELS" ]]; then
     fi
     exit "$EX_NOT_FOUND"
   fi
-  # first(...) — a name present both team-scoped and workspace-level resolves to one id, not two.
   LABEL_IDS="$(jq -cn --arg names "$LABELS" --argjson all "$ALL_LABELS" \
     '[($names | split(",") | .[] | select(length > 0)) as $n | (first($all[] | select(.name == $n)) | .id)]')"
 fi
 
-# --type is accepted and cannot be honored: Linear has no issue-type axis in the
-# contract's sense (its workflow-state "type" is the open/closed category, not a
-# Task/Bug/Feature label), so the normalized `type` is structurally null. Said on stderr
-# rather than dropped silently, because a caller that set a type deserves to know.
 [[ -z "$TYPE" ]] ||
   printf 'create-item.sh: --type is ignored: linear has no native issue-type axis (normalized type is always null)\n' >&2
 
-# The parent link rides in the CREATE input rather than a follow-up update — one fewer
-# window in which a created item exists without its container.
 INPUT="$(jq -cn --arg t "$TITLE" --arg d "$BODY" --arg team "$TEAM_UUID" \
   --argjson labels "$LABEL_IDS" --arg parent "$PARENT_UUID" \
   '{title: $t, teamId: $team}
@@ -256,9 +204,6 @@ CREATED="$(jq -c '.issueCreate.issue // empty' <<<"$WIT_LINEAR_DATA")"
 NEW_UUID="$(jq -r '.id' <<<"$CREATED")"
 NEW_NUMBER="$(jq -r '.number' <<<"$CREATED")"
 
-# Blocker edges are one mutation each; Linear has no create-with-relations form. A
-# failure here exits non-zero rather than reporting the item as created-and-linked, so
-# the caller learns the graph is incomplete.
 for buuid in ${BLOCKER_UUIDS[@]+"${BLOCKER_UUIDS[@]}"}; do
   wit_linear_gql \
     'mutation($input: IssueRelationCreateInput!) { issueRelationCreate(input: $input) { success } }' \
@@ -266,8 +211,5 @@ for buuid in ${BLOCKER_UUIDS[@]+"${BLOCKER_UUIDS[@]}"}; do
     "linking the new issue as blocked by $buuid"
 done
 
-# Re-read rather than normalizing the mutation payload: the created item's labels,
-# relations, and state all come from the server, and the create response deliberately
-# selects only what is needed to address it.
 wit_linear_fetch_issue "$(jq -r '.team.key' <<<"$CREATED")" "$NEW_NUMBER"
 wit_linear_normalize "$WIT_LINEAR_ISSUE"

@@ -1,5 +1,5 @@
 ---
-description: "Rereads the user's and the project's instruction files in force, checks the work in flight against them, and corrects drift or reports the work clean. Use when: 'follow operating procedures', 'follow your operating procedures', 'reread my instructions', 'reread CLAUDE.md', 'remember how I want you to operate', 'you're operating outside my instructions', 'remind yourself how we work here'."
+description: "Reread the user's and project's instruction files in force (CLAUDE.md, rules, imports), remind/remember how we work and operate, check work in flight against them, and correct drift or report clean. Use when 'follow operating procedures', 'reread my instructions', 'reread CLAUDE.md', or operating outside my instructions."
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: Bash(date -u +%Y-%m-%dT%H:%M:%SZ), PowerShell(date -u +%Y-%m-%dT%H:%M:%SZ)

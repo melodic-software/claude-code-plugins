@@ -144,8 +144,8 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
   `--skip-unless-stdin-contains TEXT` buffers stdin and skips a payload without TEXT (the testing
   `Bash` row). It is advisory-only and must never gate a blocking
   guard row: a stdin stall past the idle bound exits 0 without running the script, so a guard
-  behind it would fail open. The flag list is in the header of
-  [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs). Two
+  behind it would fail open. The flag list is under
+  [The `exec-bash.mjs` launcher](#the-exec-bashmjs-launcher). Two
   scripts check the spelling. `scripts/check-exec-form-windows-probe.sh` rejects a `.sh` path, a
   `.cmd`/`.bat` shim, or bare `bash` as `command`; a non-Windows skip of its spawn half does not show
   that [anthropics/claude-code#90495](https://github.com/anthropics/claude-code/issues/90495) is
@@ -165,8 +165,7 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
   ([`onFailure` probes](#onfailure-probes-melo-desk-001-2026-10-29); the rows that set it are under
   [Which rows set `onFailure: "block"`](#which-rows-set-onfailure-block)). With node present and bash
   unresolvable, the launcher exits 1: a non-blocking hook error and not a guard block, and the guard
-  script does not run (the header of
-  [`lib/exec-bash.mjs`](../../../lib/exec-bash.mjs)).
+  script does not run ([The `exec-bash.mjs` launcher](#the-exec-bashmjs-launcher)).
 - **Scope.** These rows stay shell form: the fleet's one `SessionStart` node-notice row and the `hook-failure-audit` Stop row, both in `harness-ops`, so they can report a missing `node` (the [prerequisites convention](../prerequisites/README.md#hook-notices)); harness-ops' `refresh-sink-launcher.sh` row; and every row that starts its script through `lib/node-or-skip.sh` (`git grep -n 'node-or-skip.sh' -- 'plugins/*/hooks/hooks.json'` lists them).
   Neither check script inspects a shell-form row; `scripts/node-notice-rows.test.sh` pins the node-notice
   row (and the matcher that skips it on compaction) and the hook test of `harness-ops` pins its Stop row, so a sweep back to `node` fails them. A plugin hook config carries no
@@ -175,6 +174,39 @@ Every shipped hook row, except the shell-form rows named under "Scope", is exec 
 - **Measurement.** The reference figures above (Windows, 2026-07-31 and 2026-09-02) were taken before
   the sweep. The launcher's added time comes from the paired run below
   ([#3686](https://github.com/melodic-software/claude-code-plugins/issues/3686)).
+
+### The `exec-bash.mjs` launcher
+
+A row's `args` hold the launcher, then its flags, then the script and the script's own arguments.
+Each flag sits before the script. Every gate flag must pass; a failed one exits 0 without resolving
+or starting bash.
+
+| Flag | Effect |
+|---|---|
+| `--require-true NAME` | Run only when `CLAUDE_PLUGIN_OPTION_NAME` is exactly `true` (a default-off option). |
+| `--run-if-unset-or-true NAME` | Run unless that variable is set to something other than `true` (a default-on option). |
+| `--skip-unless-stdin-contains TEXT` | Buffer stdin; skip when the payload lacks TEXT, else pass the same bytes to the script. Advisory rows only: a stdin stall exits 0 without running the script. |
+| `--run-if-any-set A,B,...` | Run when any named variable is non-empty. |
+| `--run-if-settings-mention TEXT` | Run when TEXT appears in the user `settings.json` of a `plugins/cache` install (found from the launcher's own path) or in `managed-settings.json` or a `managed-settings.d/*.json` drop-in. With `--run-if-any-set` it forms one any-of gate. |
+| `--skip-unless-marker SUBDIR` | Buffer stdin and read `session_id`; skip only when `<marker-root>/SUBDIR` exists and neither it nor the tmp fallback `disk-hygiene-SUBDIR` holds `<session>.launched`, or when each `<session>.launched` holds a launch token its `<session>.seen` repeats byte for byte. Anything missing, unreadable or malformed, or a stall, runs the script. |
+| `--marker-root DIR` | The root for `--skip-unless-marker`. Empty or a literal `${CLAUDE_PLUGIN_DATA}` means none. |
+| `--bps-seed LIB` | On Windows only: buffer stdin and, for a Bash or PowerShell payload, run shfmt and jq on the command the way LIB's `hook::_bps_shfmt_to` does, passing the result in `HOOK_BPS_SEED_KEY`/`VAL`. Never skips the script. |
+| `--fail-closed` | For a blocking guard: once bash is resolved, any child outcome other than exit 0 or 2 exits 2 with one stderr line. |
+| `--require-verdict` | The launcher names a file in a fresh private directory in `EXEC_BASH_VERDICT_FILE`; a child exit 0 that left no file there exits 2, because Windows Git Bash reports a crashed bash as exit 0 ([#7681](https://github.com/melodic-software/claude-code-plugins/issues/7681)). |
+
+Option flags are decided before stdin is read. A stdin flag reads to EOF with an idle bound (2 s, or
+the `stdin_read_timeout` option). A row without a stdin flag keeps stdin inherited.
+
+Bash resolution: on Windows the candidates, in order, are `CLAUDE_CODE_GIT_BASH_PATH` (only when
+the file is named `bash.exe`, `sh.exe`, `bash` or `sh`), `Git\bin\bash.exe` and
+`Git\usr\bin\bash.exe` under `%ProgramFiles%`, `%ProgramFiles(x86)%` and
+`%LOCALAPPDATA%\Programs`, in that order, then `bash.exe` in each absolute PATH entry; System32,
+Sysnative and WindowsApps are never accepted. Elsewhere the candidates are `bash` in each absolute
+PATH entry, then `/bin/bash` and `/usr/bin/bash`. Empty and relative PATH entries are skipped.
+
+Exit codes: a launcher failure (no bash, a spawn error, wrong usage, a child killed by a signal)
+exits 1 after one stderr line and writes nothing to stdout, so Claude Code reports a hook error, not
+a guard block. A guard's own exit 2 passes through.
 
 ### Launcher A/B (melo-lap-001, 2026-10-01)
 
@@ -251,8 +283,9 @@ call is denied instead of running unguarded. Each session made one matched call.
 
 ## Which rows set `onFailure: "block"`
 
-Only a named security guard sets `"onFailure": "block"`: a `PreToolUse` row whose job is to deny a
-call, where a hook that could not judge the call must deny it rather than let it run unguarded.
+Only a named security guard sets `"onFailure": "block"`: a `PreToolUse` or `PreSkillShellCommand`
+row whose job is to deny a call, where a hook that could not judge the call must deny it rather
+than let it run unguarded.
 Every other row leaves the key unset and keeps the default, under which the action goes ahead when
 the hook fails. The owner chose this scope on 2026-10-18
 ([#6755](https://github.com/melodic-software/claude-code-plugins/issues/6755), D17).
@@ -273,7 +306,7 @@ them, and `plugins/guardrails/hooks/onfailure-rows.test.sh` fails when a row gai
 
 | Plugin | Row | Why `block` |
 | --- | --- | --- |
-| guardrails | `PreToolUse` `Write\|Edit\|NotebookEdit`; the GitHub MCP file-write row; the MCP merge row; the GitHub MCP comment row; `Bash\|PowerShell` | Each row runs the launcher with `--fail-closed --require-verdict`, which denies when the dispatcher's bash dies by a signal, exits with a status other than 0 or 2, or ends without a verdict. The launcher still exits 1 when no bash resolves, and it cannot act at all when `node` is missing or the hook times out. `block` denies in those three cases too |
+| guardrails | `PreToolUse` `Write\|Edit\|NotebookEdit`; the GitHub MCP file-write row; the MCP merge row; the GitHub MCP comment row; `Bash\|PowerShell`; `PreSkillShellCommand` `Bash\|PowerShell`, the same guards on a skill's injected commands ([#18985](https://github.com/melodic-software/claude-code-plugins/issues/18985)) | Each row runs the launcher with `--fail-closed --require-verdict`, which denies when the dispatcher's bash dies by a signal, exits with a status other than 0 or 2, or ends without a verdict. The launcher still exits 1 when no bash resolves, and it cannot act at all when `node` is missing or the hook times out. `block` denies in those three cases too |
 | disk-hygiene | `PreToolUse` `Bash(*hygiene.py*)` and `PowerShell(*hygiene.py*)` | The command names the clean engine. With no Python, the launcher already denies such a call. `block` also denies it when `node` or bash is missing, when the guard crashes, and on a timeout |
 | discovery | `PreToolUse` `Bash`, the docs-fetcher gate | If the gate fails, `discovery:docs-fetcher`, the agent that reads untrusted pages, gets a `Bash` with no gate on it |
 | multi-agent | `PreToolUse` `Bash`, the docs-fetcher gate; `PreToolUse` `Bash`, the registry-fetcher gate; `PreToolUse` `WebFetch`, the drift-checker gate | The same holds for `multi-agent:docs-fetcher` and `multi-agent:registry-fetcher`. If the fetch gate fails, the drift checker can fetch any URL |
@@ -292,6 +325,7 @@ These rows do not set `block`:
 | Every `SessionStart` row, the shell-form node-notice row included | `SessionStart` cannot block: exit 2 only shows stderr to the user, so the key changes nothing. The node-notice row has to stay a notice so that it can report a missing `node` |
 | `Stop` rows, such as disk-hygiene's guard-launch monitor and the gated end-of-turn checks, and rows with `async` or `asyncRewake`, such as harness-ops' hook-failure audit | The hooks page lists `Stop`, `SubagentStop`, `TaskCompleted`, `TeammateIdle` and background hooks as ignoring the key |
 | Advisory rows: guardrails `Workflow`, discovery's `PostToolUse` `WebFetch` truncation note, disk-hygiene's `PreToolUse` `Skill` marker row, and disk-hygiene's `UserPromptExpansion` engine-context row | These rows judge nothing. With `block`, a row that only adds context or writes a marker would deny the call or expansion it was meant to annotate. The `Skill` row matches every Skill call. The engine-context row hands the skill its interpreter, and the `hygiene.py` rows above deny the engine call |
+| guardrails `PreToolUse` `Monitor`, the PR-poller row | It guards the GitHub API budget, not a security boundary, and the guard fails open by design. With `block`, a launch failure would deny every Monitor call |
 | disk-hygiene `PreToolUse` `PowerShell(*python*$*)` and `PowerShell(*& $*)` | These rows match commands that do not name the engine. With no Python, the launcher lets such a call go ahead with a notice, because denying every `& $` call on a host without Python stops work. `block` would deny them on every launch failure |
 | The `disk-hygiene:clean` skill-frontmatter belt | It is not a `hooks.json` row, and no probe has run a skill-frontmatter hook with the key set |
 | Every row in a plugin not named above | The owner's decision covers only the named guards. A row gets `block` only by a change to this section |
@@ -396,6 +430,29 @@ check's findings off the turn they belong to.
 - **Recheck trigger:** the hooks docs stop running an event's matching hooks in parallel, or a
   gated Stop row starts a process before its gate, or a per-Stop breakdown shows gated rows
   setting the wall.
+
+## The hook-enablement helper
+
+A hook that adopts [`lib/hook-enabled.sh`](../../../lib/hook-enabled.sh)
+([hook-enablement, The shared helper](../hook-enablement/README.md#the-shared-helper)) calls
+`hook_enabled::resolve` on every fire, before its own work. The call runs inside the hook's own
+shell, so it adds to the hook's k only the processes it starts:
+
+| Call | Processes started | Which |
+| --- | --- | --- |
+| No flag (a Claude Code hook) | 0 | None: the user layer is an environment variable and the repository file is read with shell builtins |
+| `--git-hook` | 1, or 2 when the user's `settings.json` exists | `git rev-parse --show-toplevel` (none with `--root`), then `jq` on `settings.json` |
+| `--security`, copy under `plugins/cache` | 1, or 2 when the install's `settings.json` exists, plus 1 per managed settings file (on Linux 5 forks and 3 execs) | `uname -s`, then `jq` on `settings.json`; each managed file adds one `jq`, and on Linux two `stat`, each of which forks twice, since its `2>/dev/null` sits inside the `$(...)` |
+| `--security`, copy outside `plugins/cache` | 0 | None: with no install path it reads no settings layer |
+| `--git-hook --security` | 2, or 3 when the user's `settings.json` exists, plus each managed settings file as above | `git`, `uname -s` and `jq`, as in the rows above |
+
+- **Measurement.** `lib/hook-enabled.test.sh` runs the first three rows and the last one under
+  strace, each with a settings file present and no managed settings file. It fails when a call
+  makes more forks, or more execs, than the table's count. A host without strace skips those
+  cases. No wall-clock figure in S has been taken for the helper.
+- **Choosing a mode.** The no-flag call costs nothing over the hook it gates. A Claude Code hook
+  that passes `--security` pays one `uname` and up to one `jq` per fire, so a guard on an always-on
+  matcher states those processes in its k under Rule 1.
 
 ## Rules
 

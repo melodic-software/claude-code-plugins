@@ -8,6 +8,7 @@ import { FILING, SIGNALS, familyOf, planIssues, readMarker } from "./issues.mjs"
 import { errorLines, incidentFields, readHoldRule, readIncidentRules, readJobsCarry, statusLines, writePlan } from "./monitor.mjs";
 import { JOBS_ARTIFACT, jobsCarryFile } from "./collect.mjs";
 import { detect } from "./signals.mjs";
+import { standardsCheckout } from "../lib/trusted-actors.fixtures.mjs";
 
 const now = new Date("2026-10-19T16:41:00Z");
 const windowStart = new Date("2026-10-19T15:36:00Z");
@@ -118,7 +119,7 @@ function workStatus(state, setter, postError) {
     }
     throw new Error(`unexpected ${method} ${path}`);
   };
-  return { written, writer: () => statusWriter({ env: { BASE_PATH: ROOT }, github, repository: "o/r" }) };
+  return { written, writer: () => statusWriter({ env: { BASE_PATH: ROOT, STANDARDS_DIR: standardsCheckout() }, github, repository: "o/r" }) };
 }
 
 for (const [signal, first, changed] of CASES) {

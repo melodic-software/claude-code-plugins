@@ -1,41 +1,4 @@
 #!/usr/bin/env bash
-# Contract tests for datamuse.sh. Fully offline: `curl` is replaced by a
-# PATH-stub that records the full request argv and serves a canned body, so
-# nothing here reaches api.datamuse.com and the suite is deterministic on a
-# laptop with no network.
-#
-# Coverage:
-#   - argument validation (no mode, no word, unknown mode) exits 1, prints the
-#     usage banner, and issues NO request
-#   - the usage banner still spans the modes and the LIMIT override, so a
-#     banner that stops short of either end is caught
-#   - curl is invoked with the flags the script documents (-sS), since silent
-#     mode without -S swallows the transport error this suite relies on
-#   - happy-path response parsing: one TSV row per result, four tab-separated
-#     fields, tags joined with commas, missing score/numSyllables defaulting to
-#     0 and missing tags to an empty field
-#   - API result order is preserved (the non-family modes do not re-sort)
-#   - the mode -> query-parameter table (rel_rhy, rel_nry, rel_cns, rel_syn,
-#     rel_ant, rel_trg, rel_jja, rel_jjb, ml, sl, sp), which is where a typo
-#     silently returns the wrong relation
-#   - LIMIT default 25, LIMIT override, and `syllables` pinning max=5
-#   - a multi-word argument reaching the query as '+'-joined
-#   - empty results are exit 0 with no output, never an error
-#   - a nonzero curl exit propagates through the pipe (pipefail) with no rows
-#     on stdout
-#   - malformed JSON fails loudly instead of emitting partial TSV
-#   - `family` merges near-rhyme and consonance: two requests, EACH carrying
-#     md=s, deduped by word rather than by whole object, re-sorted by score
-#     across BOTH sources
-#
-# Prerequisite: jq, which datamuse.sh itself requires. Absent, this suite fails
-# loudly rather than skipping, because every parsing assertion below would be
-# vacuous without it.
-#
-# Self-contained assertion helpers, per
-# docs/contracts/shell-test-helpers/README.md: per-plugin duplication of this
-# shape is the accepted default, not an opt-in.
-
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -78,11 +41,6 @@ STDOUT_FILE="$TEST_TMPDIR/stdout"
 STDERR_FILE="$TEST_TMPDIR/stderr"
 mkdir -p "$STUB_BIN"
 
-# --- curl stub -------------------------------------------------------------
-# Logs one line per invocation carrying the WHOLE argv, flags included, so the
-# suite can pin the flags as well as the URL; then serves a per-relation canned
-# body. Selecting the body by relation (rather than by call order) is what lets
-# `family`'s two calls return different payloads.
 cat >"$STUB_BIN/curl" <<'STUB'
 #!/usr/bin/env bash
 url=""
@@ -126,7 +84,6 @@ reset_stub() {
   printf '%s' "${1:-[]}" >"$STUB_DATA/default.json"
 }
 
-# set_body <near|cons> <json>
 set_body() { printf '%s' "$2" >"$STUB_DATA/$1.json"; }
 
 RC=0
@@ -153,9 +110,6 @@ run_datamuse_limit() {
 
 requests() { cat "$REQUEST_LOG"; }
 request_count() { grep -c . "$REQUEST_LOG"; }
-# How many logged requests carry <fixed-string> individually. A substring check
-# over the whole log is satisfied by ONE matching request, which is the wrong
-# question when the script issues several.
 requests_matching() { grep -c -F -e "$1" "$REQUEST_LOG"; }
 row() { sed -n "${1}p" "$STDOUT_FILE"; }
 row_count() { grep -c . "$STDOUT_FILE"; }
@@ -168,9 +122,6 @@ run_datamuse
 assert_eq "no arguments -> exit 1" "1" "$RC"
 assert_contains "no arguments prints the usage banner" "$ERR" "datamuse.sh rhyme"
 assert_contains "usage banner names the API" "$ERR" "https://www.datamuse.com/api/"
-# The banner is cut out of the script's own header, so it is pinned at both
-# ends: `family` is the last mode listed and the LIMIT note sits below it. A
-# banner that stops early drops one or both.
 assert_contains "usage banner reaches the last mode listed" "$ERR" "datamuse.sh family"
 assert_contains "usage banner documents the LIMIT override" "$ERR" "LIMIT=<n>"
 assert_contains "usage banner reaches the Examples block" "$ERR" "datamuse.sh rhyme lonely"
@@ -203,9 +154,6 @@ assert_contains "unknown mode names the mode" "$ERR" "unknown mode: bogus"
 assert_contains "unknown mode also prints the usage banner" "$ERR" "datamuse.sh rhyme"
 assert_eq "unknown mode issues no request" "0" "$(request_count)"
 
-# Realistic md=s payload, plus one sparse entry: Datamuse omits `tags` for some
-# results, and the script's own contract is to default the numeric fields to 0
-# and the tag field to empty rather than to emit `null`.
 RHYME_JSON='[
   {"word":"only","score":1097,"numSyllables":2,"tags":["adv","adj"]},
   {"word":"solely","score":1074,"numSyllables":2,"tags":["adv"]},
@@ -225,8 +173,6 @@ assert_eq "a sparse entry defaults score and syllables to 0 and tags to empty" \
   "slowly${TAB}0${TAB}0${TAB}" "$(row 3)"
 assert_not_contains "no JSON null leaks into the TSV" "$OUT" "null"
 assert_eq "one request per invocation" "1" "$(request_count)"
-# -sS, not -s: silent WITHOUT show-error swallows the transport diagnostic the
-# caller needs, and this suite asserts that diagnostic further down.
 assert_eq "curl is invoked with -sS" "1" "$(requests_matching '-sS')"
 assert_contains "the rhyme relation is requested" "$(requests)" "rel_rhy=lonely"
 assert_contains "metadata flag md=s is requested" "$(requests)" "md=s"
@@ -234,8 +180,6 @@ assert_contains "the default limit is 25" "$(requests)" "max=25"
 assert_contains "the request targets the Datamuse words endpoint" \
   "$(requests)" "https://api.datamuse.com/words?"
 
-# The API returns its own ranking; the non-family modes must not re-sort it.
-# A score-ascending payload makes a stray sort_by visible.
 reset_stub '[{"word":"beta","score":10,"numSyllables":2,"tags":["n"]},{"word":"alpha","score":900,"numSyllables":2,"tags":["n"]}]'
 run_datamuse near lonely
 assert_eq "API order is preserved, not re-sorted" "beta" "$(row 1 | cut -f1)"
@@ -315,11 +259,6 @@ run_datamuse rhyme lonely
 assert_nonzero "a JSON object where an array is expected fails" "$RC"
 assert_eq "and emits no rows" "0" "$(row_count)"
 
-# The duplicate word carries a DIFFERENT score and tag set in each payload, so
-# the two entries are distinct objects: deduping on the whole object would keep
-# both and yield four rows, which is what separates unique_by(.word) from a
-# plain unique. Interleaved scores are what proves the merge re-sorts across
-# BOTH sources instead of concatenating them.
 reset_stub
 set_body near '[
   {"word":"stranger","score":900,"numSyllables":2,"tags":["n"]},

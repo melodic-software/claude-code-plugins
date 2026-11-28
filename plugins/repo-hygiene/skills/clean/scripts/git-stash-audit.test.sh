@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Tests for git-stash-audit.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -20,9 +19,6 @@ mkdir -p "$STUB_BIN"
 printf '#!/usr/bin/env bash\nexit 1\n' >"$STUB_BIN/gh"
 chmod +x "$STUB_BIN/gh"
 
-# Empty repo: no stashes → count 0, never an error, exit 0.
-# `-b main` pins the initial branch so the assertions below hold on machines where
-# `git init` still defaults to `master`.
 git init -q -b main "$TEST_TMPDIR/empty"
 git -C "$TEST_TMPDIR/empty" config user.email "t@example.com"
 git -C "$TEST_TMPDIR/empty" config user.name "Test"
@@ -68,10 +64,6 @@ assert_contains "never auto-dropped disclaimer" "$out" "never auto-dropped"
 sha0="$(git -C "$REPO" rev-parse "stash@{0}" 2>/dev/null)"
 assert_contains "emits stable stash commit id" "$out" "Commit: $sha0"
 
-# --- PR map status: the stash audit is the second call site of the same lookup ---
-# It was capped and silenced identically to the branch audit, and fixing only one
-# site would leave half the bug. The superseded advisory is derived from PR state,
-# so a short or missing map silently withholds it.
 assert_contains "failed lookup is announced, not swallowed" "$out" "PRDataUnavailable:"
 assert_not_contains "failed lookup reports no count" "$out" "PRCount:"
 
@@ -110,10 +102,6 @@ EMPTYGH
   assert_contains "a repo with no PRs reports a real count" "$empty_pr_out" "PRCount: 0"
   assert_not_contains "a repo with no PRs is not called unavailable" "$empty_pr_out" "PRDataUnavailable:"
 
-  # --- PR map: cannot create the outfile is unavailable, not a count ----------
-  # Same helper, second call site: a successful gh lookup must not report a
-  # complete map when the file was never created (invalid TMPDIR / mktemp
-  # fallback). Capture stderr so a missing-file redirect would show up.
   mapfail_out="$(
     PATH="$PR_BIN:$PATH" TMPDIR="$TEST_TMPDIR/no-such-tmpdir" \
       bash -c "cd '$REPO' && bash '$AUDIT'" 2>&1

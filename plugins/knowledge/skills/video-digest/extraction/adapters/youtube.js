@@ -1,9 +1,3 @@
-/**
- * YouTube source adapter: URL grammar, queue acceptance, error classification,
- * link harvest, and yt-dlp acquisition composed from the shared machinery in
- * `acquisition/`.
- */
-
 import { acquireYouTubeMedia, adapterSourceDeclarations } from "../acquisition/acquire.js";
 import { YOUTUBE_BOT_CHALLENGE_PATTERNS } from "../acquisition/acquire-yt-dlp-auth.js";
 import { YT_DLP_SKIP_TRANSLATED_SUBS } from "../acquisition/build-yt-dlp-args.js";
@@ -40,7 +34,6 @@ export const YOUTUBE_UNAVAILABLE_PATTERNS = Object.freeze([
 const YOUTUBE_EXTRACTOR_ARGS = `youtube:max_comments=20,all,top;comment_sort=top;${YT_DLP_SKIP_TRANSLATED_SUBS}`;
 
 const YOUTUBE_VIDEO_ID_PATTERN = /^[\w-]{11}$/;
-/** Path prefixes whose NEXT segment carries the video id (`/live/<id>`, `/embed/<id>`, …). */
 const YOUTUBE_ID_PATH_PREFIXES = new Set(["live", "embed", "shorts", "v"]);
 
 /**
@@ -83,8 +76,6 @@ const spec = /** @satisfies {SourceAdapterSpec} */ ({
   id: "youtube",
   hosts: ["youtube.com", "youtu.be"],
   extractorArgs: YOUTUBE_EXTRACTOR_ARGS,
-  // The youtube extractor resolves claimed URLs in-family (no foreign
-  // url_result delegation on the single-video path), so no allow-list yet.
   allowedExtractors: null,
   captionClass: "manual-and-auto",
   errorPatterns: {

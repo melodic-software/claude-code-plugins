@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-# Runs every pixel-art test suite (test_*.py).
 # test-scope: plugins/pixel-art/examples/* plugins/pixel-art/palettes/*
 # test-scope: plugins/pixel-art/scripts/test_*.py plugins/pixel-art/scripts/gallery.py
 # test-scope: plugins/pixel-art/scripts/*.py

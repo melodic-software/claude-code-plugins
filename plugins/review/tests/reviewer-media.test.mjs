@@ -1,5 +1,5 @@
-// /review:reviewer-media: the decision (policy, request label, fork, draft, thresholds, the delta
-// since posted media), the convention read from the base commit, and the completeness check.
+// test-scope: plugins/review/lib/config-cascade.mjs plugins/review/lib/review-digest.mjs plugins/review/lib/view-registry.mjs plugins/review/lib/view-settings.mjs
+// test-scope: plugins/review/lib/yaml-subset.awk plugins/review/lib/yaml-subset.mjs plugins/review/schemas/reviewer-media.schema.json
 import { strict as assert } from "node:assert";
 import { execFileSync, spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -28,7 +28,6 @@ const REQUESTED = DEFAULTS.labels.requested;
 const quiet = { isDraft: false, isCrossRepository: false, headRefOid: HEAD, body: "", labels: [], files: [{ path: "a.md", additions: 1, deletions: 0 }] };
 const big = { ...quiet, files: Array.from({ length: 9 }, (_, i) => ({ path: `f${i}.md`, additions: 1, deletions: 0 })) };
 const config = (overrides = {}) => ({ ...DEFAULTS, ...overrides });
-// A stand-in for the review-digest thresholds: more than five files is "files".
 const triggersOf = (facts) => (facts.files.length > 5 ? ["files"] : []);
 const run = (facts, { policy, requested = false, shown = null, delta = null, producerUnavailable = false } = {}) =>
   decide(facts, { requested, shown, delta, producerUnavailable }, config(policy ? { policy } : {}), triggersOf);
@@ -103,8 +102,6 @@ describe("the decision", () => {
     assert.equal(result.action, "skip");
   });
 });
-
-// ------------------------------------------------------------ the CLI and the base commit
 
 const git = (cwd, ...args) => execFileSync("git", ["-C", cwd, ...args], { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] }).trim();
 

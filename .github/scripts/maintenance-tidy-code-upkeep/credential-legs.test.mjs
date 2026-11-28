@@ -1,12 +1,3 @@
-// maintenance-tidy-code-upkeep.yml picks each leg's credential through
-// ci-workflows' select-model-credential, fetched at the pin the workflow
-// names. This truth table drives the workflow's own conditions and inputs
-// through every combination of gate verdict, secrets set or empty, a model
-// that resolves or not, a step failing before or after the leg, and every
-// launcher outcome run-claude-cli's own handoffReason can produce, and holds
-// each state to the expressions the workflow used before the action (quoted
-// from 5599e627fc): the same jobs start, and each leg gets the same present,
-// fallback-ready and fallback-reason.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
@@ -23,10 +14,6 @@ const TOKEN = "AUTOMATIONS_CLAUDE_CODE_OAUTH_TOKEN";
 const FALLBACK = "FALLBACK_CLAUDE_CODE_OAUTH_TOKEN";
 const LEGS = ["sweep-areas", "sweep-areas-subscription", "sweep-areas-fallback"];
 
-// The old conditions and reasons, at 5599e627fc, under the job ids of that
-// commit (gate and the model legs, since renamed to select-areas and the
-// sweep-areas legs). model-fallback's had no fallback-ready term: an empty
-// subscription token started it whatever the fallback token held.
 const OLD_LEGS = ["model", "model-subscription", "model-fallback"];
 const OLD = {
   key: "needs.gate.outputs.proceed == 'true' && needs.gate.outputs.skip-key != 'true' && github.run_attempt == '1'",
@@ -36,9 +23,6 @@ const OLD = {
   fallbackReason: "${{ needs.model-subscription.outputs.handoff-reason || needs.model-subscription.outputs.credential-present == 'false' && 'no-key' || '' }}",
 };
 
-// A leg's run step: it starts only on a set credential and when no step
-// before it failed; its handoff is the launcher's. Its lane record, which
-// carries the fallback reason, runs only when it did.
 const legRan = (present, failAt) => present === "true" && failAt !== "before-run";
 const ran = (present, failAt, outcome) => (legRan(present, failAt) ? { handoff: outcome.handoff, "handoff-reason": outcome.reason } : { handoff: "", "handoff-reason": "" });
 const prefixed = (prefix, map) => Object.fromEntries(Object.entries(map).map(([k, v]) => [`${prefix}.${k}`, v]));
@@ -71,8 +55,6 @@ function oldChain(s) {
   return out;
 }
 
-// One leg job as the workflow now runs it: the credential call, the leg, and
-// the next-leg call, each from the workflow's own inputs.
 function newLeg(id, legName, ctx, s, outcome) {
   const call = wf.step(id, "credential");
   assert.equal(call.inputs.leg, legName, `${id} credential leg`);
@@ -154,8 +136,6 @@ test("the sweep's legs start the same jobs with the same credential decisions as
     assert.deepEqual(newChain(s), before, JSON.stringify(s));
     started.add(before.started.join(","));
   }
-  // Every shape of the chain is reached: none, key only, key then
-  // subscription, the subscription alone (a gate skip), and on to fallback.
   for (const shape of ["", LEGS[0], LEGS.slice(0, 2).join(","), LEGS.join(","), LEGS[1], LEGS.slice(1).join(",")]) {
     assert.ok(started.has(shape), `reached ${shape || "no leg"}`);
   }

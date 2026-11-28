@@ -222,8 +222,6 @@ expect "an unresolved skill reference fails the push" \
   "1|NOTES.md:1: skill-reference-verify: skill reference(s) in NOTES.md do not resolve; this repo owns the plugin:" \
   "$(push_check refs/heads/main "$(git -C "$REPO" rev-parse HEAD)" "$pushed")"
 
-# A file over the kernel's per-argument limit (128 KiB on Linux) is judged, not
-# skipped: its text never travels as one argument.
 new_repo
 {
   printf '#!/usr/bin/env bash\n'
@@ -478,9 +476,11 @@ plugin_copy "$WORK/counting"
 mv "$WORK/counting/hooks/run-guards.sh" "$WORK/counting/hooks/run-guards-real.sh"
 cat >"$WORK/counting/hooks/run-guards.sh" <<'EOF'
 #!/usr/bin/env bash
-payload="$(cat)"
-jq -r '.tool_input.file_path' <<<"$payload" | sed 's#.*/##' >>"$JUDGED_LOG"
-exec bash "${BASH_SOURCE[0]%/*}/run-guards-real.sh" "$@" <<<"$payload"
+printf '%s\n' "$1" >>"$JUDGED_LOG.starts"
+for p in "$2"/*.in; do
+  [[ -f "$p" ]] && jq -r '.tool_input.file_path' "$p" | sed 's#.*/##' >>"$JUDGED_LOG"
+done
+exec bash "${BASH_SOURCE[0]%/*}/run-guards-real.sh" "$@"
 EOF
 judged_files() {
   : >"$WORK/judged"
@@ -552,6 +552,32 @@ git -C "$REPO" checkout -q main
 expect "--base on a branch that adds nothing passes" "0|" "$(base_check origin/main)"
 expect "--base with no ref is a usage error" 2 \
   "$(cd "$REPO" && bash "$CHECK" --base >/dev/null 2>&1 </dev/null; echo "$?")"
+
+new_repo
+git -C "$REPO" checkout -q -b several
+for f in one two three; do printf 'echo %s\n' "$f" >"$REPO/$f.sh"; done
+printf '#!/usr/bin/env bash\nfaketool --real\nfaketool --bogus\n' >"$REPO/run.sh"
+commit_all several
+: >"$WORK/judged"
+: >"$WORK/judged.starts"
+err="$(cd "$REPO" && JUDGED_LOG="$WORK/judged" bash "$WORK/counting/git-hooks/reference-verify.sh" --base origin/main 2>&1 >/dev/null </dev/null)"
+expect "--base on four changed files starts the verifiers once, judges all four, and names the finding's line" \
+  "1|--batch|one.sh run.sh three.sh two.sh|yes" \
+  "$?|$(tr '\n' ' ' <"$WORK/judged.starts" | sed 's/ $//')|$(sort "$WORK/judged" | tr '\n' ' ' | sed 's/ $//')|$(grep -qxF "run.sh:3: $FLAG_FINDING" <<<"$err" && echo yes)"
+plugin_copy "$WORK/one-fails"
+rm "$WORK/one-fails/hooks/run-guards.sh"
+cat >"$WORK/one-fails/hooks/run-guards.sh" <<EOF
+#!/usr/bin/env bash
+bash "$PLUGIN/hooks/run-guards.sh" "\$@"
+s=\$?
+printf '3\n' >"\$2/1.rc"
+exit "\$s"
+EOF
+err="$(cd "$REPO" && bash "$WORK/one-fails/git-hooks/reference-verify.sh" --base origin/main 2>&1 >/dev/null </dev/null)"
+expect "a verifier failure on one file of the batch reports that file unchecked and still judges the rest" \
+  "1|yes|yes" \
+  "$?|$(grep -qxF 'one.sh:1: reference-verify: run-guards.sh exited 3 while running the verifiers, so it was not checked; fix that failure, then push again.' <<<"$err" && echo yes)|$(grep -qxF "run.sh:3: $FLAG_FINDING" <<<"$err" && echo yes)"
+git -C "$REPO" checkout -q main
 
 new_repo
 WT="$WORK/wt$n"

@@ -1,15 +1,11 @@
-// pr-dispatch-feedback.yml's slot read through the real resolver: the
-// dispatcher script resolves only the address-feedback slot of a pr-unblock
-// lane whose resolve-conflicts slot has a mergeable predicate (runs
-// 38838718857 and 38838482787 failed reading that lane with no activity), and
-// dispatches nothing when the slot is disabled. Lives here because it needs
-// resolve-config's dependencies.
+// test-scope: .github/scripts/lib/fixtures/standards/*
 import assert from "node:assert/strict";
 import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
+import { standardsCheckout } from "../../scripts/lib/trusted-actors.fixtures.mjs";
 import { main } from "../../scripts/pr-unblock/feedback-dispatch.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
 
@@ -72,7 +68,7 @@ activities:
     inputs: [pr, head-sha]
 lanes:
   pr-unblock:
-    stage: unblock
+    stage: fix
     slots:
       - activity: resolve-conflicts
       - activity: apply-conflict-patch
@@ -94,8 +90,6 @@ function baseWith(text) {
   const base = tempDir("feedback-dispatch-base-");
   for (const file of [
     "docs/conventions/pr-pipeline/pr-pipeline.schema.json",
-    ".github/standards/github-actions-conventions/vocabulary.json",
-    ".github/standards/trusted-actors/trusted-actors.json",
   ]) {
     mkdirSync(dirname(join(base, file)), { recursive: true });
     cpSync(join(ROOT, file), join(base, file));
@@ -155,6 +149,9 @@ async function run(slot, text = config(slot)) {
         path: ".github/workflows/pr-review-hosted.yml",
         event: "pull_request",
         status: "completed",
+        run_attempt: 1,
+        actor: { id: APP_ID },
+        triggering_actor: { id: APP_ID },
         head_sha: HEAD,
         repository: { full_name: REPOSITORY },
         head_repository: { full_name: REPOSITORY },
@@ -170,6 +167,7 @@ async function run(slot, text = config(slot)) {
         GITHUB_OUTPUT: join(base, "output"),
         RUNNER_TEMP: base,
         BASE_PATH: base,
+        STANDARDS_DIR: standardsCheckout(),
         GITHUB_EVENT_PATH: event,
         APP_SENDER_ID: String(APP_ID),
       },
@@ -185,8 +183,6 @@ test("a lane whose resolve-conflicts slot has a mergeable predicate dispatches o
   const { dispatched, reads } = await run("      - activity: address-feedback");
   assert.equal(dispatched.length, 1);
   assert.equal(dispatched[0].inputs.activity, "address-feedback");
-  // address-feedback's labels-absent and draft were decided from a fresh PR
-  // read; resolve-conflicts' mergeable was not.
   assert.deepEqual(reads, [`GET /repos/${REPOSITORY}/pulls/42`]);
 });
 
@@ -201,8 +197,6 @@ test("a config the resolver refuses fails the run even when the lane has no addr
   await assert.rejects(run(null, text), (error) => error.name === "Rejection" && error.code === "undefined-activity");
 });
 
-// The round is enabled in this repository (#7032 Phase 4), so a lanes App PR
-// with an open reviewer-bot thread on a reviewed head is dispatched.
 test("this repository's own config dispatches address-feedback", async () => {
   const { dispatched, lines } = await run(null, readFileSync(join(ROOT, "docs/conventions/pr-pipeline.yaml"), "utf8"));
   assert.equal(dispatched.length, 1);

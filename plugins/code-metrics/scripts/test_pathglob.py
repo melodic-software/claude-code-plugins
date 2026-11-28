@@ -1,7 +1,4 @@
 #!/usr/bin/env python3
-"""Output-based tests for pathglob.py, driven at its command line and, for the
-pure translator, through the module loaded by path (its name is importable,
-but the subprocess seam is the contract every caller uses)."""
 
 from __future__ import annotations
 
@@ -102,10 +99,6 @@ class CommandLineTests(unittest.TestCase):
         self.assertIn("usage", result.stderr)
 
     def test_a_trailing_slash_excludes_the_directory_contents(self) -> None:
-        # Gitignore semantics: `vendor/` names a directory and covers what is
-        # under it. Dropping the slash would leave a bare segment matching only
-        # a path literally called `vendor`, so the exclusion would match
-        # nothing and the whole directory would stay in scope.
         result = run(
             "vendor/", "vendor/a.py", "vendor/sub/b.py", "vendor", "vendorish/c.py"
         )
@@ -119,9 +112,6 @@ class CommandLineTests(unittest.TestCase):
         self.assertEqual(result.stdout.splitlines(), ["vendor", "a/vendor"])
 
     def test_an_unusable_glob_is_a_named_error_not_a_traceback(self) -> None:
-        # A consumer writes these by hand in an ecosystem file. A traceback
-        # would be unreadable, and a zero exit would let the caller read
-        # "matched nothing" as an answer.
         result = run("[z-a]", "a.py")
         self.assertEqual(result.returncode, 2)
         self.assertIn("[z-a]", result.stderr)

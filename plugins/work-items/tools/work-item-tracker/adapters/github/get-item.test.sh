@@ -1,26 +1,20 @@
 #!/usr/bin/env bash
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 set -uo pipefail
-# In a CI job the adapter wraps its gh calls and records into the job's
-# RUNNER_TEMP; the stub here answers the unwrapped calls.
-unset RUNNER_TEMP
+unset RUNNER_TEMP GITHUB_ACTIONS
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/get-item.sh"
+FIXTURES="$(dirname "$S")/fixtures"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
 assert_usage_error "$S" --nope
-# Foreign-provider ID is well-formed by the shared grammar but must be rejected
-# by the GitHub adapter (offline: fails before any gh call).
 assert_usage_error "$S" "local-markdown:o/r#1"
 assert_usage_error "$S" "github:o/r#1" --nope
 assert_usage_error "$S" "github:o/r#1" --history --history
 
 command -v jq >/dev/null 2>&1 || skip_suite "jq not on PATH"
 
-# --history: a gh stub answers the issue read (native `gh issue view` or REST) and applies
-# the script's own --jq program to raw timeline pages, as gh --paginate does. The expected
-# history is the closed and reopened events in timeline order; every other event is dropped.
 TMP_ROOT="$(mktemp -d)"
 trap 'rm -rf "$TMP_ROOT"' EXIT
 STUB="$TMP_ROOT/bin"
@@ -55,7 +49,15 @@ case "$path" in
   [[ -z "${GH_STUB_TIMELINE_PAGE2:-}" ]] || jq -c "$prog" <<<"$GH_STUB_TIMELINE_PAGE2"
   ;;
 repos/o/r/issues/1)
-  printf '%s\n' '{"number":1,"title":"t","state":"open","assignees":[],"labels":[],"type":null,"html_url":"https://github.com/o/r/issues/1","created_at":"2026-01-01T00:00:00Z","milestone":null}'
+  if [[ -n "${GH_STUB_REST_ISSUE:-}" ]]; then
+    printf '%s\n' "$GH_STUB_REST_ISSUE"
+  else
+    printf '%s\n' '{"number":1,"title":"t","state":"open","assignees":[],"labels":[],"type":null,"html_url":"https://github.com/o/r/issues/1","created_at":"2026-01-01T00:00:00Z","milestone":null}'
+  fi
+  ;;
+repos/o/r/issues/19449 | repos/o/r/issues/19535 | repos/o/r/issues/136)
+  num="${path##*/}"
+  jq -c --argjson n "$num" '.[] | select(.number == $n)' "$GH_STUB_FIXTURE"
   ;;
 *)
   printf 'gh-stub: unhandled %s\n' "$path" >&2
@@ -100,6 +102,16 @@ for version in 2.97.0 2.50.0; do
   out="$(GH_STUB_TIMELINE="$page1" bash "$S" "github:o/r#1" 2>/dev/null)"
   assert_eq "gh $version: plain get-item has no state_history" "false" "$(jq 'has("state_history")' <<<"$out")"
   assert_not_contains "gh $version: plain get-item reads no timeline" "$(cat "$GH_STUB_LOG")" "timeline"
+  assert_eq "gh $version: un-enrolled issue emits native_status null" "null" "$(jq -r '.native_status' <<<"$out")"
+
+  out="$(GH_STUB_FIXTURE="$FIXTURES/gh-issue-native-status-rest.json" bash "$S" "github:o/r#19449" 2>/dev/null)"
+  assert_eq "gh $version: enrolled issue emits native_status Backlog" "Backlog" "$(jq -r '.native_status' <<<"$out")"
+
+  out="$(GH_STUB_FIXTURE="$FIXTURES/gh-issue-native-status-rest.json" bash "$S" "github:o/r#19535" 2>/dev/null)"
+  assert_eq "gh $version: enrolled issue emits native_status In review" "In review" "$(jq -r '.native_status' <<<"$out")"
+
+  out="$(GH_STUB_FIXTURE="$FIXTURES/gh-issue-native-status-rest.json" bash "$S" "github:o/r#136" 2>/dev/null)"
+  assert_eq "gh $version: pre-preview null status emits native_status null" "null" "$(jq -r '.native_status' <<<"$out")"
 done
 
 [[ $FAILED -eq 0 ]] || exit 1

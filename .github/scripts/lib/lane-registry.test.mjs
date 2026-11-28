@@ -11,7 +11,7 @@ import { workflowText } from "./workflow-text.mjs";
 const FIXTURE = {
   workflows: {
     "caller.yml": {
-      lane: "fixture-review",
+      footer: "fixture-review",
       jobs: {
         gate: { name: "Check Gate", earlier: ["Gate", "gate"] },
         write: { name: "Apply Write", calls: "./.github/workflows/runner.yml" },
@@ -51,7 +51,7 @@ test("callers are the jobs that call one workflow", () => {
 
 test("a review caller's status checks pair each status job name with each caller name", () => {
   assert.deepEqual(statusChecks("caller.yml", FIXTURE), ["Code Review / status", "code-review / status", "Code Review / Publish", "code-review / Publish"]);
-  assert.deepEqual(reviewLanes(FIXTURE), [{ lane: "fixture-review", workflow: "caller.yml" }]);
+  assert.deepEqual(reviewLanes(FIXTURE), [{ footer: "fixture-review", workflow: "caller.yml" }]);
 });
 
 const WORKFLOWS = new URL("../../workflows/", import.meta.url);
@@ -104,11 +104,11 @@ test("a workflow names every job that calls a local workflow one of its named jo
 
 test("the review lanes' tables that cannot import the registry agree with it", () => {
   const lanes = reviewLanes();
-  assert.deepEqual(lanes.map(({ lane }) => lane), ["claude-review", "claude-security-review"]);
+  assert.deepEqual(lanes.map(({ footer }) => footer), ["claude-review", "claude-security-review"]);
   assert.deepEqual(REVIEW_LANES, lanes.map(({ workflow }) => [workflow, statusChecks(workflow)]));
   assert.deepEqual(
     LANE_RECORDS.map(({ file, lane, jobs }) => ({ file, lane, jobs })),
-    lanes.map(({ lane, workflow }) => ({ file: workflow, lane, jobs: statusChecks(workflow) })),
+    lanes.map(({ footer, workflow }) => ({ file: workflow, lane: footer, jobs: statusChecks(workflow) })),
   );
-  assert.deepEqual(LANE_WORKFLOWS, Object.fromEntries(lanes.map(({ lane, workflow }) => [lane, `.github/workflows/${workflow}`])));
+  assert.deepEqual(LANE_WORKFLOWS, Object.fromEntries(lanes.map(({ footer, workflow }) => [footer, `.github/workflows/${workflow}`])));
 });

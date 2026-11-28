@@ -12,7 +12,6 @@ afterAll(() => {
   for (const sandbox of sandboxes) fs.rmSync(sandbox, { recursive: true, force: true });
 });
 
-/** Another plugin's data directory, empty, the way a leaked CLAUDE_PLUGIN_DATA names it. */
 function foreignDataDir() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "course-setup-deps-"));
   sandboxes.push(root);

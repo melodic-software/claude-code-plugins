@@ -3,6 +3,168 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.3.8] - 2026-11-28
+
+### Changed
+
+- Trimmed 15 skill frontmatter descriptions (7,409 -> 4,314 chars across changed skills, -3,095c / -41.8%; 11 model-invoked `<= 350c`, each keeping its `Use when` trigger phrasing: `audit-mod-posture` 397 -> 325, `audit-native-overlap` 424 -> 349, `audit-performance` 428 -> 349, `audit-skill-visibility` 432 -> 348, `behavior-probes` 379 -> 330, `changelog` 417 -> 347, `inventory` 373 -> 349, `known-issues` 384 -> 343, `machine-profile` 400 -> 348, `observability` 506 -> 347, `plugins-audit` 420 -> 348; and 4 user-only `disable-model-invocation: true` `<= 150c`: `audit-plugin-landscape` 345 -> 120, `lanes` 988 -> 148, `plugins` 530 -> 120, `setup` 986 -> 143; `control-claude-code`, `audit-install-state`, and `prerequisites` untouched) with zero body changes and zero probe trigger-rate regressions.
+
+## [11.3.7] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [11.3.6] - 2026-11-28
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
+## [11.3.5] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [11.3.4] - 2026-11-28
+
+### Fixed
+
+- `/harness-ops:plugins sync` no longer aborts with `unbound variable` on bash 4.4 when `fleet-state.sh --fingerprint` fails or prints nothing: `sync-run.sh`'s fallback snapshot key guards `EPOCHREALTIME`, which exists only from bash 5.0.
+
+## [11.3.3] - 2026-11-28
+
+### Fixed
+
+- `/harness-ops:plugins sync all` under `install_new: all` no longer installs every catalog: the run stops before Step 4 as it does for `ask`, names the hold in `install_held: "all-target"`, and resumes only through the ask offer's `--only-install` re-entry; `/harness-ops:plugins-audit all` predicts the same stop.
+- `/harness-ops:plugins sync` counts a project pin in a bare-layout linked worktree (`.bare/worktrees/<name>`) under linked worktrees, as `converge` does, instead of sending it to `converge`.
+- `/harness-ops:plugins sync` and `/harness-ops:plugins-audit` digests now carry every field `scripts/digest-contract.json` declares, with its default when a run did not compute it, so a digest never omits a field.
+- `/harness-ops:plugins converge` no longer lets a project pin keyed to a user home set the version it brings the other scopes to, as `sync` already did: `fleet-state.sh` now gives each divergence its `highest` version and each pin its `class`, and `sync` and `converge` both read them, so their divergence counts agree.
+- `/harness-ops:plugins-audit` digests record each predicted install as an `installed[]` row, as they already did for enables, and every row for a CLI call carries its `label`, `rc`, `output` and `predicted`; the report prints the `would run:` line from that label.
+- `/harness-ops:plugins` and `/harness-ops:plugins-audit` no longer restate every report row in their docs: the Report section keeps the rules for pasting the report, and the golden renders under `skills/plugins/scripts/fixtures/render/` are the record of each row's text.
+- `/harness-ops:plugins sync` digests carry the user-settings normalizer's result as `normalize.status`, `moved`, `keys` and `reason` beside its raw `output`, and a refused reorder's `Action needed` bullet no longer repeats `refused:` before the reason.
+- `/harness-ops:plugins sync` keeps what an `--only-install` re-entry needs in one run record, `run.json`, and restores all of it: `--quiet-auto-update` and `--update-other-paths` no longer depend on how the policy flags were read back. A missing or unreadable record is now a run error in the re-entry's digest and report instead of a silent fall back to the defaults.
+- `/harness-ops:plugins sync` and `/harness-ops:plugins-audit` digests carry each block's and the run's `verdict`: the status, pending actions, changed flag, install and enable outcomes and `Action needed` items the report is formatted from, so a follow-up question reads them from the digest. The block's `installed_disabled` list moves into `verdict.installed_disabled`.
+- `/harness-ops:plugins sync` and `/harness-ops:plugins-audit` reports end with the reload guidance themselves (bare `/reload-plugins`, `--force` only when that warns) whenever the run updated, downgraded, installed or enabled a plugin (in audit, would), from the new `verdict.reload` fact; a run that changed nothing the session loads prints none, and the model no longer appends its own reload line.
+- `sync-run.sh` reads the unrendered userConfig placeholder token of `--install-new`, `--source-pull` and `--quiet-auto-update` as that option's default instead of an invalid value, so the `/harness-ops:plugins` and `/harness-ops:plugins-audit` commands carry each `${user_config.<key>}` token single-quoted in place, rendered or not, rather than the model copying a **Configured value** line or mapping an unset key to its default by hand. A set word the script does not know is still named under `Action needed`.
+- `/harness-ops:plugins sync` and `/harness-ops:plugins-audit` digests carry `digest_version` (now `1`). Replaying `render-report.jq` over a digest without it, or of another version, prints one line pointing at the `report.txt` that run wrote instead of rendering older digest shapes, whose compatibility branches are gone.
+- `fleet-state.sh --ids` selectors come from one table that `--help` and the unknown-selector error print with each selector's columns. `update-candidates-user` now adds the installed `version` column and `update-candidates-project` adds `version` after the scope; the new `update-candidates-other-paths` and `enable-targets` selectors return the records `sync` updates in other paths and enables, so `sync-run.sh` no longer joins ids back against the report.
+- `cache-content-check.sh` takes its install records from `fleet-state.sh`, which now reports each record's `gitCommitSha` and the marketplace's `installLocation`, so the two agree on which records exist and which project paths are absent. A marketplace `fleet-state.sh` cannot read (unknown, or no readable catalog) is exit 2 with the reason for `--marketplace` and an `error` entry under `--all`.
+- `/harness-ops:plugins sync` reuses a saved fleet-state read only while `fleet-state.sh --fingerprint`, its full list of environment inputs, is unchanged; the reuse key now also covers `OSTYPE` and the project root `git` resolves when `CLAUDE_PROJECT_DIR` is unset.
+- `/harness-ops:plugins sync`'s catalog regression check now diffs every two consecutive fleet-state reads the run saved, `pre-install` and `pre-enable` included and a read the run skipped bridged, so `catalog_regression.interval` names the narrowest pair of reads around the backward move (for example `mid->pre-install` for one during the user-scope sweep, which used to read `mid->post`). The reads come from `steps.json`, and every reader of them resolves through one lookup. `fleet-state.sh` gains the `user-enable-state` selector (`id`, `state` on or off for each user-scope install).
+- `/harness-ops:plugins sync` digests carry `install_offer` when a run stops before Step 4: the install gap already grouped into `AskUserQuestion` calls, questions and options, and each `converge-plan.sh` group carries `question_calls`, its runnable rows' indexes grouped per call. The model asks what they list instead of partitioning the gap or the rows by hand, and the tool's limits live once, in `scripts/question-groups.jq`.
+- `/harness-ops:plugins sync` reads the fleet faster on a large install history: `fleet-state.sh` parses each distinct version once and judges each distinct project path once instead of once per install record, so a read of about 5,000 records takes under half as long, with the same report.
+- `/harness-ops:plugins sync` and `/harness-ops:plugins-audit` reports read in the order you act on them: the `Result:` verdict, then `Action needed`, then what the run changed (`Would change` in audit), then each marketplace's `status:`, `autoUpdate:` and `pending:` rows, then what it leaves as it is, then a `Run` footer with the journal and timing, then the reload lines. Each section has a heading with its item count and one blank line around it, its `label:` values share one column, labels are lowercase, a long list shows three rows and then `+N more` with the file that holds the rest (stale project records fold sibling directories into their parent first), divergences by path print as columns, and a path under your home prints as `~/...` (digests carry the new `home` field). Every count and id is still printed.
+- `/harness-ops:plugins sync` keeps a multi-line error (a fleet-state read's full stderr) as one `errors[]` entry and one `Action needed` item, in the digest and across an `--only-install` re-entry, instead of one per line; a divergence computation that fails is named as an error instead of reported as a missing snapshot.
+- `/harness-ops:plugins` states once, in its SKILL.md, when no human is there to answer (the autonomy test: `CLAUDE_CODE_REMOTE` set, a `/loop` or `/schedule` invocation, or an unclear session); `converge`'s abort and `sync`'s `directory`-source pull cite it instead of each wording the test their own way.
+
+## [11.3.2] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
+## [11.3.1] - 2026-11-27
+
+### Fixed
+
+- `/harness-ops:inventory` opens every reply built from a report with a lookup gap with that gap and its retry command, before any count or list, short answers included.
+
+## [11.3.0] - 2026-11-27
+
+### Added
+
+- A `transcript_sources_file` option names a JSON file of transcript sources: Claude Code configuration directories on this host and on hosts reached over ssh. Unset, only this host's configuration directory is read.
+
+### Changed
+
+- `/harness-ops:audit-performance`, `/harness-ops:audit-skill-visibility --installed` and `/harness-ops:inventory` take `--sources-file` and read the first local source's configuration directory (unset, `CLAUDE_CONFIG_DIR`, else `~/.claude`). Each report's `header` names a local source whose projects directory cannot be listed, with the command that retries it, and `--diagnostics-dir` keeps it as a lookup diagnostics record.
+- A `transcript_sources_file` path, and a local source's `config_dir` in it, starting with `~` are read from the home directory; a missing sources file prints its warning once per run.
+- `/harness-ops:inventory` reads `.claude.json` inside a configuration directory taken from the sources file, as it does for `--config-dir` and `CLAUDE_CONFIG_DIR`, unless that directory is `~/.claude`.
+
+## [11.2.1] - 2026-11-26
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+## [11.2.0] - 2026-11-26
+
+### Changed
+
+- Shared `html-escape.mjs` synced: the report validator admits a base64 `data:` URL in two places only, a PNG or JPEG as the `.rv-logo` rule's one `background-image`, and a WOFF2, WOFF, TTF or OTF font inside `@font-face`. Every other `url(`, scheme and URL-bearing attribute is still refused. Pages built today look the same; no other change to this plugin.
+
+## [11.1.0] - 2026-11-26
+
+### Added
+
+- behavior-probes: a case's `turns` (user messages such as `/clear`) run before its prompt over stream-json input, and outcome `reply` judges the run's last reply against `reply_match`, where `<session8>` stands for the answering session's id prefix.
+- behavior-probes: `session-start` cases check that a SessionStart hook's context reaches the model on startup, after `/clear` and after `/compact`.
+
+- `remote/` top-level surface classification in the shared `lib/plugin_cache_versions.py` `SURFACE_TABLE` and stat-only `projects_audit` orphan summary via `lib/claude_projects.py` (`NullTranscriptCwdAdapter`).
+
+- `audit-install-state` reads `managed-settings.d/*.json` drop-in files alongside the base `managed-settings.json` through a dedicated `managed_settings.py` module matching `lib/managed-scope.sh` platform paths.
+
+### Changed
+
+- behavior-probes: a run whose stream reports a rejected rate limit (the usage limit) is inconclusive and skips every case after it; an `allowed` rate-limit event is ignored.
+
+- `install_state.py` consumes shared `lib/plugin_cache_versions.py` (`resolve_claude_dir`, `SURFACE_TABLE`, `NEVER_READ_GLOBS`, strict UTF-8 `AllowlistGuardedReader` preserving all four read guards, and `classify_cache_relpath`).
+
+### Fixed
+
+- `unreferenced_versions` and `node_modules_bucket` exclude depth-1 `plugins/cache/temp_git_*` staging clones instead of misclassifying nested `.git/objects` directories as plugin versions.
+- Invalid UTF-8 bytes in `settings.json` or `installed_plugins.json` now fail closed instead of substituting replacement characters.
+
+- `read_retention` merges `cleanupPeriodDays` across base and alphabetical drop-in files (later file wins), withdraws `settings-unparsable-pauses-sweep` when a valid drop-in supplies `cleanupPeriodDays`, and emits `managed-settings-unparsable-refuses-start` on any unparsable base or drop-in file.
+
+## [11.0.0] - 2026-11-26
+
+### Changed
+
+- **The shared view resolver takes `--producer`, not `--lane`.** "Lane" now means only a worker
+  that serves one pipeline stage, so a skill or plugin registered with the resolver is a producer:
+  run `view-settings.mjs resolve --producer <id>` (`--lane` is gone, with no alias). The registry
+  exports `PRODUCERS` and `producerOf`, `resolveMedium` takes `producer`, and the view builder's
+  `render` takes a producer id.
+
+## [10.8.4] - 2026-11-26
+
+### Changed
+
+- `/harness-ops:inventory`, `/harness-ops:audit-skill-visibility`, `/harness-ops:audit-native-overlap`, `/harness-ops:audit-performance`, `/harness-ops:behavior-probes` and `/harness-ops:control-claude-code` point at section-anchored Claude Code docs for WebFetch, `/doctor`, compaction hooks, bundled skills, the skill listing budget, in-place plugins and sign-in storage, instead of restating that behavior. The inventory's docs pointers drop their as-of dates and recheck triggers and gain section anchors ([#19075](https://github.com/melodic-software/claude-code-plugins/issues/19075)).
+
+## [10.8.3] - 2026-11-26
+
+### Changed
+
+- Shared library copies synced with comments removed; no behavior change.
+
+## [10.8.2] - 2026-11-25
+
+### Changed
+
+- Shared `yaml-subset.awk` synced (comment-only removal).
+- The observability SQL and awk files lose their comments, with no behavior change; the privacy reference now names `prune-compact.sh`'s column constants as the authoritative cold content list.
+
+## [10.8.1] - 2026-11-25
+
+### Fixed
+
+- The behavior-probes runner removes the `~/.claude/projects` folder a probe session created
+  when, after its transcript is collected, the folder holds only empty directories such as the
+  auto-memory `memory` folder. A folder holding any file is left as it was.
+
+## [10.8.0] - 2026-11-25
+
+### Added
+
+- `/harness-ops:behavior-probes` judges a `transcript-grep` case against its session transcript and its hooks' log: regexes matched in order, regexes that must not match, and a required PostCompact record for compaction cases.
+- Probe cases for a typed `/goal` reaching UserPromptSubmit, PreCompact text steering automatic and manual compaction, a no-tool reply under an unmeetable goal, UserPromptSubmit context on a `/goal` turn, and a self-paced `/loop` wake-up in the CronList listing across a compaction.
+
 ## [10.7.0] - 2026-11-24
 
 ### Added

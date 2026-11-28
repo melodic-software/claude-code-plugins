@@ -55,7 +55,6 @@ notifications settings invoices payments subscriptions plans coupons usage"
 
 printf 'export {};\n' >src/index.ts
 
-# A run's user scope is unreadable, so the auto-memory state the audit resolves is set here.
 mkdir -p .claude
 printf '{\n  "autoMemoryEnabled": false\n}\n' >.claude/settings.json
 

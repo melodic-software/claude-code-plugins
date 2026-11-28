@@ -10,13 +10,17 @@ cr_trim_excerpt() {
   printf '%s' "$line"
 }
 
+CR_SCRIPTS="${BASH_SOURCE[0]%/*}/../../../../scripts"
+CR_CODE_EXTS=" $(tr -d '\r' <"$CR_SCRIPTS/code-extensions.txt" | tr '[:upper:]' '[:lower:]' | tr '\n' ' ') "
+
 cr_is_code_file() {
-  case "${1,,}" in
-  *.cs | *.ts | *.tsx | *.js | *.jsx | *.mjs | *.cjs | *.py | *.sh | *.bash | *.ps1 | *.psm1 | \
-    *.go | *.rs | *.java | *.kt | *.rb | *.lua | *.sql | *.c | *.h | *.cpp | *.hpp | *.cc | \
-    *.yaml | *.yml | *.toml) return 0 ;;
-  *) return 1 ;;
-  esac
+  local name="${1##*/}" ext
+  if [[ "$name" == *.* ]]; then
+    ext="${name##*.}"
+    [[ "$CR_CODE_EXTS" == *" ${ext,,} "* ]]
+  else
+    [[ -f "$1" ]] && grep -qE -f "$CR_SCRIPTS/code-shebang.ere" < <(head -n 1 -- "$1")
+  fi
 }
 
 cr_line_skipped() {
@@ -56,6 +60,10 @@ cr_comment_text() {
       [[ "$ch$nx" == '//' ]] && rest="${rest#[/!]}"
       REPLY="$rest"
       return 0
+    elif [[ "${line:i:4}" == '<!--' ]]; then
+      rest="${line:i+4}"
+      REPLY="${rest%%-->*}"
+      return 0
     elif [[ "$ch$nx" == '/*' ]]; then
       rest="${line:i+2}"
       REPLY="${rest%%\*/*}"
@@ -74,7 +82,8 @@ cr_is_sanctioned_todo() {
 }
 
 cr_is_comment_line() {
-  [[ "$1" =~ ^[[:space:]]*(#|//|/\*|\*|--) ]]
+  local re='^[[:space:]]*(#|//|/\*|\*|--|<!--)'
+  [[ "$1" =~ $re ]]
 }
 
 cr_has_license_cue() {

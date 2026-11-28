@@ -27,8 +27,8 @@ import server  # noqa: E402
 
 PEOPLE = 20
 MESSAGES = 500
-BEAT_EVERY = 2.0  # core.js setInterval(beat, 2000)
-POLL_EVERY = 1.5  # core.js setInterval(poll, 1500)
+BEAT_EVERY = 2.0
+POLL_EVERY = 1.5
 
 
 def ip(i):
@@ -42,7 +42,7 @@ def seed(app):
         _, _, out = call(port, "POST", "/api/join", {"name": f"Person {i}", "device": "computer", "key": app.session.state["session"]["guestKey"]}, ip(i))
         people.append({"X-Session-Secret": out["secret"], **ip(i)})
     real = app.session.clock
-    t = [real() - MESSAGES * 1.1 - 100]  # the past, so every person's write limit has passed when the run starts
+    t = [real() - MESSAGES * 1.1 - 100]
     app.session.clock = lambda: t[0]
     pids = [app.session.resolve(secret=h["X-Session-Secret"]) for h in people]
     for n in range(MESSAGES):

@@ -536,5 +536,47 @@ out="$(cd "$REPO" && CLAUDECODE=1 PATH="$NOMD" bash "$CHECK" 2>&1)"
 expect "markdownlint-cli2 found in the repo's node_modules/.bin when PATH has none" "1|$HTML
 $HINT" "$?|$out"
 
+STD="$WORK/standards"
+mkdir -p "$STD"
+printf '{ "config": { "default": true, "MD013": false, "MD009": false } }\n' >"$STD/.markdownlint-cli2.jsonc"
+opt_in() {
+  mkdir -p "$REPO/docs/conventions"
+  printf 'standards_repository: acme/standards\n' >"$REPO/docs/conventions/source-control.yaml"
+}
+TRAIL='a.md:3: MD009/no-trailing-spaces Trailing spaces [Expected: 0 or 2; Actual: 3]'
+new_repo NONE
+opt_in
+printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"
+git -C "$REPO" add -A
+expect "standards default: with no repository config the standards config governs" "1||$HTML
+$HINT" "$(STANDARDS_DIR="$STD" check "$REPO")"
+expect "standards default, control: with no standards checkout no config opts the file in" "0||" \
+  "$(STANDARDS_DIR="$WORK/nowhere" check "$REPO")"
+expect "standards default: --resolve names the standards config" \
+  "markdown-format	lint	adapter:markdownlint-cli2	markdownlint-cli2	yes	config the standards .markdownlint-cli2.jsonc; binary markdownlint-cli2 on PATH" \
+  "$(cd "$REPO" && STANDARDS_DIR="$STD" bash "$CHECK" --resolve)"
+new_repo '{ "config": { "MD033": false } }'
+opt_in
+printf '# T\n\n<b>x</b>   \n' >"$REPO/a.md"
+git -C "$REPO" add -A
+expect "standards extend: the repository's rule and the standards rule both apply" "0||" "$(STANDARDS_DIR="$STD" check "$REPO")"
+expect "standards extend, control: the repository config alone flags what standards turns off" "1||$TRAIL
+$HINT" "$(STANDARDS_DIR="$WORK/nowhere" check "$REPO")"
+expect "standards extend: --resolve names the repository config over the standards one" \
+  "markdown-format	lint	adapter:markdownlint-cli2	markdownlint-cli2	yes	config .markdownlint-cli2.jsonc over the standards config; binary markdownlint-cli2 on PATH" \
+  "$(cd "$REPO" && STANDARDS_DIR="$STD" bash "$CHECK" --resolve)"
+printf '{ "config": { "MD033": false, "MD009": true } }\n' >"$REPO/.markdownlint-cli2.jsonc"
+git -C "$REPO" add -A
+expect "standards override: a rule the repository sets wins over the standards value" "1||$TRAIL
+$HINT" "$(STANDARDS_DIR="$STD" check "$REPO")"
+CODE_STD="$WORK/code-standards"
+mkdir -p "$CODE_STD"
+printf '{ "customRules": ["./rule.js"], "config": { "default": true, "MD013": false } }\n' >"$CODE_STD/.markdownlint-cli2.jsonc"
+new_repo NONE
+opt_in
+printf '# T\n\n<b>x</b>\n' >"$REPO/a.md"
+git -C "$REPO" add -A
+expect "standards default: a standards config that can run code is never used" "0||" "$(STANDARDS_DIR="$CODE_STD" check "$REPO")"
+
 echo "lint: $PASS passed, $FAIL failed"
 ((FAIL == 0))

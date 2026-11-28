@@ -21,10 +21,6 @@ export default {
       drop: KEY_ONLY,
       comments: {
         ...COMMENTS,
-        "Fail without a refinement": `A handoff hands the refinement on, and an empty token either hands it
-to the fallback leg or, with no fallback token, ends with the
-credential step's warning; any other run that passed the context
-check and uploaded nothing fails here.`,
         "Pick the next leg": true,
       },
       replace: [
@@ -72,7 +68,6 @@ check and uploaded nothing fails here.`,
       drop: [...KEY_ONLY, "Report a handoff", "Pick the next leg"],
       comments: {
         ...COMMENTS,
-        "Fail without a refinement": "The last leg: any run that passed the context check and uploaded\nnothing fails here, an empty token included.",
       },
       replace: [
         [HEADER, "  refine-issue-fallback:\n    name: Refine Issue Fallback\n    needs: [refine-select, refine-issue-subscription]\n", 1],

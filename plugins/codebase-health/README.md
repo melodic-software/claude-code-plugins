@@ -2,23 +2,23 @@
 
 A Claude Code plugin for repo-wide drift auditing: it verifies that a codebase's **factual claims** in docs, config, code, and architecture notes still match reality. Every claim is checked against
 ground truth via a parallel per-file subagent fan-out, findings are severity-rated, and the audit
-reports them read-only. Remediation is delegated to the implementation/verification lanes.
+reports them read-only. Remediation is delegated to the implementation/verification skills.
 
 Diff/PR review judges a change. This plugin instead verifies whether the repo's own written claims
 about itself are true.
 
-Other kinds of drift belong to other lanes. The audit skill's
-[Boundary](skills/audit/SKILL.md#boundary-the-adjacent-drift-lanes) section names seven of them
+Other kinds of drift belong to other skills. The audit skill's
+[Boundary](skills/audit/SKILL.md#boundary-the-adjacent-drift-skills) section names seven of them
 (whether a page deserves to exist or is fresh in a change under review, stale session assumptions,
 currency against upstream docs, prose copied from an external source, Claude Code's own
-configuration and instruction surfaces, and the placement and enforcement delta lanes) with the
-sibling that owns each. It reports such a request as uncovered and names that lane for the operator
+configuration and instruction surfaces, and the placement and enforcement delta skills) with the
+sibling that owns each. It reports such a request as uncovered and names that skill for the operator
 to run, whether or not its plugin is installed, without invoking it.
 
 | Skill | What it does |
 |---|---|
-| `/codebase-health:audit` | Runs the audit. Prime conventions, fan out claim-extraction per file, independently validate, severity-rate, and report read-only; remediation is delegated to the implementation/verification lanes. |
-| `/codebase-health:setup` | `check` inspects the audit-dimension config read-only across its layers and names any old-location file; `apply` moves an old file after a yes, interviews the user, infers targets from the layout, and writes the team file `<home>/codebase-health.md`. |
+| `/codebase-health:audit` | Runs the audit. Prime conventions, fan out claim-extraction per file, independently validate, severity-rate, and report read-only; remediation is delegated to the implementation/verification skills. |
+| `/codebase-health:setup` | `check` inspects the audit-dimension config read-only across its layers; `apply` interviews the user, infers targets from the layout, and writes the team file `<home>/codebase-health.md`. |
 
 ## The audit
 
@@ -31,15 +31,15 @@ priority, enforcement escalation, and config-gap observations. Bare invocation i
 reports and stops.
 
 Remediation is not owned here. Fixing, verifying, self-reviewing, and retrospecting are delegated to
-the dedicated lanes: `/implementation:implement` (fix) and `/verification:confirm` (verify), used as
+the dedicated skills: `/implementation:implement` (fix) and `/verification:confirm` (verify), used as
 soft dependencies when those plugins are installed. The explicit `--fix` flag hands the Phase 3
-findings off to those lanes rather than fixing inline; when they are absent, the findings table is the
+findings off to those skills rather than fixing inline; when they are absent, the findings table is the
 handoff and remediation is manual in the reported fix-priority order.
 
 ```shell
 /codebase-health:audit                      # report-only audit of every configured dimension (scope-gated)
 /codebase-health:audit docs/ --docs-only    # one dimension, scoped to a subtree, report-only
-/codebase-health:audit README.md --fix      # scoped, then hand findings to the remediation lanes
+/codebase-health:audit README.md --fix      # scoped, then hand findings to the remediation skills
 ```
 
 Dimension filters (`--docs-only`, `--code-only`, `--config-only`, `--arch-only`) are mutually
@@ -49,7 +49,7 @@ every doc/config/source file.
 
 In an interactive session with the `visualization` plugin installed, the audit ends its report with
 an offer to render it through `/visualization:visualize`, and never builds a page itself.
-The shared medium resolver (`lib/view-settings.mjs`, lane `codebase-health:audit`) decides the
+The shared medium resolver (`lib/view-settings.mjs`, producer `codebase-health:audit`) decides the
 offer from `--medium <value>`, the plugin's `medium` option and the `rendered-views` settings under
 `docs/conventions/`. The audit prints the resolver's report line, `view: <medium> (<what decided
 it>)`, and any notice. A `terminal` result drops the offer. The tracked team file,
@@ -69,12 +69,6 @@ repository's convention home (default `docs/conventions`):
 2. `<home>/codebase-health.md`: team config (tracked)
 3. `<home>/codebase-health.local.md`: personal override (gitignored)
 
-The old files `~/.claude/codebase-health.md`, `.claude/codebase-health.md` and
-`.claude/codebase-health.local.md` are still read while they exist, wherever the new location does
-not supply that layer, and each run prints one warning naming the old file, its new location and
-`/codebase-health:setup apply`, which moves it after a preview and your yes, then deletes it
-([Old locations](reference/config.md#old-locations-dual-read-window)).
-
 Each dimension declares `primary-sources` (globs where claims live), `verification-sources` (globs
 where claims are checked against ground truth), and `example-claims` (concrete `{ claim, verify-via }`
 rows that teach the extraction pass what drift looks like in THIS repo). The four bundled dimensions
@@ -87,7 +81,7 @@ hardcodes a repo's layout.
 
 ```shell
 /codebase-health:setup check   # inspect the effective config read-only (default)
-/codebase-health:setup apply   # move old files, interview + write <home>/codebase-health.md (re-runnable)
+/codebase-health:setup apply   # interview + write <home>/codebase-health.md (re-runnable)
 ```
 
 Add the recursive `<home>/**/*.local.*` line (`docs/conventions/**/*.local.*` for the default home)

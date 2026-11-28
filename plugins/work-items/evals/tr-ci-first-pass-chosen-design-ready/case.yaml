@@ -1,0 +1,36 @@
+schema_version: "1.1"
+name: tr-ci-first-pass-chosen-design-ready
+description: 'Triage --ci first pass on a visual design request whose design is already chosen and whose done-when is exact: Flags none, no needs-owner-decision or needs-human label, needs_human false. Ported from the retired intake reentry-eval case first-pass-chosen-design-ready. A run needs --scaffold.'
+tags: [triage, ci-mode, intake, first-pass]
+plugins: ["../.."]
+expected_outcome: 'The run reads .lane/scratch/issue.json, treats the chosen card design with its exact done-when as no intent question, writes Flags: none, applies neither needs-owner-decision nor needs-human, and keeps needs_human false.'
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/work-items:triage --issue 99910 --ci\n\nYour scratchpad directory is `.lane/scratch`. The lane's output schema takes these keys: size small, medium or large; complexity low, medium or high; uncertainty known, knowable or unknown; type Bug, Task or Feature. This session has no structured-output channel, so end the run with a reply that is only the verdict: one JSON object in the schema's shape."
+  allowed_tools: [Read, Glob, Grep, Skill]
+  max_turns: 30
+  timeout_seconds: 600
+graders:
+  - name: flags-none
+    type: 'regex'
+    pattern: '(?:^|\\n|\n)Flags: none(?:\\n|\n|"|$)'
+    target: 'last_message'
+    arm: both
+  - name: no-needs-decision
+    type: 'regex'
+    pattern: '"labels"\s*:\s*\[[^\]]*"needs-owner-decision"'
+    match: 'not_contains'
+    target: 'last_message'
+    arm: both
+  - name: no-needs-human-label
+    type: 'regex'
+    pattern: '"labels"\s*:\s*\[[^\]]*"needs-human"'
+    match: 'not_contains'
+    target: 'last_message'
+    arm: both
+  - name: keeps-needs-human-false
+    type: 'regex'
+    pattern: '"needs_human"\s*:\s*false'
+    target: 'last_message'
+    arm: both

@@ -1,22 +1,4 @@
 #!/usr/bin/env bash
-# Gate the standards contract's own version surface (ADR 0019).
-#
-#   scripts/check-standards-contract-bump.sh <base-ref>
-#
-# Fails when the contract or its schema changed vs <base-ref> but
-#   (a) a carrying plugin's manifest version did not move (or, in fragment
-#       mode, no fragment whose bump is not none was added): the plugin version
-#       is the update cache key, or
-#   (b) the standards-contract frontmatter semver did not move: setup's
-#       migration detection reads it, so without a bump content drifts under a
-#       frozen version forever, or
-#   (c) the contract CHANGELOG has no "## <version>" entry for the frontmatter
-#       version.
-#
-# The carrying plugins are the copies scripts/shared-copies.txt registers for the
-# contract; scripts/sync-shared-copies.sh --check-bump gates their bump for a
-# change to the contract text, and this gate adds the schema-only change, which
-# changes no copy. Nothing here writes.
 set -euo pipefail
 
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,8 +8,6 @@ cd "$script_dir/.."
 # shellcheck source=lib/changelog-fragments.sh
 . "$script_dir/lib/changelog-fragments.sh" || exit 2
 
-# The contract moved from docs/conventions/, which keeps a stub; the old home is
-# read only when the new one has no README.
 home="docs/contracts/standards"
 [[ -f "$home/README.md" ]] || home="docs/conventions/standards"
 src="$home/README.md"
@@ -40,9 +20,6 @@ if [[ -z "$base" ]]; then
   exit 2
 fi
 gate_entry::require_base "$base" "error: base ref $base does not resolve to a commit."
-# Compare against the fork point, not the tip of the base: a branch behind its
-# base would otherwise count the base's own later changes as its changes. $base
-# stays the name the messages print.
 if ! mb="$(git merge-base "$base" HEAD)"; then
   echo "error: 'git merge-base $base HEAD' failed (no common ancestor, or history not fetched deeply enough); refusing to pass without checking." >&2
   exit 2
@@ -69,8 +46,6 @@ if [[ -n "$base_contract" && "$head_contract" == "$base_contract" ]]; then
   stale=1
 fi
 
-# A heading count could be satisfied by any unrelated '## ' section, so match the
-# entry for the version the frontmatter now names.
 head_contract_re=${head_contract//./\\.}
 if ! grep -Eq "^## ${head_contract_re}( |$)" "$changelog" 2>/dev/null; then
   echo "STALE CHANGELOG: $src changed vs $base but $changelog has no '## $head_contract' entry" >&2
@@ -90,8 +65,6 @@ for copy in "${carriers[@]}"; do
   rest="${copy#plugins/}"
   plugin="${rest%%/*}"
   manifest="plugins/$plugin/.claude-plugin/plugin.json"
-  # A plugin absent at the base ref is new in this change set; its initial
-  # release already carries the new contract.
   base_version=$(git show "$mb:$manifest" 2>/dev/null | jq -r '.version // empty' || true)
   [[ -n "$base_version" ]] || continue
   head_version=$(jq -r '.version // empty' "$manifest")

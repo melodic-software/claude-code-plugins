@@ -1,9 +1,4 @@
 #!/usr/bin/env bash
-# Output: up to <max> repo-relative paths of changed or untracked code files, one
-# per line, in `git status` order; empty when nothing matches. Rename and copy
-# entries emit the new path only. Exit 1 when git status is unavailable; callers
-# supply their own fallback text. Exit 4, naming the file, when the shared
-# extension list (code-extensions.txt beside this script) cannot be read.
 set -u
 
 MAX="${1:-10}"
@@ -15,10 +10,18 @@ if [[ -z "$EXTS" ]]; then
   exit 4
 fi
 
+CODE_EXT="\\.(${EXTS,,})\$"
+SHEBANG="$(dirname "${BASH_SOURCE[0]}")/code-shebang.ere"
+top="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 1
 git status --porcelain -z >/dev/null 2>&1 || exit 1
 
 git status --porcelain -z 2>/dev/null |
   awk 'BEGIN { RS = "\0" } skip { skip = 0; next } { if (substr($0, 1, 2) ~ /[RC]/) skip = 1; print substr($0, 4) }' |
-  grep -Ei "\\.($EXTS)\$" |
+  while IFS= read -r f; do
+    if [[ "${f,,}" =~ $CODE_EXT ]] ||
+      { [[ "${f##*/}" != *.* && -f "$top/$f" ]] && grep -qE -f "$SHEBANG" < <(head -n 1 -- "$top/$f"); }; then
+      printf '%s\n' "$f" 2>/dev/null || break
+    fi
+  done |
   head -n "$MAX"
 exit 0
