@@ -282,8 +282,7 @@ That reply states the words "already configured" as written here, beside any sum
 
 ## Next
 
-- /toolchain:setup apply bash, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants
-  a tool the plugin ships no adapter for; /toolchain:lint then runs it on request.
+- Repository wants a tool the plugin ships no adapter for (drafted commands ready): /toolchain:setup apply bash.
 - A hook stage over its time budget in `setup check inspect`: /performance:target.
 
 ## What this skill does not do

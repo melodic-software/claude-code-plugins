@@ -9,9 +9,6 @@ case "${here}" in
 / | "${HOME:-/}" | "${real_home:-/}") echo "refusing to scaffold in ${here}" >&2 && exit 3 ;;
 *) ;;
 esac
-# The eval workspace sits inside the run's temporary home, which is itself a repository, so a
-# repository above the workspace is expected there. Allow only that one; refuse a workspace that
-# is already a repository and any other enclosing repository.
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 if top="$(git rev-parse --show-toplevel 2>/dev/null)"; then
   tmp="$(cd "${TMPDIR:-/nonexistent}" 2>/dev/null && pwd -P || true)"

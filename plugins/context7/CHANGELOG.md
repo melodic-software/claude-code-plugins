@@ -3,6 +3,12 @@
 All notable changes to the `context7` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.7] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
 ## [1.1.6] - 2026-11-27
 
 ### Changed

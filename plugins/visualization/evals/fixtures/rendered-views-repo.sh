@@ -69,7 +69,7 @@ diagram-target-excalidraw-file)
   printf 'diagram_target: excalidraw-file\n' >docs/conventions/visualization.local.yaml
   g add README.md .gitignore
   ;;
-*) # personal-file; the mode was checked above
+*)
   printf 'docs/conventions/rendered-views.local.yaml\n' >.gitignore
   printf 'medium: file\n' >docs/conventions/rendered-views.local.yaml
   g add README.md .gitignore

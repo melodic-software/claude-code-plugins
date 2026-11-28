@@ -304,6 +304,425 @@
       "entry_types": ["directory"],
       "confidence_ceiling": "low",
       "reason": "Possible electron-updater cache directory (%LOCALAPPDATA%\\<app>-updater, whose 'pending' subdirectory holds the staged installer); the name is generic, so confirm the owning app, that the pending installer is not an update still to be applied, and that the app is not running"
+    },
+    {
+      "id": "claude-sandbox-placeholder-bashrc",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".bashrc",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-bash-profile",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".bash_profile",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-bash-login",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".bash_login",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-bash-aliases",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".bash_aliases",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-profile",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".profile",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-zshrc",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".zshrc",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-zshenv",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".zshenv",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-zprofile",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".zprofile",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-zlogin",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".zlogin",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-gitconfig",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".gitconfig",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-gitmodules",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".gitmodules",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-mcp-json",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".mcp.json",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-npmrc",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".npmrc",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-yarnrc",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".yarnrc*",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-bunfig",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": "*bunfig.toml",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-netrc",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".netrc",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-package-json",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": "package.json",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-package-lock-json",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": "package-lock.json",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-yarn-lock",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": "yarn.lock",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-pnpm-lock-yaml",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": "pnpm-lock.yaml",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-env",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".env",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-env-variant",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": ".env.*",
+      "entry_types": ["file"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "Zero-byte file at a name the Claude Code sandbox write-denies; on Linux and WSL2 the sandbox holds the denial with a 0-byte placeholder that a killed session leaves behind (claude doctor lists them); remove only while no other Claude Code session runs in this folder. A non-empty file of this name is real config and never matches"
+    },
+    {
+      "id": "claude-sandbox-placeholder-node-modules",
+      "class": "temp",
+      "os": ["linux"],
+      "kind": "name_glob",
+      "pattern": "node_modules",
+      "entry_types": ["directory"],
+      "requires": {"zero_bytes": true},
+      "confidence_ceiling": "medium",
+      "reason": "node_modules tree holding only empty directories (such as node_modules/.bin), the shape a killed Claude Code sandboxed session leaves at a write-denied path on Linux and WSL2; a tree holding any file is a real install and never matches"
+    },
+    {
+      "id": "claude-json-pre-onboarding-backup",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": ".claude.json.pre-onboarding.bak",
+      "entry_types": ["file"],
+      "confidence_ceiling": "low",
+      "reason": "Stale copy of ~/.claude.json (%USERPROFILE%\\.claude.json on Windows) taken before onboarding; Claude Code keeps its documented backups under ~/.claude/backups, so this one has no reader, but it can hold account and MCP settings: confirm the live .claude.json is intact first"
+    },
+    {
+      "id": "pytest-cache",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": ".pytest_cache",
+      "entry_types": ["directory"],
+      "confidence_ceiling": "medium",
+      "reason": "pytest cacheprovider state (last-failed, step-wise), written to the rootdir pytest ran in; regenerated by the next run; native clear: pytest --cache-clear"
+    },
+    {
+      "id": "ruff-cache",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": ".ruff_cache",
+      "entry_types": ["directory"],
+      "confidence_ceiling": "medium",
+      "reason": "Ruff lint and format result cache, written to the directory Ruff took as project root; regenerated by the next run; native clear: ruff clean"
+    },
+    {
+      "id": "playwright-cli-output",
+      "os": ["all"],
+      "kind": "name_glob",
+      "pattern": ".playwright-cli",
+      "entry_types": ["directory"],
+      "confidence_ceiling": "medium",
+      "reason": "Playwright CLI output folder (snapshots, screenshots, traces) written to the folder the CLI ran in; sessions live elsewhere, but the output may hold credentials, so confirm nothing in it is evidence still being used"
+    },
+    {
+      "id": "n-node-prefix",
+      "os": ["linux", "macos"],
+      "kind": "path_glob",
+      "pattern": ".n",
+      "entry_types": ["directory"],
+      "confidence_ceiling": "low",
+      "reason": "tj/n prefix (N_PREFIX=$HOME/.n): n/versions is a download cache, but bin, include, lib and share hold the active Node.js and its global packages; confirm N_PREFIX no longer points here and nothing on PATH resolves into it, else use n prune"
+    },
+    {
+      "id": "pip-legacy-config-dir",
+      "os": ["linux", "macos"],
+      "kind": "path_glob",
+      "pattern": ".pip",
+      "entry_types": ["directory"],
+      "requires": {"absent_children": ["pip.conf"]},
+      "confidence_ceiling": "medium",
+      "reason": "pip's legacy per-user config directory ($HOME/.pip) holding no pip.conf; current pip keeps config in ~/.config/pip and its cache in ~/.cache/pip (pip cache purge)"
+    },
+    {
+      "id": "biome-legacy-home-dir",
+      "os": ["all"],
+      "kind": "path_glob",
+      "pattern": ".biome",
+      "entry_types": ["directory"],
+      "confidence_ceiling": "low",
+      "reason": "Directory named for the Biome toolchain; current Biome keeps its cache and logs in the platform cache directory and writes nothing here, so the writer is unproven: inspect its contents before treating it as Biome state"
+    },
+    {
+      "id": "semgrep-user-data",
+      "os": ["all"],
+      "kind": "path_glob",
+      "pattern": ".semgrep",
+      "entry_types": ["directory"],
+      "requires": {"absent_children": ["settings.yml"]},
+      "confidence_ceiling": "medium",
+      "reason": "Semgrep CLI user data folder holding no settings.yml (where the API token is stored); the rest is the semgrep.log run log"
+    },
+    {
+      "id": "storybook-user-settings",
+      "os": ["all"],
+      "kind": "path_glob",
+      "pattern": ".storybook",
+      "entry_types": ["directory"],
+      "requires": {"absent_children": ["main.js", "main.ts", "main.cjs", "main.mjs", "main.tsx", "main.jsx"]},
+      "confidence_ceiling": "medium",
+      "reason": "Storybook per-user folder (settings.json, instances/), recreated with defaults; onboarding and checklist state resets. A folder with a main.* file is a project's Storybook config and never matches"
+    },
+    {
+      "id": "nvidia-cuda-compute-cache",
+      "os": ["linux"],
+      "kind": "path_glob",
+      "pattern": ".nv",
+      "entry_types": ["directory"],
+      "confidence_ceiling": "medium",
+      "reason": "NVIDIA CUDA JIT compute cache (~/.nv/ComputeCache, CUDA_CACHE_PATH relocates it); regenerated on the next CUDA launch; confirm no CUDA process is running"
+    },
+    {
+      "id": "nvidia-cuda-compute-cache-windows",
+      "os": ["windows"],
+      "kind": "path_glob",
+      "pattern": "AppData/Roaming/NVIDIA/ComputeCache",
+      "entry_types": ["directory"],
+      "confidence_ceiling": "medium",
+      "reason": "NVIDIA CUDA JIT compute cache (%APPDATA%\\NVIDIA\\ComputeCache, CUDA_CACHE_PATH relocates it); regenerated on the next CUDA launch; confirm no CUDA process is running"
+    },
+    {
+      "id": "dotnet-template-engine-cache",
+      "os": ["all"],
+      "kind": "path_glob",
+      "pattern": ".templateengine",
+      "entry_types": ["directory"],
+      "confidence_ceiling": "low",
+      "reason": "dotnet new template engine settings and cache (%USERPROFILE%\\.templateengine on Windows); the cache rebuilds on the next dotnet new run, but packages/ holds templates installed with dotnet new install, which are lost"
+    },
+    {
+      "id": "mcp-remote-auth-store",
+      "os": ["all"],
+      "kind": "path_glob",
+      "pattern": ".mcp-auth",
+      "entry_types": ["directory"],
+      "requires": {
+        "unreferenced": {
+          "text": "mcp-remote",
+          "home_files": [
+            ".claude.json",
+            ".mcp.json",
+            ".cursor/mcp.json",
+            ".codeium/windsurf/mcp_config.json",
+            ".copilot/mcp-config.json",
+            ".config/Claude/claude_desktop_config.json",
+            ".config/Code/User/mcp.json",
+            "AppData/Roaming/Claude/claude_desktop_config.json",
+            "AppData/Roaming/Code/User/mcp.json",
+            "Library/Application Support/Claude/claude_desktop_config.json",
+            "Library/Application Support/Code/User/mcp.json"
+          ]
+        }
+      },
+      "confidence_ceiling": "low",
+      "reason": "mcp-remote OAuth token store (MCP_REMOTE_CONFIG_DIR relocates it) that no home-level MCP config names; deleting it forces re-authentication. Project .mcp.json and .cursor/mcp.json files are not read, so confirm no project config still runs mcp-remote"
+    },
+    {
+      "id": "ubuntu-motd-shown-stamp",
+      "os": ["linux"],
+      "kind": "path_glob",
+      "pattern": ".motd_shown",
+      "entry_types": ["file"],
+      "confidence_ceiling": "medium",
+      "reason": "Daily stamp the Ubuntu update-motd profile script writes so the login MOTD shows once a day; recreated at the next login unless ~/.hushlogin exists"
+    },
+    {
+      "id": "ubuntu-landscape-sysinfo-log",
+      "os": ["linux"],
+      "kind": "path_glob",
+      "pattern": ".landscape",
+      "entry_types": ["directory"],
+      "confidence_ceiling": "medium",
+      "reason": "landscape-sysinfo log directory (sysinfo.log) the Ubuntu login MOTD writes for a non-root user; recreated at the next login unless ~/.hushlogin exists"
+    },
+    {
+      "id": "evals-legacy-docker-link-lock",
+      "os": ["linux"],
+      "kind": "path_glob",
+      "pattern": ".docker-link-swap.lock",
+      "entry_types": ["file"],
+      "requires": {"absent_siblings": [".docker-link-swap.json"]},
+      "confidence_ceiling": "medium",
+      "reason": "Legacy home-root lock of the evals plugin's Docker link swap, which now keeps its state under ~/.ev; with no legacy manifest beside it, no run reads it. A legacy manifest is the evals plugin's to restore (docker-links restore), never this engine's to delete"
     }
   ]
 }

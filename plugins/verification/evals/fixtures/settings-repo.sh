@@ -40,7 +40,7 @@ MD
 case "${mode}" in
 proof-path) printf 'proof_level: path\n' >docs/conventions/verification.yaml ;;
 workers-2) printf 'live_workers: 2\n' >docs/conventions/verification.yaml ;;
-*) ;; # none; the mode was checked above
+*) ;;
 esac
 g add -A
 g commit -q -m "invoice-service fixture"

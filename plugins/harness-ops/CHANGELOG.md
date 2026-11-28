@@ -3,6 +3,18 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.3.5] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [11.3.4] - 2026-11-28
+
+### Fixed
+
+- `/harness-ops:plugins sync` no longer aborts with `unbound variable` on bash 4.4 when `fleet-state.sh --fingerprint` fails or prints nothing: `sync-run.sh`'s fallback snapshot key guards `EPOCHREALTIME`, which exists only from bash 5.0.
+
 ## [11.3.3] - 2026-11-28
 
 ### Fixed

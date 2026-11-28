@@ -26,7 +26,7 @@ present in anyone's session), it is not a verdict engine (a person, or a session
 owner's recorded direction, writes every verdict, never an unattended run), and it is not a fleet
 editor (bare invocation mutates nothing at all).
 
-## Scope boundary
+## What this skill does not do
 
 | Question | Owner |
 |---|---|

@@ -11,7 +11,6 @@ SCRIPT="$SELF_DIR/list-hook-enablement-gaps.sh"
 . "$SELF_DIR/lib/fixture-tree.sh" || exit 2
 
 PENDING=(
-  discovery
   fleet
 )
 

@@ -62,9 +62,6 @@ fi
 echo "PASS: rules.md is unchanged"
 SH
 
-# The runner's staged base copy, outside the working tree: the re-pin script and the file its pin
-# guards at their repository paths, as stage_verify stages the plugin repin-digests.sh pins, and
-# the wrapper the prompt names. The checkout below is shallow, one head commit and no base.
 mkdir -p .git/lane/verify/bin .git/lane/verify/scripts .git/lane/verify/docs
 cp scripts/repin.sh .git/lane/verify/scripts/repin.sh
 cp docs/rules.md .git/lane/verify/docs/rules.md

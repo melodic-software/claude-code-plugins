@@ -86,7 +86,8 @@ drives the full cycle including code edits and suggests `/verification:confirm` 
 ## Next
 
 - All green after the regression pass: /verification:confirm fix.
-- A `diagnose` run stopped at the cause: /testing:fix-failing loop, or /implementation:implement fix for a product bug.
+- A `diagnose` run stopped at a test or environment cause: /testing:fix-failing loop.
+- A `diagnose` run stopped at a product bug: /implementation:implement fix.
 - The diagnosis showed feature tests are missing: /testing:write.
 
 ## Related

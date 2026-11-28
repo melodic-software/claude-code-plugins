@@ -12,12 +12,6 @@
 set -euo pipefail
 mode="${1:?mode: scan, tree, all, stash, worktree, branches, setup or plain}"
 
-# The eval workspace sits inside the run's temporary home (claude-eval-*/home, beside TMPDIR at
-# claude-eval-*/tmp), which is itself a repository, so a repository above the workspace is
-# expected there. Allow only that one; refuse the root, the home directory, a workspace that is
-# already a repository, and any other enclosing repository. Then stop git from walking up past
-# this directory, so every git call below lands in the nested repository created here, never the
-# one above.
 here="$(pwd -P)"
 case "${here}" in
 / | "${HOME:-/}") echo "refusing to scaffold in ${here}" >&2 && exit 3 ;;
@@ -111,7 +105,7 @@ git update-ref refs/remotes/origin/topic/export-report "${topic_sha}"
 git symbolic-ref refs/remotes/origin/HEAD refs/remotes/origin/main
 git branch -q --set-upstream-to=origin/topic/export-report topic/export-report
 
-fill() { # fill <file> <marker> <lines>: a file of repeated lines, with the marker first.
+fill() {
   mkdir -p "$(dirname "$1")"
   {
     printf '%s\n' "$2"
@@ -140,7 +134,7 @@ tree | all)
   fi
   ;;
 stash)
-  stash_at() { # stash_at <date> <file> <message>
+  stash_at() {
     printf '// %s\n' "$3" >>"$2"
     GIT_COMMITTER_DATE="$1" GIT_AUTHOR_DATE="$1" g stash push -q -m "$3"
   }
@@ -155,7 +149,7 @@ worktree)
   g worktree add -q .worktrees/date-filter spike/date-filter
   ;;
 branches)
-  merged() { # merged <branch> <file> <line> <subject>: a branch merged into main.
+  merged() {
     g switch -q -c "$1" main
     printf '%s\n' "$3" >>"$2"
     g add "$2"

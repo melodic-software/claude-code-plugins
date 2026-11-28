@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.31.7] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
 ## [0.31.6] - 2026-11-26
 
 ### Changed

@@ -1134,3 +1134,4 @@ lib/prerequisites.ps1 plugins/engineering-concepts/lib/prerequisites.ps1
 lib/mod-hook-enabled.ts plugins/context-budget/hooks/mod-hook-enabled.ts
 lib/mod-hook-enabled.ts plugins/display-redaction/hooks/mod-hook-enabled.ts
 lib/mod-hook-enabled.ts plugins/themes/hooks/mod-hook-enabled.ts
+lib/hook-enabled.mjs plugins/discovery/lib/hook-enabled.mjs

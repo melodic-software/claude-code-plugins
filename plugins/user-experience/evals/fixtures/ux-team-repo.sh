@@ -79,7 +79,7 @@ version: 1
 jtbd_school: unset
 YAML
   ;;
-*) ;; # none; the mode was checked above
+*) ;;
 esac
 g add -A
 g commit -q -m "trailmate fixture"

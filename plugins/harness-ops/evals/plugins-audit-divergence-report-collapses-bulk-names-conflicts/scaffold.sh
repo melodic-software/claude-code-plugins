@@ -36,12 +36,12 @@ git -C "$other" init -q
 installed=""
 catalog=""
 enabled=""
-rec() { # id scope version [projectPath]
+rec() {
   local extra=""
   [[ -z "${4:-}" ]] || extra=",\"projectPath\":\"$4\""
   printf '{"scope":"%s"%s,"installPath":"%s/cache/fixture-market/%s/%s","version":"%s","installedAt":"2026-10-01T00:00:00.000Z","lastUpdated":"2026-10-01T00:00:00.000Z"}' "$2" "$extra" "$p" "${1%@*}" "$3" "$3"
 }
-add() { # name user-version project-version
+add() {
   local n=$1 id="$1@fixture-market"
   mkdir -p "$m/$n/.claude-plugin"
   printf '{"name":"%s","version":"%s"}\n' "$n" "${4:-$2}" >"$m/$n/.claude-plugin/plugin.json"

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rebuilds the pull request case.yaml names, offline, at the head the review
+# Rebuilds the reviewed pull request offline, at the head the review
 # lanes passed: the branch adds the new skill file. Its eval cases, README row,
 # plugin.json bump and changelog fragment are not rebuilt.
 set -euo pipefail

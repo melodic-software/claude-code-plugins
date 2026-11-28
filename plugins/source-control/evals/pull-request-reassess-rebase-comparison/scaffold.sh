@@ -7,7 +7,6 @@ here="$(dirname "${BASH_SOURCE[0]}")"
 git init -q -b main
 git config user.name eval
 git config user.email eval@example.invalid
-# An operator's global signing or hooks would otherwise stop the rebase or the push.
 git config commit.gpgsign false
 git config core.hooksPath /dev/null
 mkdir -p src docs/conventions
