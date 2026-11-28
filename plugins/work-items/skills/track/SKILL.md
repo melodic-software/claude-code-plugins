@@ -1,5 +1,5 @@
 ---
-description: "Backlog CRUD through the bound tracker: stats, list, add, start, done, due, recheck, search, audit, publish-plan, link (default: stats). Use when the user wants to add, claim, or close a work item, ticket, or issue; list, search, or see a dashboard of open items; check what is due on the recurring schedule; or audit stale claims and labels. New bug reports go to /bugs:write first. Picking and executing the next item is /work-items:work; raw intake is /work-items:triage."
+description: "Backlog CRUD via bound tracker: stats (default), list, add, start, done, due, recheck, search, audit, publish-plan, link, view, edit. Use when: 'add a work item', 'backlog stats', 'check due recurring items'. Not for new bugs: /bugs:write; execution: /work-items:work; intake: /work-items:triage."
 argument-hint: "[stats|list|add|start|done|due|recheck|search|audit|publish-plan|link|view|edit|changes…] [args]"
 user-invocable: true
 disable-model-invocation: false

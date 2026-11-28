@@ -1,5 +1,5 @@
 ---
-description: "Attend the loop-lane attended queue: drives escalated items to resolution and lists held pull requests, post-merge failures and untriaged intake beside them, handing each intake row to /work-items:triage, then works parked needs-human items one at a time. Answers escalations via interview, comments answers back, flips unblocked items autonomous-eligible. Never executes or merges. Use when: 'attend the queue', 'answer escalations', 'work the escalation queue', 'what needs my attention across the lanes', 'HITL queue', 'clear the human queue'. Autonomous drain: /work-items:work-loop."
+description: "Attend loop-lane queue: resolve escalations via interview/comment, flip unblocked items autonomous-eligible; list held PRs, post-merge failures, intake (to /work-items:triage); work parked needs-human. Never executes or merges. Use when: 'attend the queue', 'answer escalations', 'HITL queue'. Not for autonomous drain: /work-items:work-loop."
 user-invocable: true
 disable-model-invocation: false
 metadata:

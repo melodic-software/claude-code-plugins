@@ -1,5 +1,5 @@
 ---
-description: "Generate a consumer-owned adapter for a tracker this plugin does not ship: interview for the provider's shape, probe the real instance, write the adapter and conformance binding into the consumer repo, then verify. Use when: 'add support for TRACKER', 'onboard a tracker', 'write a work-item adapter', 'generate a tracker adapter', 'my tracker is not supported', 'bring my own tracker'. Shipped providers (github, local-markdown, jira, gitea, linear) and provider switches: '/work-items:setup'."
+description: "Generate a consumer-owned adapter for an unsupported tracker: interview provider shape, probe live instance, write adapter/conformance binding into consumer repo, verify. Use when: 'onboard a tracker', 'write a work-item adapter', 'my tracker is not supported'. Not for shipped providers (github/local-markdown/jira/gitea/linear): /work-items:setup."
 argument-hint: "[provider-name]"
 user-invocable: true
 # Model-invoked (fleet default); no exception class applies. Generation is gated by the
