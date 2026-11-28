@@ -1,5 +1,5 @@
 ---
-description: "Read-only audit of whether a doc earns its existence or an agent can re-derive it from code, config, and structure: verdict per file (delete, convert-to-pointer, keep-as-derivation-cache, keep-owns-facts). Use when 'is this doc worth keeping', 'prune redundant docs', or a doc seems to repeat code or config. Not for noise: /docs-hygiene:audit-noise."
+description: "Read-only audit of whether a doc earns its existence or an agent can re-derive it from code, config, and structure: verdict per file (delete, convert-to-pointer, keep-as-derivation-cache, keep-owns-facts). Use when: 'is this doc worth keeping', 'audit doc value', 'prune redundant docs', or derivability. Not for noise: /docs-hygiene:audit-noise. Load it before judging whether a doc should stay or go."
 argument-hint: "[target|audit [target]|sweep <dir>] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

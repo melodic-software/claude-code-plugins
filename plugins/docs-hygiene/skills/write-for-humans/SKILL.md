@@ -1,5 +1,5 @@
 ---
-description: "Write human-facing prose (README, RFC, design doc, release note, changelog, tutorial, how-to) per style guide. Use when 'write the README', 'write a how-to for X', 'document this for users', choosing a doc kind, or fixing machine-written doc; load it even for a short doc from pasted notes. Not for agent markdown: /docs-hygiene:write-for-agents."
+description: "Write human-facing prose (README, RFC, design doc, release note, changelog, tutorial, how-to, reference, explanation) per style guide. Use when 'write the README', 'write a how-to for X', 'document this for users', asking what kind of doc to write, or fixing machine-written doc. Not for agent markdown: /docs-hygiene:write-for-agents. Load it before drafting any such doc, even a short one from pasted notes."
 argument-hint: "[<doc or section being written>]"
 user-invocable: true
 disable-model-invocation: false
