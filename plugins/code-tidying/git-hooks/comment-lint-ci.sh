@@ -15,7 +15,8 @@ base fetched. It adds a detached worktree at <head> without checking files out,
 soft-resets it to the merge base of <head> and <base> so the change is the
 staged diff, and takes the files the lint's settings come from as the merge
 base holds them: AGENTS.md and CLAUDE.md (the convention-home pointer), then
-code-tidying.yaml and code-tidying.local.yaml in the home the merge base names.
+comment-policy.yaml, comment-policy.local.yaml, code-tidying.yaml and
+code-tidying.local.yaml in the home the merge base names.
 So the level, posture and allow list are the base's, and a branch cannot lower
 its own level. It runs comment-lint.sh from beside this script there, removes
 the worktree, and exits with the lint's status: 0 clean or report-only, 1 a
@@ -82,6 +83,8 @@ if [[ -z "$home" || "$home" == /* || "$home" == *..* ]]; then
 fi
 from_base "${home%/}/code-tidying.yaml"
 from_base "${home%/}/code-tidying.local.yaml"
+from_base "${home%/}/comment-policy.yaml"
+from_base "${home%/}/comment-policy.local.yaml"
 
 cd "$tree"
 AI_AGENT=ci sh "$entry"

@@ -12,11 +12,14 @@ LIST_KEYS=" comment_lint_allow comment_lint_exclude comment_lint_keep_opening "
 help() {
   cat <<'EOF'
 Read the code-tidying comment settings from the repository's file layers: the team
-file <home>/code-tidying.yaml and the personal override <home>/code-tidying.local.yaml,
-the personal override winning key by key. <home> is the bound convention home
-(reference/config.md), docs/conventions when none is bound or it was declined.
-comment_lint, comment_lint_allow, comment_lint_exclude, comment_lint_keep_opening and
-comment_adr_dir are read from the team file only.
+file and the personal override, the personal override winning key by key. A comment_*
+key's team file is <home>/comment-policy.yaml and its personal override
+<home>/comment-policy.local.yaml; when one of those files does not set the key, the
+same layer's <home>/code-tidying.yaml or <home>/code-tidying.local.yaml is read for it
+instead. Every other key is read from code-tidying.yaml and code-tidying.local.yaml.
+<home> is the bound convention home (reference/config.md), docs/conventions when none
+is bound or it was declined. comment_lint, comment_lint_allow, comment_lint_exclude,
+comment_lint_keep_opening and comment_adr_dir are read from the team file only.
 
 Usage: comment-settings.sh [<dir>]
        comment-settings.sh --keep-list <value>
@@ -26,7 +29,7 @@ Usage: comment-settings.sh [<dir>]
   --keep-list  check one comment_keep_list value from another layer (userConfig)
                against the current directory's repository, printing its key line
                with the layer userConfig, or its invalid line.
-  --list       print the team file's items for a list key, one per line; nothing
+  --list       print the team layer's items for a list key, one per line; nothing
                when the key is unset, the file does not parse (named on stderr)
                or the layer does not apply.
 
@@ -130,12 +133,29 @@ case $? in
 esac
 TEAM="$conventions/code-tidying.yaml"
 PERSONAL="$conventions/code-tidying.local.yaml"
+POLICY="$conventions/comment-policy.yaml"
+POLICY_PERSONAL="$conventions/comment-policy.local.yaml"
+
+sets_key() {
+  [[ -f "$root/$1" ]] && grep -qE "^[\"']?${2}[\"']?[[:space:]]*:" "$root/$1"
+}
+
+layer_for() {
+  if sets_key "$1" "$2"; then
+    printf '%s' "$1"
+  elif [[ "$1" == "$POLICY" ]]; then
+    printf '%s' "$TEAM"
+  else
+    printf '%s' "$PERSONAL"
+  fi
+}
 
 if [[ -n "$list_key" ]]; then
-  [[ -f "$root/$TEAM" ]] || exit 0
-  "$BASH" "$READER" --strict --list "$root/$TEAM" "$list_key" 2>/dev/null
+  file="$(layer_for "$POLICY" "$list_key")"
+  [[ -f "$root/$file" ]] || exit 0
+  "$BASH" "$READER" --strict --list "$root/$file" "$list_key" 2>/dev/null
   if (($? == 3)); then
-    printf 'comment-settings: %s does not parse; %s read as empty\n' "$TEAM" "$list_key" >&2
+    printf 'comment-settings: %s does not parse; %s read as empty\n' "$file" "$list_key" >&2
   fi
   exit 0
 fi
@@ -168,9 +188,13 @@ for key in "${KEYS[@]}"; do
   from=""
   layers=("$TEAM" "$PERSONAL")
   where="$TEAM or $PERSONAL"
+  if [[ "$key" == comment_* ]]; then
+    layers=("$(layer_for "$POLICY" "$key")" "$(layer_for "$POLICY_PERSONAL" "$key")")
+    where="$POLICY, $POLICY_PERSONAL, $TEAM or $PERSONAL"
+  fi
   if [[ "$TEAM_ONLY_KEYS" == *" $key "* ]]; then
-    layers=("$TEAM")
-    where="$TEAM"
+    layers=("${layers[0]}")
+    where="$POLICY or $TEAM"
   fi
   for layer in "${layers[@]}"; do
     read_layer "$layer" "$key"

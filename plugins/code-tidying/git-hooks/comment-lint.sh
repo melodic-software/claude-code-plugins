@@ -17,15 +17,18 @@ code-tidying comment-lint: fail a comment a change adds outside the comment post
   comment-lint.sh               the staged changes (git runs it as pre-commit)
   comment-lint.sh --worktree    the uncommitted changes against HEAD, untracked files included
 
-Reads the team file <home>/code-tidying.yaml: comment_lint (off, the default, report or
+Reads the team file <home>/comment-policy.yaml, falling back key by key to
+<home>/code-tidying.yaml: comment_lint (off, the default, report or
 block), comment_lint_allow (extended regular expressions a comment may match),
 comment_lint_exclude (path globs of files the lint skips, each skip named on stderr:
 * and ? stay within one path segment, ** spans segments), comment_lint_keep_opening
 (path globs, same syntax, of files whose opening comment block passes: the contiguous
 comment lines after an optional shebang and any blank or set - lines) and
 comment_adr_dir (the decision-record folder, default docs/adr).
-comment_posture and class_c_max_lines (the most lines a linked comment paragraph may
-run, default 2) come from the team file and the personal override; a userConfig value
+comment_posture comes from the team file and the personal override
+(comment-policy.local.yaml, falling back to code-tidying.local.yaml), and
+class_c_max_lines (the most lines a linked comment paragraph may run, default 2) from
+code-tidying.yaml and code-tidying.local.yaml; a userConfig value
 never reaches a git hook. explanatory (and strict, balanced, conservative)
 runs nothing; auto and aggressive read as necessary.
 
