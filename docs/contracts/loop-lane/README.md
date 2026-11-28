@@ -1097,15 +1097,15 @@ threshold, because nothing is writing it.
 adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, its
 cycle count, and its instance-identity fields in a machine-readable block of that same #502
 telemetry comment, and re-reads them at each cycle start. Every counter in the block is
-**per-instance**: each measures the experience of one lane instance, which averaging two instances'
-experience into one block never did.
+**per-instance**, because each measures the experience of one lane instance, which averaging two
+instances' experience into one block never did.
 
 **No-progress detector.** Every stall mechanism below the loop layer is per-PR or per-item, so a
 lane cycling repeatedly with no aggregate progress goes undetected: each gate correctly declines to
 spend a worker, and nothing counts the aggregate. Each unattended
 lane (worker and merge; the attended queue is exempt, its operator being present by definition)
 therefore persists a consecutive-no-progress counter, `no_progress_streak`, beside its other
-durable counters in the #502 state block (absent from a re-read block = 0). What counts as a
+durable counters in the #502 state block (a counter absent from a re-read block counts as 0). What counts as a
 qualifying progress event is lane-specific and defined in each lane body; the semantics here are
 shared. A cycle whose cycle-start snapshot held actionable work for the lane and that ended with no
 qualifying progress increments the counter; an idle cycle, with nothing actionable in view, leaves it
