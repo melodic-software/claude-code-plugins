@@ -1,5 +1,5 @@
 ---
-description: "Re-check a filled /planning:interview ledger with fresh-context agents blind to each answer's rationale; only doubtful answers come back. Use when: 'audit my interview answers', 'have agents check the answers', 'verify the ledger', or accept all/second-guess recommendations. Not for plans: /planning:devils-advocate; new: /planning:interview."
+description: "Re-check a filled /planning:interview ledger with fresh-context subagents blind to answer rationales; only doubtful answers return. Use to validate answers, auto-answer, or second-guess ('audit my interview answers', 'have agents check the answers', 'verify the ledger'). Not for plans: /planning:devils-advocate; new: /planning:interview."
 argument-hint: "[topic]"
 user-invocable: true
 disable-model-invocation: false

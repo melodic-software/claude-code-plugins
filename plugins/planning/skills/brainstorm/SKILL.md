@@ -1,5 +1,5 @@
 ---
-description: "Diverge before scoping: turn a rough engineering/product problem into codebase-grounded approaches (cheapest to most ambitious), capture which resonate, and hand off scoped. Use when: 'brainstorm', 'what are my options', 'explore some approaches', ideas, or rough technical problems with unlocked scope. Not for locked scope or visual variations."
+description: "Diverge before scoping: turn rough engineering problem into codebase-grounded candidate approaches (cheapest to ambitious), pick what resonates, hand off scoped. Use for problem ideas, intervene, how could we approach/what could we do, no locked scope ('brainstorm', 'what are my options', 'explore some approaches'). Not for locked/visuals."
 argument-hint: "<rough-problem>"
 user-invocable: true
 disable-model-invocation: false

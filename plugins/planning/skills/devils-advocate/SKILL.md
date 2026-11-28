@@ -1,5 +1,5 @@
 ---
-description: "Stress-test a plan or proposal adversarially before implementation (assumptions, evidence, failure scenarios, gotchas); `incumbent` mode attacks the status quo (is there a better way). Use when: 'devil's advocate', 'stress test', 'what could go wrong', or before new dependencies, CI/build, or architecture changes. Not for bugs or pre-PR checks."
+description: "Stress-test a plan or proposal adversarially before code: assumptions, evidence, failure scenarios, operational gotchas; `incumbent` attacks status quo (better way, should we still use X). Use to poke holes ('devil's advocate', 'stress test', 'what could go wrong') before deps, CI/build, cross-module arch. Not for bugs or pre-PR verification."
 argument-hint: "[deep|shallow] [incumbent [target]|<plan text or file path>]"
 user-invocable: true
 disable-model-invocation: false
