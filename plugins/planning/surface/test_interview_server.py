@@ -3679,6 +3679,14 @@ class TestBrandingInjection(ServerCase):
         self.assertNotIn("data:font/", html)
         self.assertIn('class="rv-brand"', html)
         self.assertIn("Acme Studio", html)
+        self.assertRegex(
+            html,
+            r'<div class="rv-bar">.*?class="rv-brand".*?Acme Studio.*?class="rv-theme".*?data-rv-theme="system"',
+        )
+        self.assertIn('data-rv-theme="light"', html)
+        self.assertIn('data-rv-theme="dark"', html)
+        self.assertIn('class="rv-comment"', html)
+        self.assertIn('data-rv-note="comment"', html)
         self.assertEqual(headers.get("Content-Security-Policy"), srv.PAGE_CSP)
         self.assertNotIn("font-src", headers.get("Content-Security-Policy", ""))
         self.assertNotIn("%%BRANDING_CSS%%", html)
@@ -3705,6 +3713,49 @@ class TestBrandingInjection(ServerCase):
             self.assertEqual(hub.branding()["css"], cached["css"])
             self.assertEqual(hub.branding()["slot_html"], cached["slot_html"])
             self.assertEqual(resolve_mock.call_count, 1)
+
+
+class TestBrandingContrastFloor(ServerCase):
+    """A below-floor palette override is omitted from served CSS and reports a contrast notice."""
+
+    env = settings_env()
+
+    @classmethod
+    def prepare(cls):
+        cls.repo = git_repo(cls.tmp / "repo")
+        cls.dir = cls.repo / ".work" / "topic" / "interview-surface"
+        cls.dir.mkdir(parents=True)
+        conv = cls.repo / "docs" / "conventions"
+        conv.mkdir(parents=True, exist_ok=True)
+        (conv / "rendered-views.yaml").write_text(
+            "branding:\n"
+            "  palette:\n"
+            "    light:\n"
+            '      bg: "#FFFFFF"\n'
+            '      fg: "#CCCCCC"\n'
+            '      accent: "#1A4D2E"\n',
+            encoding="utf-8",
+        )
+
+    def test_below_floor_palette_is_omitted_and_reports_notice(self):
+        import interview_server as srv
+
+        code, html, _ = self.get("/")
+        self.assertEqual(code, 200)
+        self.assertIn("--accent: #1A4D2E;", html)
+        self.assertNotIn("#CCCCCC", html.upper())
+        self.assertIn('data-rv-theme="system"', html)
+        self.assertIn('class="rv-comment"', html)
+
+        buf = io.StringIO()
+        with contextlib.redirect_stderr(buf):
+            hub = srv.Hub(0, self.dir)
+            resolved = hub.branding()
+        notices = [n.get("text", "") if isinstance(n, dict) else str(n) for n in resolved.get("notices") or ()]
+        self.assertTrue(any("fg" in t and "4.5" in t for t in notices), notices)
+        self.assertIn("branding:", buf.getvalue())
+        self.assertIn("4.5", buf.getvalue())
+        self.assertIn("fg", buf.getvalue())
 
 
 @unittest.skipUnless(os.name == "posix", "file modes are advisory on Windows")

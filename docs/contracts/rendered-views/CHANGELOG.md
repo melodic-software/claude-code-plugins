@@ -3,6 +3,13 @@
 Notable changes to the rendered-views contract. The contract is not
 versioned; this log records each change to it.
 
+## Planning's iframe pin helper stays under the UI-feedback harness exception, 2026-11-28
+
+- **Recorded exception under `The rendered-views settings`.** `plugins/planning/shared/web/proto-pin.js`
+  is a generated copy of `lib/ui-feedback/proto-pin.js` injected into framed prototype snapshots and
+  stays on the cool-neutral `--uif-*` pin palette beside `plugins/prototype/notes-bridge/proto-pin.js`
+  so overlay markers do not merge into the prototype under review.
+
 ## Self-styled page migrations and harness-chrome exceptions, 2026-11-27
 
 - **Self-styled pages adopt `reference/html-tokens.css` and record apart-staying surfaces.**

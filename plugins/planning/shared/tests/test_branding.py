@@ -1,4 +1,4 @@
-# test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/lib/branding_helper.py plugins/planning/lib/view-settings.mjs plugins/planning/reference/html-tokens.css plugins/planning/shared/server.py plugins/planning/surface/question_shape.py
+# test-scope: plugins/planning/.claude-plugin/plugin.json plugins/planning/lib/branding_helper.py plugins/planning/lib/view-settings.mjs plugins/planning/reference/html-tokens.css plugins/planning/shared/server.py plugins/planning/shared/web/app.css plugins/planning/shared/web/app.js plugins/planning/shared/web/index.html plugins/planning/shared/web/proto-pin.js plugins/planning/surface/question_shape.py
 """Shared interview server branding integration tests."""
 
 from __future__ import annotations
@@ -89,11 +89,71 @@ class TestSharedServerBranding(unittest.TestCase):
             self.assertNotIn("font-src", headers.get("Content-Security-Policy", ""))
             self.assertIn(b'/html-tokens.css', index_html)
             self.assertIn(b'/branding.css', index_html)
+            self.assertIn(b'/app.css', index_html)
+            self.assertIn(b'/app.js', index_html)
             self.assertIn(b'class="rv-brand"', index_html)
             self.assertIn(b"Northwind Shared", index_html)
             self.assertNotIn(b"%%BRANDING_LOGO%%", index_html)
             self.assertNotIn(b"accent picker", index_html.lower())
             self.assertNotIn(b"palette picker", index_html.lower())
+
+            code, _, app_js = call(port, "GET", "/app.js")
+            self.assertEqual(code, 200)
+            self.assertIn(b'E("div", "rv-theme")', app_js)
+            self.assertIn(b'["system", "System"]', app_js)
+            self.assertIn(b'["light", "Light"]', app_js)
+            self.assertIn(b'["dark", "Dark"]', app_js)
+            self.assertIn(b"b.dataset.rvTheme = k", app_js)
+            self.assertIn(b'E("section", "rv-comment")', app_js)
+            self.assertIn(b'discTa.id = "rv-comment-text"', app_js)
+            self.assertIn(b'discTa.dataset.rvNote = "comment"', app_js)
+
+            code, _, app_css = call(port, "GET", "/app.css")
+            self.assertEqual(code, 200)
+            self.assertIn(b".rv-theme", app_css)
+            self.assertIn(b".rv-comment", app_css)
+
+    def test_below_floor_palette_is_omitted_from_branding_css_and_logged(self):
+        base = tmpdir(self)
+        repo = init_branded_repo(
+            base / "repo",
+            "branding:\n"
+            "  palette:\n"
+            "    light:\n"
+            '      bg: "#FFFFFF"\n'
+            '      fg: "#CCCCCC"\n'
+            '      accent: "#1A4D2E"\n',
+        )
+        data_dir = repo / ".work" / "topic" / "shared" / "po"
+        with mock.patch.dict(os.environ, {"CLAUDE_PROJECT_DIR": str(repo)}):
+            app = server.App(data_dir, watch_tunnel=False)
+            app.serve()
+            self.addCleanup(app.shutdown)
+            port = app.guest_port
+
+            code, _, brand_css = call(port, "GET", "/branding.css")
+            self.assertEqual(code, 200)
+            self.assertIn(b"--accent: #1A4D2E;", brand_css)
+            self.assertNotIn(b"#CCCCCC", brand_css.upper())
+
+            notices = [
+                n.get("text", "") if isinstance(n, dict) else str(n)
+                for n in app.branding().get("notices") or ()
+            ]
+            self.assertTrue(any("fg" in t and "4.5" in t for t in notices), notices)
+            log_text = (data_dir / "server.log").read_text(encoding="utf-8")
+            self.assertIn("WARNING branding:", log_text)
+            self.assertIn("fg", log_text)
+            self.assertIn("4.5", log_text)
+
+    def test_proto_pin_is_generated_ui_feedback_harness_copy(self):
+        pin_js = (server.WEB / "proto-pin.js").read_text(encoding="utf-8")
+        self.assertTrue(
+            pin_js.startswith("// GENERATED from lib/ui-feedback/proto-pin.js"),
+            pin_js.splitlines()[0] if pin_js else "",
+        )
+        self.assertIn("#4433cc", pin_js)
+        self.assertIn("#a99bff", pin_js)
 
     def test_caches_branding_at_startup_without_spawning_per_request(self):
         base = tmpdir(self)
