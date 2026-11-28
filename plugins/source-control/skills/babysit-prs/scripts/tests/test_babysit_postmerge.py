@@ -35,9 +35,21 @@ from typing import Any
 from urllib.parse import parse_qsl
 from unittest import mock
 
+for _leaked_git_var in (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_COMMON_DIR",
+    "GIT_PREFIX",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_CONFIG",
+):
+    os.environ.pop(_leaked_git_var, None)
+del _leaked_git_var
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-import babysit_postmerge as pm
+import babysit_postmerge as pm  # noqa: E402  (follows the git-env clear above)
 
 FIXTURES = pathlib.Path(__file__).resolve().parent / "fixtures" / "postmerge"
 REPO = "example-org/example-repo"
