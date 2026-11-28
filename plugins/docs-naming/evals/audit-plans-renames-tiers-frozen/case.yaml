@@ -105,7 +105,7 @@ graders:
     arm: both
   - name: historical-links-only
     type: regex
-    pattern: 'links-and-paths\b[^\n]*\bprose\b'
+    pattern: '(?:^|\n)(?![^\n]*\b(?:rewrit\w*|edits?|edited|updates?|updated|changes?|changed)\b[^\n;.|]{0,40}\bprose\b)(?=[^\n]*links-and-paths)(?=[^\n]*\bprose\b)[^\n]*(?:\b(?:left|leaves?|stays?|kept|untouched|unchanged|preserved|alone|never)\b|\bas written\b|\|[^|\n]*\bprose\b[^|\n]*\|[ \t]*(?=\n|$))'
     flags: 'i'
     target: last_message
     arm: both
