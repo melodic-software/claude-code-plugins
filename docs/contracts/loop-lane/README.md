@@ -561,7 +561,8 @@ real-time deadline. A hold that lands after the merge is not a hold.
   `<!-- eval-pair verdict=no-loss validity=VALID head=<40-hex head SHA> -->` when the run is VALID
   and shows no loss. `pr-run-plugin-evals.yml`'s compare mode posts the same line, with
   `<!-- eval-pair-run id=<run id> -->` beside it, as `github-actions[bot]`. work-resolve-issue opens a lane PR whose issue carries `eval-gated` with
-  `do-not-merge` and a `reason=eval` comment in the same step. The same pr-merge step that releases
+  `do-not-merge` and a `reason=eval` comment in the same step; a lane PR it holds for a person gets
+  a `reason=person` line too, eval-gated or not, so no eval evidence releases it. The same pr-merge step that releases
   the hold also adds it, label first, to any open PR that closes an `eval-gated` issue, whoever
   opened it, unless the PR already carries `do-not-merge`, was held for eval before, or its newest
   record names its head. pr-merge's scheduled run or sweep dispatch (one with no `pr` input) then
@@ -571,7 +572,9 @@ real-time deadline. A hold that lands after the merge is not a hold.
   default branch with this PR and this head in its run name and its Compare Record job run to
   success (the author alone counts for nothing),
   the reason line by a listed human or the lanes App, both on a
-  line of their own outside a quote or fence, and no other reason stands
+  line of their own outside a quote or fence, no other reason stands, and the label is the eval
+  hold's own: the newest label event and an eval reason line are by the same listed human or by the
+  lanes App, the line posted within 10 minutes after the label. A label anyone else added stays
   ([`release-eval-hold.mjs`](../../../.github/scripts/pr-merge/release-eval-hold.mjs)). With no
   record at the head, the same step also removes it when, for every plugin whose skill, agent or
   context text the PR changes (or, when it changes none, every plugin it changes), the newest compare run naming this PR, its head and that plugin as
@@ -1094,15 +1097,15 @@ threshold, because nothing is writing it.
 adaptive-cap streak counter, its rate-limit-warning latch, its consecutive-no-progress counter, its
 cycle count, and its instance-identity fields in a machine-readable block of that same #502
 telemetry comment, and re-reads them at each cycle start. Every counter in the block is
-**per-instance**: each measures the experience of one lane instance, which averaging two instances'
-experience into one block never did.
+**per-instance**, because each measures the experience of one lane instance, which averaging two
+instances' experience into one block never did.
 
 **No-progress detector.** Every stall mechanism below the loop layer is per-PR or per-item, so a
 lane cycling repeatedly with no aggregate progress goes undetected: each gate correctly declines to
 spend a worker, and nothing counts the aggregate. Each unattended
 lane (worker and merge; the attended queue is exempt, its operator being present by definition)
 therefore persists a consecutive-no-progress counter, `no_progress_streak`, beside its other
-durable counters in the #502 state block (absent from a re-read block = 0). What counts as a
+durable counters in the #502 state block (a counter absent from a re-read block counts as 0). What counts as a
 qualifying progress event is lane-specific and defined in each lane body; the semantics here are
 shared. A cycle whose cycle-start snapshot held actionable work for the lane and that ended with no
 qualifying progress increments the counter; an idle cycle, with nothing actionable in view, leaves it
