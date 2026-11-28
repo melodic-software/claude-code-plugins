@@ -1,5 +1,29 @@
 # Changelog for the PR pipeline convention
 
+## [13.7.0] - 2026-11-28
+
+### Changed
+
+- pr-dispatch-feedback's scheduled sweep sends no round while GITHUB_TOKEN's core pool is under `sweep-hold` (0.2) of its limit and resets within `sweep-hold-minutes` (15), both new github-token fields in `rate-limits.json`. Those rounds would stop at the stop floor before finishing; the first tick after the reset decides the same heads again. A tick that has read no rate-limit header never holds.
+
+## [13.6.5] - 2026-11-28
+
+### Changed
+
+- `ci-status`'s review-lanes step waits up to 15 minutes for an unfinished review lane instead of 8, and stops 4 minutes before the job's 30-minute timeout rather than 2 minutes before `gh_read`'s deadline, so a lane whose last job waits 9 to 13 minutes for a runner is judged in the same run instead of failing and waiting about 30 minutes for `rerun-ci-status`.
+
+## [13.6.4] - 2026-11-28
+
+### Fixed
+
+- Check review upstream runs against the broker actor and attempt rule in `feedback-dispatch.mjs` (`trustedReviewRun` and `reviewRunAt`): when a review run was re-run by `github-actions[bot]`, fall back to a broker-accepted sibling review run on the same head, or skip with a logged reason naming the attempt and triggering actor when none exists.
+
+## [13.6.3] - 2026-11-28
+
+### Fixed
+
+- Signal 8 (`throughput-zero`) in `maintenance-monitor-signals` now counts open, non-draft, unheld pull requests authored by `merge.agent-identity` from the existing open-PR GraphQL listing instead of relying solely on `pr-merge`'s `sweep.candidates`, preventing false `throughput-zero` alerts when only non-lanes pull requests are open (falling back to `sweep.candidates` only when the 40-PR listing is truncated with none seen).
+
 ## [13.6.2] - 2026-11-27
 
 ### Fixed

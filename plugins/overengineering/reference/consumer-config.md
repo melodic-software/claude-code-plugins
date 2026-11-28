@@ -42,8 +42,7 @@ Three layers, lowest first:
 `AGENTS.md` or `CLAUDE.md`, else `docs/conventions`
 ([config locations](config-locations.md)). Anchor both paths at the git top-level. When that root is
 `$HOME` or an ancestor of it, or is not inside a git working tree, the team and personal layers do
-not apply, nor do the old repository files below: report them as not applicable and use the bundled
-defaults, with the old user-global file applied over them while it exists. Whenever the run surfaces
+not apply: report them as not applicable and use the bundled defaults. Whenever the run surfaces
 the effective config, it reports which layer supplied each value, `default` for a bundled one.
 
 **Merge form: per-key override**, declared here as the cascade convention requires. The values are
@@ -53,8 +52,8 @@ replacement is forbidden.
 
 **Two key groups additionally sit in the cascade's sanctioned policy-floor precedence-inversion
 class**: `protected_categories` and `suppressions`. On a direct conflict there the **team layer
-wins**, the reverse of the default; a personal layer (the personal override, or an old personal
-file the dual-read window below still reads) may extend or tighten only, never weaken; and whenever a personal layer materially shapes output, the
+wins**, the reverse of the default; a personal layer may extend or tighten only, never weaken; and
+whenever a personal layer materially shapes output, the
 run **names the contributing layer**. The remaining keys, `thresholds`, `observation_window`, and
 `delta_noise_budget`, take the ordinary refinement form, where a later layer's value simply wins.
 
@@ -64,39 +63,8 @@ suppressed a finding the team never accepted, would recreate exactly the hole th
 Thresholds, the observation window, and the delta noise budget carry no such hazard: a personal
 threshold changes what one operator's own report ranks, and the finding it moves is still reported.
 
-Every file layer absent is a valid state. The bundled defaults apply and the run says so.
-
-## Old paths: the dual-read window
-
-Earlier versions read three other files. While one exists, every skill that resolves this config
-still reads it, so no setting in it is dropped:
-
-| Old file | Read as | Until this file exists | Move its settings to |
-|---|---|---|---|
-| `~/.claude/overengineering.md` | a personal layer, below the team layer | `<home>/overengineering.local.yaml` | `<home>/overengineering.local.yaml`, or the team file for a key the team should share |
-| `.claude/overengineering.md` | the team layer | `<home>/overengineering.yaml` | `<home>/overengineering.yaml` |
-| `.claude/overengineering.local.md` | the personal layer | `<home>/overengineering.local.yaml` | `<home>/overengineering.local.yaml` |
-
-An old file holds the same keys in a fenced YAML block. Read it as it was read before: the old
-user-global file sits below the team layer, and the old personal override above it. Once the new
-file in the "Until this file exists" column exists, it supplies that layer and the old file is not
-applied.
-
-**Warn on every run, one line per old file.** With only the old file, print
-`warning: overengineering still reads <old path>; move its settings to <new path>, then delete <old path>`.
-With both, print
-`warning: overengineering reads <new path> and ignores <old path>; move any setting only <old path> holds to <new path>, then delete <old path>`.
-The old user-global file applies in every repository, so its warning differs: print
-`warning: overengineering still reads ~/.claude/overengineering.md; copy its settings to <new path> in each repository that relies on it, then delete it`,
-with `reads <new path> and ignores` in place of `still reads` when this repository's personal
-override exists. Deleting it after moving it into one repository would drop its settings, with no
-warning, everywhere else.
-This plugin has no setup skill to make the move, so the warning names the hand move. Moving a
-threshold, window or noise-budget key from the old user-global file into the personal override
-changes who wins: there it beats the team file's value, where before the team value beat it. Leave
-such a key out of the move when the team value should keep winning.
-
-Removing these reads is a later change, made once no run reports an old file.
+Every file layer absent is a valid state. The bundled defaults apply and the run says so. Files at
+old `.claude/` or `~/.claude/` paths are not read.
 
 ## File format
 
@@ -291,8 +259,8 @@ Two obligations this plugin takes on top of the convention:
   opposite of silence.
 
 Every config file this page names is excluded from the audit's own scan set, so recording a
-judgment does not perturb the next run's inputs: `<home>/overengineering.yaml`,
-`<home>/overengineering.local.yaml`, and each old-path file present, applied or not.
+judgment does not perturb the next run's inputs: `<home>/overengineering.yaml` and
+`<home>/overengineering.local.yaml`.
 
 ## Consumer `.gitignore`
 
@@ -303,15 +271,12 @@ future surface at once (`docs/conventions/**/*.local.*` for the default home):
 <home>/**/*.local.*
 ```
 
-Keep the older `.claude/**/*.local.*` line while `.claude/overengineering.local.md` exists.
-
 No skill in this plugin writes the consumer's `.gitignore`.
 
 ## Trades recorded, so they are not silently re-litigated
 
 - **Config and suppressions share one file.** The findings-artifact contract fixes
-  the team file, `<home>/overengineering.yaml` (or, in the dual-read window, the old
-  `.claude/overengineering.md` while it supplies the team layer), as the home of the durable
+  the team file, `<home>/overengineering.yaml`, as the home of the durable
   judgment record, and an adjacent plugin in
   this marketplace deliberately split the two so a config diff reads as a policy change and a
   suppression diff reads as an accepted finding. Here they are the same class of change, both being

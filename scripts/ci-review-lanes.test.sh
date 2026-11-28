@@ -32,10 +32,27 @@ if [[ "$step" == *$'\n          PR_NUMBER: ${{ github.event.pull_request.number 
 else
   fail "step env does not set PR_NUMBER from github.event.pull_request.number"
 fi
-if [[ "$step" == *"REVIEW_WAIT_SECONDS: \${{ (steps.draft_rerun.outputs.ready != 'true' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '480' }}"* ]]; then
-  ok "a contract-only run does not wait, but a draft run re-run on a ready pull request waits the full 480 s"
+if [[ "$step" == *"REVIEW_WAIT_SECONDS: \${{ (steps.draft_rerun.outputs.ready != 'true' && github.event.pull_request.head.repo.full_name == github.repository && (contains(fromJSON('[\"labeled\",\"unlabeled\"]'), github.event.action) || (github.event.action == 'edited' && !github.event.changes.base))) && '0' || '900' }}"* ]]; then
+  ok "a contract-only run does not wait, but a draft run re-run on a ready pull request waits the full 900 s"
 else
   fail "REVIEW_WAIT_SECONDS lost its contract-only zero or gives a ready draft re-run no wait"
+fi
+ci_job="$(awk '/^  ci-status:$/ { on = 1; next } on && /^  [a-z-]+:$/ { exit } on { print }' "$WORKFLOW")"
+timeout_seconds=$(($(sed -nE 's/^    timeout-minutes: ([0-9]+)$/\1/p' <<<"$ci_job") * 60))
+export GH_READ_JOB_SECONDS GH_READ_MARGIN_SECONDS REVIEW_JOB_SECONDS REVIEW_STOP_MARGIN_SECONDS
+GH_READ_JOB_SECONDS="$(sed -nE 's/^      GH_READ_JOB_SECONDS: ([0-9]+)$/\1/p' <<<"$ci_job")"
+GH_READ_MARGIN_SECONDS="$(sed -nE 's/^      GH_READ_MARGIN_SECONDS: ([0-9]+)$/\1/p' <<<"$ci_job")"
+REVIEW_JOB_SECONDS="$(sed -nE 's/^          REVIEW_JOB_SECONDS: ([0-9]+)$/\1/p' <<<"$step")"
+REVIEW_STOP_MARGIN_SECONDS="$(sed -nE 's/^          REVIEW_STOP_MARGIN_SECONDS: ([0-9]+)$/\1/p' <<<"$step")"
+if [[ -n "$REVIEW_JOB_SECONDS" && "$REVIEW_JOB_SECONDS" == "$timeout_seconds" ]]; then
+  ok "the wait's job limit, REVIEW_JOB_SECONDS ($REVIEW_JOB_SECONDS), is ci-status's timeout-minutes in seconds"
+else
+  fail "REVIEW_JOB_SECONDS '$REVIEW_JOB_SECONDS' is not ci-status's timeout-minutes in seconds ($timeout_seconds)"
+fi
+if [[ -n "$REVIEW_STOP_MARGIN_SECONDS" && $((628 + 900 + REVIEW_STOP_MARGIN_SECONDS)) -le "$timeout_seconds" ]]; then
+  ok "a 900 s wait from the latest measured start, 628 s, and the ${REVIEW_STOP_MARGIN_SECONDS}s stop margin fit the ${timeout_seconds}s timeout"
+else
+  fail "a 900 s wait from 628 s with margin '$REVIEW_STOP_MARGIN_SECONDS' does not fit the ${timeout_seconds}s timeout"
 fi
 if [[ "$step" == *"continue-on-error"* ]]; then
   fail "step must not continue on error: its exit code is the gate"
@@ -398,20 +415,28 @@ expect "a newer run whose review jobs are not listed yet is pending" 1 "'$CODE_C
 export RUN_11 RUNS_CODE_LATER
 RUN_11="$(run 11 $CODE in_progress)"
 expect "a review still running at the cap fails pending, naming the automatic re-run" 1 \
-  "has not finished on $HEAD (https://github.com/o/r/actions/runs/11). ci-status waited 480s for it; pr-dispatch-feedback re-runs ci-status"
+  "has not finished on $HEAD (https://github.com/o/r/actions/runs/11). ci-status waited 900s for it; pr-dispatch-feedback re-runs ci-status"
 run_reads() { grep -cE " repos/o/r/actions/runs/$1\$" "$TMP_ROOT/log"; }
-if [[ "$(run_reads 11)" == 8 ]]; then
-  ok "the wait reads the waiting run once a poll, 8 polls at most"
+if [[ "$(run_reads 11)" == 15 ]]; then
+  ok "the wait reads the waiting run once a poll, 15 polls at most"
 else
   fail "the wait read run 11 $(run_reads 11) times: '$(sort "$TMP_ROOT/log" | uniq -c)'"
 fi
 etag_11="W/\"$(cksum <<<"$RUN_11" | cut -d' ' -f1)\""
 if [[ "$(grep -cxF 'api -i repos/o/r/actions/runs/11' "$TMP_ROOT/log")" == 1 &&
-  "$(grep -cxF "api -i -H If-None-Match: $etag_11 repos/o/r/actions/runs/11" "$TMP_ROOT/log")" == 7 ]]; then
+  "$(grep -cxF "api -i -H If-None-Match: $etag_11 repos/o/r/actions/runs/11" "$TMP_ROOT/log")" == 14 ]]; then
   ok "the first poll of a run sends no condition, and each later one sends the ETag of its 200 verbatim"
 else
   fail "the wait's conditions on run 11: '$(grep -E '/actions/runs/11$' "$TMP_ROOT/log" | uniq -c)'"
 fi
+saved_deadline="$(cat "$TMP_ROOT/gh-read.deadline")"
+echo "$(($(date +%s) + 150))" >"$TMP_ROOT/gh-read.deadline"
+expect "a gh_read deadline 150 s away does not cut the wait: it runs the full 900 s" 1 "ci-status waited 900s for it"
+echo "$(($(date +%s) + GH_READ_JOB_SECONDS - GH_READ_MARGIN_SECONDS - REVIEW_JOB_SECONDS + REVIEW_STOP_MARGIN_SECONDS + 30))" >"$TMP_ROOT/gh-read.deadline"
+expect "a job 30 s from its stop margin waits no poll of 60 s" 1 "ci-status waited 0s for it" "Waited"
+rm -f "$TMP_ROOT/gh-read.deadline"
+expect "with no gh_read deadline file the step does not wait" 1 "ci-status waited 0s for it" "Waited"
+echo "$saved_deadline" >"$TMP_ROOT/gh-read.deadline"
 export RUN_11_DONE STUB_DONE_AT STUB_RUN_FAIL_AT STUB_RUN_FAIL_STATUS
 RUN_11_DONE="$(run 11 $CODE)" STUB_DONE_AT=3 RUNS_CODE_LATER="$(runs "$(run 11 $CODE)" "$(run 10 $CODE)")"
 JOBS_11="$(jobs "$(kill_job success skipped)" "$(status "$CODE_CHECK" completed success)")"

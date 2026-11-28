@@ -1,0 +1,107 @@
+{
+  "total_count": 1,
+  "workflow_runs": [
+    {
+      "id": 46103022626,
+      "name": "PR Review Security Hosted",
+      "node_id": "WFR_kwLOTCGFQM8AAAAKu_RMIg",
+      "head_branch": "chore/19075-upstream-pointers-batch-6",
+      "head_sha": "2fbf400420e96b4de3dcabfa41320d7512557b19",
+      "path": ".github/workflows/pr-review-security-hosted.yml",
+      "display_title": "docs(skills): point remaining volatile specifics at upstream sections, batch 6",
+      "run_number": 25636,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "workflow_id": 374687472,
+      "check_suite_id": 124721514894,
+      "check_suite_node_id": "CS_kwDOTCGFQM8AAAAdCftJjg",
+      "pull_requests": [
+        {
+          "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/pulls/19482",
+          "id": 5533142533,
+          "number": 19482,
+          "head": {
+            "ref": "chore/19075-upstream-pointers-batch-6",
+            "sha": "2fbf400420e96b4de3dcabfa41320d7512557b19",
+            "repo": {
+              "id": 1277265216,
+              "url": "https://api.github.com/repos/melodic-software/claude-code-plugins",
+              "name": "claude-code-plugins"
+            }
+          },
+          "base": {
+            "ref": "main",
+            "sha": "387a203a86e51fd6e9e90f792ca1005d31592132",
+            "repo": {
+              "id": 1277265216,
+              "url": "https://api.github.com/repos/melodic-software/claude-code-plugins",
+              "name": "claude-code-plugins"
+            }
+          }
+        }
+      ],
+      "created_at": "2026-11-28T03:28:34Z",
+      "updated_at": "2026-11-28T03:41:29Z",
+      "actor": {
+        "login": "kyle-sexton",
+        "id": 153232337,
+        "node_id": "U_kgDOCSIj0Q",
+        "gravatar_id": "",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "run_attempt": 1,
+      "referenced_workflows": [
+        {
+          "path": "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main",
+          "sha": "0282a0d60736c0b3826fdf88ce8dca33c5f858a0",
+          "ref": "refs/heads/main"
+        }
+      ],
+      "run_started_at": "2026-11-28T03:28:34Z",
+      "triggering_actor": {
+        "login": "kyle-sexton",
+        "id": 153232337,
+        "node_id": "U_kgDOCSIj0Q",
+        "gravatar_id": "",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "head_commit": {
+        "id": "2fbf400420e96b4de3dcabfa41320d7512557b19",
+        "tree_id": "b3ad8415b538f28bbca00e5097edc43faece31b1",
+        "message": "docs(instruction-placement): name the Write row the nested write probe re-measures\n\nThe new nested-start first row shifted the table, so 'second row' named the\nRead row. Name the row by content instead.\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\nClaude-Session: https://claude.ai/code/session_01RMa43zAvnFrtgs9bAPhw2u",
+        "timestamp": "2026-11-28T03:28:22Z",
+        "author": {
+          "name": "Kyle Sexton",
+          "email": "153232337+kyle-sexton@users.noreply.github.com"
+        },
+        "committer": {
+          "name": "Kyle Sexton",
+          "email": "153232337+kyle-sexton@users.noreply.github.com"
+        }
+      },
+      "repository": {
+        "id": 1277265216,
+        "node_id": "R_kgDOTCGFQA",
+        "name": "claude-code-plugins",
+        "full_name": "melodic-software/claude-code-plugins",
+        "private": false,
+        "description": "Claude Code plugin marketplace: repo-agnostic skills, hooks, agents, and MCP servers.",
+        "fork": false
+      },
+      "head_repository": {
+        "id": 1277265216,
+        "node_id": "R_kgDOTCGFQA",
+        "name": "claude-code-plugins",
+        "full_name": "melodic-software/claude-code-plugins",
+        "private": false,
+        "description": "Claude Code plugin marketplace: repo-agnostic skills, hooks, agents, and MCP servers.",
+        "fork": false
+      }
+    }
+  ]
+}

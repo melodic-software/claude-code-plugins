@@ -1,4 +1,3 @@
-import { spawnSync } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,8 +8,7 @@ const KEY = "turn_end_result_gate";
 const MODES = ["off", "advisory", "enforce"];
 const DEFAULT_MODE = "advisory";
 const ENABLED_KEY = "result_gate_enabled";
-const ENABLED_DEFAULT = "true";
-const HOOK_OFF = 1;
+const ENABLED_DEFAULT = true;
 
 const hookDir = () => dirname(realpathSync.native(fileURLToPath(import.meta.url)));
 
@@ -23,15 +21,13 @@ function mode() {
   }
 }
 
-function enabled() {
+async function enabled() {
   try {
-    const helper = join(hookDir(), "hook-enabled.sh").replaceAll("\\", "/");
-    const script = 'source "$1" || exit 2; hook_enabled::resolve --security toolchain "$2" "$3"';
-    const run = spawnSync("bash", ["-c", script, "result-gate", helper, ENABLED_KEY, ENABLED_DEFAULT], {
-      stdio: ["ignore", "ignore", "inherit"],
-      timeout: 10_000,
+    const { isHookEnabled } = await import("../lib/hook-enabled.mjs");
+    return isHookEnabled("toolchain", ENABLED_KEY, ENABLED_DEFAULT, {
+      security: true,
+      sourceFile: join(hookDir(), "..", "lib", "hook-enabled.mjs"),
     });
-    return run.status !== HOOK_OFF;
   } catch {
     return true;
   }
@@ -41,7 +37,7 @@ function emit(object) {
   process.stdout.write(`${JSON.stringify(object)}\n`);
 }
 
-function main() {
+async function main() {
   let payload;
   try {
     payload = JSON.parse(readFileSync(0, "utf8"));
@@ -50,7 +46,7 @@ function main() {
   }
   if (payload === null || typeof payload !== "object" || payload.hook_event_name !== "Stop") return;
   const gate = mode();
-  if (gate === "off" || !enabled()) return;
+  if (gate === "off" || !(await enabled())) return;
 
   let repo;
   let tree;
@@ -92,4 +88,4 @@ function main() {
   });
 }
 
-main();
+await main();

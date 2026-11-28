@@ -1,5 +1,5 @@
 ---
-description: "Verify go-format's prerequisites and what its hooks run here, and register its git pre-commit entry. Use when: 'set up go-format', 'configure go-format', 'is go-format working', 'does go-format lint Go', Go formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply | apply install-git-hooks [scope=local|shared]. Re-runnable."
+description: "Verify go-format prerequisites and Go hooks (check [inspect]), or resolve and register its git pre-commit entry (apply [install-git-hooks])."
 argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true

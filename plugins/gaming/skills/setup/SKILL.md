@@ -1,5 +1,5 @@
 ---
-description: "Verify and provision the gaming plugin's DLSS 5 mod prerequisites on Windows. check (read-only): pwsh, NVIDIA GPU and driver, data directory, runtime DLL, installed games per launcher (Steam, Epic, EA app, Battle.net, GOG, Ubisoft Connect, Xbox app), provisioned fork builds, orphaned state. apply: create the data directory, seed the ledger, place the runtime DLL from a configured path, an installed DLSS 5 title, or the configured runtime source, and download the pinned fork builds. Use when: 'set up the gaming plugin', 'set up DLSS 5', 'is my DLSS 5 setup ready', 'provision the DLSS 5 mod'. Re-runnable and safe."
+description: "Verify and provision Windows DLSS 5 prerequisites (pwsh, GPU/driver, data dir, runtime DLL, fork builds, state): check (read-only) or apply."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true

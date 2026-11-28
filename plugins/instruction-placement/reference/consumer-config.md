@@ -55,40 +55,7 @@ from the team layer is the team's unsuppressed state. Whenever a personal layer 
 output, the run names the contributing layer. That reporting is what makes the class hold, and it is
 behavioral rather than declarative.
 
-### Old paths: read until moved
-
-Three old paths are still read while they exist, so no entry in them is lost, and every run prints
-one warning line for each one it finds:
-
-| Old path | Read as | Read when | Move to |
-|---|---|---|---|
-| `.claude/instruction-placement.md` | team | `<home>/instruction-placement.yaml` is absent | `<home>/instruction-placement.yaml` |
-| `.claude/instruction-placement.local.md` | personal | `<home>/instruction-placement.local.yaml` is absent | `<home>/instruction-placement.local.yaml` |
-| `~/.claude/instruction-placement.md` | personal, below `.claude/instruction-placement.local.md` per `finding_id` | `<home>/instruction-placement.local.yaml` is absent | `<home>/instruction-placement.local.yaml` |
-
-An old file holds its `suppressions` in the fenced YAML block of a Markdown file; the keys are the
-same. The old user-global file moves to the personal override, not to `userConfig`, by the placement
-rule: a decline is a per-repository judgment, and a personal-layer entry suppresses nothing on its
-own, so the move keeps every result the same.
-
-The warning names the old file, the new location, and the command that moves it:
-
-```text
-instruction-placement: old config path <old> is still read; move it to <new> with /instruction-placement:setup apply migrate-config
-```
-
-When the new file for that layer exists too, the new file wins and the old one is not applied. The
-warning then names both files and lists the old file's `finding_id`s that the new file lacks or
-holds with different values, so nothing in the old file drops out unseen:
-
-```text
-instruction-placement: old config path <old> is not applied because <new> supplies this layer; ids only in the old file: <ids, or none>; ids that differ: <ids, or none>; merge them with /instruction-placement:setup apply migrate-config
-```
-
-`/instruction-placement:setup apply migrate-config` moves each old file to its new location behind
-a preview and a yes, checks the new location resolves the same entries, and then deletes the old
-file, so the config ends in one place. Dropping the old-path reads is a separate later change, made
-once no run reports an old file.
+Files at old `.claude/` or `~/.claude/` paths are not read.
 
 ## File format
 
@@ -162,11 +129,9 @@ Three obligations this plugin takes on top of the convention:
   each malformed one. A scoped run reports what it examined: it evaluates only entries with a site in
   its scope and marks the rest **not evaluated this run**.
 - **Team layer only.** A decline is written to `<home>/instruction-placement.yaml` so git carries
-  it to every checkout, never to the personal override, an old path, or `~/.claude/**`. The
+  it to every checkout, never to the personal override or `~/.claude/**`. The
   convention forbids editing a user-scope file to record a suppression. A personal draft is read,
-  reported, and left for the operator to promote. Moving config is not recording a decline:
-  `setup apply migrate-config` writes the personal override from an old personal or user-global
-  file, and deletes each old-path file, every step after the operator's yes.
+  reported, and left for the operator to promote.
 
 **Declared deviation: a fifth disposition for a scoped run.** The convention requires a skill to
 resolve every entry to exactly one of four dispositions. `instruction-placement:audit` accepts a
@@ -178,8 +143,7 @@ inside the scope still resolves to one of the convention's four. A full run neve
 deviation is additive and reporting-only: no entry suppresses on it, and no entry escapes a
 disposition because of it.
 
-`<home>/instruction-placement.yaml`, `<home>/instruction-placement.local.yaml`, and every old-path
-file still read under "Old paths: read until moved" are **excluded from the audit's own scan set**. Otherwise
+`<home>/instruction-placement.yaml` and `<home>/instruction-placement.local.yaml` are **excluded from the audit's own scan set**. Otherwise
 recording a decline would change the instruction layer the next run sweeps, and any idempotence
 claim about that run would be unfalsifiable.
 
@@ -192,9 +156,7 @@ future surface at once, with `<home>` written out (the default home shown):
 docs/conventions/**/*.local.*
 ```
 
-No skill in this plugin writes the consumer's `.gitignore`. When the personal override would not be
-ignored, `setup apply migrate-config` names the missing line and leaves the personal file where it
-is.
+No skill in this plugin writes the consumer's `.gitignore`.
 
 ## Trades recorded, so they are not silently re-litigated
 
