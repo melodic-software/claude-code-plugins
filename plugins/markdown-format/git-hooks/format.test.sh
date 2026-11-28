@@ -448,5 +448,23 @@ expect "interHunkContext case: untouched drift stays byte-identical" "${WANT_IHC
 )"
 expect "interHunkContext case: subsequent lint passes" "0||" "$(CHECK="$LINT" check "$REPO")"
 
+new_repo
+printf '# T\n\n\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+git -C "$REPO" commit -q -m untouched-dup-blank --no-verify
+printf '# T\n\n\n## H   \ntext\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+WANT_MOVE=$'# T\n\n\n## H   \ntext\n'
+expect "paired move-and-delete hunk does not delete a staged heading when its insertion half is skipped" \
+  "0||markdown-format: a.md: skipped formatting drift on untouched lines (2 hunks)" "$(check "$REPO")"
+expect "paired move-and-delete case: staged heading and untouched duplicate blank stay intact in the index" "${WANT_MOVE}x" "$(
+  git -C "$REPO" show :a.md
+  printf x
+)"
+expect "paired move-and-delete case: work tree keeps the staged heading intact" "${WANT_MOVE}x" "$(
+  cat "$REPO/a.md"
+  printf x
+)"
+
 echo "format: $PASS passed, $FAIL failed"
 ((FAIL == 0))
