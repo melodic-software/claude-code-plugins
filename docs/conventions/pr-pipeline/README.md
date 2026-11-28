@@ -2544,15 +2544,17 @@ ejection counts toward `merge.max-queue-ejections`. `ci-status` allows 20 minute
 about 6 to 11, at most about 15. It reads with `ci-status`'s token, which holds no `issues`
 scope: an issue read that does not answer refuses `verify:unreadable`, which holds.
 
-In the merge queue another author pr-verify judges holds on a pr-verify FAIL only (owner decisions
-2026-11-04, "Hold on FAIL only (Recommended)" and "FAIL holds, cap not (Recommended)"), since an
-owner's credentials can queue a pull request pr-verify failed. The step judges the author as `resolve-pr.mjs` does: not a dependency
+In the merge queue another author pr-verify judges holds on a pr-verify FAIL only (owner decision
+2026-11-04, "Hold on FAIL only (Recommended)"), since an owner's credentials can queue a pull
+request pr-verify failed. The step judges the author as `resolve-pr.mjs` does: not a dependency
 manager's, and `merge.verify-authors` in the hold config's `pr-pipeline.yaml` (`lane-or-owner`
 there: a `User` or `Bot` whose id the trusted-actor list holds). For such an author it runs the
-same verdict reader and holds only when it reports `verify:fail` or `verify:earlier-fail` for the
-head, judged by the base module's `evidenceHold`. The `merge.max-verify-fails` cap
-(`verify:repeated-fail`) only warns. No pass, a stale or untrusted-spec pass, `verify:unreadable`,
-`verify:too-old` and a reader that does not judge it leave it to merge. Before the reader, every
+same verdict reader and holds when it reports `verify:fail`, `verify:earlier-fail` or the
+`merge.max-verify-fails` cap's `verify:repeated-fail` for the head (the base module's
+`judgedAuthorHolds`; owner decision 2026-11-28, Q1 (B), holds the cap like any FAIL). A base
+module that predates `judgedAuthorHolds` holds on the same three. No pass, a stale or
+untrusted-spec pass, `verify:unreadable`, `verify:too-old` and a reader that does not judge it
+leave it to merge. Before the reader, every
 queued pull request that is not the lanes App's holds on the lanes App's pin, whatever
 `merge.verify-authors` says, since the trusted-person arm pins and arms with the lanes App token: a
 newest pin record that names another head, was edited, or whose edit time does not read holds it,
@@ -2565,12 +2567,15 @@ newest unpin record, is not held by it.
 It reads the issue comments for the pin and the kill switch, and the reviews, bodies blanked, for
 the approval lift, and no file list; an author pr-verify does not judge reads its reviews only
 under a pin hold, so hold paths and cost paths stay the lanes App's in the queue.
-A trusted approval of the head lifts the FAIL hold, but
+A trusted approval of the head lifts the FAIL hold (and `pr-dispatch-feedback.yml`'s
+`lift-verify-fail` job turns the head's `pr-verify` status to success), but
 [a pull request's author cannot approve it](https://docs.github.com/en/pull-requests/collaborating-with-pull-requests/reviewing-changes-in-pull-requests/approving-a-pull-request-with-required-reviews),
 and the trusted-actor list names one person, so on an owner-login pull request the lift is a new
 head that pr-verify passes. An author pr-verify does not judge passes once its pin check does, with
-no verdict read, and every author on a pull request event is left to the merge gate or a person,
-as before. The step
+no verdict read, and every author on a pull request event is left to the merge gate or a person.
+The step `Report the verify gate as the pr-verify status on the group commit` then posts this
+step's decision on the merge-group commit as the `pr-verify` status (success only when the step
+passed; [The pr-verify commit status](#the-pr-verify-commit-status)). The step
 `Read whether the queued pull request is the lanes App's` outputs `verify_judged` by the same
 test, so the carried-read steps run for every judged author.
 
@@ -3011,7 +3016,9 @@ needs more than 75 chunks (over about 22.5 MB), ends the run red with no verdict
 the file or the chunk count, so size alone writes no `fail`. With no verdict `verdictHold` holds the
 head, the trusted approval of the head lifts that, and a `pr-verify-failed` label stays. The diff
 step logs a `pr-verify chunks` notice, and the verdict step a `pr-verify chunk` notice per chunk. The run
-uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON. Every
+uploads one artifact, `pr-verify-<pr>-<head-sha>-<pass|pass-notes|fail>`, holding the verdict JSON,
+and a FAIL shows on the head as a failed `pr-verify` status unless a trusted approval of the head
+lifts it ([The pr-verify commit status](#the-pr-verify-commit-status)). Every
 reader also accepts that name followed by `-<ref-digest>`, the first 16 hex digits of the SHA-256
 of the `head_ref` the JSON records (`HEAD_REF_DIGEST_HEX` in `write-verdict.mjs`), which the
 writer moves to once the readers have run on main. resolve-pr looks up only the names the writer
@@ -3081,7 +3088,10 @@ before the model runs, with the reason `author-not-lane` and the step summary li
 only lane-authored pull requests reach the pr-merge lane. `lane-or-owner` also judges every
 trusted actor's: a `User` or `Bot` whose account id is on the trusted-actor list (never matched
 by login), whose pull requests the pr-merge lane adopts (Eligibility, above); any other author's
-passing or hold-only run is skipped with `author-not-lane-or-owner`. pr-verify runs when `pr-require-checks` passes, so it
+passing or hold-only run is skipped with `author-not-lane-or-owner`. For a dependency manager's
+pull request, or one whose author `merge.verify-authors` does not judge (`author-not-lane`,
+`author-not-lane-or-owner`), `ci-status` posts the head's `pr-verify` status as success,
+`author not judged (merge.verify-authors: <value>)`. pr-verify runs when `pr-require-checks` passes, so it
 judges a person's pull request at each ready head, before it is idle. A pull request closing no
 issue is judged against its own title and body only as [Adoption](#adoption) says. Work the spec
 does not ask for passes with a note (`pass-notes`) unless it is also a correctness or safety
@@ -3541,6 +3551,44 @@ and the base's rules are reused for two minutes, and a failed read is never shar
 enqueue, a default branch or rules a gate took from the file are read again for the branch read,
 and any change holds. An attended gate run reads both fresh. Without the variable nothing is shared.
 
+### The pr-verify commit status
+
+A same-repository pull request head and a merge-group commit get a commit status with context
+`pr-verify` from the writers below, so a merge-queue ruleset that requires it lets GitHub refuse
+an enqueue before pr-verify's PASS; a head none of them posts on stays unqueueable. Each writer
+that weighs a FAIL lifts it by the one rule the merge gate uses, `merge-holds.mjs` `pathLifters`
+over the trusted-actor list's people at the head, run as `node merge-holds.mjs lifters
+<reviews.jsonl> <trusted-actors.json> <head>`. Four writers post it:
+
+1. `pr-verify.yml`'s `report-status` job, on the upstream run's head. A `pass` or `pass-notes`
+   posts success (`pr-verify <VERDICT> on this head`). A `fail` reads the pull request's reviews:
+   a trusted approval of the head posts success (`pr-verify FAIL lifted: <logins> approved this
+   head`), none posts failure (`pr-verify FAIL on this head`), and reviews or a trusted-actor list
+   that do not read post failure. After a failure it reads the reviews once more and posts the
+   lift if an approval landed meanwhile. A lanes App baseline-only change (`native-baseline`) posts
+   success. An `already-judged` skip re-posts the head's own judged verdict, lift included, only
+   while the head has no `pr-verify` status (the combined status endpoint's latest per context);
+   every other skip posts nothing. A run the lanes kill switch stopped posts nothing until
+   `maintenance-reconcile-lost-runs` re-runs it, as the kill-switch clear text below says.
+2. `ci-status` on `pull_request`, for an author pr-verify does not judge (above): success,
+   `author not judged (merge.verify-authors: <value>)`. A post that fails turns `CI Status` red.
+3. `pr-dispatch-feedback.yml`'s `lift-verify-fail` job, after `pr-review-approved.yml` relays an
+   approval. It resolves the pull request from the head SHA: the one open pull request into main
+   from this repository whose head is that SHA, else a notice and no post; a read that fails fails
+   the job. When the head's latest `pr-verify` state is not success and `pathLifters` names
+   someone, it posts success: `pr-verify FAIL lifted: <logins> approved this head` over a
+   failure, `pr-verify not passed at this head; lifted: <logins> approved this head` over pending
+   or no status.
+4. `ci-status` on `merge_group`, on the group commit: success only when its verify gate step
+   passed, failure otherwise. A post that fails turns `CI Status` red.
+
+`release-publish-plugins.yml` queues a release pull request only once its head's `pr-verify`
+status, posted by GitHub Actions, is success; it also runs when a PR Verify run the release App
+started completes, so the queue follows the verdict. A lift by `lift-verify-fail` wakes no
+release run; the next trigger or the schedule queues it. A head can show success while the merge gate still refuses it (an earlier
+FAIL at a passing head, or an approval dismissed after its lift); the group commit's status follows
+the gate, so neither merges. A fork head gets no status.
+
 ## Review-lane holds
 
 Both review callers (`pr-review-hosted.yml`, `pr-review-security-hosted.yml`) pass
@@ -3581,8 +3629,16 @@ them on every `pull_request` run, contract-only runs included:
   one with no hold label does not count. A pending, failed, cancelled or skipped review fails with
   the cause named. A lane a kill switch stopped (the switch was on when the review run started)
   fails too: the kill switch pauses review and never waives it. Once it is off, the lost-run
-  reconciler re-runs that review run, one lane per head per hourly pass, and its completion
-  re-runs ci-status; a person on the trusted-actor list can re-run all its jobs sooner. A review
+  reconciler re-runs that review run, one lane per head per pass (every 15 minutes), and its
+  completion re-runs ci-status; a person on the trusted-actor list can re-run all its jobs sooner.
+  It also re-runs a pr-verify run the lanes switch stopped (failed at `Report the kill switch`):
+  within 24 hours of its start, and up to `RERUN_WINDOW_DAYS` (30, GitHub's re-run limit) when it
+  is the one run that pairs with an open head's newest checks run (started from 1 minute before
+  to 15 minutes after it). A re-run runs the `pr-verify.yml` of the main commit the run started
+  on, so it posts the head's `pr-verify` status only when that commit has the `report-status`
+  job. Past that window, or when the listing of older failures passes 500 runs (the pass says so),
+  re-run `ci-status` on each open head with no `pr-verify` status, so pr-verify judges it again;
+  when its checks run is past 30 days too, GitHub refuses that re-run, so push to the head. A review
   switch stops no merge of its own: a head with no review is red here, the merge gate holds it
   (`evidence-unbound`), and a head already reviewed needs no further review. To stop merges, set
   the lanes switch.

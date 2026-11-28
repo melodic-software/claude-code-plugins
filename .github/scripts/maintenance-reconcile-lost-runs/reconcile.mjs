@@ -85,8 +85,10 @@ export const REVIEW_STEP = "Review chunk 1";
 export const RATE_STEP = "Rate the pull request";
 export const RATE_WRITE_STEP = "Write the rating";
 export const RATER = ".github/workflows/pr-rate-merge-risk.yml";
+const VERIFY = ".github/workflows/pr-verify.yml";
+const LANE_STOPPED = "failure (kill switch stop)";
 const LANES = new Map([
-  [".github/workflows/pr-verify.yml", { judge: JUDGE_STEP, write: WRITE_STEP, triggers: ["success", "failure"], gated: false, faultHeld: true }],
+  [VERIFY, { judge: JUDGE_STEP, write: WRITE_STEP, triggers: ["success", "failure"], gated: false, faultHeld: true }],
   [".github/workflows/pr-review-main.yml", { judge: REVIEW_STEP, write: WRITE_STEP, triggers: ["success"], gated: true, faultHeld: true }],
   [RATER, { judge: RATE_STEP, write: RATE_WRITE_STEP, triggers: ["success"], gated: false, faultHeld: true }],
 ]);
@@ -195,7 +197,8 @@ const wholeListing = (listing) =>
   Array.isArray(listing?.jobs) && listing.jobs.length === listing.total_count && listing.jobs.every((job) => job?.status === "completed" && job.conclusion != null);
 
 const workflowFile = (path) => path.slice(path.lastIndexOf("/") + 1);
-const createdSince = (ms) => encodeURIComponent(`>=${new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z")}`);
+const isoSecond = (ms) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+const createdSince = (ms) => encodeURIComponent(`>=${isoSecond(ms)}`);
 
 async function firstAttemptJobs(call, repo, id) {
   const listing = await call("GET", firstAttemptJobsPath(repo, id));
@@ -369,7 +372,7 @@ const lostNow = (item, r, since) => {
   if (item.kind === "fault-held") {
     return isFaultHeld(r, since);
   }
-  return item.kind === "lane" ? isLostLane(r, since) : isLost(r, since);
+  return item.kind === "lane" ? isLostLane(r, item.conclusion === LANE_STOPPED ? 0 : since) : isLost(r, since);
 };
 
 export function classify(runs, since) {
@@ -437,7 +440,7 @@ const followsNoOpenHead = (run, openChecks) => {
   return starts.length > 0 && !starts.some((t) => created >= t - MATCH_BEFORE_MS && created <= t + OWNED_AFTER_MS);
 };
 
-function laneOrder(lanes, openChecks, drop) {
+function pairOwned(lanes, openChecks) {
   const pairs = [];
   for (const lane of lanes) {
     for (const { head, done } of openChecks) {
@@ -456,6 +459,11 @@ function laneOrder(lanes, openChecks, drop) {
       taken.add(key);
     }
   }
+  return matched;
+}
+
+function laneOrder(lanes, openChecks, drop) {
+  const matched = pairOwned(lanes, openChecks);
   const superseded = drop ? lanes.filter((l) => l.kind === "lane" && followsNoOpenHead(l, openChecks)) : [];
   const rest = lanes.filter((l) => !matched.has(l) && !superseded.includes(l));
   const owned = lanes.filter((l) => matched.has(l)).sort(byAge);
@@ -1107,10 +1115,26 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       }
     }
   }
+  const stoppedSince = Math.max(now - RERUN_WINDOW_DAYS * 86_400_000, Math.min(...openChecks.map((c) => c.done)) - MATCH_BEFORE_MS);
+  const oldStops = new Set();
+  if (stoppedSince < since && !laneFailures.has(VERIFY)) {
+    const span = `${isoSecond(stoppedSince)}..${isoSecond(since)}`;
+    try {
+      const older = await paginate(runsPage, `/repos/${repo}/actions/workflows/${workflowFile(VERIFY)}/runs?created=${encodeURIComponent(span)}&status=failure`, LANE_RUN_PAGES);
+      for (const r of pairOwned(older.filter((run) => run?.path === VERIFY && isLostLane(run, stoppedSince) && Date.parse(run.created_at) < since), openChecks)) {
+        oldStops.add(r.id);
+        laneRuns.get(VERIFY).set(r.id, r);
+      }
+    } catch (error) {
+      passRateLimit(error);
+      say(`${VERIFY}: its failed runs created ${span} were not listed (${escapeCommand(error?.message ?? error)}); only kill switch stops from the last ${LOOKBACK_HOURS} hours are re-run`);
+    }
+  }
+  const laneLost = (r) => isLostLane(r, since) || oldStops.has(r.id);
   await prefetch(
     [...laneRuns]
       .filter(([lanePath]) => !laneFailures.has(lanePath))
-      .flatMap(([lanePath, runs]) => [...runs.values()].filter((r) => r.path === lanePath && isLostLane(r, since) && !settled.has(r.id) && !carriedHit(r))),
+      .flatMap(([lanePath, runs]) => [...runs.values()].filter((r) => r.path === lanePath && laneLost(r) && !settled.has(r.id) && !carriedHit(r))),
   );
   for (const [lanePath, lane] of RECORDED_LANES) {
     try {
@@ -1121,7 +1145,7 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
       const runs = listed.filter((r) => r.path === lanePath);
       inFlight += runs.filter((r) => r.status !== "completed" && r.run_attempt > 1).length;
       const unpublished = [];
-      for (const r of runs.filter((run) => isLostLane(run, since))) {
+      for (const r of runs.filter(laneLost)) {
         if (settled.has(r.id)) {
           settle.push({ id: r.id, reason: settled.get(r.id) });
           sayHeld(r, settled.get(r.id));
@@ -1136,11 +1160,15 @@ async function plan({ repo, call, say, since, now, readStatus, judgeSpec, laneAp
             sayHeld(r, held.reason);
             continue;
           }
+          const old = Date.parse(r.created_at) < since;
+          if (old && !held.jobs.some((job) => job?.steps?.some((step) => step?.name === REVIEW_STOP_STEP && step.conclusion === "failure"))) {
+            continue;
+          }
           const reset = now - Date.parse(r.updated_at) <= RATE_WINDOW_MS ? await floorFailed(call, repo, held.jobs) : undefined;
           if (beforeReset(reset, now)) {
             waitReset(`lane run ${r.id} (${r.path})`, reset);
           } else {
-            unpublished.push(r);
+            unpublished.push(old ? { ...r, conclusion: LANE_STOPPED } : r);
           }
         } catch (error) {
           noteFailure(`lane run ${r.id}`, error);

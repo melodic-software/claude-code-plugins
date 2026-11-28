@@ -67,6 +67,7 @@ const WAKE_OUTPUTS = [
   "      pr-number: ${{ steps.pr.outputs.pr-number }}",
   "      verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}",
 ];
+const RESOLVER_OUTPUTS = "      resolve-reason: ${{ steps.pr.outputs.reason }}\n      judged-verdict: ${{ steps.pr.outputs.judged-verdict }}";
 const chainOf = (build, first) => [first, `${first}-chunks`, `${first}-spec`].map(build).join(" || ");
 const legsClear = (first) => chainOf((id) => `steps\\.${id}\\.outcome != 'success'`, first).replaceAll(" || ", " && ");
 const upstreamRun = (overrides = {}) => ({
@@ -219,7 +220,7 @@ test("a cancelled upstream's run admits no job, so its own group costs no verdic
   for (const id of ids) {
     assert.equal(admits(jobIf(id), cancelled), false, id);
   }
-  assert.deepEqual(ids, [...JOBS, "wake-pr-merge"]);
+  assert.deepEqual(ids, [...JOBS, "wake-pr-merge", "report-status"]);
 });
 
 test("each job judges on run-claude-cli as the pr-verify role with its one secret", () => {
@@ -459,6 +460,7 @@ test("the subscription job runs only on a clean handoff, an empty key, a key the
       "      reads: ${{ steps.carry.outputs.reads }}",
       ...WAKE_OUTPUTS,
       "      standards-sha: ${{ steps.standards.outputs.sha }}",
+      RESOLVER_OUTPUTS,
       "",
     ].join("\n"),
   );
@@ -468,10 +470,11 @@ test("the subscription job runs only on a clean handoff, an empty key, a key the
       "      next-leg: ${{ steps.next.outputs.next-leg }}",
       "      next-reason: ${{ steps.next.outputs.next-reason }}",
       ...WAKE_OUTPUTS,
+      RESOLVER_OUTPUTS,
       "",
     ].join("\n"),
   );
-  assert.equal(/^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(FB))?.[1], [...WAKE_OUTPUTS, ""].join("\n"));
+  assert.equal(/^ {4}outputs:\n((?: {6}.*\n)+)/m.exec(jobText(FB))?.[1], [...WAKE_OUTPUTS, RESOLVER_OUTPUTS, ""].join("\n"));
   for (const id of JOBS) {
     assert.match(jobText(id), /^ {4}permissions:\n {6}contents: read\n {6}pull-requests: read\n {6}actions: read\n {4}[a-z]/m, id);
   }
@@ -1327,4 +1330,258 @@ test("each job's resolver holds a rate stop green, and a held run is marked for 
     assert.match(held, /if \[\[ \$GATE_REASON == read-fault \]\]; then\n {12}echo "::notice title=pr-verify::held: /, job);
   }
   assert.equal(text.match(/^ +API_BUDGET_HOLD:/gm).length, JOBS.length);
+});
+
+const REPORT = "report-status";
+const UNJUDGED = ["dependency-manager", "author-not-lane", "author-not-lane-or-owner"];
+test("report-status runs after every verdict job on a verdict or a resolver reason, holding only statuses: write and two reads", () => {
+  const job = jobText(REPORT);
+  assert.match(job, /^ {4}needs: \[check-intent, check-intent-subscription, check-intent-fallback\]$/m);
+  assert.equal(
+    jobIf(REPORT),
+    [
+      "!cancelled() && github.ref == 'refs/heads/main' &&",
+      `(${[...JOBS.map((id) => `needs.${id}.outputs.verdict != ''`), ...JOBS.map((id) => `needs.${id}.outputs.resolve-reason != ''`)].join(" || ")})`,
+    ].join(" "),
+  );
+  const block = /^ {4}permissions:\n((?: {6}.*\n)+)/m.exec(job)[1];
+  assert.deepEqual([...block.matchAll(/^ {6}([a-z-]+): ([a-z]+)/gm)].map((m) => `${m[1]}: ${m[2]}`), ["statuses: write", "contents: read", "pull-requests: read"]);
+  assert.doesNotMatch(job, /^ {4}continue-on-error:/m, "a status it cannot post fails the run visibly");
+  assert.deepEqual(
+    [...job.matchAll(/^ {8}uses: (\S+)/gm)].map((m) => m[1]),
+    [
+      "melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main",
+      "actions/checkout@v7",
+      "melodic-software/ci-workflows/.github/actions/download-standards@main",
+      "melodic-software/ci-workflows/.github/actions/setup-pinned-node@main",
+      "./.base/.github/actions/log-api-budget",
+    ],
+  );
+  const sparse = /^ {10}sparse-checkout: \|\n((?: {12}.*\n)+)/m.exec(job)[1].trim().split(/\s+/);
+  assert.deepEqual(sparse, ["/.github/actions/log-api-budget/", "/.github/scripts/pr-merge/merge-holds.mjs", "/.node-version"]);
+  assert.equal([...job.matchAll(/^ {8}continue-on-error: true$/gm)].length, 5, "a missing lift rule or trusted list leaves a FAIL standing, never a skipped post");
+  for (const name of ["Download standards", "Set up Node"]) {
+    assert.match(new RegExp(`- name: ${name}\\n([\\s\\S]*?)\\n\\n`).exec(job)[1], /^ {8}timeout-minutes: 1$/m, `${name} cannot hang past the post step`);
+  }
+  const post = /- name: Post the pr-verify status on the head\n([\s\S]*?)\n {8}run: \|/.exec(job)[1];
+  assert.equal(input(post, "HEAD_SHA"), "${{ github.event.workflow_run.head_sha }}");
+  assert.equal(input(post, "TRUSTED_ACTORS"), "${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json");
+  for (const [leg, id] of [["KEY", KEY], ["SUB", SUB], ["FB", FB]]) {
+    assert.equal(input(post, `${leg}_VERDICT`), `\${{ needs.${id}.outputs.verdict }}`, leg);
+    assert.equal(input(post, `${leg}_REASON`), `\${{ needs.${id}.outputs.resolve-reason }}`, leg);
+    assert.equal(input(post, `${leg}_JUDGED`), `\${{ needs.${id}.outputs.judged-verdict }}`, leg);
+    assert.equal(input(post, `${leg}_PR`), `\${{ needs.${id}.outputs.pr-number }}`, leg);
+  }
+  assert.doesNotMatch(post, /continue-on-error/, "the post step's own failure fails the job");
+  const script = reportScript();
+  assert.doesNotMatch(script, /\$\{\{/);
+  assert.match(script, /^\{ \. \.base\/\.github\/actions\/log-api-budget\/api-budget\.bash 2>\/dev\/null && api_budget_wrap_gh github-token; \} \|\| true$/m);
+  const log = /- name: Log the API budget\n([\s\S]*)$/.exec(job)?.[1];
+  assert.match(log, /^ {8}if: always\(\)$/m);
+  assert.match(log, /^ {10}tokens: github-token$/m);
+  assert.doesNotMatch(job, /secrets\.|run-claude-cli|upload-artifact/);
+});
+
+test("report-status's gate admits a run with a verdict or a resolver reason, and none whose legs all skipped", () => {
+  const needs = (outputs) => Object.fromEntries(JOBS.map((id) => [id, { result: "success", outputs: outputs[id] ?? {} }]));
+  const ctx = (outputs) => ({ ...upstreamRun(), needs: needs(outputs), vars: {} });
+  assert.equal(admits(wf.jobIf(REPORT), ctx({})), false);
+  assert.equal(admits(wf.jobIf(REPORT), ctx({ [FB]: { verdict: "fail" } })), true);
+  assert.equal(admits(wf.jobIf(REPORT), ctx({ [KEY]: { "resolve-reason": "dependency-manager" } })), true);
+  assert.equal(admits(wf.jobIf(REPORT), ctx({ [SUB]: { "resolve-reason": "native-baseline" } })), true);
+});
+
+const reportScript = () =>
+  /- name: Post the pr-verify status on the head\n[\s\S]*?\n {8}run: \|\n([\s\S]*?)(?=\n\n {6}- name: )/.exec(jobText(REPORT))[1].replace(/^ {10}/gm, "");
+
+const HEAD = "a".repeat(40);
+const MERGE_HOLDS = ".github/scripts/pr-merge/merge-holds.mjs";
+const TRUSTED = [{ id: 100, login: "maintainer", kind: "human" }, { id: 41898282, login: "github-actions[bot]", kind: "app" }];
+const review = (id, login, state, commit = HEAD, at = "2026-11-28T10:00:00Z") => ({ id: 1, user: { id, login, type: "User" }, state, commit_id: commit, submitted_at: at });
+const combined = (...statuses) => ({ state: "pending", statuses: statuses.map(([context, state]) => ({ context, state })) });
+const GH_STUB = (dir, args, fails) =>
+  [
+    "#!/bin/sh",
+    `printf '%s\\n' "$*" >>'${args}'`,
+    `case "$*" in *"--method POST"*) [ "$(grep -c -- '--method POST' '${args}')" -gt ${fails} ]; exit ;; esac`,
+    "endpoint= filter=",
+    "while [ $# -gt 0 ]; do",
+    "  case $1 in",
+    "  --jq) filter=$2; shift ;;",
+    "  api | --paginate) ;;",
+    '  *) [ -n "$endpoint" ] || endpoint=$1 ;;',
+    "  esac",
+    "  shift",
+    "done",
+    "case $endpoint in",
+    `*"/reviews?"*) file=reviews; [ "$(grep -c '/reviews?' '${args}')" -lt 2 ] || [ ! -f '${dir}'/late.json ] || file=late ;;`,
+    '*"/status?"*) file=status ;;',
+    "*) exit 9 ;;",
+    "esac",
+    `[ -f '${dir}'/"$file.json" ] || exit 1`,
+    `exec jq -r "$filter" '${dir}'/"$file.json"`,
+    "",
+  ].join("\n");
+const report = (env, { fails = 0, reviews = [], late = null, status = combined(), actors = TRUSTED } = {}) => {
+  const dir = tempDir("report-status-");
+  const bin = path.join(dir, "bin");
+  mkdirSync(bin);
+  mkdirSync(path.dirname(path.join(dir, ".base", MERGE_HOLDS)), { recursive: true });
+  cpSync(new URL(`../../../${MERGE_HOLDS}`, import.meta.url), path.join(dir, ".base", MERGE_HOLDS));
+  for (const [file, value] of [["reviews", reviews], ["late", late], ["status", status], ["trusted-actors", actors && { version: 1, actors }]]) {
+    if (value) writeFileSync(path.join(dir, `${file}.json`), JSON.stringify(value));
+  }
+  const args = path.join(dir, "args");
+  const sleeps = path.join(dir, "sleeps");
+  writeFileSync(args, "");
+  writeFileSync(sleeps, "");
+  writeFileSync(path.join(bin, "gh"), GH_STUB(dir, args, fails), { mode: 0o755 });
+  writeFileSync(path.join(bin, "sleep"), `#!/bin/sh\necho "$1" >>'${sleeps}'\n`, { mode: 0o755 });
+  const run = spawnSync("bash", ["--noprofile", "--norc", "-eo", "pipefail", "-c", reportScript()], {
+    cwd: dir,
+    env: {
+      PATH: `${bin}:${process.env.PATH}`,
+      GITHUB_REPOSITORY: REPO,
+      GITHUB_SERVER_URL: "https://github.com",
+      GITHUB_RUN_ID: "9",
+      GH_TOKEN: "t",
+      HEAD_SHA: HEAD,
+      RUNNER_TEMP: dir,
+      TRUSTED_ACTORS: path.join(dir, "trusted-actors.json"),
+      ...env,
+    },
+    encoding: "utf8",
+  });
+  const lines = (file) => readFileSync(file, "utf8").split("\n").filter(Boolean);
+  return { status: run.status, stdout: run.stdout, gh: lines(args), sleeps: lines(sleeps) };
+};
+const POSTED = (state, description) =>
+  `api --method POST repos/${REPO}/statuses/${HEAD} -f state=${state} -f context=pr-verify -f description=${description} -f target_url=https://github.com/${REPO}/actions/runs/9`;
+const REVIEWS_READ = (pr) => `api repos/${REPO}/pulls/${pr}/reviews?per_page=100 --paginate --jq .[] | @json`;
+const STATUS_READ = `api repos/${REPO}/commits/${HEAD}/status?per_page=100 --paginate --jq .statuses[] | select(.context == "pr-verify") | .state`;
+
+test("report-status posts the uploaded verdict as the pr-verify status on the upstream head", () => {
+  const FAILED = [REVIEWS_READ(41), POSTED("failure", "pr-verify FAIL on this head"), REVIEWS_READ(41)];
+  for (const [env, gh] of [
+    [{ KEY_VERDICT: "pass" }, [POSTED("success", "pr-verify PASS on this head")]],
+    [{ SUB_VERDICT: "pass-notes" }, [POSTED("success", "pr-verify PASS-NOTES on this head")]],
+    [{ FB_VERDICT: "fail", FB_PR: "41" }, FAILED],
+    [{ KEY_VERDICT: "fail", KEY_REASON: "ok", KEY_PR: "41" }, FAILED],
+    [{ KEY_REASON: "ok", SUB_REASON: "carried", FB_VERDICT: "pass" }, [POSTED("success", "pr-verify PASS on this head")]],
+  ]) {
+    const run = report(env);
+    assert.equal(run.status, 0, JSON.stringify(env));
+    assert.deepEqual(run.gh, gh, JSON.stringify(env));
+  }
+});
+
+test("report-status lifts a FAIL only when a trusted person's latest review of the head approves it, and keeps it on any unreadable input", () => {
+  const OTHER = "b".repeat(40);
+  const fail = (options, env = {}) => report({ SUB_VERDICT: "fail", SUB_PR: "41", KEY_PR: "7", ...env }, options);
+  const lifted = fail({ reviews: [review(100, "maintainer", "APPROVED")] });
+  assert.equal(lifted.status, 0);
+  assert.deepEqual(lifted.gh, [REVIEWS_READ(41), POSTED("success", "pr-verify FAIL lifted: maintainer approved this head")], "the judging leg's pull request");
+  for (const [label, reviews] of [
+    ["an approval of another commit", [review(100, "maintainer", "APPROVED", OTHER)]],
+    ["a later change request", [review(100, "maintainer", "APPROVED"), review(100, "maintainer", "CHANGES_REQUESTED", HEAD, "2026-11-28T11:00:00Z")]],
+    ["an approval by someone off the trusted list", [review(999, "drive-by", "APPROVED")]],
+    ["no review", []],
+  ]) {
+    const run = fail({ reviews });
+    assert.equal(run.status, 0, label);
+    assert.deepEqual(run.gh, [REVIEWS_READ(41), POSTED("failure", "pr-verify FAIL on this head"), REVIEWS_READ(41)], label);
+  }
+  for (const [label, run, reads] of [
+    ["unreadable reviews", fail({ reviews: null }), [REVIEWS_READ(41)]],
+    ["an unreadable trusted-actor list", fail({ reviews: [review(100, "maintainer", "APPROVED")], actors: null }), [REVIEWS_READ(41)]],
+    ["no pull request number", fail({ reviews: [review(100, "maintainer", "APPROVED")] }, { SUB_PR: "" }), []],
+  ]) {
+    assert.equal(run.status, 0, label);
+    assert.deepEqual(run.gh, [...reads, POSTED("failure", "pr-verify FAIL on this head"), ...reads], label);
+    assert.match(run.stdout, /::warning title=pr-verify status::the reviews of pull request '\d*' or the trusted-actor list could not be read; the FAIL stands/, label);
+  }
+  const many = Array.from({ length: 8 }, (_, i) => ({ id: 200 + i, login: `trusted-approver-${String(i).padStart(3, "0")}`, kind: "human" }));
+  const crowd = fail({ actors: many, reviews: many.map(({ id, login }) => review(id, login, "APPROVED")) });
+  const text = `pr-verify FAIL lifted: ${many.map(({ login }) => login).join(", ")} approved this head`;
+  assert.ok(text.length > 140);
+  assert.deepEqual(crowd.gh, [REVIEWS_READ(41), POSTED("success", text.slice(0, 140))], "the description is cut to GitHub's 140 characters");
+});
+
+test("report-status reads the reviews once more after posting a FAIL, and lifts it for an approval that landed meanwhile", () => {
+  const FAILED = POSTED("failure", "pr-verify FAIL on this head");
+  const LIFTED = POSTED("success", "pr-verify FAIL lifted: maintainer approved this head");
+  const late = report({ FB_VERDICT: "fail", FB_PR: "41" }, { late: [review(100, "maintainer", "APPROVED")] });
+  assert.equal(late.status, 0);
+  assert.deepEqual(late.gh, [REVIEWS_READ(41), FAILED, REVIEWS_READ(41), LIFTED]);
+  const judged = report({ KEY_REASON: "already-judged", KEY_JUDGED: "fail", KEY_PR: "41" }, { late: [review(100, "maintainer", "APPROVED")] });
+  assert.deepEqual(judged.gh, [STATUS_READ, REVIEWS_READ(41), FAILED, REVIEWS_READ(41), LIFTED], "an already-judged re-post too");
+  const stranger = report({ FB_VERDICT: "fail", FB_PR: "41" }, { late: [review(999, "drive-by", "APPROVED")] });
+  assert.deepEqual(stranger.gh, [REVIEWS_READ(41), FAILED, REVIEWS_READ(41)], "an untrusted late approval lifts nothing");
+  const unposted = report({ FB_VERDICT: "fail", FB_PR: "41" }, { fails: 3, late: [review(100, "maintainer", "APPROVED")] });
+  assert.notEqual(unposted.status, 0);
+  assert.deepEqual(unposted.gh, [REVIEWS_READ(41), FAILED, FAILED, FAILED], "a FAIL that did not post reads nothing more");
+});
+
+test("report-status re-posts an already-judged head's verdict only while the head has no pr-verify status", () => {
+  const judged = (verdict, options) => report({ KEY_REASON: "already-judged", KEY_JUDGED: verdict, KEY_PR: "41" }, options);
+  for (const [verdict, options, posted] of [
+    ["pass", {}, [POSTED("success", "pr-verify PASS on this head")]],
+    ["pass-notes", { status: combined(["CI Status", "success"]) }, [POSTED("success", "pr-verify PASS-NOTES on this head")]],
+    ["fail", {}, [REVIEWS_READ(41), POSTED("failure", "pr-verify FAIL on this head"), REVIEWS_READ(41)]],
+    ["fail", { reviews: [review(100, "maintainer", "APPROVED")] }, [REVIEWS_READ(41), POSTED("success", "pr-verify FAIL lifted: maintainer approved this head")]],
+  ]) {
+    const run = judged(verdict, options);
+    assert.equal(run.status, 0, verdict);
+    assert.deepEqual(run.gh, [STATUS_READ, ...posted], verdict);
+  }
+  for (const state of ["success", "failure", "pending"]) {
+    const run = judged("fail", { status: combined(["CI Status", "success"], ["pr-verify", state]) });
+    assert.equal(run.status, 0, state);
+    assert.deepEqual(run.gh, [STATUS_READ], `a ${state} pr-verify status stands`);
+    assert.match(run.stdout, new RegExp(`already judged and its pr-verify status is ${state}; no status posted`), state);
+  }
+  for (const leg of ["SUB", "FB"]) {
+    const run = report(
+      { KEY_REASON: "", KEY_PR: "7", KEY_JUDGED: "pass", [`${leg}_REASON`]: "already-judged", [`${leg}_JUDGED`]: "fail", [`${leg}_PR`]: "41" },
+      { reviews: [review(100, "maintainer", "APPROVED")] },
+    );
+    assert.equal(run.status, 0, leg);
+    assert.deepEqual(run.gh, [STATUS_READ, REVIEWS_READ(41), POSTED("success", "pr-verify FAIL lifted: maintainer approved this head")], `the ${leg} leg's judged verdict and pull request`);
+  }
+  const unknown = judged("");
+  assert.equal(unknown.status, 0);
+  assert.deepEqual(unknown.gh, [STATUS_READ], "a verdict that did not reach the job posts nothing");
+  const unread = judged("pass", { status: null });
+  assert.notEqual(unread.status, 0);
+  assert.deepEqual(unread.gh, [STATUS_READ], "an unreadable status posts nothing");
+  assert.match(unread.stdout, /::error::report-status: could not read the pr-verify status of a{40}; no status posted/);
+});
+
+test("report-status posts success for a lanes App baseline-only change, and leaves every other unjudged head to ci-status", () => {
+  for (const leg of ["KEY", "SUB", "FB"]) {
+    assert.deepEqual(report({ [`${leg}_REASON`]: "native-baseline" }).gh, [POSTED("success", "lanes App baseline-only change, not judged")], leg);
+  }
+  for (const reason of [...UNJUDGED, "", "ok", "held", "draft", "draft-run", "already-rated", "no-single-pr", "not-a-passing-run", "verify-authors-invalid", "spec-changed"]) {
+    const run = report({ KEY_REASON: reason });
+    assert.equal(run.status, 0, reason);
+    assert.deepEqual(run.gh, [], reason);
+    assert.match(run.stdout, /::notice title=pr-verify status::no verdict and no lanes App baseline-only change/, reason);
+  }
+  assert.deepEqual(report({ KEY_VERDICT: "maybe" }).gh, [], "an unknown verdict posts nothing");
+});
+
+test("report-status retries a failed post twice and fails the job on the third, and posts nothing for a head that is not a SHA", () => {
+  const retried = report({ KEY_VERDICT: "pass" }, { fails: 2 });
+  assert.equal(retried.status, 0);
+  assert.equal(retried.gh.length, 3);
+  assert.deepEqual(retried.sleeps, ["5", "10"]);
+  const failed = report({ KEY_VERDICT: "pass" }, { fails: 3 });
+  assert.notEqual(failed.status, 0);
+  assert.equal(failed.gh.length, 3);
+  assert.match(failed.stdout, /::error::report-status: could not post pr-verify success on a{40}/);
+  for (const sha of ["", "main", `${HEAD}0`, "a; rm -rf /"]) {
+    const run = report({ KEY_VERDICT: "pass", HEAD_SHA: sha });
+    assert.notEqual(run.status, 0, sha);
+    assert.deepEqual(run.gh, [], sha);
+  }
 });

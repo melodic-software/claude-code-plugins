@@ -1972,6 +1972,45 @@ test("after a trusted relink, another PR's FAIL or one named with the new issues
   }
 });
 
+test("each already-judged skip carries its pull request and the verdict judged at the head", async () => {
+  const skipOf = async (setup) => {
+    const { proceed, reason: why, prNumber, verdict } = await resolve(setup);
+    return { proceed, reason: why, prNumber, verdict };
+  };
+  const skipped = (verdict) => ({ proceed: false, reason: "already-judged", prNumber: 41, verdict });
+  const pulls = [pull(), pull({ number: 99, state: "closed" })];
+  const named = (...items) => ({
+    pulls,
+    artifacts: items.map(([verdict], i) => artifact(`pr-verify-${verdict}`, 77 + i)),
+    runs: Object.fromEntries(items.map(([, start = JUDGED_AT], i) => [77 + i, verifyRun(77 + i, { run_started_at: start })])),
+  });
+  const later = "2026-10-21T01:00:00Z";
+  for (const [label, setup, verdict] of [
+    ["this PR's pass", named([`41-${HEAD}-pass`]), "pass"],
+    ["this PR's pass-notes", named([`41-${HEAD}-pass-notes`]), "pass-notes"],
+    ["a pass-notes newer than a pass", named([`41-${HEAD}-pass`], [`41-${HEAD}-pass-notes`, later]), "pass-notes"],
+    ["a pass newer than a pass-notes", named([`41-${HEAD}-pass`, later], [`41-${HEAD}-pass-notes`]), "pass"],
+    ["this PR's fail", named([`41-${HEAD}-fail`]), "fail"],
+    ["this PR's fail named with its issues", named([`41-${HEAD}-fail-i7`]), "fail"],
+    ["another PR's fail", named([`99-${HEAD}-fail`]), "fail"],
+  ]) {
+    assert.deepEqual(await skipOf(setup), skipped(verdict), label);
+  }
+  const relink = relinkAnswer({ events: [{ createdAt: "2026-10-20T08:00:00Z", actor: PERSON }] });
+  for (const name of [`pr-verify-99-${HEAD}-fail`, `pr-verify-41-${HEAD}-fail-i7`]) {
+    const setup = relinked(relink, { pulls });
+    setup.artifacts.push(artifact(name, 78));
+    setup.runs[78] = verifyRun(78);
+    assert.deepEqual(await skipOf(setup), skipped("fail"), `after a trusted relink, ${name}`);
+  }
+  const reopened = bodyFixed(relinkAnswer({ edits: [BODY_EDIT] }), { pulls });
+  reopened.artifacts.push(artifact(`pr-verify-99-${HEAD}-fail`, 78));
+  reopened.runs[78] = verifyRun(78);
+  assert.deepEqual(await skipOf(reopened), skipped("fail"), "a FAIL a person's edit reopens, beside another PR's fail");
+  const other = await resolve({ pulls: [pull({ draft: true })] });
+  assert.equal(other.verdict, undefined, "a skip for another reason carries no verdict");
+});
+
 const BODY_EDIT = { editedAt: "2026-10-20T07:00:00Z", editor: PERSON };
 const bodyFixed = (relink, overrides = {}) => ({
   artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)],
@@ -2522,7 +2561,7 @@ test("main writes the outputs, the linked issues and the spec text the workflow 
   );
   assert.equal(
     readFileSync(output, "utf8"),
-    `proceed=true\nreason=ok\npr-number=41\nhead-sha=${HEAD}\nbase-sha=${BASE}\nhead-ref=feat/x\nrelink-since-head=true\n`,
+    `proceed=true\nreason=ok\npr-number=41\nhead-sha=${HEAD}\nbase-sha=${BASE}\nhead-ref=feat/x\nrelink-since-head=true\njudged-verdict=\n`,
   );
   assert.deepEqual(JSON.parse(readFileSync(spec, "utf8")), [LINKED]);
   assert.deepEqual(JSON.parse(readFileSync(specText, "utf8")), [{ number: 7, spec_kind: "closes", body: "the spec", comments: [] }]);
@@ -2560,7 +2599,7 @@ test("main keeps the run's jobs in RUNNER_TEMP for upstream-jobs.mjs only when i
   assert.deepEqual(keptJobs(linked, RUN).jobs.find((job) => job.name === "Lint Repo"), { name: "Lint Repo", conclusion: "success", url: jobPage });
   const skipped = { ...env, RUNNER_TEMP: tempDir("pr-verify-temp-") };
   await main(skipped, { github: fake({ jobs, artifacts: [artifact(`pr-verify-41-${HEAD}-fail-i7`, 77)], runs: { 77: verifyRun(77) } }) });
-  assert.match(readFileSync(skipped.GITHUB_OUTPUT, "utf8"), /reason=already-judged/);
+  assert.match(readFileSync(skipped.GITHUB_OUTPUT, "utf8"), /^proceed=false\nreason=already-judged\npr-number=41\n(?:.*\n)*judged-verdict=fail$/m, "an already-judged skip names its pull request and verdict");
   assert.equal(keptJobs(skipped, RUN), null);
 });
 

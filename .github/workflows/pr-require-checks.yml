@@ -5270,6 +5270,7 @@ jobs:
           CARRY_TO: ${{ runner.temp }}/babysit-run-cache.json
         run: node .base/.github/scripts/pr-merge/carry-run-cache.mjs
       - name: Fail a lanes App pull request on kill switch, hold path, verifier or veto
+        id: lanes_hold
         if: ${{ !cancelled() && (github.event_name == 'pull_request' || github.event_name == 'merge_group') && (github.event.pull_request.draft != true || steps.draft_rerun.outputs.ready == 'true') }}
         env:
           GH_TOKEN: ${{ github.token }}
@@ -5565,17 +5566,19 @@ jobs:
             fi
             printf '%s\n' "$report" | tail -n 1 >"$RUNNER_TEMP/evidence.json"
             refusal=$(jq -r --arg head "$head" 'select(.head == $head) | .refusal | strings' "$RUNNER_TEMP/evidence.json" 2>/dev/null) || refusal=
-            case $refusal in
-            verify:fail | verify:earlier-fail) ;;
-            verify:repeated-fail)
-              echo "::warning::#$pr: pr-verify's repeated-fail cap stands at this head; owner-login PRs are not held on the cap (owner decision 2026-11-04)"
-              exit 0
-              ;;
-            *)
+            holds=false
+            # shellcheck disable=SC2016 # JavaScript, not shell
+            [ -z "$refusal" ] || holds=$(node --input-type=module -e 'import { pathToFileURL } from "node:url";
+              const [, refusal, module] = process.argv;
+              const { judgedAuthorHolds = (r) => ["verify:fail", "verify:earlier-fail", "verify:repeated-fail"].includes(r) } = await import(pathToFileURL(module).href);
+              console.log(judgedAuthorHolds(refusal) === true);' "$refusal" "$RUNNER_TEMP/merge-holds.mjs") || {
+              echo "::error::merge-holds.mjs in the hold config could not class the reader's refusal (${refusal:-none}) for #$pr; re-run this run."
+              exit 1
+            }
+            if [ "$holds" != true ]; then
               echo "#$pr: not held: pull requests of an author pr-verify judges, other than the lanes App's, hold only on a FAIL, and the reader reports ${refusal:-none} for $head."
               exit 0
-              ;;
-            esac
+            fi
             # shellcheck disable=SC2016 # JavaScript, not shell
             out=$(node --input-type=module -e 'import { readFileSync } from "node:fs";
               import { pathToFileURL } from "node:url";
@@ -5749,6 +5752,86 @@ jobs:
             echo "::error::merge-holds.mjs exited 0 without its pr-verify FAIL verdict."
             exit 1
           fi
+      - name: Report an author pr-verify does not judge as the pr-verify status on the head
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          AUTHOR_ID: ${{ github.event.pull_request.user.id }}
+          AUTHOR_TYPE: ${{ github.event.pull_request.user.type }}
+          AUTHOR_LOGIN: ${{ github.event.pull_request.user.login }}
+          BASE_CONFIG: ${{ steps.base_config.outcome == 'success' && format('{0}/base-config', github.workspace) || '' }}
+          STANDARDS_DIR: ${{ steps.standards.outputs.path }}
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          ! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token
+          if [[ ! ${HEAD_SHA:-} =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the pull request head '${HEAD_SHA:-}' is not a commit SHA; no pr-verify status posted."
+            exit 1
+          fi
+          if [[ ! ${AUTHOR_ID:-} =~ ^[1-9][0-9]*$ || -z ${AUTHOR_TYPE:-} ]]; then
+            echo "::error::the pull request author is not in the payload; no pr-verify status posted."
+            exit 1
+          fi
+          if [ "$AUTHOR_ID $AUTHOR_TYPE" = "${LANES_APP_ID:-} Bot" ]; then
+            echo "The lanes App's pull request: pr-verify posts its pr-verify status."
+            exit 0
+          fi
+          if [ ! -d "${BASE_CONFIG:-}" ] ||
+            ! authors=$(yq -er '.merge."verify-authors" // "lane"' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
+            ! identity=$(yq -er '.merge."agent-identity" // ""' "$BASE_CONFIG/docs/conventions/pr-pipeline.yaml") ||
+            ! judged=$(jq -n --argjson id "$AUTHOR_ID" --arg type "$AUTHOR_TYPE" --arg login "${AUTHOR_LOGIN:-}" '{user: {id: $id, type: $type, login: $login}}' |
+              verify_judged "$authors" "$identity") || [[ ! $judged =~ ^(true|false)$ ]]; then
+            echo "::error::whether pr-verify judges this author could not be read from merge.verify-authors in the hold config and the trusted-actor list; no pr-verify status posted."
+            exit 1
+          fi
+          if [ "$judged" = true ]; then
+            echo "pr-verify judges this author (merge.verify-authors: $authors): pr-verify posts its pr-verify status."
+            exit 0
+          fi
+          description="author not judged (merge.verify-authors: $authors)"
+          for attempt in 1 2 3; do
+            if gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+              -f state=success -f context=pr-verify -f description="$description" \
+              -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null; then
+              echo "Posted pr-verify success ($description) on $HEAD_SHA."
+              exit 0
+            fi
+            [ "$attempt" -eq 3 ] || sleep $((attempt * 5))
+          done
+          echo "::error::could not post pr-verify success on $HEAD_SHA; re-run this run."
+          exit 1
+      - name: Report the verify gate as the pr-verify status on the group commit
+        if: ${{ !cancelled() && github.event_name == 'merge_group' }}
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GROUP_SHA: ${{ github.sha }}
+          GATE: ${{ steps.lanes_hold.outcome }}
+        run: |
+          . "$RUNNER_TEMP/gh-read.sh"
+          ! declare -F api_budget_wrap_gh >/dev/null || api_budget_wrap_gh github-token
+          if [[ ! ${GROUP_SHA:-} =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::the merge-group commit '${GROUP_SHA:-}' is not a commit SHA; no pr-verify status posted."
+            exit 1
+          fi
+          if [ "$GATE" = success ]; then
+            state=success description="ci-status verify gate passed for the queued pull request"
+          else
+            state=failure description="ci-status verify gate held the queued pull request (step ${GATE:-unknown})"
+          fi
+          for attempt in 1 2 3; do
+            if gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$GROUP_SHA" \
+              -f state="$state" -f context=pr-verify -f description="$description" \
+              -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null; then
+              echo "Posted pr-verify $state on the merge-group commit $GROUP_SHA."
+              exit 0
+            fi
+            [ "$attempt" -eq 3 ] || sleep $((attempt * 5))
+          done
+          echo "::error::could not post pr-verify $state on the merge-group commit $GROUP_SHA; re-run this run."
+          exit 1
       - name: Check each skipped lane against scope
         id: lanes
         if: ${{ !cancelled() }}

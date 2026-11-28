@@ -8,9 +8,9 @@ on:
     paths: ['.changes/**']
   # workflow_run runs this file from the default branch, never a PR's copy.
   workflow_run: # zizmor: ignore[dangerous-triggers]
-    workflows: [PR Require Checks]
+    workflows: [PR Require Checks, PR Verify]
     types: [completed]
-    branches: [release/plugins]
+    branches: [release/plugins, main]
   workflow_dispatch:
     inputs:
       action:
@@ -27,7 +27,12 @@ on:
 permissions: {}
 
 concurrency:
-  group: release-plugins
+  group: >-
+    ${{ github.event_name == 'workflow_run'
+    && !(github.event.workflow_run.head_repository.full_name == github.repository
+    && (github.event.workflow_run.head_branch == 'release/plugins'
+    || github.event.workflow_run.path == '.github/workflows/pr-verify.yml' && github.event.workflow_run.actor.id == 337859524))
+    && format('release-plugins-skip-{0}', github.run_id) || 'release-plugins' }}
   cancel-in-progress: ${{ github.event_name != 'push' && github.event_name != 'workflow_run' }}
 
 jobs:
@@ -35,7 +40,9 @@ jobs:
     name: Merge
     if: >-
       github.ref == 'refs/heads/main' && (inputs.action || 'merge') == 'merge'
-      && (github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository)
+      && (github.event_name != 'workflow_run' || github.event.workflow_run.head_repository.full_name == github.repository
+      && (github.event.workflow_run.head_branch == 'release/plugins'
+      || github.event.workflow_run.path == '.github/workflows/pr-verify.yml' && github.event.workflow_run.actor.id == 337859524))
     environment:
       name: plugin-release
       deployment: false
@@ -137,6 +144,14 @@ jobs:
             exit 0
           elif [ "$ci" != success ]; then
             echo "::warning::ci-status on release pull request #$PR_NUMBER is $ci; re-run or fix it, then a later run queues it."
+            exit 0
+          fi
+          verify="$(.github/scripts/release-publish-plugins/ci-status.sh --verify "$HEAD_SHA")"
+          if [ "$verify" = failure ] || [ "$verify" = error ]; then
+            echo "::warning::pr-verify on release pull request #$PR_NUMBER is $verify at $HEAD_SHA; fix or lift it, then a later run queues it."
+            exit 0
+          elif [ "$verify" != success ]; then
+            echo "::notice::pr-verify on release pull request #$PR_NUMBER is ${verify:-not posted} at $HEAD_SHA; a later run queues it."
             exit 0
           fi
           # An entry ahead that changes a file the release changes fails the
@@ -357,7 +372,7 @@ jobs:
             if [ -n "$SKIPPED" ]; then
               printf '**Not released:** %s. A fragment for each failed validation; it stays on `main` until fixed, and the next release picks it up.\n\n' "$(code_list "$SKIPPED")"
             fi
-            echo "The \`release-publish-plugins\` workflow queues this pull request itself once \`ci-status\` is green (when its checks finish, every 3 hours, on a fragment push, or by hand with action \`merge\`). Never use the merge button: the workflow checks it against main's live tip first."
+            echo "The \`release-publish-plugins\` workflow queues this pull request itself once \`ci-status\` and \`pr-verify\` are green (when its checks or pr-verify finish, every 3 hours, on a fragment push, or by hand with action \`merge\`). Never use the merge button: the workflow checks it against main's live tip first."
           } >"$body"
           title="chore(release): release $RELEASED plugins"
           number="$(gh pr list --repo "$GITHUB_REPOSITORY" --head release/plugins --base main --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')"

@@ -45,6 +45,11 @@ case "$1 $2" in
 api\ repos/*)
   # Only the release head has checks, so a read of any other commit fails.
   if [[ $2 != */commits/$HEAD_SHA/* ]]; then exit 8; fi
+  if [[ $2 == */statuses\?* ]]; then
+    if [[ ${FAKE_STATUSES:-} == fail ]]; then exit 1; fi
+    jq -r "$jq_expr" <<<"${FAKE_STATUSES:-[]}"
+    exit 0
+  fi
   if [[ ${FAKE_RUNS:-} == fail ]]; then exit 1; fi
   if [[ ${FAKE_UNFINISHED:-} == fail && $2 != *check_name=* ]]; then exit 1; fi
   runs=${FAKE_RUNS:-"[{\"started_at\":\"2026-10-18T01:00:00Z\",\"status\":\"completed\",\"conclusion\":\"$FAKE_CI\",\"app\":{\"id\":15368}}]"}
@@ -263,6 +268,20 @@ CI_LOG="$TMP/ci-status.log"
 : >"$CI_LOG"
 env PATH="$TMP/bin:$PATH" GH_LOG="$CI_LOG" HEAD_SHA="$HEAD_SHA" GITHUB_REPOSITORY=o/r FAKE_RUNS="[$(named 'CI Status' "$t1" success)]" bash "$SCRIPT_DIR/ci-status.sh" "$HEAD_SHA" >/dev/null
 check 'ci-status: a SHA with a CI Status run reads it alone' '1 0' "$(grep -c 'check_name=CI%20Status&app_id=15368' "$CI_LOG") $(grep -c 'check_name=ci-status' "$CI_LOG")"
+
+pr_verify() { env PATH="$TMP/bin:$PATH" GH_LOG=/dev/null HEAD_SHA="$HEAD_SHA" GITHUB_REPOSITORY=o/r FAKE_STATUSES="$1" bash "$SCRIPT_DIR/ci-status.sh" --verify "$HEAD_SHA"; }
+status() { printf '{"context":"%s","state":"%s","creator":{"id":%s}}' "$1" "$2" "${3:-41898282}"; }
+echo '# ci-status.sh --verify'
+check 'verify: no status is empty' '' "$(pr_verify '[]')"
+check 'verify: only another context is empty' '' "$(pr_verify "[$(status ci-status success)]")"
+check 'verify: pending' pending "$(pr_verify "[$(status pr-verify pending)]")"
+check 'verify: success' success "$(pr_verify "[$(status pr-verify success)]")"
+check 'verify: failure' failure "$(pr_verify "[$(status pr-verify failure)]")"
+check 'verify: the newest status decides' failure "$(pr_verify "[$(status pr-verify failure),$(status pr-verify success)]")"
+check 'verify: another creator is ignored' failure "$(pr_verify "[$(status pr-verify success 12345),$(status pr-verify failure)]")"
+check 'verify: only another creator is empty' '' "$(pr_verify "[$(status pr-verify success 583231)]")"
+RC=$(pr_verify fail >/dev/null 2>&1; echo $?)
+check 'verify: a failed read exits non-zero' 1 "$RC"
 
 echo '# gate error'
 new_fixture no

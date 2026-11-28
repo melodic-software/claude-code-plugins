@@ -57,13 +57,13 @@ request.
 
 | Task | Shape | Component | Model | Trigger | Inputs | Outputs |
 |---|---|---|---|---|---|---|
-| Required CI (`pr-require-checks.yml`) | own run | runner | no | `pull_request` events; `merge_group`; schedule; `workflow_dispatch` from `pr-merge.yml` | PR diff, labels, title and linkage; repository files | check runs, including the required `CI Status`; `ci-lanes` status; linkage comment and label |
+| Required CI (`pr-require-checks.yml`) | own run | runner | no | `pull_request` events; `merge_group`; schedule; `workflow_dispatch` from `pr-merge.yml` | PR diff, labels, title and linkage; repository files | check runs, including the required `CI Status`; `ci-lanes` status; `pr-verify` status for an author pr-verify does not judge and on each merge-group commit; linkage comment and label |
 | Windows and macOS tests (`pr-test-platforms.yml`) | own run | runner | no | `pull_request` events; schedule; `workflow_dispatch` | PR diff; Windows test plan | informational job checks |
 | Managed-file check (`pr-check-managed-files-hosted.yml`) | own run | runner | no | `pull_request` opened, synchronize, reopened | PR file list; standards sync manifest | advisory check `PR Check Managed Files` |
 | Code review (`pr-review-hosted.yml`) | own run | runner | yes | `pull_request` opened, synchronize, ready, reopened | PR diff; closing issues | review and inline comments; reviewed-head marker; `pr-review / claude-review-status` check |
 | Security review (`pr-review-security-hosted.yml`) | own run | runner | yes | `pull_request` opened, synchronize, ready, reopened | PR diff | security review comments and check |
 | Review from main for lane-source changes (`pr-review-main.yml`) | own run after `pr-require-checks.yml` | runner | yes | PR Require Checks completes off main | diff; trusted PR text and criteria | review verdict artifact the merge gate reads; a count check run |
-| Verify a head against its issue (`pr-verify.yml`) | own run after `pr-require-checks.yml` | runner | yes | PR Require Checks completes off main | diff; trusted PR text; linked issues | `pass`, `pass-notes` or `fail` verdict artifact; a `pr-merge.yml` dispatch on a pass |
+| Verify a head against its issue (`pr-verify.yml`) | own run after `pr-require-checks.yml` | runner | yes | PR Require Checks completes off main | diff; trusted PR text; linked issues | `pass`, `pass-notes` or `fail` verdict artifact; `pr-verify` status on the head; a `pr-merge.yml` dispatch on a pass |
 | Rate merge risk (`pr-rate-merge-risk.yml`) | own run after `pr-require-checks.yml` | observability | yes | PR Require Checks completes on a lane branch | PR data files | rating artifact |
 | Plugin evals (`pr-run-plugin-evals.yml`) | own run, or after `pr-run-plugin-evals-label.yml` | runner | yes | `workflow_dispatch`; the `eval: run` label relay completes | plugin eval suites; PR head diff | job summary and results artifact; in compare mode an eval-pair record on the PR |
 | Relay the `eval: run` label (`pr-run-plugin-evals-label.yml`) | own run | orchestrator | no | `pull_request` labeled | label event | a completion that starts `pr-run-plugin-evals.yml` |
@@ -76,7 +76,7 @@ request.
 | Task | Shape | Component | Model | Trigger | Inputs | Outputs |
 |---|---|---|---|---|---|---|
 | Dispatch unblock and refine activities (`pr-unblock-dispatch.yml`) | own run | orchestrator | no | push to main; schedule; `pull_request_target` events; `workflow_dispatch` | open PRs; check runs; dispatch record | `pr-unblock.yml` and `pr-refine.yml` dispatches |
-| Dispatch feedback after reviews (`pr-dispatch-feedback.yml`) | own run after seven workflows | orchestrator | no | PR Review Hosted, PR Review Security Hosted, PR Verify, PR Unblock Dispatch, PR Merge, PR Review Approved or PR Review Comment Relay completes | upstream run facts; PR threads and verdict artifacts | `pr-unblock.yml` address-feedback dispatches; `ci-status` re-runs |
+| Dispatch feedback after reviews (`pr-dispatch-feedback.yml`) | own run after seven workflows | orchestrator | no | PR Review Hosted, PR Review Security Hosted, PR Verify, PR Unblock Dispatch, PR Merge, PR Review Approved or PR Review Comment Relay completes | upstream run facts; PR threads and verdict artifacts | `pr-unblock.yml` address-feedback dispatches; `ci-status` re-runs; `pr-verify` success when a trusted approval of the head finds it anything but success |
 | Post verify notes | step in `pr-dispatch-feedback.yml` | git host | no | PR Verify completes | verify verdict artifact | verify-note review comments; `pr-verify-failed` label on a person's PR |
 | Relay an approving review (`pr-review-approved.yml`) | own run | orchestrator | no | `pull_request_review` submitted | review event | a completion that starts `pr-dispatch-feedback.yml` |
 | Relay a review comment (`pr-review-comment-relay.yml`) | own run | orchestrator | no | `pull_request_review_comment` created | comment event | a completion that starts `pr-dispatch-feedback.yml` |
@@ -115,7 +115,7 @@ request.
 
 | Task | Shape | Component | Model | Trigger | Inputs | Outputs |
 |---|---|---|---|---|---|---|
-| Build and queue the plugin release (`release-publish-plugins.yml`) | own run | git host | no | schedule; push to main that changes `.changes/`; `workflow_dispatch`; PR Require Checks completes on `release/plugins` | changelog fragments on main; release PR state | signed commit on `release/plugins`; release PR opened or updated; merge-queue enqueue |
+| Build and queue the plugin release (`release-publish-plugins.yml`) | own run | git host | no | schedule; push to main that changes `.changes/`; `workflow_dispatch`; PR Require Checks completes on `release/plugins`; PR Verify completes on a run the release App started | changelog fragments on main; release PR state; head `pr-verify` status | signed commit on `release/plugins`; release PR opened or updated; merge-queue enqueue |
 | Changelog fragments for Dependabot merges (`release-generate-dependabot-changelog-fragments.yml`) | own run | git host | no | push to main that changes dependency manifests; schedule; `workflow_dispatch` | main history of Dependabot merges | commit on `release/dependabot-fragments`; PR with auto-merge armed |
 | Apply a Claude Code release (`upstream-apply-changelog.yml`) | own run | git host | yes | schedule, hourly; `workflow_dispatch` | Claude Code release list | branches; PRs; handoff issues |
 

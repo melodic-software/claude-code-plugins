@@ -451,7 +451,7 @@ async function judged({ github, repository, number, head, base, prs, issues, aft
         continue;
       }
       if (verdict !== "fail") {
-        passes.push(run.run_started_at);
+        passes.push({ at: run.run_started_at, verdict });
       } else if (await draftJudged(run)) {
         continue;
       } else if (name === own || name === own + suffix) {
@@ -467,6 +467,9 @@ async function judged({ github, repository, number, head, base, prs, issues, aft
   }
   return { fail: false, passes };
 }
+
+const started = ({ at }) => Date.parse(at ?? "");
+const newestPass = (passes) => passes.filter((pass) => !Number.isNaN(started(pass))).reduce((kept, pass) => (started(pass) > started(kept) ? pass : kept)).verdict;
 
 export function specChanged(passStarts, { linkedIssues: issues, specKind, bodyEditedAt, listChangedAt }) {
   const times = [
@@ -1032,9 +1035,10 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
   }
   const prs = new Set(associated.map((item) => item?.number).filter((n) => Number.isSafeInteger(n) && n > 0));
   const draftJudged = draftJudgments(github, repository, head);
+  const judgedSkip = (verdict) => ({ ...skip("already-judged"), prNumber: pull.number, verdict });
   let { fail, passes, ownFail, ownLast } = await judged({ github, repository, number: pull.number, head, base, prs, draftJudged });
   if (fail) {
-    return skip("already-judged");
+    return judgedSkip("fail");
   }
   const bodyMayBeSpec = humans.has(pull.user?.id) || specFromBodyApps.includes(pull.user?.id);
   let specPull;
@@ -1053,12 +1057,12 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     const suffix = specRead && issuesSuffix(specRead.linkedIssues.map((issue) => issue.number));
     const relinked = Boolean(suffix) && isVerdictName(`pr-verify-${pull.number}-${head}-fail${suffix}`) && (await relinkedByPeople(github, repository, pull.number, humans, ownFail, readActs));
     if (!relinked && !(await editedByPeople(github, repository, pull.number, humans, ownLast, readActs))) {
-      return skip("already-judged");
+      return judgedSkip("fail");
     }
     reopened = relinked ? "relinked" : "body-edited";
     ({ fail, passes } = await judged({ github, repository, number: pull.number, head, base, prs, afterOwn: true, draftJudged }));
     if (fail) {
-      return skip("already-judged");
+      return judgedSkip("fail");
     }
   }
   specRead ??= await readSpecIssues();
@@ -1078,19 +1082,19 @@ export async function resolvePull({ github, readRefs = github, readLog, reposito
     spec.specKind = "pull-request";
     spec.specText = [{ number: pull.number, source: "pull-request", spec_kind: "pull-request", body, comments: [] }];
   }
-  if (passes.length > 0 && !specChanged(passes, { ...spec, bodyEditedAt, listChangedAt: await trustedListChangedAt?.() })) {
-    return skip("already-judged");
+  if (passes.length > 0 && !specChanged(passes.map(({ at }) => at), { ...spec, bodyEditedAt, listChangedAt: await trustedListChangedAt?.() })) {
+    return judgedSkip(newestPass(passes));
   }
   const issues = spec.linkedIssues.map((issue) => issue.number);
   const named = await judged({ github, repository, number: pull.number, head, base, prs, issues, draftJudged });
   if (named.fail) {
-    return skip("already-judged");
+    return judgedSkip("fail");
   }
   if (named.ownFail !== undefined) {
     const times = [ownLast, named.ownLast].filter((time) => time !== undefined).map((time) => Date.parse(time));
     const last = times.some(Number.isNaN) ? "" : new Date(Math.max(...times)).toISOString();
     if (!(await editedByPeople(github, repository, pull.number, humans, last, readActs))) {
-      return skip("already-judged");
+      return judgedSkip("fail");
     }
     reopened = "body-edited";
   }
@@ -1313,6 +1317,7 @@ export async function main(env = process.env, { github, fetchImpl, latch } = {})
     `base-sha=${result.baseSha ?? ""}`,
     `head-ref=${result.headRef ?? ""}`,
     `relink-since-head=${result.relinkSinceHead ?? ""}`,
+    `judged-verdict=${result.verdict ?? ""}`,
   ];
   appendFileSync(env.GITHUB_OUTPUT, `${lines.join("\n")}\n`);
   const summary = {

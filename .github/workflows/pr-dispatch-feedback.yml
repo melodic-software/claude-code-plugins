@@ -669,3 +669,104 @@ jobs:
         uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
         with:
           tokens: github-token
+
+  lift-verify-fail:
+    name: Lift Verify Fail
+    if: >-
+      github.ref == 'refs/heads/main'
+      && github.event.workflow_run.path == '.github/workflows/pr-review-approved.yml'
+      && github.event.workflow_run.event == 'pull_request_review'
+      && github.event.workflow_run.conclusion != 'skipped'
+      && github.event.workflow_run.repository.full_name == github.repository
+      && github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      statuses: write
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
+        with:
+          branch: main
+      - name: Check out the lift rule
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/log-api-budget/
+            /.github/scripts/pr-merge/merge-holds.mjs
+            /.node-version
+          sparse-checkout-cone-mode: false
+
+      - name: Download standards
+        id: standards
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
+      - name: Set up Node
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Post pr-verify success on a trusted approval of the head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          TRUSTED_ACTORS: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
+        run: |
+          set -euo pipefail
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          if [[ ! ${HEAD_SHA:-} =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::lift-verify-fail: the approved head '${HEAD_SHA:-}' is not a commit SHA"
+            exit 1
+          fi
+          if ! number=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/pulls?per_page=100" \
+            --jq '.[] | select(.state == "open" and .head.sha == env.HEAD_SHA and .head.repo.full_name == env.GITHUB_REPOSITORY and .base.ref == "main") | .number'); then
+            echo "::error::lift-verify-fail: the pull requests of $HEAD_SHA did not read"
+            exit 1
+          fi
+          if [[ ! $number =~ ^[1-9][0-9]{0,15}$ ]]; then
+            echo "::notice title=pr-verify lift::no single open pull request into main has head $HEAD_SHA; nothing to lift"
+            exit 0
+          fi
+          state=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/status?per_page=100" --jq 'first(.statuses[] | select(.context == "pr-verify") | .state) // ""')
+          if [ "$state" = success ]; then
+            echo "::notice title=pr-verify lift::pr-verify is already success on $HEAD_SHA; nothing to lift"
+            exit 0
+          fi
+          gh api "repos/$GITHUB_REPOSITORY/pulls/$number/reviews?per_page=100" --paginate --jq '.[] | @json' >"$RUNNER_TEMP/reviews.jsonl"
+          lifters=$(node .base/.github/scripts/pr-merge/merge-holds.mjs lifters "$RUNNER_TEMP/reviews.jsonl" "$TRUSTED_ACTORS" "$HEAD_SHA")
+          if [ -z "$lifters" ]; then
+            echo "::notice title=pr-verify lift::no trusted person's latest review approves $HEAD_SHA; its pr-verify ${state:-absence} stands"
+            exit 0
+          fi
+          if [ "$state" = failure ]; then
+            description="pr-verify FAIL lifted: $lifters approved this head"
+          else
+            description="pr-verify not passed at this head; lifted: $lifters approved this head"
+          fi
+          for attempt in 1 2 3; do
+            if gh api -X POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+              -f state=success -f context=pr-verify -f description="${description:0:140}" \
+              -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null; then
+              echo "::notice title=pr-verify lift::$description ($HEAD_SHA)"
+              exit 0
+            fi
+            [ "$attempt" -eq 3 ] || sleep $((attempt * 5))
+          done
+          echo "::error::lift-verify-fail: could not post pr-verify success on $HEAD_SHA"
+          exit 1
+
+      - name: Log the API budget at the end
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token

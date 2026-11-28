@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 set -euo pipefail
-: "${GITHUB_REPOSITORY:?}" "${1:?usage: ci-status.sh [--unfinished] <sha>}"
+: "${GITHUB_REPOSITORY:?}" "${1:?usage: ci-status.sh [--unfinished|--verify] <sha>}"
 
 ACTIONS_APP_ID=15368
+ACTIONS_BOT_ID=41898282
 
 if [[ $1 == --unfinished ]]; then
   exec gh api "repos/$GITHUB_REPOSITORY/commits/${2:?}/check-runs?app_id=$ACTIONS_APP_ID&filter=all&per_page=100" --paginate \
     --jq '.check_runs[] | select(.status != "completed") | .name'
+fi
+
+if [[ $1 == --verify ]]; then
+  exec gh api "repos/$GITHUB_REPOSITORY/commits/${2:?}/statuses?per_page=100" \
+    --jq "first(.[] | select(.context == \"pr-verify\" and .creator.id == $ACTIONS_BOT_ID) | .state) // \"\""
 fi
 
 gate_runs() { gh api "repos/$GITHUB_REPOSITORY/commits/$1/check-runs?check_name=$2&app_id=$ACTIONS_APP_ID&filter=latest&per_page=100" --jq .check_runs; }
