@@ -156,6 +156,7 @@ plugins/testing/skills/audit/SKILL.md	melodic-software/claude-code-plugins	1	raw
 plugins/testing/skills/run-e2e/context/e2e-config.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/testing/skills/run-e2e/context/own-driving.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/toolchain/reference/resolution-ladder.md	melodic-software/claude-code-plugins	2	raw link to this marketplace's own published doc
+plugins/toolchain/schemas/toolchain.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/verification/schemas/verification.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/visualization/schemas/visualization.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/wizard/schemas/wizard.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
