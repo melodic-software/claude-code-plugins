@@ -1,6 +1,6 @@
 # Home plugin customization in `docs/conventions/<concern>.yaml`, validated by a JSON Schema
 
-- Status: accepted; Decisions 2 and 3 (the fixed root) and Decision 8 (its layer list) are superseded by [ADR 0075](0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md); Decisions 4 and 6 stand, Decision 6 amended 2026-10-27 for `docs/contracts/`
+- Status: accepted; Decisions 2 and 3 (the fixed root) and Decision 8 (its layer list) are superseded by [ADR 0075](0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md); Decisions 4 and 6 stand, Decision 6 amended 2026-10-27 for `docs/contracts/`; Decision 1 amended 2026-11-28 for a plugin feature's own file
 - Date: 2026-10-04
 - Supersedes, for structured configuration: [ADR 0044](0044-default-structured-team-config-to-a-docs-convention-file-with-a-claude-fallback.md)
   Decisions 1 and 2 (the fenced config block in `docs/conventions/<concern>.md` as the default team
@@ -32,9 +32,13 @@ from a pipeline-shaped file.
 
 1. **File.** A plugin or skill customization's team layer is `docs/conventions/<concern>.yaml`, one
    file per concern, validated by a JSON Schema. `<concern>` is the owning plugin's name, or the
-   convention's name for a cross-plugin concern (`pr-pipeline`, `execution-target`). New config
+   convention's name for a cross-plugin concern (`pr-pipeline`, `execution-target`), or a named
+   feature of the owning plugin whose keys have their own reader (`review-digest`,
+   `reviewer-media`, `comment-policy`), its schema in that plugin (Decision 6). New config
    takes no fenced config block and no folder form; per-instance settings are YAML maps inside the
-   one file.
+   one file. Amended 2026-11-28
+   ([#19720](https://github.com/melodic-software/claude-code-plugins/issues/19720)): the named
+   feature clause.
 2. **Root.** Plugin readers use the fixed root `docs/conventions` (ADR 0044 Decision 1). The
    pipeline's relocatable `<root>` (`docs/conventions/pr-pipeline/README.md:37-38`) belongs to the
    pipeline, and how it resolves is not settled (`README.md:230`). Until it is, a plugin that reads
