@@ -1,5 +1,5 @@
 ---
-description: "Check-only setup: verifies node, the Claude Code CLI and the optional Agent SDK for context-budget, and prints each remediation without installing or writing anything."
+description: "Check-only setup: verifies Node, Claude Code CLI, and optional Agent SDK for context-budget, printing remediations without installing or writing."
 argument-hint: "[check]"
 user-invocable: true
 disable-model-invocation: true

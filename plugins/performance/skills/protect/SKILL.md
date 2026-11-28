@@ -1,5 +1,5 @@
 ---
-description: "Checked-in CI ceiling on the counter of a performance win /performance:verify reported MET: a regression fails the build and a lower count proposes a lower ceiling by PR. Proposes files; a human approves and merges. Use when: 'protect this win', 'ratchet this counter', 'stop this regressing', 'add a performance guardrail to CI'. Not for a duration-only or NOT MET result."
+description: "Checked-in CI performance guardrail ceiling on a verified MET performance counter win: regressions fail CI and lower counts propose a lower ceiling by PR (proposes files only; human approves and merges). Use when: 'protect this win', 'ratchet this counter', 'stop this regressing'. Not for duration-only or NOT MET results."
 user-invocable: true
 argument-hint: "[<counter or claim>]"
 disable-model-invocation: false

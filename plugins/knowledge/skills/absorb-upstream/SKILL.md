@@ -1,5 +1,5 @@
 ---
-description: "An outside source (a GitHub repository or one web page or post) absorbed into a tracked docs/upstream record: per idea, what it does, the problem behind it upstream and here, and a take, adapt, already-have or reject disposition. Use when the user asks to absorb an upstream repository or post, decide what to borrow from it, or write a docs/upstream record for it. A docs page digested into the knowledge base goes to /knowledge:docpage-digest."
+description: "Absorb an outside source (GitHub repository, web page, or post) into a tracked docs/upstream record: per idea, what it does, problem upstream/here, and take/adapt/already-have/reject disposition. Use when: 'absorb upstream repo', 'what to borrow from this post', 'write a docs/upstream record'. Not for docs pages: /knowledge:docpage-digest."
 argument-hint: "<source> [--scope <dir>] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false

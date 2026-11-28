@@ -36,8 +36,8 @@ far longer than it should, a bug or failure seen and not raised, or work against
 repository's loaded docs state) with `observer_improvement_check` on, all three off by default. Each
 finding is tied to a rule or owner decision the session's own instructions or conversation state,
 and a check defaults to `finding: none`. The reply is labeled lines, parsed leniently; a reply with
-no rule, an unknown category or a field over `observer_field_max` (240) characters counts as
-`parse_failed`. An optional last line routes the fix: `fix: session` (a dedicated session, with a
+no rule, an unknown category or a finding over `observer_field_max` (240) characters counts as
+`parse_failed`; the prompt states that cap for rule and evidence, and a longer one is cut to it. An optional last line routes the fix: `fix: session` (a dedicated session, with a
 ready command as harness findings carry, never auto-sent) or `fix: issue` (file it under the
 repository's filing rules); a missing or unknown line means here, and never fails the parse.
 
@@ -152,7 +152,7 @@ disputed, dismissed, ignored, resolved, and the answers after Dismiss) appends o
 append), `auto_send_failed` rows with the error, and one row per observer turn with its token usage;
 gate rows carry trigger `gate`, outcome `refused`, `deferred` (a finding of an `observer_defer_kinds` category, which never refuses), `none`, `timeout`, `error` or
 `allowed_after_refusals`, and `repeat`. A `parse_failed` row, check or gate, adds `reason`
-(`no_finding`, `no_rule`, `bad_category` or `field_too_long:<field>`) and, when the reply had a
+(`no_finding`, `no_rule`, `bad_category` or `field_too_long:finding`) and, when the reply had a
 finding, the `lengths` of its finding, rule and evidence; never the reply text. A `shown` check row
 and a `refused` gate row carry the finding's `category`; a `shown` check row also carries its
 redacted `rule`, which the codify check counts. That file is
@@ -346,7 +346,7 @@ Declared in the plugin manifest; the module and the SessionStart hook read the s
 | `observer_ignored_free` | `2` | Ignored findings before the backoff starts skipping checks. |
 | `observer_skip_max` | `16` | Most checks the backoff skips in a row. |
 | `observer_send_note` | the person-voice note | Text that leads a finding the Send button puts in the prompt. |
-| `observer_field_max` | `240` | Most characters in a reply's finding, rule or evidence before it counts as `parse_failed`. |
+| `observer_field_max` | `240` | Most characters in a reply's rule or evidence, stated in the prompt and cut to; a longer finding counts as `parse_failed`. |
 | `observer_feedback_seconds` | `20` | How long the Useful/Not useful row stays after Dismiss. |
 | `observer_list_max` | `50` | Most findings each remembered list (reported, disputed, not relevant) keeps. |
 | `observer_keep_days` | `30` | Observer files older than this are pruned at session start. |

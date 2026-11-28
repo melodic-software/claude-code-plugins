@@ -1,0 +1,32 @@
+{
+  "skill": "playbooks:skill-authoring",
+  "plugin": "playbooks",
+  "skill_dir": "plugins/playbooks/skills/skill-authoring",
+  "ranking_note": "Backfilled probe set for playbooks:skill-authoring (Anthropic's internal skill-authoring playbook and Melodic Software skill criteria). playbooks:update sets disable-model-invocation: true and does not compete.",
+  "competitors": [
+    "playbooks:boris",
+    "playbooks:fable-5"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "help me design a new SKILL.md using Thariq's authoring guide from Anthropic"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "which of the 9 skill categories fits a database runbook skill"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "how should I split a SKILL.md hub and reference files for progressive disclosure"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "what are the best practices for writing a skill's description and gotchas"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "how do skills store persistent state in CLAUDE_PLUGIN_DATA and handle first-run setup"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "guide me on composing skills, helper scripts, and on-demand hooks"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "I want to create a skill — what structure and gotchas pattern should I follow"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "how should I make my SKILL.md adapt to CLAUDE_EFFORT levels"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "show me the skill authoring criteria for distributing skills in a marketplace"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "review my draft SKILL.md layout against Anthropic's authoring tips"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "how does Boris Cherny configure parallel Claude Code sessions"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "arm this session with Fable 5.2 operating doctrine"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "run the next hygiene step in our repo sweep PR"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "check if the vendored playbooks packs drifted from upstream"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "load the Opus 5.5 model adaptation chapter"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "run the unit test suite for this TypeScript package"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "share Boris's Claude Code tips on worktrees and daily routines"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "load Fable's verification and calibration chapters"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "plan a hygiene playbook sweep for this repository"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "explain how mutation testing operators work"}
+  ]
+}

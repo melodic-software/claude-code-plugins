@@ -1,5 +1,5 @@
 ---
-description: "Builds a throwaway interactive terminal app to pressure-test business logic, a state machine, a data model, or an API surface before committing to it. Use when nobody can say yet what the rules do with an awkward sequence of events or an odd record: 'what happens if a refund arrives after the order ships', 'is this transition allowed from that status', 'will this schema fit our odd records', 'which arguments should this call take', 'prototype this reducer', 'does this third-party API do X for us' (vendor-fit mode: an adapter checks it against a sandbox). A pure logic module, liftable into production, sits behind a disposable shell: the terminal app, or a self-contained click-through HTML demo for someone outside engineering. Records the validated answer in a durable note. Visual or design questions: /prototype:explore-directions."
+description: "Throwaway interactive terminal app or HTML demo over liftable production logic to pressure-test business rules, state machine, data model, odd record, events, or API (observe, vendor-fit sandbox) and record a note. Use when: 'prototype this reducer', 'is this transition allowed', 'terminal or HTML demo'. Not for UI: /prototype:explore-directions."
 argument-hint: "[observe|vendor-fit] [--medium <value>] [scope]"
 user-invocable: true
 disable-model-invocation: false

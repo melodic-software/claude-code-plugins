@@ -42,32 +42,12 @@ only in skill content, so each skill that reads this surface carries the option 
 `SKILL.md`. Values are set through Claude Code's plugin configuration
 (`/plugin configure improvement@<marketplace>`); no skill writes `pluginConfigs` or user settings.
 
-## Old locations (dual-read window)
+## Retired locations
 
-Before this surface adopted the four layers it read three other files. While one of them exists,
-it is still read, and a run that finds one prints **one** warning line naming each old file found,
-the location to move it to, and `/improvement:setup apply`, which moves it:
-
-| Old path | Read as | Moves to |
-|---|---|---|
-| `~/.claude/improvement.md`: one Read of that literal path, `~` kept; never Glob for it, spell out a home directory, or search the home tree | the `userConfig` layer, for each key whose option is unset | the `userConfig` options ([userConfig options](#userconfig-options)) |
-| `<root>/.claude/improvement.md` | the team layer, when `<home>/improvement.yaml` is absent | `<home>/improvement.yaml` |
-| `<root>/.claude/improvement.local.md` | the personal layer, when `<home>/improvement.local.yaml` is absent | `<home>/improvement.local.yaml` |
-
-An old file uses the old format: Markdown holding one fenced `yaml` block with the keys below. When
-the new location also supplies that layer, the new one wins, and the warning lists each key the old
-file sets that therefore does not apply, so no old setting is dropped silently: for the team and
-personal files it names both files; for `~/.claude/improvement.md` it names the options already
-set. The old team and personal files take the root rule and the tracked and ignored verdicts of the
-layer they stand in for, so at a root that is `$HOME` they are not read as team or personal layers.
-
-The repository-scope window is declared by the plugin's retirement records,
-[`retirements.yaml`](../retirements.yaml): `improvement-r001` (`.claude/improvement.md`) and
-`improvement-r002` (`.claude/improvement.local.md`), both `migrate`, evaluated by
-`lib/check-retirements.sh` from `/improvement:setup`, always with `--root <root>` so the helper
-checks the same root as every other read (left out, it checks `${CLAUDE_PROJECT_DIR}` first). `~/.claude/improvement.md` is machine scope,
-outside that mechanism, so setup detects it with its own Read. Removing these reads is a separate
-later change (demoting the records to `report-only`), made once no run reports an old file.
+Old `~/.claude/improvement.md`, `.claude/improvement.md`, and `.claude/improvement.local.md` files
+are not read. The repository-scope retirement records in [`retirements.yaml`](../retirements.yaml)
+(`improvement-r001` and `improvement-r002`) are demoted to `report-only`: `/improvement:setup check`
+runs `lib/check-retirements.sh` with `--root <root>` and reports any leftover as INFO history only.
 
 ## Merge semantics
 
@@ -157,6 +137,5 @@ This recursive line ignores the personal file, written out for the default home:
 docs/conventions/**/*.local.*
 ```
 
-Write the bound `<home>` in place of `docs/conventions`. While an old
-`.claude/improvement.local.md` exists, `.claude/**/*.local.*` keeps it ignored.
-`/improvement:setup` recommends these lines; no plugin writes the consumer's `.gitignore`.
+Write the bound `<home>` in place of `docs/conventions`. `/improvement:setup` recommends this line;
+no plugin writes the consumer's `.gitignore`.
