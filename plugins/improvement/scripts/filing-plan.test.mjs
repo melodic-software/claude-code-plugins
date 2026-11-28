@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
+import { mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import process from "node:process";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -67,4 +70,26 @@ test("the command reads one request on stdin and prints the cap and the plan", (
   const user = JSON.parse(execFileSync(process.execPath, [SCRIPT], { input: JSON.stringify({ label, labelExists: true, team: 5, user: 1, open: 0, candidates: ["a", "b", "c"], runCap: 3 }), encoding: "utf8" }));
   assert.deepEqual([user.cap, user.file], [1, [0]], "Codex's case: userConfig 1, team 5, run cap 3 files one item");
   assert.throws(() => execFileSync(process.execPath, [SCRIPT], { input: "not json", stdio: "pipe" }), (error) => error.status === 2);
+});
+
+test("the command still prints its plan when run through a symlinked plugin path", () => {
+  const dir = mkdtempSync(join(tmpdir(), "improvement-filing-plan-"));
+  try {
+    const link = join(dir, "scripts");
+    symlinkSync(dirname(SCRIPT), link);
+    const out = JSON.parse(execFileSync(process.execPath, [join(link, "filing-plan.mjs")], { input: JSON.stringify({ label, labelExists: true, open: 0, candidates: ["a"] }), encoding: "utf8" }));
+    assert.deepEqual(out.file, [0]);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("a cap layer that is not a non-negative integer makes the command exit 2, so nothing is filed", () => {
+  for (const layer of ["team", "user", "personal"]) {
+    assert.throws(
+      () => execFileSync(process.execPath, [SCRIPT], { input: JSON.stringify({ label, labelExists: true, open: 0, candidates: ["a"], [layer]: "2" }), stdio: "pipe" }),
+      (error) => error.status === 2,
+      layer,
+    );
+  }
 });

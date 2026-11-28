@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readFileSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
@@ -59,9 +59,20 @@ export function planFiling({ label, labelExists, cap, open, existingTitles = [],
   return { file, skipped, room, stop: room === 0 ? "open-cap" : null };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+const isMain = () => {
+  try {
+    return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+  } catch {
+    return false;
+  }
+};
+
+if (isMain()) {
   try {
     const request = JSON.parse(readFileSync(0, "utf8"));
+    for (const layer of ["team", "user", "personal"]) {
+      if (request[layer] !== undefined && !isCap(request[layer])) throw new Error(`${layer} must be a non-negative integer when given`);
+    }
     const { cap, source, warnings } = openCap({ team: request.team, user: request.user, personal: request.personal });
     process.stdout.write(`${JSON.stringify({ cap, source, warnings, ...planFiling({ ...request, cap }) })}\n`);
   } catch (error) {

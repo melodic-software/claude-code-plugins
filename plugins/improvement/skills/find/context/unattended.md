@@ -216,7 +216,8 @@ Steps 2 and 3 run once per source label the ranked candidates need ("Source labe
    positions its `file` list names, in that order, and report each `skipped` entry's `why`. Put
    every `warnings` entry and the plan's `cap` and `source` in the run report. A command that
    exits non-zero files nothing under that label, with a `gap:` line. When `node` is not on PATH,
-   that `gap:` line says `node` is missing.
+   that `gap:` line says `node` is missing. A command that prints no JSON plan files nothing
+   under that label either, with a `gap:` line.
 6. **Each filed item carries its evidence and exactly one source label.** File with
    `/work-items:track add --label "<source label>" ...`. The citation, rung, size,
    and value-to-effort rationale travel into the item body, so triage ranks over evidence, not
