@@ -75,9 +75,7 @@ no automated review, by design.
 On a ready pull request `ci-status` also requires both AI review lanes
 (`pr-review-hosted.yml` and `pr-review-security-hosted.yml`) to have reviewed
 the head, in its `Require both review lanes on this head` step, with one
-exception: the formatter-only proof (owner decision, row L438 of
-docs/owner-decisions.md in the org's architecture repository,
-[the row](https://github.com/melodic-software/architecture/blob/733e2a74cbc650f9a5d21c0d8aefdfc5f0275ed0/docs/owner-decisions.md?plain=1#L438)).
+exception: the formatter-only proof (owner decision).
 The `prove-formatting` job checks out the pull request's test merge commit,
 moves to its base, and runs
 `.github/scripts/pr-require-checks/formatter-proof.sh` from there: the base's

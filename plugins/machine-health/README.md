@@ -107,6 +107,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `report_dir` | directory | *(none)* | Directory where per-run health reports (reports/health-<UTC-timestamp>.md) are written. Leave unset to use the default: Documents\MachineHealth under your user profile. Machine state (history, approvals, logs) is separate and always lives in the plugin data directory. |
+| `branding` | string | *(none)* | Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored. |
 
 ### How to set these
 

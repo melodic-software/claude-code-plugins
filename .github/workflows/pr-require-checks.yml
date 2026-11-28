@@ -4301,6 +4301,8 @@ jobs:
             /plugins/source-control/lib/yaml-subset.awk
             /.github/actions/resolve-config/admission-rules.json
             /docs/conventions/pr-pipeline.yaml
+            /docs/conventions/source-control.yaml
+            /.github/recurring-schedule.json
             /.github/scripts/pr-merge/head-ref-map.mjs
             /.github/scripts/pr-merge/carry-run-cache.mjs
             /.github/scripts/pr-merge/rotation.mjs

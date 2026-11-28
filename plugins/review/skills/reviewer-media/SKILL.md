@@ -1,5 +1,5 @@
 ---
-description: "Reviewer media for one pull request: decides whether it needs a narrated walkthrough, builds the storyboard from /review:explain-change's digest, has /explainer-video:produce render it and hands the manifest to /source-control:pull-request media. Use when asked for 'reviewer media', 'a walkthrough video for this PR', 'a produced video of this change', or when pull-request ready or monitor hands a PR over."
+description: "Decides if a PR needs a narrated walkthrough, storyboards from /review:explain-change, renders via /explainer-video:produce, and hands the manifest to /source-control:pull-request media. Use for 'reviewer media', 'a walkthrough video for this PR', or pull-request ready/monitor handoff."
 argument-hint: "<pr> [--handoff] [--policy <policy>] [--blast-radius <level>] [--out <dir>]"
 user-invocable: true
 disable-model-invocation: false

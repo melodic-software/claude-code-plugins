@@ -201,6 +201,7 @@ const gate = async ($: EngineInterface, command: string) => {
     guidance: opts.guidance,
     repoGuidance: st.repoGuidance,
     guidanceMax: opts.guidanceMax,
+    fieldMax: opts.fieldMax,
     override: opts.checkPrompt,
     heldCommand: command,
   })
@@ -238,7 +239,7 @@ const runCheck = async ($: EngineInterface, trigger: Trigger, turnId: string, st
   let rule: string | undefined
   try {
     const [seen, disputed, notRelevant] = [await list($, 'seen'), await list($, 'disputed'), await list($, 'notRelevant')]
-    const extra = { autoSend: opts.autoSend, kinds: optionalKinds(opts), guidance: opts.guidance, repoGuidance: st.repoGuidance, guidanceMax: opts.guidanceMax, override: opts.checkPrompt }
+    const extra = { autoSend: opts.autoSend, kinds: optionalKinds(opts), guidance: opts.guidance, repoGuidance: st.repoGuidance, guidanceMax: opts.guidanceMax, fieldMax: opts.fieldMax, override: opts.checkPrompt }
     const r = await $.model.fork({ prompt: buildPrompt(seen, disputed, req.open?.finding.finding, notRelevant, (await count($, 'unclear')) > 0, extra) })
     if (r.isAnswered) usage = r.usage
     const reply = r.isAnswered ? { isAnswered: true as const, text: r.text } : { isAnswered: false as const, reason: String(r.reason) }

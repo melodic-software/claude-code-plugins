@@ -2238,11 +2238,6 @@ test("verifyHold allows only the reader's null refusal at the head read", () => 
   assert.match(verifyHold({ refusal: null, head: HEAD, ineligible: null }, HEAD), /risk score could not be read/);
 });
 
-// The gate's cap on a head the merge queue keeps removing for failed checks
-// (babysit_merge.unattended_enqueue, merge.max-queue-ejections, default 2):
-// the count, the limit and the gate's own comment come from `evidence
-// --lane-queue`, and a push resets the count, so the lanes clear it. #8051 and
-// #7897 were each re-armed after an ejection and ejected again.
 const EJECTION_COMMENT = [
   "<!-- babysit-merge-queue-ejections -->",
   `Unattended merge: the merge queue removed head \`${HEAD}\` 2 times for failed checks, so the pr-merge lane will not enqueue it again. A push resets the count.`,

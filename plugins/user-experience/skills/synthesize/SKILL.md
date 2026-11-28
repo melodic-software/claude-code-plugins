@@ -1,5 +1,5 @@
 ---
-description: "Synthesis and analysis of user research data for the app being built: codes notes, survey answers and support tickets into themes, insights, user needs, personas or jobs to be done, evidence-labeled. Use when: 'summarize these interview notes', 'what themes are in these support tickets', 'turn this research into personas', 'write proto-personas', 'what jobs do our users hire this for'."
+description: "Synthesize user research data for the app being built: codes interview notes, survey answers, and support tickets into evidence-labeled themes, insights, user needs, personas, or jobs to be done. Use when: 'summarize these interview notes', 'turn this research into personas', or 'what jobs do our users hire this for'."
 argument-hint: "[research data paths or app context]"
 user-invocable: true
 disable-model-invocation: false

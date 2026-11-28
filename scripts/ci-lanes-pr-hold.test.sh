@@ -219,7 +219,8 @@ else
 fi
 sparse="$(awk '/sparse-checkout: \|/ { on = 1; next } on && /^            \// { print substr($0, 13); next } on { exit }' <<<"$base_step")"
 want_sparse=(/.node-version '/plugins/source-control/skills/babysit-prs/scripts/*.py' /.github/verify-legacy-fails.json /.github/source-control-settings.json /plugins/source-control/.claude-plugin/plugin.json /plugins/source-control/lib/parse-concern-value.sh /plugins/source-control/lib/yaml-subset.awk
-  /.github/actions/resolve-config/admission-rules.json /docs/conventions/pr-pipeline.yaml)
+  /.github/actions/resolve-config/admission-rules.json /docs/conventions/pr-pipeline.yaml /docs/conventions/source-control.yaml
+  /.github/recurring-schedule.json)
 queue=(.github/scripts/pr-merge/head-ref-map.mjs .github/scripts/pr-merge/carry-run-cache.mjs)
 while ((${#queue[@]})); do
   file=${queue[0]}
