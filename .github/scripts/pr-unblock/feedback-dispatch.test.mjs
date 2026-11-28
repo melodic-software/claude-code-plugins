@@ -1,4 +1,5 @@
 // test-scope: .github/actions/resolve-config/package.json
+// test-scope: .github/actions/check-kill-switch/fixtures/rate-limit-reset-near.json .github/actions/log-api-budget/rate-limits.json
 // test-scope: .github/scripts/lib/fixtures/standards/components/github-actions-conventions/vocabulary.schema.json .github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.schema.json
 import assert from "node:assert/strict";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -8,7 +9,7 @@ import { test } from "node:test";
 import { bound, fakeActions, recordEntry } from "../lib/lane-binding.fixtures.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, DEFERRAL_MARKER, dispatchFeedback, EARLIER_FAIL_READS, EARLIER_FAIL_WINDOW_MS, failureAnnotation, failureOutcome, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_DECIDE_BUDGET_MS, SWEEP_HEAD_CAP, SWEEP_TICK_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
+import { createGitHubApi, DEFERRAL_MARKER, dispatchFeedback, EARLIER_FAIL_READS, EARLIER_FAIL_WINDOW_MS, failureAnnotation, failureOutcome, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_DECIDE_BUDGET_MS, SWEEP_HEAD_CAP, SWEEP_TICK_CAP, sweepReleased, trustedReviewRun, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
 import { onReviewedHead, threadAuthors } from "./address-feedback.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { verifyReader } from "./verify-cap.mjs";
@@ -84,18 +85,39 @@ const decidedThread = (reply = { author: KYLE }) => ({
   },
 });
 
-// A workflow_run event's run object, in the REST workflow run schema
-// (https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run).
-const upstreamRun = (overrides = {}) => ({
-  id: Number(UPSTREAM_RUN_ID),
-  path: ".github/workflows/pr-review-hosted.yml",
-  event: "pull_request",
-  status: "completed",
-  head_sha: HEAD,
-  repository: { full_name: REPOSITORY },
-  head_repository: { full_name: REPOSITORY },
-  ...overrides,
-});
+const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP_ID, type: "Bot" };
+const CAPTURED_BOT_RERUN_LISTING = JSON.parse(
+  readFileSync(new URL("./fixtures/workflow-runs-46072085390-bot-rerun.json", import.meta.url), "utf8"),
+);
+const CAPTURED_ATTEMPT_1_LISTING = JSON.parse(
+  readFileSync(new URL("./fixtures/workflow-runs-46103022626-attempt-1.json", import.meta.url), "utf8"),
+);
+const CAPTURED_BOT_RERUN_RUN = CAPTURED_BOT_RERUN_LISTING.workflow_runs[0];
+const CAPTURED_ATTEMPT_1_RUN = CAPTURED_ATTEMPT_1_LISTING.workflow_runs[0];
+
+// Derived from the captured GitHub Actions REST workflow-run response
+// (fixtures/workflow-runs-46103022626-attempt-1.json).
+const upstreamRun = (overrides = {}) => {
+  const base = structuredClone(CAPTURED_ATTEMPT_1_RUN);
+  delete base.created_at;
+  delete base.updated_at;
+  delete base.run_started_at;
+  delete base.conclusion;
+  return {
+    ...base,
+    id: Number(UPSTREAM_RUN_ID),
+    path: ".github/workflows/pr-review-hosted.yml",
+    event: "pull_request",
+    status: "completed",
+    run_attempt: 1,
+    actor: APP_USER,
+    triggering_actor: APP_USER,
+    head_sha: HEAD,
+    repository: { full_name: REPOSITORY },
+    head_repository: { full_name: REPOSITORY },
+    ...overrides,
+  };
+};
 
 function fakeApi({
   run = {},
@@ -1463,7 +1485,6 @@ for (const [label, options] of [
   });
 }
 
-const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP_ID, type: "Bot" };
 const ACTIONS_USER = { ...ACTIONS_BOT, type: "Bot" };
 const RESUME = `<!-- pr-unblock resume-key=${OLD_HEAD} -->`;
 const escalationComment = ({ body = `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n${RESUME}\nThe pr-unblock lane stopped.\n\n- Reason: \`ci-fix-round-cap\``, user = APP_USER, at = "2026-10-18T10:00:05Z" } = {}) => ({
@@ -1946,7 +1967,7 @@ function sweepApi({ openPulls = pull(), checksAt = { [HEAD]: [failedRound, noMod
   return api;
 }
 
-async function sweepMain(t, api, tick = TICK, now = undefined, actors = []) {
+async function sweepMain(t, api, tick = TICK, now = undefined, actors = [], deps = {}) {
   const dir = tempDir("pr-dispatch-feedback-");
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const output = join(dir, "output");
@@ -1963,7 +1984,7 @@ async function sweepMain(t, api, tick = TICK, now = undefined, actors = []) {
       TRUSTED_ACTORS: noActors(dir, actors),
       DISPATCH_RECORD: join(dir, "record.json"),
     },
-    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line), now },
+    { api, resolveSlot: async () => resolvedLane(), log: (line) => lines.push(line), now, ...deps },
   );
   return { output: readFileSync(output, "utf8"), lines };
 }
@@ -2070,6 +2091,80 @@ test("a tick sends at most SWEEP_TICK_CAP rounds and leaves the rest to the next
   assert.match(output, /^run-id-5=38779200005$/m);
   assert.doesNotMatch(output, /run-id-6/);
   assert.ok(lines.some((line) => line.includes("the tick's cap")), lines.join("\n"));
+});
+
+const CAPTURED_CORE = JSON.parse(readFileSync(new URL("../../actions/check-kill-switch/fixtures/rate-limit-reset-near.json", import.meta.url), "utf8")).headers;
+
+async function coreSeen(share, minutes, now) {
+  const limit = Number(CAPTURED_CORE["x-ratelimit-limit"]);
+  const headers = { ...CAPTURED_CORE, "x-ratelimit-remaining": String(Math.round(share * limit)), "x-ratelimit-reset": String(Math.floor(now / 1000) + minutes * 60) };
+  const budget = budgetedFetch({ fetch: async () => new Response("[]", { headers }), log: () => {} });
+  await budget.fetch(`https://api.github.com/repos/${REPOSITORY}/pulls?state=open&base=main&per_page=100&page=1`);
+  return budget.reading;
+}
+
+test("a tick holds every round while core is under 20% and resets within 15 minutes, and sends otherwise", async (t) => {
+  for (const [label, share, minutes, sends] of [
+    ["13% left, 12 min to reset (the 08:43Z burst)", 0.13, 12, 0],
+    ["17% left, 14 min to reset (the 07:42Z burst)", 0.17, 14, 0],
+    ["55% left, 37 min to reset (the 08:19Z sweep)", 0.55, 37, 5],
+    ["15% left, 40 min to reset", 0.15, 40, 5],
+    ["50% left, 5 min to reset", 0.5, 5, 5],
+  ]) {
+    const now = Date.now();
+    const api = releasedSweepApi(SWEEP_TICK_CAP);
+    let recoveryReads = 0;
+    api.listRecentRuns = async () => {
+      recoveryReads += 1;
+      return [];
+    };
+    const { output, lines } = await sweepMain(t, api, TICK, now, [], { reading: await coreSeen(share, minutes, now) });
+    assert.equal(api.calls.dispatch.length, sends, label);
+    const notice = lines.filter((line) => line.startsWith("::notice::sweep: held"));
+    if (sends === 0) {
+      assert.equal(output, "", label);
+      assert.deepEqual(api.events, [], `${label}: a held tick decides no head`);
+      assert.equal(recoveryReads, 0, `${label}: a held tick recovers no lost run`);
+      assert.equal(notice.length, 1, `${label}: ${lines.join("\n")}`);
+      assert.match(notice[0], new RegExp(`remaining=${Math.round(share * 5000)} of 5000.* in ${minutes} min.*; 5 open PRs wait`), label);
+    } else {
+      assert.deepEqual(notice, [], label);
+    }
+  }
+});
+
+test("a tick that has seen no rate-limit header sends its rounds", async (t) => {
+  const budget = budgetedFetch({ fetch: async () => new Response("[]"), log: () => {} });
+  await budget.fetch(`https://api.github.com/repos/${REPOSITORY}/pulls?state=open&page=1`);
+  const api = releasedSweepApi(SWEEP_TICK_CAP);
+  await sweepMain(t, api, TICK, Date.now(), [], { reading: budget.reading });
+  assert.equal(api.calls.dispatch.length, SWEEP_TICK_CAP);
+});
+
+test("rounds a tick held are sent by the first tick after the reset, with no per-head count spent on the hold", async (t) => {
+  const twoReleases = [failedRound, noModelTurn("2026-10-17T10:05:00Z"), noModelTurn("2026-10-17T11:05:00Z")];
+  const atCapLessOne = () => {
+    const api = releasedSweepApi(SWEEP_TICK_CAP);
+    api.checkReads = 0;
+    api.listCheckRuns = async ({ checkName }) => {
+      api.checkReads += 1;
+      return twoReleases.filter((run) => (run.name ?? "pr-unblock / address-feedback") === checkName);
+    };
+    return api;
+  };
+  const before = Date.now();
+  const api = atCapLessOne();
+  await sweepMain(t, api, TICK, before, [], { reading: await coreSeen(0.13, 12, before) });
+  assert.deepEqual(api.calls.dispatch, [], "the held tick sends nothing");
+  assert.equal(api.checkReads, 0, "the held tick reads no head's rounds");
+
+  const after = before + 13 * 60_000;
+  await sweepMain(t, api, TICK, after, [], { reading: await coreSeen(1, 60, after) });
+  const never = atCapLessOne();
+  await sweepMain(t, never, TICK, after, [], { reading: await coreSeen(1, 60, after) });
+  const sent = (target) => target.calls.dispatch.map((request) => request.inputs["pr-number"]);
+  assert.deepEqual(sent(api), ["42", "43", "44", "45", "46"], "each head one release under SWEEP_HEAD_CAP is still sent");
+  assert.deepEqual(sent(api), sent(never), "the same rounds as a tick that never held");
 });
 
 test("the sweep decides no further PR once SWEEP_DECIDE_BUDGET_MS is spent, and still sends what it decided", async () => {
@@ -3653,10 +3748,27 @@ test("an owner PR's CodeQL thread on a later push's scan dispatches with no @cod
   assert.ok(codex.lines.some((line) => /^skip thread PRRT_9: codex-request-not-found/.test(line)), codex.lines.join("\n"));
 });
 
-test("reviewRunAt lists each review workflow's runs one after the other and picks the newest", async () => {
+test("reviewRunAt lists each review workflow's runs one after the other and picks the newest broker-accepted run", async () => {
   const events = [];
-  const run = (id, created_at) => ({ id, head_sha: HEAD, event: "pull_request", head_repository: { full_name: REPOSITORY }, conclusion: "success", created_at });
-  const listings = { "a.yml": [run(1, "2026-10-28T07:00:00Z")], "b.yml": [run(2, "2026-10-28T08:00:00Z")] };
+  const run = (id, created_at, overrides = {}) => ({
+    ...structuredClone(CAPTURED_ATTEMPT_1_RUN),
+    id,
+    head_sha: HEAD,
+    actor: APP_USER,
+    triggering_actor: APP_USER,
+    created_at,
+    ...overrides,
+  });
+  const listings = {
+    "a.yml": [run(1, "2026-10-28T07:00:00Z")],
+    "b.yml": [
+      run(2, "2026-10-28T08:00:00Z"),
+      run(3, "2026-10-28T09:00:00Z", {
+        run_attempt: CAPTURED_BOT_RERUN_RUN.run_attempt,
+        triggering_actor: structuredClone(CAPTURED_BOT_RERUN_RUN.triggering_actor),
+      }),
+    ],
+  };
   const api = {
     listCompletedRuns: async (path) => {
       events.push(`${path} start`);
@@ -3665,7 +3777,14 @@ test("reviewRunAt lists each review workflow's runs one after the other and pick
       return listings[path];
     },
   };
-  const upstream = await reviewRunAt({ api, head: HEAD, repository: REPOSITORY, settings: { reviewWorkflows: ["a.yml", "b.yml"] } });
+  const upstream = await reviewRunAt({
+    api,
+    head: HEAD,
+    repository: REPOSITORY,
+    settings: { reviewWorkflows: ["a.yml", "b.yml"] },
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+  });
   assert.equal(upstream.id, 2);
   assert.deepEqual(events, ["a.yml start", "a.yml end", "b.yml start", "b.yml end"]);
 });
@@ -3759,4 +3878,122 @@ test("a lane run still going ends the event path green with a skip line; any oth
   const other = failureOutcome(new Error("boom"), "tok");
   assert.equal(other.code, 1);
   assert.match(other.line, /^::error::pr-feedback dispatch failed: boom/);
+});
+
+test("trustedReviewRun matches the broker's actor and attempt rule against captured workflow-run responses", () => {
+  const ctx = { appSenderId: APP_ID, trustedHumans: new Set([KYLE.databaseId]) };
+  const stranger = { id: STRANGER.databaseId, login: "stranger" };
+  assert.equal(trustedReviewRun(CAPTURED_ATTEMPT_1_RUN, ctx), true);
+  assert.equal(trustedReviewRun(CAPTURED_BOT_RERUN_RUN, ctx), false);
+  assert.equal(trustedReviewRun({ ...CAPTURED_ATTEMPT_1_RUN, actor: APP_USER, triggering_actor: APP_USER }, ctx), true);
+  assert.equal(trustedReviewRun({ ...CAPTURED_BOT_RERUN_RUN, actor: APP_USER, triggering_actor: KYLE_USER }, ctx), true);
+  assert.equal(trustedReviewRun({ ...CAPTURED_BOT_RERUN_RUN, triggering_actor: KYLE_USER }, ctx), true);
+  assert.equal(trustedReviewRun({ ...CAPTURED_BOT_RERUN_RUN, actor: APP_USER }, ctx), false);
+  assert.equal(trustedReviewRun({ ...CAPTURED_BOT_RERUN_RUN, actor: APP_USER, triggering_actor: APP_USER }, ctx), false);
+  assert.equal(trustedReviewRun({ ...CAPTURED_ATTEMPT_1_RUN, actor: stranger }, ctx), false);
+  assert.equal(trustedReviewRun({ ...CAPTURED_ATTEMPT_1_RUN, triggering_actor: stranger }, ctx), false);
+  assert.equal(
+    trustedReviewRun({ ...CAPTURED_BOT_RERUN_RUN, actor: APP_USER, triggering_actor: APP_USER }, { appSenderId: APP_ID, trustedHumans: new Set([APP_ID]) }),
+    false,
+  );
+});
+
+test("dispatchFeedback skips a captured bot-rerun review run with reason and recovery path, and accepts a listed human's rerun", async () => {
+  const rerun = fakeApi({ run: { ...structuredClone(CAPTURED_BOT_RERUN_RUN), head_sha: HEAD } });
+  const skipped = await decide(rerun);
+  assert.equal(skipped.result, null);
+  assert.deepEqual(rerun.calls.dispatch, []);
+  assert.match(skipped.lines.at(-1), /attempt 2.*triggering_actor github-actions\[bot\].*not a broker-accepted review run.*push a fresh head or have a listed human re-run/);
+
+  const humanRerun = fakeApi({ run: { ...structuredClone(CAPTURED_BOT_RERUN_RUN), head_sha: HEAD, actor: APP_USER, triggering_actor: KYLE_USER } });
+  const accepted = await decide(humanRerun);
+  assert.equal(accepted.result?.number, 42);
+  assert.equal(humanRerun.calls.dispatch.length, 1);
+});
+
+test("main falls back from a captured bot-rerun review event to a broker-accepted sibling REST listing, or skips when none exists", async (t) => {
+  const dir = tempDir("pr-dispatch-feedback-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: KYLE.databaseId, login: "kyle-sexton", kind: "human" }] }));
+
+  const incidentHead = CAPTURED_BOT_RERUN_RUN.head_sha;
+  const siblingListing = structuredClone(CAPTURED_ATTEMPT_1_LISTING);
+  siblingListing.workflow_runs[0].head_sha = incidentHead;
+  const listingClient = (securityListing) =>
+    createGitHubApi({
+      token: "t",
+      repository: REPOSITORY,
+      apiUrl: "https://api.example",
+      graphqlUrl: "https://api.example/graphql",
+      fetch: async (url) => {
+        const body = url.includes("/workflows/pr-review-hosted.yml/runs") ? CAPTURED_BOT_RERUN_LISTING : securityListing;
+        return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+      },
+    });
+  const incidentApi = (securityListing) => {
+    const rest = listingClient(securityListing);
+    const api = fakeApi({
+      pulls: [
+        {
+          number: 19482,
+          state: "open",
+          draft: false,
+          user: { id: APP_ID },
+          labels: [{ name: "work-class: mechanical" }],
+          head: { sha: incidentHead, repo: { full_name: REPOSITORY } },
+          base: { ref: "main", sha: "b".repeat(40) },
+        },
+      ],
+      comments: [marker("claude-review", incidentHead), marker("claude-security-review", incidentHead)],
+      threads: [thread([CLAUDE], false, incidentHead)],
+    });
+    api.listCompletedRuns = rest.listCompletedRuns;
+    return api;
+  };
+
+  const withSibling = incidentApi(siblingListing);
+  const output1 = join(dir, "output-1");
+  writeFileSync(output1, "");
+  const lines1 = [];
+  const code1 = await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output1,
+      GITHUB_EVENT_PATH: eventFile(dir, CAPTURED_BOT_RERUN_RUN),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: actors,
+    },
+    { api: withSibling, resolveSlot: async () => resolvedLane(), log: (line) => lines1.push(line) },
+  );
+  assert.equal(code1, 0);
+  assert.equal(withSibling.calls.dispatch.length, 1);
+  assert.equal(readFileSync(output1, "utf8"), `run-id=38779200001\nupstream-run-id=${CAPTURED_ATTEMPT_1_RUN.id}\n`);
+  assert.ok(lines1.some((line) => line.includes(`using sibling review run ${CAPTURED_ATTEMPT_1_RUN.id}`)), lines1.join("\n"));
+
+  const untrustedSiblingListing = structuredClone(siblingListing);
+  untrustedSiblingListing.workflow_runs[0].run_attempt = CAPTURED_BOT_RERUN_RUN.run_attempt;
+  untrustedSiblingListing.workflow_runs[0].triggering_actor = structuredClone(CAPTURED_BOT_RERUN_RUN.triggering_actor);
+  const noTrustedSibling = incidentApi(untrustedSiblingListing);
+  const output2 = join(dir, "output-2");
+  writeFileSync(output2, "");
+  const lines2 = [];
+  const code2 = await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output2,
+      GITHUB_EVENT_PATH: eventFile(dir, CAPTURED_BOT_RERUN_RUN),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: actors,
+    },
+    { api: noTrustedSibling, resolveSlot: async () => resolvedLane(), log: (line) => lines2.push(line) },
+  );
+  assert.equal(code2, 0);
+  assert.deepEqual(noTrustedSibling.calls.dispatch, []);
+  assert.equal(readFileSync(output2, "utf8"), "");
+  assert.match(lines2.at(-1), /attempt 2.*triggering_actor github-actions\[bot\].*not a broker-accepted review run/);
 });

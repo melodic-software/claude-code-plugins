@@ -1,5 +1,5 @@
 ---
-description: "Hold a UI pixel-for-pixel steady through a change: PNG screenshots of the listed states before the first edit (baseline), then again at each green checkpoint, with differing pixels counted against pixel_tolerance (compare). Never edits a baseline. Use when: a plan phase has a Parity contract line, a refactor must leave the UI unchanged, 'check visual parity', 'did this change the UI'."
+description: "Hold UI pixel-for-pixel steady through a change: PNG screenshots of listed states before first edit (baseline), then at each green checkpoint counting differing pixels vs pixel_tolerance (compare). Never edits baseline. Use when plan phase has Parity contract line, refactor must leave UI unchanged, 'check visual parity', 'did this change the UI'."
 argument-hint: "<baseline|compare> [states]"
 user-invocable: true
 disable-model-invocation: false

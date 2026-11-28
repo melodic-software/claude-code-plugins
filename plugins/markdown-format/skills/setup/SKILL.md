@@ -1,5 +1,5 @@
 ---
-description: "Verify markdown-format's prerequisites and which formatter and linter its hooks run here, and register its git pre-commit entries. Use when: 'set up markdown-format', 'configure markdown-format', 'is markdown-format working', 'which linter does markdown-format run', formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply [install-lint] | apply install-git-hooks [scope=local|shared]. Re-runnable."
+description: "Verify markdown-format prerequisites and hooks (check [inspect]), or install lint and git hooks (apply [install-lint|install-git-hooks])."
 argument-hint: "[check|apply] [inspect|install-lint|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true

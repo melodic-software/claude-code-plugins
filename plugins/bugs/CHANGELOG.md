@@ -3,6 +3,12 @@
 All notable changes to the `bugs` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.5] - 2026-11-28
+
+### Changed
+
+- Trimmed `bugs` skill frontmatter descriptions (`scan`: 737 -> 350 chars; `setup`: 225 -> 141 chars; `write`: 510 -> 344 chars; total 1,472 -> 835 chars, -637 chars) with zero body changes.
+
 ## [1.0.4] - 2026-11-28
 
 ### Changed

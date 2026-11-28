@@ -3,6 +3,12 @@
 All notable changes to the `skill-quality` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.1] - 2026-11-28
+
+### Changed
+
+- Trimmed `/skill-quality:check` frontmatter description (382 -> 290 chars) while preserving all four gate actions (`check`, `validate-evals`, `listing-budget`, `measure-invocation`), `/evals:validate` pointer, and non-authoring/non-model-eval exclusions.
+
 ## [1.3.0] - 2026-11-27
 
 ### Changed

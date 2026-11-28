@@ -1,5 +1,5 @@
 ---
-description: "Maintainer-facing drift-check and upstream sync for the playbooks plugin's vendored packs (boris, skill-authoring). Run only from a working-tree checkout. Actions: --check (default, read-only drift report) and --apply (refresh vendored baselines). Not for consumers, consumers update via /plugin marketplace update."
+description: "Maintainer drift-check (`--check`, read-only) and baseline sync (`--apply`) for vendored playbooks packs (`boris`, `skill-authoring`) in a checkout."
 argument-hint: "[--check|--apply]"
 user-invocable: true
 disable-model-invocation: true

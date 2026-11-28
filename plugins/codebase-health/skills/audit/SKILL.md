@@ -97,14 +97,6 @@ file; it also owns `<home>`, the root rule and the merge semantics):
 2. team: `<home>/codebase-health.md` (tracked)
 3. personal: `<home>/codebase-health.local.md` (gitignored)
 
-**Old locations.** While `~/.claude/codebase-health.md` (one Read of that literal path, `~` kept;
-never Glob for it, spell out a home directory, or search the home tree), `.claude/codebase-health.md`
-or `.claude/codebase-health.local.md` exists, read it as the layer config.md's "Old locations"
-table says, wherever the new location does not supply that layer, so its values still apply. Print
-one warning line for the run naming each old file found, its new location, and
-`/codebase-health:setup apply` to move it. When the new location also supplies that layer, the new
-one wins, and the warning names both files and lists the old file's dimensions that do not apply.
-
 The four bundled dimensions are `documentation`, `configuration`, `code-quality`, and
 `architecture`; the config may tune their globs, remove a dimension, or add custom ones.
 
@@ -178,9 +170,8 @@ form, nothing in this skill changes. What differs here:
   run that repository's Phases 1 and 2 from the main thread with its root anchored. Never let one
   context both discover and validate the findings.
 - **Phase 0 and the config are resolved per repository.** Read the `.claude/rules/` files of each
-  repository's tree. Resolve `<home>` and the team config layer (`<home>/codebase-health.md`, or
-  the old `.claude/codebase-health.md` standing in for it) from that tree. Read the personal layer
-  (`<home>/codebase-health.local.md`, or the old `.claude/codebase-health.local.md`) from the
+  repository's tree. Resolve `<home>` and the team config layer (`<home>/codebase-health.md`) from
+  that tree. Read the personal layer (`<home>/codebase-health.local.md`) from the
   clone's own root, never from a scratch worktree: it is gitignored, so a detached worktree of
   `origin/HEAD` never holds it, and reading it there would drop a clone's override only because
   the clone is behind or dirty. The `userConfig` layer is shared by all repositories. Run `read-verification.sh` as

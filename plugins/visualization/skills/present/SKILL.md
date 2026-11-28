@@ -1,5 +1,5 @@
 ---
-description: "Turn material into a slide deck through the claude.ai Slides Artifact type: write the markdown outline as the record, then fill a deck made from the type the account offers, behind a publish gate that keeps private or credential-shaped content local. Use when: 'make slides', 'make a deck', 'turn this into a presentation', 'slides for this talk', 'present this', 'deck from these notes'. Not for one chart or diagram (/visualization:visualize) or a pull-request explainer (/review:explain-change)."
+description: "Build a slide deck via claude.ai Slides Artifact: write a markdown outline as the record, then fill the deck behind a publish gate keeping private/credential data local. Use when: 'make slides', 'make a deck', 'turn this into a presentation'. Not for /visualization:visualize or /review:explain-change."
 argument-hint: "[topic or source] [<medium>]"
 user-invocable: true
 disable-model-invocation: false
