@@ -1272,6 +1272,63 @@ class TestRoundCap(SessionCase):
                 self.start(cap, name=f"bad-{cap}.json")
 
 
+class TestStyle(SessionCase):
+    """The session's style, standard or lightning: Claude's set-style op and the owner's Settings set it, guests
+    cannot, and under lightning a round holds 8 questions whatever the roundCap."""
+
+    def test_a_new_session_has_no_style_and_reads_as_standard(self):
+        self.assertNotIn("style", self.s.state["session"]["settings"])
+        self.assertEqual(self.apply({"op": "set-style", "style": "standard"})["results"], [{"style": "standard"}])
+        self.assertEqual(self.disk()["session"]["settings"]["style"], "standard")
+
+    def test_the_set_style_op_persists_lightning_for_every_page_and_a_reload(self):
+        ann, _ = self.join("Ann")
+        self.assertEqual(self.apply({"op": "set-style", "style": "lightning"})["results"], [{"style": "lightning"}])
+        self.assertEqual(self.disk()["session"]["settings"]["style"], "lightning")
+        self.assertEqual(self.s.snapshot(ann)["settings"]["style"], "lightning", "a guest's page reads the style")
+        self.s = session.Session.load(self.s.path, clock=self.clock, ids=self.ids, validate_writes=True)
+        self.assertEqual(self.s.state["session"]["settings"]["style"], "lightning")
+        self.apply({"op": "set-style", "style": "standard"})
+        self.assertEqual(self.disk()["session"]["settings"]["style"], "standard")
+
+    def test_the_ops_schema_takes_set_style_only_with_a_known_style(self):
+        self.assertIsNone(session.ops_error({"ops": [{"op": "set-style", "style": "lightning"}]}))
+        for bad in ({"op": "set-style", "style": "fast"}, {"op": "set-style"}, {"op": "set-style", "style": "lightning", "qid": "Q1"}):
+            with self.subTest(op=bad):
+                self.assertIsNotNone(session.ops_error({"ops": [bad]}))
+                self.refused_ops("bad-field", bad)
+        self.assertNotIn("style", self.s.state["session"]["settings"])
+
+    def test_only_the_owner_sets_the_style_from_the_page(self):
+        ann, _ = self.join("Ann")
+        self.refused("owner-only", "update_settings", ann, {"style": "lightning"})
+        self.assertNotIn("style", self.s.state["session"]["settings"])
+        self.act("update_settings", HOST, {"style": "lightning"})
+        self.assertEqual(self.disk()["session"]["settings"]["style"], "lightning")
+        self.refused("owner-only", "update_settings", ann, {"style": "standard"})
+        self.assertEqual(self.s.state["session"]["settings"]["style"], "lightning")
+        self.refused("bad-field", "update_settings", HOST, {"style": "fast"})
+
+    def test_lightning_lifts_a_roundcap_of_four_to_eight(self):
+        self.s, _ = session.Session.create(
+            self.tmp / "capped.json", title="Capped", settings={"roundCap": 4}, clock=self.clock, ids=self.ids, validate_writes=True
+        )
+        five = [text_q(f"Q{i}") for i in range(1, 6)]
+        self.assertEqual(self.refused_ops("too-long", {"op": "open-round", "questions": five}).details["max"], 4)
+        nine = [text_q(f"Q{i}") for i in range(1, 10)]
+        err = self.refused_ops("too-long", {"op": "set-style", "style": "lightning"}, {"op": "open-round", "questions": nine})
+        self.assertEqual(err.details["max"], 8)
+        self.assertNotIn("style", self.s.state["session"]["settings"], "a refused apply sets no style")
+        self.apply({"op": "set-style", "style": "lightning"}, {"op": "open-round", "questions": nine[:8]})
+        self.assertEqual(len(self.s.state["questions"]), 8)
+
+    def test_a_major_question_keeps_its_mark_and_others_carry_none(self):
+        self.open_round({**text_q("Q1"), "major": True}, text_q("Q2"))
+        self.assertIs(self.question("Q1")["major"], True)
+        self.assertNotIn("major", self.question("Q2"))
+        self.assertIsNotNone(session.ops_error({"ops": [{"op": "open-round", "questions": [{**text_q("Q3"), "major": False}]}]}))
+
+
 class TestQuestionBehavior(SessionCase):
     def setUp(self):
         super().setUp()

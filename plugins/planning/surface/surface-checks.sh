@@ -9,7 +9,7 @@ ok() { echo "ok: $1"; pass=$((pass + 1)); }
 bad() { echo "FAIL: $1"; fail=$((fail + 1)); }
 
 declare -A PARTS=([main]="ab e live" [page]="page" [ui-c]="c" [ui-c-listen]="c_listen" [ui-c-ledger]="c_ledger" [journey]="journey")
-declare -A CHECKS=([ab]=98 [c]=176 [c_listen]=21 [c_ledger]=10 [e]=22 [journey]=237 [live]=18 [page]=135)
+declare -A CHECKS=([ab]=98 [c]=176 [c_listen]=21 [c_ledger]=10 [e]=29 [journey]=237 [live]=18 [page]=135)
 part=main
 case "$#:${1:-}" in
   0:) ;;

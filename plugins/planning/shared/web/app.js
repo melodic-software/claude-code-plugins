@@ -18,7 +18,7 @@
       propFilter: "new", reqSeen: new Set(), reqEditing: new Set(),
       resClosed: new Set(), askOpen: false, askKind: "ask", exp: new Set(), pcard: null, mergeFrom: "", mergeTo: "",
       bumped: false, heard: {}, renaming: false, renameFor: null, tie: null,
-      revealed: new Set(), clOpen: new Map(), cites: {}, hostFilter: "all", treeClosed: new Set(),
+      revealed: new Set(), clOpen: new Map(), liteOpen: new Set(), cites: {}, hostFilter: "all", treeClosed: new Set(),
       askPanel: false, askMode: "ask", askQ: "", askSelf: false, apAud: null, askAud: null, picks: {}, goalEditing: false, notified: {}, msgMenu: null,
       more: {}, peopleFilter: "all", peopleFind: "", unreadOnly: false, ixTab: store.get("vf-ixtab", "needs"), ixOff: store.get("vf-ix-off", {}),
     };
@@ -971,6 +971,30 @@
     const qText = E("h1", "vf-qtext"); qText.tabIndex = -1;
     const qCtx = clampBox("vf-qctx"); qCtx.hidden = true;
     const qOpen = E("p", "vf-qctx vf-qopen"); qOpen.hidden = true;
+    const qLite = E("section", "vf-lite"); qLite.setAttribute("aria-label", "Short card"); qLite.hidden = true;
+    /** The lightning card: on, the question in brief with a button to the full question; open, only the button back. */
+    function fillLite(q, open) {
+      qLite.hidden = !st().lightning;
+      if (qLite.hidden) return;
+      const L = QuestionShape.lightning(q), sig = JSON.stringify([q.id, open, L]);
+      if (qLite._sig === sig) return;
+      qLite._sig = sig;
+      qLite.replaceChildren();
+      if (!open) {
+        const line = E("p", "vf-lite-rec");
+        if (L.major) line.append(E("span", "vf-lite-major", "(major)"), " ");
+        line.append(E("strong", null, L.status === "rec" ? L.rec : L.status === "withheld" ? "Withheld" : "No recommendation"));
+        if (L.basis) line.append(` - ${L.basis}`);
+        if (L.alts.length) line.append(" ", E("span", "vf-lite-alts", `(or: ${L.alts.map(a => `${a.key} ${a.label}`).join(", ")})`));
+        qLite.append(line);
+        for (const [label, text] of L.lines) { const p = E("p", "vf-lite-line"); p.append(E("b", null, `${label}:`), ` ${text}`); qLite.append(p); }
+        if (L.commits.length) { const ul = E("ul", "vf-lite-commits"); for (const c of L.commits) ul.append(E("li", null, c)); qLite.append(ul); }
+      }
+      const b = btn("vf-btn vf-btn-ghost vf-btn-sm vf-lite-toggle", open ? "Show the short card" : `Show all of ${q.id}`);
+      b.setAttribute("aria-expanded", String(open));
+      b.onclick = () => { if (open) ui.liteOpen.delete(q.id); else ui.liteOpen.add(q.id); render(); };
+      qLite.append(b);
+    }
     const reviewRow = E("div", "vf-reviewrow");
     const reviewTag = E("span", "vf-review"); const reviewTxt = E("span");
     reviewTag.append(icon("alert"), reviewTxt);
@@ -1290,7 +1314,7 @@
     const advStay = btn("vf-btn vf-btn-ghost vf-btn-sm vf-advance-stay", "Stay");
     advBar.append(E("span", null, "Next question in 2 s"), E("span", "vf-advance-sep", "·"), advStay);
     const devNote = E("p", "vf-devnote"); devNote.hidden = true;
-    scroll.append(orient, goalBack, qMeta, forBox, qText, qCtx, qOpen, refBox, qPicBox, reviewRow, qHist, onIt, devNote, fmtBox, advBar, cForm, passBox, ansPane, clSec, discSec);
+    scroll.append(orient, goalBack, qMeta, forBox, qText, qLite, qCtx, qOpen, refBox, qPicBox, reviewRow, qHist, onIt, devNote, fmtBox, advBar, cForm, passBox, ansPane, clSec, discSec);
     focusV.append(scroll);
 
     const cmp = E("div", "vf-cmp");
@@ -1504,6 +1528,7 @@
       ["uploads", "Uploads", "Let people offer files; you accept each one"],
       ["hideClaude", "Answer first", "Claude's cards show once a person answered or voted; each person can change it"],
       ["approveJoins", "Approve new joins", "New people wait in the queue until you let them in; while they wait they see the title and Why you're here. People already here are not affected"],
+      ["lightning", "Lightning cards", "Each question shows as a short card: the recommendation, its basis and the other options; anyone can open the full question. A round holds up to 8 questions"],
       ["reviewAnswers", "Review Claude's answers before they are shared", "Each answer to a guest's request waits for your Share; off, an answer asked for everyone is shared when it arrives"],
     ]) {
       const b = swRow(label, desc);
@@ -6994,7 +7019,9 @@
         if (phone.matches) { if (orHide.parentNode !== orRow) orRow.append(orHide); } else if (orHide.parentNode !== orient) orient.prepend(orHide);
       }
       if (q) {
-        renderRefs(q); renderQPics(q);
+        const lite = !!st().lightning && !ui.liteOpen.has(q.id);
+        renderRefs(q); renderQPics(q); fillLite(q, !lite);
+        if (lite) refBox.hidden = qPicBox.hidden = true;
         const devOthers = me.isOwner ? [] : Core.myOtherDevices(q.id);
         devNote.hidden = !devOthers.length || !!Core.myRecord(q.id);
         if (!devNote.hidden) devNote.textContent = `You answered this on your ${devOthers.join(" and ")}. It asks for one answer per device: answer for this ${Core.thisDevice()} too.`;
@@ -7046,9 +7073,9 @@
         const nSug = openSugs(q.id).length;
         qSug.textContent = mod && lk && nSug ? `${nSug} suggestion${nSug > 1 ? "s" : ""}` : ""; qSug.hidden = !qSug.textContent;
         if (qText.textContent !== q.text) qText.textContent = q.text;
-        qCtx.hidden = !q.context;
-        if (q.context) fillClamp(qCtx, "qc:" + q.id, q.context, `Background to ${q.id}`, q.text);
-        qOpen.hidden = !q.withheld;
+        qCtx.hidden = lite || !q.context;
+        if (q.context && !lite) fillClamp(qCtx, "qc:" + q.id, q.context, `Background to ${q.id}`, q.text);
+        qOpen.hidden = lite || !q.withheld;
         qOpen.textContent = q.withheld ? q.recommendation || "" : "";
         reviewTxt.textContent = reviewText(q);
         reviewRow.hidden = !q.needsReview;
@@ -7192,7 +7219,7 @@
         agreeTxt.textContent = s.signoff && !lk && topA && !poll ? `${agreeN} of ${here.length} agree` : "";
         agreeTxt.classList.toggle("vf-agree-all", !!topA && agreeN === here.length);
       } else {
-        qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = qCtx.hidden = qOpen.hidden = true; qText.textContent = "No questions yet";
+        qPos.textContent = qFrom.textContent = ""; qSug.hidden = qDeps.hidden = qHost.hidden = closedBox.hidden = qPurpose.hidden = purposeSel.w.hidden = qCtx.hidden = qOpen.hidden = qLite.hidden = true; qText.textContent = "No questions yet";
         qTools.hidden = qFor.hidden = forBtn.hidden = forBox.hidden = passBox.hidden = true;
         onItTxt.textContent = ""; ansCount.textContent = ""; aEmpty.hidden = true; lockBox.hidden = true; lockBtn.hidden = true;
         reviewRow.hidden = qHist.hidden = true; fmtBox.hidden = true; ansPane.hidden = clSec.hidden = discSec.hidden = true; claudeBar.hidden = true; refBox.hidden = qPicBox.hidden = true;
