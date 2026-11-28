@@ -45,7 +45,8 @@ const evaluate = (expression, context) =>
   });
 
 const LANE_BRANCH = "work-resolve-issue/issue-12-345-1";
-const RELAY_ON = { "github.event.workflow_run.actor.type": "User" };
+const LANES_APP_ID = "2";
+const RELAY_ON = { "github.event.workflow_run.actor.type": "User", "github.event.workflow_run.actor.id": 1001, "vars.AUTOMATION_LANES_APP_SENDER_ID": LANES_APP_ID };
 
 test("pr-dispatch-feedback.yml starts no runner for a skipped or cancelled review run", () => {
   const gate = jobIf("pr-dispatch-feedback.yml", "dispatch");
@@ -113,6 +114,39 @@ test("pr-dispatch-feedback.yml starts a runner for a same-repository review run 
   assert.ok(prefix, "the pr-merge and relay clauses check the lane branch");
   assert.equal(laneBranchIssue(LANE_BRANCH), 12);
   assert.ok(LANE_BRANCH.startsWith(prefix), `${LANE_BRANCH} starts with ${prefix}`);
+});
+
+test("pr-dispatch-feedback.yml starts no runner for a review run a bot other than the lanes App made", () => {
+  const gate = jobIf("pr-dispatch-feedback.yml", "dispatch");
+  const repo = "melodic-software/claude-code-plugins";
+  const runs = (actor, overrides = {}) =>
+    evaluate(gate, {
+      "github.ref": "refs/heads/main",
+      "github.repository": repo,
+      "github.event.workflow_run.path": ".github/workflows/pr-review-hosted.yml",
+      "github.event.workflow_run.event": "pull_request",
+      "github.event.workflow_run.repository.full_name": repo,
+      "github.event.workflow_run.head_repository.full_name": repo,
+      "github.event.workflow_run.head_branch": "release/plugins",
+      "github.event.workflow_run.conclusion": "success",
+      "needs.post-verify-notes.outputs.head-sha": "",
+      "needs.post-verify-notes.outputs.pass-head-sha": "",
+      "github.run_attempt": "1",
+      "github.triggering_actor": "a-person",
+      ...RELAY_ON,
+      "github.event.workflow_run.actor.type": actor.type,
+      "github.event.workflow_run.actor.id": actor.id,
+      ...overrides,
+    });
+  assert.equal(runs({ type: "User", id: 1001 }), true, "a person");
+  assert.equal(runs({ type: "Bot", id: Number(LANES_APP_ID) }), true, "the lanes App");
+  assert.equal(runs({ type: "Bot", id: 49699333 }), false, "another bot, such as the release bot");
+  assert.equal(runs({ type: "Bot", id: Number(LANES_APP_ID) }, { "vars.AUTOMATION_LANES_APP_SENDER_ID": "" }), false, "no lanes App id set");
+  assert.equal(
+    runs({ type: "Bot", id: 49699333 }, { "github.event.workflow_run.path": ".github/workflows/pr-unblock-dispatch.yml", "github.event.workflow_run.event": "schedule", "github.event.workflow_run.head_branch": "main" }),
+    true,
+    "the sweep does not read the review actor",
+  );
 });
 
 test("pr-dispatch-feedback.yml sweeps only after a scheduled pr-unblock-dispatch.yml run on main of this repository", () => {
@@ -305,10 +339,13 @@ test("pr-dispatch-feedback.yml re-runs ci-status for a completed review run of a
     });
   assert.equal(runs(), true);
   assert.equal(runs({ "github.event.workflow_run.path": ".github/workflows/pr-review-security-hosted.yml" }), true);
-  for (const conclusion of ["failure", "cancelled", "timed_out"]) {
+  for (const conclusion of ["failure", "timed_out"]) {
     assert.equal(runs({ "github.event.workflow_run.conclusion": conclusion }), true, conclusion);
   }
   assert.equal(runs({ "github.event.workflow_run.conclusion": "skipped" }), false);
+  for (const path of [".github/workflows/pr-review-hosted.yml", ".github/workflows/pr-review-security-hosted.yml"]) {
+    assert.equal(runs({ "github.event.workflow_run.path": path, "github.event.workflow_run.conclusion": "cancelled" }), false, `a cancelled ${path} run: ci-status reads that same cancelled lane`);
+  }
   assert.equal(runs({ "github.event.workflow_run.path": ".github/workflows/pr-verify.yml" }), false);
   assert.equal(runs({ "github.event.workflow_run.event": "workflow_dispatch" }), false);
   assert.equal(runs({ "github.event.workflow_run.event": "push" }), false);
@@ -345,6 +382,7 @@ test("pr-dispatch-feedback.yml re-runs ci-status after a relayed review, not a p
     });
   assert.equal(review(), true);
   assert.equal(review({ "github.event.workflow_run.conclusion": "skipped" }), false);
+  assert.equal(review({ "github.event.workflow_run.conclusion": "cancelled" }), true, "the cancelled gate covers the review lanes only");
   assert.equal(review({ "github.event.workflow_run.event": "pull_request" }), false);
   assert.equal(review({ "github.event.workflow_run.head_repository.full_name": "fork/repo" }), false);
   assert.equal(review({ "github.ref": "refs/heads/feat/x" }), false);
@@ -1151,10 +1189,19 @@ test("pr-dispatch-feedback.yml: post-verify-notes reads the names write-verdict.
 
 test("pr-dispatch-feedback.yml: a newer completion at a head queues behind a pending one, never cancels it", () => {
   const text = readFileSync(new URL("../../workflows/pr-dispatch-feedback.yml", import.meta.url), "utf8");
-  const block = /\nconcurrency:\n((?: {2}.*\n)+)/.exec(text);
-  assert.ok(block, "the workflow sets top-level concurrency");
-  assert.match(block[1], /^ {2}cancel-in-progress: false$/m);
-  assert.match(block[1], /^ {2}queue: max$/m);
+  assert.doesNotMatch(text, /\nconcurrency:/, "no workflow-level group holds Post Verify Notes or Rerun CI Status behind an earlier run");
+  const block = jobBlock("pr-dispatch-feedback.yml", "dispatch");
+  const at = block.indexOf("    concurrency:");
+  assert.notEqual(at, -1, "the dispatch job sets concurrency");
+  const end = block.findIndex((line, i) => i > at && !line.startsWith("      "));
+  const group = block.slice(at + 1, end).join("\n");
+  assert.match(group, /^ {6}group: >-\n {8}pr-dispatch-feedback-\$\{\{ github\.event\.workflow_run\.path == '\.github\/workflows\/pr-verify\.yml'\n/);
+  assert.match(group, /\|\| github\.event\.workflow_run\.head_sha \}\}$/m);
+  assert.match(group, /^ {6}cancel-in-progress: false$/m);
+  assert.match(group, /^ {6}queue: max$/m);
+  for (const job of ["post-verify-notes", "rerun-ci-status"]) {
+    assert.ok(!jobBlock("pr-dispatch-feedback.yml", job).includes("    concurrency:"), `${job} joins no group`);
+  }
 });
 
 function stepBlock(file, job, name) {
