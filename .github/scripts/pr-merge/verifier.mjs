@@ -1,11 +1,10 @@
 import { spawnSync } from "node:child_process";
 
-import { quote } from "../pr-unblock/address-feedback.mjs";
 import { lines as bodyLines } from "../pr-unblock/gate-source.mjs";
 
-const SHA = /^[0-9a-f]{40}$/;
+export const SHA = /^[0-9a-f]{40}$/;
 export const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
-const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
+export const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 
 export const VERIFY_FINAL = Object.freeze(["verify:repeated-fail"]);
 
@@ -36,69 +35,6 @@ export function verifyHold(evidence, head) {
     return `${READER_HOLDS.risk}${escapeCommand(evidence.reviews)})`;
   }
   return evidence.reviews === null ? null : "its risk score could not be read";
-}
-
-export const REFUSAL_MARKER = "<!-- babysit-merge-risk -->";
-export const ATTEND_QUEUE_MARKER = "<!-- work-items:escalation lane=pr-merge kind=escalated -->";
-export const LANE_SINCE = /^<!-- pr-merge-unarmed-since head=([0-9a-f]{40}) at=([0-9TZ:.-]+) -->$/;
-const laneSince = (head, at) => `<!-- pr-merge-unarmed-since head=${head} at=${at} -->`;
-
-const partialLine = (head) => `<!-- pr-merge-partial head=${head} -->`;
-export const isPartial = (body, head) => String(body ?? "").split("\n").at(-1) === partialLine(head);
-
-export function refusalReasons(body, person, head, label, { since = null, partial = false, records = [] } = {}) {
-  const lines = String(body ?? "").split("\n");
-  const open = lines.indexOf("```text");
-  const close = lines.indexOf("```", open + 1);
-  if (open < 0 || close < 0) {
-    return null;
-  }
-  const raw = lines.slice(open + 1, close);
-  const reasons = raw.reduce((out, line) => (line.startsWith("  ") && out.length > 0 ? [...out.slice(0, -1), `${out.at(-1)} ${line.slice(2)}`] : [...out, line]), []);
-  if (refusalBody(person, reasons.join("\n"), head, label, since, partial, records) === body) {
-    return reasons;
-  }
-  return renderRefusal(unwrappedFence, person, raw.join("\n"), head, label, since, partial, records) === body ? fenced(raw.join("\n")).split("\n") : null;
-}
-
-const unfolded = (reason) => String(reason).replaceAll(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''");
-export const fenced = (reason) =>
-  unfolded(reason)
-    .split("\n")
-    .map((line) => line.replaceAll(/\s+/g, " ").trim())
-    .join("\n");
-export const wrappedFence = (reason) => quote(fenced(reason).split("\n"), (count) => `Its reasons (${count} lines)`);
-export const unwrappedFence = (reason) => ["```text", unfolded(reason), "```"].join("\n");
-
-export const WHOLE_REVIEW_RECORD = /^Whole review requested at head `[0-9a-f]{40}` at \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ: .*$/;
-export const recordLines = (body) => {
-  let fenced = false;
-  return bodyLines(body).filter((line) => {
-    if (line.startsWith("```")) {
-      fenced = !fenced;
-      return false;
-    }
-    return !fenced && WHOLE_REVIEW_RECORD.test(line);
-  });
-};
-
-export const refusalBody = (person, reason, head, label, since = null, partial = false, records = []) =>
-  renderRefusal(wrappedFence, person, reason, head, label, since, partial, records);
-
-export function renderRefusal(fence, person, reason, head, label, since, partial, records) {
-  const who = person
-    ? `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`
-    : "No person needs to act: a lane clears this reason, and the next scheduled run judges it again.";
-  return [
-    ...(person ? [ATTEND_QUEUE_MARKER] : []),
-    REFUSAL_MARKER,
-    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${head}\`. ${who}`,
-    "",
-    fence(reason),
-    ...(records.length === 0 ? [] : ["", ...records]),
-    ...(person || since === null ? [] : [laneSince(head, since)]),
-    ...(person && partial ? [partialLine(head)] : []),
-  ].join("\n");
 }
 
 export const READER_RATE_LIMIT_EXIT = 75;

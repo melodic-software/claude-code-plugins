@@ -4,8 +4,7 @@ import { after, test } from "node:test";
 
 import { workflowText } from "../lib/workflow-text.mjs";
 import { main, MENDED_OUTPUT, NATIVE_READS_PER_RUN, REQUIRED_SUITE_MARKER, SESSION_CHECKS_PER_RUN } from "./clear-escalations.mjs";
-import { unblockHold } from "./enable-auto-merge.mjs";
-import { refusalBody } from "./verifier.mjs";
+import { refusalBody, unblockHold } from "./enable-auto-merge.mjs";
 import { unblockStops } from "./merge-holds.mjs";
 import { escalationActivity, escalationRoute, ROUTES } from "../pr-unblock/escalation-routes.mjs";
 import { CREDENTIAL_HOLD, SIGNED_COMMITS_HOLD } from "../pr-unblock/gate-source.mjs";

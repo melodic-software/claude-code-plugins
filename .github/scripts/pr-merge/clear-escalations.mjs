@@ -38,7 +38,8 @@ import {
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
 import { branchActivity, changedPaths, LANES_APP_LOGIN as DEFAULT_BOT, laneChangeIn, OUTSIDE_ACTOR_LABEL as OUTSIDE_ACTOR, readStatuses, REVIEW_LANES } from "./merge-holds.mjs";
-import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalReasons, rotated, verifyHold } from "./verifier.mjs";
+import { REFUSAL_MARKER, refusalReasons } from "./enable-auto-merge.mjs";
+import { escapeCommand, pythonVerify, READER_HOLDS, rotated, verifyHold } from "./verifier.mjs";
 
 const REASON = /^- (?:Lane code|Reason): `([a-z-]+)`$/m;
 const outsideActorHeld = (labels) => (labels ?? []).some((item) => same(item?.name, OUTSIDE_ACTOR));
@@ -141,7 +142,6 @@ async function headFailing({ checks, repo, pull, checkRunsAt }) {
 
 const reasonOf = ({ body }) => REASON.exec(body.join("\n"))?.[1];
 const lastWrite = (item) => Math.max(Date.parse(item.created_at), Date.parse(item.updated_at ?? item.created_at));
-const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const reportError = (number, error) =>
   console.log(`::error title=clear-escalations::#${number}: ${escapeCommand(error?.message ?? error)}`);
 
