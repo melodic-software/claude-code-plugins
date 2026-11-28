@@ -13,7 +13,7 @@ SHEBANG='#!/usr/bin/env bash'
 
 readonly ADAPTER_VERBS=(
   create-item get-item claim renew-lease release reclaim link-blocks
-  add-sub-item list-items list-sub-items label-provenance set-fields get-field-options get-statuses
+  add-sub-item list-items list-sub-items label-provenance set-fields set-native-status get-field-options get-statuses
   change-link add-recurrence put-artifact list-artifacts get-artifact link-relates unlink-relates list-relates capabilities
 )
 readonly FEATURE_KEYS=(cross_repo_edges sub_items leases labels)

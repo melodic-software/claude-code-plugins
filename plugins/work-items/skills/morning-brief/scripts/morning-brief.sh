@@ -45,6 +45,7 @@ STUCK_JSON=""
 TOUCH_DAYS="2"
 TOUCH_JSON=""
 STATUS_JSON=""
+NATIVE_STATUS_JSON=""
 OWNER_LOGIN_ARG=""
 LANE_IDENTITY_ARG=""
 HOLD_LABEL="needs-human"
@@ -126,7 +127,7 @@ Usage: morning-brief.sh [options]
   --config-home DIR                 convention home holding work-items.yaml
   --help                            print this help
 Fixture flags (skip the network): --now, --counts-json, --repo-labels-json, --pr-json, --behind-json,
-  --decisions-json, --telemetry-json, --merged-json, --agent-decided-json, --stuck-json, --touch-json, --status-json,
+  --decisions-json, --telemetry-json, --merged-json, --agent-decided-json, --stuck-json, --touch-json, --status-json, --native-status-json,
   --lane-runs-json, --lane-annotations-json, --billing-usage-json, --billing-budgets-json, --azure-json, --org-scan-json
 
 Exit 0 every section read; 3 invalid argument; 4 gh or jq missing, or no repo; 5 every section unreadable;
@@ -267,6 +268,7 @@ while (($# > 0)); do
   --stuck-json) take file STUCK_JSON "$@" ;;
   --touch-json) take file TOUCH_JSON "$@" ;;
   --status-json) take file STATUS_JSON "$@" ;;
+  --native-status-json) take file NATIVE_STATUS_JSON "$@" ;;
   --lane-runs-json) take file LANE_RUNS_JSON "$@" ;;
   --lane-annotations-json) take file LANE_ANNOTATIONS_JSON "$@" ;;
   --billing-usage-json) take file BILLING_USAGE_JSON "$@" ;;
@@ -883,6 +885,84 @@ search_zero_unconfirmed() {
   [[ "$total" != "0" ]]
 }
 
+NATIVE_STATUS_PAGE_LIMIT=10
+print_native_statuses() {
+  local defs_file="$WORK/native-defs.json" issues_file="$WORK/native-issues.json" capped=0
+  if [[ -n "$NATIVE_STATUS_JSON" ]]; then
+    if jq -e 'type == "object" and has("issues")' "$NATIVE_STATUS_JSON" >/dev/null 2>&1; then
+      jq -c '.statuses // []' "$NATIVE_STATUS_JSON" >"$defs_file" 2>/dev/null || return 0
+      jq -c '.issues // []' "$NATIVE_STATUS_JSON" >"$issues_file" 2>/dev/null || return 0
+      jq -e '.capped == true' "$NATIVE_STATUS_JSON" >/dev/null 2>&1 && capped=1
+    elif jq -e 'type == "array"' "$NATIVE_STATUS_JSON" >/dev/null 2>&1; then
+      printf '[]\n' >"$defs_file"
+      cp "$NATIVE_STATUS_JSON" "$issues_file"
+    else
+      return 0
+    fi
+  elif [[ -n "$COUNTS_JSON" || -z "$REPO" ]]; then
+    return 0
+  else
+    gh_read "$defs_file" api "repos/$REPO/planning-statuses" || return 0
+    jq -e 'type == "array" and length > 0' "$defs_file" >/dev/null 2>&1 || return 0
+    local page=1 page_len url
+    printf '[]\n' >"$issues_file"
+    while :; do
+      url="repos/$REPO/issues?state=open&per_page=100"
+      ((page > 1)) && url+="&page=$page"
+      gh_read "$WORK/native.page" api "$url" || return 0
+      page_len="$(jq -e 'if type == "array" then length else error end' "$WORK/native.page" 2>/dev/null)" || return 0
+      jq -cs '.[0] + [.[1][] | select(has("pull_request") | not) | {number, status: (.status // null), sub_issues_summary: (.sub_issues_summary // null)}]' \
+        "$issues_file" "$WORK/native.page" >"$issues_file.next" 2>/dev/null || return 0
+      mv "$issues_file.next" "$issues_file"
+      ((page_len == 100)) || break
+      if ((page >= NATIVE_STATUS_PAGE_LIMIT)); then
+        capped=1
+        break
+      fi
+      page=$((page + 1))
+    done
+  fi
+  local out
+  out="$(jq -r --slurpfile defs "$defs_file" '
+    [ .[] | select(has("pull_request") | not)
+      | {status: (if (.status | type) == "object" and (.status.name | type) == "string" and (.status.name | length) > 0
+                  then .status.name
+                  elif (.status | type) == "string" and (.status | length) > 0 then .status
+                  else null end),
+        parent: ((.sub_issues_summary.total // 0) > (.sub_issues_summary.completed // 0))} ] as $items
+    | ([ $items[] | select(.status != null) ] | length) as $non_null
+    | if $non_null == 0 then empty
+      else
+        (reduce (($defs[0] // [])[] | .name // empty) as $n ([]; if index($n) then . else . + [$n] end)) as $ordered
+        | ([ $items[] | .status | select(. != null) ] | unique) as $seen
+        | ($ordered + [ $seen[] | select(. as $s | ($ordered | index($s)) | not) ]) as $names
+        | (reduce $names[] as $name ([];
+            ([ $items[] | select(.status == $name) ]) as $m
+            | ($m | length) as $total
+            | if $total == 0 then .
+              else
+                ([ $m[] | select(.parent == true) ] | length) as $parents
+                | ($total - $parents) as $leaf
+                | . + [{name: $name, text: (if $parents > 0 then "\($leaf) (+\($parents) with open sub-issues)" else "\($leaf)" end)}]
+              end)) as $rows
+        | ([ $items[] | select(.status == null) ]) as $unset_m
+        | ($unset_m | length) as $unset_total
+        | ([ $unset_m[] | select(.parent == true) ] | length) as $unset_parents
+        | ($unset_total - $unset_parents) as $unset_leaf
+        | ($rows + (if $unset_total > 0 then [{name: "unset", text: (if $unset_parents > 0 then "\($unset_leaf) (+\($unset_parents) with open sub-issues)" else "\($unset_leaf)" end)}] else [] end))
+        | .[] | "\(.name)\t\(.text)"
+      end
+  ' "$issues_file" 2>/dev/null)" || return 0
+  [[ -n "$out" ]] || return 0
+  echo "  Native statuses (open):"
+  local sname stext
+  while IFS=$'\t' read -r sname stext; do
+    [[ -n "$sname" ]] || continue
+    printf '    %-22s %s\n' "$sname" "$stext"
+  done <<<"$out"
+  ((capped)) && echo "  PARTIAL: the native-status open-issue read reached its $((NATIVE_STATUS_PAGE_LIMIT * 100))-issue cap; counts may be low"
+}
+
 print_queues() {
   echo "== Queues (open issues per label) =="
   local labels_to_show=() label n labels_available=0
@@ -904,6 +984,7 @@ print_queues() {
       else
         echo "  pinned: ${QUEUE_LABELS[*]}"
       fi
+      print_native_statuses
       echo
       return
     fi
@@ -966,6 +1047,7 @@ print_queues() {
   ((${#unavailable[@]})) && partial_labels "count unavailable: $SEARCH_ZERO_NOTE" "${unavailable[@]}"
   [[ "$STATUS_STATE" == rest ]] && echo "  PARTIAL: $STATUS_PARTIAL_NOTE; counts are by label alone"
   ((STATUS_CAPPED)) && echo "  PARTIAL: the open-issue read reached its $((STATUS_PAGE_LIMIT * 50))-issue cap; counts may be low"
+  print_native_statuses
   echo
 }
 
