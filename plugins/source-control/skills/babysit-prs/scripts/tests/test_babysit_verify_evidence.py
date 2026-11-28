@@ -4124,9 +4124,9 @@ class RunArtifactsGitHub(FakeGitHub):
 
 class OneRunSharesARunsFinalArtifacts(unittest.TestCase):
     """With `BABYSIT_RUN_CACHE` named, the gate processes of one run share,
-    for `run_cache.MAX_AGE`, the artifacts of an index's run once that set
-    is final: it holds a FAIL, or the run was seen completed before the
-    re-read. A run still uploading is read again by every process."""
+    for `run_cache.MAX_AGE`, the artifacts of an index's run that hold a
+    FAIL. A set with no FAIL, completed or still uploading, is read again by
+    every process, since a re-run keeps the run's id."""
 
     FAILED, DONE = 3, 4
 
@@ -4175,12 +4175,31 @@ class OneRunSharesARunsFinalArtifacts(unittest.TestCase):
         self.assertEqual(self.reads(self.FAILED), (1, 0), "second process reads none")
         self.assertIn(named(HEAD, "fail", 90), first)
 
-    def test_a_completed_run_without_a_fail_is_listed_once_per_run(self) -> None:
+    def test_a_completed_run_without_a_fail_is_read_by_every_process(self) -> None:
         first = self.process(self.DONE)
         self.assertEqual(self.reads(self.DONE), (2, 1), "read, run record, re-read")
         self.assertEqual(self.process(self.DONE), first)
-        self.assertEqual(self.reads(self.DONE), (2, 1), "second process reads none")
+        self.assertEqual(self.reads(self.DONE), (4, 2), "second process reads again")
         self.assertEqual(first, [f"{ve.INDEX_PREFIX}pr-{PR}"])
+
+    def test_a_fail_a_re_run_uploads_reaches_the_next_process(self) -> None:
+        self.process(self.DONE)
+        late = named(HEAD, "fail", 91)
+        self.fake.artifacts.append(artifact(late, self.DONE) | {"id": 41})
+        self.assertIn(late, self.process(self.DONE), "same run id, new FAIL")
+
+    def test_a_judgment_notes_when_its_run_artifacts_were_read(self) -> None:
+        read_at = datetime(2026, 10, 18, 11, 58, 30, tzinfo=UTC)
+        clock = [read_at]
+        with mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]):
+            with ve.run_cache.track() as fresh:
+                self.process(self.FAILED)
+            clock[0] += timedelta(seconds=90)
+            with ve.run_cache.track() as shared:
+                self.process(self.FAILED)
+        self.assertEqual(self.reads(self.FAILED), (1, 0), "second process reads none")
+        self.assertEqual(fresh, [read_at], "a fresh read notes when it began")
+        self.assertEqual(shared, [read_at], "a shared read notes when it was read")
 
     def test_a_run_still_uploading_is_read_again_by_the_next_process(self) -> None:
         self.fake.running.add(self.DONE)
