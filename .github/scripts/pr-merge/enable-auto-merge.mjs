@@ -77,6 +77,7 @@ export const DETAIL_QUERY = `query($owner: String!, $name: String!, $number: Int
       reviews(last: 100) { totalCount nodes { ${REVIEW_FIELDS} } }
       timelineItems(itemTypes: [AUTO_MERGE_DISABLED_EVENT, AUTO_MERGE_ENABLED_EVENT, ADDED_TO_MERGE_QUEUE_EVENT], last: 1) { nodes { __typename ... on AutoMergeDisabledEvent { createdAt actor { __typename login } } ... on AutoMergeEnabledEvent { createdAt actor { __typename login } } ... on AddedToMergeQueueEvent { createdAt actor { __typename login } } } }
       files(first: 100) { totalCount nodes { path changeType } }
+      labels(first: 100) { totalCount nodes { name } }
     }
   }
 }`;
@@ -923,7 +924,7 @@ export function decideTrusted(pull, humanGated, facts = {}, bot = undefined) {
           : !SHA.test(String(pull.headRefOid))
             ? "its head is not a commit SHA"
             : trustedHoldReason(pull, humanGated);
-  const judged = held === null ? judgeUnheld(pull, facts, bot) : none(held);
+  const judged = held === null ? judgeUnheld(pull, humanGated, facts, bot) : none(held);
   if (judged.action !== "none") {
     return judged;
   }
@@ -946,7 +947,7 @@ function stalePin(comments, bot, head) {
   return pin === undefined || UNPIN_RE.test(firstLine(pin.body)) ? null : `its newest lanes App pin names ${head}, a head it stays unarmed at`;
 }
 
-function judgeUnheld(pull, facts, bot) {
+function judgeUnheld(pull, humanGated, facts, bot) {
   const none = (reason) => ({ action: "none", reason });
   if (!("files" in facts)) {
     return { action: "files", reason: "its changed files are not read yet" };
@@ -991,7 +992,7 @@ function judgeUnheld(pull, facts, bot) {
   if (!Array.isArray(facts.comments)) {
     return none("its comments could not be read, so its pin cannot be checked");
   }
-  const unread = discussionUnread(facts.discussion);
+  const unread = discussionUnread(facts.discussion) ?? trustedHoldReason({ ...pull, labels: facts.discussion?.labels }, humanGated);
   if (unread !== null) {
     return none(unread);
   }
@@ -1692,7 +1693,8 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         const key = { files: "files", cost: "cost", "lane-source": "laneSources", verify: "verify", comments: "comments" }[action];
         try {
           if (action === "comments") {
-            facts.discussion = await discussionOf(pull.number);
+            const read = await discussionOf(pull.number);
+            facts.discussion = read != null && !(read.labels?.totalCount <= (read.labels?.nodes?.length ?? 0)) ? { ...read, labels: await allLabels(github, repo[0], pull.number).catch(() => read.labels) } : read;
           }
           facts[key] =
             action === "files"
