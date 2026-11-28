@@ -1,5 +1,11 @@
 # Changelog: docs-hygiene plugin
 
+## [5.0.7] - 2026-11-28
+
+### Changed
+
+- References to the standards concern file name `docs/conventions/standards.yaml` (standards contract 2.0.0), in place of `.claude/standards.yaml`.
+
 ## [5.0.6] - 2026-11-28
 
 ### Fixed

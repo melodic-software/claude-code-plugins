@@ -3,6 +3,12 @@
 All notable changes to the `naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.11] - 2026-11-28
+
+### Changed
+
+- Re-wrapped three ragged paragraphs in the README and name-it-better skill body (whitespace only, no behavior change).
+
 ## [0.7.10] - 2026-11-28
 
 ### Changed
