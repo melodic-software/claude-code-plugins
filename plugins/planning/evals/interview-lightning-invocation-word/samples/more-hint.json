@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "say \"more Q<N>\" for the full block.",
+      "why": "the round's closing hint"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Alternatives: 2",
+      "why": "no hint"
+    }
+  ]
+}

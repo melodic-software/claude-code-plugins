@@ -219,7 +219,7 @@ declares_both_fixtures B "$CASE_B"
 
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "dc9b11cb123378506d223693eabeda7e0b832e3d369195095665f1d01e6ac3f2"
+  "4b77c950f11047acc7c964752f158432f584464c1c279e96f6e982b35cfbe79f"
 
 pin_section "SKILL.md Gates section is unchanged (the early twin of the five gates)" \
   "$SKILL" \
@@ -240,7 +240,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "670e51cc4aac85ac54bc217f89c22f4933b5aa1d1e66494b037f421b96032950"
+  "d034f0823eaebc969843531066f938cec8a29966c6e40a6108137ff91280f588"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -295,7 +295,7 @@ pin_section "SKILL.md Action Router section is unchanged (the \`lock\` row and i
   "$SKILL" \
   "## Action Router" \
   "## Stance: supportive, depth-first, opinionated" \
-  "31ea7a100e663158703a7813feb26ccc93b5e438c66e737e162e39e27a21a5f3"
+  "b3320747ee04f174aa496b90dc56ed4ac9c47b2eff3a36e59ab20d68f0c1ca23"
 pin_section "SKILL.md Step 3 section is unchanged (the confirmation-gate exemption lives here)" \
   "$SKILL" \
   "### Step 3. Recognize the stop condition" \

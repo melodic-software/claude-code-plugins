@@ -34,6 +34,16 @@
         "minimal"
       ]
     },
+    "interview_style": {
+      "type": "string",
+      "title": "Interview style",
+      "description": "How /planning:interview prints its rounds: standard (default, the full question layout) or lightning (each question as a condensed entry, major questions tagged, every gate kept). Saying \"lightning\" or \"stop lightning\" in a session overrides it; a repository's planning.yaml overrides this value.",
+      "default": "standard",
+      "options": [
+        "standard",
+        "lightning"
+      ]
+    },
     "questions_per_round": {
       "type": "number",
       "title": "Interview questions per round",
