@@ -8,11 +8,13 @@ Wording-only clarification is a patch.
 
 - Added: the guardrail criterion opens with a classify step by the organization's enforceability
   tiers (deterministic, detect-then-judge, reasoning-only); a mixed finding is split into parts and
-  each part walks the ladder. The `/corrections:codify` row picks the strongest rung for each part.
+  each part walks the ladder. A deterministic part is tested against all eight criterion items; a
+  part proposed for a model-judged hook is held to item 3. The `/corrections:codify` row picks the
+  strongest rung for each part.
 - Added: `action-guard` covers a check when the agent's turn ends, over its own output (a `Stop`
   hook). `automated-review` is a reviewer agent, the review bot or a session reviewer, and a
-  model-judged hook (`type: "prompt"` or `type: "agent"`) is its blocking form, held to guardrail
-  criterion item 3; the Tier 4 intro carves it out.
+  model-judged hook is its blocking form, held to guardrail criterion item 3; the Tier 4 intro
+  carves it out.
 - Added: "A recurring correction" says a loaded and ignored rule with no rung above is
   strengthened in place, never duplicated, and reported as "no rung above holds it".
 - Changed: Sources point at Lauren Tan's `principle-encode-lessons-in-structure` and Matt Pocock's

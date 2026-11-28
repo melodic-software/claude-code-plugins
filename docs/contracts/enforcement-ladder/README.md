@@ -69,7 +69,7 @@ assigns, and in CI, which is the default to aim for. The contract:
 | `architecture-test` | a test over the dependency graph or the module layout (which module may reference which, which namespace belongs to which layer), written with the repository's own architecture-test library | local stage and CI |
 | `behavior-test` | a unit, integration or end-to-end test that fails when the behavior is wrong | local stage and CI |
 | `harness-setting` | a Claude Code setting that blocks the action: permission deny rules, skill frontmatter flags | each agent action |
-| `action-guard` | a Claude Code hook on an action no file check sees, such as a force-push or a write outside the tree, or a check when the agent's turn ends, over its own output: a `Stop` hook reading `last_assistant_message` and `background_tasks` (<https://code.claude.com/docs/en/hooks#stop-input>) | each agent action |
+| `action-guard` | a Claude Code hook on an action no file check sees, such as a force-push or a write outside the tree, or a check when the agent's turn ends, over its own output: a `Stop` hook (what it receives: <https://code.claude.com/docs/en/hooks#stop-input>) | each agent action |
 | `scaffold` | a template or generator that produces the right shape, the last static-analysis rung | generation |
 
 Alias: `semgrep-rule` is read as `syntax-pattern-rule`, with a printed notice, through 3.x.
@@ -121,8 +121,8 @@ reader meets it and put an example of the mistake beside it.
 1. **`automated-review`**: a reviewer agent applies the repository's review criteria: the review
    bot on every pull request, or a session reviewer judging the agent's turns. It holds a rule only
    a reviewer applies, or a change to how severe a finding is; the review bot's findings are
-   advisory. Its blocking form is a model-judged hook (`type: "prompt"` or `type: "agent"`,
-   <https://code.claude.com/docs/en/hooks#prompt-based-hooks>): it runs at each agent action, can
+   advisory. Its blocking form is a model-judged hook
+   (<https://code.claude.com/docs/en/hooks#prompt-based-hooks>): it runs at each agent action, can
    block it, and is held to guardrail criterion item 3's bar for a blocking check, no effective
    false positives. `/harness-config:audit-automation-gaps` decides whether such a hook earns its
    place, when that skill is available. The rule goes in the review-criteria index
@@ -178,14 +178,15 @@ own:
 
 ## Guardrail criterion
 
-Classify first, by the three tiers of the organization's enforceability standard
-(<https://github.com/melodic-software/standards/blob/main/standards/engineering/enforceability-tiers.md>):
-deterministic (a tool decides alone), detect-then-judge (a tool flags candidates and a person or
-agent rules on each) and reasoning-only (no tool can decide). A finding that mixes tiers is split
-into parts, one tier each, and each part walks the ladder as a finding of its own: a mistake whose
-forbidden action a hook can see and whose rest needs judgment gets an `action-guard` for the first
-part and a guidance rung for the second. Only a deterministic part is tested against the items
-below.
+Classify first, by the three tiers of the organization's enforceability standard: deterministic
+(a tool decides alone), detect-then-judge (a tool flags candidates and a person or agent rules on
+each) and reasoning-only (no tool can decide). A finding that mixes tiers is split into parts, one
+tier each, and each part walks the ladder as a finding of its own: a mistake whose forbidden action
+a hook can see and whose rest needs judgment gets an `action-guard` for the first part and a
+guidance rung for the second. A deterministic part is tested against all eight items below; a part
+proposed for a model-judged hook, the blocking form of `automated-review`, is held to item 3.
+
+- Pointer: <https://github.com/melodic-software/standards/blob/main/standards/engineering/enforceability-tiers.md>, the enforceability standard that defines the three tiers.
 
 A finding earns a deterministic rung (the codebase or static-analysis tier) only if all eight hold.
 This section is the one place the readers point to for the question.
