@@ -6647,7 +6647,7 @@ class LaneRequiresAVerdict(unattended.Unattended):
                 )
 
     def test_a_hold_the_gate_reads_on_the_pull_request_closes_nothing(self) -> None:
-        for hold in ("body-hold", "human-blocking-comment:kyle-sexton", "unreadable"):
+        for hold in ("do-not-merge", "needs-human", "unreadable"):
             with self.subTest(hold):
                 self.verdicts[unattended.PR] = evidence("verify:repeated-fail")
                 self.holds[unattended.PR] = hold
@@ -8744,9 +8744,10 @@ class AFailJudgedFromADraftRunCountsAsNone(unittest.TestCase):
 class OneRunSharesADraftJudgmentReadWhole(unittest.TestCase):
     """Two gate processes of one pr-merge run judging the same FAIL at the
     head: the second lists no checks runs, reads no jobs and no verifier run
-    when the first judged it from whole reads. A judgment cut short by a
-    failed read is judged again by the next process, and with no run cache
-    named every process reads as before."""
+    when the first judged it not a draft from whole reads. A FAIL judged a
+    draft, a judgment cut short by a failed read, and a stored judgment that
+    the FAIL was a draft are all judged again by the next process, and with
+    no run cache named every process reads as before."""
 
     def setUp(self) -> None:
         self.dir = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
@@ -8775,18 +8776,29 @@ class OneRunSharesADraftJudgmentReadWhole(unittest.TestCase):
         self.assertEqual(read(fake).refusal, refusal, "second process")
         return first, self.reads(fake)
 
-    def test_a_draft_judgment_is_read_once_per_run(self) -> None:
+    def test_a_not_a_draft_judgment_is_read_once_per_run(self) -> None:
+        self.new_run()
         fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
-        for label, jobs, refusal in (
-            ("judged a draft", DRAFT_JOBS, None),
-            ("judged a ready run", READY_JOBS, "verify:fail"),
-        ):
-            with self.subTest(label):
-                self.new_run()
-                fake = draft_race(fail_at(HEAD), HEAD, jobs)
-                first, second = self.two_processes(fake, refusal)
-                self.assertEqual(first, (1, 1, 1), "first process reads")
-                self.assertEqual(second, (0, 0, 0), "second process reads")
+        fake = draft_race(fail_at(HEAD), HEAD, READY_JOBS)
+        first, second = self.two_processes(fake, "verify:fail")
+        self.assertEqual(first, (1, 1, 1), "first process reads")
+        self.assertEqual(second, (0, 0, 0), "second process reads nothing")
+
+    def test_a_draft_judgment_is_read_by_every_process(self) -> None:
+        self.new_run()
+        fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
+        fake = draft_race(fail_at(HEAD), HEAD, DRAFT_JOBS)
+        first, second = self.two_processes(fake, None)
+        self.assertEqual(first, (1, 1, 1), "first process reads")
+        self.assertEqual(second, (1, 1, 1), "second process reads again")
+
+    def test_a_stored_draft_judgment_does_not_dismiss_the_fail(self) -> None:
+        self.new_run()
+        run_cache.put(ve.DRAFT_JUDGMENT_SECTION, f"{REPO}|{HEAD}|2", True)
+        fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
+        fake = draft_race(fail_at(HEAD), HEAD, READY_JOBS)
+        self.assertEqual(read(fake).refusal, "verify:fail", "fresh read keeps it")
+        self.assertEqual(self.reads(fake), (1, 1, 1), "judged from fresh reads")
 
     def test_a_judgment_cut_short_is_judged_again(self) -> None:
         fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
@@ -8840,9 +8852,10 @@ class OneRunSharesADraftJudgmentReadWhole(unittest.TestCase):
 
 
 class AStoredDraftJudgmentServesOnlyItsHeadAndRun(unittest.TestCase):
-    """A draft judgment one gate process stored answers another process only
-    for the same head and verifier run; a stored value that is not a boolean
-    is judged again, and a judgment a failed read cut short is not stored."""
+    """A not-a-draft judgment one gate process stored answers another process
+    only for the same head and verifier run; a stored value other than False
+    is judged again, and neither a judged draft nor a judgment a failed read
+    cut short is stored."""
 
     LATER = 3
 
@@ -8880,14 +8893,26 @@ class AStoredDraftJudgmentServesOnlyItsHeadAndRun(unittest.TestCase):
         return json.loads(self.path.read_text()).get(ve.DRAFT_JUDGMENT_SECTION, {})
 
     def test_another_run_or_head_is_judged_by_its_own_reads(self) -> None:
-        self.assertIs(self.process(HEAD, 2), True, "run 2 judged a draft at HEAD")
+        later = self.LATER
+        self.assertIs(self.process(HEAD, later), False, "run 3 not a draft at HEAD")
         self.fake.calls.clear()
-        self.assertIs(self.process(HEAD, 2), True, "same head and run: shared")
+        self.assertIs(self.process(HEAD, later), False, "same head and run: shared")
         self.assertEqual(self.listings(HEAD), 0, "shared with no listing")
-        self.assertIs(self.process(HEAD, self.LATER), False, "a later run at HEAD")
+        self.assertIs(self.process(HEAD, 2), True, "an earlier run at HEAD")
         self.assertEqual(self.listings(HEAD), 1, "another run lists its own")
-        self.assertIs(self.process(EARLIER, 2), False, "run 2 at another head")
+        self.assertIs(self.process(EARLIER, later), False, "run 3 at another head")
         self.assertEqual(self.listings(EARLIER), 1, "another head lists its own")
+
+    def test_a_draft_judgment_is_neither_stored_nor_served(self) -> None:
+        self.assertIs(self.process(HEAD, 2), True, "run 2 judged a draft at HEAD")
+        self.assertEqual(self.stored(), {}, "a draft judgment is not stored")
+        self.fake.calls.clear()
+        self.assertIs(self.process(HEAD, 2), True, "judged a draft again")
+        self.assertEqual(self.listings(HEAD), 1, "from its own listing")
+        run_cache.put(ve.DRAFT_JUDGMENT_SECTION, f"{REPO}|{HEAD}|{self.LATER}", True)
+        self.fake.calls.clear()
+        self.assertIs(self.process(HEAD, self.LATER), False, "a stored True ignored")
+        self.assertEqual(self.listings(HEAD), 1, "judged from a fresh listing")
 
     def test_a_stored_value_that_is_not_a_boolean_is_judged_again(self) -> None:
         for value in (1, 0, "true", "false", None, [True], {"judged": True}):
@@ -8908,8 +8933,11 @@ class AStoredDraftJudgmentServesOnlyItsHeadAndRun(unittest.TestCase):
                 self.assertEqual(self.stored(), {}, "nothing stored")
         self.fake.fail = set()
         self.assertIs(self.process(HEAD, 2), True)
+        self.assertEqual(self.stored(), {}, "a draft judgment is not stored")
+        self.assertIs(self.process(HEAD, self.LATER), False)
         self.assertEqual(
-            self.stored(), {f"{REPO}|{HEAD}|2": {"at": mock.ANY, "value": True}}
+            self.stored(),
+            {f"{REPO}|{HEAD}|{self.LATER}": {"at": mock.ANY, "value": False}},
         )
 
 

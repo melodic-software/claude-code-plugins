@@ -430,10 +430,8 @@ verified, say so and name the focus area and rung, so the next run rotates on.
   bugs config layers (the `gotchas_file` option's file, team, personal override) in layer order;
   apply them to this invocation. A missing layer is absent, not an error. When the personal
   gotchas file line names a file but the block shows no `userConfig` block for it, Read that
-  file's `## Gotchas` section and apply it as the first layer. Relay each `Warning:`
-  line under the block to the user: it names an old config path and the `/bugs:setup apply` that
-  moves it. A generalizable line belongs in this shipped skill via an issue, not in the consumer
-  file.
+  file's `## Gotchas` section and apply it as the first layer. A generalizable line belongs in this
+  shipped skill via an issue, not in the consumer file.
 
 ## Reference index. Load on demand
 

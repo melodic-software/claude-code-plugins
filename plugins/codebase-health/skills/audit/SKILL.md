@@ -1,5 +1,5 @@
 ---
-description: "Audit a codebase for drift between docs, config, code, and architecture. Verifies every factual claim against reality via parallel subagent fan-out, severity-rates findings and reports read-only; remediation is delegated to the implementation/verification skills (`--fix` ends the report by suggesting `/implementation:implement` then `/verification:confirm`, which the user runs). Use when: 'audit codebase', 'check for drift', 'verify docs', 'full audit'. Flags: `--fix` (suggest the remediation skills after reporting), `--docs-only`, `--code-only`, `--config-only`, `--arch-only`."
+description: "Audit codebase for factual drift across docs, config, code, and architecture; read-only report (`--docs-only`, `--code-only`, `--config-only`, `--arch-only`; `--fix` suggests remediation). Use when 'audit codebase', 'check for drift', 'verify docs'. Not for upstream drift: /discipline:recheck-against-upstream; harness: /harness-config:audit."
 argument-hint: "[scope] [--repo <repo> ...] [--fix] [--medium <value>] [--docs-only|--code-only|--config-only…]"
 user-invocable: true
 disable-model-invocation: false

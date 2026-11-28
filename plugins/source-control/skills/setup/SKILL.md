@@ -1,5 +1,5 @@
 ---
-description: "Configure the source-control plugin. check (read-only, default) reports the effective commit-subject / PR-title convention merged across the team and personal-override layers, plus old-location files and the babysit-prs userConfig surface; apply interviews the repo, writes the convention config to a chosen layer, moves old-location config, and walks the sanctioned babysit reconfigure paths. Use when setting up or inspecting this plugin's configuration, choosing or overriding a commit convention at any layer, configuring or checking babysit, when a run names an old config location, or when /commit, /pull-request, or /babysit-prs report missing configuration. Re-runnable and safe."
+description: "Inspect (check, read-only default) or configure (apply) commit/PR conventions and babysit-prs settings."
 argument-hint: "[check|apply] [layer=team|local] [subject_pattern=<pattern>] [branch_issue_pattern=<ERE>]"
 user-invocable: true
 disable-model-invocation: true
@@ -15,8 +15,7 @@ Inspect and configure the source-control plugin per the uniform setup contract
 
 1. The commit-subject / PR-title convention config, layered across the tracked team file
    (`docs/conventions/source-control.yaml`) and the gitignored personal override
-   (`docs/conventions/source-control.local.yaml`), plus the two old locations still read during
-   the dual-read window, and merged per key by
+   (`docs/conventions/source-control.local.yaml`), merged per key by
    [../../reference/config-resolution.md](../../reference/config-resolution.md). Resolved first by
    `/source-control:commit` and `/source-control:pull-request` before they fall back to inference or
    the bundled Conventional Commits default. Conventional Commits is genuinely optional, some orgs
@@ -47,7 +46,7 @@ below, never a cwd-relative path (invoked from a nested directory, a cwd-relativ
 the wrong file). Re-resolve `REPO_ROOT` at the top of every self-contained Bash call, a fresh shell
 does not carry a prior call's variables.
 
-Read both layers and any old location, then report **one effective-configuration table**, a row per key, its
+Read both layers, then report **one effective-configuration table**, a row per key, its
 resolved value, and which layer supplied it, followed by a per-layer presence line. Never present a
 single layer's value as the effective convention; a reader who cannot see which layer won cannot
 tell why `/source-control:commit` behaves as it does.
@@ -57,8 +56,8 @@ personal override are **not applicable**
 ([../../reference/config-resolution.md](../../reference/config-resolution.md)):
 do not read `${REPO_ROOT}/docs/conventions/source-control.yaml` or the personal override,
 report both as N/A with the reason (`project root is the home directory (or an ancestor of it)`
-or `project root is not inside a git repository`), and resolve only the old user-global file,
-while it exists. `parse-branch-issue.sh` prints the same note on stderr. Git
+or `project root is not inside a git repository`), and report defaults. `parse-branch-issue.sh`
+prints the same note on stderr. Git
 tracked/ignored probes do not apply: there is no consumer repository to answer against.
 `apply` refuses to write; say to run it from the repository that should hold the config.
 
@@ -100,15 +99,6 @@ that keyword with its layer in `won by`.
 
 Per-layer verdicts:
 
-- **Old locations** (dual-read window): list them with
-  `bash "${CLAUDE_PLUGIN_ROOT}/lib/convention-key.sh" old-files "$REPO_ROOT"` (pass an empty root
-  when team and personal override are not applicable), which prints one
-  `<old path><TAB><new location>` line per file present. Each line → WARN naming the old file, the
-  keys it still supplies, its new location, and `apply` as the remediation, which moves it
-  ([reference/apply-convention.md](reference/apply-convention.md) "Move config off the old
-  locations"). `~/.claude/source-control.md` is still read below team; the old personal override
-  `.claude/source-control.local.md` is read only while the personal YAML is absent, so beside it
-  say its keys are not read. No output → nothing to move.
 - **Team** (`REPO_ROOT/docs/conventions/source-control.yaml`): present → PASS. **FAIL** when
   excluded by `.gitignore`. Teammates would never receive the shared convention; report the matching
   rule. Absent → INFO, remediable by `apply`. Per key, `bash "${CLAUDE_PLUGIN_ROOT}/lib/convention-key.sh" layer "$REPO_ROOT" <key>`
@@ -146,7 +136,7 @@ literal keyword `Conventional Commits` or an anchored regex (`^…`-style); a pl
 description cannot be evaluated by `/source-control:commit` or `/source-control:pull-request`. Name the layer that supplied the
 offending value.
 
-With **every layer and old location absent**: INFO, no declared convention; `/source-control:commit` and `/source-control:pull-request` infer
+With **both layers absent**: INFO, no declared convention; `/source-control:commit` and `/source-control:pull-request` infer
 from the repo's own `CLAUDE.md`/rules/commit-msg hook, then fall back to the bundled Conventional
 Commits default. The remediation is `apply` to persist a convention.
 
@@ -309,11 +299,6 @@ In brief:
   is `$HOME` or an ancestor of it, or is not inside a git working tree, refuse to write (at home
   the files would land in the operator's home directory under a team label; outside a repository
   there is no team to share with).
-- **Move config off the old locations.** For each file `check` named at an old location, show a
-  preview of the keys it carries and where each goes, and after a yes copy them into the new
-  location, check the new location resolves the same values, then delete the old file. Never
-  without the yes; a decline leaves the file, still read and still warned about. The spoke's
-  "Move config off the old locations" owns the steps.
 - **Non-interactive** (`subject_pattern=`): an in-place *update*, never a fresh file. Carry every
   independent key, recompute derived keys (`type_list`, `pr_title_pattern`), reject a
   non-machine-checkable value, and for a `local` write omit requested keys the team layer already

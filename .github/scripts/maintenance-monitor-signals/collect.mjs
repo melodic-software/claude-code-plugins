@@ -3,7 +3,7 @@ import { escalationActivity, escalationRoute, STOP_RESOLVED } from "../pr-unbloc
 import { HOLD_LANES, holdJob, parseBudget, parseHold, POST_MERGE_UNREADABLE_SWEEPS, STALLED_HOURS, SWEEP_MAX_AGE_MINUTES } from "./signals.mjs";
 import { stepsKnown } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { CHECK_RUN_ANNOTATIONS, isObject, jobsKey, readNodes, restAnnotations, restJobs, RUN_CHECK_RUNS, slimJob } from "../lib/run-jobs.mjs";
-import { BODY_HOLD, labelHolds, LANE_HOLD } from "../pr-merge/merge-holds.mjs";
+import { labelHolds } from "../pr-merge/merge-holds.mjs";
 
 export const LIMITS = {
   prMergeRuns: 12,
@@ -656,7 +656,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
     const listed = await queryRepo(
       graphql,
       repo,
-      `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { pullRequests(states: OPEN, baseRefName: "main", first: ${LIMITS.stalledPulls}, orderBy: { field: UPDATED_AT, direction: DESC }) { totalCount nodes { number isDraft headRefOid author { __typename login } labels(first: 100) { nodes { name } } body comments(last: 100) { ${COMMENT_PAGE} } } } } }`,
+      `query($owner: String!, $name: String!) { repository(owner: $owner, name: $name) { pullRequests(states: OPEN, baseRefName: "main", first: ${LIMITS.stalledPulls}, orderBy: { field: UPDATED_AT, direction: DESC }) { totalCount nodes { number isDraft headRefOid author { __typename login } labels(first: 100) { nodes { name } } comments(last: 100) { ${COMMENT_PAGE} } } } } }`,
     );
     if (!listed.pullRequests) throw new Error("GraphQL: no open pull request list");
     openPulls = listed.pullRequests;
@@ -665,9 +665,7 @@ export async function collect({ get, graphql, getStatus, readArtifact, repo, now
       const login = node.author?.__typename === "Bot" ? `${node.author.login}[bot]` : node.author?.login;
       if (node.isDraft === true || login !== agentIdentity) return false;
       const labels = (node.labels?.nodes ?? []).map((l) => l?.name).filter(Boolean);
-      if (labelHolds(labels, null, 0).length > 0) return false;
-      const body = String(node.body ?? "");
-      return !LANE_HOLD.test(body) && !BODY_HOLD.test(body);
+      return labelHolds(labels, null, 0).length === 0;
     }).length;
     data.openLanePrs = total <= LIMITS.stalledPulls || openLaneCount > 0 ? openLaneCount : null;
   });

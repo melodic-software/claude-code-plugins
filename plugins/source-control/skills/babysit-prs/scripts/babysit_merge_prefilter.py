@@ -1,19 +1,18 @@
 #!/usr/bin/env python3
 """Drop pr-merge candidates the gate refuses on their list payload alone.
 
-pr-merge.yml lists candidates with their labels and body, then runs the gate
-once per candidate; each gate run spends tens of lane-token calls before it
-refuses a held pull request. A hold the gate reads from the same fields (a
-hold label, the human-gated one included, or a body hold,
-`babysit_merge.evaluate`) refuses whatever else the gate finds, so this drops such a candidate before the gate
-starts. It makes no API call. The gate still checks every hold itself.
+pr-merge.yml lists candidates with their labels, then runs the gate once per
+candidate; each gate run spends tens of lane-token calls before it refuses a
+held pull request. A hold label, the human-gated one included
+(`babysit_merge.evaluate`), refuses whatever else the gate finds, so this
+drops such a candidate before the gate starts. It makes no API call. The gate still checks every hold itself.
 
 When every candidate is held, one stays, so a gate process still sweeps the
 merge queue and dequeues any held entry the identity queued.
 
 `--human-gated` names the tracker's human-gated role label, resolved by the
 caller as `babysit_postmerge._role_label` resolves it (default `needs-human`).
-Reads a JSON array of {number, head, updatedAt, labels, body} on stdin and
+Reads a JSON array of {number, head, updatedAt, labels} on stdin and
 prints {"candidates": [...], "held": [...]}: the kept candidates as {number,
 head, updatedAt}, the dropped ones with their `reason` added.
 """
@@ -25,7 +24,7 @@ import json
 import sys
 from typing import Any
 
-from babysit_merge import BODY_MERGE_HOLD_RE, merge_hold_label
+from babysit_merge import merge_hold_label
 from babysit_postmerge import DEFAULT_ROLE_LABEL
 
 FIELDS = ("number", "head", "updatedAt")
@@ -36,12 +35,7 @@ def hold(
 ) -> str | None:
     """The hold the autonomous gate refuses this candidate on, named as
     `entry_hold` names it, or None."""
-    labels = candidate.get("labels") or []
-    if held_by := merge_hold_label(labels, human_gated=human_gated):
-        return held_by
-    if BODY_MERGE_HOLD_RE.search(str(candidate.get("body") or "")):
-        return "body-hold"
-    return None
+    return merge_hold_label(candidate.get("labels") or [], human_gated=human_gated)
 
 
 def split(

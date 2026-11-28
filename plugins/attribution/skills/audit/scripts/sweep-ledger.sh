@@ -98,12 +98,6 @@ REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"
 cfg_layers_init "$CONFIG_ROOT"
 
-UNREAD_LAYER=0
-if cfg_have_unread_layer; then
-  UNREAD_LAYER=1
-  echo "sweep-ledger.sh: jq not found; JSON config layers present but unread, using defaults" >&2
-fi
-
 CEILING=200
 CEILING_RAW=""
 cfg_scalar CEILING_RAW budgets.corpus_fetch_ceiling '^[0-9]+$'
@@ -264,8 +258,6 @@ status)
     echo "$NO_LEDGER"
     exit 0
   fi
-  [[ "$UNREAD_LAYER" -eq 0 ]] ||
-    die 4 "jq is required to read corpus_fetch_ceiling from the JSON config layers"
   load_ledger
   echo "ledger: $LEDGER"
   echo "sweep: $SWEEP_ID (started $SWEEP_AT)"

@@ -477,3 +477,55 @@ test("both legs of a compare pass upload each run's final reply under the manife
     }
   }
 });
+
+test("model and effort dispatch inputs reach both suite legs through env, keep workflow_run locked to defaults, and reject invalid values", () => {
+  assert.match(text, /\n {6}model:\n(?: {8}[^\n]*\n)*? {8}required: false\n {8}type: string\n {8}default: ""\n/);
+  assert.match(text, /\n {6}effort:\n(?: {8}[^\n]*\n)*? {8}required: false\n {8}type: string\n {8}default: ""\n/);
+
+  const wf = workflowText(text);
+  const keyEval = wf.step("run-eval", "eval");
+  const subEval = wf.step("run-eval-subscription", "eval");
+  for (const [label, s] of [["run-eval", keyEval], ["run-eval-subscription", subEval]]) {
+    assert.equal(s.env.MODEL, "${{ inputs.model }}", label);
+    assert.equal(s.env.EFFORT, "${{ inputs.effort }}", label);
+    assert.match(s.text, /--model "\$model"\n/, label);
+  }
+
+  const extractGuard = (s) => /model="\$EVAL_MODEL"\n[\s\S]*?\n {10}fi\n/.exec(s.text)[0].replace(/^ {10}/gm, "");
+  const keyGuard = extractGuard(keyEval);
+  const subGuard = extractGuard(subEval);
+  assert.equal(subGuard, keyGuard, "both suite legs run the exact same model/effort guard");
+
+  const probe = (env) => {
+    const r = spawnSync("bash", ["-c", `${keyGuard}\nprintf 'model=%s effort=%s\\n' "$model" "\${CLAUDE_CODE_EFFORT_LEVEL:-}"`], {
+      env: { PATH: process.env.PATH, EVAL_MODEL: "claude-sonnet-5-5", DISPATCH: "true", MODEL: "", EFFORT: "", ...env },
+      encoding: "utf8",
+    });
+    return { status: r.status, stdout: r.stdout.trim() };
+  };
+
+  assert.deepEqual(probe({}), { status: 0, stdout: "model=claude-sonnet-5-5 effort=" }, "empty dispatch keeps defaults");
+  assert.deepEqual(
+    probe({ MODEL: "claude-opus-5-5", EFFORT: "high" }),
+    { status: 0, stdout: "model=claude-opus-5-5 effort=high" },
+    "code-review lane model and effort",
+  );
+  for (const level of ["low", "medium", "high", "xhigh", "max"]) {
+    assert.deepEqual(probe({ EFFORT: level }), { status: 0, stdout: `model=claude-sonnet-5-5 effort=${level}` }, level);
+  }
+  assert.deepEqual(
+    probe({ DISPATCH: "false", MODEL: "claude-opus-5-5", EFFORT: "high" }),
+    { status: 0, stdout: "model=claude-sonnet-5-5 effort=" },
+    "workflow_run ignores dispatch overrides",
+  );
+  for (const badModel of ["-flag", "opus;id", "claude opus", "a/b", "a".repeat(65)]) {
+    const res = probe({ MODEL: badModel });
+    assert.equal(res.status, 1, `rejects model ${badModel}`);
+    assert.match(res.stdout, /^::error::/, badModel);
+  }
+  for (const badEffort of ["auto", "HIGH", "ultra", "-x", "high;id"]) {
+    const res = probe({ EFFORT: badEffort });
+    assert.equal(res.status, 1, `rejects effort ${badEffort}`);
+    assert.match(res.stdout, /^::error::/, badEffort);
+  }
+});

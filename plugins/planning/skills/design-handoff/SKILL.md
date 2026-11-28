@@ -1,5 +1,5 @@
 ---
-description: "Gate a finished design for /planning:plan: FAILs on any design thread left unresolved and untagged, then emits a coverage table, the plan-ready summary, and a resume prompt. Use when: 'design handoff', 'hand off the design', 'is the design ready', 'plan-ready summary', 'design gate', or design rounds stop surfacing gaps. Still exploring: /planning:design. Mid-session save-point: a session-handoff capability."
+description: "Gate a finished design for /planning:plan: FAILs on any unresolved, untagged thread, then emits a coverage table, plan-ready summary, and resume prompt. Use when: 'design handoff', 'is the design ready', 'design gate', or rounds stop surfacing gaps. Not for exploring: /planning:design; save-points: session handoff."
 user-invocable: true
 disable-model-invocation: false
 metadata:

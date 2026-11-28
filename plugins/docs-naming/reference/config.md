@@ -43,46 +43,23 @@ bundled defaults still apply. A value holding a whole old user file
 (`{"schema": 1, "file_names": {...}}`) is read as its `file_names` object. Set
 the option with `/plugin configure docs-naming@<marketplace>`.
 
-### Old user files
-
-The user-global file layer is retired: a per-person value goes in the option.
-Until a later change removes the read, the old files are still read so no
-setting in them is lost:
-
-- While the option is unset or invalid, `~/.claude/docs-naming.json`, else
-  `~/.claude/docs-hygiene.json`, is read in the `userConfig` layer's place, as a
-  JSON document (`"schema": 1` and a `file_names` object). Its values merge
-  exactly as the option's would: a nearest-wins key applies where the team
-  layer and personal override set none, and a policy-floor list gains its
-  entries.
-- With a valid option set, the option wins and neither old file is read.
-- Every `resolve` run that finds either file prints one warning on stderr
-  naming each old file and the option to move its keys into.
-- `/docs-naming:setup check` shows an `old user file` row for each one, and
-  `/docs-naming:setup apply` previews the keys it would copy into the option and,
-  on a yes, gives the native command that saves them. It leaves the old file in
-  place.
-
 The JSON files under `.claude/` the team layer and personal override used to live in
 (`docs-naming.json`, `docs-naming.local.json`, and their retired `docs-hygiene`
-names) are not read. `/docs-naming:setup check` shows a WARN row for each one it
-finds. While the team YAML is absent, the first `/docs-naming:setup apply` write
-copies the old team file's keys into it and leaves that file in place; an old
-personal override file's keys are moved by hand.
-
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](config-locations.md) says.
+names) and the retired user-global files `~/.claude/docs-naming.json` and
+`~/.claude/docs-hygiene.json` are not read. `/docs-naming:setup check` shows a
+WARN row for each old repository file it finds. While the team YAML is absent,
+the first `/docs-naming:setup apply` write copies the old team file's keys into
+it and leaves that file in place; an old personal override file's keys are moved
+by hand.
 
 All three absent is a valid state: every key has a bundled default, and the
 defaults are this marketplace's own values, except `generated`, which is empty. The recommended gitignore line for
 the personal override is `<home>/*.local.*`; `/docs-naming:setup check` reports a
 missing one and never edits a consumer's `.gitignore`.
 
-An old user file declares
-`"schema": 1`. One that omits it, or names a schema this version does not
-implement, stops the run rather than being skipped: a silently ignored layer is a
-configuration the operator believes is in effect and is not. A YAML layer
-carries no schema number, and one the YAML-subset parser rejects stops the run
-the same way, with the file and line named.
+A YAML layer carries no schema number, and one the YAML-subset parser rejects
+stops the run with the file and line named: a silently ignored layer is a
+configuration the operator believes is in effect and is not.
 
 The YAML is the repository's YAML subset (`lib/yaml-subset.awk`): block
 mappings and sequences, plain and quoted scalars, and `#` comments. Flow
@@ -255,7 +232,6 @@ one `layer<TAB>path<TAB>state` line per source:
 | Row | States |
 |---|---|
 | `userConfig<TAB>file_names` | `present`, `absent`, `invalid` (not one JSON object, ignored) |
-| `userConfig<TAB><old user file>`, one per file that exists | `legacy` (read in the option's place), `legacy-unread` |
 | `team<TAB><path>`, `personal-override<TAB><path>` | `present`, `absent`, or a not-applicable reason |
 
 All three take `--user-config`, the option's value (default:
@@ -263,7 +239,7 @@ All three take `--user-config`, the option's value (default:
 skill passes the substituted `${user_config.file_names}`); an empty value or the
 literal placeholder is unset. The inventory, sweep, gate emitter, rename
 applier and `setup-check.sh` take the same flag and pass it on. `--home` names
-the directory whose `.claude/` holds the old user files. `--root` is the
+the home directory used to classify whether `--root` is a home root. `--root` is the
 repository the team layer and personal override are read from, so a second
 worktree or a fixture is addressed explicitly rather than inherited from the
 environment. A `--root` that is the home directory (or an ancestor of it) or is

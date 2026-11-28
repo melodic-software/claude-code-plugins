@@ -4523,7 +4523,7 @@ class Reader:
     def _fresh_created(self, run_id: int) -> datetime | None:
         """When the run was created, from the record this process reads from
         GitHub, never from the run cache; the draft judgment resting on it is
-        shared only once read whole (`_draft_judged`). A re-attempt keeps `created_at` and moves `run_started_at`
+        shared only as a False read whole (`_draft_judged`). A re-attempt keeps `created_at` and moves `run_started_at`
         later, so a re-run of an old judgment never looks newer than a FAIL
         that followed it. None when the record holds no time; raises
         `_Unreadable` when the read fails."""
@@ -4551,20 +4551,24 @@ class Reader:
         completes, so the run it judged is among them. The verifier run's
         creation is read fresh (`_fresh_created`), so no carried record can
         turn a FAIL away. A failed read, a list cut short, a time that cannot
-        be read, or no run before it answers False: the FAIL counts. An answer
+        be read, or no run before it answers False: the FAIL counts. A False
         read whole is shared by the run's gate processes, however long ago:
-        it rests on runs at a fixed head created before a fixed run."""
+        it rests on runs at a fixed head created before a fixed run. A True
+        dismisses the FAIL, so each process reads it fresh and none is
+        shared: a stored answer can keep a FAIL counted, never turn one
+        away."""
         key = (sha, run_id)
         if key not in self._draft_judgments:
             shared_key = f"{self.repo}|{sha}|{run_id}"
             judged = run_cache.get(DRAFT_JUDGMENT_SECTION, shared_key, None)
-            if not isinstance(judged, bool):
+            if judged is not False:
                 try:
                     judged = self._judged_a_draft(sha, run_id)
                 except _Unreadable:
                     judged = False
                 else:
-                    run_cache.put(DRAFT_JUDGMENT_SECTION, shared_key, judged)
+                    if not judged:
+                        run_cache.put(DRAFT_JUDGMENT_SECTION, shared_key, False)
             self._draft_judgments[key] = judged
         return self._draft_judgments[key]
 

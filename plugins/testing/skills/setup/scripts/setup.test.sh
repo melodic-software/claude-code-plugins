@@ -106,18 +106,18 @@ assert_eq "and groups each adapter's fields under one key" "$expected" "$(sed -n
 cp "$T/kept.yaml" "$TY"
 
 L="$T/lintonly"
-mkdir -p "$L/.claude" "$L/adapters"
+mkdir -p "$L/docs/conventions" "$L/adapters"
 git -C "$L" init -q
 printf '{ "devDependencies": { "vitest": "^3.0.0" } }\n' >"$L/package.json"
 printf "import { it } from 'vitest';\n" >"$L/a.it.ts"
-printf "extend:\n  js-vitest:\n    files: ['*.it.ts']\n" >"$L/.claude/testing.yaml"
+printf "extend:\n  js-vitest:\n    files: ['*.it.ts']\n" >"$L/docs/conventions/testing.yaml"
 git -C "$L" add -A
 rc=0
 out="$(bash "$SETUP" check --root "$L" 2>&1)" || rc=$?
 assert_line "an extend.*.files test file gets the Vitest lint check" "$out" '^js +vitest/valid-expect +FINDING'
 assert_eq "and check exits 1" 1 "$rc"
 printf "id: js-spec\nextends: js-vitest\nfiles: ['*.it.ts']\n" >"$L/adapters/js-spec.yaml"
-printf 'adapter_dirs: [adapters]\n' >"$L/.claude/testing.yaml"
+printf 'adapter_dirs: [adapters]\n' >"$L/docs/conventions/testing.yaml"
 rc=0
 out="$(bash "$SETUP" check --root "$L" 2>&1)" || rc=$?
 assert_line "an adapter_dirs adapter's files glob gets it too" "$out" '^js +vitest/valid-expect +FINDING'
@@ -132,10 +132,10 @@ cp -R "$PLUGIN_DIR/skills/audit/adapters" "$P/skills/audit/adapters"
 cp "$SETUP" "$P/skills/setup/scripts/setup.sh"
 sed 's/\^(js|cs|python|bash|pwsh|go)\$/^[a-z]+$/' "$PLUGIN_DIR/skills/audit/scripts/adapter-load.awk" >"$P/skills/audit/scripts/adapter-load.awk"
 U="$T/unknownlang"
-mkdir -p "$U/.claude" "$U/adapters"
+mkdir -p "$U/docs/conventions" "$U/adapters"
 git -C "$U" init -q
 printf "id: rs-test\nlanguage: rust\nblock_model: brace\nfiles: ['*_test.rs']\ntest_start: ['^fn ']\n" >"$U/adapters/rs-test.yaml"
-printf 'adapter_dirs: [adapters]\n' >"$U/.claude/testing.yaml"
+printf 'adapter_dirs: [adapters]\n' >"$U/docs/conventions/testing.yaml"
 printf 'fn checks() {}\n' >"$U/lib_test.rs"
 git -C "$U" add -A
 rc=0
@@ -171,15 +171,15 @@ run apply --rule weak-oracle=loud
 assert_eq "apply refuses a rule level other than off, warn or error" 2 "$rc"
 
 S="$T/sym"
-mkdir -p "$S/.claude" "$S/elsewhere"
+mkdir -p "$S/docs/conventions" "$S/elsewhere"
 git -C "$S" init -q
 printf '# Team instructions\n' >"$S/CLAUDE.md"
-ln -s ../CLAUDE.md "$S/.claude/testing.yaml"
+ln -s ../../CLAUDE.md "$S/docs/conventions/testing.yaml"
 rc=0
 out="$(bash "$SETUP" apply --root "$S" --exclude 'legacy/**' 2>&1)" || rc=$?
-assert_eq "apply refuses a .claude/testing.yaml symlink" 2 "$rc"
+assert_eq "apply refuses a docs/conventions/testing.yaml symlink" 2 "$rc"
 assert_eq "and CLAUDE.md is unchanged" "# Team instructions" "$(cat "$S/CLAUDE.md")"
-rm -rf "$S/.claude"
+rm -rf "$S/docs"
 mkdir -p "$S/docs"
 ln -s ../elsewhere "$S/docs/conventions"
 rc=0
@@ -201,13 +201,6 @@ out="$(bash "$SETUP" apply --root "$S" --exclude 'legacy/**' 2>&1)" || rc=$?
 assert_eq "apply refuses a symlinked docs file" 2 "$rc"
 assert_eq "and never reads what it points at" 0 "$(grep -c "bad line" <<<"$out")"
 rm -rf "$S/docs" "$S/elsewhere/target.md"
-ln -s elsewhere "$S/.claude"
-printf 'paths:\n  exclude: [a]\n' >"$S/elsewhere/testing.yaml"
-rc=0
-out="$(bash "$SETUP" apply --root "$S" --exclude 'legacy/**' 2>&1)" || rc=$?
-assert_eq "apply refuses a symlinked .claude directory holding the team file" 2 "$rc"
-assert_eq "and leaves that file alone" "paths:
-  exclude: [a]" "$(cat "$S/elsewhere/testing.yaml")"
 
 G="$T/target"
 mkdir -p "$G/.claude" "$G/docs/conventions"
@@ -218,17 +211,13 @@ run_g() {
   out="$(bash "$SETUP" apply --root "$G" "$@" 2>&1)" || rc=$?
 }
 run_g --exclude 'new/**'
-assert_eq "with only a .claude/testing.yaml in use, apply rewrites it" "0:# Test-file scope and rule levels for the testing plugin (/testing:setup).
+assert_eq "with only a retired .claude/testing.yaml present, apply creates docs/conventions/testing.yaml" "0:# Test-file scope and rule levels for the testing plugin (/testing:setup).
 paths:
-  exclude: ['new/**']" "$rc:$(cat "$G/.claude/testing.yaml")"
-assert_eq "and creates no docs file" "" "$(ls "$G/docs/conventions")"
-printf '# Testing\n\nProse first.\n' >"$G/docs/conventions/testing.md"
-run_g --exclude 'new/**'
-assert_eq "a docs file with no block and a .claude file in use: the docs file is not touched" "# Testing
-
-Prose first." "$(cat "$G/docs/conventions/testing.md")"
+  exclude: ['new/**']" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
+assert_eq "and leaves the retired .claude/testing.yaml untouched" "paths:
+  exclude: [old]" "$(cat "$G/.claude/testing.yaml")"
+rm -f "$G/docs/conventions/testing.yaml"
 printf '# Testing\n\nBefore.\n\n```yaml config\npaths:\n  exclude: [old]\n```\n\nAfter.\n' >"$G/docs/conventions/testing.md"
-printf 'paths:\n  exclude: [claude-file]\n' >"$G/.claude/testing.yaml"
 run_g --exclude 'replaced/**' --include 'keep/**'
 assert_eq "an existing block's body is replaced, the text around it kept" "0:# Testing
 
@@ -241,8 +230,6 @@ paths:
 \`\`\`
 
 After." "$rc:$(cat "$G/docs/conventions/testing.md")"
-assert_eq "and the .claude file, shadowed by the block, is untouched" "paths:
-  exclude: [claude-file]" "$(cat "$G/.claude/testing.yaml")"
 printf '# Testing\n\n```yaml config\npaths:\n  excludes: [x]\n```\n' >"$G/docs/conventions/testing.md"
 run_g --exclude 'y/**'
 assert_eq "a docs block that does not parse is refused, not overwritten" 2 "$rc"
@@ -299,73 +286,6 @@ map_entry_points: first
 map_report_order: gone,new,pre-existing
 file_findings: new
 file_findings_floor: medium" "$rc:$(cat "$G/docs/conventions/testing.yaml")"
-
-M="$T/oldpaths"
-mkdir -p "$M/.claude/testing" "$M/docs/conventions" "$HOME/.claude"
-git -C "$M" init -q
-printf 'rules:\n  rule-weak-oracle: off\n' >"$M/docs/conventions/testing.yaml"
-run_m() {
-  rc=0
-  out="$(bash "$SETUP" "$@" --root "$M" 2>&1)" || rc=$?
-}
-run_m check
-assert_contains "with only the new team layer, check reports no old file" "$out" "== old paths ==
-no testing config file at an old path"
-printf '# team\npaths:\n  exclude: [old]\nrules:\n  rule-weak-oracle: warn\n' >"$M/.claude/testing.yaml"
-printf 'recording: video\n' >"$M/.claude/testing/e2e.md"
-printf 'adapters:\n  disable: [py-unittest]\ne2e_driver: run\n' >"$HOME/.claude/testing.yaml"
-run_m check
-assert_contains "check names the old team file and its new location" "$out" "$M/.claude/testing.yaml
-  move to: $M/docs/conventions/testing.yaml"
-assert_contains "and previews the keys the new file lacks" "$out" "  copy would append to $M/docs/conventions/testing.yaml:
-    paths:
-      exclude: [old]"
-assert_contains "and names a key both files set" "$out" "not copied: rules, which $M/docs/conventions/testing.yaml already sets"
-assert_contains "a Markdown file previews whole" "$out" "  copy would create $M/docs/conventions/testing/e2e.md with:
-    recording: video"
-assert_contains "a personal target that is not gitignored is named, not copied" "$out" \
-  "not copied: $M/docs/conventions/testing.local.yaml is not gitignored"
-printf 'docs/conventions/**/*.local.*\n' >"$M/.gitignore"
-run_m check
-assert_contains "a gitignored personal target previews the user-global keys with no userConfig option" "$out" \
-  "  copy would create $M/docs/conventions/testing.local.yaml with:
-    adapters:
-      disable: [py-unittest]"
-assert_contains "and names the key a userConfig option holds" "$out" "not copied: e2e_driver, which has a userConfig option of that name"
-assert_eq "check copies nothing" "" "$(ls "$M/docs/conventions/testing" 2>/dev/null)"
-old_team="$(cat "$M/.claude/testing.yaml")"
-run_m apply --copy-old "$M/.claude/testing.yaml" --exclude 'x/**'
-assert_eq "--copy-old refuses answer flags beside it" 2 "$rc"
-run_m apply --copy-old "$M/.claude/testing.yaml"
-assert_eq "--copy-old appends the keys the new file lacks" "0:rules:
-  rule-weak-oracle: off
-paths:
-  exclude: [old]" "$rc:$(cat "$M/docs/conventions/testing.yaml")"
-assert_eq "and leaves the old file in place" "$old_team" "$(cat "$M/.claude/testing.yaml")"
-run_m apply --copy-old "$M/.claude/testing/e2e.md"
-assert_eq "--copy-old copies a Markdown file whole" "0:recording: video" "$rc:$(cat "$M/docs/conventions/testing/e2e.md")"
-run_m apply --copy-old "$M/.claude/testing/e2e.md"
-assert_eq "a Markdown file whose new location exists is not copied again" 2 "$rc"
-printf 'rules:\n  rule-weak-oracle: off\n' >"$M/.claude/testing.local.yaml"
-run_m apply --copy-old "$HOME/.claude/testing.yaml"
-assert_eq "the user-global file is not copied while it would stop the old personal file being read" "2:" \
-  "$rc:$(cat "$M/docs/conventions/testing.local.yaml" 2>/dev/null)"
-assert_contains "and the note says to copy that file first" "$out" "not copied: copy $M/.claude/testing.local.yaml first"
-run_m apply --copy-old "$M/.claude/testing.local.yaml"
-assert_eq "the old personal file copies first" "0:rules:
-  rule-weak-oracle: off" "$rc:$(cat "$M/docs/conventions/testing.local.yaml")"
-run_m apply --copy-old "$HOME/.claude/testing.yaml"
-assert_eq "then the user-global keys with no userConfig option append to the personal override" "0:rules:
-  rule-weak-oracle: off
-adapters:
-  disable: [py-unittest]" "$rc:$(cat "$M/docs/conventions/testing.local.yaml")"
-run_m apply --copy-old "$M/elsewhere.yaml"
-assert_eq "--copy-old refuses a file the old paths section does not list" 2 "$rc"
-rm -f "$HOME/.claude/testing.yaml" "$M/docs/conventions/testing.yaml"
-printf '```yaml config\npaths:\n  exclude: [block]\n```\n' >"$M/docs/conventions/testing.md"
-run_m check
-assert_contains "beside a docs block, the old team file is named, not copied" "$out" \
-  "not copied: the yaml config block in docs/conventions/testing.md is the team layer"
 
 assert_eq "neither check nor apply changed CLAUDE.md or AGENTS.md" "$before" "$(sums)"
 assert_eq "apply wrote no file but docs/conventions/testing.yaml" "docs/conventions/testing.yaml" \

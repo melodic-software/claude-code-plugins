@@ -1,0 +1,17 @@
+{
+  "request": "GET /repos/melodic-software/claude-code-plugins/git/matching-refs/heads/gh-readonly-queue/",
+  "captured_at": "2026-11-28T06:25Z",
+  "response": [
+    {"ref": "refs/heads/gh-readonly-queue/main/pr-17145-3bf7583066f5c0b10000622dbbc9711ec10c665d", "object": {"sha": "8b62b804597b087c922f60f16eb1cf0601239237", "type": "commit"}},
+    {"ref": "refs/heads/gh-readonly-queue/main/pr-17209-3fd6380bc470fe1a53fefaeeea2309f1af2ed081", "object": {"sha": "36a91318e3a1f1fb26fc2ed5e601f139703be128", "type": "commit"}},
+    {"ref": "refs/heads/gh-readonly-queue/main/pr-19480-b68da916d068ac85ae3f59b76e97e34f9180f713", "object": {"sha": "dc9d47039d456bb615b83ef30182ef39f1394f12", "type": "commit"}},
+    {"ref": "refs/heads/gh-readonly-queue/main/pr-19539-d58eba15c190eb34b7453f742807ade44109ff14", "object": {"sha": "b68da916d068ac85ae3f59b76e97e34f9180f713", "type": "commit"}},
+    {"ref": "refs/heads/gh-readonly-queue/main/pr-19549-b77809650f6feeaf54ecf6e5e09fbaad584647ed", "object": {"sha": "78eb2cd905930843c5d30bd23efa601ca53ecfa9", "type": "commit"}},
+    {"ref": "refs/heads/gh-readonly-queue/main/pr-19565-4eb0fc4e2cb0357d46e0c6b9eaa3c0c9fa3d138b", "object": {"sha": "d58eba15c190eb34b7453f742807ade44109ff14", "type": "commit"}},
+    {"ref": "refs/heads/gh-readonly-queue/main/pr-19567-78eb2cd905930843c5d30bd23efa601ca53ecfa9", "object": {"sha": "4eb0fc4e2cb0357d46e0c6b9eaa3c0c9fa3d138b", "type": "commit"}},
+    {"ref": "refs/heads/gh-readonly-queue/main/pr-19593-dc9d47039d456bb615b83ef30182ef39f1394f12", "object": {"sha": "9fa70175d54e581dba921de9e50413fb8e3e9ca0", "type": "commit"}},
+    {"ref": "refs/heads/gh-readonly-queue/main/pr-19610-ced5be6096b4367b6d7937540a3ba9b021585c2d", "object": {"sha": "7f6aea16d90e0e2c6fe4a4707af5170ddda6d106", "type": "commit"}},
+    {"ref": "refs/heads/gh-readonly-queue/main/pr-19614-66c4457829277b486032541093fadf53417452dd", "object": {"sha": "ced5be6096b4367b6d7937540a3ba9b021585c2d", "type": "commit"}},
+    {"ref": "refs/heads/gh-readonly-queue/main/pr-19621-9fa70175d54e581dba921de9e50413fb8e3e9ca0", "object": {"sha": "66c4457829277b486032541093fadf53417452dd", "type": "commit"}}
+  ]
+}

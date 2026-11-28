@@ -219,7 +219,7 @@ declares_both_fixtures B "$CASE_B"
 
 pin_frontmatter "SKILL.md frontmatter is unchanged (the always-loaded routing surface, every key)" \
   "$SKILL" \
-  "aeee61b37df0e79abd73eaac56c9b5834612e256bdf05fecb9d2612949d087b3"
+  "dc9b11cb123378506d223693eabeda7e0b832e3d369195095665f1d01e6ac3f2"
 
 pin_section "SKILL.md Gates section is unchanged (the early twin of the five gates)" \
   "$SKILL" \
@@ -240,7 +240,7 @@ pin_section "SKILL.md Stance section is unchanged (the in-round no-silent-resolv
   "$SKILL" \
   "## Stance: supportive, depth-first, opinionated" \
   "## The interview loop" \
-  "0d90f1c7f8a8ee622cce44e029763ae4fe7ba61b25097adc0398593015b70666"
+  "670e51cc4aac85ac54bc217f89c22f4933b5aa1d1e66494b037f421b96032950"
 pin_section "SKILL.md interview-loop preamble is unchanged (it governs every step below it)" \
   "$SKILL" \
   "## The interview loop" \
@@ -550,6 +550,18 @@ pin "SKILL.md: the terminal round prints its citations in the resolved citation_
   "show --level \"<question_detail>\" --links \"<citation_links>\""
 pin "SKILL.md: the round check holds the round to the resolved questions_per_round" "$SKILL" \
   "check-round-codes.sh\" --ledger <memory_dir>/<topic-slug>/interview-checklist.md --cap <questions_per_round>"
+ROUND_CHECK="$PLUGIN_DIR/scripts/check-round-codes.sh"
+round_kinds="$(grep -o 'print[f]* "[a-z-]*=' "$ROUND_CHECK" | sed 's/.*"//' | grep -vxE 'check=|codes=' | sort -u)"
+if [[ -z "$round_kinds" ]]; then
+  fail "no failure kinds read from ${ROUND_CHECK#"$PLUGIN_DIR/"}"
+fi
+for kind in $round_kinds; do
+  if grep -Fq -- "\`$kind" "$SKILL"; then
+    ok "SKILL.md tells the round's author how to fix each $kind line the round check prints"
+  else
+    fail "SKILL.md never names the $kind failure check-round-codes.sh prints, so a round failing it has no stated fix (\"Check the draft round for bare codes before it is shown\")"
+  fi
+done
 pin "lane-page.md: the page refuses a round over the resolved questions_per_round" "$LANE_PAGE" \
   "add-round --cap <questions_per_round>"
 pin "SKILL.md: the recap and audit-answers neither compose nor duplicate each other" "$SKILL" \

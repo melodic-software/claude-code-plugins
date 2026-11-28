@@ -3,6 +3,12 @@
 All notable changes to the `adhd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.1.0] - 2026-11-28
+
+### Added
+
+- Shared `reference/html-tokens.css` token layer, `lib/html-branding.mjs` page branding helper, and `branding` `userConfig` option so rendered pages apply consumer palette, type, and logo overrides in `.rv-bar` while keeping the theme toggle, comment box, and accessibility floor unchanged (#19172).
+
 ## [1.0.4] - 2026-11-28
 
 ### Changed

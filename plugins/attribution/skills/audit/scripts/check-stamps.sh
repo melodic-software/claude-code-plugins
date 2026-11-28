@@ -101,10 +101,6 @@ CONFIG_ROOT="${CLAUDE_PROJECT_DIR:-$REPO_ROOT}"
 
 cfg_layers_init "$CONFIG_ROOT"
 
-if cfg_have_unread_layer; then
-  echo "check-stamps.sh: jq not found; JSON config layers present but unread, using defaults" >&2
-fi
-
 DEFAULT_EXPIRY_DAYS=180
 EXPIRY_DAYS="" TRIGGER_LESS=""
 cfg_scalar EXPIRY_DAYS stamp_expiry_days

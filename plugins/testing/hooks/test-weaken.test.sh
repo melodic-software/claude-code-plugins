@@ -78,10 +78,10 @@ run() {
   rc=$?
 }
 block_on() {
-  mkdir -p "$REPO/.claude"
-  printf 'rules:\n  test-weaken-block: error\n' >"$REPO/.claude/testing.yaml"
+  mkdir -p "$REPO/docs/conventions"
+  printf 'rules:\n  test-weaken-block: error\n' >"$REPO/docs/conventions/testing.yaml"
 }
-block_off() { rm -f "$REPO/.claude/testing.yaml"; }
+block_off() { rm -f "$REPO/docs/conventions/testing.yaml"; }
 
 DROP_EXPECT="$(edit_input $'  expect(sum(1, 2)).toBe(3);\n  expect(sum(2, 2)).toBe(4);' '  expect(sum(1, 2)).toBe(3);')"
 ADD_SKIP="$(edit_input "test('adds zero', () => {" "test.skip('adds zero', () => {")"
@@ -214,20 +214,25 @@ assert_empty "a Write that creates a file is silent" "$out"
 
 run Edit "$REPO/scratch/ignored.test.ts" "$DROP_EXPECT"
 assert_empty "a gitignored path is silent" "$out"
-mkdir -p "$REPO/.claude"
-printf "paths:\n  exclude: ['legacy/**']\n" >"$REPO/.claude/testing.yaml"
+CONV="$REPO/docs/conventions"
+mkdir -p "$CONV" "$REPO/.claude"
+printf "paths:\n  exclude: ['legacy/**']\n" >"$CONV/testing.yaml"
 run Edit "$REPO/legacy/old.test.ts" "$DROP_EXPECT"
 assert_empty "a paths.exclude path is silent" "$out"
 block_off
 
-CONV="$REPO/docs/conventions"
-mkdir -p "$CONV"
 BLOCK=$'rules:\n  test-weaken-block: error'
 WARN=$'rules:\n  test-weaken-block: warn'
-for f in "$CONV/testing.yaml" "$CONV/testing.local.yaml" "$REPO/.claude/testing.yaml" "$REPO/.claude/testing.local.yaml"; do
+for f in "$CONV/testing.yaml" "$CONV/testing.local.yaml"; do
   printf '%s\n' "$BLOCK" >"$f"
   run Edit "$REPO/src/sum.test.ts" "$ADD_SKIP"
   assert_deny "block rule in ${f#"$REPO/"} alone: an added skip is denied" "$out"
+  rm -f "$f"
+done
+for f in "$REPO/.claude/testing.yaml" "$REPO/.claude/testing.local.yaml"; do
+  printf '%s\n' "$BLOCK" >"$f"
+  run Edit "$REPO/src/sum.test.ts" "$ADD_SKIP"
+  assert_no_decision "retired ${f#"$REPO/"} alone is ignored" "$out"
   rm -f "$f"
 done
 for pair in testing.yaml testing.local.yaml; do
@@ -238,7 +243,7 @@ for pair in testing.yaml testing.local.yaml; do
   assert_contains "and the added skip is still named" "$out" "test.skip('adds zero'"
   rm -f "$CONV/$pair" "$REPO/.claude/$pair"
 done
-rm -rf "$REPO/docs"
+rm -rf "$REPO/docs" "$REPO/.claude"
 
 run Edit "$REPO/src/sum.test.ts" "$(edit_input $'const s = `abc\n  expect(sum(2, 2)).toBe(4);' 'const s = `abc')"
 assert_empty "an unjudgeable fragment is silent" "$out"

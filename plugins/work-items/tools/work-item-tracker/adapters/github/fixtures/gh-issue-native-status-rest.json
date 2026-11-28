@@ -1,0 +1,74 @@
+[
+  {
+    "number": 19449,
+    "title": "Enrolled backlog item",
+    "state": "open",
+    "status": {
+      "id": 2,
+      "name": "Backlog",
+      "category": "backlog"
+    },
+    "assignees": [],
+    "labels": [
+      {
+        "name": "session-owned"
+      }
+    ],
+    "type": {
+      "name": "Feature"
+    },
+    "html_url": "https://github.com/o/r/issues/19449",
+    "created_at": "2026-11-27T19:35:52Z",
+    "milestone": null,
+    "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "total_blocked_by": 0
+    }
+  },
+  {
+    "number": 19535,
+    "title": "Enrolled in-review item",
+    "state": "open",
+    "status": {
+      "id": 8,
+      "name": "In review",
+      "category": "started"
+    },
+    "assignees": [
+      {
+        "login": "alice"
+      }
+    ],
+    "labels": [],
+    "type": {
+      "name": "Task"
+    },
+    "html_url": "https://github.com/o/r/issues/19535",
+    "created_at": "2026-11-27T21:10:00Z",
+    "milestone": null,
+    "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "total_blocked_by": 0
+    }
+  },
+  {
+    "number": 136,
+    "title": "Pre-preview open item with null status",
+    "state": "open",
+    "status": null,
+    "assignees": [],
+    "labels": [
+      {
+        "name": "needs-triage"
+      }
+    ],
+    "type": null,
+    "html_url": "https://github.com/o/r/issues/136",
+    "created_at": "2026-11-20T12:00:00Z",
+    "milestone": null,
+    "issue_dependencies_summary": {
+      "blocked_by": 0,
+      "total_blocked_by": 0
+    }
+  }
+]

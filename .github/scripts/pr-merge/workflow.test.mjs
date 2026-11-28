@@ -57,6 +57,8 @@ test("dispatch-full-run ends once it dispatches: no wait on the run it started",
       "Start the full CI run on main",
       "Scan the upload for credentials",
       "Record the dispatched run",
+      "Set up Node",
+      "Cancel merge_group runs whose queue group is gone",
       "Log the API budget at the end",
     ],
   );
@@ -316,6 +318,19 @@ test("dispatch-post-merge-runs reads the cover only while the lane is live", () 
   assert.doesNotMatch(job("dispatch-full-run"), /steps\.(kill|mode)\./);
 });
 
+test("the post-merge check reads default-branch files from the job's whole checkout of main's tip", () => {
+  for (const id of ["dispatch-post-merge-runs", "merge"]) {
+    const text = job(id);
+    const step = (name) => text.split(`\n      - name: ${name}\n`)[1]?.split("\n      - name: ")[0] ?? "";
+    const checkout = step("Check out the default branch tip");
+    assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n/, `${id} checks out main's tip into .base`);
+    assert.doesNotMatch(checkout, /sparse-checkout/, `${id}'s .base holds every file`);
+    const check = step("Check earlier lane merges");
+    assert.match(check, /\n {10}MAIN_TIP_SHA: \$\{\{ steps\.tip\.outputs\.sha \}\}\n/, `${id} passes main's tip`);
+    assert.match(check, /\n {10}BABYSIT_CONFIG_CHECKOUT: \$\{\{ github\.workspace \}\}\/\.base\n/, `${id} names .base as the config checkout`);
+  }
+});
+
 test("the dispatch job's token is actions: write and contents: read, and nothing else", () => {
   const dispatch = job("dispatch-full-run");
   const block = /\n {4}permissions:\n((?: {6}[a-z-]+: [a-z]+.*\n)+)/.exec(dispatch)[1];
@@ -325,7 +340,29 @@ test("the dispatch job's token is actions: write and contents: read, and nothing
   );
   const checkout = dispatch.split("\n      - name: Check out the api-budget library\n")[1].split("\n      - name: ")[0];
   assert.match(checkout, /^ {8}if: steps\.tip\.outputs\.sha != ''\n {8}continue-on-error: true\n/);
-  assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {12}\/lib\/publish-gate\.mjs\n {10}sparse-checkout-cone-mode: false\n/);
+  assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {12}\/lib\/publish-gate\.mjs\n {12}\/\.github\/scripts\/pr-merge\/cancel-orphaned-runs\.mjs\n {12}\/\.github\/scripts\/lib\/github-client\.mjs\n {12}\/\.node-version\n {10}sparse-checkout-cone-mode: false\n/);
+});
+
+test("dispatch-full-run's sparse checkout holds every module the orphaned-run cancel loads", () => {
+  const dispatch = job("dispatch-full-run");
+  const sparse = /\n {10}sparse-checkout: \|\n((?: {12}\S+\n)+)/.exec(dispatch)[1].trim().split(/\s+/);
+  const root = new URL("../../../", import.meta.url);
+  const seen = new Set();
+  const visit = (path) => {
+    if (seen.has(path)) return;
+    seen.add(path);
+    for (const [, spec] of readFileSync(new URL(path, root), "utf8").matchAll(/^import [^;]*? from "(\.[^"]+)";$/gm)) {
+      visit(new URL(spec, new URL(path, root)).pathname.slice(root.pathname.length));
+    }
+  };
+  visit(".github/scripts/pr-merge/cancel-orphaned-runs.mjs");
+  const missing = [...seen].filter((path) => !sparse.some((entry) => (entry.endsWith("/") ? `/${path}`.startsWith(entry) : `/${path}` === entry)));
+  assert.deepEqual(missing, []);
+  assert.ok(seen.has(".github/actions/log-api-budget/rate-guard.mjs"));
+  assert.ok(sparse.includes("/.node-version"));
+  const step = dispatch.split("\n      - name: Cancel merge_group runs whose queue group is gone\n")[1].split("\n      - name: ")[0];
+  assert.match(step, /\n {8}continue-on-error: true\n/);
+  assert.match(step, /steps\.cover\.outputs\.rate-limited != 'true' && steps\.dispatch\.outputs\.rate-limited != 'true'/);
 });
 
 test("dispatch-full-run's cover read and dispatch POST each leave one reading", () => {
@@ -545,15 +582,14 @@ test("the eval-release wake dispatches only an unarmed, unheld lanes App or trus
   assert.equal(run.status, 0);
   assert.deepEqual(
     run.calls.map((call) => call.replace(/ --jq .*$/, "")),
-    [read(7), dispatch(7), read(8), dispatch(8), read(9), read(10), read(11), read(12), read(13), read(14), read(15), read(16), dispatch(16), read(17)],
-    "the trusted person's 8 and a lanes App draft wake; 12's failed read fails closed with no dispatch",
+    [read(7), dispatch(7), read(8), dispatch(8), read(9), read(10), read(11), read(12), read(13), read(14), read(15), dispatch(15), read(16), dispatch(16), read(17)],
+    "the trusted person's 8 and 15, whose body text holds nothing, and a lanes App draft wake; 12's failed read fails closed with no dispatch",
   );
   assert.match(run.stdout, /::warning::wake-eval-released: pr=12 pull request could not be read; nothing woken/);
   assert.match(run.stdout, /::notice title=eval-release wake::pr=9 already armed; nothing woken/);
   assert.match(run.stdout, /::notice title=eval-release wake::pr=10 held \(do-not-merge\); nothing woken/);
   for (const pr of [11, 13, 17]) assert.match(run.stdout, new RegExp(`::notice title=eval-release wake::pr=${pr} not a lanes App or trusted person pull request; nothing woken`), String(pr));
   assert.match(run.stdout, /::notice title=eval-release wake::pr=14 a draft; nothing woken/);
-  assert.match(run.stdout, /::notice title=eval-release wake::pr=15 held \(body Hold: line\); nothing woken/);
   const unread = runEvalWake("7 8 13 11", { appId: "5", answers, trusted: "/nonexistent/trusted-actors.json" });
   assert.deepEqual(unread.calls.filter((call) => call.startsWith("workflow")), [dispatch(7)], "when the trusted-actor list does not read, User pull requests fail closed while lanes App still wakes");
   for (const pr of [8, 13, 11]) assert.match(unread.stdout, new RegExp(`::warning::wake-eval-released: pr=${pr} trusted-actor list could not be read; nothing woken`), String(pr));

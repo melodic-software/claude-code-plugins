@@ -3848,24 +3848,37 @@ class EntryHold(unittest.TestCase):
         with mock.patch.object(babysit_postmerge, "_role_label", side_effect=failed):
             self.assertEqual(self.hold(), "unreadable: tracker: HTTP 502")
 
-    def test_a_body_hold(self) -> None:
-        self.fake(body="Please do not merge until the release")
-        self.assertEqual(self.hold(), "body-hold")
+    def test_body_hold_text_is_no_hold_but_the_label_is(self) -> None:
+        for body in (
+            "Please do not merge until the release",
+            "Refs: #1\r\n\r\nHold: a human merges this",
+        ):
+            with self.subTest(body=body):
+                self.fake(body=body)
+                self.assertIsNone(self.hold())
+                self.fake(body=body, labels={"totalCount": 1, "nodes": [{"name": "do-not-merge"}]})
+                self.assertEqual(self.hold(), "do-not-merge")
 
-    def test_a_body_hold_line(self) -> None:
-        self.fake(body="Refs: #1\r\n\r\nHold: a human merges this")
-        self.assertEqual(self.hold(), "body-hold")
-
-    def test_a_human_blocking_comment(self) -> None:
+    def member_comments(self, body: str) -> GhFake:
         gh = self.fake()
         gh.rest[f"repos/{REPO}/issues/5/comments?per_page=100"] = [
             {
                 "user": {"login": OPERATOR, "type": "User"},
                 "author_association": "MEMBER",
-                "body": "don't merge this",
+                "body": body,
             }
         ]
+        return gh
+
+    def test_a_human_blocking_comment(self) -> None:
+        self.member_comments("This is a blocking regression.")
         self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
+
+    def test_a_members_do_not_merge_comment_is_no_hold_but_the_label_is(self) -> None:
+        gh = self.member_comments("don't merge this")
+        self.assertIsNone(self.hold())
+        gh.graphql["PolicyEntryHold"]["repository"]["pullRequest"]["labels"] = {"totalCount": 1, "nodes": [{"name": "do-not-merge"}]}
+        self.assertEqual(self.hold(), "do-not-merge")
 
     def member_says(self, *bodies: str) -> None:
         gh = self.fake()
@@ -3887,17 +3900,19 @@ class EntryHold(unittest.TestCase):
         self.assertIsNone(self.lane_hold())
         self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
 
-    def test_the_lane_holds_a_members_newest_veto(self) -> None:
-        self.member_says("looks fine", "don't merge this")
-        self.assertEqual(self.lane_hold(), f"human-blocking-comment:{OPERATOR}")
-
-    def test_the_lane_lets_a_member_lift_their_own_veto(self) -> None:
-        self.member_says("don't merge this", "go ahead")
+    def test_the_lane_reads_no_member_comment_but_holds_the_label(self) -> None:
+        self.member_says("looks fine", "don't merge this", "a blocking regression")
         self.assertIsNone(self.lane_hold())
-
-    def test_an_empty_review_item_does_not_lift_a_lane_veto(self) -> None:
-        self.member_says("don't merge this", "  ")
-        self.assertEqual(self.lane_hold(), f"human-blocking-comment:{OPERATOR}")
+        self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
+        gh = self.fake(labels={"totalCount": 1, "nodes": [{"name": "do-not-merge"}]})
+        gh.rest[f"repos/{REPO}/pulls/5/comments?per_page=100"] = [
+            {
+                "user": {"login": OPERATOR, "type": "User"},
+                "author_association": "MEMBER",
+                "body": "don't merge this",
+            }
+        ]
+        self.assertEqual(self.lane_hold(), "do-not-merge")
 
     def test_a_strangers_blocking_text_is_no_hold(self) -> None:
         gh = self.fake()
@@ -4027,9 +4042,7 @@ class EntryHold(unittest.TestCase):
             policy.entry_hold(REPO, 5, IDENTITY, queued=False), "do-not-merge"
         )
         self.fake(timelineItems={"nodes": []}, body="Hold: waiting on a decision")
-        self.assertEqual(
-            policy.entry_hold(REPO, 5, IDENTITY, queued=False), "body-hold"
-        )
+        self.assertIsNone(policy.entry_hold(REPO, 5, IDENTITY, queued=False))
         self.fake(timelineItems={"nodes": []}, labels={"totalCount": 2, "nodes": []})
         self.assertEqual(
             policy.entry_hold(REPO, 5, IDENTITY, queued=False), "unreadable"
@@ -4551,20 +4564,20 @@ class Assess(unittest.TestCase):
     def test_a_rung_off_outranks_an_in_flight_refusal_off_the_queue(self) -> None:
         self.readable()
         flight = policy.InFlight(False, "x", frozenset({3}))
-        ineligible = policy.Eligibility(False, "fork")
+        later = mock.Mock(side_effect=AssertionError("read after the rung refusal"))
         with (
-            mock.patch.object(policy, "in_flight", return_value=flight),
+            mock.patch.object(policy, "in_flight", return_value=flight) as counted,
             mock.patch.object(
                 policy, "rung_cap", return_value=policy.RungCap("off", "cap-set")
             ),
-            mock.patch.object(policy, "eligibility", return_value=ineligible) as read,
+            mock.patch.object(policy, "eligibility", later),
         ):
-            result = self.assess(
-                post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
-            )
-        self.assertTrue(result.reason.startswith("rung-off:"), result.reason)
-        self.assertTrue(read.called)
-        self.assertEqual(result.inputs["own_refusal"], "ineligible:fork")
+            result = self.assess(post_merge=lambda floor, who: gate(), promotion=later)
+        self.assertEqual(result.reason, "rung-off:rungCap")
+        self.assertIs(result.enabled, True)
+        counted.assert_not_called()
+        later.assert_not_called()
+        self.assertNotIn("eligibility", result.inputs)
 
     def test_the_in_flight_refusal_matches_the_full_judgment(self) -> None:
         self.readable()
@@ -6344,10 +6357,16 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     def test_an_unresolved_human_gated_label_is_not_adopted(self) -> None:
         self.assertEqual(self.refusal(human_gated=None), "human-gated-label-unresolved")
 
-    def test_a_hold_line_in_the_body_holds(self) -> None:
-        for body in ("Closes #41\n\nHold: waiting on the owner", "  hold: x"):
+    def test_body_hold_text_is_no_refusal_but_the_label_is(self) -> None:
+        for body in (
+            "Closes #41\n\nHold: waiting on the owner",
+            "  hold: x",
+            "Do not merge",
+        ):
             with self.subTest(body=body):
-                self.assertEqual(self.refusal(owner_pr(body=body)), "hold-body")
+                self.assertIsNone(self.refusal(owner_pr(body=body)))
+                pr = owner_pr(body=body, labels=[{"name": "do-not-merge"}])
+                self.assertEqual(self.refusal(pr), "hold-label:do-not-merge")
 
     def test_a_fresh_update_keeps_adoption_while_the_lane_entry_is_queued(self) -> None:
         self.assertIsNone(self.refusal(activity=FRESH, queued_at_head=lambda: True))
@@ -6369,7 +6388,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         for pr, refused in (
             (owner_pr(labels=[{"name": "do-not-merge"}]), "hold-label:do-not-merge"),
             (owner_pr(labels=[{"name": "needs-human"}]), "hold-label:needs-human"),
-            (owner_pr(body="Hold: the owner merges"), "hold-body"),
             (owner_pr(draft=True), "draft"),
         ):
             with self.subTest(refused=refused):
@@ -6584,7 +6602,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         )
         for held, refused in (
             (owner_pr(labels=[{"name": "do-not-merge"}]), "hold-label:do-not-merge"),
-            (owner_pr(body="Hold: the owner merges"), "hold-body"),
             (owner_pr(draft=True), "draft"),
         ):
             with self.subTest(refused=refused):
@@ -6822,20 +6839,28 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     BLOCKERS = ("OWNER", "MEMBER", "COLLABORATOR")
     DRIVE_BY = ("NONE", "CONTRIBUTOR", "FIRST_TIME_CONTRIBUTOR", "FIRST_TIMER", None)
 
+    @staticmethod
+    def tag(association: str | None) -> dict[str, Any]:
+        return {} if association is None else {"author_association": association}
+
     def holds(self, association: str | None) -> list[dict[str, Any]]:
-        """A stranger's changes-requested review and hold-phrase comment,
-        review and inline comment, each written with `association`."""
-        tag = {} if association is None else {"author_association": association}
-        events: list[dict[str, Any]] = [
+        """A stranger's changes-requested review, written with `association`."""
+        return [
             {
                 "event": "reviewed",
                 "user": self.STRANGER,
                 "state": "changes_requested",
                 "body": "",
                 "submitted_at": FRESH,
-                **tag,
+                **self.tag(association),
             }
         ]
+
+    def hold_phrases(self, association: str | None) -> list[dict[str, Any]]:
+        """A stranger's hold-phrase comment, review and inline comment, each
+        written with `association`."""
+        tag = self.tag(association)
+        events: list[dict[str, Any]] = []
         for body in ("do not merge, this leaks X", "Don't merge yet", "Hold: see #1"):
             comment = {**self.commented(self.STRANGER, FRESH), "body": body, **tag}
             thread = {
@@ -6855,9 +6880,23 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                     result = self.eligibility(owner_pr())
                     self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
+    def test_a_members_hold_phrase_leaves_an_owner_pr_idle(self) -> None:
+        for association in self.BLOCKERS:
+            for event in self.hold_phrases(association):
+                with self.subTest(association=association, event=event):
+                    self.owner_fake(timeline=[event])
+                    result = self.eligibility(owner_pr())
+                    self.assertTrue(result.eligible, result.reason)
+                    self.assertEqual(result.adoption, "idle-owner:24h")
+                    labeled = owner_pr(labels=[{"name": "do-not-merge"}])
+                    self.assertEqual(
+                        self.eligibility(labeled).reason,
+                        "not-adopted:hold-label:do-not-merge",
+                    )
+
     def test_a_drive_by_accounts_hold_leaves_an_owner_pr_idle(self) -> None:
         for association in self.DRIVE_BY:
-            for event in self.holds(association):
+            for event in [*self.holds(association), *self.hold_phrases(association)]:
                 with self.subTest(association=association, event=event):
                     self.owner_fake(timeline=[event])
                     result = self.eligibility(owner_pr())
@@ -7254,7 +7293,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertEqual(result.adoption, "idle-owner:24h")
         for pr, reason in (
             (owner_pr(labels=[{"name": "do-not-merge"}]), "hold-label:do-not-merge"),
-            (owner_pr(body="Hold: the owner merges"), "hold-body"),
             (owner_pr(draft=True), "draft"),
         ):
             with self.subTest(reason):
@@ -10986,16 +11024,21 @@ class DependabotEligibility(unittest.TestCase):
                 self.assertEqual(result.reason, "ci-status:pending")
                 self.assertEqual(result.dependabot.tier, "auto")
 
-    def test_a_human_hold_comment_refuses(self) -> None:
-        hold = {
-            "user": {"login": "maintainer", "type": "User"},
-            "author_association": "MEMBER",
-            "body": "Do not merge this one yet",
-        }
-        self.fake(comments=[hold])
-        result = self.eligibility()
-        self.assertFalse(result.eligible)
-        self.assertEqual(result.reason, "human-blocking-comment:maintainer")
+    def test_a_human_blocking_comment_refuses(self) -> None:
+        for body, reason in (
+            ("This is a blocking regression.", "human-blocking-comment:maintainer"),
+            ("Do not merge this one yet", None),
+        ):
+            with self.subTest(body=body):
+                comment = {
+                    "user": {"login": "maintainer", "type": "User"},
+                    "author_association": "MEMBER",
+                    "body": body,
+                }
+                self.fake(comments=[comment])
+                result = self.eligibility()
+                self.assertEqual(result.eligible, reason is None, result.reason)
+                self.assertEqual(result.reason, reason)
 
     def test_a_fork_or_another_author_is_ineligible(self) -> None:
         self.fake(cross=True)

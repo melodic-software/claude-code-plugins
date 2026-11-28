@@ -19,11 +19,24 @@ import { ATTENDED_LABEL, causeName, HOST_RUN_LABEL, leadingCode, runCode, securi
 
 export { doneEvidence, REFINE_MARKER };
 
-export const HOLD_LINE = "Hold: a human merges this";
 export const HOLD_LABEL = "do-not-merge";
 export const EVAL_GATED_LABEL = "eval-gated";
-export const evalHoldComment = (issueNumber) =>
-  `Held for the before-and-after eval that cut item #${issueNumber} needs. The pr-merge release step lifts this hold when an eval-pair record exists for the current head.\n\n<!-- pr-hold reason=eval -->`;
+const PERSON_HOLD_LINE = "<!-- pr-hold reason=person -->";
+export const evalHoldComment = (issueNumber, personHold = false) =>
+  personHold
+    ? `Held for the before-and-after eval that cut item #${issueNumber} needs, and for a person to merge: the eval record alone does not lift this hold.\n\n<!-- pr-hold reason=eval -->\n${PERSON_HOLD_LINE}`
+    : `Held for the before-and-after eval that cut item #${issueNumber} needs. The pr-merge release step lifts this hold when an eval-pair record exists for the current head.\n\n<!-- pr-hold reason=eval -->`;
+export const PERSON_HOLD_MARKER = "<!-- work-resolve-issue person-hold -->";
+export const personHoldComment = (issueNumber) =>
+  [
+    PERSON_HOLD_MARKER,
+    "### work-resolve-issue / report-outcome",
+    "",
+    `Held: a person merges the fix for cut item #${issueNumber}; no eval record lifts this hold.`,
+    `- A person removes \`${HOLD_LABEL}\` to release it.`,
+    "",
+    PERSON_HOLD_LINE,
+  ].join("\n");
 const EXITS = new Set(["done", "pushback", "stopped"]);
 const PUSHBACK_CAUSES = new Set(["intent", "intent-change"]);
 const PUSHBACK_LANE_ROUTES = new Set(["host-run", "attended"]);
@@ -938,7 +951,6 @@ export function reusePlan({
     `Closes #${issueNumber}`,
     ...linkage,
     "",
-    ...(hold ? [HOLD_LINE, ""] : []),
     "## Summary",
     "",
     ...about,
@@ -1143,7 +1155,6 @@ export function decide({
   const body = [
     refs ? `Refs: #${issueNumber}` : `Closes #${issueNumber}`,
     ...linkage.filter((line) => !(refs && line.startsWith("Refs:"))),
-    ...(hold ? ["", HOLD_LINE] : []),
     "",
     "## Summary",
     "",
@@ -2097,6 +2108,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         const alreadyHeld = (pull.labels ?? []).some((label) => label?.name === HOLD_LABEL);
         const labeled =
           !(plan.hold || evalGated) ||
+          alreadyHeld ||
           (await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: [HOLD_LABEL] }, { safeToResend: true }).then(
             () => true,
             (error) => {
@@ -2104,8 +2116,8 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
               return false;
             },
           ));
-        if (labeled && evalGated) {
-          const body = evalHoldComment(issueNumber);
+        if (labeled && (plan.hold || evalGated)) {
+          const body = evalGated ? evalHoldComment(issueNumber, plan.hold) : personHoldComment(issueNumber);
           const posted =
             alreadyHeld &&
             (await paginate(github, `${repo}/issues/${pull.number}/comments`).then(

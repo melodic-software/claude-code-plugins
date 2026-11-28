@@ -86,17 +86,17 @@
     "tdd_refactor_step": {
       "enum": ["on", "off"],
       "default": "on",
-      "description": "Whether /testing:write runs the Refactor step after each green and reports it as a line beginning 'Refactor checkpoint:' (what it tidied, or why nothing needed it). off goes from green to the next test. Set here or in .claude/testing.local.yaml only; it has no userConfig option. Quote the value ('on') for a YAML 1.1 tool that reads a bare on as a boolean."
+      "description": "Whether /testing:write runs the Refactor step after each green and reports it as a line beginning 'Refactor checkpoint:' (what it tidied, or why nothing needed it). off goes from green to the next test. Set here or in docs/conventions/testing.local.yaml only; it has no userConfig option. Quote the value ('on') for a YAML 1.1 tool that reads a bare on as a boolean."
     },
     "first_test": {
       "enum": ["user-flow", "unit"],
       "default": "user-flow",
-      "description": "Which test /testing:write writes first when the change has acceptance criteria and a user-visible flow. user-flow starts with the critical user-flow test and works inside it; unit starts with a unit test of the first behavior and still writes the user-flow test before the task is done. Set here or in .claude/testing.local.yaml only; it has no userConfig option."
+      "description": "Which test /testing:write writes first when the change has acceptance criteria and a user-visible flow. user-flow starts with the critical user-flow test and works inside it; unit starts with a unit test of the first behavior and still writes the user-flow test before the task is done. Set here or in docs/conventions/testing.local.yaml only; it has no userConfig option."
     },
     "pixel_tolerance": {
       "type": "object",
       "additionalProperties": false,
-      "description": "How many pixels per image /testing:check-visual-parity accepts as differing from the baseline. Read from origin's default branch; ~/.claude/testing.yaml, .claude/testing.local.yaml and the pixel_tolerance userConfig option can only lower it. Quote a reason that holds a colon followed by a space.",
+      "description": "How many pixels per image /testing:check-visual-parity accepts as differing from the baseline. Read from origin's default branch; docs/conventions/testing.local.yaml and the pixel_tolerance userConfig option can only lower it. Quote a reason that holds a colon followed by a space.",
       "properties": {
         "pixels": { "type": "integer", "minimum": 0, "default": 0, "description": "Differing pixels accepted per image; 0 fails on any differing pixel." },
         "reason": { "type": "string", "minLength": 1, "description": "Why the team accepts that many differing pixels; required when pixels is above 0." }

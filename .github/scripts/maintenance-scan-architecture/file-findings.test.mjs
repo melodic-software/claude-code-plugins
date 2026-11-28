@@ -1,12 +1,16 @@
-// test-scope: .github/actions/resolve-config/package.json
+// test-scope: .github/actions/resolve-config/package.json plugins/improvement/scripts/filing-plan.mjs
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import process from "node:process";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { tempDir } from "../../../lib/test-tmp.mjs";
 import { fileFindings, ISSUE_TYPE, main, readItems, summary, trustedShape, withoutSecurityDefects, withoutTrustedShapes } from "./file-findings.mjs";
 import { forge, ISSUE } from "./forge.fixtures.mjs";
+import { SOURCE_LABEL } from "./lane.mjs";
 
 const item = (n) => ({ title: `Deepen module ${n}`, body: `Evidence: \`src/m${n}.mjs:1\`.\n\n## Done when\n\n- [ ] One seam.` });
 const doc = (items) => JSON.stringify({ items });
@@ -56,6 +60,35 @@ test("a missing label files nothing, since the lane never creates one", async ()
   const { call, posts } = forge({ label: false });
   await assert.rejects(fileFindings({ items: [item(1)], cap: 5, call, repository: "o/r" }), /never creates a label/);
   assert.equal(posts.length, 0);
+});
+
+const FILING_PLAN = fileURLToPath(new URL("../../../plugins/improvement/scripts/filing-plan.mjs", import.meta.url));
+
+test("the lane and /improvement:find's filing-plan command make the same filing decisions on the same items", async () => {
+  for (const scenario of [{}, { open: 4 }, { open: 5 }, { filed: ["deepen  MODULE 2"] }, { open: 3, filed: ["Deepen module 1"] }]) {
+    const lane = forge(scenario);
+    const items = [item(1), item(2), item(3), item(1)];
+    const result = await fileFindings({ items, cap: 5, call: lane.call, repository: "o/r" });
+    const read = forge(scenario);
+    const open = (await read.call("GET", "/repos/o/r/issues?state=open&per_page=100")).filter((entry) => !entry.pull_request).length;
+    const existingTitles = (await read.call("GET", "/repos/o/r/issues?state=all&per_page=100")).map((entry) => entry.title);
+    const request = { label: SOURCE_LABEL, labelExists: true, team: 5, open, existingTitles, candidates: items.map((entry) => entry.title) };
+    const find = JSON.parse(execFileSync(process.execPath, [FILING_PLAN], { input: JSON.stringify(request), encoding: "utf8" }));
+    const label = JSON.stringify(scenario);
+    assert.deepEqual(result.filed.map((issue) => issue.title), find.file.map((index) => items[index].title), label);
+    assert.deepEqual(result.skipped, find.skipped, label);
+  }
+});
+
+test("with the label missing, the lane and the filing-plan command both file nothing from the same label-missing stop", async () => {
+  const lane = forge({ label: false });
+  const items = [item(1), item(2)];
+  await assert.rejects(fileFindings({ items, cap: 5, call: lane.call, repository: "o/r" }), /never creates a label/);
+  assert.equal(lane.posts.length, 0);
+  const request = { label: SOURCE_LABEL, labelExists: false, team: 5, open: 0, existingTitles: [], candidates: items.map((entry) => entry.title) };
+  const find = JSON.parse(execFileSync(process.execPath, [FILING_PLAN], { input: JSON.stringify(request), encoding: "utf8" }));
+  assert.equal(find.stop, "label-missing");
+  assert.deepEqual(find.file, []);
 });
 
 test("no items reads nothing and files nothing", async () => {

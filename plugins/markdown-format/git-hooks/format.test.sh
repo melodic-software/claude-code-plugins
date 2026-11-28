@@ -329,5 +329,142 @@ expect "the commit failure names the line" "a.md:3: MD033/no-inline-html Inline 
 expect "verify reports both entries ok after the install" "ok	format
 ok	lint" "$(node "$INSTALL" verify --repo "$REPO")"
 
+new_repo
+printf '# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nMiddle paragraph.\n\n\n\nExisting paragraph.\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+git -C "$REPO" commit -q -m pre-existing-drift --no-verify
+printf '# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nMiddle paragraph.\n\n\n\nExisting paragraph.\n\nAppended clean line.\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+WANT_A=$'# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nMiddle paragraph.\n\n\n\nExisting paragraph.\n\nAppended clean line.\n'
+expect "appending to a file with untouched pre-existing drift skips untouched hunks, notes drift on stderr, and exits 0" \
+  "0||markdown-format: a.md: skipped formatting drift on untouched lines (2 hunks)" "$(check "$REPO")"
+expect "untouched pre-existing drift stays byte-identical in the work tree" "${WANT_A}x" "$(
+  cat "$REPO/a.md"
+  printf x
+)"
+expect "untouched pre-existing drift stays byte-identical in the index" "${WANT_A}x" "$(
+  git -C "$REPO" show :a.md
+  printf x
+)"
+expect "subsequent lint passes when untouched drift was left alone" "0||" "$(CHECK="$LINT" check "$REPO")"
+
+new_repo
+printf '# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nMiddle paragraph.\n\n\n\nExisting paragraph.\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+git -C "$REPO" commit -q -m pre-existing-drift --no-verify
+printf '# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nMiddle paragraph.\n\n\n\nExisting paragraph.\n\nNew line with spaces   ' >"$REPO/a.md"
+git -C "$REPO" add a.md
+WANT_B=$'# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nMiddle paragraph.\n\n\n\nExisting paragraph.\n\nNew line with spaces\n'
+expect "fixable issue on a new line is fixed and restaged while untouched drift is skipped and noted on stderr" \
+  "0|a.md|markdown-format: a.md: skipped formatting drift on untouched lines (2 hunks)" "$(check "$REPO")"
+expect "mixed case: work tree fixes only the new line and keeps untouched lines byte-identical" "${WANT_B}x" "$(
+  cat "$REPO/a.md"
+  printf x
+)"
+expect "mixed case: index holds the hunk-scoped rewrite" "${WANT_B}x" "$(
+  git -C "$REPO" show :a.md
+  printf x
+)"
+expect "mixed case: no unstaged change remains" "" "$(git -C "$REPO" diff --name-only)"
+expect "mixed case: subsequent lint passes" "0||" "$(CHECK="$LINT" check "$REPO")"
+
+new_repo
+printf '# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nKeep me.\nDelete me.\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+git -C "$REPO" commit -q -m pre-existing-drift --no-verify
+printf '# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nKeep me.\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+WANT_C=$'# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nKeep me.\n'
+expect "a staged file with no changed-line hunks and untouched drift is not rewritten or restaged" \
+  "0||markdown-format: a.md: skipped formatting drift on untouched lines (1 hunk)" "$(check "$REPO")"
+expect "no changed-line hunks: untouched drift stays byte-identical in the work tree" "${WANT_C}x" "$(
+  cat "$REPO/a.md"
+  printf x
+)"
+expect "no changed-line hunks: untouched drift stays byte-identical in the index" "${WANT_C}x" "$(
+  git -C "$REPO" show :a.md
+  printf x
+)"
+expect "no changed-line hunks: subsequent lint passes" "0||" "$(CHECK="$LINT" check "$REPO")"
+
+new_repo
+printf '# T\nUntouched paragraph without blank line.\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+git -C "$REPO" commit -q -m pre-existing-heading --no-verify
+printf '# T\nUntouched paragraph without blank line.\n## Added Heading\n\nBody.\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+WANT_D=$'# T\nUntouched paragraph without blank line.\n\n## Added Heading\n\nBody.\n'
+expect "pure insertion hunk adjacent to an added heading is applied while untouched heading drift is skipped" \
+  "0|a.md|markdown-format: a.md: skipped formatting drift on untouched lines (1 hunk)" "$(check "$REPO")"
+expect "pure insertion case: only the blank line before the added heading is inserted" "${WANT_D}x" "$(
+  git -C "$REPO" show :a.md
+  printf x
+)"
+expect "pure insertion case: subsequent lint passes" "0||" "$(CHECK="$LINT" check "$REPO")"
+
+new_repo
+printf '# T\n\nFirst line.\n\nLast line no eol' >"$REPO/a.md"
+git -C "$REPO" add a.md
+git -C "$REPO" commit -q -m no-eof-newline --no-verify
+printf '# T\n\nUpdated line   \n\nLast line no eol' >"$REPO/a.md"
+git -C "$REPO" add a.md
+WANT_E=$'# T\n\nUpdated line\n\nLast line no eol'
+expect "editing an earlier line fixes that line without adding a missing EOF newline to an untouched last line" \
+  "0|a.md|markdown-format: a.md: skipped formatting drift on untouched lines (1 hunk)" "$(check "$REPO")"
+expect "EOF newline case: untouched last line keeps its exact bytes without trailing newline" "${WANT_E}x" "$(
+  git -C "$REPO" show :a.md
+  printf x
+)"
+expect "EOF newline case: subsequent lint passes" "0||" "$(CHECK="$LINT" check "$REPO")"
+
+new_repo
+printf '# T\n\n- Allow Bash(git *) and Bash(npm *) here.\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+git -C "$REPO" commit -q -m adjacent-drift --no-verify
+printf '# T\n\n- Allow Bash(git *) and Bash(npm *) here.\n- New item   \n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+WANT_ADJ=$'# T\n\n- Allow Bash(git *) and Bash(npm *) here.\n- New item\n'
+expect "adjacent fixable added row fixes only the added row and leaves the untouched row above byte-identical" \
+  "0|a.md|markdown-format: a.md: skipped formatting drift on untouched lines (1 hunk)" "$(check "$REPO")"
+expect "adjacent case: untouched row above stays byte-identical while added row is fixed" "${WANT_ADJ}x" "$(
+  git -C "$REPO" show :a.md
+  printf x
+)"
+expect "adjacent case: subsequent lint passes" "0||" "$(CHECK="$LINT" check "$REPO")"
+
+new_repo
+git -C "$REPO" config diff.interHunkContext 20
+printf '# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nMiddle paragraph.\n\nExisting paragraph.\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+git -C "$REPO" commit -q -m inter-hunk --no-verify
+printf '# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nMiddle paragraph.\n\nExisting paragraph.\n\nNew trailing spaces   \n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+WANT_IHC=$'# T\n\nAllow Bash(git *) and Bash(npm *) here.\n\nMiddle paragraph.\n\nExisting paragraph.\n\nNew trailing spaces\n'
+expect "nonzero diff.interHunkContext cannot widen formatting to untouched lines" \
+  "0|a.md|markdown-format: a.md: skipped formatting drift on untouched lines (1 hunk)" "$(check "$REPO")"
+expect "interHunkContext case: untouched drift stays byte-identical" "${WANT_IHC}x" "$(
+  git -C "$REPO" show :a.md
+  printf x
+)"
+expect "interHunkContext case: subsequent lint passes" "0||" "$(CHECK="$LINT" check "$REPO")"
+
+new_repo
+printf '# T\n\n\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+git -C "$REPO" commit -q -m untouched-dup-blank --no-verify
+printf '# T\n\n\n## H   \ntext\n' >"$REPO/a.md"
+git -C "$REPO" add a.md
+WANT_MOVE=$'# T\n\n\n## H   \ntext\n'
+expect "paired move-and-delete hunk does not delete a staged heading when its insertion half is skipped" \
+  "0||markdown-format: a.md: skipped formatting drift on untouched lines (2 hunks)" "$(check "$REPO")"
+expect "paired move-and-delete case: staged heading and untouched duplicate blank stay intact in the index" "${WANT_MOVE}x" "$(
+  git -C "$REPO" show :a.md
+  printf x
+)"
+expect "paired move-and-delete case: work tree keeps the staged heading intact" "${WANT_MOVE}x" "$(
+  cat "$REPO/a.md"
+  printf x
+)"
+
 echo "format: $PASS passed, $FAIL failed"
 ((FAIL == 0))

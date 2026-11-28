@@ -1,5 +1,5 @@
 ---
-description: "Run one repository's pull-request queue as the merge lane of the loop-lane topology: a self-paced standing or drain loop invoking /source-control:babysit-prs each cycle at the resolved autonomy tier, with grace windows, do-not-merge respect, escalation, and lane telemetry. Merge authority is human-only until the target repo's tracked config adopts the lane; the body owns the rung rules and the single paired-argument exception. Use when asked to run or stand up the babysit loop or merge lane for a repository, or to drain its PR queue. Required argument: OWNER/REPO. Launch via /loop. Sibling skills: /source-control:babysit-prs (single-pass mechanic), /source-control:pull-request (single-PR lifecycle)."
+description: "Run one project's PR queue as a standing or drain merge lane via /loop (needs OWNER/REPO), invoking /source-control:babysit-prs each cycle (human approval until adopted). Use for 'babysit loop', 'merge lane', or draining a queue. Not for single sweeps (run once) or one PR: /source-control:pull-request."
 argument-hint: "<owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge]"
 user-invocable: true
 disable-model-invocation: false
@@ -66,7 +66,7 @@ Everything else resolves in order:
 1. **Invocation arguments**, the tier keyword (babysit-prs vocabulary) and any per-dimension or
    loop-knob override mirroring the seam keys (e.g. `--drain`, `--grace-window-minutes 45`, `--merge human-only`).
 2. **The layered config seam**, the `babysit_loop_*` keys in the source-control config
-   cascade (team-tracked → personal override `docs/conventions/source-control.local.yaml`, merged per key, plus the old locations still read during the dual-read window; `babysit_loop_trusted_internal_bot_logins` binds only from the target repo's tracked default branch, never an argument or another layer). The team-tracked value of every `babysit_loop_*` key comes from `docs/conventions/source-control.yaml` only. Key table, defaults, and layering semantics:
+   cascade (team-tracked → personal override `docs/conventions/source-control.local.yaml`, merged per key; `babysit_loop_trusted_internal_bot_logins` binds only from the target repo's tracked default branch, never an argument or another layer). The team-tracked value of every `babysit_loop_*` key comes from `docs/conventions/source-control.yaml` only. Key table, defaults, and layering semantics:
    [`${CLAUDE_PLUGIN_ROOT}/reference/config-resolution.md`](../../reference/config-resolution.md).
 3. **Tier defaults**, the resolved tier's own dimension values (`safe` when nothing resolves a tier).
 
@@ -217,7 +217,7 @@ from the operator's managed and user settings itself.
 
 ## do-not-merge
 
-A do-not-merge label, or a PR body that says "do not merge" or has a line starting `Hold:`, is respected by default in every tier and at every rung: the PR is reported, never merged, and the label is never removed.
+A do-not-merge label is respected by default in every tier and at every rung: the PR is reported, never merged, and the label is never removed.
 Stripping it happens only behind the explicit `--strip-do-not-merge` invocation flag: a per-invocation direct order, never a config key, never persisted.
 
 ## Escalation

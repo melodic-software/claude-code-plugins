@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Exit codes:
-#   0   held: stdout is `Hold: a human merges this`
+#   0   held: pass `create --pushed --hold`
 #   1   not held: no comment carries the line, or none from a writer
 #   2   usage: a missing, repeated, or unknown argument, or a malformed value
 #   8   prerequisite missing: gh is not on PATH
@@ -14,13 +14,13 @@ HOLD_LINE="Hold: a human merges this"
 err() { printf 'merge-hold: %s\n' "$*" >&2; }
 usage() {
   cat <<'TXT'
-Report whether a work item holds its pull request for a human merge, and print the PR-body hold line.
+Report whether a work item holds its pull request for a human merge.
 
 Usage: merge-hold.sh --repo <owner/name> --issue <n>
   --repo   the repository, owner/name
   --issue  the work item's issue number
 
-Exit 0 held (stdout is the hold line); 1 not held; 2 usage; 8 gh not on PATH; 11 a read failed, so a hold was not ruled out.
+Exit 0 held (pass `create --pushed --hold`); 1 not held; 2 usage; 8 gh not on PATH; 11 a read failed, so a hold was not ruled out.
 TXT
 }
 
@@ -85,10 +85,7 @@ while IFS= read -r login; do
     continue
   fi
   case "$perm" in
-    admin | write)
-      printf '%s\n' "$HOLD_LINE"
-      exit 0
-      ;;
+    admin | write) exit 0 ;;
     *) err "ignored a hold comment by $login (permission ${perm:-none})" ;;
   esac
 done < <(sort -u <<<"$authors")

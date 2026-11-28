@@ -98,10 +98,10 @@ A job's `id` is its check run's id. When every failed or timed-out job carries a
 annotation whose message starts `failure-class=skipped-validation`, the pull request edited the
 caller workflow, claude-code-action skipped itself, and the run is passed over like a skipped one.
 Any other class, `rate-limit` included, or a failed run with no failed job, keeps its verdict.
-After 10 such runs in a row the lane reads `local stale`. Pointer: the annotation is the reusable
-workflow's last step, `echo "::error title=$LANE failed::failure-class=..."`, in
-[ci-workflows `pr-review.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/pr-review.yml)
-and `pr-review-security.yml` (`pr-review-cli.yml`'s publish step writes it after the lane id, `<lane>: failure-class=...`); the reads are at
+After 10 such runs in a row the lane reads `local stale`. Pointer: the annotation is written by
+[ci-workflows `pr-review-cli.yml`](https://github.com/melodic-software/ci-workflows/blob/main/.github/workflows/pr-review-cli.yml)'s
+publish step (`.github/actions/publish-review/publish.cjs`, `<lane>: failure-class=...`; retired
+`pr-review.yml` and `pr-review-security.yml` wrote `echo "::error title=$LANE failed::failure-class=..."`); the reads are at
 [REST API: list jobs for a workflow run](https://docs.github.com/en/rest/actions/workflow-jobs#list-jobs-for-a-workflow-run)
 and [REST API: list check run annotations](https://docs.github.com/en/rest/checks/runs#list-check-run-annotations).
 As of: 2026-10-21, read from runs 39610040287 and 39610040502. Recheck trigger: the reusable

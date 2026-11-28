@@ -1,11 +1,11 @@
 ---
-description: "Revert case from PR #6500, reverted by #6544 73f5de8576b7: CI code review of the original change posts a finding on a line the revert later changed"
+description: "Revert case from PR #6500, reverted by #6544 73f5de8576b7: high-signal CI code review names that K3's 925-byte cost pass is invalidated by the PR's disclosed duplicate-children slice bug"
 tags: [review, code-review, revert]
-runs: 1
+runs: 3
 max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent]
-expected_outcome: "The review reports a finding at a line the revert later changed: lib/docs-lookup-procedure.md lines 61-64; plugins/discipline/reference/docs-lookup-procedure.md lines 64-67; plugins/discovery/reference/docs-lookup-procedure.md lines 64-67; plugins/harness-memory/reference/docs-lookup-procedure.md lines 64-67; plugins/instruction-placement/reference/docs-lookup-procedure.md lines 64-67; plugins/knowledge/reference/docs-lookup-procedure.md lines 64-67; plugins/plugin-quality/reference/docs-lookup-procedure.md lines 64-67. Its other findings are recorded, not graded"
+expected_outcome: "A high-signal code review names the reverted problem: PR #6500 ships the K3 coverage-check bullet in lib/docs-lookup-procedure.md even though K3 clears its pre-registered byte limit by only 925 bytes while the PR itself discloses a duplicate-children slice bug that inflates/invalidates the byte measurement. Citing a specific line number is optional; other findings are recorded, not graded"
 ---
 
 /review:code-review

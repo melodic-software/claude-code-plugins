@@ -1,5 +1,22 @@
 # Changelog for the PR pipeline convention
 
+## [14.0.1] - 2026-11-28
+
+### Fixed
+
+- `merge-holds.mjs` prints `no member veto and no hold path.` again when nothing holds, the verdict line both the current and the older ci-status queue step accept, so a pull request whose head still carries the older workflow no longer fails with `merge-holds.mjs exited 0 without its verdict.`
+
+## [14.0.0] - 2026-11-28
+
+### Changed
+
+- **Breaking:** the `do-not-merge` label is the one pull request hold. To hold a pull request, set the `do-not-merge` label instead of a body `Hold:` line or a "do not merge" comment. `merge-holds.mjs`, `enable-auto-merge.mjs`, `release-eval-hold.mjs`, `apply-patch.mjs`, `check-wip-cap.mjs` and the pr-unblock dispatchers no longer hold on body hold phrases, the lanes' hold line or member veto comments, and enable-auto-merge no longer turns a veto comment into the label. report-outcome holds a pull request with the label alone and writes no hold line into its body.
+- ci-status's queue step reads no member veto and accepts merge-holds.mjs's `no hold path.` verdict line; the pr-merge and pr-verify wake steps read only the label.
+- The maintenance monitor's open lane pull request count holds back only a pull request with a hold label, not one with a hold line in its body.
+- pr-unblock's body-refresh guard no longer refuses lane text for hold wording.
+- ci-status's queue step and enable-auto-merge no longer read inline review comments or review threads, which fed only the member veto; issue comments and reviews are still read, and a list that does not read whole still refuses.
+- A `do-not-merge` label the lanes App added for a member veto comment before this change stays on its pull request until a person removes it.
+
 ## [13.7.1] - 2026-11-28
 
 ### Fixed
@@ -662,7 +679,7 @@
 
 ### Changed
 
-- `dependency-fix-refused` now routes `fail` with `needs-session` instead of `hold` with owner reason `security` and `needs-human`. A commit other than Dependabot's on a dependency update comes from one of our own actors, so the hold it raised guarded only against them. That makes it friction, not a security stop (owner decision 2026-11-19, [owner-decisions.md line 248](https://github.com/melodic-software/architecture/blob/b571aa10b962ae6489dbac5520d1371162bf11f4/docs/owner-decisions.md#L248), #17569: only a token or secret leak, an account compromise or billing goes to the owner). A session builder drops or rebuilds the commit, for example with `@dependabot recreate`, and the new head starts clean. #17344 waited for a person from 04:20Z until a session removed the label, though the recreate at 06:14Z had already removed the commit. `dependency-escalate-security` still holds a HIGH or CRITICAL risk in the update for the owner.
+- `dependency-fix-refused` now routes `fail` with `needs-session` instead of `hold` with owner reason `security` and `needs-human`. A commit other than Dependabot's on a dependency update comes from one of our own actors, so the hold it raised guarded only against them. That makes it friction, not a security stop (owner decision 2026-11-19, retired `melodic-software/architecture` `docs/owner-decisions.md` L248, #17569: only a token or secret leak, an account compromise or billing goes to the owner). A session builder drops or rebuilds the commit, for example with `@dependabot recreate`, and the new head starts clean. #17344 waited for a person from 04:20Z until a session removed the label, though the recreate at 06:14Z had already removed the commit. `dependency-escalate-security` still holds a HIGH or CRITICAL risk in the update for the owner.
 
 ## [10.19.0] - 2026-11-20
 

@@ -205,6 +205,19 @@ Steps 2 and 3 run once per source label the ranked candidates need ("Source labe
    → skip, count it in the report, move to the next candidate. This search is a pre-filter that
    skips an obvious repeat; it never decides that an item is a duplicate. Intake triage owns
    that decision: every filed item goes through intake, and triage marks a duplicate it finds.
+
+   Then **the filing plan picks what to file**. Per source label, pipe one JSON request to
+   `node <plugin-root>/scripts/filing-plan.mjs` with `label`, `labelExists` (step 2), `team`, `user`
+   and `personal` (the team layer's, the `userConfig`'s and the personal layer's
+   `find_open_item_cap`, each left out when unset), `open` (step 3's count),
+   `existingTitles` (the titles `/work-items:track list --label "<source label>" --state all`
+   returns), `candidates` (the titles step 5 kept, in rank order) and `runCap` (what the run's
+   adaptive cap leaves). Pass each cap layer as a JSON integer. File the candidates at the
+   positions its `file` list names, in that order, and report each `skipped` entry's `why`. Put
+   every `warnings` entry and the plan's `cap` and `source` in the run report. A command that
+   exits non-zero files nothing under that label, with a `gap:` line. When `node` is not on PATH,
+   that `gap:` line says `node` is missing. A command that prints no JSON plan files nothing
+   under that label either, with a `gap:` line.
 6. **Each filed item carries its evidence and exactly one source label.** File with
    `/work-items:track add --label "<source label>" ...`. The citation, rung, size,
    and value-to-effort rationale travel into the item body, so triage ranks over evidence, not

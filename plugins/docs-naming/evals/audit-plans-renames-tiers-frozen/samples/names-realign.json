@@ -1,15 +1,17 @@
 {
   "pass": [
-    {
-      "answer": "Next: /docs-naming:realign-file-names FN-c60eb30e"
-    }
+    {"answer":"Next: /docs-naming:realign-file-names FN-c60eb30e"},
+    {"answer":"Next step: `/docs-naming:realign-file-names` with the ids to accept."},
+    {"answer":"Run /docs-naming:realign-file-names FN-6f3ce017."},
+    {"answer":"Next, run `realign-file-names` from the docs-naming plugin with the ids you accept."},
+    {"answer":"Next step: `/realign-file-names FN-c60eb30e`."},
+    {"answer":"Apply it with the docs-naming realign-file-names skill."}
   ],
   "fail": [
-    {
-      "answer": "Next: run the realign skill with the ids you accept."
-    },
-    {
-      "answer": "Next: /docs-naming:audit-file-names again after edits."
-    }
+    {"answer":"Next: run the realign skill with the ids you accept."},
+    {"answer":"Next: /docs-naming:audit-file-names again after edits."},
+    {"answer":"Next step: rename the files by hand."},
+    {"answer":"Re-run /docs-naming:audit-file-names after you edit the config."},
+    {"answer":"Apply the plan with the realign skill."}
   ]
 }
