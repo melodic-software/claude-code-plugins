@@ -39,6 +39,14 @@
     {
       "answer": "The counter reports 696 of 4000 characters, status ok, so the limit is not close.\n",
       "why": "N of N form, run 2 of suite run 46090478069"
+    },
+    {
+      "answer": "The counter reports 603 characters against 4000.\n",
+      "why": "against a bare number, run 1 of suite run 46092986142"
+    },
+    {
+      "answer": "The draft is 823 characters, under the 4000 limit.\n",
+      "why": "count then under the limit, run 3 of suite run 46092986142"
     }
   ],
   "fail": [
@@ -121,6 +129,18 @@
     {
       "answer": "The draft is 4210 characters against a 4000 limit, exceeding it, so I cut it down.\n",
       "why": "against form with exceeding"
+    },
+    {
+      "answer": "Limit: 4000 characters.\n",
+      "why": "states the limit, counts nothing"
+    },
+    {
+      "answer": "Your notes say a condition can be at most 4000 characters.\n",
+      "why": "echoes the limit, counts nothing"
+    },
+    {
+      "answer": "I drafted the condition from the notes you pasted instead, well under 4000 characters.\n",
+      "why": "under the limit with no count, the without-plugin shape of suite run 46092986142"
     }
   ]
 }
