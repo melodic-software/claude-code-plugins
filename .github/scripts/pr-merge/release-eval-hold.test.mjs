@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
-import { EVAL_GATED_LABEL as REPORT_OUTCOME_EVAL_GATED_LABEL, evalHoldComment as laneHoldComment } from "../work-resolve-issue/report-outcome.mjs";
+import { EVAL_GATED_LABEL as REPORT_OUTCOME_EVAL_GATED_LABEL, evalHoldComment as laneHoldComment, personHoldComment } from "../work-resolve-issue/report-outcome.mjs";
 import {
   CANNOT_START_CAUSES,
   CANNOT_START_JOB,
@@ -676,6 +676,13 @@ test("a label re-added by a different actor after an eval release stays, even wi
   const laneAgain = comment(laneHoldComment(77, false), { user: APP, at: "2026-11-06T12:02:00Z", app: { id: 1, slug: "lanes" } });
   assert.equal(run({ comments: [laneHold, laneAgain, record], events: timeline }).reason, "label-not-eval-owned");
   assert.equal(run({ comments: [laneHold, laneAgain], events: timeline, cannotStart: cannotStart() }).reason, "label-not-eval-owned");
+});
+
+test("report-outcome's person hold on a PR that is not eval-gated outlasts a later eval-only reason line by the same App", () => {
+  const person = comment(personHoldComment(77), { user: APP, at: "2026-11-06T10:00:30Z", app: { id: 1, slug: "lanes" } });
+  const laneEval = comment(laneHoldComment(77, false), { user: APP, at: "2026-11-06T10:01:00Z", app: { id: 1, slug: "lanes" } });
+  assert.deepEqual(run({ comments: [person, laneEval, recordComment()], events: appEvents }), { release: false, reason: "hold-reason-person" });
+  assert.deepEqual(run({ comments: [person, laneEval], events: appEvents, cannotStart: cannotStart() }), { release: false, reason: "hold-reason-person" });
 });
 
 test("a missing record alone, or a cannot-start record for another head or with an unknown cause, keeps the hold", () => {

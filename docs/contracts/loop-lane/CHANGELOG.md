@@ -14,6 +14,9 @@ mechanism, capability-tier or §4 invariant changed.
   when the newest label event and an eval reason line are by the same listed human or by the lanes
   App, the line posted within 10 minutes after the label. A label a person or a lane added for
   another reason stays, even when an eval-only reason line follows it.
+- **Person holds record their reason.** work-resolve-issue posts a `reason=person` line on every
+  lane PR it holds for a person, eval-gated or not, so a later eval-only reason line cannot
+  release it.
 
 ## [21.0.0] - 2026-11-27
 

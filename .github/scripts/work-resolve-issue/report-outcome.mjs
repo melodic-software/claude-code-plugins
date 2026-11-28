@@ -21,10 +21,12 @@ export { doneEvidence, REFINE_MARKER };
 
 export const HOLD_LABEL = "do-not-merge";
 export const EVAL_GATED_LABEL = "eval-gated";
+const PERSON_HOLD_LINE = "<!-- pr-hold reason=person -->";
 export const evalHoldComment = (issueNumber, personHold = false) =>
   personHold
-    ? `Held for the before-and-after eval that cut item #${issueNumber} needs, and for a person to merge: the eval record alone does not lift this hold.\n\n<!-- pr-hold reason=eval -->\n<!-- pr-hold reason=person -->`
+    ? `Held for the before-and-after eval that cut item #${issueNumber} needs, and for a person to merge: the eval record alone does not lift this hold.\n\n<!-- pr-hold reason=eval -->\n${PERSON_HOLD_LINE}`
     : `Held for the before-and-after eval that cut item #${issueNumber} needs. The pr-merge release step lifts this hold when an eval-pair record exists for the current head.\n\n<!-- pr-hold reason=eval -->`;
+export const personHoldComment = (issueNumber) => `Held for a person to merge the fix for cut item #${issueNumber}: no eval record lifts this hold.\n\n${PERSON_HOLD_LINE}`;
 const EXITS = new Set(["done", "pushback", "stopped"]);
 const PUSHBACK_CAUSES = new Set(["intent", "intent-change"]);
 const PUSHBACK_LANE_ROUTES = new Set(["host-run", "attended"]);
@@ -2096,6 +2098,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
         const alreadyHeld = (pull.labels ?? []).some((label) => label?.name === HOLD_LABEL);
         const labeled =
           !(plan.hold || evalGated) ||
+          alreadyHeld ||
           (await github("POST", `${repo}/issues/${pull.number}/labels`, { labels: [HOLD_LABEL] }, { safeToResend: true }).then(
             () => true,
             (error) => {
@@ -2103,8 +2106,8 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
               return false;
             },
           ));
-        if (labeled && evalGated) {
-          const body = evalHoldComment(issueNumber, plan.hold);
+        if (labeled && (plan.hold || evalGated)) {
+          const body = evalGated ? evalHoldComment(issueNumber, plan.hold) : personHoldComment(issueNumber);
           const posted =
             alreadyHeld &&
             (await paginate(github, `${repo}/issues/${pull.number}/comments`).then(

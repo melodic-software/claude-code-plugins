@@ -561,7 +561,8 @@ real-time deadline. A hold that lands after the merge is not a hold.
   `<!-- eval-pair verdict=no-loss validity=VALID head=<40-hex head SHA> -->` when the run is VALID
   and shows no loss. `pr-run-plugin-evals.yml`'s compare mode posts the same line, with
   `<!-- eval-pair-run id=<run id> -->` beside it, as `github-actions[bot]`. work-resolve-issue opens a lane PR whose issue carries `eval-gated` with
-  `do-not-merge` and a `reason=eval` comment in the same step. The same pr-merge step that releases
+  `do-not-merge` and a `reason=eval` comment in the same step; a lane PR it holds for a person gets
+  a `reason=person` line too, eval-gated or not, so no eval evidence releases it. The same pr-merge step that releases
   the hold also adds it, label first, to any open PR that closes an `eval-gated` issue, whoever
   opened it, unless the PR already carries `do-not-merge`, was held for eval before, or its newest
   record names its head. pr-merge's scheduled run or sweep dispatch (one with no `pr` input) then
