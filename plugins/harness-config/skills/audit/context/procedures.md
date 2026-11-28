@@ -131,9 +131,7 @@ convention. The engine reads the team layer (the `suppressions` mapping of
 `docs/conventions`), the `userConfig` layer (the file the `audit_pass_suppressions_file` option
 names), and the personal override (`<home>/audit-pass.local.md`), and lists each in
 `suppressions.layers` with the file read and its state; every applied entry names its layer and
-file. An old-location file (`~/.claude/audit-pass.md`, `.claude/audit-pass.local.md`) is still read
-while no new-location file supplies its layer, and each one found is a warning in
-`suppressions.old_locations` naming `/harness-config:setup apply`. Only the team layer suppresses, a personal-only entry is reported as `personal-only, not
+file. Only the team layer suppresses, a personal-only entry is reported as `personal-only, not
 applied`, and an entry whose constituents do not hash to its key, or that lacks a required key, is
 reported `malformed` and never suppresses. The `--table` output prints a `suppress:` line under every
 finding with the id, surface, and anchor, so an operator who decides to keep a finding copies that

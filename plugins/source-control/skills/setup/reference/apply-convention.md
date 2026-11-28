@@ -20,7 +20,6 @@ post-write verification, and the effective-merge report. Loaded from [SKILL.md](
   - Step 5, write the config
   - Step 6, verify the write, per layer
   - Step 7, report the new effective merge
-- [Move config off the old locations](#move-config-off-the-old-locations)
 - [Neutral convention SSOT (`convention_source`)](#neutral-convention-ssot-convention_source)
 
 Find a step directly with:
@@ -44,9 +43,8 @@ Both layers are YAML with the same keys, validated by
 ([config-resolution.md](../../../reference/config-resolution.md), "The config files"). There is no
 user-global layer and no `userConfig` option for these keys: refuse `layer=user`, and say a value
 for every repository goes in each repository's team file, or its personal override for one person.
-`apply` never writes an old location (`~/.claude/source-control.md`,
-`REPO_ROOT/.claude/source-control.local.md`) or the retired team file
-`REPO_ROOT/.claude/source-control.md`; the migration steps below move the keys they carry.
+`apply` never writes retired `.claude/` files (`~/.claude/source-control.md`,
+`REPO_ROOT/.claude/source-control.local.md`, `REPO_ROOT/.claude/source-control.md`).
 
 Infer the layer rather than asking when the request names one: "my personal convention" / "on this
 machine" is `local`, "our convention" is `team`, and "for all my repos" is `local` in each repo
@@ -131,7 +129,7 @@ With no argument in an interactive session, run the interview:
 0. **Anchor at the repo root** exactly as `check` does: resolve `REPO_ROOT` once and reuse the
    literal resolved path for every read, write, and git command below; re-resolve it at the top of
    every self-contained Bash call.
-1. **Read the current config first**, every layer and old location, not just the target. Present
+1. **Read the current config first**, both layers, not just the target. Present
    the effective merge and which layer supplies each key; the interview proposes changes against
    that baseline and overwrites nothing without confirmation. Writing the `local` layer, carry only
    the keys that genuinely differ from the team layer below it: a layer that restates every key silently pins values
@@ -393,8 +391,7 @@ With no argument in an interactive session, run the interview:
    remain.
 
 7. **Report the new effective merge**, not just what was written. A `layer=team` write can be
-   overridden by an existing personal override, or by an old personal override still read while
-   the personal YAML is absent. A user who is told only "wrote `subject_pattern`" and then sees `/source-control:commit` use a
+   overridden by an existing personal override. A user who is told only "wrote `subject_pattern`" and then sees `/source-control:commit` use a
    different pattern has been misled by the success message.
 
    For a `team` write, the report also states plainly what the file is and is not: a drafting aid
@@ -402,50 +399,6 @@ With no argument in an interactive session, run the interview:
    not team-wide enforcement. Committers without the plugin are bound only by a commit-msg hook or CI
    check; when the team wants that, point at the guardrails plugin's opt-in commit-msg hook or the
    repo's own hook manager rather than implying this file enforces anything by itself.
-
-## Move config off the old locations
-
-Two old locations are still read during the dual-read window, and `parse-branch-issue.sh` names
-each on every run, pointing here
-([config-resolution.md](../../../reference/config-resolution.md), "The three layers"). The move
-ends with one home per value, never two. Run it in `apply` after `check`, once per file
-`bash "<plugin-root>/lib/convention-key.sh" old-files "$REPO_ROOT"` prints:
-
-1. **Preview.** Read the old file's `## <key>` sections and show, in one preview, each key, its
-   value, and where it goes:
-   - `REPO_ROOT/.claude/source-control.local.md` → `docs/conventions/source-control.local.yaml`.
-   - `~/.claude/source-control.md` → this repository's `docs/conventions/source-control.yaml` (the
-     team layer) by default; the operator may name `docs/conventions/source-control.local.yaml`
-     instead in the same answer. Its keys apply in every repository the operator works in, so the
-     preview also says the old file is kept until the operator says it may go (in that answer, or
-     once the other repositories have moved).
-   - The move never changes a resolved value. Before the preview, resolve each key across the
-     layers read today ([config-resolution.md](../../../reference/config-resolution.md); for
-     `branch_issue_pattern`, `parse-branch-issue.sh <sample-branch> --explain` from `REPO_ROOT`)
-     and record the value and the layer that supplies it. Carry a key only when the old file is
-     that layer; nothing above it sets the key, so the target supplies the same value. Every other
-     key is shown with both values and not carried: one a higher layer supplies, and every key of
-     an old personal override that is not read because the personal YAML exists. The operator may
-     pick the old value in the same answer.
-     Name any key the schema does not declare; it is not carried.
-2. **Ask once, then write.** One confirmation covers the whole preview. Without a yes, write
-   nothing; the file stays, still read and still warned about. Before writing the personal YAML,
-   the `docs/conventions/**/*.local.*` ignore rule must match the nested sentinel from step 6; a
-   missing rule stops the move with step 6's remediation. With a yes, write each key in the YAML
-   shape of step 5 (a bullet list becomes a YAML sequence, a regex is single-quoted), carrying
-   every key the new file already holds, and run step 6's verification for the layer written; a
-   failed verification stops the move and keeps the old file.
-3. **Check the values match.** Read each moved key back from the new file (`convention-key.sh
-   value`, or `local-value`, `list` and `local-list`) and compare it with the old value, then
-   resolve every key again and compare with the value recorded in step 1, except a key the
-   operator chose to change. A mismatch restores the target to its content before the write
-   (removing it if the move created it), reports the mismatch, and keeps the old file.
-4. **Delete the old file** only after every key matched, and, for `~/.claude/source-control.md`,
-   only when the operator said it may go; report its path. Re-run
-   `old-files` last; a moved file no longer appears.
-
-Removing the old-location reads from this plugin is a later change, made once no old file is
-reported.
 
 ## Neutral convention SSOT (`convention_source`)
 

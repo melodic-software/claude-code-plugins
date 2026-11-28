@@ -1052,7 +1052,7 @@ run_file --file "$SH/subst.test.sh"
 assert_contains "quotes nest inside \$( ) inside a double-quoted string" "$out" "test blocks parsed: 1;"
 assert_finding_count "a nested quote does not hide a later assertion" 0
 GATE="$TMP_ROOT/gate"
-mkdir -p "$GATE/.claude" "$TMP_ROOT/gate-home"
+mkdir -p "$GATE/docs/conventions" "$TMP_ROOT/gate-home"
 git -C "$GATE" init -q
 printf 'gate_test::run_suite "$DIR" test_x.py\n' >"$GATE/gate.test.sh"
 gate_scan() {
@@ -1061,7 +1061,7 @@ gate_scan() {
 }
 gate_scan
 assert_finding_count "the shipped adapter alone does not take a suite runner call as delegation" 1
-printf '%s\n' 'extend:' '  bash-harness:' "    delegation: ['gate_test::run_suite']" >"$GATE/.claude/testing.yaml"
+printf '%s\n' 'extend:' '  bash-harness:' "    delegation: ['gate_test::run_suite']" >"$GATE/docs/conventions/testing.yaml"
 gate_scan
 assert_exit "the scan with the extend entry runs (exit 0)" 0 "$rc"
 assert_contains "and examines the file" "$out" "test files: 1 examined"
@@ -1966,7 +1966,7 @@ cfg_scan() {
   rc=0
   out="$(env -u CLAUDE_PROJECT_DIR HOME="$CFG_HOME" CANT_FAIL_SCAN_ROOT="$CFG" bash "$SCAN" "$@" 2>&1)" || rc=$?
 }
-cfg_set() { printf '%s\n' "$@" >"$CFG/.claude/testing.yaml"; }
+cfg_set() { mkdir -p "$CFG/docs/conventions"; printf '%s\n' "$@" >"$CFG/docs/conventions/testing.yaml"; }
 
 cfg_scan
 assert_finding_count "no config: the zero-assertion, weak-oracle and Go findings" 3
@@ -2042,29 +2042,33 @@ rm -f "$CFG/src/test_x.py"
 cfg_set 'rules:' '  rule-weak-oracle: error'
 cfg_scan --check
 assert_not_contains "a rule at error is left out of the report-only note" "$out" "weak-oracle 1"
-printf '\357\273\277paths:\n  exclude: [src/sum_test.go]\n' >"$CFG/.claude/testing.yaml"
+printf '\357\273\277paths:\n  exclude: [src/sum_test.go]\n' >"$CFG/docs/conventions/testing.yaml"
 cfg_scan
 assert_exit "a layer starting with a UTF-8 BOM loads" 0 "$rc"
 assert_finding_count "and applies" 2
 OTHER="$TMP_ROOT/cfg-other"
-mkdir -p "$OTHER/.claude" "$OTHER/src"
+mkdir -p "$OTHER/docs/conventions" "$OTHER/src"
 git -C "$OTHER" init -q
 cp "$CFG/src/bad.test.ts" "$OTHER/src/bad.test.ts"
-printf 'adapters:\n  disable: [js-vitest]\n' >"$OTHER/.claude/testing.yaml"
-rm -f "$CFG/.claude/testing.yaml"
+printf 'adapters:\n  disable: [js-vitest]\n' >"$OTHER/docs/conventions/testing.yaml"
+rm -f "$CFG/docs/conventions/testing.yaml"
 rc=0
 out="$(CLAUDE_PROJECT_DIR="$CFG" HOME="$CFG_HOME" bash "$SCAN" --file "$OTHER/src/bad.test.ts" 2>&1)" || rc=$?
 assert_contains "a file in another repository gets that repository's team layer" "$out" "test files: 0 examined"
 rc=0
 out="$(CLAUDE_PROJECT_DIR="$OTHER" HOME="$CFG_HOME" bash "$SCAN" --file "$CFG/src/bad.test.ts" 2>&1)" || rc=$?
 assert_contains "and CLAUDE_PROJECT_DIR's layer does not leak into it" "$out" "rule-zero-assertion"
-rm -f "$CFG/.claude/testing.yaml"
-mkdir -p "$CFG_HOME/.claude"
+rm -f "$CFG/docs/conventions/testing.yaml"
+mkdir -p "$CFG_HOME/.claude" "$CFG/.claude"
 printf 'paths:\n  exclude: [src/sum_test.go]\n' >"$CFG_HOME/.claude/testing.yaml"
+printf 'paths:\n  exclude: [src/sum_test.go]\n' >"$CFG/.claude/testing.yaml"
+printf 'paths:\n  exclude: [src/sum_test.go]\n' >"$CFG/.claude/testing.local.yaml"
 cfg_scan
-assert_finding_count "the user-global layer applies" 2
-assert_contains "and draws the old-location warning" "$out" "/.claude/testing.yaml is an old location, still read for now: there is no user-global file layer"
-rm -f "$CFG_HOME/.claude/testing.yaml"
+assert_finding_count "retired ~/.claude/testing.yaml and .claude/testing*.yaml are ignored" 3
+assert_contains "with a retired-file notice for .claude/testing.yaml" "$out" "retired config file $CFG/.claude/testing.yaml is not read"
+assert_contains "with a retired-file notice for .claude/testing.local.yaml" "$out" "retired config file $CFG/.claude/testing.local.yaml is not read"
+assert_contains "with a retired-file notice for ~/.claude/testing.yaml" "$out" "retired config file $CFG_HOME/.claude/testing.yaml is not read"
+rm -f "$CFG_HOME/.claude/testing.yaml" "$CFG/.claude/testing.yaml" "$CFG/.claude/testing.local.yaml"
 mkdir -p "$CFG/docs/conventions"
 printf 'e2e_driver: run\npaths:\n  exclude: [src/sum_test.go]\n' >"$CFG/docs/conventions/testing.yaml"
 cfg_scan
@@ -2087,34 +2091,21 @@ assert_not_contains "the new team layer alone draws no old-location warning" "$o
 OFF_WEAK=$'rules:\n  rule-weak-oracle: off'
 EXCL_GO=$'paths:\n  exclude: [src/sum_test.go]'
 printf '%s\n' "$EXCL_GO" >"$CFG/.claude/testing.yaml"
-rm -f "$CFG/docs/conventions/testing.yaml"
-cfg_scan
-assert_finding_count "the old team file alone applies" 2
-assert_contains "with a warning naming the new location" "$out" "/.claude/testing.yaml is an old location, still read for now; move it to docs/conventions/testing.yaml"
 printf '%s\n' "$OFF_WEAK" >"$CFG/docs/conventions/testing.yaml"
 cfg_scan
-assert_finding_count "both team files: the new weak-oracle off applies, the old Go exclude does not" 2
-assert_contains "the Go finding remains, so the old team exclude is ignored" "$out" "sum_test.go"
+assert_finding_count "new team file beside retired .claude team file: only new file applies" 2
+assert_contains "the Go finding remains, so the retired team exclude is ignored" "$out" "sum_test.go"
 assert_not_contains "and the weak oracle is off, so the new team file applies" "$out" "weak.test.ts"
-assert_contains "with a warning naming both" "$out" "/docs/conventions/testing.yaml and "
-assert_contains "and the ignored .claude file" "$out" "/.claude/testing.yaml both exist; using "
+assert_contains "with a retired-file notice for .claude/testing.yaml" "$out" "retired config file $CFG/.claude/testing.yaml is not read"
 rm -f "$CFG/.claude/testing.yaml" "$CFG/docs/conventions/testing.yaml"
 printf '%s\n' "$OFF_WEAK" >"$CFG/docs/conventions/testing.local.yaml"
 cfg_scan
 assert_finding_count "the new personal layer alone applies" 2
 assert_not_contains "and draws no warning" "$out" "resolve-config: warning"
-rm -f "$CFG/docs/conventions/testing.local.yaml"
 printf '%s\n' "$EXCL_GO" >"$CFG/.claude/testing.local.yaml"
 cfg_scan
-assert_finding_count "the old personal file alone applies" 2
-assert_contains "with a warning naming the new location" "$out" "/.claude/testing.local.yaml is an old location, still read for now; move it to docs/conventions/testing.local.yaml"
-printf '%s\n' "$OFF_WEAK" >"$CFG/docs/conventions/testing.local.yaml"
-cfg_scan
-assert_finding_count "both personal files: the new weak-oracle off applies, the old Go exclude does not" 2
-assert_contains "the Go finding remains, so the old personal exclude is ignored" "$out" "sum_test.go"
-assert_not_contains "and the weak oracle is off, so the new personal file applies" "$out" "weak.test.ts"
-assert_contains "with a warning naming both" "$out" "/docs/conventions/testing.local.yaml and "
-assert_contains "and the ignored old file" "$out" "/.claude/testing.local.yaml both exist; using "
+assert_finding_count "new personal file beside retired .claude personal file: only new file applies" 2
+assert_contains "with a retired-file notice for .claude/testing.local.yaml" "$out" "retired config file $CFG/.claude/testing.local.yaml is not read"
 rm -f "$CFG/.claude/testing.local.yaml"
 rm -rf "$CFG/docs"
 
@@ -2171,17 +2162,17 @@ pj_scan --findings
 assert_exit "--findings completes with project context" 0 "$rc"
 assert_matches "the table keeps seven columns; the context sits in the Finding cell" "$out" \
   '^\| 1 \| IMPORTANT \| high \| tests/Zeta\.Unit\.Tests/[^|]*\| testing:audit \| testing/audit/rule-zero-assertion: .*\[project: [^]]*; ci: yes; kind: unit\] \| .* \|$'
-mkdir -p "$PJX/.claude"
-printf 'project_kinds:\n  - %s\n' "'**/Ops.Runner/*.csproj=operational'" >"$PJX/.claude/testing.yaml"
+mkdir -p "$PJX/docs/conventions"
+printf 'project_kinds:\n  - %s\n' "'**/Ops.Runner/*.csproj=operational'" >"$PJX/docs/conventions/testing.yaml"
 pj_scan
 assert_matches "a project_kinds override sets the kind" "$out" 'Ops\.Runner\.csproj; ci: no; kind: operational\] WARNING'
-printf 'project_kinds:\n  - %s\n' "'**/Zeta.Unit.Tests/*.csproj=integration'" >"$PJX/.claude/testing.yaml"
+printf 'project_kinds:\n  - %s\n' "'**/Zeta.Unit.Tests/*.csproj=integration'" >"$PJX/docs/conventions/testing.yaml"
 pj_scan
 assert_matches "an override wins over the name evidence" "$out" 'Zeta\.Unit\.Tests\.csproj; ci: yes; kind: integration\]'
-printf 'project_kinds:\n  - %s\n' "'**/X.csproj=bogus'" >"$PJX/.claude/testing.yaml"
+printf 'project_kinds:\n  - %s\n' "'**/X.csproj=bogus'" >"$PJX/docs/conventions/testing.yaml"
 pj_scan
 assert_exit "an unknown kind in project_kinds is refused (exit 2)" 2 "$rc"
-rm -rf "$PJX/.claude"
+rm -rf "$PJX/docs"
 printf 'name: ci\njobs:\n  t:\n    steps:\n      - name: Run dotnet test\n        run: dotnet test tests/Zeta.Unit.Tests/Zeta.Unit.Tests.csproj\n' >"$PJX/.github/workflows/ci.yml"
 pj_scan
 assert_matches "a step name is not a dotnet command" "$out" 'Zeta\.Unit\.Tests\.csproj; ci: yes; kind: unit\]'

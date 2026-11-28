@@ -475,50 +475,20 @@ assert_eq "case 5: the team layer lists only the YAML" "docs/conventions/harness
 assert_eq "case 5: every layer is listed" "team userConfig personal" "$(jq -r '[.suppressions.layers[].layer] | join(" ")' <<<"$out")"
 assert_eq "case 5: the personal layer reads its new location" "docs/conventions/audit-pass.local.md read" "$(jq -r '.suppressions.layers[] | select(.layer=="personal") | "\(.source) \(.state)"' <<<"$out")"
 assert_eq "case 5: an unset userConfig option is listed unset" "userConfig:audit_pass_suppressions_file unset" "$(jq -r '.suppressions.layers[] | select(.layer=="userConfig") | "\(.source) \(.state)"' <<<"$out")"
-assert_eq "case 5: no old location, no warning" "0" "$(jq '.suppressions.old_locations | length' <<<"$out")"
 
 ml="$(make_machine old-locations)"
 cp "$m/project/.claude/settings.json" "$ml/project/.claude/settings.json"
 mkdir -p "$ml/project/docs/conventions"
 cp "$m/project/docs/conventions/audit-pass.local.md" "$ml/project/.claude/audit-pass.local.md"
-rc=0
-out=$(run "$ml" --json 2>"$ml/err") || rc=$?
-assert_eq "case 5a: an old personal file alone is read" ".claude/audit-pass.local.md read from the old location" "$(jq -r '.suppressions.layers[] | select(.layer=="personal") | "\(.source) \(.state)"' <<<"$out")"
-assert_eq "case 5a: the old personal file's entry is still read" "1" "$(jq '.suppressions.personal_only | length' <<<"$out")"
-assert_eq "case 5a: one warning for the old file" "1" "$(grep -c '^WARNING: ' "$ml/err")"
-assert_contains "case 5a: the warning names the old file, the new location and setup" "$(cat "$ml/err")" \
-  ".claude/audit-pass.local.md is an old audit-pass suppression location, still read for now; run /harness-config:setup apply to move it to docs/conventions/audit-pass.local.md"
-assert_eq "case 5a: the warning is in the document too" "1" "$(jq '.suppressions.old_locations | length' <<<"$out")"
-
-cp "$m/project/docs/conventions/audit-pass.local.md" "$ml/project/docs/conventions/audit-pass.local.md"
-rc=0
-out=$(run "$ml" --json 2>"$ml/err") || rc=$?
-assert_eq "case 5a: with both personal files the new one wins" "docs/conventions/audit-pass.local.md read" "$(jq -r '.suppressions.layers[] | select(.layer=="personal") | "\(.source) \(.state)"' <<<"$out")"
-assert_eq "case 5a: both present still warns once" "1" "$(grep -c '^WARNING: ' "$ml/err")"
-assert_contains "case 5a: the warning names the old personal file" "$(cat "$ml/err")" \
-  ".claude/audit-pass.local.md is an old audit-pass suppression location and is not read, because "
-assert_contains "case 5a: the warning names the new personal file" "$(cat "$ml/err")" \
-  "/docs/conventions/audit-pass.local.md supplies the personal layer"
-rm "$ml/project/.claude/audit-pass.local.md" "$ml/project/docs/conventions/audit-pass.local.md"
-
 cp "$m/project/docs/conventions/audit-pass.local.md" "$ml/user/audit-pass.md"
 rc=0
 out=$(run "$ml" --json --user-suppressions '${user_config.audit_pass_suppressions_file}' 2>"$ml/err") || rc=$?
-assert_eq "case 5a: an unsubstituted option reads the old user file" "user:audit-pass.md read from the old location" "$(jq -r '.suppressions.layers[] | select(.layer=="userConfig") | "\(.source) \(.state)"' <<<"$out")"
-assert_eq "case 5a: the old user file's entry is still read" "1" "$(jq '.suppressions.personal_only | length' <<<"$out")"
-assert_contains "case 5a: the warning names the old user file and the option" "$(cat "$ml/err")" \
-  "/user/audit-pass.md is an old audit-pass suppression location, still read for now; run /harness-config:setup apply to move it to the file the audit_pass_suppressions_file userConfig option names"
+assert_eq "case 5a: a retired personal file is ignored" "docs/conventions/audit-pass.local.md absent" "$(jq -r '.suppressions.layers[] | select(.layer=="personal") | "\(.source) \(.state)"' <<<"$out")"
+assert_eq "case 5a: a retired user file is ignored when the option is unset" "userConfig:audit_pass_suppressions_file unset" "$(jq -r '.suppressions.layers[] | select(.layer=="userConfig") | "\(.source) \(.state)"' <<<"$out")"
+assert_eq "case 5a: retired files add no personal-only entry" "0" "$(jq '.suppressions.personal_only | length' <<<"$out")"
+assert_eq "case 5a: no warning on stderr for retired files" "0" "$(grep -c '^WARNING: ' "$ml/err")"
 
 cp "$m/project/docs/conventions/audit-pass.local.md" "$ml/mine.md"
-rc=0
-out=$(run "$ml" --json --user-suppressions "$ml/mine.md" 2>"$ml/err") || rc=$?
-assert_eq "case 5a: with both user files the option's file wins" "userConfig:audit_pass_suppressions_file read" "$(jq -r '.suppressions.layers[] | select(.layer=="userConfig") | "\(.source) \(.state)"' <<<"$out")"
-assert_contains "case 5a: the warning names the old user file" "$(cat "$ml/err")" \
-  "/user/audit-pass.md is an old audit-pass suppression location and is not read, because "
-assert_contains "case 5a: the warning names the option's file" "$(cat "$ml/err")" \
-  "/mine.md supplies the userConfig layer"
-
-rm "$ml/user/audit-pass.md"
 rc=0
 out=$(run "$ml" --json --user-suppressions "$ml/mine.md" 2>"$ml/err") || rc=$?
 assert_eq "case 5a: the option's file alone is read" "userConfig:audit_pass_suppressions_file read" "$(jq -r '.suppressions.layers[] | select(.layer=="userConfig") | "\(.source) \(.state)"' <<<"$out")"
