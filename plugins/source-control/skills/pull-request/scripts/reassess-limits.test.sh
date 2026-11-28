@@ -24,9 +24,7 @@ case "\$*" in
   "pr view"*) file=pr ;;
   "pr list"*) file=same-head ;;
   "api graphql"*) file=queue ;;
-  *issues/*/comments*) file=comments ;;
   *pulls/*/reviews*) file=reviews ;;
-  *pulls/*/comments*) file=inline ;;
   *repos/*/pulls/*) file=stack ;;
 esac
 [[ -n "\$file" && -f "$F/\$file" ]] || exit 1
@@ -64,9 +62,7 @@ reset() {
   queued false
   echo '{}' >"$F/stack"
   echo '[{"headRepositoryOwner":{"login":"acme"}}]' >"$F/same-head"
-  echo '[[]]' >"$F/comments"
   echo '[[]]' >"$F/reviews"
-  echo '[[]]' >"$F/inline"
   rm -f "$LEASE"
 }
 
@@ -132,24 +128,18 @@ out=$(run)
 assert_exit "a failed pull request read is a limit" 3 "$?"
 assert_contains "a failed pull request read reads as unread" "$out" "unread: the pull request"
 
-comment() {
-  printf '{"user":{"login":"%s","type":"%s"},"author_association":"%s","created_at":"%s","body":"%s"}' "$1" "$2" "$3" "$4" "$5"
-}
-
 review() {
   printf '{"user":{"login":"%s","type":"User"},"author_association":"MEMBER","submitted_at":"%s","state":"%s","body":"%s"}' "$1" "$2" "$3" "${4:-}"
 }
 
 reset
-echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'do not merge')]]" >"$F/comments"
 echo "[[$(review ana 2026-01-01T00:00:00Z COMMENTED 'do not merge')]]" >"$F/reviews"
-echo "[[$(comment ana User MEMBER 2026-01-01T00:00:00Z 'do-not-merge, please')]]" >"$F/inline"
 out=$(run)
-assert_exit "a member's do-not-merge comment, review or inline comment is no limit" 0 "$?"
+assert_exit "a member's do-not-merge review is no limit" 0 "$?"
 pr OPEN "" '[{"name":"do-not-merge"}]'
 out=$(run)
-assert_exit "the do-not-merge label limits beside a member's do-not-merge comment" 3 "$?"
-assert_contains "the label limit is reported beside the comment" "$out" "label: the pull request carries do-not-merge"
+assert_exit "the do-not-merge label limits beside a member's do-not-merge review" 3 "$?"
+assert_contains "the label limit is reported beside the review" "$out" "label: the pull request carries do-not-merge"
 
 reset
 echo "[[$(review ana 2026-01-01T00:00:00Z CHANGES_REQUESTED)]]" >"$F/reviews"

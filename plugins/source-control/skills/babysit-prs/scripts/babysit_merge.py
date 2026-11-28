@@ -885,6 +885,14 @@ RATIFYING_ASSOCIATIONS = frozenset({"OWNER", "MEMBER"})
 RATIFICATION_SIGNAL_RE = re.compile(
     r"\b(?:ratif(?:y|ied)|approved?|confirmed?)\b", re.I
 )
+DECISION_REVOKE_RE = re.compile(
+    r"\bdo(?:n['’]?t| not)[\s-]*merge\b"
+    r"|\bdo-not(?!-merge\b)[\s-]*merge\b"
+    r"|(?<!the )(?<!the `)\bdo-not-merge\b"
+    r"|(?<=the )do-not-merge\b(?!\s*labels?\b)"
+    r"|(?<=the `)do-not-merge\b(?!`\s*labels?\b)",
+    re.I,
+)
 
 
 def _decision_default_ratified(
@@ -897,10 +905,10 @@ def _decision_default_ratified(
     Every human-maintainer comment posted strictly after the marker is scanned and
     the latest *decisive* signal wins: a single early ratification no longer
     settles the question, so a maintainer who ratifies and then revokes ("not
-    approved") re-holds the PR for the human list. A comment is
+    approved", "do not merge") re-holds the PR for the human list. A comment is
     decisive when it carries either an explicit ratification signal
     (`RATIFICATION_SIGNAL_RE`) or an explicit revocation signal reusing the shared
-    veto vocabulary (`NON_APPROVAL_RE`). Revocation is
+    veto vocabulary (`NON_APPROVAL_RE`, or `DECISION_REVOKE_RE`). Revocation is
     tested first, so a comment mixing both reads as a revoke (fail closed). An
     unrelated later comment ("thanks", a status question) is non-decisive and
     leaves any prior decisive signal standing.
@@ -925,7 +933,7 @@ def _decision_default_ratified(
         if association not in RATIFYING_ASSOCIATIONS:
             continue
         body = str(comment.get("body") or "")
-        if NON_APPROVAL_RE.search(body):
+        if NON_APPROVAL_RE.search(body) or DECISION_REVOKE_RE.search(body):
             latest_revoke = max(latest_revoke, created_at)
         elif RATIFICATION_SIGNAL_RE.search(body):
             latest_ratify = max(latest_ratify, created_at)

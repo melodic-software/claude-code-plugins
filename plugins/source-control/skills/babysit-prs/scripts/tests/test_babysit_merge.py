@@ -457,7 +457,7 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
         revoke = _comment(
             "maintainer",
-            "Actually, not approved — hold this.",
+            "Actually, do not merge — hold this.",
             association="OWNER",
             created_at="2026-02-02T00:00:00Z",
         )
@@ -516,7 +516,7 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
         )
         revoke = _comment(
             "maintainer",
-            "not approved",
+            "do not merge",
             association="OWNER",
             created_at="2026-02-01T00:00:00Z",
         )
@@ -528,24 +528,18 @@ class TierFallsBackPerCriterion(TierEvaluateHarness):
             result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
         )
 
-    def test_do_not_merge_after_ratification_does_not_revoke(self) -> None:
-        ratify = _comment(
+    def test_dont_merge_until_i_approve_does_not_ratify(self) -> None:
+        mixed = _comment(
             "maintainer",
-            "Ratified — proceed.",
+            "Don't merge until I approve the migration.",
             association="OWNER",
             created_at="2026-02-01T00:00:00Z",
         )
-        later = _comment(
-            "maintainer",
-            "do not merge",
-            association="OWNER",
-            created_at="2026-02-02T00:00:00Z",
+        result = self._evaluate(_pr(), linked_issue_comments=[DECISION_MARKER, mixed])
+        self.assertFalse(result["ready"])
+        self.assertEqual(
+            result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [LINKED_REF]
         )
-        result = self._evaluate(
-            _pr(), linked_issue_comments=[DECISION_MARKER, ratify, later]
-        )
-        self.assertTrue(result["ready"], result["blockers"])
-        self.assertEqual(result["autopilotMergeTier"]["decisionDefaultHeldIssues"], [])
 
     def test_bot_comment_with_blocking_prose_does_not_block(self) -> None:
         comment = {
