@@ -3,6 +3,13 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.2] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+- Remove stale opening comment naming `lane`/`context/lanes.md` from `audit-dead-code/evals/fixtures/cs-orders.cs`.
+
 ## [2.2.1] - 2026-11-27
 
 ### Fixed
