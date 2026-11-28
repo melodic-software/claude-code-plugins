@@ -127,6 +127,12 @@
       "description": "Where planning views go. auto (default): plan, brainstorm and design views go to a private Artifact, kept by the publish gate for a non-public repository or credential-shaped record; PRD and interview views stay local. terminal: no page; file: local; artifact: publish anyway; hosted = artifact.",
       "default": "auto",
       "options": ["auto", "terminal", "file", "artifact", "hosted"]
+    },
+    "branding": {
+      "type": "string",
+      "title": "Rendered-view branding (JSON)",
+      "description": "Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored.",
+      "default": ""
     }
   },
   "description": "Pre-implementation planning pipeline: chart a too-big, foggy effort as a map of decision items, diverge on candidate approaches, lock product intent and the engineering contract, route resolved domain language to the domain-driven-design glossary steward, explore the design space, stress-test adversarially, and produce a structured implementation plan with an approval gate, with an opt-in multi-angle plan panel workflow (/planning:plan-panel).",

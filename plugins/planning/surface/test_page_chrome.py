@@ -47,20 +47,20 @@ class TestPageChrome(unittest.TestCase):
         self.assertNotRegex(self.page, r"(?i)data-accent|data-palette|accent picker|palette picker")
 
     def test_chrome_tokens_are_defined(self):
-        root = re.search(r"(?m)^:root\{([^}]*)\}", self.page)
+        root = re.search(r"(?m)^:root\s*\{([^}]*)\}", self.page)
         self.assertIsNotNone(root)
         for token in ("--bg:", "--fg:", "--muted:"):
             with self.subTest(token=token):
                 self.assertIn(token, root.group(1))
 
     def test_dark_tokens_follow_the_toggle(self):
-        dark = r"(?:^|\n)@media \(prefers-color-scheme: dark\)\{\s*:root:not\(\[data-theme=\"light\"\]\)\{"
+        dark = r'(?:^|\n)@media \(prefers-color-scheme: dark\)\s*\{\s*:root:not\(\[data-theme="?light"?\]\)\s*\{'
         self.assertRegex(self.page, dark)
-        self.assertRegex(self.page, r'(?m)^:root\[data-theme="dark"\]\{')
+        self.assertRegex(self.page, r'(?m)^:root\[data-theme="?dark"?\]\s*\{')
         unguarded = len(re.findall(r"prefers-color-scheme:\s*dark\)\s*\{", self.page))
         guarded = len(
             re.findall(
-                r"prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme=\"light\"\]\)",
+                r'prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme="?light"?\]\)',
                 self.page,
             )
         )

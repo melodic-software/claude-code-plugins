@@ -36,6 +36,7 @@ import contextlib
 import hashlib
 import hmac
 import http.client
+import importlib.util
 import ipaddress
 import json
 import logging
@@ -88,7 +89,25 @@ STATIC = {
     "/proto.js": ("proto.js", "text/javascript"),
     "/web-vitals.attribution.iife.js": ("web-vitals.attribution.iife.js", "text/javascript"),
 }
-PAGE_CSP = "default-src 'self'; img-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+PAGE_CSP = "default-src 'self'; img-src 'self' data:; font-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+TOKENS_FILE = HERE.parent / "reference" / "html-tokens.css"
+_BRANDING_SPEC = importlib.util.spec_from_file_location(
+    "planning_branding_helper", HERE.parent / "lib" / "branding_helper.py"
+)
+_BRANDING_MOD = importlib.util.module_from_spec(_BRANDING_SPEC) if _BRANDING_SPEC else None
+if _BRANDING_SPEC and _BRANDING_SPEC.loader and _BRANDING_MOD is not None:
+    _BRANDING_SPEC.loader.exec_module(_BRANDING_MOD)
+
+
+def _repo_root(data_dir):
+    env = os.environ.get("CLAUDE_PROJECT_DIR")
+    if env:
+        return Path(env)
+    start = Path(data_dir).resolve()
+    for p in (start, *start.parents):
+        if (p / ".git").exists():
+            return p
+    return None
 ASSET_CSP = "sandbox"
 HTML_ASSET_CSP = (
     "sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self' data:; font-src data:; "
@@ -1032,6 +1051,10 @@ class GuestHandler(BaseHTTPRequestHandler):
         try:
             if self.watcher_misplaced():
                 raise DomainError(401, "unknown-session", "A watcher key works only on /api/mine/requests.")
+            if url.path == "/html-tokens.css":
+                return self.send(200, TOKENS_FILE.read_bytes() if TOKENS_FILE.is_file() else b"", "text/css")
+            if url.path == "/branding.css":
+                return self.send(200, self.app.branding()["css"].encode("utf-8"), "text/css")
             if url.path in STATIC:
                 return self.static(*STATIC[url.path])
             m = ASSET.fullmatch(url.path)
@@ -1062,6 +1085,9 @@ class GuestHandler(BaseHTTPRequestHandler):
         f = WEB / name
         if not f.is_file():
             return self.fail(DomainError(404, "not-found", "Nothing here."))
+        if ctype == "text/html" and name in ("index.html", "proto.html"):
+            text = f.read_text(encoding="utf-8").replace("%%BRANDING_LOGO%%", self.app.branding()["slot_html"])
+            return self.send(200, text.encode("utf-8"), ctype)
         return self.send(200, f.read_bytes(), ctype)
 
     def asset_cookie(self, pid):
@@ -1261,6 +1287,7 @@ class App:
 
     def __init__(self, data_dir, *, guest_port=0, control_port=0, nonce="", defaults_file=None, watch_tunnel=True):
         self.dir = Path(data_dir).resolve()
+        self._repo_root = _repo_root(self.dir)
         problem = detached.data_dir_problem(self.dir)
         if problem:
             raise StartRefused(problem)
@@ -1312,6 +1339,20 @@ class App:
         self.write_owner_link()
         self.sync_tunnel(restart=False)
         self.log.info("started: guest %d, control %d, build %s", self.guest_port, self.control_port, self.build)
+
+    def branding(self):
+        if _BRANDING_MOD is None:
+            return {"css": "", "slot_html": "", "notices": []}
+        res = _BRANDING_MOD.resolve_branding(self._repo_root)
+        seen = getattr(self, "_branding_notices", None)
+        if seen is None:
+            seen = self._branding_notices = set()
+        for n in res.get("notices") or ():
+            text = n.get("text") if isinstance(n, dict) else str(n)
+            if text and text not in seen:
+                seen.add(text)
+                self.log.warning("branding: %s", text)
+        return res
 
     def start_live(self, approved):
         """Start the live prototype approve_live marked starting, outside the state lock: the starter answers its https

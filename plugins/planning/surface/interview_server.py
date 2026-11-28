@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import heapq
 import html
+import importlib.util
 import json
 import os
 import re
@@ -75,11 +76,17 @@ IMAGE_TYPES = {
 OPEN_SECONDS = 10
 PAGE_CSP = (
     "default-src 'self'; script-src 'self' 'unsafe-inline'; "
-    "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+    "style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; "
     "connect-src 'self'; frame-src 'self' about:; frame-ancestors 'none'; "
     "form-action 'none'; base-uri 'none'"
 )
 SHARED_WEB = HERE.parent / "shared" / "web"
+_BRANDING_SPEC = importlib.util.spec_from_file_location(
+    "planning_branding_helper", HERE.parent / "lib" / "branding_helper.py"
+)
+_BRANDING_MOD = importlib.util.module_from_spec(_BRANDING_SPEC) if _BRANDING_SPEC else None
+if _BRANDING_SPEC and _BRANDING_SPEC.loader and _BRANDING_MOD is not None:
+    _BRANDING_SPEC.loader.exec_module(_BRANDING_MOD)
 QUESTION_SHAPE = {
     "/question-shape.js": ("question-shape.js", "text/javascript"),
     "/question-shape.css": ("question-shape.css", "text/css"),
@@ -178,17 +185,6 @@ def setting_error(key, value):
     return f"{key} must be {want}, got {json.dumps(value)}"
 
 
-def token_map(value):
-    if not isinstance(value, dict) or not set(value) <= {"light", "dark"}:
-        return None
-    for tokens in value.values():
-        if not isinstance(tokens, dict) or not all(
-            isinstance(k, str) and isinstance(v, str) for k, v in tokens.items()
-        ):
-            return None
-    return value
-
-
 def repo_root(data_dir):
     """CLAUDE_PROJECT_DIR when set, else the data dir's nearest ancestor holding .git, else None."""
     env = os.environ.get("CLAUDE_PROJECT_DIR")
@@ -283,6 +279,7 @@ class Settings:
 
     def __init__(self, repo):
         self._noted = set()
+        self.root = Path(repo) if repo else None
         self.retired_file = Path(repo) / RETIRED_FILE if repo else None
         root, home, why = convention_home(repo)
         if why:
@@ -311,8 +308,23 @@ class Settings:
             return {}
         return data
 
+    def _note_once(self, data_dir, key, digest, message):
+        record = Path(data_dir) / RETIRED_SEEN
+        try:
+            seen = json.loads(record.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            seen = {}
+        seen = seen if isinstance(seen, dict) else {}
+        if seen.get(key) == digest:
+            return
+        self.note(message)
+        try:
+            record.write_text(json.dumps({**seen, key: digest}) + "\n", encoding="utf-8")
+        except OSError:
+            pass
+
     def resolve(self, data_dir, user_file=None):
-        """({key: {value, layer}}, theme token map: theme.json over user, personal, team tokens)."""
+        """({key: {value, layer}}, {}); retired themeTokens and theme.json emit a one-time notice."""
         out = {k: {"value": v, "layer": "default"} for k, v in DEFAULT_SETTINGS.items()}
         team = yaml_section(self.team_file, "team", self.note)
         personal = yaml_section(self.personal_file, "personal", self.note)
@@ -354,33 +366,45 @@ class Settings:
             )
             for k in ("settleQuiet", "settleBurst"):
                 out[k] = {"value": DEFAULT_SETTINGS[k], "layer": "default"}
-        tokens = []
         for layer, data in (("team", team), ("personal", personal), ("user", user)):
             if "themeTokens" not in data:
                 continue
-            got = token_map(data["themeTokens"])
-            if got is None:
-                self.note(
-                    f"{layer} layer: themeTokens must be {{light: {{...}}, dark: {{...}}}} of strings"
-                )
-            else:
-                tokens.append(got)
-        theme = self.read(Path(data_dir) / "theme.json", "theme")
-        for mode in ("light", "dark"):
-            own = theme.get(mode)
-            if own is not None and not isinstance(own, dict):
-                self.note(f"theme file: {mode} ignored (not a JSON object)")
-                theme = {k: v for k, v in theme.items() if k != mode}
-                own = None
-            merged = {k: v for t in tokens for k, v in t.get(mode, {}).items()}
-            merged.update(own or {})
-            if merged:
-                theme = {**theme, mode: merged}
-        return out, theme
+            digest = hashlib.sha256(
+                json.dumps(data["themeTokens"], sort_keys=True, default=str).encode("utf-8")
+            ).hexdigest()
+            self._note_once(
+                data_dir,
+                f"themeTokens:{layer}",
+                digest,
+                f"{layer} layer: {SECTION}.themeTokens is retired and no longer read; "
+                "move overrides to branding in docs/conventions/rendered-views.yaml "
+                "(or rendered-views.local.yaml)",
+            )
+        theme_path = Path(data_dir) / "theme.json"
+        try:
+            raw_theme = (
+                theme_path.read_bytes()
+                if not theme_path.is_symlink() and theme_path.is_file()
+                else None
+            )
+        except OSError:
+            raw_theme = None
+        if raw_theme is not None:
+            self._note_once(
+                data_dir,
+                "theme.json",
+                hashlib.sha256(raw_theme).hexdigest(),
+                "theme.json is retired and no longer read; "
+                "move overrides to branding in docs/conventions/rendered-views.yaml "
+                "(or rendered-views.local.yaml)",
+            )
+        return out, {}
 
     def retired_destination(self, key):
         team = f"{self.home_shown}/{TEAM_FILE}"
-        if key in TEAM_KEYS or key == "themeTokens":
+        if key == "themeTokens":
+            return f"branding in {self.home_shown}/rendered-views.yaml"
+        if key in TEAM_KEYS:
             return f"{SECTION}.{key} in {team}"
         if key == "displayName":
             return f"{SECTION}.{key} in {self.home_shown}/{PERSONAL_FILE}"
@@ -1243,6 +1267,23 @@ class Hub(LoopbackWatcher):
     def frontier_lock(self):
         return self._setting("frontierLock")
 
+    def branding_option(self):
+        try:
+            s = json.loads((self.dir / SESSION_JSON).read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return None
+        return s.get("brandingOption") if isinstance(s, dict) else None
+
+    def branding(self):
+        if _BRANDING_MOD is None:
+            return {"css": "", "slot_html": "", "notices": []}
+        res = _BRANDING_MOD.resolve_branding(self.layers.root, option=self.branding_option())
+        for n in res.get("notices") or ():
+            text = n.get("text") if isinstance(n, dict) else str(n)
+            if text:
+                self.layers.note(f"branding: {text}")
+        return res
+
     def user_settings(self):
         """The user settings file `round.py ensure-running --user-settings` recorded, if any."""
         try:
@@ -1582,12 +1623,15 @@ class Handler(LoopbackHandler):
         hub = self.hub
         if url.path in ("/", "/index.html"):
             build = page_build()
+            br = hub.branding()
             html = (
                 (HERE / "index.html")
                 .read_text(encoding="utf-8")
                 .replace("%%TOKEN%%", hub.token)
                 .replace("%%PLUGIN_VERSION%%", build["pluginVersion"])
                 .replace("%%SOURCE_HASH%%", build["sourceHash"])
+                .replace("%%BRANDING_CSS%%", br["css"])
+                .replace("%%BRANDING_LOGO%%", br["slot_html"])
             )
             return self.send(200, html.encode("utf-8"), "text/html")
         if url.path in QUESTION_SHAPE:

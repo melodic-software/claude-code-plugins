@@ -296,7 +296,7 @@ On a `wrapup` event, or when the user ends the session in the terminal, in this 
 
 ## Settings layers
 
-The layer order, the settings keys and their bounds, and the `themeTokens` layering are in the surface README's [Settings layers](../../../surface/README.md#settings-layers). The skill passes no `--user-settings` file, so `displayName` and `browserCommand` keep their defaults.
+The layer order, the settings keys and their bounds, and the shared `branding` layer (which replaces retired `themeTokens` and `theme.json`) are in the surface README's [Settings layers](../../../surface/README.md#settings-layers). The skill passes no `--user-settings` file, so `displayName` and `browserCommand` keep their defaults.
 
 ## Security model
 

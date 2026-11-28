@@ -3276,7 +3276,7 @@ class TestSettingsLayers(ServerCase):
         self.assertEqual(s["displayName"], {"value": "You", "layer": "default"})
         self.assertNotIn("unknownKey", s)
         theme = self.state()["theme"]
-        self.assertEqual(theme["light"], {"--bg": "#333333", "--fg": "#222222"})
+        self.assertEqual(theme, {})
 
     def test_3_personal_layer_beats_team_and_may_name_the_person(self):
         write_planning(
@@ -3313,16 +3313,13 @@ class TestSettingsLayers(ServerCase):
         self.assertEqual(s["undoSeconds"], {"value": 45, "layer": "session"})
         self.assertEqual(s["waitTimeout"], {"value": 40, "layer": "user"})
 
-    def test_6_user_theme_tokens_beat_personal_beat_team_per_token(self):
+    def test_6_retired_theme_tokens_and_theme_json_are_ignored_with_notice(self):
         write_planning(
             self.repo,
             "interview_page:\n"
             "  themeTokens:\n"
             "    light:\n"
-            '      "--bg": "#111111"\n'
-            '      "--fg": "#222222"\n'
-            '      "--repo": "#666666"\n'
-            '      "--mine": "#777777"\n',
+            '      "--bg": "#111111"\n',
         )
         write_planning(
             self.repo,
@@ -3334,7 +3331,7 @@ class TestSettingsLayers(ServerCase):
             json.dumps(
                 {
                     "themeTokens": {
-                        "light": {"--bg": "#999999", "--fg": "#444444"},
+                        "light": {"--bg": "#999999"},
                         "dark": {"--fg": "#555555"},
                     }
                 }
@@ -3343,13 +3340,12 @@ class TestSettingsLayers(ServerCase):
         )
         p = ensure_running(self.dir, "--user-settings", str(user), env=self.env)
         self.assertEqual(p.returncode, 0, p.stdout + p.stderr)
-        self.assertNotIn("themeTokens ignored", p.stderr)
-        theme = self.state()["theme"]
-        self.assertEqual(
-            theme["light"],
-            {"--bg": "#333333", "--fg": "#444444", "--repo": "#666666", "--mine": "#888888"},
-        )
-        self.assertEqual(theme["dark"], {"--fg": "#555555"})
+        self.assertIn("themeTokens is retired and no longer read", p.stderr)
+        self.assertIn("docs/conventions/rendered-views.yaml", p.stderr)
+        self.assertEqual(self.state()["theme"], {})
+        p2 = ensure_running(self.dir, "--user-settings", str(user), env=self.env)
+        self.assertEqual(p2.returncode, 0, p2.stdout + p2.stderr)
+        self.assertNotIn("themeTokens is retired", p2.stderr)
 
 
 class TestSettingsResolver(unittest.TestCase):
@@ -3626,7 +3622,7 @@ class TestUndoKeepsReopenNote(WaitCase):
 
 
 class TestThemeMerge(ServerCase):
-    """A theme.json mode value that is not an object is read as {}."""
+    """Retired theme.json is ignored and yields an empty theme payload."""
 
     @classmethod
     def prepare(cls):
@@ -3634,12 +3630,44 @@ class TestThemeMerge(ServerCase):
             json.dumps({"light": "x", "dark": {"--bg": "#000000"}}), encoding="utf-8"
         )
 
-    def test_non_object_mode_is_ignored(self):
+    def test_retired_theme_json_is_ignored(self):
         code, raw, _ = self.get("/api/state")
         self.assertEqual(code, 200, raw)
         theme = json.loads(raw)["theme"]
-        self.assertIsInstance(theme.get("light", {}), dict)
-        self.assertEqual(theme["dark"], {"--bg": "#000000"})
+        self.assertEqual(theme, {})
+
+
+class TestBrandingInjection(ServerCase):
+    """GET / injects shared branding CSS and logo slot from docs/conventions/rendered-views.yaml."""
+
+    env = settings_env()
+
+    @classmethod
+    def prepare(cls):
+        cls.repo = git_repo(cls.tmp / "repo")
+        cls.dir = cls.repo / ".work" / "topic" / "interview-surface"
+        cls.dir.mkdir(parents=True)
+        conv = cls.repo / "docs" / "conventions"
+        conv.mkdir(parents=True, exist_ok=True)
+        (conv / "rendered-views.yaml").write_text(
+            "branding:\n"
+            "  palette:\n"
+            "    light:\n"
+            '      accent: "#1A4D2E"\n'
+            "  logo:\n"
+            "    label: Acme Studio\n",
+            encoding="utf-8",
+        )
+
+    def test_index_contains_branding_css_and_slot(self):
+        code, html, headers = self.get("/")
+        self.assertEqual(code, 200)
+        self.assertIn("--accent: #1A4D2E;", html)
+        self.assertIn('class="rv-brand"', html)
+        self.assertIn("Acme Studio", html)
+        self.assertIn("font-src 'self' data:", headers.get("Content-Security-Policy", ""))
+        self.assertNotIn("%%BRANDING_CSS%%", html)
+        self.assertNotIn("%%BRANDING_LOGO%%", html)
 
 
 @unittest.skipUnless(os.name == "posix", "file modes are advisory on Windows")
@@ -3772,7 +3800,7 @@ class TestEnsureRunningSettings(unittest.TestCase):
         want = {
             "port": "interview_page.port in docs/conventions/planning.yaml",
             "undoSeconds": "interview_page.undoSeconds in docs/conventions/planning.yaml",
-            "themeTokens": "interview_page.themeTokens in docs/conventions/planning.yaml",
+            "themeTokens": "branding in docs/conventions/rendered-views.yaml",
             "displayName": "interview_page.displayName in docs/conventions/planning.local.yaml",
             "browserCommand": "a --user-settings file",
             "surface": "the planning plugin's surface option",

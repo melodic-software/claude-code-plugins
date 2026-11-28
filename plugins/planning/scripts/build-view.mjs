@@ -3,12 +3,44 @@ import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, realpathSync
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { applyBranding } from "../lib/html-branding.mjs";
+import { managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { publishGate } from "../lib/publish-gate.mjs";
-import { render, ViewBuildError } from "../lib/view-builder.mjs";
+import { buildView, VIEW_KINDS, ViewBuildError } from "../lib/view-builder.mjs";
 import { producerOf, MEDIUMS, mediumOf, NO_PAGE, NO_PREFERENCE, reportLines } from "../lib/view-registry.mjs";
-import { findRoot, gateExplicit, resolveMedium } from "../lib/view-settings.mjs";
+import { brandingReportLines, findRoot, gateExplicit, resolveBranding, resolveMedium } from "../lib/view-settings.mjs";
 
 export const PRODUCER = "planning";
+const PLUGIN_ROOT = resolve(fileURLToPath(new URL("../", import.meta.url)));
+const TOKENS_PATH = fileURLToPath(new URL("../reference/html-tokens.css", import.meta.url));
+
+const readBrandingOption = (flagValue, env = process.env) => {
+  if (flagValue !== undefined) return flagValue;
+  try {
+    const install = resolveInstall(PLUGIN_ROOT);
+    const configDir = env.CLAUDE_CONFIG_DIR;
+    const managed = configDir ? [] : managedSettingsFiles();
+    const userSettings = install.userSettings ?? (configDir ? join(configDir, "settings.json") : null);
+    const opts = readOperatorOptions({ ...install, userSettings }, managed, ["branding"]);
+    return opts.branding?.value ?? null;
+  } catch (err) {
+    console.error(`notice: userConfig branding could not be read (${err.message}); ignored`);
+    return null;
+  }
+};
+
+function renderBranded(kind, record, { connect = null, branding = null } = {}) {
+  const entry = Object.hasOwn(VIEW_KINDS, kind) ? VIEW_KINDS[kind] : undefined;
+  if (!entry) throw new Error(`view-builder: no view kind ${JSON.stringify(kind)}`);
+  const template = readFileSync(join(PLUGIN_ROOT, entry.template), "utf8");
+  const tokensCss = readFileSync(TOKENS_PATH, "utf8");
+  return buildView({
+    profile: entry.tier === "static" ? "report" : "interactive",
+    template: applyBranding(template, { tokensCss, branding }),
+    data: entry.parse(record),
+    connect,
+  });
+}
 
 const insideWorkingTree = (dir) => {
   for (let at = dir; ; at = dirname(at)) {
@@ -64,7 +96,7 @@ export function writePrivate(page, kind) {
  *   mediums replaces the medium registry; write stores the page and returns its path
  * @returns {{delivery: object, report: string[]}} delivery: the medium entry's deliver result, plus `page` when a page was built
  */
-export function deliverView({ kind, record, resolution, visibility = "UNKNOWN", mediums = MEDIUMS, write = writePrivate, context = {} }) {
+export function deliverView({ kind, record, resolution, branding = null, visibility = "UNKNOWN", mediums = MEDIUMS, write = writePrivate, context = {} }) {
   const entryOf = (id) => (Object.hasOwn(mediums, id) ? mediums[id] : undefined);
   let entry = entryOf(resolution.medium);
   if (!entry) throw new Error(`build-view: no medium entry for ${JSON.stringify(resolution.medium)}`);
@@ -78,16 +110,19 @@ export function deliverView({ kind, record, resolution, visibility = "UNKNOWN", 
       shown = { ...resolution, medium: gate.medium, decidedBy: `publish gate: ${gate.reason}`, notices };
     }
   }
-  const path = entry.id === NO_PAGE ? null : write(render(PRODUCER, kind, record), kind);
+  const path = entry.id === NO_PAGE ? null : write(renderBranded(kind, record, { branding }), kind);
   const delivery = entry.deliver({ kind, path }, context);
-  return { delivery: path ? { ...delivery, page: path } : delivery, report: reportLines(shown) };
+  const brandingNotices = branding?.notices?.length
+    ? brandingReportLines(branding).filter((line) => line.startsWith("notice:"))
+    : [];
+  return { delivery: path ? { ...delivery, page: path } : delivery, report: [...reportLines(shown), ...brandingNotices] };
 }
 
 const USAGE =
-  "usage: build-view.mjs <kind> [--record <file>]\n" +
-  "       build-view.mjs <kind> --option <medium option> [--argument <medium>] [--visibility <V>] [--record <file>]\n" +
-  "       build-view.mjs <kind> --connect <session-bridge origin> --out <data_dir>/page.html [--record <file>]\n";
-const FLAGS = ["--record", "--option", "--argument", "--visibility", "--connect", "--out"];
+  "usage: build-view.mjs <kind> [--record <file>] [--branding-option <json>] [--team-ref <ref>]\n" +
+  "       build-view.mjs <kind> --option <medium option> [--argument <medium>] [--visibility <V>] [--record <file>] [--branding-option <json>] [--team-ref <ref>]\n" +
+  "       build-view.mjs <kind> --connect <session-bridge origin> --out <data_dir>/page.html [--record <file>] [--branding-option <json>] [--team-ref <ref>]\n";
+const FLAGS = ["--record", "--option", "--argument", "--visibility", "--connect", "--out", "--branding-option", "--team-ref"];
 
 function main(argv, env = process.env) {
   const [kind, ...rest] = argv;
@@ -96,7 +131,7 @@ function main(argv, env = process.env) {
   const has = (key) => key in flags;
   const flagsOk =
     Object.keys(flags).every((key) => FLAGS.includes(key)) &&
-    Object.entries(flags).every(([key, value]) => typeof value === "string" && (value !== "" || key === "--option")) &&
+    Object.entries(flags).every(([key, value]) => typeof value === "string" && (value !== "" || key === "--option" || key === "--branding-option")) &&
     has("--connect") === has("--out") &&
     !(has("--option") && has("--connect")) &&
     (has("--option") || !(has("--argument") || has("--visibility"))) &&
@@ -114,19 +149,30 @@ function main(argv, env = process.env) {
   }
   try {
     const record = readFileSync(flags["--record"] ?? 0, "utf8");
+    const root = findRoot();
+    const branding = resolveBranding({
+      userConfig: readBrandingOption(flags["--branding-option"], env),
+      projectRoot: root,
+      teamRef: flags["--team-ref"] ?? null,
+    });
     if (has("--option")) {
       const argument = flags["--argument"] === NO_PREFERENCE ? null : (flags["--argument"] ?? null);
       const interactive = !env.CI || env.CI === "false";
       const resolution = resolveMedium(
-        { producer: PRODUCER, argument, userConfig: flags["--option"], projectRoot: findRoot() },
+        { producer: PRODUCER, argument, userConfig: flags["--option"], projectRoot: root },
         { dataDir: env.CLAUDE_PLUGIN_DATA || null, interactive },
       );
       const visibility = (flags["--visibility"] ?? "UNKNOWN").toUpperCase();
-      const { delivery, report } = deliverView({ kind, record, resolution, visibility, context: { interactive } });
+      const { delivery, report } = deliverView({ kind, record, resolution, branding, visibility, context: { interactive } });
       process.stdout.write(`${JSON.stringify(delivery)}\n${report.join("\n")}\n`);
       return 0;
     }
-    const page = render(PRODUCER, kind, record, { connect: flags["--connect"] ?? null });
+    const page = renderBranded(kind, record, { connect: flags["--connect"] ?? null, branding });
+    if (branding.notices.length) {
+      for (const line of brandingReportLines(branding)) {
+        if (line.startsWith("notice:")) console.error(line);
+      }
+    }
     const out = flags["--out"];
     if (!out) {
       console.log(writePrivate(page, kind));

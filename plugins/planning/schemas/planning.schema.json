@@ -227,7 +227,7 @@
         "requireDepends": { "type": "boolean", "default": false },
         "orderThreshold": { "type": "integer", "minimum": 0, "maximum": 1000, "default": 25 },
         "themeTokens": {
-          "description": "Color tokens per mode, layered per token under the user file's and the data dir's theme.json. The server still resolves them, and the page applies none of them.",
+          "description": "Retired: no longer read for a value (one-time notice points to branding in docs/conventions/rendered-views.yaml or rendered-views.local.yaml). The key stays valid so existing files still load.",
           "type": "object",
           "additionalProperties": false,
           "properties": {

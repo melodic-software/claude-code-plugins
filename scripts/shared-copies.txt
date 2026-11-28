@@ -667,6 +667,8 @@ lib/rendered-view.md plugins/planning/reference/rendered-view.md
 lib/html-chrome.html plugins/visualization/reference/html-chrome.html
 lib/html-chrome.html plugins/adhd/reference/html-chrome.html
 lib/html-chrome.html plugins/planning/reference/html-chrome.html
+lib/html-tokens.css plugins/planning/reference/html-tokens.css
+lib/html-branding.mjs plugins/planning/lib/html-branding.mjs
 lib/html-chrome.html plugins/architecture/reference/html-chrome.html
 lib/html-tokens.css plugins/visualization/reference/html-tokens.css
 lib/html-tokens.css plugins/adhd/reference/html-tokens.css
@@ -748,6 +750,7 @@ lib/plugin-options.mjs plugins/debugging/lib/plugin-options.mjs
 lib/plugin-options.mjs plugins/discovery/lib/plugin-options.mjs
 lib/plugin-options.mjs plugins/machine-health/lib/plugin-options.mjs
 lib/plugin-options.mjs plugins/work-items/lib/plugin-options.mjs
+lib/plugin-options.mjs plugins/planning/lib/plugin-options.mjs
 lib/resolve-convention-home.sh plugins/user-interface/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/multi-agent/lib/resolve-convention-home.sh
 lib/resolve-convention-home.sh plugins/docs-naming/lib/resolve-convention-home.sh
