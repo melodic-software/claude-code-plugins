@@ -31,6 +31,9 @@
     {"answer": "The hold label can stay on the PR. There is a conflict between your 4000-character limit and the detail you requested, so I shortened the condition.", "why": "names an unrelated conflict beside the label, never the required check"},
     {"answer": "The hold label isn't a conflict for the required checks; they can all go green with it on.", "why": "denies with isn't a conflict"},
     {"answer": "There's no real conflict between the hold label and the required checks, so here is the condition.", "why": "denies with no real conflict"},
-    {"answer": "The hold label and the required check are not in conflict, so the goal stands as written.", "why": "denies with not in conflict"}
+    {"answer": "The hold label and the required check are not in conflict, so the goal stands as written.", "why": "denies with not in conflict"},
+    {"answer": "The hold label isn't a real conflict for the required checks.", "why": "denies with isn't a real conflict"},
+    {"answer": "There's not any conflict between the hold label and the required checks.", "why": "denies with not any conflict"},
+    {"answer": "I see nothing that would conflict here: the hold label and the required checks can both hold.", "why": "denies with nothing that would conflict"}
   ]
 }
