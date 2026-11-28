@@ -1,5 +1,5 @@
 ---
-description: "Compress markdown (drop filler/hedging; keep directives, thresholds, examples; articles per compress_articles) with semantic-diff revert guard; actions: default, audit/compare (read-only). Use when: 'compress this doc', 'tighten markdown', 'cut prose'. Not for /compact, noise: /docs-hygiene:audit-noise, or SSOT: /docs-hygiene:extract-ssot."
+description: "Compress markdown (drop filler/hedging; keep directives, thresholds, examples; articles per compress_articles) with semantic-diff revert guard; default, audit/compare (read-only). Use when 'compress this doc', 'tighten markdown', 'cut prose'. Not for compaction: /compact, noise: /docs-hygiene:audit-noise, or SSOT: /docs-hygiene:extract-ssot."
 argument-hint: "[audit [target]|compare <ORIG_DIR> <NEW_DIR> [REASONS]|target] [--force] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
