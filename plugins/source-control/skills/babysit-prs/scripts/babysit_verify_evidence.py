@@ -4563,14 +4563,16 @@ class Reader:
             )
         created = self._fresh_created(run_id)
         if created is None:
-            return False
+            raise _Unreadable(f"run {run_id}'s creation time could not be read")
         before: list[Any] = []
         for checks in map(json_object, runs):
             try:
                 if postmerge._time(checks.get("created_at")) < created:
                     before.append(checks.get("id"))
-            except postmerge.PostMergeReadError:
-                return False
+            except postmerge.PostMergeReadError as exc:
+                raise _Unreadable(
+                    f"a checks run at {sha[:12]} has no readable creation time"
+                ) from exc
         return bool(before) and all(self._draft_run(i) for i in before)
 
     def _draft_run(self, run_id: Any) -> bool:
@@ -4579,11 +4581,11 @@ class Reader:
         as `success` (a draft's run) or `skipped` (not), a condition that
         reads the run's own event, which a re-run keeps. The jobs API can list
         a finished job's steps empty or cut short (pr-require-checks.yml's
-        ci-status notes), so anything else raises `_Unreadable`: jobs not read
-        whole, no one ci-status job, the step not listed once, or no such
+        ci-status notes), so anything else raises `_Unreadable`: an id that is
+        not an integer, jobs not read whole, no one ci-status job, the step not listed once, or no such
         conclusion (resolve-pr.mjs `draftRun`)."""
         if type(run_id) is not int:
-            return False
+            raise _Unreadable(f"a checks run lists the id {run_id!r}")
         if run_id not in self._draft_runs:
             listed = json_object(
                 self._actions(

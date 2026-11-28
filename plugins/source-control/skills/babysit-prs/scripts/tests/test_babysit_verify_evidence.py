@@ -8616,14 +8616,42 @@ class OneRunSharesADraftJudgmentReadWhole(unittest.TestCase):
 
     def test_a_judgment_cut_short_is_judged_again(self) -> None:
         fail_at = AFailJudgedFromADraftRunCountsAsNone.fail_at
-        cases = [(label, jobs, None) for label, jobs in UNREADABLE_DRAFT_STATE.items()]
-        cases.append(("the checks runs listed short", DRAFT_JOBS, 3))
-        for label, jobs, total in cases:
+        def listed_short(fake: FakeGitHub) -> None:
+            fake.checks_total[HEAD] = 3
+
+        def verifier_creation_unreadable(fake: FakeGitHub) -> None:
+            fake.runs[2]["created_at"] = "not a time"
+
+        def checks_creation_unreadable(fake: FakeGitHub) -> None:
+            fake.checks_runs[HEAD].append(
+                {"id": 41273000002, "created_at": "not a time"}
+            )
+
+        def checks_id_not_an_integer(fake: FakeGitHub) -> None:
+            fake.checks_runs[HEAD].append(
+                {"id": "41273000003", "created_at": "2026-11-01T04:25:00Z"}
+            )
+
+        def unchanged(fake: FakeGitHub) -> None:
+            pass
+
+        cases = [
+            (label, jobs, unchanged) for label, jobs in UNREADABLE_DRAFT_STATE.items()
+        ]
+        cases += [
+            (change.__name__, DRAFT_JOBS, change)
+            for change in (
+                listed_short,
+                verifier_creation_unreadable,
+                checks_creation_unreadable,
+                checks_id_not_an_integer,
+            )
+        ]
+        for label, jobs, change in cases:
             with self.subTest(label):
                 self.new_run()
                 fake = draft_race(fail_at(HEAD), HEAD, jobs)
-                if total is not None:
-                    fake.checks_total[HEAD] = total
+                change(fake)
                 first, second = self.two_processes(fake, "verify:fail")
                 self.assertEqual(second[0], 1, "second process lists again")
                 self.assertEqual(second[:2], first[:2], "jobs read again")
