@@ -1,5 +1,5 @@
 ---
-description: "Pixel-art animation cycles (run, jump, hurt, death) in 1, 4 or 8 directions, as sprite sheets for RPG Maker MZ, Godot or PICO-8. Use when asked to 'animate this sprite', 'walk cycle', 'sprite sheet', 'idle animation', 'attack animation', 'RPG Maker character sheet', '4-direction walking character', or 'make this sprite move'. A still: /pixel-art:sprite; a scene: /pixel-art:scene; not hand-drawn animation or video."
+description: "Pixel-art character animation cycles (walk, idle, run, jump, attack, hurt, death) in 1, 4, or 8 directions as RPG Maker MZ, Godot, or PICO-8 sprite sheets. Use when: 'animate this sprite', 'walk cycle', 'RPG Maker character sheet'. Not for stills: /pixel-art:sprite; scenes: /pixel-art:scene; or hand-drawn video."
 argument-hint: "<character or sprite spec> <cycles> [directions] [engine]"
 user-invocable: true
 disable-model-invocation: false

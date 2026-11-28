@@ -1,5 +1,5 @@
 ---
-description: "Pixel-art scenes as one self-contained HTML file (cutscenes, title screens, dialogue, ambient loops), with optional audio. Use when asked for a 'pixel-art scene', 'cutscene', 'title screen', 'animated pixel background', 'pixel-art short', 'make it a little pixel-art movie', 'intro sequence', or 'ambient loop'. One sprite: /pixel-art:sprite; a sprite sheet: /pixel-art:animate; not hand-drawn animation or video."
+description: "Pixel-art scenes as one self-contained HTML file (cutscene, title screen, intro sequence, dialogue, ambient loop, pixel-art short or movie, animated pixel background) with optional audio. Use when: 'pixel-art scene', 'cutscene', 'title screen'. Not for one sprite: /pixel-art:sprite; sprite sheets: /pixel-art:animate; or video."
 argument-hint: "<scene description> [resolution] [duration] [audio file]"
 user-invocable: true
 disable-model-invocation: false
