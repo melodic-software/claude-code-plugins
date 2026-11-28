@@ -1,5 +1,5 @@
 ---
-description: "Make inline code changes with TDD, incremental build/test checks, green commits, and re-planning if the approach breaks. Use when writing code, fixing bugs, refactoring, migrating, changing config, or applying an approved plan ('implement this', 'execute the plan', 'fix this bug'). Not for worker orchestration: /implementation:implement-dispatch."
+description: "Make inline code changes with TDD by default, incremental build/test checks, green commits, and routing back to planning if the approach breaks. Use when writing code, fixing bugs, rewriting, migrating, or porting, changing config, or applying an approved plan ('implement this', 'execute the plan', 'refactor'). Not for worker orchestration: /implementation:implement-dispatch."
 argument-hint: "[feature|fix|refactor|replace|config] [task]"
 user-invocable: true
 disable-model-invocation: false
