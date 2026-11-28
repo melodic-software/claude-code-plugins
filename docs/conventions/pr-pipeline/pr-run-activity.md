@@ -62,7 +62,7 @@ permissions, and passes no App key.
 | `issue-dimensions` | `''` | Issue mode: the `models.issue-dimensions` dimensions the caller resolved for `timeout-minutes`; the run takes them instead of reading the issue's fields again |
 | `dispatcher-run-id` | `''` | The `pr-unblock-dispatch.yml` or `pr-dispatch-feedback.yml` run that sent a `github-actions[bot]` `workflow_dispatch` (run job step 3) |
 | `trusted-base` | `pr-base` | `pr-base` trusts the PR's base SHA, `default-tip` the default branch tip (run job step 4) |
-| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, or `outside-author`, the check-admission job's stop on an issue neither a listed human nor the lanes App wrote; any other value, or one outside issue mode, fails step 1 |
+| `dimension-skip` | `''` | Write file, issue mode, `report-outcome`: the issue-dimension skip reason (`split-required`, `research-first` or `probe-first`) that kept the run from starting, `outside-author`, the check-admission job's stop on an issue neither a listed human nor the lanes App wrote, `workflow-stale`, or `closed-by-open-pr`, the read run's `issue-prior` stop on a trusted open closing PR; any other value, or one outside issue mode, fails step 1 |
 | `collect-refused` | `''` | Write file, issue mode, `report-outcome`: the model run's `scan-collect-refused`; only `true` counts, and stops the issue on the `collect-refused` route, which holds it for a person |
 | `escalation-reason` | `''` | Write file only: the escalating run's `escalation-reason` output, for a `report-escalation` script; anything outside the enum fails step 1 |
 | `review-replies` | `false` | Write file only: for the reply script of a [`prepare: review-threads`](#prepare-review-threads) round, download the select job's `run.json` and the model run's replies |
@@ -2310,10 +2310,12 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   lanes App or a listed human (`trusted-actors.json`) opened it; anyone's other closing PR is
   ignored. The run job's `skip-reason` output carries that reason, and once the scan job's decode
   step has checked it against the closed-name shape, so does the read file's `scan-skip-reason`
-  output; no PR number crosses. Given `DIMENSION_SKIP=closed-by-open-pr`, `report-outcome` reads
-  the issue's open closing PRs itself, with the same trust rule, and stops `closed-by-open-pr` on
-  the `wait` route naming the one it finds (below), or posts nothing when none closes the issue
-  now; a failed read fails the job and posts nothing. It also
+  output; no PR number crosses. `work-resolve-issue.yml` then runs its `report-outcome` job with
+  `dimension-skip: closed-by-open-pr` (`workflow-stale` wins when both apply) and no lease to end,
+  since the read file's report job already ended it. `report-outcome` reads the issue's open
+  closing PRs itself, with the same trust rule, and stops `closed-by-open-pr` on the `wait` route
+  naming the one it finds (below), or posts nothing when none closes the issue now; a failed read
+  fails the job and posts nothing. It also
   skips `not-applicable` and sets the `reuse-branch` output to the first lane branch, newest run
   and attempt first, that has commits ahead, a tip commit GitHub verified whose author is the
   lanes App bot and whose committer is `web-flow`, as the App's API commits are (a branch name

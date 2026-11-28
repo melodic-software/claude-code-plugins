@@ -5400,7 +5400,7 @@ test("work-resolve-issue.yml: every resolve-issue output a job reads is the read
   const outputs = workflow("pr-run-activity-read.yml").on.workflow_call.outputs;
   const read = (call) => [...new Set([...JSON.stringify(jobs).matchAll(new RegExp(`needs\\.${call}\\.outputs\\.([\\w-]+)`, "g"))].map((m) => m[1]))].sort();
   const names = read("resolve-issue");
-  assert.deepEqual(names, ["lease-comment-id", "scan-base-sha", "scan-collect-refused", "scan-issue-run-started", "scan-outcome-uploaded", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-prune-branches", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch"]);
+  assert.deepEqual(names, ["lease-comment-id", "scan-base-sha", "scan-collect-refused", "scan-issue-run-started", "scan-outcome-uploaded", "scan-patch-attempt", "scan-patch-sha256", "scan-patch-state", "scan-prune-branches", "scan-reply-attempt", "scan-resume-branch", "scan-resume-tip", "scan-reuse-branch", "scan-skip-reason"]);
   assert.deepEqual(read("resolve-issue-subscription"), names);
   for (const name of names) assert.match(outputs[name].value, /^\$\{\{ jobs\.(scan|check-issue-fields|check-broker)\.outputs\.[\w-]+ \}\}$/, name);
   for (const name of names.filter((n) => /check-broker/.test(outputs[n].value))) assert.equal(name, "lease-comment-id");
@@ -6761,6 +6761,7 @@ test("work-resolve-issue.yml: a kill-switch stop skips report-outcome and never 
   };
   for (const id of ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]) {
     started[`needs.${id}.outputs.scan-reuse-branch`] = "";
+    started[`needs.${id}.outputs.scan-skip-reason`] = "";
     started[`needs.${id}.outputs.scan-issue-run-started`] ??= "";
   }
   const report = (skip) => evaluate(jobs["report-outcome"].if, { ...started, "needs.apply-issue-patch.outputs.skip-reason": skip, "needs.resolve-issue-stale.outputs.stale": "" });
@@ -8117,6 +8118,8 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
     const entries = [...Object.entries(job.with ?? {}), ...(job.steps ?? []).flatMap((step) => Object.entries(step.env ?? {}))];
     for (const [name, expression] of entries) {
       if (!/needs\.resolve-issue(?:-subscription|-fallback)?\./.test(String(expression))) continue;
+      const derivedFromScanSkipReason = id === "report-outcome" && name === "dimension-skip";
+      if (derivedFromScanSkipReason) continue;
       values += 1;
       for (const from of ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"]) {
         const value = leg(from)(expression);
@@ -8158,10 +8161,12 @@ test("work-resolve-issue.yml: every job after the calls takes each resolve-issue
       "needs.resolve-issue-subscription.outputs.scan-outcome-uploaded": sub?.uploaded ?? "",
       "needs.resolve-issue-subscription.outputs.scan-reuse-branch": "",
       "needs.resolve-issue-subscription.outputs.scan-patch-state": sub?.patch ?? "",
+      "needs.resolve-issue-subscription.outputs.scan-skip-reason": "",
       "needs.resolve-issue.outputs.scan-issue-run-started": first.started ?? "",
       "needs.resolve-issue.outputs.scan-outcome-uploaded": first.uploaded ?? "",
       "needs.resolve-issue.outputs.scan-reuse-branch": "",
       "needs.resolve-issue.outputs.scan-patch-state": first.patch ?? "",
+      "needs.resolve-issue.outputs.scan-skip-reason": "",
       "needs.apply-issue-patch.outputs.skip-reason": "",
       "needs.resolve-issue-stale.outputs.stale": "",
       "needs.check-human-pull.result": "success",
@@ -8972,19 +8977,20 @@ test("no caller of a lane runner caps its cache below read", () => {
 });
 
 const STALE_CALLS = ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"];
-const staleContext = ({ started = "false", reuse = "", stale = "" } = {}) => {
+const staleContext = ({ started = "false", reuse = "", stale = "", skip = "", leg = "resolve-issue" } = {}) => {
   const context = {
     "needs.check-admission.outputs.proceed": "true",
     "needs.resolve-issue.result": "success",
-    "needs.resolve-issue-subscription.result": "skipped",
-    "needs.resolve-issue-fallback.result": "skipped",
+    "needs.resolve-issue-subscription.result": leg === "resolve-issue" ? "skipped" : "success",
+    "needs.resolve-issue-fallback.result": leg === "resolve-issue-fallback" ? "success" : "skipped",
     "needs.apply-issue-patch.outputs.skip-reason": "",
     "needs.resolve-issue-stale.outputs.stale": stale,
   };
   for (const id of STALE_CALLS) {
-    context[`needs.${id}.outputs.scan-issue-run-started`] = id === "resolve-issue" ? started : "";
-    context[`needs.${id}.outputs.scan-reuse-branch`] = id === "resolve-issue" ? reuse : "";
-    context[`needs.${id}.outputs.lease-comment-id`] = id === "resolve-issue" ? "555" : "";
+    context[`needs.${id}.outputs.scan-issue-run-started`] = id === leg ? started : "";
+    context[`needs.${id}.outputs.scan-reuse-branch`] = id === leg ? reuse : "";
+    context[`needs.${id}.outputs.scan-skip-reason`] = id === leg ? skip : "";
+    context[`needs.${id}.outputs.lease-comment-id`] = id === leg ? "555" : "";
   }
   return context;
 };
@@ -9017,6 +9023,20 @@ test("work-resolve-issue.yml: a stale stop runs report-outcome as workflow-stale
   assert.deepEqual(at({ started: "true", stale: "" }), { runs: true, skip: "", lease: "555" }, "a started run reports its outcome, as before");
 });
 
+test("work-resolve-issue.yml: a closed-by-open-pr pre-build skip runs report-outcome as closed-by-open-pr, with no lease to end, and a stale stop still wins", () => {
+  const job = workflow("work-resolve-issue.yml").jobs["report-outcome"];
+  const at = (overrides) => {
+    const context = staleContext(overrides);
+    return { runs: evaluate(job.if, context), skip: evaluate(job.with["dimension-skip"], context), lease: evaluate(job.with["lease-comment-id"], context) };
+  };
+  assert.deepEqual(at({ skip: "closed-by-open-pr" }), { runs: true, skip: "closed-by-open-pr", lease: "" });
+  for (const leg of ["resolve-issue-subscription", "resolve-issue-fallback"]) {
+    assert.deepEqual(at({ skip: "closed-by-open-pr", leg }), { runs: true, skip: "closed-by-open-pr", lease: "" }, `the ${leg} leg's skip counts`);
+  }
+  assert.deepEqual(at({ skip: "closed-by-open-pr", stale: "true" }), { runs: true, skip: "workflow-stale", lease: "" });
+  assert.deepEqual(at({ skip: "not-applicable" }), { runs: false, skip: "", lease: "555" }, "another pre-build skip reports nothing, as before");
+});
+
 test("handoff-evidence.sh: stale is a leg's run job stop step, and no other job's step of that name", (t) => {
   const read = workflow("work-resolve-issue.yml").jobs["resolve-issue-stale"].steps.find((s) => s.id === "stale");
   const listing = (leg, stop, name = callJob(leg, "run")) => ({
@@ -9036,7 +9056,7 @@ test("handoff-evidence.sh: stale is a leg's run job stop step, and no other job'
   assert.deepEqual(failed.outputs, {}, "a failed read re-fires nothing");
 });
 
-test("pr-run-activity-write.yml: the input check takes workflow-stale as a dimension-skip in issue mode only", () => {
+test("pr-run-activity-write.yml: the input check takes workflow-stale and closed-by-open-pr as a dimension-skip in issue mode only", () => {
   const step = workflow("pr-run-activity-write.yml").jobs.run.steps.find((s) => s.name?.startsWith("Assert the lanes App sender id"));
   const status = (skip, issueMode) =>
     spawnSync("bash", ["-c", step.run], {
@@ -9053,6 +9073,8 @@ test("pr-run-activity-write.yml: the input check takes workflow-stale as a dimen
   assert.equal(status("workflow-stale", true), 0);
   assert.equal(status("outside-author", true), 0, "the control: a reason the check already took");
   assert.equal(status("workflow-stale", false), 1);
+  assert.equal(status("closed-by-open-pr", true), 0);
+  assert.equal(status("closed-by-open-pr", false), 1);
   assert.equal(status("stale", true), 1);
 });
 
