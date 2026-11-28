@@ -71,7 +71,7 @@ No skill depends on this mod being installed or loaded. Where the mod cannot run
 Explicitly excluded from the first version and deferred until after v1 proves useful in daily terminal sessions:
 
 1. **Hover and click triggers:** Intercepting clicks or hover events on citations in the transcript instead of running a slash command.
-2. **Desktop app pane:** Dedicated Desktop app layout, styling, and `Link` integration ([`interface.md#link-in-the-desktop-app-and-vs-code`](https://code.claude.com/docs/en/plugins/mods/interface#link-in-the-desktop-app-and-vs-code)).
+2. **Desktop app pane:** Dedicated Desktop app layout, styling, and `Link` integration ([`interface.md#link-in-the-desktop-app`](https://code.claude.com/docs/en/plugins/mods/interface#link-in-the-desktop-app)).
 3. **Agent-curated summaries:** Summarizing long cited sections via a model call (`$.model` / skill integration) rather than displaying verbatim cited lines.
 4. **Live web-page section previews (beyond PoC):** Fetching remote URLs and extracting anchored HTML/markdown sections via `$.http.fetch`, with caching, redirect header stripping awareness ([`api.md#reach-files-processes-and-the-network`](https://code.claude.com/docs/en/plugins/mods/api#reach-files-processes-and-the-network)), and untrusted-content framing.
 
