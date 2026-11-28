@@ -1,5 +1,5 @@
 ---
-description: "Analyze code changes to produce a test plan: classify changed files by test type, identify coverage gaps, and prioritize by regression risk. Use when: 'test plan', 'what needs testing', 'where are the coverage gaps', after /implementation:implement, or PR-prep coverage checks. Not for writing (/testing:write) or running (/toolchain:check)."
+description: "Analyze code changes to produce a test plan: classify changed files by test type, identify coverage gaps, and prioritize by regression risk. Use when: 'test plan', 'what needs testing', 'where are the coverage gaps', after /implementation:implement, or PR-prep test coverage checks. Not for writing: /testing:write; running: /toolchain:check."
 argument-hint: "[range or scope]"
 user-invocable: true
 disable-model-invocation: false

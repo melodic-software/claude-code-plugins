@@ -1,5 +1,5 @@
 ---
-description: "Write and place tests across ecosystems: TDD, naming, property/characterization/old-vs-new types, placement, fixtures. Use when new code needs tests written or coverage added ('test this', 'write a unit test', 'add X with unit tests'), where a test should go, or code without tests. Not for /testing:fix-failing, /testing:plan, /toolchain:check."
+description: "Write and place tests: TDD, test naming, test-type (property, characterization, old-vs-new), placement, fixtures. Use when code needs coverage added or new code written without ('test this', 'write a unit test', 'add X with unit tests') or where a test should go. Not for failures: /testing:fix-failing; gaps: /testing:plan; runs: /toolchain:check."
 argument-hint: "[task]"
 user-invocable: true
 disable-model-invocation: false

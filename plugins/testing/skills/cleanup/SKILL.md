@@ -1,5 +1,5 @@
 ---
-description: "Clean up low-value, tautological, vacuous, or flaky tests in a folder or the whole repo's tests from /testing:audit findings: quarantine, rewrite (default), delete, merge, keep; gated + mutation gate or --cannot-fail-only; unattended never commits. Use when: 'clean up these tests', 'prune useless tests', 'fix the tests audit flagged'."
+description: "Clean up low-value/tautological/vacuous/flaky tests in folder/whole repo's tests via /testing:audit findings: quarantine, rewrite (default), delete, merge, keep per test; mutation gate or --cannot-fail-only; unattended never commits. Use on existing test suites/tests: 'clean up these tests', 'prune the useless tests', 'fix the tests audit flagged'."
 argument-hint: "<<folder>|<repo root>> [--max <n>] [--flaky <test> ...] [--cannot-fail-only] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

@@ -1,5 +1,5 @@
 ---
-description: "Find why tests fail and fix them: failure classification, root-cause analysis (never retry blindly), reproduce-isolate-fix-retest; `diagnose` changes no code. Use when: 'why does this fail', 'fix the failing tests', 'why is this test flaky', failing/flaky tests, stack traces. Not for /testing:write, /toolchain:check, /debugging:analyze-profile."
+description: "Find why tests fail, then fix them: test triage, root-cause (never retry blindly), reproduce-fix-retest; `diagnose` changes no code. Use when: 'why does this fail', 'fix the failing tests', 'why is this test flaky', failing/flaky tests, stack traces. Not for authoring: /testing:write; runs: /toolchain:check; profiles: /debugging:analyze-profile."
 argument-hint: "[diagnose|loop] [failure]"
 user-invocable: true
 disable-model-invocation: false
