@@ -10,7 +10,7 @@ import { createGitHub, errorLabel, GitHubError, paginate } from "../lib/github-c
 import { loadTrustedList, readRawTrustedActors, trustedListPath } from "../lib/trusted-actors.mjs";
 import { rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
 import { laneChecker } from "../lib/lane-binding.mjs";
-import { bindTimeline, DEQUEUE_MUTATION, humanGatedLabelFrom, laneReader, leaveQueueOnHold, QUEUE_ENTRY_QUERY, quote } from "../pr-unblock/address-feedback.mjs";
+import { bindTimeline, DEQUEUE_MUTATION, humanGatedLabelFrom, laneReader, leaveQueueOnHold, QUEUE_ENTRY_QUERY } from "../pr-unblock/address-feedback.mjs";
 import {
   lines as bodyLines,
   foreignMarker,
@@ -48,6 +48,7 @@ import {
   vetoers,
 } from "./merge-holds.mjs";
 import { ARM_HOLDS, NEEDS_HUMAN } from "../lib/lane-vocabulary.mjs";
+import { ATTEND_QUEUE_MARKER, costLine, fenced, GUARD_ERROR, isPartial, LANE_SINCE, pythonVerify, READER_HOLDS, READER_RATE_LIMIT_EXIT, readerEnv, ReaderRateLimited, recordLines, REFUSAL_MARKER, refusalReasons, renderRefusal, rotated, SERVER_ERROR, unwrappedFence, VERIFY_FINAL, VERIFY_SCRIPT, VERIFY_TIMEOUT_MS, verifyHold, WHOLE_REVIEW_RECORD, wrappedFence } from "./verifier.mjs";
 
 export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
 
@@ -59,7 +60,6 @@ const MAX_PAGES = 10;
 // The files listing stops at 3000, so a listing that fills every page may be cut short:
 // https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files
 const MAX_FILE_PAGES = 30;
-const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
 const WHOLE_REVIEW_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py";
 
 export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: String) {
@@ -395,37 +395,6 @@ export const EMPTY_DIFF_REOPENED_REASON = `${EMPTY_DIFF_REASON}, and it was reop
 export const emptyDiffNote = (head) =>
   `Unattended merge: closed at head \`${head}\`. ${EMPTY_DIFF_REASON[0].toUpperCase()}${EMPTY_DIFF_REASON.slice(1)}: the base...head diff lists no file, so closing loses no work, and no fresh attempt starts. Reopen it to reverse this.`;
 
-export const VERIFY_FINAL = Object.freeze(["verify:repeated-fail"]);
-
-export const READER_HOLDS = Object.freeze({
-  link: "pr-merge's lane does not take its issue link (",
-  verdict: "pr-merge's gate refuses its verifier verdict (",
-  risk: "pr-merge's gate holds it on its risk score (",
-});
-
-export function verifyHold(evidence, head) {
-  if (evidence === null || typeof evidence !== "object" || !("refusal" in evidence)) {
-    return "its verifier verdict could not be read";
-  }
-  if (evidence.head !== head) {
-    return "its verifier verdict was read at another head";
-  }
-  if (typeof evidence.ineligible === "string") {
-    return `${READER_HOLDS.link}${escapeCommand(evidence.ineligible)})`;
-  }
-  if (evidence.refusal !== null) {
-    const detail = VERIFY_FINAL.includes(evidence.refusal) && typeof evidence.detail === "string" && evidence.detail ? `: ${escapeCommand(evidence.detail)}` : "";
-    return `${READER_HOLDS.verdict}${escapeCommand(evidence.refusal)}${detail})`;
-  }
-  if (evidence.ineligible !== null) {
-    return "its issue link could not be read";
-  }
-  if (typeof evidence.reviews === "string") {
-    return `${READER_HOLDS.risk}${escapeCommand(evidence.reviews)})`;
-  }
-  return evidence.reviews === null ? null : "its risk score could not be read";
-}
-
 export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-provenance-removed-by-non-human", "issue-labels-unreadable"]);
 
 export function verifyClears(evidence, head) {
@@ -455,34 +424,12 @@ export function ejectionHold(evidence) {
     : { reason: `${EJECTION_HOLD}${escapeCommand(queue.refusal)})`, comment: typeof queue.comment === "string" ? queue.comment : null };
 }
 
-export const REFUSAL_MARKER = "<!-- babysit-merge-risk -->";
-export const ATTEND_QUEUE_MARKER = "<!-- work-items:escalation lane=pr-merge kind=escalated -->";
-export const LANE_SINCE = /^<!-- pr-merge-unarmed-since head=([0-9a-f]{40}) at=([0-9TZ:.-]+) -->$/;
-const laneSince = (head, at) => `<!-- pr-merge-unarmed-since head=${head} at=${at} -->`;
 function sinceAt(body, head) {
   const match = LANE_SINCE.exec(bodyLines(body).at(-1));
   return match && match[1] === head ? match[2] : undefined;
 }
 
 export const personReason = (reasons) => [...new Set(reasons.map(String))].sort().join("\n");
-
-const partialLine = (head) => `<!-- pr-merge-partial head=${head} -->`;
-export const isPartial = (body, head) => String(body ?? "").split("\n").at(-1) === partialLine(head);
-
-export function refusalReasons(body, person, head, label, { since = null, partial = false, records = [] } = {}) {
-  const lines = String(body ?? "").split("\n");
-  const open = lines.indexOf("```text");
-  const close = lines.indexOf("```", open + 1);
-  if (open < 0 || close < 0) {
-    return null;
-  }
-  const raw = lines.slice(open + 1, close);
-  const reasons = raw.reduce((out, line) => (line.startsWith("  ") && out.length > 0 ? [...out.slice(0, -1), `${out.at(-1)} ${line.slice(2)}`] : [...out, line]), []);
-  if (refusalBody(person, reasons.join("\n"), head, label, since, partial, records) === body) {
-    return reasons;
-  }
-  return renderRefusal(unwrappedFence, person, raw.join("\n"), head, label, since, partial, records) === body ? fenced(raw.join("\n")).split("\n") : null;
-}
 
 const personReasons = (body, head, label) => refusalReasons(body, true, head, label, { partial: isPartial(body, head), records: recordLines(body) });
 
@@ -570,46 +517,6 @@ export async function liftBlocked(github, repo, number, options, check) {
   const reviewComments = await paginate(github, `/repos/${repo}/pulls/${number}/comments?since=${sinceParam(since - 1000)}`);
   const reviews = await paginate(github, `/repos/${repo}/pulls/${number}/reviews`);
   return liftBlocker({ timeline, reviewComments, reviews, ...options });
-}
-
-const unfolded = (reason) => String(reason).replaceAll(/[\u0000-\u0008\u000b-\u001f\u007f]/g, "?").replaceAll("```", "'''");
-const fenced = (reason) =>
-  unfolded(reason)
-    .split("\n")
-    .map((line) => line.replaceAll(/\s+/g, " ").trim())
-    .join("\n");
-const wrappedFence = (reason) => quote(fenced(reason).split("\n"), (count) => `Its reasons (${count} lines)`);
-const unwrappedFence = (reason) => ["```text", unfolded(reason), "```"].join("\n");
-
-export const WHOLE_REVIEW_RECORD = /^Whole review requested at head `[0-9a-f]{40}` at \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ: .*$/;
-export const recordLines = (body) => {
-  let fenced = false;
-  return bodyLines(body).filter((line) => {
-    if (line.startsWith("```")) {
-      fenced = !fenced;
-      return false;
-    }
-    return !fenced && WHOLE_REVIEW_RECORD.test(line);
-  });
-};
-
-export const refusalBody = (person, reason, head, label, since = null, partial = false, records = []) =>
-  renderRefusal(wrappedFence, person, reason, head, label, since, partial, records);
-
-function renderRefusal(fence, person, reason, head, label, since, partial, records) {
-  const who = person
-    ? `A person must clear this reason, so the pr-merge lane added the \`${label}\` label: fix the reason, then remove the label, and the next scheduled run judges it again.`
-    : "No person needs to act: a lane clears this reason, and the next scheduled run judges it again.";
-  return [
-    ...(person ? [ATTEND_QUEUE_MARKER] : []),
-    REFUSAL_MARKER,
-    `Unattended merge: native auto-merge leaves this pull request unarmed at head \`${head}\`. ${who}`,
-    "",
-    fence(reason),
-    ...(records.length === 0 ? [] : ["", ...records]),
-    ...(person || since === null ? [] : [laneSince(head, since)]),
-    ...(person && partial ? [partialLine(head)] : []),
-  ].join("\n");
 }
 
 export { PIN_RE };
@@ -729,107 +636,6 @@ export function liftedByPerson(timeline, label, since) {
       String(event?.label?.name).toLowerCase() === String(label).toLowerCase() &&
       Date.parse(String(event?.createdAt)) >= Date.parse(since),
   );
-}
-
-export const READER_RATE_LIMIT_EXIT = 75;
-const GUARD_ERROR = "::error title=GitHub rate limit::";
-const SERVER_ERROR = "::error title=GitHub server error::";
-
-export class ReaderRateLimited extends Error {
-  constructor(what, stderr) {
-    const line = String(stderr ?? "")
-      .split("\n")
-      .find((text) => text.startsWith(GUARD_ERROR) || text.startsWith(SERVER_ERROR));
-    const serverError = line?.startsWith(SERVER_ERROR) === true;
-    const cause = serverError ? "a GitHub server error hold" : "a GitHub rate limit";
-    super(`${what} stopped on ${cause}: ${line ? line.slice((serverError ? SERVER_ERROR : GUARD_ERROR).length) : `it exited ${READER_RATE_LIMIT_EXIT}`}`);
-    this.name = "ReaderRateLimited";
-    this.serverError = serverError;
-  }
-}
-
-export const GH_CALLS_PREFIX = "babysit-gh-calls ";
-function ghCallsPayload(stderr) {
-  const line = bodyLines(stderr).findLast((text) => text.startsWith(GH_CALLS_PREFIX));
-  try {
-    return line === undefined ? null : JSON.parse(line.slice(GH_CALLS_PREFIX.length));
-  } catch {
-    return null;
-  }
-}
-
-export function ghCallsLine(stderr) {
-  const payload = ghCallsPayload(stderr);
-  return payload === null || typeof payload !== "object" ? null : `${GH_CALLS_PREFIX}${JSON.stringify(payload)}`;
-}
-
-export const LISTING_MISS_PREFIX = "babysit-listing-miss ";
-export function listingMissLines(stderr) {
-  return bodyLines(stderr).filter((text) => text.startsWith(LISTING_MISS_PREFIX));
-}
-
-export function ghCalls(stderr) {
-  const payload = ghCallsPayload(stderr);
-  const calls = payload?.calls;
-  if (!Number.isSafeInteger(payload?.total) || calls === null || typeof calls !== "object") {
-    return null;
-  }
-  const sum = (match) => Object.entries(calls).reduce((n, [kind, count]) => n + (match(kind) && Number.isSafeInteger(count) ? count : 0), 0);
-  return { total: payload.total, githubToken: sum((kind) => kind.startsWith("override ")), paginated: sum((kind) => kind.endsWith("+paginate")) };
-}
-
-export const costLine = ({ number, calls, ms }) =>
-  `#${number} ${calls === null ? "calls=unknown" : `calls=${calls.total} github-token=${calls.githubToken} paginated=${calls.paginated}`} ms=${ms}`;
-
-const readerEnv = (env, timeoutMs) => ({ ...env, BABYSIT_VERIFY_DEADLINE_SECONDS: String(timeoutMs / 1000), BABYSIT_VERIFY_CALLER: "enable-auto-merge.mjs" });
-
-export function pythonVerify(env, { spawn = spawnSync, clock = Date.now, lane = true } = {}) {
-  const verify = async ({ number, headRefOid: head, baseRefOid: base }, rung) => {
-    if (!SHA.test(String(base))) {
-      throw new Error("its base commit is not a commit SHA");
-    }
-    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", ...(lane ? ["--lane-link", "--lane-reviews", "--lane-queue"] : []), "--shared-listing", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
-    if (lane && typeof rung === "string") {
-      args.push("--rung", rung);
-    }
-    const started = clock();
-    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env: readerEnv(env, VERIFY_TIMEOUT_MS), timeout: VERIFY_TIMEOUT_MS });
-    const cost = { number, calls: ghCalls(done.stderr), ms: clock() - started };
-    let evidence;
-    if (done.status === 0) {
-      try {
-        evidence = JSON.parse(String(done.stdout).trim().split("\n").at(-1));
-      } catch (error) {
-        evidence = error;
-      }
-    }
-    verify.costs.push(cost);
-    console.log(`enable-auto-merge: ${costLine(cost)}`);
-    const calls = ghCallsLine(done.stderr);
-    if (calls !== null) {
-      console.log(calls);
-    }
-    for (const miss of listingMissLines(done.stderr)) {
-      console.log(miss);
-    }
-    if (done.status === READER_RATE_LIMIT_EXIT) {
-      throw new ReaderRateLimited(`#${number}'s verifier read`, done.stderr);
-    }
-    if (done.status !== 0) {
-      const said = String(done.stderr ?? "")
-        .trim()
-        .split("\n")
-        .filter((text) => !text.startsWith(GH_CALLS_PREFIX) && !text.startsWith(LISTING_MISS_PREFIX))
-        .at(-1);
-      throw new Error(`babysit_verify_evidence.py exited ${done.status ?? done.signal}: ${said ?? ""}`);
-    }
-    if (evidence instanceof Error) {
-      throw evidence;
-    }
-    return evidence;
-  };
-  verify.costs = [];
-  return verify;
 }
 
 export function pythonRoom(env, spawn = spawnSync) {
@@ -1089,16 +895,10 @@ export function readRoom(answer) {
 }
 
 export const READER_EVENTS = Object.freeze(["schedule", "workflow_dispatch"]);
-export const VERIFY_TIMEOUT_MS = 4 * 60_000;
 export const LANE_ROOM_TIMEOUT_MS = 8 * 60_000;
 export const VERIFY_BUDGET_MS = 5 * 60_000;
 const NO_TIME_LEFT = "no time left in this run to read its verifier verdict";
 const READER_RUNS_ARM = "only a scheduled or hand-started run arms it, on the gate's verifier verdict";
-
-export function rotated(pulls, runNumber) {
-  const start = Number.isSafeInteger(runNumber) && pulls.length > 0 ? ((runNumber % pulls.length) + pulls.length) % pulls.length : 0;
-  return [...pulls.slice(start), ...pulls.slice(0, start)];
-}
 
 export function oldestFirst(pulls, candidate) {
   const oldest = pulls.filter(candidate).sort((a, b) => a.number - b.number);

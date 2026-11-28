@@ -38,7 +38,7 @@ import {
 } from "../pr-unblock/gate-source.mjs";
 import { isProtectedPath } from "../pr-unblock/thread-scope.mjs";
 import { branchActivity, changedPaths, LANES_APP_LOGIN as DEFAULT_BOT, laneChangeIn, OUTSIDE_ACTOR_LABEL as OUTSIDE_ACTOR, readStatuses, REVIEW_LANES } from "./merge-holds.mjs";
-import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalReasons, rotated, verifyHold } from "./enable-auto-merge.mjs";
+import { pythonVerify, READER_HOLDS, REFUSAL_MARKER, refusalReasons, rotated, verifyHold } from "./verifier.mjs";
 
 const REASON = /^- (?:Lane code|Reason): `([a-z-]+)`$/m;
 const outsideActorHeld = (labels) => (labels ?? []).some((item) => same(item?.name, OUTSIDE_ACTOR));
