@@ -113,6 +113,14 @@
     {
       "answer": "It is roughly 700 of 4000 characters.\n",
       "why": "N of N form, estimated"
+    },
+    {
+      "answer": "The counter reports 4210 of 4000 characters, which exceeded the limit, so I trimmed it.\n",
+      "why": "N of N form with exceeded"
+    },
+    {
+      "answer": "The draft is 4210 characters against a 4000 limit, exceeding it, so I cut it down.\n",
+      "why": "against form with exceeding"
     }
   ]
 }
