@@ -5,7 +5,7 @@ THREADS_SCRIPT="$SCRIPT_DIR/../../../scripts/source-control-review-threads"
 
 usage() {
   cat >&2 <<'EOF'
-usage: monitor-poll.sh --pr <n> (--checkout <dir> | --repo <owner>/<repo>) [--interval <seconds>] [--baseline <file>] [--snapshot <file>] [--once] [--verdict]
+usage: monitor-poll.sh --pr <n> (--checkout <dir> | --repo <owner>/<repo>) [--interval <seconds>] [--safety-interval <seconds>] [--no-events] [--baseline <file>] [--snapshot <file>] [--once] [--verdict]
 
 The pull-request monitor's Monitor watch: polls one PR over REST and prints a line for each
 check that finishes, each new comment on the three review surfaces, each change in the
@@ -14,14 +14,17 @@ branch has .github/workflows/pr-verify.yml. Contract: reference/monitor.md 3.0.1
 pull-request skill; the GitHub facts behind each read: reference/providers/github/pull-request/monitor.md
 "Poll checks over REST" in this plugin.
 
-  --checkout  the checkout of the PR's repository; target-repo.sh resolves the repository
-  --repo      the PR's base repository, named explicitly (a triangular flow); wins over --checkout
-  --interval  seconds between polls, default 90; every read is a conditional request, so a poll
-              where nothing changed counts nothing against the REST rate limit
-  --baseline  re-arm only: the file a --snapshot run of this script wrote
-  --snapshot  read the checks and the verdicts once, write them to this file under a marker line, then exit
-  --once      exit 0 at the end of the first poll that printed a check, comment, thread or verdict line
-  --verdict   read the pr-verify verdicts at the head once, print them, then exit
+  --checkout         the checkout of the PR's repository; target-repo.sh resolves the repository
+  --repo             the PR's base repository, named explicitly (a triangular flow); wins over --checkout
+  --interval         seconds between polls in fallback mode, default 90; every read is a conditional
+                     request, so a poll where nothing changed counts nothing against the REST rate limit
+  --safety-interval  max seconds between safety polls while gh event listen is active, default 600
+                     (clamped up to --interval if --interval is larger)
+  --no-events        disable gh event listen and poll on --interval (same as MONITOR_POLL_EVENTS=0)
+  --baseline         re-arm only: the file a --snapshot run of this script wrote
+  --snapshot         read the checks and the verdicts once, write them to this file under a marker line, then exit
+  --once             exit 0 at the end of the first poll that printed a check, comment, thread or verdict line
+  --verdict          read the pr-verify verdicts at the head once, print them, then exit
 
 Exit 0: the PR is merged or closed, the snapshot was written, a --once poll printed a line, or
         a --verdict run read the verdicts.
@@ -37,22 +40,42 @@ PR_NUMBER=""
 CHECKOUT=""
 OWNER_REPO=""
 INTERVAL=90
+SAFETY_INTERVAL=600
+SAFETY_SET=0
+USE_EVENTS=1
+[[ "${MONITOR_POLL_EVENTS:-1}" == 0 ]] && USE_EVENTS=0
 BASELINE_FILE=""
 SNAPSHOT_FILE=""
 ONCE=0
 VERDICT_ONLY=0
 while [[ $# -gt 0 ]]; do
-  if [[ "$1" == --once || "$1" == --verdict ]]; then
-    [[ "$1" == --once ]] && ONCE=1 || VERDICT_ONLY=1
+  case "$1" in
+  --once)
+    ONCE=1
     shift
     continue
-  fi
+    ;;
+  --verdict)
+    VERDICT_ONLY=1
+    shift
+    continue
+    ;;
+  --no-events)
+    USE_EVENTS=0
+    shift
+    continue
+    ;;
+  esac
   [[ $# -ge 2 ]] || usage
   case "$1" in
   --pr) PR_NUMBER=$2 ;;
   --checkout) CHECKOUT=$2 ;;
   --repo) OWNER_REPO=$2 ;;
   --interval) INTERVAL=$2 ;;
+  --safety-interval)
+    SAFETY_INTERVAL=$2
+    SAFETY_SET=1
+    ;;
   --baseline) BASELINE_FILE=$2 ;;
   --snapshot) SNAPSHOT_FILE=$2 ;;
   *) usage ;;
@@ -61,6 +84,8 @@ while [[ $# -gt 0 ]]; do
 done
 [[ "$PR_NUMBER" =~ ^[0-9]+$ ]] || usage
 [[ "$INTERVAL" =~ ^[0-9]+$ ]] || usage
+[[ "$SAFETY_INTERVAL" =~ ^[1-9][0-9]*$ ]] || usage
+[[ "$SAFETY_SET" -eq 0 && "$INTERVAL" -gt "$SAFETY_INTERVAL" ]] && SAFETY_INTERVAL=$INTERVAL
 [[ -n "$OWNER_REPO" || -n "$CHECKOUT" ]] || usage
 if [[ -z "$OWNER_REPO" ]]; then
   OWNER_REPO=$(bash "$SCRIPT_DIR/target-repo.sh" --dir "$CHECKOUT") || exit 1
@@ -226,6 +251,109 @@ pv_print() {
   fi
 }
 
+EV_TYPES="com.github.pull_request.review.submitted.v1,com.github.pull_request.state.changed.v1,com.github.pull_request.head.changed.v1,com.github.pull_request.merge_conflict.v1,com.github.pull_request.check_suite.status.changed.v1"
+EV_ATTACH_TIMEOUT=${MONITOR_POLL_ATTACH_TIMEOUT:-5}
+[[ "$EV_ATTACH_TIMEOUT" =~ ^[1-9][0-9]*$ ]] || EV_ATTACH_TIMEOUT=5
+if ((BASH_VERSINFO[0] >= 4)); then
+  EV_DRAIN_TIMEOUT=0.2
+else
+  EV_DRAIN_TIMEOUT=1
+fi
+ev_active=0
+ev_fd_open=0
+ev_pid=""
+ev_review=0
+ev_safety=0
+
+ev_stop() {
+  if [[ "$ev_fd_open" -eq 1 ]]; then
+    exec 3<&- 2>/dev/null || true
+    ev_fd_open=0
+  fi
+  if [[ -n "$ev_pid" ]]; then
+    kill "$ev_pid" 2>/dev/null || true
+    wait "$ev_pid" 2>/dev/null || true
+    ev_pid=""
+  fi
+  ev_active=0
+}
+trap ev_stop EXIT
+trap 'ev_stop; exit 130' INT
+trap 'ev_stop; exit 143' TERM
+
+ev_start() {
+  local deadline rem line
+  exec 3< <(
+    exec 2>&1
+    # shellcheck disable=SC2016 # $PPID expands inside sh
+    printf '__PID__:%s\n' "${BASHPID:-$(sh -c 'echo "$PPID"')}"
+    exec gh event listen --follow \
+      --resource "https://github.com/$OWNER/$REPO/pull/$PR_NUMBER" \
+      --event "$EV_TYPES"
+  ) || return 0
+  ev_fd_open=1
+  deadline=$((SECONDS + EV_ATTACH_TIMEOUT))
+  while true; do
+    rem=$((deadline - SECONDS))
+    ((rem > 0)) || break
+    if IFS= read -r -t "$rem" line <&3; then
+      line=${line%$'\r'}
+      if [[ -z "$ev_pid" && "$line" == __PID__:* ]]; then
+        ev_pid=${line#__PID__:}
+      elif [[ "$line" == *"Listening for events."* ]]; then
+        ev_active=1
+        return 0
+      fi
+    else
+      break
+    fi
+  done
+  ev_stop
+}
+
+ev_note_line() {
+  [[ "$1" == *"com.github.pull_request.review.submitted.v1"* ]] && ev_review=1
+  return 0
+}
+
+ev_wait() {
+  local line rc drained
+  ev_review=0
+  ev_safety=0
+  if [[ "$ev_active" -ne 1 ]]; then
+    sleep "$INTERVAL"
+    return 0
+  fi
+  rc=0
+  IFS= read -r -t "$SAFETY_INTERVAL" line <&3 || rc=$?
+  if ((rc == 0)); then
+    ev_note_line "$line"
+    drained=0
+    while ((drained < 50)); do
+      rc=0
+      IFS= read -r -t "$EV_DRAIN_TIMEOUT" line <&3 || rc=$?
+      if ((rc == 0)); then
+        ev_note_line "$line"
+        drained=$((drained + 1))
+      else
+        ((rc <= 128)) && ev_stop
+        break
+      fi
+    done
+    return 0
+  fi
+  if ((rc > 128)); then
+    ev_safety=1
+    return 0
+  fi
+  ev_stop
+  sleep "$INTERVAL"
+}
+
+if [[ "$USE_EVENTS" -eq 1 && -z "$SNAPSHOT_FILE" && "$VERDICT_ONLY" -eq 0 ]]; then
+  ev_start
+fi
+
 while true; do
   if cget "repos/$OWNER/$REPO/pulls/$PR_NUMBER" &&
     pr=$(printf '%s' "$out" | jq -r '"\(if .merged then "MERGED" elif .state == "closed" then "CLOSED" else "OPEN" end) \(.head.sha) \(.base.ref) \(.base.repo.default_branch) \(.base.repo.full_name) \(.head.ref)"'); then
@@ -328,7 +456,7 @@ while true; do
   done
   [[ "$fetch_ok" -eq 1 ]] && last_comment_ts="$now"
 
-  if ((poll % 4 == 0)); then
+  if ((poll % 4 == 0 || ev_review == 1 || ev_safety == 1)); then
     read_into bash "$THREADS_SCRIPT" "$OWNER/$REPO#$PR_NUMBER"
     cur_threads=$(printf '%s\n' "$out" \
       | awk 'NR == 1 && /^THREADS_(OK|BLOCKED) unresolved=/ { sub(/.*unresolved=/, ""); sub(/[^0-9].*/, ""); print }')
@@ -346,5 +474,5 @@ while true; do
   errs=""
   poll=$((poll + 1))
 
-  sleep "$INTERVAL"
+  ev_wait
 done
