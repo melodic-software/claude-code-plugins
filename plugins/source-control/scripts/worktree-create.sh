@@ -246,10 +246,10 @@ store. One stderr line names git lfs pull, and git lfs pull --include <paths>
 for part of the content.
 
 Reuse: a worktree already at the target path, on the branch this run would use,
-is printed as it is (no copy, no provisioning) when its lock names --session-id, when
-it is unlocked (claimed first), or when worktree-claim.sh stale proves its
-session's claim stale (handed over). Anything else there, a live or
-session-less claim, or no --session-id, exits 4. An existing branch checked out
+is printed as it is (no copy, no provisioning) once worktree-claim.sh take
+claims it for --session-id: its lock names that session, it is unlocked, or
+its claim is provably stale and taken over. Anything else there, a claim not
+provably stale, a lock with no reason, or no --session-id, exits 4. An existing branch checked out
 nowhere is checked out without -b and --base-ref does not apply; one checked out
 in another worktree exits 4, naming it.
 
@@ -773,7 +773,7 @@ reuse_refuse() {
 }
 
 reuse_existing_target() {
-  local top i idx=-1 reason held_branch old_sid claim="$HELPER_DIR/worktree-claim.sh"
+  local top i idx=-1 held_branch claim="$HELPER_DIR/worktree-claim.sh"
   top="$(git -C "$worktree_path" rev-parse --show-toplevel 2>/dev/null)" || top=""
   if [[ -n "$top" ]]; then
     read_worktree_facts
@@ -789,30 +789,8 @@ reuse_existing_target() {
     "the worktree at $worktree_path holds branch ${held_branch:-(none)}, not $branch; choose another name"
   [[ -n "$session_id" ]] || reuse_refuse \
     "a worktree already exists at $worktree_path; pass --session-id so the helper can prove this session may reuse it"
-  reason="${WT_FACT_LOCKED[idx]}"
-  if [[ "${WT_FACT_IS_LOCKED[idx]}" == no ]]; then
-    git -C "$toplevel" worktree lock --reason "$(worktree_lock_reason worktree-create.sh "$session_id")" "$top" >&2 ||
-      reuse_refuse "could not claim the unlocked worktree at $worktree_path; another process may have claimed it first"
-    printf '%s: claimed the unlocked worktree at %s for session %s\n' "$PROG" "$worktree_path" "$session_id" >&2
-  elif worktree_reason_is_ours "$reason" "$session_id"; then
-    :
-  elif [[ -z "$reason" ]]; then
-    reuse_refuse "the worktree at $worktree_path is locked with no reason, so it names no session; unlock it by hand if it is free"
-  elif ! worktree_reason_lane "$reason" >/dev/null; then
-    reuse_refuse "the worktree at $worktree_path is locked by a claim that names no session: $reason" \
-      "unlock it by hand (git worktree unlock) if no session is working there"
-  else
-    old_sid="${BASH_REMATCH[2]}"
-    if ! bash "$claim" stale "$top" --repo-dir "$toplevel" >&2; then
-      reuse_refuse "another session holds a live claim on the worktree at $worktree_path: $reason" \
-        "finish in that session, or hand it over: worktree-claim.sh handover $worktree_path --session-id $old_sid --to $session_id"
-    fi
-    bash "$claim" handover "$top" --repo-dir "$toplevel" --session-id "$old_sid" --to "$session_id" >&2 ||
-      reuse_refuse "could not hand the stale claim on $worktree_path over to session $session_id"
-    bash "$claim" claim "$top" --repo-dir "$toplevel" --session-id "$session_id" >&2 ||
-      reuse_refuse "could not claim $worktree_path for session $session_id after the stale claim ended"
-    printf '%s: took over the stale claim of session %s on %s\n' "$PROG" "$old_sid" "$worktree_path" >&2
-  fi
+  bash "$claim" take "$top" --repo-dir "$toplevel" --session-id "$session_id" >&2 ||
+    reuse_refuse "could not take the worktree at $worktree_path for session $session_id"
   printf '%s: reusing the existing worktree at %s (branch %s)\n' "$PROG" "$worktree_path" "$branch" >&2
   printf '%s\n' "$worktree_path"
   exit 0
