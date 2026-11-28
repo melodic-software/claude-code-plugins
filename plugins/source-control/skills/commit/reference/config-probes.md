@@ -4,10 +4,10 @@ Detail behind the `## Repository context. Probe the config layers` section in
 [SKILL.md](../SKILL.md). The hub keeps the commands, the probe list and the combination table; this
 file keeps the reasons.
 
-## Why probes 2 to 4 omit `--exclude-standard`
+## Why probes 2 and 3 omit `--exclude-standard`
 
-Probes 2 to 4 deliberately omit `--exclude-standard`, so a gitignored file is still listed: the
-personal override and its old location are expected to be gitignored, and an untracked team file
+Probes 2 and 3 deliberately omit `--exclude-standard`, so a gitignored file is still listed: the
+personal override is expected to be gitignored, and an untracked team file
 has to be *seen* before it can be reported as untracked.
 
 ## Why probe 2 exists, and what a nonzero exit means

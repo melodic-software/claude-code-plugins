@@ -202,10 +202,7 @@ the fix flow, under [Non-repository targets](#non-repository-targets).
   explicit path.
 - `plugins/` is not in scope; plugin content is audited in its own repository.
 - The detector's config layers are the team and personal YAML files, read from the session's
-  project directory. The old JSON file `$HOME/.claude/ai-slop.json` (read there even when
-  `CLAUDE_CONFIG_DIR` is set) stands in for the personal layer while no personal override
-  exists. Each run then prints one warning naming it and `/ai-slop:setup apply`, which moves it to
-  the personal override.
+  project directory.
 - A path target such as `~/.claude` covers every `*.md` beneath it.
 
 ### Non-repository targets
@@ -225,7 +222,7 @@ is outside a repository, the whole run follows these rules:
 - Order files by modification time, newest first, ties broken by path. Ordering never changes
   inclusion. `rubric-fanout.sh plan` picks this order for a target outside a repository; apply
   it to the report too.
-- Config layers come from the session's project directory and the old `~/.claude` file, not from
+- Config layers come from the session's project directory, not from
   the target. `--show-config` names the layers in effect. A path glob such as `excluded_paths`
   applies only when it matches the path as the detector sees it.
 - No findings file: none is written, and the fix flow's closing re-emit is skipped.

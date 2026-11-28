@@ -15,7 +15,13 @@ the time of day and the weather. More bedrooms, one per decade, are planned.
 ```
 
 The catalog entry sets `defaultEnabled: false`, because the backdrop takes over the whole window;
-`/plugin enable themes` turns it on. `/bedroom off` clears the theme for the session.
+`/plugin enable themes` turns it on. The `themes_enabled` on/off setting (boolean, default `true`)
+controls the module across the user layer (`userConfig`) and repository layer
+(`docs/conventions/themes.yaml`, schema in [`schemas/themes.schema.json`](schemas/themes.schema.json)):
+an explicit user value wins over the repository file (`docs/contracts/hook-enablement/README.md`),
+and when `themes_enabled` is `false` the module registers and draws nothing. Existing feature
+settings (`sound`, default `false`; `signal`, `hall`, and `shader`, default `true`) keep their own
+meaning when the module is on. `/bedroom off` clears the theme for the session.
 
 ## Requirements
 
@@ -237,6 +243,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| `themes_enabled` | boolean | `true` | Runs the backdrop themes module (bedroom backdrop, shader, and /bedroom command). Default true. Set false to turn the module off; overrides docs/conventions/themes.yaml for this user. Feature options such as sound keep their own defaults when on. |
 | `time` | string | `"auto"` | auto follows the clock; a phase holds that light all day. |
 | `date` | string | `"auto"` | auto follows the real date; a season holds its day (spring 04-20, summer 07-15, autumn 10-15, winter 01-15). /bedroom date MM-DD holds any day. |
 | `sunrise` | string | `"auto"` | auto follows the season, worked out for 40 degrees north; or a local time HH:MM from 04:00 to 09:00, held all year. |

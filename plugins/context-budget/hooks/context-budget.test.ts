@@ -523,3 +523,85 @@ test('command: a prompt with no session.end before it registers nothing and pass
   expect(await submit($)).toEqual({ text: 'hello' })
   expect(w.registered).toEqual([])
 })
+
+const stubEnablementLayers = (
+  on: any,
+  {
+    repoYaml,
+    userConfig,
+  }: { repoYaml?: string; userConfig?: Record<string, unknown> } = {},
+) => {
+  const repoFile = '/work/docs/conventions/context-budget.yaml'
+  on('settings.read', ($: unknown, e: { source?: string }) => ({
+    value: e.source === 'user' && userConfig ? { pluginConfigs: { 'context-budget@melodic-software': { options: userConfig } } } : {},
+  }))
+  on('fs.stat', ($: unknown, e: { path: string }) => {
+    if (e.path === repoFile && repoYaml !== undefined) {
+      return { value: { kind: 'file', size: repoYaml.length, mtimeMs: 0, isLink: false } }
+    }
+    return { deny: `ENOENT: ${e.path}` }
+  })
+  on('fs.read', ($: unknown, e: { path: string }) => {
+    if (e.path === repoFile && repoYaml !== undefined) return { value: repoYaml }
+    return { deny: `ENOENT: ${e.path}` }
+  })
+}
+
+test('enablement: user false does nothing whatever docs/conventions/context-budget.yaml says', {
+  options: { context_budget_enabled: false, live_display: 'band' },
+}, async ($, on) => {
+  const w = world(on)
+  stubEnablementLayers(on, { repoYaml: 'context_budget_enabled: true\n' })
+  await $.session.start({ cwd: '/work' } as any)
+  await measure($)
+  expect(w.registered).toEqual([])
+  expect(w.usageCalls).toBe(0)
+  expect(await texts(await mountBand($))).toEqual(['other plugin row'])
+})
+
+test('enablement: user unset and repository false does nothing', {
+  options: { live_display: 'band' },
+}, async ($, on) => {
+  const w = world(on)
+  stubEnablementLayers(on, { repoYaml: 'context_budget_enabled: false\n' })
+  await $.session.start({ cwd: '/work' } as any)
+  await measure($)
+  expect(w.registered).toEqual([])
+  expect(w.usageCalls).toBe(0)
+  expect(await texts(await mountBand($))).toEqual(['other plugin row'])
+})
+
+test('enablement: user unset and repository true runs normally', {
+  options: { live_display: 'band' },
+}, async ($, on) => {
+  const w = world(on)
+  stubEnablementLayers(on, { repoYaml: 'context_budget_enabled: true\n' })
+  await $.session.start({ cwd: '/work' } as any)
+  await measure($)
+  expect(w.registered).toEqual([expect.objectContaining({ name: 'context-budget' })])
+  expect(await texts(await mountBand($))).toContain(HEADER)
+})
+
+test('enablement: explicit user true overrides repository false', {
+  options: { context_budget_enabled: true, live_display: 'band' },
+}, async ($, on) => {
+  const w = world(on)
+  stubEnablementLayers(on, {
+    repoYaml: 'context_budget_enabled: false\n',
+    userConfig: { context_budget_enabled: true },
+  })
+  await $.session.start({ cwd: '/work' } as any)
+  await measure($)
+  expect(w.registered).toEqual([expect.objectContaining({ name: 'context-budget' })])
+  expect(await texts(await mountBand($))).toContain(HEADER)
+})
+
+test('enablement: live_display off keeps /context-budget registered while context_budget_enabled is true', {
+  options: { context_budget_enabled: true, live_display: 'off' },
+}, async ($, on) => {
+  const w = world(on)
+  stubEnablementLayers(on)
+  await $.session.start({ cwd: '/work' } as any)
+  expect(w.registered).toEqual([expect.objectContaining({ name: 'context-budget' })])
+  expect(w.usageCalls).toBe(0)
+})

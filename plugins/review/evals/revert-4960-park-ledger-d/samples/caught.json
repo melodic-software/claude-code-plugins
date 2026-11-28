@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Blocking | PR #4960 uses `Closes #3465` while only adding `docs/out-of-scope/provenance-repo-wide-sweep.md` to declare the repo-wide provenance sweep parked. Merging this closes #3465 without implementing the requested work or recorded owner sign-off to close it. | docs/out-of-scope/provenance-repo-wide-sweep.md:1 |\n\nSummary: do not close #3465 with a park-only ledger.",
+      "why": "blocking finding citing the file and naming the Closes park-ledger defect"
+    },
+    {
+      "answer": "Blocking finding: this PR uses `Closes #3465` but implements none of the repo-wide provenance sweep; it only checks in an out-of-scope park document. Remove `Closes #3465` or obtain explicit owner approval before closing the issue.",
+      "why": "high-signal finding naming the reverted park-ledger problem without a line number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings: none. No blocking or advisory findings. The park document is clear and well structured.",
+      "why": "reports no findings on a park PR that closes an active issue without doing the work"
+    },
+    {
+      "answer": "| 1 | Advisory | `provenance-repo-wide-sweep.md:5` wraps awkwardly at 90 columns; consider tightening the rationale bullets for readability. | docs/out-of-scope/provenance-repo-wide-sweep.md:5 |\n\nSummary: minor prose polish only.",
+      "why": "cites a line in the ledger for an unrelated style nit while missing the Closes park-ledger defect"
+    }
+  ]
+}

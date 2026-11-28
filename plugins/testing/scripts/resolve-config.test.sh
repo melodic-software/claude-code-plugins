@@ -28,99 +28,98 @@ reset() {
   mkdir -p "$REPO/docs/conventions"
 }
 
+TY="$REPO/docs/conventions/testing.yaml"
+PY="$REPO/docs/conventions/testing.local.yaml"
+mkdir -p "$REPO/docs/conventions"
+
 run
 assert_eq "no layer file prints nothing" "0:" "$rc:$out"
 
-cat >"$HOME/.claude/testing.yaml" <<'EOF'
-paths:
-  exclude: ['**/*.snap.ts', 'gen/**']
-rules:
-  rule-zero-assertion: error
-EOF
-cat >"$REPO/.claude/testing.yaml" <<'EOF'
+cat >"$TY" <<'EOF'
 # team layer
 adapters:
   disable: [py-unittest]
 paths:
   exclude:
-    - 'legacy/**'
     - 'gen/**'
+    - 'legacy/**'
 rules:
   testing/audit/rule-weak-oracle: off
+  rule-zero-assertion: error
 EOF
-printf "adapters:\r\n  disable: [bash-bats]\r\nrules:\r\n  rule-zero-assertion: warn\r\n" >"$REPO/.claude/testing.local.yaml"
+printf "adapters:\r\n  disable: [bash-bats]\r\npaths:\r\n  exclude: ['gen/**', 'mine/**']\r\nrules:\r\n  rule-zero-assertion: warn\r\n" >"$PY"
 run
-assert_eq "resolves with three layers" 0 "$rc"
-assert_eq "layers print in cascade order: user, team, personal override" \
-  "$HOME/.claude/testing.yaml $REPO/.claude/testing.yaml $REPO/.claude/testing.local.yaml" "$(records layer)"
-assert_eq "lists concatenate across layers, first occurrence kept" "**/*.snap.ts gen/** legacy/**" "$(records paths.exclude)"
+assert_eq "resolves with two layers" 0 "$rc"
+assert_eq "layers print in cascade order: team, personal override" \
+  "$TY $PY" "$(records layer)"
+assert_eq "lists concatenate across layers, first occurrence kept" "gen/** legacy/** mine/**" "$(records paths.exclude)"
 assert_eq "adapter lists concatenate too (the CRLF personal override loads)" "py-unittest bash-bats" "$(records adapters.disable)"
 assert_eq "a later layer's scalar overrides" "warn" "$(records rules.zero-assertion)"
 assert_eq "the full rule id resolves to its slug" "off" "$(records rules.weak-oracle)"
-mkdir -p "$T/proj/.claude"
-printf 'paths:\n  exclude: [proj-only/**]\n' >"$T/proj/.claude/testing.yaml"
+mkdir -p "$T/proj/docs/conventions"
+printf 'paths:\n  exclude: [proj-only/**]\n' >"$T/proj/docs/conventions/testing.yaml"
 rc=0
 out="$(CLAUDE_PROJECT_DIR="$T/proj" bash "$RESOLVE" --root "$REPO" 2>&1)" || rc=$?
 assert_eq "the team layer is the root's, whatever CLAUDE_PROJECT_DIR names" \
-  "$HOME/.claude/testing.yaml $REPO/.claude/testing.yaml $REPO/.claude/testing.local.yaml" "$(records layer)"
+  "$TY $PY" "$(records layer)"
 rc=0
 out="$(cd "$T" && CLAUDE_PROJECT_DIR="$T/proj" bash "$RESOLVE" 2>&1)" || rc=$?
 assert_contains "outside a repository with no --root, CLAUDE_PROJECT_DIR is the root" "$(records paths.exclude)" "proj-only/**"
 
 reset
-printf 'paths:\n  exclude: [a]\n  excludes: [b]\n' >"$REPO/.claude/testing.yaml"
+printf 'paths:\n  exclude: [a]\n  excludes: [b]\n' >"$TY"
 run
 assert_eq "an unknown key exits 2" 2 "$rc"
-assert_contains "and names the file and line" "$out" "$REPO/.claude/testing.yaml:3: unknown key: paths.excludes"
-printf 'rules:\n  rule-made-up: off\n' >"$REPO/.claude/testing.yaml"
+assert_contains "and names the file and line" "$out" "$TY:3: unknown key: paths.excludes"
+printf 'rules:\n  rule-made-up: off\n' >"$TY"
 run
 assert_eq "an unknown rule id exits 2" "2" "$rc"
 assert_contains "and names it" "$out" "unknown rule: rule-made-up"
-printf 'rules:\n  test-weaken-block: error\n' >"$REPO/.claude/testing.yaml"
+printf 'rules:\n  test-weaken-block: error\n' >"$TY"
 run
 assert_eq "the test-weaken hook's block switch is a rule key" "0:error" "$rc:$(records rules.test-weaken-block)"
-printf 'rules:\n  rule-test-weaken-block: warn\n' >"$REPO/.claude/testing.yaml"
+printf 'rules:\n  rule-test-weaken-block: warn\n' >"$TY"
 run
 assert_eq "also spelled rule-test-weaken-block, the form setup apply --rule writes" "0:warn" "$rc:$(records rules.test-weaken-block)"
-printf 'rules:\n  test-weaken-block: loud\n' >"$REPO/.claude/testing.yaml"
+printf 'rules:\n  test-weaken-block: loud\n' >"$TY"
 run
 assert_eq "and takes only off, warn or error" 2 "$rc"
-printf 'rules:\n  rule-weak-oracle: loud\n' >"$REPO/.claude/testing.yaml"
+printf 'rules:\n  rule-weak-oracle: loud\n' >"$TY"
 run
 assert_contains "a rule level other than off, warn or error is refused" "$rc $out" "2 "
-printf 'adapters:\n  disable: [js-nope]\n' >"$REPO/.claude/testing.yaml"
+printf 'adapters:\n  disable: [js-nope]\n' >"$TY"
 run
 assert_eq "an unknown adapter id exits 2" 2 "$rc"
-assert_contains "and names it at its file and line" "$out" "$REPO/.claude/testing.yaml:2: unknown adapter: js-nope"
-printf 'adapters:\n  enable:\n    - js-vitest\n    - js-vitset\n' >"$REPO/.claude/testing.yaml"
+assert_contains "and names it at its file and line" "$out" "$TY:2: unknown adapter: js-nope"
+printf 'adapters:\n  enable:\n    - js-vitest\n    - js-vitset\n' >"$TY"
 run --quick
 assert_eq "--quick still refuses an unknown adapter id" 2 "$rc"
-assert_contains "at its file and line" "$out" "$REPO/.claude/testing.yaml:4: unknown adapter: js-vitset"
-printf 'adapter_dirs: [~/adapters]\n' >"$REPO/.claude/testing.yaml"
+assert_contains "at its file and line" "$out" "$TY:4: unknown adapter: js-vitset"
+printf 'adapter_dirs: [~/adapters]\n' >"$TY"
 mkdir -p "$HOME/adapters"
 run
 assert_eq "a leading ~/ in adapter_dirs is the home directory" "0:$HOME/adapters" "$rc:$(records adapter_dirs)"
-printf 'project_kinds:\n  - %s\n' "'**/Ops.*/*.csproj=operational'" >"$REPO/.claude/testing.yaml"
+printf 'project_kinds:\n  - %s\n' "'**/Ops.*/*.csproj=operational'" >"$TY"
 run
 assert_eq "a project_kinds entry resolves as written" "0:**/Ops.*/*.csproj=operational" "$rc:$(records project_kinds)"
-printf 'project_kinds:\n  - %s\n' "'**/Ops.*/*.csproj=risky'" >"$REPO/.claude/testing.yaml"
+printf 'project_kinds:\n  - %s\n' "'**/Ops.*/*.csproj=risky'" >"$TY"
 run
 assert_eq "a project_kinds entry with an unknown kind exits 2" 2 "$rc"
-printf 'extend:\n  js-vitest:\n    language: [js]\n' >"$REPO/.claude/testing.yaml"
+printf 'extend:\n  js-vitest:\n    language: [js]\n' >"$TY"
 run
 assert_eq "extend of a scalar field exits 2" 2 "$rc"
-printf 'extend:\n  js-vitest:\n    assertion:\n      calls: [x\\d]\n' >"$REPO/.claude/testing.yaml"
+printf 'extend:\n  js-vitest:\n    assertion:\n      calls: [x\\d]\n' >"$TY"
 run
 assert_eq "an extend regex gets the loader's portability check" 2 "$rc"
 assert_contains "at its file and line" "$out" "testing.yaml:4: non-portable regex escape"
-printf 'extend:\n  js-nope:\n    files: [x.ts]\n' >"$REPO/.claude/testing.yaml"
+printf 'extend:\n  js-nope:\n    files: [x.ts]\n' >"$TY"
 run
 assert_eq "extend of an unknown adapter exits 2" 2 "$rc"
-printf 'paths:\n  exclude:\n    - **/*.test.ts\n' >"$REPO/.claude/testing.yaml"
+printf 'paths:\n  exclude:\n    - **/*.test.ts\n' >"$TY"
 run
 assert_eq "an unquoted glob starting with * exits 2" 2 "$rc"
 assert_contains "and says to quote it" "$out" "single-quote"
-printf 'adapter_dirs: [missing]\n' >"$REPO/.claude/testing.yaml"
+printf 'adapter_dirs: [missing]\n' >"$TY"
 run
 assert_eq "an adapter_dirs entry that is not a directory exits 2" 2 "$rc"
 
@@ -130,7 +129,7 @@ id: js-spec
 extends: js-vitest
 files: ['*.check.ts']
 EOF
-cat >"$REPO/.claude/testing.yaml" <<'EOF'
+cat >"$TY" <<'EOF'
 adapter_dirs: [tools/adapters]
 adapters:
   enable: [js-spec, js-vitest]
@@ -146,10 +145,10 @@ assert_eq "adapter_dirs resolves to an absolute directory" "$REPO/tools/adapters
 assert_eq "extend prints one record per item" "*.it.ts *.test.ts" "$(records extend.js-vitest.files)"
 assert_eq "an id from adapter_dirs is a known adapter" "js-spec js-vitest" "$(records adapters.enable)"
 assert_eq "every consumer adapter or extend glob no shipped hook row matches is listed" "*.it.ts *.check.ts" "$(records hook.uncovered)"
-printf "paths:\n  include: ['legacy/**', 'tests/*.py']\n" >"$REPO/.claude/testing.yaml"
+printf "paths:\n  include: ['legacy/**', 'tests/*.py']\n" >"$TY"
 run
 assert_eq "a paths.include glob never feeds hook.uncovered" "0:" "$rc:$(records hook.uncovered)"
-cat >"$REPO/.claude/testing.yaml" <<'EOF'
+cat >"$TY" <<'EOF'
 adapter_dirs: [tools/adapters]
 adapters:
   enable: [js-spec, js-vitest]
@@ -182,19 +181,19 @@ match 1 'src/[x].ts' 'src/x.ts'
 
 reset
 printf 'paths:\n  exclude: [secret]\n' >"$T/foreign.yaml"
-ln -s ../../foreign.yaml "$REPO/.claude/testing.yaml"
+ln -s ../../../foreign.yaml "$TY"
 run
 assert_eq "a symlinked team layer exits 2" 2 "$rc"
-assert_contains "and names it" "$out" "$REPO/.claude/testing.yaml"
+assert_contains "and names it" "$out" "$TY"
 assert_eq "without parsing the file it points at" "" "$(grep -F secret <<<"$out")"
-rm -f "$REPO/.claude/testing.yaml"
-mv "$REPO/.claude" "$T/real-claude"
-ln -s ../real-claude "$REPO/.claude"
-cp "$T/foreign.yaml" "$T/real-claude/testing.local.yaml"
+rm -f "$TY"
+rm -rf "$REPO/docs/conventions"
+mkdir -p "$T/real-conventions"
+cp "$T/foreign.yaml" "$T/real-conventions/testing.local.yaml"
+ln -s "$T/real-conventions" "$REPO/docs/conventions"
 run
-assert_eq "a layer under a symlinked .claude exits 2" 2 "$rc"
-rm "$REPO/.claude" "$T/real-claude/testing.local.yaml"
-mv "$T/real-claude" "$REPO/.claude"
+assert_eq "a layer under a symlinked conventions dir exits 2" 2 "$rc"
+rm -f "$REPO/docs/conventions" "$T/real-conventions/testing.local.yaml"
 
 DOCS="$REPO/docs/conventions/testing.md"
 mkdir -p "$REPO/docs/conventions"
@@ -219,22 +218,17 @@ assert_eq "a docs block alone is the team layer" "0:$DOCS" "$rc:$(records layer)
 assert_eq "and its keys resolve" "legacy/**" "$(records paths.exclude)"
 assert_eq "the block's first and last lines never print as records" "" "$(records block)"
 printf 'adapters:\n  disable: [bash-bats]\n' >"$REPO/.claude/testing.yaml"
-printf 'rules:\n  rule-zero-assertion: warn\n' >"$REPO/.claude/testing.local.yaml"
+printf 'rules:\n  rule-zero-assertion: warn\n' >"$PY"
 run
-assert_eq "with both, the docs block is the team layer and the .claude file is skipped" \
-  "$DOCS $REPO/.claude/testing.local.yaml" "$(records layer)"
-assert_eq "no key from the ignored .claude file merges in" "py-unittest" "$(records adapters.disable)"
+assert_eq "with docs block and personal override, retired .claude/testing.yaml is ignored" \
+  "$DOCS $PY" "$(records layer)"
+assert_eq "no key from the retired .claude file merges in" "py-unittest" "$(records adapters.disable)"
 assert_eq "the personal override still merges over the docs block" "warn" "$(records rules.zero-assertion)"
-assert_contains "both present: one warning names both paths" "$(errs)" "$DOCS and $REPO/.claude/testing.yaml both exist; using the docs block"
-assert_contains "the old personal override draws its own warning" "$(errs)" \
-  "$REPO/.claude/testing.local.yaml is an old location, still read for now; move it to docs/conventions/testing.local.yaml"
-assert_eq "one line each" 2 "$(errs | wc -l | tr -d ' ')"
-rm -f "$REPO/.claude/testing.local.yaml"
-rm -f "$DOCS"
+assert_contains "and prints a retired-file notice for .claude/testing.yaml" "$(errs)" "retired config file $REPO/.claude/testing.yaml is not read; settings in it no longer apply"
+rm -f "$PY" "$DOCS"
 run
-assert_eq "a .claude file alone is the team layer" "$REPO/.claude/testing.yaml" "$(records layer)"
-OLD_TEAM_WARN="resolve-config: warning: $REPO/.claude/testing.yaml is an old location, still read for now; move it to docs/conventions/testing.yaml"
-assert_eq "with one warning naming where to move it" "$OLD_TEAM_WARN" "$(errs)"
+assert_eq "a retired .claude/testing.yaml alone emits no records" "0:" "$rc:$(records layer)"
+assert_contains "with a retired-file notice on stderr" "$(errs)" "retired config file $REPO/.claude/testing.yaml is not read; settings in it no longer apply"
 cat >"$DOCS" <<'EOF'
 # Testing
 
@@ -252,18 +246,11 @@ adapters:
 ```
 EOF
 run
-assert_eq "a docs file with no block falls back to the .claude file" "$REPO/.claude/testing.yaml" "$(records layer)"
-assert_eq "using its keys" "bash-bats" "$(records adapters.disable)"
-assert_eq "with the old-location warning only" "$OLD_TEAM_WARN" "$(errs)"
+assert_eq "a docs file with no block emits no records even beside retired .claude/testing.yaml" "0:" "$rc:$(records layer)"
 rm -f "$REPO/.claude/testing.yaml"
-run
-assert_eq "no block and no .claude file prints nothing" "0:" "$rc:$out"
 printf '# Testing\n\n```yaml config\n```\n' >"$DOCS"
-printf 'adapters:\n  disable: [bash-bats]\n' >"$REPO/.claude/testing.yaml"
 run
-assert_eq "an empty block is a block: the docs file wins" "$DOCS" "$(records layer)"
-assert_eq "so the .claude file's keys do not load" "" "$(records adapters.disable)"
-rm -f "$REPO/.claude/testing.yaml"
+assert_eq "an empty block is a block: the docs file loads" "$DOCS" "$(records layer)"
 
 cat >"$DOCS" <<'EOF'
 # Testing
@@ -334,25 +321,23 @@ assert_eq "a docs file under a symlinked directory exits 2" 2 "$rc"
 rm -f "$REPO/docs/conventions"
 reset
 
-TY="$REPO/docs/conventions/testing.yaml"
 printf '# yaml-language-server: $schema=x.json\npaths:\n  exclude: [yaml-team/**]\n' >"$TY"
 run
 assert_eq "docs/conventions/testing.yaml alone is the team layer" "0:$TY" "$rc:$(records layer)"
 assert_eq "and its keys resolve" "yaml-team/**" "$(records paths.exclude)"
 printf '# Testing\n\n```yaml config\npaths:\n  exclude: [md-block/**]\n```\n' >"$DOCS"
 printf 'paths:\n  exclude: [claude-file/**]\n' >"$REPO/.claude/testing.yaml"
-printf 'rules:\n  rule-zero-assertion: warn\n' >"$REPO/.claude/testing.local.yaml"
+printf 'rules:\n  rule-zero-assertion: warn\n' >"$PY"
 run
-assert_eq "testing.yaml wins over the docs block and the .claude file" \
-  "$TY $REPO/.claude/testing.local.yaml" "$(records layer)"
+assert_eq "testing.yaml wins over the docs block and retired .claude file is ignored" \
+  "$TY $PY" "$(records layer)"
 assert_eq "no key from either ignored file merges in" "yaml-team/**" "$(records paths.exclude)"
 assert_eq "the personal override still merges over testing.yaml" "warn" "$(records rules.zero-assertion)"
 assert_contains "one warning names testing.yaml and the docs file" "$(errs)" "$TY and $DOCS both exist; using $TY"
-assert_contains "one warning names testing.yaml and the .claude file" "$(errs)" "$TY and $REPO/.claude/testing.yaml both exist; using $TY"
-assert_contains "one warning names the old personal override" "$(errs)" "$REPO/.claude/testing.local.yaml is an old location"
-assert_eq "three warnings, one line each" 3 "$(errs | wc -l | tr -d ' ')"
+assert_contains "and one retired-file notice names .claude/testing.yaml" "$(errs)" "retired config file $REPO/.claude/testing.yaml is not read; settings in it no longer apply"
+assert_eq "only those two notices print" 2 "$(errs | wc -l | tr -d ' ')"
 printf '# Testing\n\nProse only.\n' >"$DOCS"
-rm -f "$REPO/.claude/testing.yaml" "$REPO/.claude/testing.local.yaml"
+rm -f "$REPO/.claude/testing.yaml" "$PY"
 assert_eq "a docs file of prose with no block draws no warning" "" "$(errs)"
 printf 'adapters:\n  enable: [js-vitset]\n' >"$TY"
 run
@@ -399,36 +384,20 @@ assert_eq "userConfig supplies a value when no file sets the key" \
   "e2e_driver	playwright	userConfig
 reuse_running_instance	false	userConfig" "$(head -2 <<<"$out")"
 printf 'e2e_driver: run\n' >"$HOME/.claude/testing.yaml"
+printf 'e2e_driver: run\n' >"$REPO/.claude/testing.local.yaml"
 erun
-assert_eq "the old user-global file still applies where userConfig sets nothing" "e2e_driver	run	$HOME/.claude/testing.yaml" "$(head -1 <<<"$out")"
-assert_eq "with one warning naming it and where to move it" \
-  "resolve-config: warning: $HOME/.claude/testing.yaml is an old location, still read for now: there is no user-global file layer; move each setting to its testing userConfig option, else to docs/conventions/testing.local.yaml" "$err"
-erun --user e2e_driver=auto
-assert_eq "a userConfig value equal to the default does not hide it" "e2e_driver	run	$HOME/.claude/testing.yaml" "$(head -1 <<<"$out")"
-erun --user e2e_driver=playwright
-assert_eq "userConfig wins over the old user-global file" "e2e_driver	playwright	userConfig" "$(head -1 <<<"$out")"
+assert_eq "retired ~/.claude/testing.yaml and .claude/testing.local.yaml are ignored in e2e mode" \
+  "e2e_driver	auto	default" "$(head -1 <<<"$out")"
+assert_contains "naming retired .claude/testing.local.yaml on stderr" "$err" "retired config file $REPO/.claude/testing.local.yaml is not read; settings in it no longer apply"
+assert_contains "naming retired ~/.claude/testing.yaml on stderr" "$err" "retired config file $HOME/.claude/testing.yaml is not read; settings in it no longer apply"
 printf "e2e_driver: 'harness'  # the repo's own specs\n" >"$TY"
 erun --user e2e_driver=playwright
 assert_eq "testing.yaml wins over userConfig" "e2e_driver	harness	$TY" "$(head -1 <<<"$out")"
-rm -f "$HOME/.claude/testing.yaml"
-PY="$REPO/docs/conventions/testing.local.yaml"
 printf 'e2e_driver: chrome\r\n' >"$PY"
 erun
 assert_eq "the personal override wins over testing.yaml (CRLF loads)" "e2e_driver	chrome	$PY" "$(head -1 <<<"$out")"
-assert_eq "with nothing on stderr" "" "$err"
-printf 'e2e_driver: run\nreuse_running_instance: true\n' >"$REPO/.claude/testing.local.yaml"
-erun
-assert_eq "beside the home file, the old personal override is not read" \
-  "e2e_driver	chrome	$PY
-reuse_running_instance	auto	default" "$(head -2 <<<"$out")"
-assert_eq "and one warning names both" \
-  "resolve-config: warning: $PY and $REPO/.claude/testing.local.yaml both exist; using $PY, ignoring the old file: move any setting it still holds into $PY" "$err"
-rm -f "$PY"
-erun
-assert_eq "alone, the old personal override still applies" "e2e_driver	run	$REPO/.claude/testing.local.yaml" "$(head -1 <<<"$out")"
-assert_contains "with a warning naming where to move it" "$err" \
-  "$REPO/.claude/testing.local.yaml is an old location, still read for now; move it to docs/conventions/testing.local.yaml"
-rm -f "$REPO/.claude/testing.local.yaml"
+assert_contains "with a retired-file notice on stderr for ~/.claude/testing.yaml" "$err" "retired config file $HOME/.claude/testing.yaml is not read; settings in it no longer apply"
+rm -f "$HOME/.claude/testing.yaml" "$REPO/.claude/testing.local.yaml" "$PY"
 
 printf 'e2e_driver: cdp\n' >"$TY"
 erun --user e2e_driver=playwright
@@ -447,7 +416,6 @@ printf 'e2e_driver: "$(touch %s/pwned)"\n' "$T" >"$TY"
 erun
 assert_eq "a command substitution in a value is text, never run" "0:no" "$rc:$([[ -e "$T/pwned" ]] && echo yes || echo no)"
 assert_contains "and is named as an unknown value" "$err" "unknown value '\$(touch $T/pwned)'"
-printf 'e2e_driver: run\n' >"$HOME/.claude/testing.yaml"
 printf 'e2e_driver: [run, chrome]\n' >"$TY"
 erun --user e2e_driver=playwright
 assert_eq "a flow list resolves the default, not a lower layer" "0:e2e_driver	auto	default" "$rc:$(head -1 <<<"$out")"
@@ -457,17 +425,17 @@ erun
 assert_eq "a nested map resolves the default" "0:e2e_driver	auto	default" "$rc:$(head -1 <<<"$out")"
 assert_contains "naming the file and key" "$err" "$TY: e2e_driver: no scalar value"
 printf "e2e_driver: chrome\n" >"$TY"
-printf "e2e_driver: 'run\n" >"$REPO/.claude/testing.local.yaml"
+printf "e2e_driver: 'run\n" >"$PY"
 erun
 assert_eq "an unclosed quote in the personal override resolves the default" "0:e2e_driver	auto	default" "$rc:$(head -1 <<<"$out")"
-assert_contains "naming the personal override" "$err" "$REPO/.claude/testing.local.yaml: e2e_driver: unknown value ''run'"
-rm -f "$REPO/.claude/testing.local.yaml" "$HOME/.claude/testing.yaml"
+assert_contains "naming the personal override" "$err" "$PY: e2e_driver: unknown value ''run'"
+rm -f "$PY"
 
 rm -f "$TY"
 printf '# Testing\n\n```yaml config\ne2e_driver: run\n```\n' >"$DOCS"
 printf 'e2e_driver: run\n' >"$REPO/.claude/testing.yaml"
 erun
-assert_eq "the docs block and .claude/testing.yaml are not read for the keys" "e2e_driver	auto	default" "$(head -1 <<<"$out")"
+assert_eq "the docs block and retired .claude/testing.yaml are not read for the keys" "e2e_driver	auto	default" "$(head -1 <<<"$out")"
 rm -f "$DOCS" "$REPO/.claude/testing.yaml"
 
 printf 'e2e_driver: playwright\nadapters:\n  enable: [js-vitset]\nrules:\n  testing/audit/rule-weak-oracle: off\n' >"$TY"
@@ -475,11 +443,11 @@ erun
 assert_eq "an invalid scan config still resolves the run-e2e keys" "0:e2e_driver	playwright	$TY" "$rc:$(head -1 <<<"$out")"
 mkdir -p "$T/elsewhere"
 printf 'e2e_driver: chrome\n' >"$T/elsewhere/personal.yaml"
-ln -s "$T/elsewhere/personal.yaml" "$REPO/.claude/testing.local.yaml"
+ln -s "$T/elsewhere/personal.yaml" "$PY"
 erun
 assert_eq "a symlinked personal override is skipped, not followed" "0:e2e_driver	playwright	$TY" "$rc:$(head -1 <<<"$out")"
-assert_contains "with a warning naming it" "$err" "skipping a layer that is a symlink or under a symlinked directory: $REPO/.claude/testing.local.yaml"
-rm -f "$REPO/.claude/testing.local.yaml"
+assert_contains "with a warning naming it" "$err" "skipping a layer that is a symlink or under a symlinked directory: $PY"
+rm -f "$PY"
 
 printf 'feature_map_dir: docs/map\npaths:\n  exclude: [e2e-file/**]\n' >"$TY"
 printf 'feature_map_dir: .claude/skills/feature-map\n' >"$PY"
@@ -555,31 +523,26 @@ wrun
 assert_eq "testing.yaml sets both keys and is the source" \
   "0:tdd_refactor_step	off	$TY
 first_test	unit	$TY" "$rc:$out"
-printf "tdd_refactor_step: 'on'\n" >"$REPO/.claude/testing.local.yaml"
+printf "tdd_refactor_step: 'on'\n" >"$PY"
 wrun
 assert_eq "the personal override wins over testing.yaml, a quoted value as plain" \
-  "tdd_refactor_step	on	$REPO/.claude/testing.local.yaml
+  "tdd_refactor_step	on	$PY
 first_test	unit	$TY" "$out"
-rm -f "$REPO/.claude/testing.local.yaml" "$TY"
+rm -f "$PY" "$TY"
 printf 'tdd_refactor_step: off\nfirst_test: unit\n' >"$HOME/.claude/testing.yaml"
 wrun
-assert_eq "the user-global file is not read for either key" \
+assert_eq "retired ~/.claude/testing.yaml is ignored for write keys" \
   "0:tdd_refactor_step	on	default
 first_test	user-flow	default" "$rc:$out"
-assert_contains "and says so for tdd_refactor_step" "$err" \
-  "$HOME/.claude/testing.yaml: tdd_refactor_step is a repository setting; the user-global layer is not read for it"
-assert_contains "and for first_test" "$err" \
-  "$HOME/.claude/testing.yaml: first_test is a repository setting; the user-global layer is not read for it"
+assert_contains "with a retired-file notice on stderr for ~/.claude/testing.yaml" "$err" "retired config file $HOME/.claude/testing.yaml is not read; settings in it no longer apply"
 rm -f "$HOME/.claude/testing.yaml"
 printf 'tdd_refactor_step: sometimes\nfirst_test: e2e\n' >"$TY"
-printf 'tdd_refactor_step: off\n' >"$HOME/.claude/testing.yaml"
 wrun
 assert_eq "a rejected value exits 0 and takes the default" \
   "0:tdd_refactor_step	on	default
 first_test	user-flow	default" "$rc:$out"
 assert_contains "naming the file, key and value for tdd_refactor_step" "$err" "$TY: tdd_refactor_step: unknown value 'sometimes'"
 assert_contains "and for first_test" "$err" "$TY: first_test: unknown value 'e2e'"
-rm -f "$HOME/.claude/testing.yaml"
 printf 'tdd_refactor_step: true\n' >"$TY"
 wrun
 assert_eq "a YAML boolean is not on or off" "tdd_refactor_step	on	default" "$(head -1 <<<"$out")"
@@ -599,8 +562,7 @@ err="$(cat "$err")"
 assert_eq "write outside a repository with no --root: both defaults" \
   "0:tdd_refactor_step	on	default
 first_test	user-flow	default" "$rc:$out"
-assert_contains "and the user-global file is still not read" "$err" \
-  "$HOME/.claude/testing.yaml: tdd_refactor_step is a repository setting; the user-global layer is not read for it"
+assert_contains "and retired ~/.claude/testing.yaml emits a retired-file notice" "$err" "retired config file $HOME/.claude/testing.yaml is not read; settings in it no longer apply"
 rm -f "$HOME/.claude/testing.yaml"
 printf 'tdd_refactor_step: off\nfirst_test: unit\npaths:\n  exclude: [write-file/**]\n' >"$TY"
 run
@@ -657,13 +619,13 @@ mrun --user map_unit=part --user map_entry_points=all
 assert_eq "testing.yaml wins over userConfig" \
   "map_unit	feature	$TY
 map_entry_points	first	$TY" "$(head -2 <<<"$out")"
-printf 'map_unit: part\n' >"$REPO/.claude/testing.local.yaml"
+printf 'map_unit: part\n' >"$PY"
 printf 'map_entry_points: all\n' >"$HOME/.claude/testing.yaml"
 mrun
-assert_eq "the personal override wins over testing.yaml, which wins over the user-global file" \
-  "map_unit	part	$REPO/.claude/testing.local.yaml
+assert_eq "the personal override wins over testing.yaml and retired user-global file is ignored" \
+  "map_unit	part	$PY
 map_entry_points	first	$TY" "$(head -2 <<<"$out")"
-rm -f "$REPO/.claude/testing.local.yaml" "$HOME/.claude/testing.yaml"
+rm -f "$PY" "$HOME/.claude/testing.yaml"
 printf 'map_unit: module\n' >"$TY"
 mrun --user map_unit=part
 assert_eq "an unknown value takes the default, not userConfig" "0:map_unit	feature	default" "$rc:$(head -1 <<<"$out")"
@@ -702,8 +664,9 @@ assert_eq "the e2e keys read the bound home too" "e2e_driver	chrome	$REPO/config
 rm -f "$REPO/config/testing.yaml" "$REPO/config/testing.local.yaml"
 printf 'rules:\n  rule-zero-assertion: warn\n' >"$REPO/.claude/testing.local.yaml"
 run
-assert_eq "an old personal override alone still applies" "0:warn" "$rc:$(records rules.zero-assertion)"
-assert_contains "naming the bound home as where to move it" "$(errs)" "move it to config/testing.local.yaml"
+assert_eq "a retired .claude/testing.local.yaml alone emits no records even with a bound home" "0:" "$rc:$(records layer)"
+assert_contains "with a retired-file notice on stderr" "$(errs)" "retired config file $REPO/.claude/testing.local.yaml is not read; settings in it no longer apply"
+rm -f "$REPO/.claude/testing.local.yaml"
 printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `missing`.\n<!-- END GENERATED: convention-home -->\n' >"$REPO/AGENTS.md"
 run
 assert_eq "a broken convention-home pointer stops the scan config" 2 "$rc"

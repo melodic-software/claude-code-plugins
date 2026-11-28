@@ -1,5 +1,9 @@
 ---
-type: regex
-pattern: '(?<![\w.-])SKILL\.md`?(?::L?|#L|,? \(?lines? )(?:42|43|45|48|49|96|97|98|99|100|101|102|103|104|105|106|107|108|109|110|111|112|128|129|130|131|132|133|134|135|274|275|276|277|278|279|280|281|282|283|284|285|286|287|288)(?!\d)'
-flags: i
+type: llm
 ---
+
+The answer is a code review of PR #12201, which trims the body of `plugins/ai-slop/skills/audit/SKILL.md` (347 to 336 lines) claiming "measured no-loss" even though 7 of the 9 read cases sit at ceiling 1.000 on both versions, 1 of the 10 cases (`audit-over-compression-boundary`) failed to load (0 runs), and no negative or detection control was run. PR #12228 reverted it after a negative control showed replacing the whole body with a single generic line scored 0.930 vs 0.950 (delta -0.020, non-inferior), proving the suite could not detect a body loss.
+
+PASS if a finding in the review (blocking or advisory) flags that the PR's "measured no-loss" claim is unsupported because most cases are saturated at ceiling (7 of 9 at 1.000) with no negative or detection control proving the suite can detect a degraded body (and/or that `audit-over-compression-boundary`, the compression boundary case, failed to load and produced 0 runs). Citing a specific file or line number is optional; findings on other grounds do not disqualify it.
+
+FAIL if the review answers with no findings (such as "Findings: none" or a clean approval), reports only unrelated prose or formatting nits on `SKILL.md` without flagging the unmeasured/ceiling-saturated suite, missing negative control, or unloaded case, or holds no review.

@@ -34,6 +34,12 @@
       "type": "file",
       "title": "Script runtime",
       "description": "Path to the Node, Bun or Deno binary that runs the chart scripts. Unset lets the launcher pick the first supported one on PATH."
+    },
+    "branding": {
+      "type": "string",
+      "title": "Rendered-view branding (JSON)",
+      "description": "Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored.",
+      "default": ""
     }
   }
 }

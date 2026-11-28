@@ -99,7 +99,13 @@ A mod cannot reach, or this one does not hook:
 
 ## Fail-closed behavior
 
-Masking is on whenever the plugin is enabled. If a masking hook fails or runs past its time
+Masking is on whenever the plugin and `display_redaction_enabled` (boolean, default `true`) are on.
+Because masking is a display-side security control
+(`docs/contracts/hook-enablement/README.md#the-per-hook-setting`), a `false` in a repository's
+`docs/conventions/display-redaction.yaml` (schema in
+[`schemas/display-redaction.schema.json`](schemas/display-redaction.schema.json)) is ignored so a
+repository cannot turn off redaction; only your own `display_redaction_enabled: false` (or managed
+policy) turns the module off. If a masking hook fails or runs past its time
 budget, the row draws `[hidden]` in place of all its text, in either style, not the original; that
 fallback runs none of your patterns, so it finishes within its own time limit.
 
@@ -127,6 +133,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| `display_redaction_enabled` | boolean | `true` | Runs the screen masking module that hides emails and secret-shaped text. Default true. A repository false in docs/conventions/display-redaction.yaml is ignored so a repository cannot turn off redaction; only your own false here turns it off. |
 | `mask_style` | string | `"block"` | How a match in a reply, prompt or command output is hidden. block draws it as a solid bar that shows the value while the pointer is over it; text replaces it with \[hidden\]. Tool rows always use \[hidden\]. |
 | `extra_patterns` | string (multiple) | *(none)* | Regular expressions to mask in addition to the built-in email and secret shapes, one per list entry. A pattern that is invalid, over 200 characters, can match empty text, or could backtrack too long (nested or stacked quantifiers, alternation inside a repeated group, a backreference) is skipped. |
 

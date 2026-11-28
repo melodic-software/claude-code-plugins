@@ -110,7 +110,7 @@ Two surfaces with two different owners.
 | Option | Type | Effect |
 |--------|------|--------|
 | `output_dir` | directory | Where `--file` writes reports. **Leave unset** and reports go to the plugin's own persistent data directory. Set it to a path in your repository if you want bug reports committed alongside your code. |
-| `gotchas_file` | file | A Markdown file of your own whose `## Gotchas` section `scan` and `write` read in every repository. It replaces `~/.claude/bugs.md`. |
+| `gotchas_file` | file | A Markdown file of your own whose `## Gotchas` section `scan` and `write` read in every repository. |
 
 Changes to it go through Claude Code's own plugin configuration. When checking when Claude Code
 prompts for the value and where it stores it, fetch
@@ -128,17 +128,14 @@ concatenates after the bundled gotchas when
 repo-specific is filed as an issue on this marketplace (`melodic-software/claude-code-plugins`) for
 curation into the shipped skill. The config is layered per the marketplace's
 config-cascade convention: the `gotchas_file` option, this tracked team file, and a gitignored
-personal override, `docs/conventions/bugs.local.md`. While an old `~/.claude/bugs.md` or
-`.claude/bugs.local.md` exists, it is still read where the new file for its layer is absent, and
-each run warns you to move it with `/bugs:setup apply`. All layers are optional: with no config at all, `scan` rotates over bundled generic
+personal override, `docs/conventions/bugs.local.md`. All layers are optional: with no config at all, `scan` rotates over bundled generic
 default focus areas. Keys, defaults, layer order, and per-key merge semantics live in
 [`reference/config.md`](reference/config.md), their single home.
 
 Run `/bugs:setup` to work on either surface. `check` (the default) reports both read-only:
-the rendered `output_dir`, which layer supplied each focus area config value, and each old config file.
+the rendered `output_dir`, and which layer supplied each focus area config value.
 `apply` writes the tracked file. It drafts focus area candidates from your repository and confirms them
-one at a time. It also moves each old config file to its new home after a preview and your yes,
-checks the new home resolves the same values, then deletes the old file. It never touches
+one at a time. It never touches
 settings, `pluginConfigs`, or your `.gitignore`.
 
 Project-specific conventions, naming, areas, tracker choice, priority labels, are
@@ -155,7 +152,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `output_dir` | directory | *(none)* | Where --file writes reports. When unset, reports go to the plugin's own persistent data directory. Set this to a path in your repository if you want bug reports committed alongside your code. |
-| `gotchas_file` | file | *(none)* | A Markdown file of your own whose ## Gotchas section /bugs:scan and /bugs:write read in every repository, before the team and personal override layers. Replaces ~/.claude/bugs.md, which /bugs:setup apply moves here. |
+| `gotchas_file` | file | *(none)* | A Markdown file of your own whose ## Gotchas section /bugs:scan and /bugs:write read in every repository, before the team and personal override layers. |
 
 ### How to set these
 

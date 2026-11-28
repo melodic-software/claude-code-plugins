@@ -12,6 +12,12 @@
   },
   "types": "./types/index.d.ts",
   "userConfig": {
+    "themes_enabled": {
+      "type": "boolean",
+      "title": "Backdrop themes module",
+      "description": "Runs the backdrop themes module (bedroom backdrop, shader, and /bedroom command). Default true. Set false to turn the module off; overrides docs/conventions/themes.yaml for this user. Feature options such as sound keep their own defaults when on.",
+      "default": true
+    },
     "time": {
       "type": "string",
       "title": "Bedroom: time of day",

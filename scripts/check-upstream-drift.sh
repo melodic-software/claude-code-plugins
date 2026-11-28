@@ -218,14 +218,19 @@ anon_tree() {
   esac
   OUT_TREE="$(anon_git -C "$ANON_REPO" ls-tree -r -z --full-tree "$3" |
     awk -v RS='\0' '
-      { i = index($0, "\t"); split(substr($0, 1, i - 1), m, " "); p = substr($0, i + 1) }
-      p ~ /[[:cntrl:]]/ { control = 1 }
-      !control && m[2] == "blob" { print m[3] " " p }
-      END { if (control) print "control" }')" ||
+      { i = index($0, "\t"); split(substr($0, 1, i - 1), m, " "); p = substr($0, i + 1); gsub(/[[:cntrl:]]/, "\001", p) }
+      m[2] == "blob" || m[2] == "commit" { print m[2] " " m[3] " " p }')" ||
     die "git ls-tree $1/$2@$3 failed"
-  [[ "$OUT_TREE" != control && "$OUT_TREE" != *$'\n'control ]] ||
-    die "$1/$2@${3:0:12}: a tree path holds a control character"
-  return 0
+  ! grep -q '[[:cntrl:]]' <<<"$OUT_TREE" || die "$1/$2@${3:0:12}: a tree path holds a control character"
+}
+
+declare -A GIT=() REST=()
+use_git() { [[ -n "${ANON[$1]:-}" || -n "${GIT[$1/$2]:-}" ]]; }
+git_to_rest() {
+  [[ -z "${ANON[$1]:-}" ]] || return 1
+  unset "GIT[$1/$2]"
+  REST[$1/$2]=1
+  PAGE_UNREACH=""
 }
 
 check_tree_lines() {
@@ -250,18 +255,22 @@ head_sha() {
     sha="$(tr -d '[:space:]' <"$FIXTURE/$1__$2/HEAD")"
   else
     local rc=6
-    [[ -n "${ANON[$1]:-}" ]] || {
+    use_git "$1" "$2" || {
       api "$1" "repos/$1/$2/commits/HEAD"
       rc=$?
     }
     case $rc in
     0) sha="$(jq -r '.sha // empty' <<<"$OUT_API")" ;;
     6)
-      anon_head "$1" "$2" || {
+      if anon_head "$1" "$2"; then
+        sha="$OUT_SHA"
+      elif git_to_rest "$1" "$2"; then
+        head_sha "$1" "$2"
+        return
+      else
         OUT_SHA=""
         return 0
-      }
-      sha="$OUT_SHA"
+      fi
       ;;
     *) die "gh api repos/$1/$2/commits/HEAD failed${API_STATUS:+ (HTTP $API_STATUS)}" ;;
     esac
@@ -316,6 +325,31 @@ gh_tree() {
   return 0
 }
 
+declare -A WHOLE=()
+git_tree() {
+  local o="$1" r="$2" sha="$3" p="$4" rec="${5:-1}" key="$1/$2@$3" out
+  if [[ -z "${WHOLE[$key]+set}" ]]; then
+    anon_tree "$o" "$r" "$sha" || return 5
+    WHOLE[$key]="$OUT_TREE"
+  fi
+  out="$(awk -v p="$p" -v rec="$rec" '
+    { t = $1; s = $2; q = substr($0, length(t) + length(s) + 3) }
+    q == p { exact = 1; next }
+    p != "" && index(q, p "/") != 1 { next }
+    { under = 1 }
+    t == "blob" && (rec || !index(substr(q, length(p) + (p != "") + 1), "/")) { print s " " q }
+    END { if (!under) print (exact ? "notree" : "missing") }' <<<"${WHOLE[$key]}")"
+  case "${out##*$'\n'}" in
+  notree) return 4 ;;
+  missing) return 3 ;;
+  *) OUT_TREE="$out" ;;
+  esac
+}
+
+read_tree() {
+  if use_git "$1" "$2"; then git_tree "$@"; else gh_tree "$@"; fi
+}
+
 tree_list() {
   local o="$1" r="$2" sha="$3" p="$4" key="$1/$2@$3:$4" file rc dir
   if [[ -n "${TREES[$key]+set}" ]]; then
@@ -330,35 +364,24 @@ tree_list() {
       check_tree_lines "${FIXTURE_FILES[$file]}" "$o/$r@${sha:0:12}"
     fi
     OUT_TREE="$(filter_under "${FIXTURE_FILES[$file]}" "$p")"
-  elif [[ -n "${ANON[$o]:-}" ]]; then
-    if [[ -n "$p" ]]; then
-      tree_list "$o" "$r" "$sha" ""
-      OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
-    else
-      anon_tree "$o" "$r" "$sha" || OUT_TREE=""
-    fi
   elif [[ -n "$P_SCOPE" && -n "$p" && "$p" != "$P_SCOPE" && "$p" == "$P_SCOPE"/* ]]; then
     tree_list "$o" "$r" "$sha" "$P_SCOPE"
     OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
   else
-    gh_tree "$o" "$r" "$sha" "$p"
+    read_tree "$o" "$r" "$sha" "$p"
     rc=$?
-    if ((rc == 6)); then
-      tree_list "$o" "$r" "$sha" "$p"
-      return 0
-    elif ((rc == 3)); then
-      OUT_TREE=""
-    elif ((rc == 4)); then
+    if ((rc == 4)); then
       dir=""
       [[ "$p" == */* ]] && dir="${p%/*}"
-      gh_tree "$o" "$r" "$sha" "$dir" 0
+      read_tree "$o" "$r" "$sha" "$dir" 0
       rc=$?
-      if ((rc == 0)); then
-        OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
-      else
-        OUT_TREE=""
-      fi
+      ((rc == 0)) && OUT_TREE="$(filter_under "$OUT_TREE" "$p")"
     fi
+    if ((rc == 6)) || { ((rc == 5)) && git_to_rest "$o" "$r"; }; then
+      tree_list "$o" "$r" "$sha" "$p"
+      return 0
+    fi
+    ((rc == 0)) || OUT_TREE=""
   fi
   [[ -n "$PAGE_UNREACH" ]] || TREES[$key]="$OUT_TREE"
 }
@@ -422,11 +445,20 @@ for page in ${GIT_PAGES[@]+"${GIT_PAGES[@]}"}; do
   o="$P_OWNER" r="$P_REPO" pin="$P_PIN" scope="$P_SCOPE"
   PAGE_UNREACH=""
   if [[ -z "$FIXTURE" ]]; then
-    rc=6
-    [[ -n "${ANON[$o]:-}" ]] || {
-      api "$o" "repos/$o/$r/git/commits/$pin"
+    OUT_API="" API_STATUS="" rc=5
+    [[ -n "${REST[$o/$r]:-}" ]] || {
+      anon_fetch "$o" "$r" "$pin"
       rc=$?
     }
+    if ((rc == 0)); then
+      GIT[$o/$r]=1
+    elif ((rc == 5)); then
+      REST[$o/$r]=1 PAGE_UNREACH="" rc=6
+      [[ -n "${ANON[$o]:-}" ]] || {
+        api "$o" "repos/$o/$r/git/commits/$pin"
+        rc=$?
+      }
+    fi
     if ((rc == 6)); then
       OUT_API="" API_STATUS=""
       anon_fetch "$o" "$r" "$pin"

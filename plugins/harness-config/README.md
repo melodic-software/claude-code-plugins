@@ -294,7 +294,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `time_units` | boolean | `false` | When on, /harness-config:audit-automation-gaps may state the size of an implementation plan in minutes, hours, days or weeks; when off it gives a relative size (Small, Medium, Large) instead. A time budget you state is kept in your words either way. Default: off. |
-| `audit_pass_suppressions_file` | file | *(none)* | Your own audit-pass suppressions file (Markdown), read by /harness-config:audit in every repository. Only a repository's team record enacts a suppression; an entry here the team record lacks is reported personal-only. Replaces ~/.claude/audit-pass.md. Default: unset. |
+| `audit_pass_suppressions_file` | file | *(none)* | Your own audit-pass suppressions file (Markdown), read by /harness-config:audit in every repository. Only a repository's team record enacts a suppression; an entry here the team record lacks is reported personal-only. Default: unset. |
 
 ### How to set these
 

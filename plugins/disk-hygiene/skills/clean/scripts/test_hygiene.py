@@ -839,13 +839,13 @@ class HygieneTests(unittest.TestCase):
     def test_only_user_global_or_explicit_policy_may_opt_into_elevation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             project = Path(temporary) / "project"
-            (project / ".claude").mkdir(parents=True)
+            (project / "docs" / "conventions").mkdir(parents=True)
             user_file = Path(temporary) / "user.json"
-            project_file = project / ".claude" / "disk-hygiene.json"
+            project_file = project / "docs" / "conventions" / "disk-hygiene.yaml"
             user_file.write_text(
                 json.dumps({"version": 2, "elevation": "uac-prompt"}), encoding="utf-8"
             )
-            project_file.write_text(json.dumps({"version": 2}), encoding="utf-8")
+            project_file.write_text("version: 2\n", encoding="utf-8")
             with mock.patch.object(
                 hygiene, "standing_policy_paths", return_value=[user_file, project_file]
             ):
@@ -853,14 +853,14 @@ class HygieneTests(unittest.TestCase):
                     "uac-prompt", hygiene.load_policy(None, project)["elevation"]
                 )
                 project_file.write_text(
-                    json.dumps({"version": 2, "elevation": "never"}), encoding="utf-8"
+                    "version: 2\nelevation: never\n", encoding="utf-8"
                 )
                 self.assertEqual(
                     "never", hygiene.load_policy(None, project)["elevation"]
                 )
                 user_file.write_text(json.dumps({"version": 2}), encoding="utf-8")
                 project_file.write_text(
-                    json.dumps({"version": 2, "elevation": "uac-prompt"}),
+                    "version: 2\nelevation: uac-prompt\n",
                     encoding="utf-8",
                 )
                 with self.assertRaisesRegex(
@@ -5915,8 +5915,14 @@ class VersionFloorTests(unittest.TestCase):
 
 class StandingPolicyTests(unittest.TestCase):
     @staticmethod
-    def write_policy(root: Path, body: dict[str, object]) -> Path:
+    def write_old_policy(root: Path, body: dict[str, object]) -> Path:
         path = root / ".claude" / "disk-hygiene.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps({"version": 1, **body}), encoding="utf-8")
+        return path
+
+    @staticmethod
+    def write_user_policy(path: Path, body: dict[str, object]) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps({"version": 1, **body}), encoding="utf-8")
         return path
@@ -5936,22 +5942,20 @@ class StandingPolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary) / "home"
             project = Path(temporary) / "project"
-            user_path = self.write_policy(
-                home,
+            user_path = self.write_user_policy(
+                home / ".config" / "disk-hygiene" / "policy.json",
                 {
                     "additional_hints": [self.hint("user-hint", "user-*")],
                     "additional_protected_path_globs": ["user-keep/**"],
                 },
             )
-            project_path = self.write_policy(
-                project,
-                {
-                    "additional_hints": [self.hint("project-hint", "proj-*")],
-                    "additional_protected_path_globs": ["proj-keep/**"],
-                },
+            project_path = self.write_yaml(
+                project / "docs" / "conventions" / "disk-hygiene.yaml",
+                self.yaml_hint("project-hint", "proj-*")
+                + 'additional_protected_path_globs:\n  - "proj-keep/**"\n',
             )
             with mock.patch.object(hygiene.Path, "home", return_value=home):
-                policy = hygiene.load_policy(None, project)
+                policy = hygiene.load_policy(None, project, str(user_path))
             ids = {hint["id"] for hint in policy["hints"]}
             self.assertIn("user-hint", ids)
             self.assertIn("project-hint", ids)
@@ -5963,25 +5967,29 @@ class StandingPolicyTests(unittest.TestCase):
                 ["baseline", str(user_path), str(project_path)],
                 policy["policy_sources"],
             )
+            self.assertEqual([], policy["policy_warnings"])
 
-    def test_project_dir_equal_to_home_applies_overlay_once(self) -> None:
+    def test_user_policy_equal_to_team_file_applies_overlay_once(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary) / "home"
-            overlay = self.write_policy(
-                home, {"additional_hints": [self.hint("user-hint", "user-*")]}
+            project = Path(temporary) / "project"
+            overlay = self.write_yaml(
+                project / "docs" / "conventions" / "disk-hygiene.yaml",
+                self.yaml_hint("user-hint", "user-*"),
             )
             with mock.patch.object(hygiene.Path, "home", return_value=home):
-                policy = hygiene.load_policy(None, home)
+                policy = hygiene.load_policy(None, project, str(overlay))
             self.assertEqual(["baseline", str(overlay)], policy["policy_sources"])
-            self.assertEqual(1, len(policy["policy_warnings"]))
+            self.assertEqual([], policy["policy_warnings"])
             ids = [hint["id"] for hint in policy["hints"]]
             self.assertEqual(1, ids.count("user-hint"))
 
     def test_explicit_policy_replaces_standing_layers(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary) / "home"
-            self.write_policy(
-                home, {"additional_hints": [self.hint("user-hint", "user-*")]}
+            user_path = self.write_user_policy(
+                home / ".config" / "disk-hygiene" / "policy.json",
+                {"additional_hints": [self.hint("user-hint", "user-*")]},
             )
             explicit = Path(temporary) / "explicit.json"
             explicit.write_text(
@@ -5994,7 +6002,9 @@ class StandingPolicyTests(unittest.TestCase):
                 encoding="utf-8",
             )
             with mock.patch.object(hygiene.Path, "home", return_value=home):
-                policy = hygiene.load_policy(explicit, Path(temporary) / "project")
+                policy = hygiene.load_policy(
+                    explicit, Path(temporary) / "project", str(user_path)
+                )
             ids = {hint["id"] for hint in policy["hints"]}
             self.assertIn("explicit-hint", ids)
             self.assertNotIn("user-hint", ids)
@@ -6004,24 +6014,27 @@ class StandingPolicyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary) / "home"
             project = Path(temporary) / "project"
-            self.write_policy(
-                home, {"additional_hints": [self.hint("shared-id", "user-*")]}
+            user_path = self.write_user_policy(
+                home / ".config" / "disk-hygiene" / "policy.json",
+                {"additional_hints": [self.hint("shared-id", "user-*")]},
             )
-            self.write_policy(
-                project, {"additional_hints": [self.hint("shared-id", "proj-*")]}
+            self.write_yaml(
+                project / "docs" / "conventions" / "disk-hygiene.yaml",
+                self.yaml_hint("shared-id", "proj-*"),
             )
             with mock.patch.object(hygiene.Path, "home", return_value=home):
                 with self.assertRaisesRegex(hygiene.HygieneError, "already exists"):
-                    hygiene.load_policy(None, project)
+                    hygiene.load_policy(None, project, str(user_path))
 
     def test_standing_layers_cannot_weaken_protections(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary) / "home"
-            self.write_policy(
-                home, {"additional_protected_path_globs": ["extra-keep/**"]}
+            user_path = self.write_user_policy(
+                home / ".config" / "disk-hygiene" / "policy.json",
+                {"additional_protected_path_globs": ["extra-keep/**"]},
             )
             with mock.patch.object(hygiene.Path, "home", return_value=home):
-                policy = hygiene.load_policy(None, None)
+                policy = hygiene.load_policy(None, None, str(user_path))
             self.assertIn("NTUSER.DAT", policy["protected_exact_names"])
             self.assertIn("extra-keep/**", policy["additional_protected_path_globs"])
 
@@ -6075,37 +6088,46 @@ class StandingPolicyTests(unittest.TestCase):
             )
             self.assertEqual([], policy["policy_warnings"])
 
-    def test_old_files_only_still_apply_and_each_warns_once(self) -> None:
+    def test_retired_old_files_alone_are_not_read_and_each_warns_once(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary) / "home"
             project = Path(temporary) / "project"
-            old_user = self.write_policy(
+            old_user = self.write_old_policy(
                 home, {"additional_hints": [self.hint("user-hint", "u-*")]}
             )
-            old_team = self.write_policy(
+            old_project = self.write_old_policy(
                 project, {"additional_hints": [self.hint("team-hint", "t-*")]}
             )
             with mock.patch.object(hygiene.Path, "home", return_value=home):
                 policy = hygiene.load_policy(None, project)
             ids = {hint["id"] for hint in policy["hints"]}
-            self.assertLessEqual({"user-hint", "team-hint"}, ids)
-            warnings = policy["policy_warnings"]
-            self.assertEqual(2, len(warnings))
-            self.assertIn(str(old_user), warnings[0])
-            self.assertIn("policy_file userConfig option", warnings[0])
-            self.assertIn(str(old_team), warnings[1])
-            self.assertIn(
-                str(project / "docs" / "conventions" / "disk-hygiene.yaml"),
-                warnings[1],
-            )
-            for warning in warnings:
-                self.assertIn("/disk-hygiene:setup apply", warning)
+            self.assertNotIn("user-hint", ids)
+            self.assertNotIn("team-hint", ids)
+            self.assertEqual(["baseline"], policy["policy_sources"])
+            self.assertEqual(2, len(policy["policy_warnings"]))
+            joined = "\n".join(policy["policy_warnings"])
+            self.assertIn(str(old_user), joined)
+            self.assertIn(str(old_project), joined)
+            self.assertIn("is not read", joined)
 
-    def test_new_layer_wins_over_old_file_and_the_warning_names_both(self) -> None:
+    def test_project_dir_equal_to_home_emits_retired_warning_once(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            home = Path(temporary) / "home"
+            old_file = self.write_old_policy(
+                home, {"additional_hints": [self.hint("user-hint", "u-*")]}
+            )
+            with mock.patch.object(hygiene.Path, "home", return_value=home):
+                policy = hygiene.load_policy(None, home)
+            self.assertEqual(["baseline"], policy["policy_sources"])
+            self.assertEqual(1, len(policy["policy_warnings"]))
+            self.assertIn(str(old_file), policy["policy_warnings"][0])
+            self.assertIn("is not read", policy["policy_warnings"][0])
+
+    def test_new_layer_applies_beside_retired_old_file(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             home = Path(temporary) / "home"
             project = Path(temporary) / "project"
-            old_team = self.write_policy(
+            old_project = self.write_old_policy(
                 project, {"additional_hints": [self.hint("old-hint", "o-*")]}
             )
             team = self.write_yaml(
@@ -6119,8 +6141,8 @@ class StandingPolicyTests(unittest.TestCase):
             self.assertNotIn("old-hint", ids)
             self.assertEqual(["baseline", str(team)], policy["policy_sources"])
             self.assertEqual(1, len(policy["policy_warnings"]))
-            self.assertIn(str(old_team), policy["policy_warnings"][0])
-            self.assertIn(str(team), policy["policy_warnings"][0])
+            self.assertIn(str(old_project), policy["policy_warnings"][0])
+            self.assertIn("is not read", policy["policy_warnings"][0])
 
     def test_only_the_user_policy_file_may_opt_into_elevation(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

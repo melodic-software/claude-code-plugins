@@ -1,4 +1,6 @@
-import type { EngineInterface, Register } from 'claude-code'
+import type { EngineInterface, On, PluginOptions } from 'claude-code'
+
+import { refreshModEnablement, type ModEnablement } from '../mod-hook-enabled'
 
 import { CARD_ROW, forgetDraft, openCard, readCard, refreshCard, settingsCard, shownIn } from './card.tsx'
 import { BUILD } from './core/build.js'
@@ -8,7 +10,7 @@ import { describe, runCommand } from './core/commands.js'
 import { ctxOf, usePieces } from './core/context.js'
 import { SCENE, colorProblems, draw, holdShader, isThemeOn, markCovered, markStarted, setLook } from './core/render.js'
 import { load } from './core/saved.js'
-import { useOptions } from './core/settings.js'
+import { useEnabled, useOptions } from './core/settings.js'
 import { failed, flush, note } from './core/telemetry.js'
 import { ask, sendMinute, want } from './core/values.js'
 import { PIECES, addHooks, startPieces, tickPieces } from './pieces/index.js'
@@ -59,12 +61,18 @@ async function start($: EngineInterface): Promise<void> {
 }
 
 /** The bedroom theme: wires the hooks to core/, the settings card and the pieces of this build (pieces/index.ts). */
-export const register: Register = (on, options) => {
+export const register = (on: On, options: PluginOptions, gate?: ModEnablement): void => {
   useOptions(options)
+  useEnabled(() => (gate ? gate.isEnabled() : true))
   usePieces(PIECES)
   addHooks(on)
 
   on('session.start', async ($, e, next) => {
+    if (gate && !(await refreshModEnablement($, gate, e.cwd))) {
+      isSessionUp = false
+      started = false
+      return next(e)
+    }
     isSessionUp = true
     started = false
     if (e.surface === 'desktop' || (await $.session.surfaces()).includes('desktop')) await start($)
@@ -72,17 +80,20 @@ export const register: Register = (on, options) => {
   })
 
   on('session.attach', { surface: 'desktop' }, async ($, e, next) => {
+    if (gate && !gate.isEnabled()) return next(e)
     desktopGone = false
     if (isSessionUp) await start($)
     return next(e)
   })
 
   on('session.detach', { surface: 'desktop' }, ($, e, next) => {
+    if (gate && !gate.isEnabled()) return next(e)
     if (started) desktopGone = true
     return next(e)
   })
 
   on('theme.clear', async ($, e, next) => {
+    if (gate && !gate.isEnabled()) return next(e)
     const cleared = await next(e)
     if (next.origin.plugin === $.plugin.name || !isThemeOn()) return cleared
     note(`${next.origin.plugin} cleared the theme while the room is on: setting the room again`)
@@ -98,6 +109,7 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   on('theme.set', async ($, e, next) => {
+    if (gate && !gate.isEnabled()) return next(e)
     const set = await next(e)
     if (next.origin.plugin === $.plugin.name || !isThemeOn()) return set
     note(`${next.origin.plugin} set its theme over the room: the room is covered until /bedroom on`)
@@ -108,7 +120,7 @@ export const register: Register = (on, options) => {
   }).catch(($, e, next) => next(e))
 
   on('ui.render', { component: 'Backdrop' }, ($, e, next) => {
-    if (e.props.plugin !== $.plugin.name || e.props.scene !== SCENE || e.surface !== 'desktop') return next(e)
+    if ((gate && !gate.isEnabled()) || e.props.plugin !== $.plugin.name || e.props.scene !== SCENE || e.surface !== 'desktop') return next(e)
     const { Shader, Svg } = $.ui.resolve(e)
     const drawing = draw($, ctxOf($))
     const svg = <Svg source={drawing.source} alt="A teenager's bedroom in the country" isInteractive />
@@ -121,7 +133,7 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.pointer', async ($, e, next) => {
-    if (e.scene !== SCENE) return next(e)
+    if ((gate && !gate.isEnabled()) || e.scene !== SCENE) return next(e)
     const struck = await handleClick($, e)
     flush($)
     if (struck === undefined) return next(e)
@@ -129,7 +141,8 @@ export const register: Register = (on, options) => {
     return {}
   })
 
-  on('command.run', { command: 'bedroom' }, async ($, e) => {
+  on('command.run', { command: 'bedroom' }, async ($, e, next) => {
+    if (gate && !gate.isEnabled()) return next(e)
     const answer = await runCommand($, e.args)
     const isGone = desktopGone && !(await $.session.surfaces()).includes('desktop')
     const text = isGone ? `no desktop window shows this session; ${answer}` : answer
@@ -145,14 +158,14 @@ export const register: Register = (on, options) => {
   })
 
   on('ui.render', { component: 'Placed' }, async ($, e, next) => {
-    if (e.props.plugin !== $.plugin.name || !e.props.id.startsWith(CARD_ROW) || e.surface !== 'desktop') return next(e)
+    if ((gate && !gate.isEnabled()) || e.props.plugin !== $.plugin.name || !e.props.id.startsWith(CARD_ROW) || e.surface !== 'desktop') return next(e)
     const now = await shownIn($, e.props.id, false)
     if (now === undefined) return next(e)
     return settingsCard($, $.ui.resolve(e), now)
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    if (e.surface !== 'desktop') return next(e)
+    if ((gate && !gate.isEnabled()) || e.surface !== 'desktop') return next(e)
     if (!started && isSessionUp) void start($).catch(error => failed('bedroom', 'start on a desktop render', error))
     const now = await shownIn($, undefined, true)
     if (now === undefined) return next(e)
