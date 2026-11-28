@@ -3,6 +3,20 @@
 All notable changes to the `review` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.1.5] - 2026-11-28
+
+### Changed
+
+- Backfilled invocation probe sets (`probes/code-review.json`, `probes/security-review.json`) and trimmed 8 skill frontmatter descriptions (3,361 -> 2,383 chars across changed skills, -978c / -29.1%: `code-review` 494 -> 343, `council` 413 -> 324, `fanout` 460 -> 320, `merge-risk` 356 -> 296, `quality-gate` 537 -> 348, `reviewer-media` 408 -> 286, `security-review` 496 -> 322, `setup` 197 -> 144) with zero body changes and zero probe trigger-rate regressions.
+
+## [11.1.4] - 2026-11-28
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources, and from its eval fixtures; no behavior change.
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
 ## [11.1.3] - 2026-11-28
 
 ### Changed

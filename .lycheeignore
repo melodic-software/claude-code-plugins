@@ -87,3 +87,5 @@ github\.com/meridian-labs/agent-cli/releases/tag/
 ^https://www\.prnewswire\.com/news-releases/warner-music-group-and-suno-forge-groundbreaking-partnership-302626017\.html$
 
 ^https://github\.com/(%3C|<)owner(%3E|>)/(%3C|<)repo(%3E|>)$
+
+^https://web\.archive\.org/web/20261030112732/https://code\.claude\.com/docs/en/plugins/manifest-reference\.md$

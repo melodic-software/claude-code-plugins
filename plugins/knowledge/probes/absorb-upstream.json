@@ -1,0 +1,34 @@
+{
+  "skill": "knowledge:absorb-upstream",
+  "plugin": "knowledge",
+  "skill_dir": "plugins/knowledge/skills/absorb-upstream",
+  "competitors": [
+    "knowledge:docpage-digest",
+    "knowledge:map-corpus",
+    "knowledge:distill",
+    "knowledge:video-digest",
+    "knowledge:course-digest"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "review github.com/acme/agent-kit and log which ideas we should borrow or skip"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "evaluate this engineering blog post and create an upstream disposition note"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "walk through https://github.com/org/tooling idea by idea and note what to adopt"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "catalog every pattern in this third-party repo with take or reject calls"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "absorb https://example.com/posts/context-caching into our upstream notes"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "compare our repo against this external GitHub project under --scope skills"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "assess this upstream repo and document what we already have versus what to adapt"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "log a docs/upstream entry for this article on prompt evaluation"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "examine this local checkout of an external repo and judge each idea for us"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "check this post on hook guardrails and decide what is worth taking"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "digest this single vendor API documentation page into our knowledge base"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "map every page across this documentation site so we can queue digests"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "turn this EPUB architecture book into skill reference chapters"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "grab the transcript and takeaways from this YouTube conference talk"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "extract all lessons from this Dometrain video course for our repo"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "fix the failing unit test in src/parser.ts"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "digest this one official Claude docs URL into verified section notes"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "distill this author's essay archive into a new testing skill"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "queue three YouTube talks to watch and summarize later"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "build a classification inventory for these five spec repo URLs"}
+  ]
+}

@@ -1,5 +1,5 @@
 ---
-description: "Checks or scaffolds this repository's code-tidying configuration: tracked project tidy focus areas, the optional HARD-exclusion overrides file, the comment-lint git pre-commit entry, and the CI step that re-runs the lint. Use when 'set up code-tidying' is asked, the tidy skill reports no project focus areas, or a session-start line says the comment-lint git hook is missing or stale. Actions: check (read-only, default), check inspect (read-only), apply (one named focus area or all), apply install-git-hooks (scope local or shared), apply install-ci."
+description: "Check (default, read-only) or apply repo code-tidying config: focus areas, HARD-exclusion overrides, comment-lint git hooks, and CI lint step."
 argument-hint: "[check|apply] [inspect|<area>|install-git-hooks [scope=local|shared]|install-ci]"
 user-invocable: true
 disable-model-invocation: true
