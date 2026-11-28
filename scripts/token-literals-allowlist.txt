@@ -17,15 +17,6 @@ plugins/planning/skills/plan/templates/plan-view.html 14
 plugins/planning/surface/index.html 13
 plugins/visualization/reference/html-loop-closure.html 3
 
-# Wave 2
-plugins/education/lib/page-kit.mjs 11
-plugins/education/skills/illustrate/templates/explainer.html 19
-plugins/education/skills/quiz-me/scripts/build-report.mjs 4
-plugins/event-storming/skills/simulation/scripts/build-bc-view.mjs 3
-plugins/harness-ops/skills/observability/scripts/build-dashboard.mjs 3
-plugins/knowledge/skills/video-digest/scripts/build-menu-view.mjs 3
-plugins/review/skills/explain-change/templates/digest.html 4
-
 # Outside the ADR 0133 inventory (no --clay or prefers-color-scheme): a later
 # slice migrates each or records in the rendered-views contract why it stays apart.
 plugins/ai-briefing/skills/generate/output/build/build-css.js 2

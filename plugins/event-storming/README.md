@@ -92,6 +92,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `board_backend` | string | `"markdown"` | Where the simulation skill puts its boards when a run names none. markdown (default) writes one markdown file per board in the repository's board directory; miro uses a live Miro board and needs the miro plugin enabled with a token. A --backend argument or a board link wins for one run. |
+| `branding` | string | *(none)* | Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored. |
 
 ### How to set these
 

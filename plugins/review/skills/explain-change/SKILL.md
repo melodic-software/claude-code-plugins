@@ -63,12 +63,12 @@ Build only when the environment can serve a file. A CI or other non-interactive 
 Pass the record's content as JSON on stdin, and nowhere else:
 
 ```bash
-"${CLAUDE_SKILL_DIR}/scripts/build-digest.mjs" <<'EOF'
+"${CLAUDE_SKILL_DIR}/scripts/build-digest.mjs" [--team-ref "<baseRefOid>"] [--branding-option '<branding>'] <<'EOF'
 {"title":"","change":"","why":"","before":"","after":"","risks":[{"area":"","level":"","why":"","check":"agreed|disputed|added|unchecked","checker":""}],"focus":[""],"recording":{"path":"","head":""},"files":[{"path":"","status":"","note":"","hunks":[{"at":"","code":"","note":""}]}],"quiz":[{"question":"","choices":[""],"answer":""}]}
 EOF
 ```
 
-Leave out `recording` and `quiz` when the record has no such section: the page then omits them too. A `check` outside the four values shows as `unchecked`.
+Pass `--team-ref` with `baseRefOid` from step 1's `<dir>/facts.json` (omit when absent) so team branding is read from the base commit and never the working tree. Pass `--branding-option` with this plugin's `branding` option, `${user_config.branding}`, inside single quotes (escaping any `'` as `'\''`) when it reads as a value (omit when empty or an unsubstituted placeholder). Leave out `recording` and `quiz` when the record has no such section: the page then omits them too. A `check` outside the four values shows as `unchecked`.
 
 It prints the page's path in a fresh directory under the OS temp directory. It takes no output path and refuses a temp directory inside a working tree, so the view never sits beside the record and is never committed. Do not hand-write HTML or script, do not pre-escape values, and do not edit `templates/digest.html` per run. `build-digest.mjs --check <file>` rejects a page the builder did not make.
 
@@ -114,7 +114,7 @@ The reader can ask this session questions from the page instead of pasting them.
 2. Build the page into that data dir, naming `origin`. The builder writes only `<data_dir>/page.html`, and only into a private view-bridge data dir outside any working tree:
 
    ```bash
-   "${CLAUDE_SKILL_DIR}/scripts/build-digest.mjs" --connect "<origin>" --dir "<data_dir>" <<'EOF'
+   "${CLAUDE_SKILL_DIR}/scripts/build-digest.mjs" [--team-ref "<baseRefOid>"] [--branding-option '<branding>'] --connect "<origin>" --dir "<data_dir>" <<'EOF'
    {"title":"", ...the same JSON as above...}
    EOF
    ```
