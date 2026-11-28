@@ -234,7 +234,7 @@ from the two together (see
   the health verdict against the clone's HEAD rather than the checkout's, and prints one
   warning naming both commits, so a branch that changed a plugin knows its copy is not the one
   being served.
-- **`skillListingBudgetFraction` is set to `0.06`, and what that buys depends on the live
+- **`skillListingBudgetFraction` is set to `0.04`, and what that buys depends on the live
   model's context window and its bytes per token.** Claude Code caps the per-turn skill listing
   at a fraction of the context window; the key and its default are in
   [`skillListingBudgetFraction`](https://code.claude.com/docs/en/settings-reference#skilllistingbudgetfraction),
@@ -244,33 +244,31 @@ from the two together (see
   on not being invoked. The budget is `window_tokens x bytes_per_token x fraction`, and
   bytes per token is 3 or 4 depending on the model.
 
-  Measured 2026-11-05 on Claude Code 2.1.318 with
-  `/harness-ops:audit-skill-visibility --installed --context-window 1000000 --listing-capture
-  <session transcript>`: a fresh `claude-opus-5-5` session (1M window) in this repository lists
-  225 skills in **114,261 characters** and sheds none at `0.06`. A probe at `0.03` got a
-  listing of 89,974 characters against a 90,000 budget, so that model runs at 3 bytes per token.
-  At `0.06`:
+  Measured 2026-11-28 via `plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills`:
+  all 284 listing-eligible skills in this repository total **94,918 characters** (271 non-disabled
+  skills total **90,710 characters**; the 15 plugins explicitly enabled in `.claude/settings.json`
+  total **21,970 characters** across 65 eligible skills). Earlier live probing (2026-11-05 on
+  Claude Code 2.1.318, `claude-opus-5-5` 1M window, `/harness-ops:audit-skill-visibility --installed
+  --context-window 1000000 --listing-capture <session transcript>`) confirmed 3 bytes per token
+  (89,974 chars against a 90,000 budget at `0.03`). At `0.04`:
 
-  | Context window | Budget at 3 bytes/token | Budget at 4 bytes/token | Against 114,261 |
+  | Context window | Budget at 3 bytes/token | Budget at 4 bytes/token | Against 94,918 (all 284 repo skills) |
   | --- | --- | --- | --- |
-  | 200,000 | 36,000 chars | 48,000 chars | overflowing at either rate |
-  | 750,000 | 135,000 chars | 180,000 chars | fits at either rate |
-  | 1,000,000 | 180,000 chars | 240,000 chars | fits, 36% spare at 3 |
+  | 200,000 | 24,000 chars | 32,000 chars | overflowing at either rate |
+  | 750,000 | 90,000 chars | 120,000 chars | fits at 4 (21% spare), overflows at 3 |
+  | 1,000,000 | 120,000 chars | 160,000 chars | fits, 21% spare at 3 / 41% spare at 4 |
 
-  `0.06` is the smallest step of 0.01 that keeps 15% headroom on the 1M/3 budget for both the
-  live listing and every listing-eligible skill in this repository (138,574 characters by
-  `plugins/skill-quality/scripts/check-listing-budget.sh plugins/*/skills`, 23% spare at
-  180,000). A 200k-window session, including a subagent whose listing is sized to its own window,
-  still sheds descriptions at any fraction anyone would want to pay for. Re-measure with the
-  command above rather than trusting this table on a later `main`: the installed fleet also
-  depends on each host's user-scope plugins, and this one was measured on a single WSL host.
-  Growth erodes the margin with no check failing: this repository's skills grew 1,620 to 1,700
-  description characters a day between July and September 2026, then fell from 146,814 on
-  2026-10-11 to 138,574 by the 2026-11-05 measurement, and 153,000 (85% of 180,000) is where
-  the 15% headroom ends. A
-  scheduled report-only CI step measures this repository's skills at the configured fraction on
-  a 750,000-token, 4-bytes-per-token basis. It does not cover a 3-bytes-per-token model, whose
-  135,000-character budget at 750,000 tokens all of this repository's skills already exceed.
+  `0.04` is the smallest step of 0.01 that keeps at least 20% headroom on the 1M/3 budget for
+  every listing-eligible skill in this repository (94,918 characters vs 120,000, 21% spare;
+  `0.03` yields 90,000, which overflows). A 200k-window session, including a subagent whose
+  listing is sized to its own window, still sheds descriptions at any fraction anyone would want
+  to pay for. Re-measure with `/harness-ops:audit-skill-visibility` rather than trusting this
+  table on a later `main`: the installed fleet also depends on each host's user-scope plugins.
+  Growth erodes the margin with no check failing: 102,000 characters (85% of 120,000) is where
+  15% headroom ends. A scheduled report-only CI step measures this repository's skills at the
+  configured fraction on a 750,000-token, 4-bytes-per-token basis (120,000 chars at `0.04`). It
+  does not cover a 3-bytes-per-token model, whose 90,000-character budget at 750,000 tokens all
+  284 repository skills exceed.
 - **A declared marketplace is gated on workspace trust, and cloud sessions arrive untrusted.**
   [What runs before you trust a folder](https://code.claude.com/docs/en/permissions#what-runs-before-you-trust-a-folder)
   groups `extraKnownMarketplaces` entries with the content that needs *this exact folder* trusted,

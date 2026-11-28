@@ -5198,26 +5198,26 @@ size_skill() {
   mkdir -p "$SKILLS/$1"
   printf -- '---\ndescription: "%s"\ndisable-model-invocation: false\n---\n%s' "$desc" "$body" >"$SKILLS/$1/SKILL.md"
 }
-size_skill sz-at-max 419 160
+size_skill sz-at-max 350 160
 out="$(run sz-at-max 2>&1)"
 rc=$?
 if [[ $rc -eq 0 ]] && ! grep -q "Pocock's measured max" <<<"$out" && ! grep -q 'WARN: description is' <<<"$out" &&
-  grep -q 'INFO: size: description 419 chars, body 160 lines (Pocock medians 130 chars, 70 lines; max 419, 160)' <<<"$out"; then
-  pass "check 30 stays quiet at exactly 419 chars and 160 body lines, printing the medians as INFO"
+  grep -q 'INFO: size: description 350 chars, body 160 lines (Pocock medians 130 chars, 70 lines; max 419, 160)' <<<"$out"; then
+  pass "check 30 stays quiet at exactly 350 chars and 160 body lines, printing the medians as INFO"
 else
   fail "check 30 should be quiet at the max and print the INFO line (rc=$rc): $out"
 fi
-size_skill sz-over-desc 420 10
+size_skill sz-over-desc 351 10
 out="$(run sz-over-desc 2>&1)"
 rc=$?
-if [[ $rc -eq 0 ]] && grep -q "WARN: description is 420 chars, above the description_warn setting 419 from default" <<<"$out"; then
-  pass "check 30 WARNs (exit 0) on a 420-char description"
+if [[ $rc -eq 0 ]] && grep -q "WARN: description is 351 chars, above the description_warn setting 350 from default" <<<"$out"; then
+  pass "check 30 WARNs (exit 0) on a 351-char description"
 else
-  fail "check 30 should WARN on 420 chars, exit 0 (rc=$rc): $out"
+  fail "check 30 should WARN on 351 chars, exit 0 (rc=$rc): $out"
 fi
 size_skill sz-setting 300 10
 out="$(run sz-setting 2>&1)"
-if grep -q 'INFO: description settings: target 250 (default), warn above 419 (default), fail above 1024 (fixed)' <<<"$out" &&
+if grep -q 'INFO: description settings: target 250 (default), warn above 350 (default), fail above 1024 (fixed)' <<<"$out" &&
   grep -q 'INFO: description is 300 chars, above the description_target setting 250 from default' <<<"$out" &&
   ! grep -q 'WARN: description is' <<<"$out"; then
   pass "check 30 prints the default description settings and an INFO above the target"
@@ -5233,10 +5233,10 @@ if [[ $rc -eq 0 ]] && grep -q 'WARN: description is 300 chars, above the descrip
 else
   fail "check 30 should WARN at the team layer's description_warn 280, exit 0 (rc=$rc): $out"
 fi
-printf 'description_warn: 350\ndescription_target: 320\n' >"$TMP/docs/conventions/skill-quality.local.yaml"
+printf 'description_warn: 380\ndescription_target: 320\n' >"$TMP/docs/conventions/skill-quality.local.yaml"
 out="$(run sz-setting 2>&1)"
 if ! grep -q 'WARN: description is' <<<"$out" &&
-  grep -q 'INFO: description settings: target 320 (docs/conventions/skill-quality.local.yaml), warn above 350 (docs/conventions/skill-quality.local.yaml)' <<<"$out"; then
+  grep -q 'INFO: description settings: target 320 (docs/conventions/skill-quality.local.yaml), warn above 380 (docs/conventions/skill-quality.local.yaml)' <<<"$out"; then
   pass "check 30 lets the personal layer override the team layer key by key"
 else
   fail "check 30 should take the personal layer's description settings: $out"
@@ -5244,17 +5244,17 @@ fi
 printf 'description_warn: 2000\n' >"$TMP/docs/conventions/skill-quality.local.yaml"
 out="$(run sz-setting 2>&1)"
 if grep -q "WARN: docs/conventions/skill-quality.local.yaml: description_warn is '2000', not a whole number from 1 to 1024" <<<"$out" &&
-  grep -q 'warn above 419 (default)' <<<"$out" && ! grep -q 'WARN: description is' <<<"$out"; then
+  grep -q 'warn above 350 (default)' <<<"$out" && ! grep -q 'WARN: description is' <<<"$out"; then
   pass "check 30 drops an out-of-range description_warn and resolves to the default, not the team value"
 else
-  fail "check 30 should name the invalid value and fall back to the default 419: $out"
+  fail "check 30 should name the invalid value and fall back to the default 350: $out"
 fi
 rm -f "$TMP/docs/conventions/skill-quality.local.yaml"
 printf 'description_warn: 280\n' >"$TMP/docs/conventions/skill-quality.yaml"
 mkdir -p "$TMP/team-conv"
 printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `team-conv`.\n<!-- END GENERATED: convention-home -->\n' >"$TMP/AGENTS.md"
 out="$(run sz-setting 2>&1)"
-if grep -q 'warn above 419 (default)' <<<"$out" && ! grep -q 'WARN: description is' <<<"$out" &&
+if grep -q 'warn above 350 (default)' <<<"$out" && ! grep -q 'WARN: description is' <<<"$out" &&
   ! grep -q 'docs/conventions' <<<"$out"; then
   pass "check 30 ignores docs/conventions when the pointer region binds another home"
 else
@@ -5272,7 +5272,7 @@ fi
 printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `team-conv`.\nAlso `docs/conventions`.\n<!-- END GENERATED: convention-home -->\n' >"$TMP/AGENTS.md"
 out="$(run sz-setting 2>&1)"
 if grep -q 'WARN: the convention-home pointer region does not resolve' <<<"$out" &&
-  grep -q 'warn above 419 (default)' <<<"$out" && ! grep -q 'WARN: description is' <<<"$out"; then
+  grep -q 'warn above 350 (default)' <<<"$out" && ! grep -q 'WARN: description is' <<<"$out"; then
   pass "check 30 WARNs on an unresolvable pointer region and uses the default settings"
 else
   fail "check 30 should WARN on two pointer lines and fall back to the defaults: $out"

@@ -83,7 +83,7 @@ except the pointer swap that **Cutting text** exempts ([Measurement](#measuremen
 - Third person. No first or second person in the prose; a quoted user utterance keeps the user's
   voice. Trigger text may keep calibrated urgency.
 - Name a sibling skill only when probes show the two are confused (see [Measurement](#measurement)).
-- Length: aim for the target, 250 characters; above 419 warns, and above the spec's field
+- Length: aim for the target, 250 characters; above 350 warns, and above the spec's field
   maximum fails. The target and the warn threshold are `/skill-quality:check` settings
   (`description_target`, `description_warn`, read from the repository's convention home); the
   field maximum is fixed. The upstream description caps, the listing truncation and the shared

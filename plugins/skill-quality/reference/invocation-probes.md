@@ -179,9 +179,11 @@ skill's folder (each row 27 runs per arm, 9 should-trigger probes at 3 runs, all
 | `code-metrics:audit-suppressions` | 27/27 / 27/27 / 0/27 |
 
 A renaming control shows that a probe set can fail, and nothing about the description, because it
-removes the skill from view, so it falls all or nothing and never certifies a cut. These three are
-unmeasurable and keep the before text. `naming:name-it-better` above shows the description control
-can still drop, on Sonnet 5.5.
+removes the skill from view, so it falls all or nothing and never certifies a cut. Those three
+`code-metrics` skills remain unmeasurable under this rule; they shipped trimmed (#19592) as a
+recorded exception on the owner's decision (`kyle-sexton`, `2026-11-28T13:43:02Z`, #19475) to
+eliminate `> 419c` descriptions, where frozen probes showed no regression but cannot certify the
+cut. `naming:name-it-better` above shows the description control can still drop, on Sonnet 5.5.
 
 ## Outside the marketplace checkout
 

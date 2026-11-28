@@ -190,11 +190,11 @@ In detail:
   bug), and any block that carries an as-of date and a recheck trigger (a stored-value record) are
   exempt. Reference files are not checked.
   `/playbooks:skill-authoring` (`## History and provenance`) owns the rule.
-- Skill size (advisory). A `description` over the `description_warn` setting (default 419
-  characters) or a `SKILL.md` body (the lines after the frontmatter) over 160 lines warns: 419 and
+- Skill size (advisory). A `description` over the `description_warn` setting (default 350
+  characters) or a `SKILL.md` body (the lines after the frontmatter) over 160 lines warns; 419 and
   160 are the largest in [mattpocock/skills](https://github.com/mattpocock/skills) at commit
-  `6fd9479`, measured 2026-10-06; his medians, 130 characters and 70 lines, print as INFO. Recheck
-  when a re-measure of that repository moves them. A description over the `description_target`
+  `6fd9479`, measured 2026-10-06, and his medians (130 characters, 70 lines) and maxes print as
+  INFO. Recheck when a re-measure of that repository moves them. A description over the `description_target`
   setting (default 250) prints as INFO. The 1,024-character field maximum (check 2b) is fixed and
   is not a setting; see [Settings](#settings). Growth of the description or body against `CHECK_SKILL_BASE_REF`, or the merge-base
   with `origin` when that is unset, also warns; with no base, or for a new skill, the growth half
@@ -327,12 +327,12 @@ region binds (`docs/conventions` when the repository binds none): the team file
 | Key | Default | What it does |
 | --- | --- | --- |
 | `description_target` | `250` | A description longer than this prints an INFO line. |
-| `description_warn` | `419` | A description longer than this warns. |
+| `description_warn` | `350` | A description longer than this warns. |
 | `plugin_eval_runs` | `3` | Runs per case `emit-plugin-eval` writes; `--runs N` beats it. |
 
 ```yaml
 description_target: 200
-description_warn: 350
+description_warn: 300
 ```
 
 The description values are whole numbers from 1 to 1,024; `plugin_eval_runs` is from 1 to
