@@ -2267,7 +2267,9 @@ jobs:
         run: scripts/sync-shared-copies.sh --check
       - name: Check page sources take palette and type tokens from the token layer
         if: needs.select-tests.outputs.run_tests == 'true'
-        run: scripts/check-token-literals.sh
+        env:
+          DIFF_BASE: ${{ needs.select-tests.outputs.lane_base }}
+        run: scripts/check-token-literals.sh ${DIFF_BASE:+--base "$DIFF_BASE"}
       - name: Check plugin prerequisites are declared
         if: needs.select-tests.outputs.run_tests == 'true'
         run: node scripts/check-declared-prerequisites.mjs
