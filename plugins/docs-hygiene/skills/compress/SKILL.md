@@ -1,5 +1,5 @@
 ---
-description: "Compress markdown by dropping flavor, filler, and hedging while keeping every directive, qualifier, threshold, and example, behind a semantic-diff subagent that reverts any meaning loss. Articles (a, an, the) are kept by default; the compress_articles setting can allow cutting them. Use when: 'compress this doc', 'tighten markdown', 'cut prose', 'shorten without losing meaning', 'trim onboarding doc', 'did this skill rewrite lose meaning'. Actions: default, audit (read-only dry run), and compare (read-only before/after labeling of a rewritten skill directory). Not session compaction (/compact), markdown noise (/docs-hygiene:audit-noise), or SSOT consolidation (/docs-hygiene:extract-ssot)."
+description: "Compress markdown (drop filler/hedging; keep directives, thresholds, examples; articles per compress_articles) with semantic-diff revert guard; default, audit/compare (read-only). Use when 'compress this doc', 'tighten markdown', 'cut prose'. Not for compaction: /compact, noise: /docs-hygiene:audit-noise, or SSOT: /docs-hygiene:extract-ssot."
 argument-hint: "[audit [target]|compare <ORIG_DIR> <NEW_DIR> [REASONS]|target] [--force] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

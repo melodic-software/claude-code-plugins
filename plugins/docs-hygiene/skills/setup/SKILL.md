@@ -1,5 +1,5 @@
 ---
-description: "Validate the /docs-hygiene:compress settings for this repository: the compress_articles userConfig value and the repository's docs/conventions/docs-hygiene.yaml; write that file after confirmation. Use when: 'set up docs-hygiene', 'is docs-hygiene ready', 'set compress_articles for this repo', or before the first compress run. Actions: check (read-only, default), apply (writes docs/conventions/docs-hygiene.yaml only). Installs nothing. Re-runnable and safe."
+description: "Check (default, read-only) or apply docs/conventions/docs-hygiene.yaml (confirmed) and validate compress_articles. Installs nothing; re-runnable."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true

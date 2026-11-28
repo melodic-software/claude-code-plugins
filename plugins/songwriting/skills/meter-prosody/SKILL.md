@@ -1,5 +1,5 @@
 ---
-description: "Make structure serve meaning with Pat Pattison's methods: meter (scansion, Paradigms I/II/III, Pentad, Goldilocks, the 'into' rule, In Memoriam, pitch-stress), prosody (motion-emotion, greedy spots, tone-of-voice, three phrasing types), section stability and lyric-melody fit. Use when: 'scan this line', 'can this be common meter', 'is this verse stable or unstable', 'my words don't fit the music', 'greedy spot in line 2', 'set lyrics to this tune', 'does my song feel right'. For song sections/form use /songwriting:song-form; for rhyme use /songwriting:rhyme."
+description: "Make structure serve meaning with Pat Pattison's methods: meter (scansion, common meter, Paradigms, pitch-stress), prosody (greedy spots, phrasing), section stability, lyric-melody fit. Use when: 'scan this line', 'my words don't fit the music', 'does my song feel right'. Not for form: /songwriting:song-form; rhyme: /songwriting:rhyme."
 argument-hint: "[meter|prosody|phrasing|stability|align-melody] [args]"
 user-invocable: true
 disable-model-invocation: false

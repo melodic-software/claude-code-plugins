@@ -1,12 +1,14 @@
 """Shared fixture helpers for select-cases unit test suites."""
 
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 from textwrap import dedent
 
 SCRIPT = Path(__file__).resolve().parent / "select-cases.py"
+COMPARE_ARMS = Path(__file__).resolve().parents[5] / ".github/scripts/plugin-eval/compare-arms.sh"
 
 for _leaked_git_var in ("GIT_DIR", "GIT_WORK_TREE", "GIT_CONFIG"):
     os.environ.pop(_leaked_git_var, None)
@@ -35,6 +37,13 @@ def _write(root, rel_path, content):
     path = Path(root) / rel_path
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(dedent(content).lstrip("\n"), encoding="utf-8")
+
+
+def _add_compare_arms(repo):
+    """Copy the repository's compare-arms.sh into a fixture repository."""
+    target = Path(repo) / ".github/scripts/plugin-eval/compare-arms.sh"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(COMPARE_ARMS, target)
 
 
 def _commit_all(repo, message):

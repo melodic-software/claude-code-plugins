@@ -1,0 +1,34 @@
+{
+  "skill": "instruction-placement:check",
+  "plugin": "instruction-placement",
+  "skill_dir": "plugins/instruction-placement/skills/check",
+  "competitors": [
+    "instruction-placement:audit",
+    "instruction-placement:delta",
+    "instruction-placement:establish-hub",
+    "instruction-placement:migrate",
+    "instruction-placement:realign"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "verify each glob in .claude/rules resolves against real repo files"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "is our generated index of rules out of sync with disk"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "validate paths frontmatter across our .claude/rules directory"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "why is my path-scoped rule silently failing to trigger"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "run the pass/fail gate on .claude/rules after editing globs"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "check whether any path-scoped rule glob is dead or unexpanded"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "run a CI pass/fail check confirming our rules index and globs are healthy"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "confirm my scoped rules trigger properly when matching files open"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "check if the generated rules index matches the current rules tree"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "confirm no path-scoped instruction surface has a silent glob failure"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "sweep our CLAUDE.md to demote language-specific conventions to rules"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "apply accepted placement findings behind a per-item confirmation"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "plan a migration from CLAUDE.md to AGENTS.md with shims"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "report only placement movement since our last audit baseline"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "check whether our cross-repo hub repository sections have drifted"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "write a unit test for the billing invoice parser"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "find stranded docs conventions we should promote into rules"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "execute finding IP-003 and move that convention file"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "can we drop the one-line CLAUDE.md shims across this repo"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "run the weekly placement delta against last run's declined list"}
+  ]
+}

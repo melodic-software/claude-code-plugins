@@ -1,5 +1,5 @@
 ---
-description: "Audit a repo's Claude Code automation (hooks, MCP servers, skills, subagents, scheduled tasks) against the enforcement hierarchy, with evidence-backed PASS/REJECT/CONDITIONAL verdicts, REJECT by default. Use when: 'audit automations', 'what automations should we add', 'are we missing any hooks', 'hook gap analysis', 'should I add an MCP server for X'; pass --implement to apply approved items, or filter by category (hooks|mcp|skills|subagents|scheduled)."
+description: "Audit a repo's Claude Code automation (hooks, MCP servers, skills, subagents, scheduled tasks) vs enforcement hierarchy with PASS/REJECT/CONDITIONAL verdicts (REJECT default); --implement applies, or filter hooks|mcp|skills|subagents|scheduled. Use when: 'audit automations', 'what automations should we add', 'should I add an MCP server for X'."
 argument-hint: "[--recommend-only] [--implement] [hooks|mcp|skills|subagents|scheduled|all]"
 user-invocable: true
 disable-model-invocation: false

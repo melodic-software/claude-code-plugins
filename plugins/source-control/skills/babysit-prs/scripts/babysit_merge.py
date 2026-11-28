@@ -115,8 +115,7 @@ Contract enforced here (encoded as code, not convention):
   promotion evidence is read, the kill switch is the workflow's own check
   passed as `--lane-kill-switch proceed` (missing or any other value stops),
   the rung cap is the workflow's `--lane-rung-cap` (empty is no cap),
-  only merges the identity enqueued are judged after the fact, a person whose
-  newest comment says "do not merge" holds it until a later comment of theirs, and while
+  only merges the identity enqueued are judged after the fact, and while
   `merge.report-only` is true `--merge` runs as a check that writes nothing.
   A Dependabot pull request there is its own class (`babysit_dependabot`):
   tier `auto` (every update non-major), or tier `review` with the review
@@ -237,16 +236,6 @@ from babysit_util import (
     split_owner,
 )
 
-HUMAN_MERGE_VETO_RE = re.compile(
-    r"\bdo(?:n['’]?t| not)[\s-]*merge\b"
-    r"|\bdo-not(?!-merge\b)[\s-]*merge\b"
-    r"|(?<!the )(?<!the `)\bdo-not-merge\b"
-    r"|(?<=the )do-not-merge\b(?!\s*labels?\b)"
-    r"|(?<=the `)do-not-merge\b(?!`\s*labels?\b)",
-    re.I,
-)
-
-BODY_MERGE_HOLD_RE = merge_policy.BODY_MERGE_HOLD_RE
 MERGE_HOLD_LABELS = merge_policy.MERGE_HOLD_LABELS
 HUMAN_GATED_SECTION = "human-gated-label"
 
@@ -592,14 +581,14 @@ class AutopilotMergeTierConfig:
 
     @property
     def automation_actor_config(self) -> FeedbackConfig:
-        """Classify every configured pipeline identity as a bot for the veto and
-        ratification scans.
+        """Classify every configured pipeline identity as a bot for the
+        blocking-comment and ratification scans.
 
         A lane or approver account GitHub misreports as a `User` (no `[bot]`
         suffix) passes the structural `is_bot` fallback in
         `find_distinct_bot_approval` but would otherwise read as a human here: a
         configured identity is *always* automation for these scans -- never a
-        human merge veto, never a maintainer ratifying its own decision-default
+        human blocking comment, never a maintainer ratifying its own decision-default
         marker (the #450 attribution-drift hazard the ratification design
         excludes).
         """
@@ -896,6 +885,14 @@ RATIFYING_ASSOCIATIONS = frozenset({"OWNER", "MEMBER"})
 RATIFICATION_SIGNAL_RE = re.compile(
     r"\b(?:ratif(?:y|ied)|approved?|confirmed?)\b", re.I
 )
+DECISION_REVOKE_RE = re.compile(
+    r"\bdo(?:n['’]?t| not)[\s-]*merge\b"
+    r"|\bdo-not(?!-merge\b)[\s-]*merge\b"
+    r"|(?<!the )(?<!the `)\bdo-not-merge\b"
+    r"|(?<=the )do-not-merge\b(?!\s*labels?\b)"
+    r"|(?<=the `)do-not-merge\b(?!`\s*labels?\b)",
+    re.I,
+)
 
 
 def _decision_default_ratified(
@@ -911,7 +908,7 @@ def _decision_default_ratified(
     approved", "do not merge") re-holds the PR for the human list. A comment is
     decisive when it carries either an explicit ratification signal
     (`RATIFICATION_SIGNAL_RE`) or an explicit revocation signal reusing the shared
-    veto vocabulary (`NON_APPROVAL_RE`, or `HUMAN_MERGE_VETO_RE`). Revocation is
+    veto vocabulary (`NON_APPROVAL_RE`, or `DECISION_REVOKE_RE`). Revocation is
     tested first, so a comment mixing both reads as a revoke (fail closed). An
     unrelated later comment ("thanks", a status question) is non-decisive and
     leaves any prior decisive signal standing.
@@ -936,7 +933,7 @@ def _decision_default_ratified(
         if association not in RATIFYING_ASSOCIATIONS:
             continue
         body = str(comment.get("body") or "")
-        if NON_APPROVAL_RE.search(body) or HUMAN_MERGE_VETO_RE.search(body):
+        if NON_APPROVAL_RE.search(body) or DECISION_REVOKE_RE.search(body):
             latest_revoke = max(latest_revoke, created_at)
         elif RATIFICATION_SIGNAL_RE.search(body):
             latest_ratify = max(latest_ratify, created_at)
@@ -1019,7 +1016,7 @@ def _human_comments(
     reviews: list[dict[str, Any]],
     review_comments: list[dict[str, Any]] | None,
     actor_config: FeedbackConfig,
-) -> list[tuple[str, str, str, str]]:
+) -> list[tuple[str, str]]:
     corpus: list[dict[str, Any]] = list(fetch_issue_comments(repo, number))
     corpus.extend(reviews)
     if review_comments is None:
@@ -1039,15 +1036,7 @@ def _human_comments(
             continue
         login = item.get("author")
         login = login.get("login") if is_json_object(login) else login
-        at = item.get("submittedAt") or item.get("createdAt") or ""
-        found.append(
-            (
-                str(login or "unknown"),
-                str(at),
-                str(item.get("body") or ""),
-                str(item.get("authorAssociation") or "").upper(),
-            )
-        )
+        found.append((str(login or "unknown"), str(item.get("body") or "")))
     return found
 
 
@@ -1060,60 +1049,19 @@ def human_blocking_logins(
 ) -> list[str]:
     """The logins of the people with any blocking comment, sorted (the tier).
 
-    A human "do not merge"/blocking comment that is not a formal
-    CHANGES_REQUESTED and not an unresolved inline thread (both gated by the
-    base gate) still halts the tier: the shared blocking-text and severity
-    predicates and `HUMAN_MERGE_VETO_RE` run over every human comment.
+    A human blocking comment that is not a formal CHANGES_REQUESTED and not an
+    unresolved inline thread (both gated by the base gate) still halts the
+    tier: the shared blocking-text and severity predicates run over every
+    human comment.
     """
     return sorted(
         {
             login
-            for login, _, body, _ in _human_comments(
+            for login, body in _human_comments(
                 repo, number, reviews, review_comments, actor_config
             )
-            if has_blocking_text(body)
-            or has_blocking_severity(body)
-            or HUMAN_MERGE_VETO_RE.search(body)
+            if has_blocking_text(body) or has_blocking_severity(body)
         }
-    )
-
-
-def vetoing_logins(items: Iterable[tuple[str, str, str]]) -> list[str]:
-    """The logins, sorted, whose newest (login, time, body) item with text
-    says "do not merge"."""
-    newest: dict[str, tuple[str, str]] = {}
-    for login, at, body in items:
-        if body.strip() and (login not in newest or at >= newest[login][0]):
-            newest[login] = (at, body)
-    return sorted(
-        login for login, (_, body) in newest.items() if HUMAN_MERGE_VETO_RE.search(body)
-    )
-
-
-def human_veto_logins(
-    repo: str,
-    number: int,
-    reviews: list[dict[str, Any]],
-    review_comments: list[dict[str, Any]] | None,
-    actor_config: FeedbackConfig,
-) -> list[str]:
-    """The people whose newest comment on the pull request says "do not
-    merge" (`HUMAN_MERGE_VETO_RE` only), sorted (the pr-merge lane).
-
-    Each person's newest comment, review or inline comment with text decides,
-    so the same person lifts their hold with any later comment that does not
-    say it, such as "go ahead", or by editing the veto away. An item with no
-    text never lifts it: GitHub records an inline-only review, and an Approve
-    with no text, as a review summary with an empty body. Only an OWNER,
-    MEMBER or COLLABORATOR counts: on a public repository anyone else's
-    comment holds nothing.
-    """
-    return vetoing_logins(
-        (login, at, body)
-        for login, at, body, association in _human_comments(
-            repo, number, reviews, review_comments, actor_config
-        )
-        if association in merge_policy.BLOCKER_ASSOCIATIONS
     )
 
 
@@ -1664,11 +1612,6 @@ def evaluate(
         blockers.append(merge_policy.not_open_refusal(pr.get("state")))
     if pr.get("isDraft"):
         blockers.append("PR is a draft -- mark ready first")
-    if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
-        blockers.append(
-            "PR body holds the merge (do not merge, or a Hold: line) -- a human "
-            "hold, report it and leave it"
-        )
     autonomous = unattended is not None or tier is not None
     try:
         human_gated = human_gated_label(repo) if autonomous else None
@@ -1818,31 +1761,6 @@ def evaluate(
             review_comments,
         )
         blockers.extend(tier_blockers)
-
-    if (
-        tier is None
-        and unattended is not None
-        and (unattended.inputs or {}).get("authority") == merge_policy.PR_MERGE
-    ):
-        if reviews is None:
-            reviews = fetch_pull_request_reviews(repo, number)
-        identity = unattended.agent_identity
-        vetoes = human_veto_logins(
-            repo,
-            number,
-            reviews,
-            review_comments,
-            FeedbackConfig(
-                extra_bot_logins=frozenset({identity}) if identity else frozenset()
-            ),
-        )
-        if vetoes:
-            blockers.append(
-                "human merge veto from "
-                + ", ".join(vetoes)
-                + " -- their newest comment says do not merge; a later comment "
-                "from them lifts it"
-            )
 
     if (
         not blockers
@@ -3864,8 +3782,9 @@ def close_capped(
     label hold it open, and the issue's hold labels
     (`merge_policy.issue_hold_labels`) or Work status
     (`config.issue_status`) keep it so. Any hold the gate reads on
-    a queued entry (`merge_policy.entry_hold`: a hold label, a body hold, a
-    member's veto; an unreadable one holds) keeps it open first,
+    a queued entry (`merge_policy.entry_hold`: a hold label, or off the
+    pr-merge lane a member's blocking comment; an unreadable one holds) keeps
+    it open first,
     as enable-auto-merge.mjs decide() does. An unreadable human-gated label
     raises `PostMergeReadError`: a default could miss the mapped one."""
     if hold := merge_policy.entry_hold(

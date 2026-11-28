@@ -12,6 +12,8 @@ source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 assert_help "$S"
 assert_usage_error "$S" --nope
 assert_usage_error "$S" --title x --type
+assert_usage_error "$S" --title x --native-status
+assert_usage_error "$S" --title x --native-status 3
 
 if command -v jq >/dev/null 2>&1; then
   STUB="$(mktemp -d "$TMP_ROOT/d.XXXXXX")"
@@ -65,11 +67,28 @@ issue)
 api)
   case "$*" in
   *"--jq .permissions.push") [[ "$2" == repos/up/r ]] && echo false || echo true ;;
+  *"-X PATCH"*)
+    if [[ -n "${GH_STUB_PATCH_ERR:-}" ]]; then
+      printf '%s\n' "$GH_STUB_PATCH_ERR" >&2
+      exit 1
+    fi
+    st=""
+    for a in "$@"; do
+      case "$a" in status=*) st="${a#status=}" ;; *) : ;; esac
+    done
+    jq -cn --arg s "$st" '{number: 42, status: {id: 3, name: $s, category: "planned"}}'
+    ;;
   *"--method POST"*) printf '42\n' ;;
   *"/labels?"*) printf '%b' "${GH_STUB_LABELS-type: bug\ntype: feature\ntype: task\n}" ;;
   *"repos/{owner}/{repo}"*) printf 'o/r\n' ;;
   *"--jq .full_name") printf '%s\n' "${2#repos/}" ;;
-  *) printf '{"number":42,"title":"t","state":"open","assignees":[],"labels":[{"name":"a"},{"name":"type: task"}],"type":{"name":"Task"},"html_url":"https://github.com/o/r/issues/42"}\n' ;;
+  *)
+    if [[ -n "${GH_STUB_ISSUE_STATUS:-}" ]]; then
+      jq -cn --arg s "$GH_STUB_ISSUE_STATUS" '{number: 42, title: "t", state: "open", assignees: [], labels: [{name: "a"}, {name: "type: task"}], type: {name: "Task"}, html_url: "https://github.com/o/r/issues/42", status: {id: 3, name: $s, category: "planned"}}'
+    else
+      printf '{"number":42,"title":"t","state":"open","assignees":[],"labels":[{"name":"a"},{"name":"type: task"}],"type":{"name":"Task"},"html_url":"https://github.com/o/r/issues/42"}\n'
+    fi
+    ;;
   esac
   exit 0
   ;;
@@ -231,6 +250,32 @@ EOF
   GH_STUB_VERSION=2.45.0 run_create --title t --repo up/r >/dev/null 2>&1
   assert_eq "create-item --repo naming a repository you cannot push to → exit 3" "3" "$?"
   assert_not_contains "create-item --repo naming a repository you cannot push to files nothing" "$(<"$STUB/calls.log")" "--method POST"
+
+  OUT="$(WIT_WRITE_SPACING_S=0 GH_STUB_VERSION=2.94.0 GH_STUB_ISSUE_STATUS=Todo run_create --title t --labels agent-ready --repo o/r)"
+  assert_eq "create-item --labels agent-ready exits 0" "0" "$?"
+  assert_eq "create-item --labels agent-ready emits native_status Todo" "Todo" "$(jq -r '.native_status' <<<"$OUT")"
+  assert_contains "create-item --labels agent-ready PATCHes native status Todo" "$(<"$STUB/calls.log")" \
+    "api -X PATCH repos/o/r/issues/42 -f status=Todo"
+
+  OUT="$(WIT_WRITE_SPACING_S=0 GH_STUB_VERSION=2.94.0 GH_STUB_ISSUE_STATUS=Todo run_create --title t --labels session-owned --repo o/r)"
+  assert_eq "create-item --labels session-owned PATCHes native status Todo" "0" "$?"
+  assert_contains "create-item --labels session-owned sends status=Todo" "$(<"$STUB/calls.log")" \
+    "api -X PATCH repos/o/r/issues/42 -f status=Todo"
+
+  OUT="$(WIT_WRITE_SPACING_S=0 GH_STUB_VERSION=2.94.0 GH_STUB_ISSUE_STATUS=Backlog run_create --title t --labels needs-triage --repo o/r)"
+  assert_eq "create-item intake (needs-triage) exits 0" "0" "$?"
+  assert_eq "create-item intake surfaces GitHub default Backlog" "Backlog" "$(jq -r '.native_status' <<<"$OUT")"
+  assert_not_contains "create-item intake skips redundant PATCH" "$(<"$STUB/calls.log")" "-X PATCH"
+
+  OUT="$(WIT_WRITE_SPACING_S=0 GH_STUB_VERSION=2.94.0 GH_STUB_ISSUE_STATUS=Backlog run_create --title t --native-status Backlog --repo o/r)"
+  assert_eq "create-item --native-status Backlog exits 0" "0" "$?"
+  assert_contains "create-item --native-status Backlog sends explicit PATCH" "$(<"$STUB/calls.log")" \
+    "api -X PATCH repos/o/r/issues/42 -f status=Backlog"
+
+  OUT="$(WIT_WRITE_SPACING_S=0 GH_STUB_VERSION=2.94.0 GH_STUB_PATCH_ERR='gh: Validation Failed (HTTP 422)' run_create --title t --labels agent-ready --repo o/r 2>/dev/null)"
+  assert_eq "create-item degrades cleanly on HTTP 422 native status → exit 0" "0" "$?"
+  assert_eq "create-item on 422 still emits created id" "github:o/r#42" "$(jq -r '.id' <<<"$OUT")"
+  assert_eq "create-item on 422 emits native_status null" "null" "$(jq -r '.native_status' <<<"$OUT")"
 
   rm -rf "$STUB" "$PROJECT" "$THEIRS"
 fi

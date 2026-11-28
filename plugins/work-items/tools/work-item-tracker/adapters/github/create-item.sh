@@ -3,9 +3,9 @@ set -uo pipefail
 # shellcheck source=common.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
 
-wit_help_if_requested "usage: create-item --title <t> [--body <b>] [--labels a,b] [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <owner>/<repo>]" "$@"
+wit_help_if_requested "usage: create-item --title <t> [--body <b>] [--labels a,b] [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--native-status <name>] [--repo <owner>/<repo>]" "$@"
 
-title="" body="" labels="" type="" parent="" blocked_by="" repo_override=""
+title="" body="" labels="" type="" parent="" blocked_by="" native_status="" repo_override=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
   --title)
@@ -36,6 +36,14 @@ while [[ $# -gt 0 ]]; do
   --blocked-by)
     [[ $# -ge 2 ]] || wit_usage_error "--blocked-by needs a value"
     blocked_by="$2"
+    shift 2
+    ;;
+  --native-status)
+    [[ $# -ge 2 && -n "$2" ]] || wit_usage_error "--native-status needs a non-empty status name"
+    if [[ "$2" =~ ^[0-9]+$ ]]; then
+      wit_usage_error "--native-status must be a status name string (e.g. Backlog, Todo), not a numeric id"
+    fi
+    native_status="$2"
     shift 2
     ;;
   --repo)
@@ -154,6 +162,23 @@ if ((!native)); then
     printf 'create-item: could not parse created issue number: %s\n' "$number" >&2
     exit "$EX_INTERNAL"
   }
+fi
+
+target_native_status="$native_status"
+if [[ -z "$target_native_status" && -n "$labels" ]]; then
+  ready_a="$(printf '%s' "${WIT_AUTONOMOUS_ELIGIBLE_LABEL:-$WIT_DEFAULT_AUTONOMOUS_ELIGIBLE_LABEL}" | tr '[:upper:]' '[:lower:]')"
+  ready_s="$(printf '%s' "${WIT_SESSION_OWNED_LABEL:-$WIT_DEFAULT_SESSION_OWNED_LABEL}" | tr '[:upper:]' '[:lower:]')"
+  IFS=',' read -ra created_labels <<<"$labels"
+  for label in ${created_labels[@]+"${created_labels[@]}"}; do
+    label_lc="$(printf '%s' "$label" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$label_lc" == "$ready_a" || "$label_lc" == "$ready_s" || "$label_lc" == "status: ready" ]]; then
+      target_native_status="Todo"
+      break
+    fi
+  done
+fi
+if [[ -n "$target_native_status" ]]; then
+  wit_gh_try_set_native_status "${target_repo%%/*}" "${target_repo##*/}" "$number" "$target_native_status" || true
 fi
 
 wit_emit_item "${target_repo%%/*}" "${target_repo##*/}" "$number"

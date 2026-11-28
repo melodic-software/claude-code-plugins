@@ -1,6 +1,6 @@
 ---
-description: "Inspect the multi-agent role map or write confirmed overrides to user, team, or local config layers (including `--migrate`)."
-argument-hint: "[check|apply] [--layer user|team|local|--migrate] [<key>=<value> ...] [session=<alias>]"
+description: "Inspect the multi-agent role map or write confirmed overrides to user, team, or local config layers."
+argument-hint: "[check|apply] [--layer user|team|local] [<key>=<value> ...] [session=<alias>]"
 user-invocable: true
 disable-model-invocation: true
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/setup.sh:*)"]
@@ -16,9 +16,6 @@ and writes one of them. All three consumer layers absent is a valid state: the
 bundled defaults apply. Keys, values, layer paths and the fan-out guard are
 defined in
 [`${CLAUDE_PLUGIN_ROOT}/reference/config.md`](${CLAUDE_PLUGIN_ROOT}/reference/config.md).
-
-An old `~/.claude/multi-agent.yaml` or `.claude/multi-agent.local.yaml` is still read while its new
-file is absent, with a warning; `apply --migrate` moves it.
 
 No argument means `check`. It installs nothing; the resolver needs only Bash,
 awk and git. Pass `--user-file '${user_config.role_map_file}'` on every
@@ -44,11 +41,9 @@ Show:
 3. the personal-override row: PASS when `<home>/multi-agent.local.yaml` is
    gitignored, else WARN with the recommended line `<home>/**/*.local.*`.
    Recommend the line; do not edit `.gitignore`;
-4. each `WARN user-config:` or `WARN personal-override:` row naming an old
-   path, and each `WARN team:` row: a retired team file (the config block in
+4. each `WARN team:` row: a retired team file (the config block in
    `docs/conventions/multi-agent.md`, or `.claude/multi-agent.yaml`) that the
-   resolver no longer reads. Relay the row's next step as written, and offer
-   `apply --migrate` for each old file.
+   resolver no longer reads. Relay the row's next step as written.
 
 It modifies nothing.
 
@@ -64,8 +59,7 @@ It modifies nothing.
      you work in. While the option is unset, `apply --layer user` stops: ask
      the user to set it in `/config` to a file of their choosing, then rerun.
 
-   `team` and `local` are refused at a home or non-repository root. `user` and
-   `local` are refused while that layer's old file exists: migrate first.
+   `team` and `local` are refused at a home or non-repository root.
 3. Settle the keys. Ask only for what the user wants changed; each value comes
    from the table in `config.md`. Pass every key to set as `<key>=<value>`, and
    `<key>=` to remove one from that layer. Existing keys in the layer are kept.
@@ -90,36 +84,6 @@ It modifies nothing.
    next `/multi-agent:route` run reads; nothing about the running session
    changes. For `team`, offer `git add` and a commit and run each only when the
    user accepts.
-
-### `apply --migrate`
-
-Moves each old file into its new location, so each layer ends with one file:
-`~/.claude/multi-agent.yaml` into the `role_map_file` option's file,
-`.claude/multi-agent.local.yaml` into `<home>/multi-agent.local.yaml`, and the
-retired `.claude/multi-agent.yaml` into the team YAML.
-
-1. Run `check` and show the map and the old-path rows.
-2. Preview, writing nothing:
-
-   ```bash
-   ${CLAUDE_SKILL_DIR}/scripts/setup.sh apply --migrate --user-file '${user_config.role_map_file}'
-   ```
-
-   It prints one `would move:` line and a diff per old file. A key the new
-   file already sets keeps its value, and a `kept:` line names it with the old
-   value. A `skip:` line means the old user file has no new home yet: relay
-   its step (set the option in `/config`).
-3. Show the preview and ask for an explicit yes. Move only on that yes:
-
-   ```bash
-   ${CLAUDE_SKILL_DIR}/scripts/setup.sh apply --migrate --write --user-file '${user_config.role_map_file}'
-   ```
-
-   For each file it writes the new file, reads it back, checks that the
-   layers resolve the values the old file gave (when the old file was the one
-   read), and only then deletes the old file. On a failed check it exits 1
-   and keeps the old file; relay the message.
-4. Run `check` again and show the after map beside the before one.
 
 ### The fan-out guard
 
@@ -166,8 +130,6 @@ Prints the map the next workflow reads from `args.roles`.
   not read.
 - The first `team` write creates the YAML. A retired team file, which the
   resolver no longer reads, seeds its keys and stays as it was; `check` names
-  it until it is deleted. `apply --migrate` moves a retired
-  `.claude/multi-agent.yaml` and deletes it; the config block in
-  `docs/conventions/multi-agent.md` is left to delete by hand.
+  it until it is deleted.
 - Team and local layers resolve against the repository root of the working
   directory. Inside a second worktree, run from that worktree.

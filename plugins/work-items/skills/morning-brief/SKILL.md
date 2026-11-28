@@ -226,6 +226,13 @@ check. Over REST the field is unread, so Queues and Parked print by label with a
 failed model or field read, or a value the model has no option for, makes the section reading it
 `UNREADABLE`.
 
+When the target repository exposes native GitHub Issue Statuses (`GET /repos/{owner}/{repo}/planning-statuses`),
+the Queues section also prints a `Native statuses (open):` breakdown over REST (ordered by the
+repository's planning statuses, plus an `unset` row when pre-preview `status: null` open issues
+exist alongside non-null ones). When the endpoint is unavailable (`404`/`403`) or every open issue
+has `status: null`, the block is omitted cleanly without affecting `Work status` or marking the
+section `UNREADABLE`. Pass `--native-status-json <file>` in offline fixture runs.
+
 ## What each section reports
 
 | Section | Source | Notes |

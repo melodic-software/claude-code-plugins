@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 set -uo pipefail
+unset RUNNER_TEMP GITHUB_ACTIONS
 
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG
 export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
@@ -2902,6 +2903,50 @@ assert_contains "status rest: Queues says the field was unread" "$(section "$OUT
 assert_contains "status rest: Parked says a field-only decision is not shown" "$(section "$OUT_REST_MODEL" "== Parked")" \
   "PARTIAL: the Work status field needs GraphQL, which this session does not serve; an issue parked only on the field is not shown"
 assert_not_contains "status rest: with no model there is no Work status line" "$(section "$OUT_REST" "== Queues")" "Work status"
+
+NATIVE_FIXTURES="$SCRIPT_DIR/../../tools/work-item-tracker/adapters/github/fixtures"
+jq -n --slurpfile defs "$NATIVE_FIXTURES/gh-planning-statuses.json" '{
+  statuses: $defs[0],
+  issues: [
+    {number: 1, status: {id: 2, name: "Backlog", category: "backlog"}},
+    {number: 2, status: {id: 2, name: "Backlog", category: "backlog"}, sub_issues_summary: {total: 2, completed: 0}},
+    {number: 3, status: {id: 3, name: "Todo", category: "planned"}},
+    {number: 4, status: {id: 4, name: "In progress", category: "started"}},
+    {number: 5, status: {id: 8, name: "In review", category: "started"}},
+    {number: 6, status: null},
+    {number: 7, pull_request: {url: "u"}, status: {id: 8, name: "In review", category: "started"}}
+  ]
+}' >"$TMP/native-status.json"
+OUT_NATIVE="$(run_status --native-status-json "$TMP/native-status.json")"
+assert_exit "native status: fixtured brief exits 0" 0 "$?"
+NATIVE_Q="$(section "$OUT_NATIVE" "== Queues")"
+assert_contains "native status: prints heading under Queues" "$NATIVE_Q" "  Native statuses (open):"
+assert_contains "native status: Backlog rolls up parent with open sub-issues" "$NATIVE_Q" "    Backlog                1 (+1 with open sub-issues)"
+assert_contains "native status: Todo count" "$NATIVE_Q" "    Todo                   1"
+assert_contains "native status: In progress count" "$NATIVE_Q" "    In progress            1"
+assert_contains "native status: In review excludes pull requests" "$NATIVE_Q" "    In review              1"
+assert_contains "native status: pre-preview null issues count under unset" "$NATIVE_Q" "    unset                  1"
+assert_eq "native status: preserves planning-statuses lifecycle order" $'Backlog\nTodo\nIn progress\nIn review\nunset' \
+  "$(awk '/^  Native statuses \(open\):/{f=1;next} f && /^    /{sub(/^    /,""); sub(/  +.*/,""); print; next} f{f=0}' <<<"$NATIVE_Q")"
+assert_contains "native status: keeps Work status counts intact alongside native statuses" "$NATIVE_Q" "  needs-human              2"
+
+jq '{statuses, issues: [{number: 136, status: null}]}' "$TMP/native-status.json" >"$TMP/native-status-all-null.json"
+OUT_NATIVE_NULL="$(run_status --native-status-json "$TMP/native-status-all-null.json")"
+assert_not_contains "native status: all-null pre-preview issues omit Native statuses block" \
+  "$(section "$OUT_NATIVE_NULL" "== Queues")" "Native statuses (open):"
+
+cp -R "$REST" "$TMP/rest-native"
+cp "$NATIVE_FIXTURES/gh-planning-statuses.json" "$TMP/rest-native/$(rest_key "$R/planning-statuses").json"
+cp "$NATIVE_FIXTURES/gh-issue-native-status-rest.json" "$TMP/rest-native/$(rest_key "$R/issues?state=open&per_page=100").json"
+OUT_REST_NATIVE="$(MB_GH_FIXTURES="$TMP/rest-native" run_stub rest)"
+assert_contains "native status rest: live REST path surfaces Backlog from enrolled repo" \
+  "$(section "$OUT_REST_NATIVE" "== Queues")" "    Backlog                1"
+assert_contains "native status rest: live REST path surfaces In review" \
+  "$(section "$OUT_REST_NATIVE" "== Queues")" "    In review              1"
+assert_contains "native status rest: live REST path surfaces unset for pre-preview null" \
+  "$(section "$OUT_REST_NATIVE" "== Queues")" "    unset                  1"
+assert_not_contains "native status rest: un-enrolled repo (no planning-statuses fixture) omits block" \
+  "$(section "$OUT_REST" "== Queues")" "Native statuses (open):"
 
 echo
 if ((FAILED > 0)); then

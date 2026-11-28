@@ -16,6 +16,7 @@
 - [Comment on item / edit a comment](#comment-on-item--edit-a-comment)
 - [Issue artifacts](#issue-artifacts)
 - [Related items ("Relates to")](#related-items-relates-to)
+- [Native issue statuses](#native-issue-statuses)
 - [PR closing-keyword mechanics](#pr-closing-keyword-mechanics)
 - [Open linked PRs](#open-linked-prs)
 - [Label-removal provenance](#label-removal-provenance)
@@ -248,7 +249,9 @@ gh issue close <N> --repo <owner>/<repo> --reason completed
 
 The `done` action closes with `--reason completed`, and with `--reason "not planned"` for
 `--not-planned`. The accepted reasons are read at
-[gh issue close § Options](https://cli.github.com/manual/gh_issue_close#options).
+[gh issue close § Options](https://cli.github.com/manual/gh_issue_close#options). After closing,
+dual-write the native lifecycle status via the seam (`set-native-status <id> --status Done`,
+`"Not planned"`, or `"Duplicate"`), ignoring exit `6` when the repository is not enrolled.
 
 **Post the note as its own comment, never through `--comment`.** On an issue that is already
 closed, `gh issue close` prints `is already closed`, exits 0, and posts neither its `--comment` nor
@@ -413,6 +416,30 @@ Non-blocking cross-references use the seam verbs `link-relates`, `unlink-relates
 also runs in GraphQL-refusing cloud sessions). When unavailable (cloud GraphQL refusal on writes,
 missing mutation, or HTTP `403`/`404` on an existing issue), each verb exits `6` with
 `{available: false, fallback: "refs-comment"}` so callers fall back to a `Refs` mention.
+
+## Native issue statuses
+
+Native GitHub Issue Statuses (`Backlog`, `Todo`, `In progress`, `In review`, `Done`,
+`Not planned`, `Duplicate`) track the universal lifecycle axis and power Repository Boards. They
+stay strictly separate from the `Work status` organization issue field: native status transitions
+emit no persisted actor timeline events, so `Work status` (and `config.github.status_trust`)
+remains the sole authority for trusted admission and holds.
+
+- **REST write:** `set-native-status` sends `PATCH /repos/{owner}/{repo}/issues/{number}` with
+  `-f status="<Name>"` (string name only; numeric ids fail with HTTP `422`). It runs in both
+  standard and cloud sessions and exits `6` (`{available: false, updated: false, fallback: "none"}`)
+  when the repository is un-enrolled (`422`/`403`/`404` on an existing issue, or a `200` response
+  without a `status` object).
+- **Best-effort dual-write:** `create-item` writes `--native-status <name>` when passed, writes
+  `Todo` for items carrying the resolved autonomous-eligible or session-owned role label or
+  `status: ready`, and leaves other new issues in GitHub's default `Backlog`. `claim` writes
+  `In progress` after winning an implementation claim (skipped for `--phase triage` and
+  `--phase discovery`). Neither fails the primary operation if native statuses are unavailable.
+- **Dual-read:** `get-item` and `list-items` surface `native_status` (string name or `null` for
+  pre-preview open issues or un-enrolled repositories) from the REST issue payload without touching
+  the `status` field attached by `list-frontier --autonomous` for `Work status`.
+- **Discovery:** `GET /repos/{owner}/{repo}/planning-statuses` lists the repository's enabled
+  native statuses (`404`/`403` when not enrolled).
 
 ## PR closing-keyword mechanics
 

@@ -266,15 +266,15 @@ def _graphql(query: str, node_id: str) -> bool:
 
 HOLD_STATE = (
     "query($id: ID!) { node(id: $id) { ... on PullRequest {"
-    " isDraft body labels(first: 100) { totalCount nodes { name } } } } }"
+    " isDraft labels(first: 100) { totalCount nodes { name } } } } }"
 )
 
 
 def _held(node_id: str, human_gated: str) -> str | None:
     """Why the pull request, read now, must not be toggled, or None: it is
     already a draft (a person's, whose hold a mark-ready would undo), carries
-    a merge-hold label, the tracker's `human_gated` role label or a body hold,
-    or did not read whole."""
+    a merge-hold label or the tracker's `human_gated` role label, or did not
+    read whole."""
     import babysit_merge_policy as merge_policy  # noqa: PLC0415 - import cycle
 
     proc = _graphql_capture(HOLD_STATE, node_id)
@@ -283,7 +283,7 @@ def _held(node_id: str, human_gated: str) -> str | None:
         labels = node["labels"]
         names = {str(n["name"]).casefold() for n in labels["nodes"]}
         whole = labels["totalCount"] == len(labels["nodes"])
-        draft, body = node["isDraft"], str(node["body"] or "")
+        draft = node["isDraft"]
     except (KeyError, TypeError, ValueError):
         return "hold-state-unread"
     if draft is not False:
@@ -293,8 +293,6 @@ def _held(node_id: str, human_gated: str) -> str | None:
     holds = {*merge_policy.MERGE_HOLD_LABELS, human_gated}
     if names & {label.casefold() for label in holds}:
         return "hold-label"
-    if merge_policy.BODY_MERGE_HOLD_RE.search(body):
-        return "body-hold"
     return None
 
 

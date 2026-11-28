@@ -1929,7 +1929,6 @@ test("a landed fix puts the recorded Verification text in place and leaves every
 
 test("section text holding a line a gate reads, or a shape a reader takes, drops the refresh and keeps the round", async () => {
   for (const [text, why] of [
-    ["Hold: wait for the vendor", "a line a gate reads"],
     ["> Draft: still open", "a line a gate reads"],
     ["Closes #9", "a line a gate reads"],
     ["Fixes https://github.com/o/r/issues/9", "a line a gate reads"],
@@ -1937,7 +1936,6 @@ test("section text holding a line a gate reads, or a shape a reader takes, drops
     ["Siblings: #4, #6", "a line a gate reads"],
     ["Merge-Risk: max=LOW", "a line a gate reads"],
     ["No related issue: none", "a line a gate reads"],
-    ["Please do not\nmerge yet.", "a line a gate reads"],
     ["Ran it.\n## Follow-ups", "a line a gate reads"],
     ["Ran it.\n## Notes", "a heading line"],
     ["Ran it.\n```\nnpm test", "a code fence"],
@@ -1955,7 +1953,7 @@ test("section text holding a line a gate reads, or a shape a reader takes, drops
     assert.equal(api.posted().length, 1, `the reply still posts: ${text}`);
     assert.equal(dropLine(api), `The body refresh was dropped: the text holds ${why}.`, text);
   }
-  for (const text of ["Ran `@types/node` checks.", "Mail a@b.example about it.", "Fixed the parser; see the closing notes."]) {
+  for (const text of ["Hold: wait for the vendor", "Please do not\nmerge yet.", "Ran `@types/node` checks.", "Mail a@b.example about it.", "Fixed the parser; see the closing notes."]) {
     assert.equal(sectionRefusal(text), null, text);
   }
 });
@@ -2058,7 +2056,25 @@ test("gateLines names exactly the lines check-gate-lines.sh names", (t) => {
   }
   const named = out.split("\n").filter((line) => line.startsWith("added: ")).map((line) => line.slice("added: ".length)).sort();
   assert.deepEqual(gateLines(corpus), named);
-  assert.ok(named.length >= 18, "the corpus exercises the list");
+  for (const [rule, line] of [
+    ["a quoted Draft: lead", "> Draft: quoted"],
+    ["a Siblings: lead", "Siblings: #1, #2"],
+    ["a MERGE-RISK: lead", "MERGE-RISK: max=LOW"],
+    ["a Refs: lead", "Refs: #5"],
+    ["a relates to: lead", "relates to: #6"],
+    ["a No related issue lead", "No related issue: reason"],
+    ["a no linked issue lead", "no linked issue here"],
+    ["a closing keyword on #N", "Closes #7"],
+    ["a closing keyword on owner/repo#N mid-line", "this fixes o/r#8 too"],
+    ["a closing keyword with a colon", "resolved: #9"],
+    ["a closing keyword on an issue URL", "Closes https://github.com/o/r/issues/10"],
+    ["a closing keyword with a colon on an issue URL mid-line", "see fixes: https://github.com/o/r/issues/11 too"],
+    ["the Follow-ups heading", "## Follow-ups"],
+    ["a Follow-ups bullet", "- Pre-existing (advisory): `x`"],
+  ]) {
+    assert.ok(named.includes(line), `the corpus hits ${rule}`);
+  }
+  for (const line of ["Hold: wait", "  hold: indented", "- Hold: in a bullet"]) assert.ok(!named.includes(line), `a hold line is no gate line: ${line}`);
 });
 
 const ASKED_AT = "2026-11-17T10:00:00Z";

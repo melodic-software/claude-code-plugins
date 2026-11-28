@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { workflowText } from "../lib/workflow-text.mjs";
+import { assertPerHeadUnlessUpstreamCancelled } from "../lib/workflow-run-group.mjs";
 import { ARTIFACT_PREFIX, RATING_WORKFLOW_PATH, runTitle } from "../pr-merge/merge-risk-line.mjs";
 
 const text = readFileSync(new URL("../../workflows/pr-rate-merge-risk.yml", import.meta.url), "utf8");
@@ -221,4 +222,8 @@ test("the trigger is pr-verify's, judged only for a successful same-repository p
     assert.match(job(id), /github\.ref == 'refs\/heads\/main'\n {6}&& github\.event\.workflow_run\.event == 'pull_request'\n {6}&& github\.event\.workflow_run\.conclusion == 'success'\n {6}&& github\.event\.workflow_run\.head_repository\.full_name == github\.repository\n/, id);
   }
   assert.match(text, /cancel-in-progress: false\n/);
+});
+
+test("the concurrency group is per PR and head unless the upstream was cancelled, whose run judges nothing", () => {
+  assertPerHeadUnlessUpstreamCancelled(text, "pr-rate-merge-risk");
 });

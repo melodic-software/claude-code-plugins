@@ -174,7 +174,7 @@ holds "work-resolve-issue.yml has no job of its own that releases" "$CALLER_YML"
 holds "the read runner has no separate release job" "$READ_YML" '!("lease-release" in d.jobs)'
 # shellcheck disable=SC2016 # the ${{ }} text is a literal the workflow must hold
 holds "report-outcome and apply-issue-patch pass the selected read call's lease handle" "$CALLER_YML" \
-  'const want = "${{ needs.resolve-issue-fallback.result != '"'skipped'"' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result != '"'skipped'"' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result == '"'skipped'"' && needs.resolve-issue.outputs.lease-comment-id || '"''"' }}"; const selected = want.replace(/^\$\{\{ /, "").replace(/ \|\| '"''"' \}\}$/, ""); d.jobs["report-outcome"].with["lease-comment-id"] === "${{ needs.resolve-issue-stale.outputs.stale != '"'true'"' && (" + selected + ") || '"''"' }}" && d.jobs["apply-issue-patch"].with["lease-comment-id"] === want'
+  'const want = "${{ needs.resolve-issue-fallback.result != '"'skipped'"' && needs.resolve-issue-fallback.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result != '"'skipped'"' && needs.resolve-issue-subscription.outputs.lease-comment-id || needs.resolve-issue-fallback.result == '"'skipped'"' && needs.resolve-issue-subscription.result == '"'skipped'"' && needs.resolve-issue.outputs.lease-comment-id || '"''"' }}"; const selected = want.replace(/^\$\{\{ /, "").replace(/ \|\| '"''"' \}\}$/, ""); const skipped = selected.replaceAll("lease-comment-id", "scan-skip-reason"); d.jobs["report-outcome"].with["lease-comment-id"] === "${{ needs.resolve-issue-stale.outputs.stale != '"'true'"' && (" + skipped + " || '"''"') != '"'closed-by-open-pr'"' && (" + selected + ") || '"''"' }}" && d.jobs["apply-issue-patch"].with["lease-comment-id"] === want'
 
 who() {
   local got
@@ -224,12 +224,13 @@ who() {
       "needs.resolve-issue-fallback.result": "skipped", "needs.resolve-issue-subscription.result": "skipped",
       "needs.resolve-issue.result": "success", "needs.resolve-issue.outputs.scan-issue-run-started": started,
       "needs.resolve-issue.outputs.scan-reuse-branch": reuse, "needs.resolve-issue.outputs.scan-patch-state": patchState,
-      "needs.resolve-issue.outputs.lease-comment-id": leaseId, "needs.resolve-issue-stale.outputs.stale": "",
+      "needs.resolve-issue.outputs.lease-comment-id": leaseId, "needs.resolve-issue.outputs.scan-skip-reason": "",
+      "needs.resolve-issue-stale.outputs.stale": "",
       "needs.check-human-pull.result": "success", "needs.check-human-pull.outputs.pull": "",
     };
     // The skipped later calls output nothing.
     for (const call of ["resolve-issue-subscription", "resolve-issue-fallback"]) {
-      for (const name of ["scan-issue-run-started", "scan-reuse-branch", "scan-patch-state", "lease-comment-id"]) {
+      for (const name of ["scan-issue-run-started", "scan-reuse-branch", "scan-patch-state", "scan-skip-reason", "lease-comment-id"]) {
         callerCtx[`needs.${call}.outputs.${name}`] = "";
       }
     }

@@ -1,0 +1,25 @@
+{
+  "pass": [
+    {"answer":"- `docs/index.md:8`: \"The catalog lists every shipment type; see CATALOG for the full list.\"\n- `docs/index.md:9`: \"Ask in the docs channel before you edit CATALOG by hand.\""},
+    {"answer":"Both are bare `CATALOG` mentions in `docs/index.md`.\n\n- Line 8: \"The catalog lists every shipment type; see CATALOG for the full list.\"\n- Line 9: \"Ask in the docs channel before you edit CATALOG by hand.\""},
+    {"answer":"- `docs/index.md:8`: The catalog lists every shipment type; see CATALOG for the full list.\n- `docs/index.md:9`: Ask in the docs channel before you edit CATALOG by hand."},
+    {"answer":"- Line 8: \"The catalog lists every shipment type; see CATALOG for the full list.\"\n- Line 9: \"Ask in the docs channel before you edit CATALOG by hand.\""},
+    {"answer":"| Line | Excerpt |\n|---|---|\n| 8 | The catalog lists every shipment type; see CATALOG for the full list. |\n| 9 | Ask in the docs channel before you edit CATALOG by hand. |"},
+    {"answer":"- \"…see CATALOG for the full list.\" (`docs/index.md:8`)\n- \"…edit CATALOG by hand.\" (`docs/index.md:9`)"},
+    {"answer":"- `docs/index.md:8`\n  > The catalog lists every shipment type; see CATALOG for the full list.\n- `docs/index.md:9`\n  > Ask in the docs channel before you edit CATALOG by hand."},
+    {"answer":"- Line 8: \"…see **CATALOG** for the full list.\"\n- Line 9: \"…edit **CATALOG** by hand.\""},
+    {"answer":"- Line 8: \"…see `CATALOG` for the full list.\"\n- Line 9: \"…edit `CATALOG` by hand.\""},
+    {"answer":"- docs/index.md, line 8: …see CATALOG for the full list\n- docs/index.md, line 9: …edit CATALOG by hand"}
+  ],
+  "fail": [
+    {"answer":"- `docs/index.md:8-9` mention \"CATALOG\" as bare prose, not a path."},
+    {"answer":"- `docs/index.md:8`: \"The catalog lists every shipment type; see CATALOG for the full list.\""},
+    {"answer":"Review sites: \"see CATALOG for the full list\" and \"edit CATALOG by hand\"."},
+    {"answer":"- `docs/index.md:8`\n- `docs/index.md:9`"},
+    {"answer":"Two review sites: \"see CATALOG for the full list\" and \"edit CATALOG by hand\"."},
+    {"answer":"- line 5: see CATALOG for the full list\n- line 6: edit CATALOG by hand"},
+    {"answer":"- Line 8: Ask in the docs channel before you edit CATALOG by hand.\n- Line 9: The catalog lists every shipment type; see CATALOG for the full list."},
+    {"answer":"- docs/index.md:18: see CATALOG for the full list\n- docs/index.md:19: edit CATALOG by hand"},
+    {"answer":"| Line | Excerpt |\n|---|---|\n| 8 | Ask in the docs channel before you edit CATALOG by hand. |\n| 9 | The catalog lists every shipment type; see CATALOG for the full list. |"}
+  ]
+}

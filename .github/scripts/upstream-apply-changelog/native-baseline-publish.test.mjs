@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import { BASELINE, publishBaseline, pushBaseline } from "./native-baseline-publish.mjs";
-import { BODY_HOLD, LANE_HOLD } from "../pr-merge/merge-holds.mjs";
 
 const repository = "owner/repo";
 const release = "2.1.330";
@@ -99,8 +98,6 @@ test("publishes a ready pull request with the scripted report at the pushed head
     head: branch, base: "main", draft: false,
     body: `No related issue: each release's native-surface baseline refresh.\n\nRefreshes the native-surface baseline for release ${release}.\n\n${report}`,
   }]]);
-  assert.doesNotMatch(calls[0][1].body, LANE_HOLD);
-  assert.doesNotMatch(calls[0][1].body, BODY_HOLD);
   const existing = fake({ ref, pulls: [{ number: 1 }] });
   assert.equal(await publishBaseline(existing.read, repository, input), false);
   assert.deepEqual(existing.calls, []);

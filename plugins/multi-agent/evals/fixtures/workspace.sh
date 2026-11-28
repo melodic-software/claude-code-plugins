@@ -2,7 +2,7 @@
 # workspace.sh <repo|override|disabled>: makes the eval's empty workspace (the current directory) a
 # git repository with no multi-agent layer, and then:
 #   repo      nothing more
-#   override  .claude/multi-agent.local.yaml setting roles.worker.model to a full model id
+#   override  docs/conventions/multi-agent.local.yaml setting roles.worker.model to a full model id
 #   disabled  .claude/settings.json with "disableWorkflows": true
 # The runner sets HOME to the run's temporary home for a scaffold script
 # (https://code.claude.com/docs/en/plugin-evals, "Set up fixtures and mocks"). The guards refuse
@@ -50,7 +50,7 @@ fi
 GIT_CEILING_DIRECTORIES="$(dirname "${PWD}")"
 export GIT_CEILING_DIRECTORIES
 
-for f in README.md .claude/multi-agent.local.yaml .claude/settings.json; do
+for f in README.md docs/conventions/multi-agent.local.yaml .claude/settings.json; do
   [[ ! -e "${f}" ]] || refuse "${here}/${f} already exists"
 done
 git init -q -b main
@@ -59,8 +59,8 @@ git config core.excludesFile /dev/null
 printf '# demo\n' >README.md
 case "${mode}" in
 override)
-  mkdir -p .claude
-  printf 'schema: 1\nroles:\n  worker:\n    model: claude-opus-5-5\n' >.claude/multi-agent.local.yaml
+  mkdir -p docs/conventions
+  printf 'schema: 1\nroles:\n  worker:\n    model: claude-opus-5-5\n' >docs/conventions/multi-agent.local.yaml
   ;;
 disabled)
   mkdir -p .claude
