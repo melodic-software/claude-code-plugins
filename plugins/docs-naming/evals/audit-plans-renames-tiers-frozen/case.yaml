@@ -34,7 +34,7 @@ graders:
     arm: both
   - name: review-sites-listed
     type: regex
-    pattern: '^(?=[\s\S]*(?:(?:index\.md\D{1,16}|\b[Ll]ine\s+)8\b|see [*_`]*CATALOG[*_`]* for the full list))(?=[\s\S]*(?:(?:index\.md\D{1,16}|\b[Ll]ine\s+)9\b|edit [*_`]*CATALOG[*_`]* by hand))'
+    pattern: '^(?=[\s\S]*(?:(?:index\.md\D{1,16}|\b(?:Line|line)\s+)8\b|see [*_`]*CATALOG[*_`]* for the full list))(?=[\s\S]*(?:(?:index\.md\D{1,16}|\b(?:Line|line)\s+)9\b|edit [*_`]*CATALOG[*_`]* by hand))'
     target: last_message
     arm: both
   - name: report-count-stated
