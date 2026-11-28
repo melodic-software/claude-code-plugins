@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: plugins/guardrails/hooks/merge-guard-fixtures.sh plugins/guardrails/hooks/guardrails-test-helpers.sh lib/merge-hold-labels.json lib/merge-guard-option.mjs lib/plugin-options.mjs plugins/guardrails/hooks/merge-guard.sh plugins/guardrails/.claude-plugin/plugin.json plugins/source-control/skills/pull-request/scripts/merge-readiness.sh plugins/guardrails/hooks/fixtures/check-runs-ci-status.json plugins/guardrails/hooks/fixtures/reviews-page1.json plugins/guardrails/hooks/fixtures/reviews-page2.json plugins/guardrails/hooks/fixtures/pr-verify-index-sha-artifacts.json plugins/guardrails/hooks/fixtures/pr-verify-fail-run-artifacts.json plugins/guardrails/hooks/fixtures/pr-verify-fail-run.json .github/scripts/pr-verify/write-verdict.mjs
+# test-scope: plugins/guardrails/hooks/merge-guard-fixtures.sh plugins/guardrails/hooks/guardrails-test-helpers.sh lib/merge-hold-labels.json lib/merge-guard-option.mjs lib/plugin-options.mjs plugins/guardrails/hooks/merge-guard.sh plugins/guardrails/.claude-plugin/plugin.json plugins/source-control/skills/pull-request/scripts/merge-readiness.sh plugins/guardrails/hooks/fixtures/check-runs-ci-status.json plugins/guardrails/hooks/fixtures/reviews-page1.json plugins/guardrails/hooks/fixtures/reviews-page2.json plugins/guardrails/hooks/fixtures/pr-verify-index-sha-artifacts.json plugins/guardrails/hooks/fixtures/pr-verify-fail-run-artifacts.json plugins/guardrails/hooks/fixtures/pr-verify-fail-run.json .github/scripts/pr-verify/write-verdict.mjs plugins/guardrails/hooks/fixtures/pr-require-checks-runs.json plugins/guardrails/hooks/fixtures/pr-require-checks-jobs.json
 
 # shellcheck disable=SC2016
 set -uo pipefail
@@ -262,6 +262,60 @@ pv_fail
 touch "$FIX/artifacts_error"
 check "$REAL_REPO" "$REAL_PR"
 assert_exit "a failed FAIL-index read -> UNCHECKED" 3 "$RC"
+
+DRAFT_STEP="Note a draft"
+EARLY_RUN="$(jq -r --arg at "$FAIL_AT" '[.workflow_runs[] | select(.created_at < $at) | .id] | first' "$CAP/pr-require-checks-runs.json")"
+LATE_RUN="$(jq -r --arg at "$FAIL_AT" '[.workflow_runs[] | select(.created_at > $at) | .id] | first' "$CAP/pr-require-checks-runs.json")"
+assert_eq "the captured checks run before the FAIL's run did not run its draft step" skipped \
+  "$(jq -r --arg s "$DRAFT_STEP" '.jobs[] | select(.name == "CI Status") | .steps[] | select(.name == $s) | .conclusion' "$CAP/pr-require-checks-jobs.json")"
+pv_checks() {
+  cp "$CAP/pr-require-checks-runs.json" "$FIX/checks_runs.json"
+  jq --arg s "$DRAFT_STEP" --arg c "$2" '(.jobs[] | select(.name == "CI Status") | .steps[] | select(.name == $s) | .conclusion) = $c' \
+    "$CAP/pr-require-checks-jobs.json" >"$FIX/run_jobs_$1.json"
+}
+pv_real 2026-01-01T00:00:00Z
+pv_fail
+pv_checks "$EARLY_RUN" skipped
+check "$REAL_REPO" "$REAL_PR"
+assert_eq "the captured FAIL judged a ready PR's checks run -> BLOCKED verify-fail" "BLOCKED verify-fail" "$(head -n 1 <<<"$OUT")"
+pv_real 2026-01-01T00:00:00Z
+pv_fail
+pv_checks "$EARLY_RUN" success
+check "$REAL_REPO" "$REAL_PR"
+assert_exit "a FAIL that judged only a draft's checks run -> no FAIL, READY past the wait" 0 "$RC"
+assert_contains "draft-judged FAIL -> the no-verdict notice" "$OUT" "NOTICE: pr-verify has no verdict at $REAL_SHA"
+assert_absent "draft-judged FAIL -> the run after the verifier run is not read" "$(cat "$FIX/calls")" "actions/runs/$LATE_RUN/jobs"
+pv_real 2099-01-01T00:00:00Z
+pv_fail
+pv_checks "$EARLY_RUN" success
+check "$REAL_REPO" "$REAL_PR"
+assert_eq "a draft-judged FAIL inside the wait -> BLOCKED no-verify-pass" "BLOCKED no-verify-pass" "$(head -n 1 <<<"$OUT")"
+pv_real 2026-01-01T00:00:00Z
+pv_fail
+pv_checks "$EARLY_RUN" success
+jq '.total_count += 1' "$FIX/checks_runs.json" >"$FIX/checks.next" && mv "$FIX/checks.next" "$FIX/checks_runs.json"
+check "$REAL_REPO" "$REAL_PR"
+assert_eq "a checks-run list cut short -> the FAIL counts" "BLOCKED verify-fail" "$(head -n 1 <<<"$OUT")"
+pv_real 2026-01-01T00:00:00Z
+pv_fail
+pv_checks "$EARLY_RUN" success
+jq --arg at "$(shifted 3600)" '.workflow_runs[].created_at = $at' "$FIX/checks_runs.json" >"$FIX/checks.next" && mv "$FIX/checks.next" "$FIX/checks_runs.json"
+check "$REAL_REPO" "$REAL_PR"
+assert_eq "no checks run created before the verifier run -> the FAIL counts" "BLOCKED verify-fail" "$(head -n 1 <<<"$OUT")"
+pv_real 2026-01-01T00:00:00Z
+pv_fail
+pv_checks "$EARLY_RUN" success
+pv_checks "$LATE_RUN" skipped
+jq --arg id "$LATE_RUN" --arg at "$(shifted -60)" '(.workflow_runs[] | select(.id == ($id | tonumber)) | .created_at) = $at' \
+  "$CAP/pr-require-checks-runs.json" >"$FIX/checks_runs.json"
+check "$REAL_REPO" "$REAL_PR"
+assert_eq "one draft and one ready checks run before the verifier run -> the FAIL counts" "BLOCKED verify-fail" "$(head -n 1 <<<"$OUT")"
+pv_real 2026-01-01T00:00:00Z
+pv_fail
+pv_checks "$EARLY_RUN" success
+rm "$FIX/run_jobs_$EARLY_RUN.json"
+check "$REAL_REPO" "$REAL_PR"
+assert_eq "a checks run's jobs that do not read -> the FAIL counts" "BLOCKED verify-fail" "$(head -n 1 <<<"$OUT")"
 
 PAGED="$TEST_TMPDIR/per-page-4"
 mkdir -p "$PAGED"

@@ -284,6 +284,35 @@ _mg_pv_conf() {
     --jq '.data.repository | if . == null then error("no repository in the response") else . end
       | {w: (.w != null), c: (.c.text // ""), t: (.t.text // ""), s: (.s.text // "")}'
 }
+_mg_draft_judged() {
+  # resolve-pr.mjs draftJudgments, the same rule:
+  # https://github.com/melodic-software/claude-code-plugins/blob/main/.github/scripts/pr-verify/resolve-pr.mjs
+  local at id state
+  at="$(jq -rn --arg t "$1" 'try ($t | fromdateiso8601) catch "x"')" || return 1
+  [[ "$at" =~ ^[0-9]+$ ]] || return 1
+  _mg_api "repos/$MG_REPO/actions/workflows/pr-require-checks.yml/runs?head_sha=$_mg_sha&event=pull_request&per_page=100" ||
+    return 1
+  # shellcheck disable=SC2016
+  MG_OUT="$(jq -r --argjson at "$at" '
+    if (.workflow_runs | type) != "array" or .total_count != (.workflow_runs | length) then "x"
+    elif any(.workflow_runs[]; (try (.created_at | fromdateiso8601) catch null) == null) then "x"
+    else [.workflow_runs[] | select((.created_at | fromdateiso8601) < $at) | .id]
+      | if length > 0 and all(.[]; type == "number" and . == floor and . > 0) then .[] else "x" end
+    end' <<<"$MG_OUT")" || return 1
+  [[ -n "$MG_OUT" && "$MG_OUT" != x ]] || return 1
+  for id in $MG_OUT; do
+    [[ "$id" =~ ^[0-9]+$ ]] || return 1
+    _mg_api "repos/$MG_REPO/actions/runs/$id/jobs?filter=latest&per_page=100" || return 1
+    state="$(jq -r '
+      if (.jobs | type) != "array" or .total_count != (.jobs | length) then "x"
+      else (([.jobs[] | select(.name == "CI Status")] | if length > 0 then . else null end)
+          // [.jobs[] | select(.name == "ci-status")])
+        | (if length == 1 and (.[0].steps | type) == "array" then [.[0].steps[] | select(.name == "Note a draft")] else [] end)
+        | if length == 1 then (.[0].conclusion // "x") else "x" end
+      end' <<<"$MG_OUT")" || return 1
+    [[ "$state" == success ]] || return 1
+  done
+}
 _mg_verify() {
   local skip uid login default head conf="" base def digest suffix run judged counted
   read -r skip uid login default head <<<"$_mg_pv"
@@ -381,6 +410,7 @@ _mg_verify() {
       then ((.created_at // "") | fromdateiso8601? // 9999999999) else "-" end' <<<"$MG_OUT")" ||
       _mg_unchecked "the pr-verify run $run could not be judged" "its pr-verify verdict"
     [[ "$created" =~ ^[0-9]+$ ]] || continue
+    _mg_draft_judged "$(jq -r '.created_at // ""' <<<"$MG_OUT")" && continue
     [[ -n "$fail_at" ]] && ((fail_at >= created)) || fail_at="$created"
   done
   for suffix in pass "pass-$digest" pass-notes "pass-notes-$digest"; do
