@@ -976,6 +976,9 @@ class LaneMode(Unattended):
 
     def setUp(self) -> None:
         super().setUp()
+        self.lane_inputs()
+
+    def lane_inputs(self) -> None:
         self.config = policy.PipelineConfig(
             BASE, "C2", "pr-merge", IDENTITY, 200, (".github/**",), "c2-mechanical",
             require_verifier_verdict=True, path_holds=True,
@@ -1572,6 +1575,14 @@ class DependabotLane(Unattended):
         self.assertFalse(any("dependency manager" in b for b in out["blockers"]))
         self.assertEqual(out["unattended"]["dependabot"]["mode"], "enforce")
 
+    def test_a_demoted_lane_still_reads_the_dependabot_class(self) -> None:
+        self.demotion = policy.Demotion(True, "#9 open", (9,))
+        code, out = self.lane()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "rung-off:demotion")
+        self.assertEqual(len(self.dependabot_kwargs), 1)
+        self.assertFalse(any("dependency manager" in b for b in out["blockers"]))
+
     def test_report_mode_writes_nothing(self) -> None:
         self.config = dataclasses.replace(self.config, dependabot_mode="report")
         code, out = self.lane()
@@ -1688,6 +1699,73 @@ class DependabotLane(Unattended):
         self.assertEqual(out["unattended"]["reason"], "verifier-verdict-not-required")
 
 
+class RungOffRefusesBeforeTheCandidateReads(Unattended):
+    """An effective rung of off is a run-level answer: the gate refuses with
+    it before the in-flight, eligibility and verify-evidence reads, with the
+    same reason, blockers, writes and exit code, and still runs the rest of
+    the gate (the AI-review re-runs)."""
+
+    lane = LaneMode.lane
+
+    def setUp(self) -> None:
+        super().setUp()
+        LaneMode.lane_inputs(self)
+        self.lane_eligible = None
+        self.read_lane_class = mock.Mock(
+            return_value=policy.Eligibility(True, None, "C2", 41)
+        )
+
+    def gate(self, *flags: str) -> tuple[int, dict[str, Any]]:
+        with mock.patch.object(policy, "lane_eligibility", self.read_lane_class):
+            return self.lane(*flags)
+
+    def evidence_reads(self) -> int:
+        return merge.verify_evidence.Reader.evidence.call_count
+
+    def test_a_demoted_lane_reads_no_candidate_evidence(self) -> None:
+        self.demotion = policy.Demotion(True, "#9 open", (9,))
+        code, out = self.gate()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "rung-off:demotion")
+        self.assertIs(out["unattended"]["enabled"], True)
+        self.assertIs(out["unattended"]["promoted"], True)
+        self.assertIn(merge.UNATTENDED_REFUSED + "rung-off:demotion", out["blockers"])
+        self.assertEqual(self.log, ["dequeue:all"])
+        self.assertEqual(self.evidence_reads(), 0, "verify evidence was read")
+        self.read_lane_class.assert_not_called()
+        self.in_flight.assert_not_called()
+        self.assertFalse(hasattr(self, "lane_args"), "review evidence was read")
+        self.rerun.assert_called_once()
+
+    def test_every_rung_off_input_keeps_its_reason(self) -> None:
+        cases = {
+            "demotion": ((), "rung-off:demotion"),
+            "rung cap": (("--lane-rung-cap", "off"), "rung-off:rungCap"),
+            "merge.rung": ((), "rung-off:merge.rung"),
+        }
+        for name, (flags, reason) in cases.items():
+            with self.subTest(name):
+                self.setUp()
+                if name == "demotion":
+                    self.demotion = policy.Demotion(True, "#9 open", (9,))
+                if name == "merge.rung":
+                    self.config = dataclasses.replace(self.config, rung="off")
+                code, out = self.gate(*flags)
+                self.assert_no_merge(code)
+                self.assertEqual(out["unattended"]["reason"], reason)
+                self.assertEqual(self.log, ["dequeue:all"])
+                self.assertEqual(self.evidence_reads(), 0, "verify evidence was read")
+
+    def test_a_lane_with_room_still_reads_the_candidate_evidence(self) -> None:
+        code, out = self.gate()
+        self.assertEqual(code, 0, out["blockers"])
+        self.assertEqual(self.log, ["pin", f"enqueue:{HEAD}:merge_queue"])
+        self.assertEqual(self.evidence_reads(), 1, "verify evidence was not read")
+        self.read_lane_class.assert_called_once()
+        self.in_flight.assert_called_once()
+        self.assertTrue(hasattr(self, "lane_args"), "review evidence was not read")
+
+
 class LocalBabysitKeepsItsReads(Unattended):
     """Without `--authority pr-merge` the kill switch is read from the
     variables and every non-human merge is judged, as before."""
@@ -1701,6 +1779,15 @@ class LocalBabysitKeepsItsReads(Unattended):
         )
         self.assertIs(self.post_check.call_args.kwargs["lane_merges_only"], False)
         self.assertIs(self.in_flight.call_args.kwargs["lane_merges_only"], False)
+
+    def test_a_demoted_local_babysit_reads_no_in_flight(self) -> None:
+        self.demotion = policy.Demotion(True, "#9 open", (9,))
+        code, out = self.run_main()
+        self.assert_no_merge(code)
+        self.assertEqual(out["unattended"]["reason"], "rung-off:demotion")
+        self.assertIs(out["unattended"]["promoted"], False)
+        self.assertEqual(self.log, ["dequeue:all"])
+        self.in_flight.assert_not_called()
 
 
 class AllInputsGood(Unattended):

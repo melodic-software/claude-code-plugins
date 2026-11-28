@@ -267,31 +267,32 @@ run Write "$REPO/src/sum.test.ts" s1 "" dup-call
 assert_contains "dedup: first run for a tool_use_id reports" "$first" "rule-zero-assertion"
 assert_empty "dedup: second run for the same tool_use_id is silent" "$out"
 
-mkdir -p "$REPO/.claude"
-printf 'adapters:\n  enable: [js-vitset]\n' >"$REPO/.claude/testing.yaml"
+mkdir -p "$REPO/docs/conventions"
+printf 'adapters:\n  enable: [js-vitset]\n' >"$REPO/docs/conventions/testing.yaml"
 run Write "$REPO/src/sum.test.ts"
 assert_contains "config error: the agent is told the config is invalid" "$out" "testing.yaml:2: unknown adapter: js-vitset"
 assert_contains "config error: in additionalContext" "$out" '"additionalContext"'
 assert_contains "config error: the log holds the resolver's message" "$(cat "$CLAUDE_PLUGIN_DATA/test-scan.log")" "unknown adapter: js-vitset"
-rm -f "$REPO/.claude/testing.yaml"
-mkdir -p "$REPO/docs/conventions"
+rm -f "$REPO/docs/conventions/testing.yaml"
 printf '# Testing\n\nRules.\n\n```yaml config\nadapters:\n  enable: [js-vitset]\n```\n' >"$REPO/docs/conventions/testing.md"
 run Write "$REPO/src/sum.test.ts"
 assert_contains "docs block config error: named at the .md file and its line" "$out" "docs/conventions/testing.md:7: unknown adapter: js-vitset"
-printf 'paths:\n  exclude: [x]\n' >"$REPO/.claude/testing.yaml"
-run Write "$REPO/src/sum.test.ts"
-assert_contains "both locations: the agent is told the block's error, not the warning" "$out" "docs/conventions/testing.md:7: unknown adapter: js-vitset"
-assert_empty "and the context does not carry the warning" "$(grep -F 'both exist' <<<"$out")"
-rm -rf "$REPO/docs" "$REPO/.claude/testing.yaml"
+rm -rf "$REPO/docs"
 OFF=$'rules:\n  rule-zero-assertion: off'
 ON=$'rules:\n  rule-zero-assertion: warn'
 printf "import { test, expect } from 'vitest';\nimport { sum } from './sum';\n\ntest('adds', () => {\n  sum(1, 2);\n});\n\ntest('defined', () => {\n  expect(sum(1, 2)).toBeDefined();\n});\n" >"$REPO/src/two.test.ts"
-mkdir -p "$REPO/docs/conventions"
-for f in docs/conventions/testing.yaml docs/conventions/testing.local.yaml .claude/testing.yaml .claude/testing.local.yaml; do
+mkdir -p "$REPO/docs/conventions" "$REPO/.claude"
+for f in docs/conventions/testing.yaml docs/conventions/testing.local.yaml; do
   printf '%s\n' "$OFF" >"$REPO/$f"
   run Write "$REPO/src/two.test.ts"
   assert_contains "rule off in $f alone: the weak oracle is still reported" "$out" "rule-weak-oracle"
   assert_not_contains "and the zero-assertion finding is dropped" "$out" "rule-zero-assertion"
+  rm -f "$REPO/$f"
+done
+for f in .claude/testing.yaml .claude/testing.local.yaml; do
+  printf '%s\n' "$OFF" >"$REPO/$f"
+  run Write "$REPO/src/two.test.ts"
+  assert_contains "retired $f alone is ignored" "$out" "rule-zero-assertion"
   rm -f "$REPO/$f"
 done
 for f in testing.yaml testing.local.yaml; do
@@ -301,7 +302,7 @@ for f in testing.yaml testing.local.yaml; do
   assert_contains "$f in docs/conventions beside the .claude one: the new file wins" "$out" "rule-zero-assertion"
   rm -f "$REPO/docs/conventions/$f" "$REPO/.claude/$f"
 done
-rm -rf "$REPO/docs" "$REPO/src/two.test.ts"
+rm -rf "$REPO/docs" "$REPO/.claude" "$REPO/src/two.test.ts"
 
 C="$HOME/.claude/plugins/cache/mk/testing"
 mkdir -p "$C"

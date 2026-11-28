@@ -45,6 +45,7 @@ import {
   withRequiredSections,
   EVAL_GATED_LABEL,
   evalHoldComment,
+  personHoldComment,
   HOLD_LABEL,
   linkageLines,
   trustedLabeler,
@@ -1064,7 +1065,9 @@ function fakeFetch(routes) {
         ? [method, /./, 200, { data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [], pageInfo: { hasNextPage: false } } } } } }]
         : method === "POST" && /\/issues\/90\/labels$/.test(path)
           ? [method, /./, 200, []]
-          : null;
+          : method === "POST" && /\/issues\/90\/comments$/.test(path)
+            ? [method, /./, 201, {}]
+            : null;
     const route = routes.find(([m, p]) => m === method && p.test(path)) ?? none;
     const [, , status, body] = route ?? [method, /./, 404, { message: "Not Found" }];
     return method === "DIFF" && typeof body === "string" ? new Response(body, { status }) : jsonResponse(status, body);
@@ -1848,7 +1851,7 @@ test("main on done with Refs opens the PR and writes nothing to the issue", asyn
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       const writes = calls.filter((c) => c.method !== "GET" && c.path !== "/graphql").map((c) => `${c.method} ${c.path}`);
-      assert.deepEqual(writes, ["POST /repos/o/r/pulls", "POST /repos/o/r/issues/90/labels"]);
+      assert.deepEqual(writes, ["POST /repos/o/r/pulls", "POST /repos/o/r/issues/90/labels", "POST /repos/o/r/issues/90/comments"]);
       assert.ok(calls.find((c) => c.path.endsWith("/pulls") && c.method === "POST").body.body.startsWith("Refs: #77\n"));
     },
   );
@@ -3446,6 +3449,9 @@ test("a reused branch whose own run's outcome is here opens the normal PR from i
   });
 });
 
+const commentWrites = (calls) => calls.filter((c) => c.method !== "GET" && c.path.endsWith("/comments")).map((c) => [c.method, c.path, c.body]);
+const onlyPersonHold = ["POST", "/repos/o/r/issues/90/comments", { body: personHoldComment(77) }];
+
 test("a reused branch with another run's or no outcome opens a held PR with none of the model's text", async () => {
   for (const files of [
     { "work-outcome.json": JSON.stringify(model), "lane.json": JSON.stringify({ branch: lane(399) }) },
@@ -3462,7 +3468,8 @@ test("a reused branch with another run's or no outcome opens a held PR with none
       assert.ok(!pull.body.includes("Hold: a human merges this"), pull.body);
       assert.ok(!pull.body.includes("MODEL-SUMMARY-TEXT") && !pull.body.includes("model title"), pull.body);
       assert.ok(pull.body.includes("https://example/o/r/actions/runs/400"), pull.body);
-      assert.ok(!calls.some((c) => c.path.endsWith("/comments") || c.path.endsWith("/issues/77/labels")), Object.keys(files).join());
+      assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/labels")), Object.keys(files).join());
+      assert.deepEqual(commentWrites(calls), [onlyPersonHold], Object.keys(files).join());
       assert.deepEqual(calls.filter((c) => c.path.endsWith("/issues/90/labels")).map((c) => c.body), [{ labels: ["do-not-merge"] }]);
     });
   }
@@ -3472,7 +3479,7 @@ test("a reused branch ignores a limit record, so no limited marker restarts it",
   await withAsyncDir({ "lane.json": JSON.stringify({ branch: lane(400), class: "rate-limit", resets: "2026-10-17T18:00:00Z" }) }, async (dir) => {
     const { fetch, calls } = fakeFetch(PR_ROUTES);
     assert.equal(await main({ env: reuseEnv(dir), fetch, now: LIMIT_NOW }), 0);
-    assert.ok(!calls.some((c) => c.path.endsWith("/comments")));
+    assert.deepEqual(commentWrites(calls), [onlyPersonHold]);
     assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
   });
 });
@@ -3699,6 +3706,34 @@ test("main labels a held PR it reuses from an earlier attempt", async () => {
   assert.equal(code, 0);
   assert.ok(!calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
   assert.deepEqual(holdLabelPosts(calls).map((c) => c.body), [{ labels: ["do-not-merge"] }]);
+});
+
+test("main records a person hold on a PR whose issue is not eval-gated: the label, then a reason=person line of its own", async () => {
+  const lines = personHoldComment(77).split("\n");
+  assert.equal(lines[0], "<!-- work-resolve-issue person-hold -->", "the writer marker comes first");
+  assert.equal(lines[1], "### work-resolve-issue / report-outcome");
+  assert.match(lines.find((line, i) => i > 1 && line !== ""), /^Held: .*#77\b/, "the verdict line follows the heading");
+  assert.ok(lines.includes("<!-- pr-hold reason=person -->") && !lines.some((line) => line.includes("reason=eval")), lines.join("\n"));
+  assert.ok(lines.length <= 15 && personHoldComment(77).length <= 1500, "within the PR comment limit");
+  const { code, calls } = await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)] });
+  assert.equal(code, 0);
+  const writes = calls.filter((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/90/"));
+  assert.deepEqual(writes.map((c) => [c.path, c.body]), [
+    ["/repos/o/r/issues/90/labels", { labels: ["do-not-merge"] }],
+    ["/repos/o/r/issues/90/comments", { body: personHoldComment(77) }],
+  ]);
+});
+
+test("main sends no label write for a PR that already carries do-not-merge, and still records the person hold", async () => {
+  const { code, calls } = await runHumanMerge({
+    labels: MERGE_HUMAN,
+    events: [labeled("merge: human", "kyle-sexton", OWNER_ID)],
+    open: [{ number: 90, user: { login: BOT }, head: { sha: "c".repeat(40) }, labels: [{ name: HOLD_LABEL }] }],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(holdLabelPosts(calls), []);
+  assert.ok(!calls.some((c) => c.method === "PATCH"), "the held PR stays open");
+  assert.deepEqual(calls.filter((c) => c.method === "POST" && c.path.endsWith("/issues/90/comments")).map((c) => c.body), [{ body: personHoldComment(77) }]);
 });
 
 test("main closes a held PR it cannot label and retries the issue", async () => {

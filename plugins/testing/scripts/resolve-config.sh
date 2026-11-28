@@ -45,26 +45,19 @@ usage() {
   cat <<'EOF'
 resolve-config.sh — resolve the testing plugin's config cascade.
 
-LAYERS, per the config-cascade convention, in order: user-global, team and a
-gitignored personal override (<root>/<home>/testing.local.yaml). <home> is the
-convention home the pointer region binds (lib/resolve-convention-home.sh),
-else docs/conventions; a broken pointer exits 2. The team layer is
+LAYERS, per the config-cascade convention, in order: team and a gitignored
+personal override (<root>/<home>/testing.local.yaml). <home> is the convention
+home the pointer region binds (lib/resolve-convention-home.sh), else
+docs/conventions; a broken pointer exits 2. The team layer is
 <root>/<home>/testing.yaml when it exists (schema:
 schemas/testing.schema.json). Without it, the team layer is the ```yaml config
-block of <root>/<home>/testing.md when that file holds one, else
-<root>/.claude/testing.yaml; the docs block is read for one more release. The
-first of the three present wins, and a warning naming it and each other one
-present goes to stderr. OLD LOCATIONS, read during the dual-read window:
-~/.claude/testing.yaml is the user-global layer (the cascade has none; its
-settings move to userConfig), <root>/.claude/testing.yaml the team fallback,
-and <root>/.claude/testing.local.yaml the personal override when
-<home>/testing.local.yaml is absent. Each one read, or ignored beside its new
-file, prints one warning naming it and where to move it. Lists concatenate with the first
-occurrence kept; a scalar in a later layer overrides. The format is the
-adapters' YAML subset, parsed by skills/audit/scripts/adapter-load.awk
--v MODE=config (its header lists the keys and the block form), so no jq, yq
-or Python is needed. An error in the block names the .md file and its own
-line.
+block of <root>/<home>/testing.md when that file holds one (read for one more
+release). When both exist, <home>/testing.yaml wins and a warning naming both
+goes to stderr. Lists concatenate with the first occurrence kept; a scalar in
+a later layer overrides. The format is the adapters' YAML subset, parsed by
+skills/audit/scripts/adapter-load.awk -v MODE=config (its header lists the
+keys and the block form), so no jq, yq or Python is needed. An error in the
+block names the .md file and its own line.
 
 OUTPUT, one record per line, `<key> <tab> <value>`:
   layer               a layer file that is read, in cascade order (the .md
@@ -106,16 +99,15 @@ named on stderr and the default stands). check-browser-driver.sh, beside this
 script, stops when that command is not on PATH.
 It prints `<key> <tab> <value> <tab> <source>` per key, the source being the
 layer file, userConfig, or default. Highest first: the personal override,
-<home>/testing.yaml, the --user value (the rendered userConfig option; an
-unrendered ${user_config.<key>}, an empty value or the default is unset),
-then the old user-global file. The first that sets the key decides; an unknown,
-nested or unparsable value there is named on stderr and the key takes its
-default, never a lower layer's value. The docs block and .claude/testing.yaml are not read for
-these keys: a release older than this mode refuses them there, which stops
-its scan. Each value goes through parse-concern-value.sh, so the scan keys'
-grammar never applies, and a scan config that does not resolve, a missing
-repository, a broken convention-home pointer (no <home> layer is read) or a
-symlinked layer (skipped with a warning) never stops it.
+<home>/testing.yaml, then the --user value (the rendered userConfig option; an
+unrendered ${user_config.<key>}, an empty value or the default is unset). The
+first that sets the key decides; an unknown, nested or unparsable value there
+is named on stderr and the key takes its default, never a lower layer's value.
+The docs block is not read for these keys. Each value goes through
+parse-concern-value.sh, so the scan keys' grammar never applies, and a scan
+config that does not resolve, a missing repository, a broken convention-home
+pointer (no <home> layer is read) or a symlinked layer (skipped with a warning)
+never stops it.
 
 MAP: `resolve-config.sh map` resolves the keys of /testing:run-e2e's map
 scope the same way as E2E, --user values and layer order included, and prints
@@ -128,14 +120,14 @@ file_findings_floor (critical | high | medium | low, default high).
 WRITE: `resolve-config.sh write` resolves /testing:write's keys the same
 way and prints the same three columns: tdd_refactor_step (on | off, default
 on) and first_test (user-flow | unit, default user-flow). They are
-repository settings: only the personal override and testing.yaml set them, the
-user-global file is skipped with a warning, and there is no --user value.
+repository settings: only the personal override and <home>/testing.yaml set
+them, and there is no --user value.
 
 Usage:
-  resolve-config.sh [--root <dir>] [--home <dir>] [--quick]
-  resolve-config.sh e2e [--root <dir>] [--home <dir>] [--user <key>=<value>]...
-  resolve-config.sh map [--root <dir>] [--home <dir>] [--user <key>=<value>]...
-  resolve-config.sh write [--root <dir>] [--home <dir>]
+  resolve-config.sh [--root <dir>] [--quick]
+  resolve-config.sh e2e [--root <dir>] [--user <key>=<value>]...
+  resolve-config.sh map [--root <dir>] [--user <key>=<value>]...
+  resolve-config.sh write [--root <dir>]
   resolve-config.sh match <glob> <path>     exit 0 on a match, 1 otherwise
   resolve-config.sh --help
   source resolve-config.sh                  defines tcfg_norm, tcfg_glob_re
@@ -143,7 +135,6 @@ Usage:
   --root  the repository root the team layer, the personal override and
           relative paths resolve against. Default: the current directory's git toplevel,
           else $CLAUDE_PROJECT_DIR.
-  --home  the directory holding the old user-global file. Default: $HOME.
   --quick skip the adapter load and hook.uncovered: the test-scan.sh path,
           where the scanner's own adapter load still refuses a bad extend.
           Adapter ids are still checked, against the adapter files' id: lines.
@@ -165,7 +156,6 @@ if [[ "${1:-}" == match ]]; then
 fi
 
 ROOT=""
-USER_HOME_DIR="${HOME:-}"
 QUICK=0
 MODE=scan
 users=()
@@ -192,11 +182,6 @@ while [[ $# -gt 0 ]]; do
     shift
     ;;
   --quick) QUICK=1 ;;
-  --home)
-    [[ $# -gt 1 ]] || die "--home needs a directory"
-    USER_HOME_DIR="$2"
-    shift
-    ;;
   -h | --help)
     usage
     exit 0
@@ -237,28 +222,29 @@ if [[ -n "$ROOT" ]]; then
     ;;
   esac
 fi
-NEW_LOC="${CONV_HOME:-<home>}"
 TEAM_NEW="${CONV_HOME:+$ROOT/$CONV_HOME/testing.yaml}"
 TEAM_DOCS="${CONV_HOME:+$ROOT/$CONV_HOME/testing.md}"
-TEAM_YAML="$ROOT/.claude/testing.yaml"
 PERSONAL_NEW="${CONV_HOME:+$ROOT/$CONV_HOME/testing.local.yaml}"
-PERSONAL_OLD="$ROOT/.claude/testing.local.yaml"
-USER_OLD="${USER_HOME_DIR:+$USER_HOME_DIR/.claude/testing.yaml}"
 
 PERSONAL=""
-if [[ -n "$ROOT" ]]; then
-  if [[ -f "$PERSONAL_NEW" ]]; then
-    PERSONAL="$PERSONAL_NEW"
-    [[ ! -f "$PERSONAL_OLD" ]] ||
-      warn "$PERSONAL_NEW and $PERSONAL_OLD both exist; using $PERSONAL_NEW, ignoring the old file: move any setting it still holds into $PERSONAL_NEW"
-  elif [[ -f "$PERSONAL_OLD" ]]; then
-    PERSONAL="$PERSONAL_OLD"
-    warn "$PERSONAL_OLD is an old location, still read for now; move it to $NEW_LOC/testing.local.yaml"
-  fi
+if [[ -n "$ROOT" && -f "$PERSONAL_NEW" ]]; then
+  PERSONAL="$PERSONAL_NEW"
 fi
-if [[ "$MODE" != write && -f "$USER_OLD" ]]; then
-  warn "$USER_OLD is an old location, still read for now: there is no user-global file layer; move each setting to its testing userConfig option, else to $NEW_LOC/testing.local.yaml"
-fi
+
+warn_retired() {
+  local seen=() f prev dup
+  for f in "${ROOT:+$ROOT/.claude/testing.yaml}" "${ROOT:+$ROOT/.claude/testing.local.yaml}" "${HOME:+$HOME/.claude/testing.yaml}"; do
+    [[ -n "$f" && -f "$f" ]] || continue
+    dup=0
+    for prev in ${seen[@]+"${seen[@]}"}; do
+      [[ "$f" -ef "$prev" ]] && dup=1 && break
+    done
+    ((dup)) && continue
+    seen+=("$f")
+    warn "retired config file $f is not read; settings in it no longer apply"
+  done
+}
+warn_retired
 
 under_link() {
   local d="$1"
@@ -278,7 +264,7 @@ in_list() {
 }
 
 mode_keys() {
-  local key val src def f u raw lines allowed repo_only files=()
+  local key val src def f u raw lines allowed files=()
   local -A user_val=()
   local tool_re='^[A-Za-z0-9._-]+$'
   for u in ${users[@]+"${users[@]}"}; do
@@ -287,7 +273,7 @@ mode_keys() {
     [[ "$val" != '${user_config.'* ]] || val=""
     user_val[${u%%=*}]="$val"
   done
-  for f in ${PERSONAL:+"$PERSONAL"} ${TEAM_NEW:+"$TEAM_NEW"} ${USER_OLD:+"$USER_OLD"}; do
+  for f in ${PERSONAL:+"$PERSONAL"} ${TEAM_NEW:+"$TEAM_NEW"}; do
     [[ -f "$f" ]] || continue
     if under_link "$f"; then
       warn "skipping a layer that is a symlink or under a symlinked directory: $f"
@@ -299,28 +285,23 @@ mode_keys() {
   done
   for key in "$@"; do
     case "$key" in
-    e2e_driver) allowed="auto harness run playwright chrome" def=auto repo_only="" ;;
-    reuse_running_instance) allowed="auto true false" def=auto repo_only="" ;;
-    browser_driver) allowed="" def=playwright-cli repo_only="" ;;
-    map_unit) allowed="feature part" def=feature repo_only="" ;;
-    map_entry_points) allowed="all first" def=all repo_only="" ;;
+    e2e_driver) allowed="auto harness run playwright chrome" def=auto ;;
+    reuse_running_instance) allowed="auto true false" def=auto ;;
+    browser_driver) allowed="" def=playwright-cli ;;
+    map_unit) allowed="feature part" def=feature ;;
+    map_entry_points) allowed="all first" def=all ;;
     map_report_order)
       allowed="new,pre-existing,gone new,gone,pre-existing pre-existing,new,gone pre-existing,gone,new gone,new,pre-existing gone,pre-existing,new"
-      def=new,pre-existing,gone repo_only=""
+      def=new,pre-existing,gone
       ;;
-    file_findings) allowed="none new" def=none repo_only="" ;;
-    file_findings_floor) allowed="critical high medium low" def=high repo_only="" ;;
-    tdd_refactor_step) allowed="on off" def=on repo_only=setting ;;
-    *) allowed="user-flow unit" def=user-flow repo_only=setting ;;
+    file_findings) allowed="none new" def=none ;;
+    file_findings_floor) allowed="critical high medium low" def=high ;;
+    tdd_refactor_step) allowed="on off" def=on ;;
+    *) allowed="user-flow unit" def=user-flow ;;
     esac
     val="" src="" raw="" u="${user_val[$key]:-}"
     for f in ${files[@]+"${files[@]}"}; do
-      [[ "$f" != "$USER_OLD" || -z "$u" || "$u" == "$def" ]] || break
       lines="$(LC_ALL=C sed -e $'1s/^\xef\xbb\xbf//' -e 's/\r$//' "$f" | grep -E "^${key}[[:space:]]*:")" || continue
-      if [[ -n "$repo_only" && "$f" == "$USER_OLD" ]]; then
-        warn "$f: $key is a repository $repo_only; the user-global layer is not read for it"
-        continue
-      fi
       src="$f"
       val="$(bash "$PCV" - "$key" 2>/dev/null <<<"$lines")"
       raw="${lines%%$'\n'*}" raw="${raw#*:}"
@@ -361,7 +342,7 @@ gather() {
   local f
   layers=()
   layer_seen=()
-  for f in ${USER_OLD:+"$USER_OLD"} "$1" ${PERSONAL:+"$PERSONAL"}; do
+  for f in "$1" ${PERSONAL:+"$PERSONAL"}; do
     [[ -f "$f" && -z "${layer_seen[$f]:-}" ]] || continue
     ! under_link "$f" || die "layer is a symlink or under a symlinked directory, refusing to read it: $f"
     [[ -r "$f" ]] || die "layer is not readable: $f"
@@ -380,22 +361,17 @@ if [[ -f "$TEAM_NEW" ]]; then
   if [[ -f "$TEAM_DOCS" && ! -L "$TEAM_DOCS" ]] && grep -q '^```yaml config[[:space:]]*$' "$TEAM_DOCS"; then
     warn "$TEAM_NEW and $TEAM_DOCS both exist; using $TEAM_NEW, ignoring the docs block"
   fi
-  [[ ! -f "$TEAM_YAML" ]] || warn "$TEAM_NEW and $TEAM_YAML both exist; using $TEAM_NEW, ignoring the .claude file"
 elif [[ -f "$TEAM_DOCS" ]]; then
   gather "$TEAM_DOCS"
   records="$(load)" || exit 2
   if [[ "$records" != block$'\t'* ]]; then
-    gather "$TEAM_YAML"
+    gather ""
     records="$(load)" || exit 2
-  elif [[ -f "$TEAM_YAML" ]]; then
-    warn "$TEAM_DOCS and $TEAM_YAML both exist; using the docs block, ignoring the .claude file"
   fi
 else
-  gather "$TEAM_YAML"
+  gather ""
   records="$(load)" || exit 2
 fi
-[[ -z "${layer_seen[$TEAM_YAML]:-}" ]] ||
-  warn "$TEAM_YAML is an old location, still read for now; move it to $CONV_HOME/testing.yaml"
 [[ ${#layers[@]} -gt 0 ]] || exit 0
 
 out=()

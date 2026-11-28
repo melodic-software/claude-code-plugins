@@ -1,5 +1,5 @@
 ---
-description: "Write a bash script, an interactive wizard, to guide a person through setup work only they can carry out. The agent writes the script and never executes it; the person runs it in their own terminal. Use when: 'provisioning infrastructure', 'provisioning credentials', 'set up CI secrets', 'walk me through the dashboard', 'guided setup script', 'one-off migration', 'cutover', or progress is blocked on a manual dashboard, credential, or third-party-console step. Skip it for any step the agent can do on its own."
+description: "Write an interactive bash wizard script to guide a person through human-only setup (dashboard, credentials, cutover); agent writes and never runs it, person runs it in their terminal. Use when: 'provisioning credentials', 'set up CI secrets', 'walk me through the dashboard'. Not for steps the agent can run itself."
 argument-hint: "<procedure to wizardize>"
 user-invocable: true
 disable-model-invocation: false

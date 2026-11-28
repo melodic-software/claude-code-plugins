@@ -1,8 +1,8 @@
 schema_version: "1.1"
 name: su-check-names-old-file
-description: 'Bare /harness-config:setup runs the read-only check on a repository whose only audit-pass suppression sits in the old personal override .claude/audit-pass.local.md, gitignored and untracked, with no docs/conventions/audit-pass.local.md. The check runs the retirement helper (runs-retirement-helper) and the reply names the old file, its new location docs/conventions/audit-pass.local.md and /harness-config:setup apply (names-old-and-new), and the retirement record id (reports-record). It neither writes, edits nor deletes anything (no-write, no-edit, no-old-file-delete). Slash-invoked (disable-model-invocation), so there is no Skill-fired grader. Needs --scaffold and --allow-tools Bash Write Edit so the write graders can fail.'
-tags: [setup, check, config-cascade, dual-read, retirement, no-network]
-expected_outcome: 'A PASS/FAIL/WARN/INFO report whose old-location row names .claude/audit-pass.local.md, says it moves to docs/conventions/audit-pass.local.md, and names /harness-config:setup apply; the retirement helper reports harness-config-r001. Nothing is written, edited or deleted.'
+description: 'Bare /harness-config:setup runs the read-only check on a repository that has a retired .claude/audit-pass.local.md file, gitignored and untracked, with no docs/conventions/audit-pass.local.md. The check runs the retirement helper (runs-retirement-helper) and the reply names the retired file and its replacement docs/conventions/audit-pass.local.md (names-old-and-new) plus the report-only retirement record id (reports-record). It neither writes, edits nor deletes anything (no-write, no-edit, no-old-file-delete). Slash-invoked (disable-model-invocation), so there is no Skill-fired grader. Needs --scaffold and --allow-tools Bash Write Edit so the write graders can fail.'
+tags: [setup, check, config-cascade, retirement, no-network]
+expected_outcome: 'A PASS/FAIL/WARN/INFO report whose retired-conventions row reports harness-config-r001 as INFO, naming .claude/audit-pass.local.md as no longer read and pointing to docs/conventions/audit-pass.local.md. Nothing is written, edited or deleted.'
 context:
   scaffold_script: scaffold.sh
 execution:
@@ -37,7 +37,7 @@ graders:
     min: 1
   - name: names-old-and-new
     type: regex
-    pattern: '(?=[\s\S]*(?<![\w/])\.claude/audit-pass\.local\.md)(?=[\s\S]*docs/conventions/audit-pass\.local\.md)[\s\S]*harness-config:setup apply'
+    pattern: '(?=[\s\S]*(?<![\w/])\.claude/audit-pass\.local\.md)[\s\S]*(?:docs/conventions|<home>)/audit-pass\.local\.md'
     target: last_message
   - name: reports-record
     type: regex

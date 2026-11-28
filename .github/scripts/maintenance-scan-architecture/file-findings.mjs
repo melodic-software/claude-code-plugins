@@ -3,6 +3,7 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import { planFiling } from "../../../plugins/improvement/scripts/filing-plan.mjs";
 import { DRIFT_TITLE } from "../intake-triage/issue-spec.mjs";
 import { budgetedClient, pages } from "../lib/github-rest.mjs";
 import { countOpen, openItemCap, SOURCE_LABEL } from "./lane.mjs";
@@ -43,33 +44,21 @@ export function withoutTrustedShapes(items) {
   return { kept, dropped: items.length - kept.length };
 }
 
-const key = (title) => title.trim().replace(/\s+/g, " ").toLowerCase();
-
 export async function fileFindings({ items, cap, call, repository }) {
   if (items.length === 0) return { filed: [], skipped: [], room: null };
-  if (!(await call("GET", `/repos/${repository}/labels/${encodeURIComponent(SOURCE_LABEL)}`))) {
+  const labelExists = Boolean(await call("GET", `/repos/${repository}/labels/${encodeURIComponent(SOURCE_LABEL)}`));
+  const open = labelExists ? await countOpen(call, repository, SOURCE_LABEL, cap) : 0;
+  const existingTitles = labelExists ? (await pages(call, `/repos/${repository}/issues?state=all&labels=${encodeURIComponent(SOURCE_LABEL)}`, { max: 10 })).map((issue) => issue.title) : [];
+  const plan = planFiling({ label: SOURCE_LABEL, labelExists, cap, open, existingTitles, candidates: items.map((item) => item.title) });
+  if (plan.stop === "label-missing") {
     throw new Error(`label ${SOURCE_LABEL} does not exist; the lane never creates a label, so it files nothing`);
   }
-  const open = await countOpen(call, repository, SOURCE_LABEL, cap);
-  let room = Math.max(0, cap - open);
-  const seen = new Set((await pages(call, `/repos/${repository}/issues?state=all&labels=${encodeURIComponent(SOURCE_LABEL)}`, { max: 10 })).map((issue) => key(issue.title)));
   const filed = [];
-  const skipped = [];
-  for (const item of items) {
-    if (room === 0) {
-      skipped.push({ title: item.title, why: `the open \`${SOURCE_LABEL}\` issues reached the cap of ${cap}` });
-      continue;
-    }
-    if (seen.has(key(item.title))) {
-      skipped.push({ title: item.title, why: `an issue with this title already carries \`${SOURCE_LABEL}\`` });
-      continue;
-    }
+  for (const item of plan.file.map((index) => items[index])) {
     const issue = await call("POST", `/repos/${repository}/issues`, { title: item.title, body: item.body, labels: [SOURCE_LABEL], type: ISSUE_TYPE });
-    seen.add(key(item.title));
     filed.push({ number: issue.number, title: item.title });
-    room -= 1;
   }
-  return { filed, skipped, room, open };
+  return { filed, skipped: plan.skipped, room: plan.room, open };
 }
 
 const MAX_BULLETS = 5;

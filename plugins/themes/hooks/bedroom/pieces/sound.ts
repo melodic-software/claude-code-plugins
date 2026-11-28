@@ -5,6 +5,7 @@ import { ctxOf } from '../core/context.js'
 import type { Ctx, On, Piece, Switch } from '../core/piece.js'
 import { volumeOf, type Saved } from '../core/saved.js'
 import { forcedStrikeAt, scheduledEventShows, strike } from '../core/schedule.js'
+import { isModEnabled } from '../core/settings.js'
 import { ACCEPT, BUILT, HURRY, WITHOUT, WORLD } from '../core/signals.gen.js'
 import { flush } from '../core/telemetry.js'
 import { worldMove } from '../core/values.js'
@@ -787,6 +788,7 @@ export const piece: Piece = { name: 'sound' }
  */
 export function hooks(on: On): void {
   on('session.detach', ($, e, next) => {
+    if (!isModEnabled()) return next(e)
     if (e.surface === 'desktop') {
       away = true
       silence($)
@@ -794,6 +796,7 @@ export function hooks(on: On): void {
     return next(e)
   })
   on('session.attach', ($, e, next) => {
+    if (!isModEnabled()) return next(e)
     if (e.surface === 'desktop' && away) {
       away = false
       void follow($)
@@ -801,6 +804,7 @@ export function hooks(on: On): void {
     return next(e)
   })
   on('session.end', ($, e, next) => {
+    if (!isModEnabled()) return next(e)
     if (e.reason !== 'clear' && e.reason !== 'resume') away = true
     silence($)
     return next(e)

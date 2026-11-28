@@ -144,7 +144,7 @@ Owner decision. This replaces Decision item 1's "`pre-push` up to 60 s":
 ## Addendum (2026-11-24): a changelog-fragment entry in pre-push
 
 Owner decision
-([owner-decisions row](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L412)).
+(retired `melodic-software/architecture` `docs/owner-decisions.md` L412).
 This replaces the 2026-11-22 addendum's "Pre-push keeps one entry":
 
 - **Second entry.** This repository's `lefthook.yml` adds `branch-checks`
@@ -158,13 +158,13 @@ This replaces the 2026-11-22 addendum's "Pre-push keeps one entry":
   red heads) stays in the pre-PR check and CI. A further gate joins `pre-push` only when it runs
   in 3 s.
 - **Over budget: optimize first, then move**
-  ([owner-decisions row](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L413)).
+  (retired `melodic-software/architecture` `docs/owner-decisions.md` L413).
   When the hook budget gate trips, the first response is an optimization item for the slow check.
   The check leaves the hook for CI only when it cannot be brought under 3 s. One over-run on an
   unusually large change is a signal to look at, not by itself a removal. The check that grows
   with the repository is `validate-plugin-contracts.mjs`.
 - **Seven whole-branch checks**
-  ([owner-decisions row](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md#L413)).
+  (retired `melodic-software/architecture` `docs/owner-decisions.md` L413).
   After the fragment checks the same job runs, in parallel against the same base, the four
   changelog-parity modes, `sync-plugin-options-docs.py --check`, `validate-plugin-contracts.mjs`
   (a warning fails), and the marketplace, catalog and cheat-sheet generators in `--check` mode.

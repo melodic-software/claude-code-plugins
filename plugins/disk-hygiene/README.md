@@ -395,12 +395,8 @@ Without `--policy`, standing policy files layer over the baseline when present, 
 `<home>` is the project's convention home, `docs/conventions` unless its `AGENTS.md` pointer
 region names another. The YAML files hold the same keys as a JSON overlay. An explicit `--policy`
 file is the invocation-specific choice and replaces every standing layer. The scan output records
-which sources applied in `policy_sources`.
-
-The old files `~/.claude/disk-hygiene.json` and the project's `.claude/disk-hygiene.json` are still
-read, each in place of the `policy_file` and team layer while no new file supplies it, and every
-scan warns about each one. `/disk-hygiene:setup apply` moves them after a preview and a yes. Where
-other config lives: [config locations](reference/config-locations.md).
+which sources applied in `policy_sources`. Where other config lives:
+[config locations](reference/config-locations.md).
 
 Candidate hints can be disabled or extended. Consumer protection globs are additive. A relative glob matches a path relative to the scan target. A glob that starts with `/`, a drive letter, or `\\` (a UNC path such as `\\server\share\keep\**`) matches the absolute path, so a standing overlay can protect a tree no matter which parent is scanned. An object `{glob, reason}` is accepted. For every entry that matches a path, the scan entry, the preview candidate, the handoff-verify verdict, and a skipped apply path list it under `protection_matches`, sorted and deduplicated, as `{glob}` or `{glob, reason}`. That field sits beside the `consumer-protected-path` reason and is absent when no entry matched. Hard safety
 predicates and the baseline protected-name/root rules are non-overridable by any layer: a policy
@@ -617,8 +613,7 @@ installed. The measurements below carry the conditions they were taken under.
   evidence delegates one exact commit lookup per local head to the already-authenticated `gh` CLI.
   Policy comes from an explicit invocation
   argument or the standing layers: the file the `policy_file` option names, and the consumer
-  project's `<home>/disk-hygiene.yaml` and `<home>/disk-hygiene.local.yaml` (the old
-  `disk-hygiene.json` files under `~/.claude/` and the project's `.claude/` while they remain).
+  project's `<home>/disk-hygiene.yaml` and `<home>/disk-hygiene.local.yaml`.
   All policy input is pattern-only and additive: it can add protections and discovery
   hints or disable hints, and cannot weaken hard guards or authorize removal, so ambient config
   cannot widen the destructive surface.
