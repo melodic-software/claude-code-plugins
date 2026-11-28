@@ -88,10 +88,10 @@ out="$(run bound worker --session-model opus)"
 assert_contains "bound home: the YAML under the home is the team layer" "$out" '"effort":"xhigh","guarded":false}'
 
 fixture crosslayer
-printf 'schema: 1\nworkloads:\n  deep: true\n' >"$T/crosslayer/home/.claude/multi-agent.yaml"
-printf 'schema: 1\nroles:\n  verifier:\n    workloads:\n      deep:\n        effort: max\n' >"$T/crosslayer/repo/.claude/multi-agent.local.yaml"
-out="$(run crosslayer verifier --session-model opus --workload deep)"
-assert_contains "user-global declaration, personal override value" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"max"'
+printf 'schema: 1\nworkloads:\n  deep: true\n' >"$T/crosslayer/user.yaml"
+printf 'schema: 1\nroles:\n  verifier:\n    workloads:\n      deep:\n        effort: max\n' >"$T/crosslayer/repo/docs/conventions/multi-agent.local.yaml"
+out="$(run crosslayer verifier --session-model opus --workload deep --user-file "$T/crosslayer/user.yaml")"
+assert_contains "user-config declaration, personal override value" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"max"'
 assert_lacks "declared across layers: no undeclared note" "$out" 'undeclared'
 
 fixture undeclared
@@ -148,13 +148,6 @@ out="$(run bestrole worker --session-model opus)"
 assert_lacks "best is not a role model: the layer's value is dropped" "$out" '"model":"best"'
 assert_contains "best is not a role model: the rejection is named" "$out" 'best'
 
-fixture layered
-printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/layered/home/.claude/multi-agent.yaml"
-printf 'schema: 1\nroles:\n  worker:\n    model: sonnet\n' >"$T/layered/repo/.claude/multi-agent.local.yaml"
-out="$(run layered worker --session-model opus)"
-assert_contains "user-global effort and personal override model merge per key" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"high"'
-assert_contains "source names the layer per value" "$out" '"source":{"model":"personal-override","effort":"user-global"}'
-
 fixture newlayers
 printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/newlayers/user.yaml"
 printf 'schema: 1\nroles:\n  worker:\n    model: sonnet\n' >"$T/newlayers/repo/docs/conventions/multi-agent.local.yaml"
@@ -177,21 +170,10 @@ fixture oldonly
 printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/oldonly/home/.claude/multi-agent.yaml"
 printf 'schema: 1\nroles:\n  worker:\n    model: sonnet\n' >"$T/oldonly/repo/.claude/multi-agent.local.yaml"
 out="$(run oldonly worker --session-model opus --user-file '${user_config.role_map_file}')"
-assert_contains "old only: values apply" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"high"'
-assert_contains "old only: an unsubstituted option reads as unset" "$out" '"source":{"model":"personal-override","effort":"user-global"}'
-assert_contains "old only: the user file warning names the option and setup" "$out" "user-global: $T/oldonly/home/.claude/multi-agent.yaml is an old path, still read until it moves; /multi-agent:setup apply --migrate moves it to the file the role_map_file option names"
-assert_contains "old only: the personal warning names the new location" "$out" "personal-override: $T/oldonly/repo/.claude/multi-agent.local.yaml is an old path, still read until it moves; /multi-agent:setup apply --migrate moves it to $T/oldonly/repo/docs/conventions/multi-agent.local.yaml"
-assert_eq "old only: one warning per old file on stderr" 2 "$(grep -c 'is an old path' "$T/oldonly.err")"
-
-fixture both
-printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/both/home/.claude/multi-agent.yaml"
-printf 'schema: 1\nroles:\n  worker:\n    effort: high\n' >"$T/both/user.yaml"
-printf 'schema: 1\nroles:\n  worker:\n    model: opus\n' >"$T/both/repo/.claude/multi-agent.local.yaml"
-printf 'schema: 1\nroles:\n  worker:\n    model: sonnet\n' >"$T/both/repo/docs/conventions/multi-agent.local.yaml"
-out="$(run both worker --session-model opus --user-file "$T/both/user.yaml")"
-assert_contains "both: the new files win" "$out" '"single":{"model":"sonnet","omit_model":false,"effort":"high"'
-assert_contains "both: the user warning names both files" "$out" "user-global: $T/both/home/.claude/multi-agent.yaml is an old path and not read, since $T/both/user.yaml supplies the layer"
-assert_contains "both: the personal warning names both files" "$out" "personal-override: $T/both/repo/.claude/multi-agent.local.yaml is an old path and not read, since $T/both/repo/docs/conventions/multi-agent.local.yaml supplies the layer"
+assert_contains "old only: old files are not read and bundled defaults apply" "$out" '"single":{"model":"inherit","omit_model":true,"effort":"medium"'
+assert_contains "old only: source stays bundled" "$out" '"source":{"model":"bundled","effort":"bundled"}'
+assert_lacks "old only: no old-path warning emitted" "$out" 'old path'
+assert_eq "old only: no stderr warning" "" "$(cat "$T/oldonly.err")"
 
 fixture optout
 printf 'schema: 1\nfanout:\n  frontier_guard: false\n' >"$T/optout/repo/docs/conventions/multi-agent.yaml"
@@ -206,7 +188,7 @@ assert_contains "explicit fable worker: fan-out names opus" "$out" '"fanout":{"m
 
 fixture malformed
 printf 'schema: 1\nroles:\n\tworker:\n' >"$T/malformed/repo/docs/conventions/multi-agent.yaml"
-printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/malformed/repo/.claude/multi-agent.local.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/malformed/repo/docs/conventions/multi-agent.local.yaml"
 out="$(run malformed worker --session-model opus)"
 assert_eq "malformed layer still exits 0" 0 "$?"
 assert_contains "malformed layer is named with its line" "$out" 'team layer skipped:'
@@ -252,16 +234,16 @@ out="$(run frontiercomma worker --session-model opus)"
 assert_contains "trailing comma in frontier rejected" "$out" "frontier rejected: 'opus,'"
 assert_contains "rejected frontier keeps the bundled list" "$out" '"session_frontier":false'
 
-mkdir -p "$T/homeroot/.claude"
+mkdir -p "$T/homeroot/docs/conventions"
 git -C "$T/homeroot" init -q
-printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/homeroot/.claude/multi-agent.local.yaml"
+printf 'schema: 1\nroles:\n  worker:\n    effort: low\n' >"$T/homeroot/docs/conventions/multi-agent.local.yaml"
 out="$("$SUT" --root "$T/homeroot" --home "$T/homeroot" worker 2>/dev/null)"
 assert_contains "home root: personal override not applicable" "$out" 'not-applicable (home root)'
 assert_contains "home root: personal override value not applied" "$out" '"effort":"medium"'
 
 fixture haikurole
-printf 'schema: 1\nroles:\n  retrieval:\n    model: haiku\n' >"$T/haikurole/home/.claude/multi-agent.yaml"
-out="$(run haikurole all --session-model opus)"
+printf 'schema: 1\nroles:\n  retrieval:\n    model: haiku\n' >"$T/haikurole/user.yaml"
+out="$(run haikurole all --session-model opus --user-file "$T/haikurole/user.yaml")"
 assert_contains "user layer haiku retrieval: still resolves" "$out" '"retrieval":{"role":"retrieval","single":{"model":"haiku"'
 assert_contains "user layer haiku retrieval: noted" "$out" 'retrieval: resolves to haiku'
 assert_lacks "user layer haiku retrieval: other roles not noted" "$out" 'worker: resolves to haiku'
@@ -271,8 +253,8 @@ assert_contains "haiku session: inheriting role noted" "$out" 'worker: resolves 
 assert_lacks "haiku session: sonnet retrieval not noted" "$out" 'retrieval: resolves to haiku'
 
 fixture haikufan
-printf 'schema: 1\nfanout:\n  model: haiku\n' >"$T/haikufan/home/.claude/multi-agent.yaml"
-out="$(run haikufan all --session-model fable)"
+printf 'schema: 1\nfanout:\n  model: haiku\n' >"$T/haikufan/user.yaml"
+out="$(run haikufan all --session-model fable --user-file "$T/haikufan/user.yaml")"
 assert_contains "haiku fan-out model on a frontier session: guarded role noted" "$out" 'worker: resolves to haiku'
 
 out="$(run plain all --session-model opus)"
