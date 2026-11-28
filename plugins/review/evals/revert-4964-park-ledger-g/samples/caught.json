@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Blocking | PR #4964 uses `Closes #3934` while only adding `docs/out-of-scope/audit-enforceability-unicode-normalization.md` to declare the stub-home Unicode NFC/NFD normalization gap parked. Merging this closes #3934 without implementing the requested work or recorded owner sign-off to close it. | docs/out-of-scope/audit-enforceability-unicode-normalization.md:1 |\n\nSummary: do not close #3934 with a park-only ledger.",
+      "why": "blocking finding citing the file and naming the Closes park-ledger defect"
+    },
+    {
+      "answer": "Blocking finding: this PR uses `Closes #3934` but implements none of the stub-home Unicode NFC/NFD normalization gap; it only checks in an out-of-scope park document. Remove `Closes #3934` or obtain explicit owner approval before closing the issue.",
+      "why": "high-signal finding naming the reverted park-ledger problem without a line number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings: none. No blocking or advisory findings. The park document is clear and well structured.",
+      "why": "reports no findings on a park PR that closes an active issue without doing the work"
+    },
+    {
+      "answer": "| 1 | Advisory | `audit-enforceability-unicode-normalization.md:5` wraps awkwardly at 90 columns; consider tightening the rationale bullets for readability. | docs/out-of-scope/audit-enforceability-unicode-normalization.md:5 |\n\nSummary: minor prose polish only.",
+      "why": "cites a line in the ledger for an unrelated style nit while missing the Closes park-ledger defect"
+    }
+  ]
+}

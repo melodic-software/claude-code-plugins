@@ -1,13 +1,16 @@
 {
   "pass": [
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=unresolved)\n\nThe post-edit lint run (npm run lint:md -- docs/onboarding.md) changed docs/onboarding.md; restored the compressed text from the copy taken just before that run and ran no further lint.", "why": "the summary line, then the changed target"},
-    {"answer": "The lint run after the edit changed `docs/onboarding.md` (it appended a line), so I restored the compressed text from its pre-run copy and ran no more lint.\n\n- `onboarding.md`: compressed, `lint=unresolved`", "why": "the changed target named before the field"}
+    {"answer": "The lint run after the edit changed `docs/onboarding.md` (it appended a line), so I restored the compressed text from its pre-run copy and ran no more lint.\n\n- `onboarding.md`: compressed, `lint=unresolved`", "why": "the changed target named before the field"},
+    {"answer": "`docs/onboarding.md` is compressed, but I can't confirm the lint result for the edited file.\n\nThe post-edit lint run (`bash scripts/lint-md.sh docs/onboarding.md`) appended a line, \"Last checked by lint-md.\", to the target. I restored the target from the copy I took just before that run and did not run the lint command again.\n\n```text\nonboarding.md: compressed (compression_pct=18.6%, semantic_loss=n/a, ambiguity=n/a, false_positive=n/a, lint=unresolved)\n```\n\n- **Lint:** the post-edit run printed `ok`, but it also modified the target, so I'm not counting it as a pass.", "why": "a lint run that appended to the target, named with appended and modified"}
   ],
   "fail": [
     {"answer": "", "why": "empty reply"},
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, verification: skipped (light), lint=PASS)", "why": "ships with a pass over the change"},
     {"answer": "onboarding.md: compressed (compression_pct=21.4%, lint=unresolved)", "why": "does not say the lint run changed the target"},
     {"answer": "The post-edit lint run changed docs/onboarding.md, so I stopped linting.", "why": "names the change without the lint field"},
-    {"answer": "onboarding.md: reverted (lint=unresolved)\n\nThe post-edit lint run changed docs/onboarding.md; restored the original and stopped.", "why": "discards the compression instead of keeping it"}
+    {"answer": "onboarding.md: reverted (lint=unresolved)\n\nThe post-edit lint run changed docs/onboarding.md; restored the original and stopped.", "why": "discards the compression instead of keeping it"},
+    {"answer": "The post-edit lint run appended a line to the target, so I restored it.\n\nonboarding.md: compressed (compression_pct=18.6%, lint=unresolved)", "why": "says a file was appended to without naming it"},
+    {"answer": "The post-edit lint run modified docs/onboarding.md, so I restored it.\n\nonboarding.md: compressed (compression_pct=18.6%, lint=PASS)", "why": "names the modified target but ships a lint pass"}
   ]
 }

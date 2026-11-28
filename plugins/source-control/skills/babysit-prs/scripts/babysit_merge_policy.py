@@ -7842,7 +7842,11 @@ def assess(
     (`with_default_branch`; `merge.max-in-flight` the head's alone,
     `_run_max_in_flight`) and its authority, and the post-merge check: any
     refusal there stops the reads and leaves the path not `enabled`, so no
-    later read can lead to a write. Then the rung (demotion and cap), the
+    later read can lead to a write. Then the rung (demotion and cap): an
+    effective rung of off refuses there (`rung-off:<input>`), as `lane_room`
+    does, with no in-flight, promotion or eligibility read (so no review
+    evidence is scored), except for a Dependabot pull request in the lane,
+    whose class the gate still reads for its dependency hold. Otherwise the
     in-flight rule, the promotion evidence for the rung (`RUNG_CELLS`; no
     work class is read) and the pull request's eligibility: each refuses a
     merge, and all are reported, but
@@ -8054,6 +8058,21 @@ def assess(
         cap=cap.value,
         demoted=demotion.active,
     )
+    details.update(
+        rung=rung.rung,
+        rungInputs=dict(rung.inputs),
+        rungCap={"value": cap.value, "reason": cap.reason},
+    )
+    if rung.rung == "off" and not dependabot_pr:
+        inputs["rung"] = rung.rung
+        return UnattendedPolicy(
+            f"rung-off:{rung.limited_by}",
+            identity,
+            details,
+            enabled=True,
+            promoted=lane,
+            inputs=inputs,
+        )
     flight_cap, cap_source = _run_max_in_flight(
         repo, default, head if isinstance(head, str) else None, config
     )
@@ -8067,9 +8086,6 @@ def assess(
         max_in_flight=flight_cap,
     )
     details.update(
-        rung=rung.rung,
-        rungInputs=dict(rung.inputs),
-        rungCap={"value": cap.value, "reason": cap.reason},
         inFlight={
             "clear": flight.clear,
             "reason": flight.reason,

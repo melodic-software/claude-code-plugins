@@ -66,7 +66,9 @@ Before the recommendation, `context` carries what drives the decision and nothin
   share, defined inline with its source (a sourced term's agreement: SKILL.md "Agree a term where
   it first appears"). The step, feature or topic the question decides about is such a term: a
   question that names it ("the cluster step") says what it is, in every question that relies on
-  it.
+  it. A definition that leans on another coined term defines that one too, in the same question
+  ("a cluster is the reports sharing one fingerprint" defines the fingerprint beside it), and
+  naming a term is not defining it: each later question gives the definition again in full.
 
 This holds in every lane and is the one home for which terms a question defines: no lane puts a
 terms table at the top of a round in its place.
