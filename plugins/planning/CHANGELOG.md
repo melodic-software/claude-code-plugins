@@ -3,6 +3,12 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.2.3] - 2026-11-28
+
+### Fixed
+
+- `/planning:interview` now says how to fix each `preview=`, `basis=` and `flips-if=` line the round check prints, and that `undefined=` also covers a term only another question's Context defines, so a round failing those checks is corrected before it is shown (#18216).
+
 ## [6.2.2] - 2026-11-28
 
 ### Changed
