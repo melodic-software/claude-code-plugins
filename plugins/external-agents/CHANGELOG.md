@@ -3,6 +3,12 @@
 All notable changes to the `external-agents` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.5] - 2026-11-28
+
+### Changed
+
+- Backfilled invocation probe file (`probes/antigravity.json`) and trimmed skill frontmatter descriptions (`antigravity`: 430 -> 318 chars, `codex`: 378 -> 293 chars; total 808 -> 611 chars, saving 197 chars) while preserving all job modes, delegate-only-when-asked posture, exclusions, and probe parity.
+
 ## [0.8.4] - 2026-11-26
 
 ### Changed

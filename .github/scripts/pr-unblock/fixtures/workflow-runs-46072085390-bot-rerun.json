@@ -1,0 +1,107 @@
+{
+  "total_count": 1,
+  "workflow_runs": [
+    {
+      "id": 46072085390,
+      "name": "PR Review Hosted",
+      "node_id": "WFR_kwLOTCGFQM8AAAAKuhw7jg",
+      "head_branch": "chore/19075-upstream-pointers-batch-6",
+      "head_sha": "0356bcc1c937620846a8bd719549e194bc08b548",
+      "path": ".github/workflows/pr-review-hosted.yml",
+      "display_title": "docs(skills): point remaining volatile specifics at upstream sections, batch 6",
+      "run_number": 25501,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "workflow_id": 374687473,
+      "check_suite_id": 124640654183,
+      "check_suite_node_id": "CS_kwDOTCGFQM8AAAAdBSlzZw",
+      "pull_requests": [
+        {
+          "url": "https://api.github.com/repos/melodic-software/claude-code-plugins/pulls/19482",
+          "id": 5533142533,
+          "number": 19482,
+          "head": {
+            "ref": "chore/19075-upstream-pointers-batch-6",
+            "sha": "2fbf400420e96b4de3dcabfa41320d7512557b19",
+            "repo": {
+              "id": 1277265216,
+              "url": "https://api.github.com/repos/melodic-software/claude-code-plugins",
+              "name": "claude-code-plugins"
+            }
+          },
+          "base": {
+            "ref": "main",
+            "sha": "387a203a86e51fd6e9e90f792ca1005d31592132",
+            "repo": {
+              "id": 1277265216,
+              "url": "https://api.github.com/repos/melodic-software/claude-code-plugins",
+              "name": "claude-code-plugins"
+            }
+          }
+        }
+      ],
+      "created_at": "2026-11-27T21:43:02Z",
+      "updated_at": "2026-11-27T22:08:00Z",
+      "actor": {
+        "login": "kyle-sexton",
+        "id": 153232337,
+        "node_id": "U_kgDOCSIj0Q",
+        "gravatar_id": "",
+        "type": "User",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "run_attempt": 2,
+      "referenced_workflows": [
+        {
+          "path": "melodic-software/ci-workflows/.github/workflows/pr-review-cli.yml@main",
+          "sha": "763f349b7378f39b7c596155954b8529035e19e2",
+          "ref": "refs/heads/main"
+        }
+      ],
+      "run_started_at": "2026-11-27T22:02:38Z",
+      "triggering_actor": {
+        "login": "github-actions[bot]",
+        "id": 41898282,
+        "node_id": "MDM6Qm90NDE4OTgyODI=",
+        "gravatar_id": "",
+        "type": "Bot",
+        "user_view_type": "public",
+        "site_admin": false
+      },
+      "head_commit": {
+        "id": "0356bcc1c937620846a8bd719549e194bc08b548",
+        "tree_id": "bcc4c8962528bf99a7bb1ffbe73201ac6665e195",
+        "message": "docs(skills): record nested-start probe row and restore unset placeholder contract\n\nAddress both claude-review findings on PR #19482:\n- Add the nested-start `--tools \"\"` (2.1.278) measurement row to\n  `plugins/instruction-placement/skills/migrate/reference/sources.md`\n  (\"The nested write trigger\") so `migrate/SKILL.md:326`'s pointer is\n  backed by an exact record.\n- Restore the repository's measured unset-placeholder detection clause\n  (\"a surviving literal `${user_config.\u2026}` placeholder means the key is\n  unset\") alongside the upstream pointer at both sites (L352-354 and\n  L422-424) in `plugins/work-items/skills/work-loop/SKILL.md`.\n\nRefs #19075\nRefs #19068",
+        "timestamp": "2026-11-27T21:41:49Z",
+        "author": {
+          "name": "Kyle Sexton",
+          "email": "153232337+kyle-sexton@users.noreply.github.com"
+        },
+        "committer": {
+          "name": "Kyle Sexton",
+          "email": "153232337+kyle-sexton@users.noreply.github.com"
+        }
+      },
+      "repository": {
+        "id": 1277265216,
+        "node_id": "R_kgDOTCGFQA",
+        "name": "claude-code-plugins",
+        "full_name": "melodic-software/claude-code-plugins",
+        "private": false,
+        "description": "Claude Code plugin marketplace: repo-agnostic skills, hooks, agents, and MCP servers.",
+        "fork": false
+      },
+      "head_repository": {
+        "id": 1277265216,
+        "node_id": "R_kgDOTCGFQA",
+        "name": "claude-code-plugins",
+        "full_name": "melodic-software/claude-code-plugins",
+        "private": false,
+        "description": "Claude Code plugin marketplace: repo-agnostic skills, hooks, agents, and MCP servers.",
+        "fork": false
+      }
+    }
+  ]
+}

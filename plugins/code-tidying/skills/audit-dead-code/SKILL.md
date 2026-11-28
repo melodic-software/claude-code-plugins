@@ -1,6 +1,6 @@
 ---
 # portability-ok: R6 kept-adapter operation - dead-code-scan.sh grep analyzer
-description: "Read-only hunt for dead and unused code across four labeled analyzers (Knip for TS/JS, vulture for Python, gopls for Go, grep for shell, C# and files no analyzer owns), each candidate adjudicated dead, uncertain or alive. Use when asked to 'find dead code', 'find the dead code and delete it', 'remove unused code', to find what is unused in a repository (exports, functions, orphaned files), or whether anything still calls a symbol. A find-and-delete request starts here: this skill finds and reports, and deleting what it finds is /code-tidying:tidy."
+description: "Read-only hunt for dead and unused code via 4 analyzers (Knip TS/JS, vulture Python, gopls Go, grep shell/C#/other), adjudicated dead, uncertain, or alive. Use when: 'find dead code', 'remove unused code', unused exports, functions, orphaned files, or if anything calls a symbol. Find-and-delete starts here; deleting is /code-tidying:tidy."
 argument-hint: "[--max N] [--analyzer knip|vulture|gopls|grep] [target] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
