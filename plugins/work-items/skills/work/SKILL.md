@@ -1,5 +1,5 @@
 ---
-description: "Pick exactly one work item from the tracker frontier by priority tier (due recurring, guardrails, highest impact, then not-yet-due recurring), claim it race-safe, and execute it end-to-end through the project's workflow. Use when the user asks to pick, grab, or work the next item, ticket, or issue, or asks what to work on next. Backlog CRUD is /work-items:track; draining the backlog in a loop is /work-items:work-loop."
+description: "Pick one frontier work item by priority tier (due recurring, guardrails, highest impact, upcoming recurring), claim it race-safe, and execute end-to-end through the project workflow. Use when: 'work the next item', 'grab the next ticket', 'what to work on next'. Not for CRUD: /work-items:track; loop drain: /work-items:work-loop."
 argument-hint: "[<item-id>|--issue <n> --ci]"
 user-invocable: true
 disable-model-invocation: false

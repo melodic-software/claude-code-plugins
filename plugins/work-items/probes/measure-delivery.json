@@ -1,0 +1,33 @@
+{
+  "skill": "work-items:measure-delivery",
+  "plugin": "work-items",
+  "skill_dir": "plugins/work-items/skills/measure-delivery",
+  "ranking_note": "Backfilled probe for work-items:measure-delivery against in-plugin backlog, ops-brief, and execution siblings (work-items:setup sets disable-model-invocation: true and is excluded).",
+  "competitors": [
+    "work-items:track",
+    "work-items:morning-brief",
+    "work-items:work"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "show our team's DORA throughput and stability numbers over the last quarter"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "how often are we deploying to main each week lately"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "calculate median time from first commit to merge across recent releases"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "what share of our merges get reverted on the default branch"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "track how quickly we recover after a broken deployment"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "compare whether demote=true merges fail more often using --merge-risk"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "give me a monthly trend table of our shipping speed and rework"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "measure our repo's delivery cadence and revert ratio since January"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "run the five DORA indicators from git history on main"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "how long does a revert usually take to land after a bad deploy"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "how many open issues and claimed tickets are in our backlog right now"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "show me the morning dashboard with merge-ready PRs and Azure spend"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "pick the next highest-priority issue from the frontier and start coding"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "rank each engineer by how many commits they shipped this month"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "add a new work item to the tracker for the auth migration"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "triage the untriaged bug reports waiting in intake"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "list overdue items on our recurring maintenance schedule"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "check whether any GitHub Actions billing alerts or lane failures fired today"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "grab the next ready ticket and implement it end to end"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "break this PRD into vertical-slice issues with blocker links"}
+  ]
+}

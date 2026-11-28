@@ -1,5 +1,5 @@
 ---
-description: "Drain the work-item backlog as a self-paced autonomous loop, launched via /loop: each cycle triages raw intake, admits items through the fail-closed admission gate, runs them through /work-items:work under an adaptive cap, and checks the drain exit. Authors PRs, never merges. Use when: 'work loop', 'run the work loop', 'start the worker loop', 'drain the backlog', 'autonomous drain', 'loop the backlog', 'drain the issue backlog to done'. Escalations: /work-items:attend-queue."
+description: "Drain issue/work-item backlog as self-paced worker loop via /loop: each cycle triages intake, admits items via fail-closed gate, runs /work-items:work under cap to done. Authors PRs, never merges. Use to start/run work loop, drain/loop backlog ('work loop', 'drain the backlog', 'autonomous drain'). Not for escalations: /work-items:attend-queue."
 argument-hint: "[<owner/repo>] [--drain|--standing] [--single-pass] [--shard <i>/<n>] [--ordering newest-first…]"
 user-invocable: true
 disable-model-invocation: false
