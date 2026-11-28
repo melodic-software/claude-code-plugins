@@ -380,10 +380,16 @@ _HOOK_PHYS_KEYS=()
 _HOOK_PHYS_VALS=()
 _HOOK_PHYS_RCS=()
 _HOOK_PHYS_I=-1
+_HOOK_PHYS_SET=$'\x1e'
 
 hook::_phys_cache_index() {
-  local __hu_i
+  local __hu_i=$((_HOOK_PHYS_I + 1))
   [[ -n "$1" ]] || return 1
+  if [[ "${_HOOK_PHYS_KEYS[__hu_i]-}" == "$1" ]]; then
+    _HOOK_PHYS_I=$__hu_i
+    return 0
+  fi
+  [[ "$_HOOK_PHYS_SET" == *$'\x1e'"$1"$'\x1e'* ]] || return 1
   for ((__hu_i = 0; __hu_i < ${#_HOOK_PHYS_KEYS[@]}; __hu_i++)); do
     if [[ "${_HOOK_PHYS_KEYS[__hu_i]}" == "$1" ]]; then
       _HOOK_PHYS_I=$__hu_i
@@ -411,6 +417,7 @@ hook::_physical_cached_to() {
     _HOOK_PHYS_KEYS+=("$2")
     _HOOK_PHYS_VALS+=("$__hu_v")
     _HOOK_PHYS_RCS+=("$__hu_rc")
+    _HOOK_PHYS_SET+="$2"$'\x1e'
   fi
   printf -v "$1" '%s' "$__hu_v"
   return "$__hu_rc"
@@ -443,6 +450,7 @@ hook::_physical_prime() {
     _HOOK_PHYS_KEYS+=("${__hu_todo[__hu_i]}")
     _HOOK_PHYS_VALS+=("$__hu_v")
     _HOOK_PHYS_RCS+=(0)
+    _HOOK_PHYS_SET+="${__hu_todo[__hu_i]}"$'\x1e'
   done
   return 0
 }

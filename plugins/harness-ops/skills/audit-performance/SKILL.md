@@ -1,5 +1,5 @@
 ---
-description: "Slowness diagnostic that never 'fixes', run before restarting or deleting: version, retention sweep, install bloat, hook/subagent fan-out, kernel-leak census. Use when: 'Claude Code is slow', 'typing lags', 'my machine freezes when Claude runs', 'why is this session sluggish', 'my hooks are slowing everything down', 'too many subagents'. Upstream bugs: /harness-ops:known-issues. Stale files: /harness-ops:audit-install-state."
+description: "Read-only slowness diagnostic that never 'fixes' (run before restart/delete): version, retention, bloat, hook/subagent fan-out, kernel-leak. Use when 'Claude Code is slow', 'typing lags', sluggish session, machine freezes, slow hooks, or too many subagents. Not for bugs (/harness-ops:known-issues) or stale files (/harness-ops:audit-install-state)."
 argument-hint: "[--unattended] [--root <path>] [--session-id <id>] [--note <fact>]"
 user-invocable: true
 disable-model-invocation: false
@@ -23,7 +23,7 @@ out (see the boundary table). The engine's own phase timings are first-class evi
 walk that takes minutes is the cost the product's retention sweep pays on that tree; a
 `claude --version` probe that takes ten seconds is itself a finding.
 
-## Scope boundary
+## What this skill does not do
 
 | Question | Owner |
 |---|---|

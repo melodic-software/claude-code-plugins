@@ -1,5 +1,5 @@
 ---
-description: "Scrape, search, crawl, map, parse, or interact with web pages via the firecrawl-cli binary, writing results to disk instead of streaming them into context. Actions: scrape, batch-scrape, search, crawl, map, parse, interact, agent, monitor, developer, research, doctor, search-feedback, credit-usage. Use when: 'scrape this page', 'crawl this site', 'search the web for X', 'WebFetch is blocked', 'this page needs JS', 'extract the text from this PDF', when WebFetch returns 403 or 429 behind an anti-bot layer such as Cloudflare or PerimeterX, or for a natural-language web research task. Skip for plain unprotected pages (WebFetch suffices) or when synthesis is wanted rather than primary source."
+description: "Scrape/search/crawl web page/site via firecrawl-cli (disk): scrape, batch-scrape, search, crawl, map, parse, interact, agent, monitor, developer, research, doctor, search-feedback, credit-usage. Use when: 'scrape this page', 'WebFetch is blocked' (403/429/Cloudflare/JS page), 'extract text from this PDF/doc'. Not for plain WebFetch page/synthesis."
 argument-hint: "<scrape|search|crawl|map|parse|interact|agent|monitor|developer|research|doctor|…> [args]"
 user-invocable: true
 disable-model-invocation: false
@@ -189,5 +189,8 @@ Keeping in sync is a **maintainer-facing** concern, split into its own sibling s
 
 ## Related
 
-- `/firecrawl:setup`. Runtime prerequisite verification (CLI binary + `FIRECRAWL_API_KEY` auth).
+- Runtime prerequisite verification (CLI binary and `FIRECRAWL_API_KEY` auth): `/firecrawl:setup`.
+
+## See also
+
 - Firecrawl docs: <https://docs.firecrawl.dev/sdks/cli>. Upstream skill source: <https://www.firecrawl.dev/agent-onboarding/SKILL.md>. MCP-vs-CLI guidance: <https://www.firecrawl.dev/blog/mcp-vs-cli>.

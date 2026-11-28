@@ -1,5 +1,38 @@
 # Changelog: evals
 
+## [0.30.3] - 2026-11-28
+
+### Fixed
+
+- `/evals:plugin-eval select` no longer puts a plugin's cases on the `cases:` line when the diff changes nothing under that plugin's `skills/`, `agents/`, `context/` or `evals/` (for example, a case whose grader reads another plugin's changed skill). A compare run refuses such a plugin, so those cases now print on a new `suite-only:` line, to run in a suite run on the default branch after merge. `agent-runs:` still counts them. The split applies only where the repository has `.github/scripts/plugin-eval/compare-arms.sh`.
+
+## [0.30.2] - 2026-11-28
+
+### Fixed
+
+- `prune-run-roots.py` also removes legacy run roots named without the leading dot: a directory directly under `$HOME` named `ev` followed by at least one more character (`ev8635`, `eval-runs`, `eval-13765`), under the same rules as a `.ev*` legacy root (a real directory holding a `claude-eval-*` sandbox directly inside it, nothing changed for 3 days, no process holding it, `chmod 700` on each `sealed/`), and only when it holds nothing but `claude-eval-*` sandboxes directly inside it. A matching directory with no sandbox, such as a user's `evolution`, or with anything beside its sandboxes, such as a user's `evals` folder, is reported and left, and a name outside the `.ev` and `ev` prefixes is never a candidate. Preflight's `stale_run_roots` lists these roots too.
+
+## [0.30.1] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
+## [0.30.0] - 2026-11-28
+
+### Changed
+
+- `select` treats deleting a trailing comment (a `#` comment after code on the same line, the code left byte for byte) like deleting a whole comment line, in a shell file and in a `case.yaml`, under the same hidden rule. A `case.yaml` comment counts only when the file parses the same without it; a `#` inside a quote, heredoc, block scalar, `$(`, `${`, `((` or backtick stays content.
+- The hidden check proves more scaffold helpers hidden by setting aside a few reference forms: a `plugins: [...]` entry naming the suite's own plugin, a `$(cd "$var/.." && pwd)` path, a `(cd <dir> && bash "$script" <args>)` run with `<dir>` outside the suite, and `$0` inside an `awk`, `sed`, `grep` or `jq` program. A file that pipes into a shell, runs a string (`eval`, `bash -c`, `trap`, `alias`) or sources a stream (`/dev/stdin`, `<(...)`, a here-string) gets no quote reading.
+- The hidden check also catches more ways a case exposes a file: an assignment with a command after it on the same line, a `cd` into the suite, a case file finding its own folder by `${0%/*}`, `realpath "$0"` or `__file__`, and a case script naming `case.yaml`.
+- An `.editorconfig` line that `#` or `;` opens is a comment line, and deleting such lines runs no case anywhere, under an `evals/` folder too (an editor-settings comment cannot change what the agent does); a `#` after a value is part of the value, and any other `.editorconfig` edit keeps its treatment.
+- A shell `$'...'` string now reads cleanly, so a file holding one keeps the comment-deletion exemption.
+- A `plugins/*/skills/*/evals/` folder gets no hidden exemption: it is not the plugin's eval directory, so the agent can read it with the skill.
+
+### Fixed
+
+- A `case.yaml` edit that only drops a trailing comment no longer counts as a description-only edit, which ran nothing without the hidden check.
+
 ## [0.29.1] - 2026-11-27
 
 ### Fixed

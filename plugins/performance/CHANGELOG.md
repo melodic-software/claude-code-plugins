@@ -3,6 +3,18 @@
 All notable changes to the `performance` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.17.3] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across all seven `performance` skills (`climb` 592 -> 341 chars, `go-faster` 475 -> 344 chars, `goal` 432 -> 339 chars, `protect` 373 -> 323 chars, `snapshot` 482 -> 344 chars, `target` 491 -> 327 chars, `verify` 445 -> 336 chars; total 3290 -> 2354 chars, -936 chars) while preserving all workflow phases, human-gated/read-only safety postures, and sibling exclusions.
+
+## [0.17.2] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
 ## [0.17.1] - 2026-11-27
 
 ### Fixed

@@ -1,5 +1,5 @@
 ---
-description: "Check where /bugs:write --file reports land, check or write the tracked docs/conventions/bugs.yaml focus areas and filing posture /bugs:scan reads, and move settings out of the old ~/.claude/bugs.md and .claude/bugs.local.md."
+description: "Check (read-only) userConfig report paths or apply docs/conventions/bugs.yaml focus areas and filing posture, migrating legacy bugs.md files."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -187,7 +187,7 @@ what changed (the tracked file's path and the keys written), plus whether the us
 `output_dir` through Claude Code's own flow. Claim a change only once observed: for the tracked file
 by re-reading it, for `output_dir` by a rerun in a fresh session.
 
-## Boundaries
+## What this skill does not do
 
 - Do not produce or file a bug report; invoke `/bugs:write` via the Skill tool.
 - Do not run a hunt; that is `/bugs:scan`.

@@ -242,7 +242,9 @@ clean_restore_tracked_deletions() {
   local repo_root="$1" count=0 path
   while IFS= read -r -d '' path; do
     [[ -z "$path" ]] && continue
-    git -C "$repo_root" restore -- "$path" 2>/dev/null && ((count++)) || true
+    if git -C "$repo_root" restore -- "$path" 2>/dev/null; then
+      count=$((count + 1))
+    fi
   done < <(git -C "$repo_root" ls-files -z --deleted 2>/dev/null)
   printf '%s' "$count"
 }

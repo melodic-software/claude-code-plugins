@@ -1,5 +1,5 @@
 ---
-description: "When the built-in skill-doctor command resolves in this session, prefer it for cost; this skill for unseen ones. Use when: 'why do I never use most of my skills', 'why does Claude never suggest this skill', 'are my skill descriptions being dropped', 'is my skill listing over budget', 'which skills can the model actually see', 'which skills are starved', 'I have too many skills to know when to use them', 'audit skill visibility'."
+description: "Audit which skills the model can see, which are starved or dropped, and whether skill listing is over budget. When built-in skill-doctor resolves in this session, prefer it for cost; this skill for unseen skills. Use when 'audit skill visibility', 'which skills are starved', 'is my skill listing over budget', or why Claude never suggests a skill."
 argument-hint: "[--unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json]"
 user-invocable: true
 shell: bash
@@ -424,7 +424,7 @@ the settings file that did), and says so when there is nothing to fix.
   [reference/listing-scorer.md](reference/listing-scorer.md) before changing that
   ordering or quoting it to a user.
 
-## Scope boundary
+## What this skill does not do
 
 | Question | Owner |
 |---|---|

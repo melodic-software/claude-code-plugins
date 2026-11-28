@@ -1,5 +1,5 @@
 ---
-description: "Compress markdown by dropping flavor, filler, and hedging while keeping every directive, qualifier, threshold, and example, behind a semantic-diff subagent that reverts any meaning loss. Articles (a, an, the) are kept by default; the compress_articles setting can allow cutting them. Use when: 'compress this doc', 'tighten markdown', 'cut prose', 'shorten without losing meaning', 'trim onboarding doc', 'did this skill rewrite lose meaning'. Actions: default, audit (read-only dry run), and compare (read-only before/after labeling of a rewritten skill directory). Not session compaction (/compact), markdown noise (/docs-hygiene:audit-noise), or SSOT consolidation (/docs-hygiene:extract-ssot)."
+description: "Compress markdown (drop filler/hedging; keep directives, thresholds, examples; articles per compress_articles) with semantic-diff revert guard; default, audit/compare (read-only). Use when 'compress this doc', 'tighten markdown', 'cut prose'. Not for compaction: /compact, noise: /docs-hygiene:audit-noise, or SSOT: /docs-hygiene:extract-ssot."
 argument-hint: "[audit [target]|compare <ORIG_DIR> <NEW_DIR> [REASONS]|target] [--force] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -115,6 +115,8 @@ action's per-file diff would call every moved line and every intended cut a loss
    never `general-purpose`, which can edit. The calling session never labels a difference: it may
    have written the rewrite and would excuse its own cuts. The step is done when the return
    carries labeled rows and a `VERDICT:` line.
+   Read that prompt at `${CLAUDE_SKILL_DIR}/context/compare-prompt.md`, by that exact path; never
+   Glob or Grep the plugin's install directory to find it.
 3. Print the labeler's rows and its literal `VERDICT: PASS` or `VERDICT: BLOCK` line verbatim, as
    returned: no restyling, reformatting, reordering, bolding, recasing or paraphrase. Any summary
    of your own goes after them. `VERDICT: BLOCK` (any SEMANTIC LOSS, or an instruction in the

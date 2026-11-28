@@ -3,6 +3,24 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.10] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across all 9 `testing` skills (total 5175 -> 2895 chars, -2280 chars / -44.1%): `/testing:audit` (528 -> 340), `/testing:check-visual-parity` (387 -> 348), `/testing:cleanup` (1005 -> 350), `/testing:fix-failing` (606 -> 347), `/testing:plan` (411 -> 342), `/testing:run-e2e` (607 -> 350), `/testing:setup` (652 -> 143), `/testing:test-value` (401 -> 332), and `/testing:write` (578 -> 343) while preserving read-only contracts, mutation/unattended gates, bundled-run overlap phrasing, and house-style sibling exclusions.
+
+## [6.0.9] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [6.0.8] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
 ## [6.0.7] - 2026-11-27
 
 ### Changed

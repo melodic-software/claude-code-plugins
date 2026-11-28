@@ -10,7 +10,10 @@ on:
 permissions: {}
 
 concurrency:
-  group: pr-verify-${{ github.event.workflow_run.pull_requests[0].number || 'none' }}-${{ github.event.workflow_run.head_sha }}
+  group: >-
+    ${{ github.event.workflow_run.conclusion == 'cancelled'
+    && format('pr-verify-upstream-cancelled-{0}', github.run_id)
+    || format('pr-verify-{0}-{1}', github.event.workflow_run.pull_requests[0].number || 'none', github.event.workflow_run.head_sha) }}
   cancel-in-progress: false
 
 defaults:
@@ -2137,13 +2140,10 @@ jobs:
           done
           [[ $pr =~ ^[1-9][0-9]{0,15}$ ]] || exit 0
           { echo "pr=$pr"; echo "verdict=$verdict"; } >>"$GITHUB_OUTPUT"
-          # The Hold: test spells a line start as (^|[\r\n]), not ^ with a
-          # multiline flag: gh --jq runs gojq, whose Go regexp anchors and
-          # flags differ from jq's Oniguruma, and this form reads alike in both.
           if [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]]; then
             echo "::warning::wake-pr-merge: AUTOMATION_LANES_APP_SENDER_ID is unset or invalid; skipping PR read"
           elif answer=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" \
-            --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null) \(.draft) \((.body // "") | test("(^|[\\r\\n])[ \\t]*hold:"; "i"))"') &&
+            --jq '"\(.user.id) \(.user.type) \(.auto_merge != null) \([.labels[].name] | index("do-not-merge") != null) \(.draft)"') &&
             read -r _ type _ <<<"$answer"; then
             { echo "answer=$answer"; echo "type=$type"; } >>"$GITHUB_OUTPUT"
           else
@@ -2182,13 +2182,12 @@ jobs:
           # a pr-merge run the broker would refuse. One already armed or held
           # by do-not-merge needs no wake: the scheduled sweep runs the same
           # decision on it, disarms included, and ci-status holds do-not-merge
-          # in the merge queue. A person's draft or body Hold: line also
-          # waits for the sweep.
+          # in the merge queue. A person's draft also waits for the sweep.
           if [[ ! ${LANES_APP_ID:-} =~ ^[1-9][0-9]*$ ]]; then
             echo "::warning::wake-pr-merge: pr=$pr verdict=$verdict AUTOMATION_LANES_APP_SENDER_ID is unset or invalid; nothing woken (the next scheduled run arms it)"
             exit 0
           fi
-          if [ -z "${ANSWER:-}" ] || ! read -r id type armed held draft hold <<<"$ANSWER" || [ -z "${id:-}" ] || [ -z "${type:-}" ]; then
+          if [ -z "${ANSWER:-}" ] || ! read -r id type armed held draft <<<"$ANSWER" || [ -z "${id:-}" ] || [ -z "${type:-}" ]; then
             echo "::warning::wake-pr-merge: pr=$pr verdict=$verdict pull request could not be read; nothing woken (the next scheduled run arms it)"
             exit 0
           fi
@@ -2216,10 +2215,6 @@ jobs:
           fi
           if [ "$type" = User ] && [ "$draft" = true ]; then
             echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict a draft; nothing woken"
-            exit 0
-          fi
-          if [ "$type" = User ] && [ "$hold" = true ]; then
-            echo "::notice title=pr-verify wake::pr=$pr verdict=$verdict held (body Hold: line); nothing woken"
             exit 0
           fi
           if gh workflow run pr-merge.yml -R "$GITHUB_REPOSITORY" --ref main -f pr="$pr"; then

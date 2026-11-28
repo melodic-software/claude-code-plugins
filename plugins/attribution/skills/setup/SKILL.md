@@ -1,5 +1,5 @@
 ---
-description: "Set up and maintain this repository's attribution audit configuration: the team file `attribution.yaml` in the convention home and its gitignored personal override. Run after installing the plugin, or to exclude a path from the audit, change the stamp expiry window, quiet an audit that flags too much, or turn on the trigger-less stamp check."
+description: "Check (read-only) or apply repository attribution audit config in convention-home attribution.yaml and personal override (exclusions, stamp expiry)."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true

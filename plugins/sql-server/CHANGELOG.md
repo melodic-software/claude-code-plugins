@@ -3,6 +3,18 @@
 All notable changes to the `sql-server` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.20] - 2026-11-28
+
+### Changed
+
+- Trimmed `/sql-server:setup` user-invoked frontmatter description (387 -> 140 chars) to a one-line summary without trigger phrasing.
+
+## [0.6.19] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
 ## [0.6.18] - 2026-11-26
 
 ### Changed

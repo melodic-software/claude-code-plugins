@@ -1,5 +1,5 @@
 ---
-description: "EventStorming facilitation reference for Big Picture, Process Modeling and Design-Level workshops: choosing a format, facilitation patterns and anti-patterns, notation, glossary, remote sessions. Use when: 'run EventStorming', 'model a domain', 'discover bounded contexts', 'Big Picture session', 'map domain events', 'find aggregates', 'DDD workshop', 'bounded context heuristics'. Not for an AI-simulated workshop (/event-storming:simulation), types and module boundaries in code (/planning:design), or message topology read from code (/architecture:map-events)."
+description: "EventStorming workshop facilitation to run Big Picture/Process Modeling/Design-Level: facilitation patterns/anti-patterns, notation, glossary, remote, aggregates, heuristics. Use when: 'run EventStorming', 'Big Picture session', 'DDD workshop'. Not for AI runs: /event-storming:simulation, code: /planning:design, or maps: /architecture:map-events."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[--big-picture|--process|--design-level|--patterns|--glossary|--notation|--remote]"

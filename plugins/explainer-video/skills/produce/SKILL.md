@@ -1,5 +1,5 @@
 ---
-description: "Produce a short explainer video with ManimCE, narrated when the speech plugin is installed: plan the beats, write the narration and one scene script, time each scene change to the narration's word timings, render at low quality, mux the audio with ffmpeg, add captions, and check the file before calling it done (ffprobe streams and duration, overlapping text and elements cut off by the frame edge, then a fresh-context subagent judging the frames against the script). Without the speech plugin it renders a silent video. Given a storyboard.json it renders narrated still frames at 4K with burned captions, chapters and a contact sheet instead. Use when: 'make an explainer video', 'narrated explainer', 'animate this concept', 'Manim video of', 'render a math animation', 'turn this explanation into a video', 'silent explainer clip'. Not for hand-drawn film from style packs (use /animation:produce)."
+description: "Produce a short animated video to explain topics (narrated or silent video clip) with Manim/ManimCE: narration, captions, render, ffmpeg mux, fresh-context QC; or 4K stills, chapters, contact sheet (storyboard.json). Use when: 'make an explainer video', 'animate this concept', 'render a math animation'. Not for hand-drawn film: /animation:produce."
 argument-hint: "<topic> [output dir]"
 user-invocable: true
 disable-model-invocation: false
@@ -191,13 +191,11 @@ split under the limit; it is hosted whole as an Actions artifact, never recompre
 
 ## Related
 
-- `/education:illustrate` offers a video view through this skill.
-- `/review:reviewer-media` builds a pull request's reviewer storyboard from that digest and hands
-  it here, then hands the manifest to `/source-control:pull-request media`.
-- `/review:explain-change` writes a pull request digest; a `storyboard.json` built from one renders
-  here through the stills renderer.
-- `/playwright:demo-video` records a live UI flow; this skill renders still frames and diagrams.
-- `/source-control:pull-request` places a finished video in a pull request.
+- Visual concept explainer with a video view: `/education:illustrate`.
+- Pull request reviewer storyboard built from a digest: `/review:reviewer-media`.
+- Pull request digest feeding a stills storyboard: `/review:explain-change`.
+- Live UI flow recording instead of still frames and diagrams: `/playwright:demo-video`.
+- When a run places a finished video in a pull request: `/source-control:pull-request`.
 
 ## Next
 

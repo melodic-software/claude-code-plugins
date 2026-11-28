@@ -3,6 +3,24 @@
 All notable changes to the `architecture` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.1.5] - 2026-11-28
+
+### Changed
+
+- Backfilled invocation probe sets (`probes/improve-layout.json`, `probes/enforce-boundaries.json`, `probes/principles.json`) and trimmed 14 skill frontmatter descriptions (6,421 -> 4,550 chars across changed skills, -1,871c / -29.1%: `adr` 654 -> 345, `enforce-boundaries` 412 -> 331, `improve` 557 -> 348, `improve-layout` 566 -> 345, `map-components` 403 -> 349, `map-containers` 392 -> 348, `map-context` 352 -> 331, `map-data` 473 -> 348, `map-deployment` 364 -> 339, `map-events` 404 -> 348, `map-flow` 468 -> 349, `map-landscape` 358 -> 300, `principles` 354 -> 338, `setup` 664 -> 131) with zero body changes. Sibling exclusions in the `map-*` descriptions name their targets as fully qualified `/architecture:<skill>` routes, `adr` keeps its skip when no alternative was weighed, and `improve` names its `conventions` lens, with a positive probe for it in `probes/improve.json`.
+
+## [7.1.4] - 2026-11-28
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
+## [7.1.3] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
 ## [7.1.2] - 2026-11-27
 
 ### Fixed

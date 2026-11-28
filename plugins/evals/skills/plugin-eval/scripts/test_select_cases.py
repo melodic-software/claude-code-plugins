@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# test-scope: plugins/evals/skills/plugin-eval/scripts/select-cases.py plugins/evals/skills/plugin-eval/scripts/select_mapping.py plugins/evals/skills/plugin-eval/scripts/eval_visibility.py plugins/evals/skills/plugin-eval/scripts/no_run_text.py plugins/evals/scripts/case_skills.py plugins/evals/skills/validate/scripts/validate-cases.py
+# test-scope: plugins/evals/skills/plugin-eval/scripts/select-cases.py plugins/evals/skills/plugin-eval/scripts/select_mapping.py plugins/evals/skills/plugin-eval/scripts/suite_refs.py plugins/evals/skills/plugin-eval/scripts/eval_visibility.py plugins/evals/skills/plugin-eval/scripts/no_run_text.py plugins/evals/scripts/case_skills.py plugins/evals/skills/validate/scripts/validate-cases.py
 """Unit tests for plugins/evals/skills/plugin-eval/scripts/select-cases.py.
 
 Builds throwaway two-plugin git repositories in temporary directories so every
@@ -16,6 +16,7 @@ from pathlib import Path
 
 from select_test_helpers import (
     SCRIPT,
+    _add_compare_arms,
     _build_fixture_repo,
     _commit_all,
     _git,
@@ -92,15 +93,19 @@ class SelectCasesTest(unittest.TestCase):
         path = self.repo / "plugins/alpha/reference/shared.md"
         text = path.read_text(encoding="utf-8").replace("concise", "brief")
         path.write_text(text, encoding="utf-8")
+        _add_compare_arms(self.repo)
         _commit_all(self.repo, "cut plugin reference")
 
         res = _run_select(self.repo)
         self.assertEqual(0, res.returncode, res.stderr)
         blocks = _parse_blocks(res.stdout)
-        self.assertEqual(
-            "control-no-fire one-basic one-trigger",
-            blocks["plugins/alpha"]["cases"],
+        self.assertNotIn("cases", blocks["plugins/alpha"])
+        self.assertTrue(
+            blocks["plugins/alpha"]["suite-only"].startswith(
+                "control-no-fire one-basic one-trigger; "
+            )
         )
+        self.assertEqual("14", blocks["plugins/alpha"]["agent-runs"])
 
     def test_agent_body_change_direct_and_via_workflow(self):
         agent_a = self.repo / "plugins/alpha/agents/helper.md"
@@ -444,19 +449,87 @@ class SelectCasesTest(unittest.TestCase):
         path = self.repo / "plugins/alpha/skills/one/SKILL.md"
         text = path.read_text(encoding="utf-8").replace("carefully", "strictly")
         path.write_text(text, encoding="utf-8")
+        _add_compare_arms(self.repo)
         _commit_all(self.repo, "cut alpha one")
 
         res = _run_select(self.repo, as_json=True)
         self.assertEqual(0, res.returncode, res.stderr)
         payload = json.loads(res.stdout)
         self.assertEqual(["plugins/alpha", "plugins/beta"], sorted(payload))
-        self.assertEqual(["calls-alpha"], payload["plugins/beta"]["cases"])
+        self.assertEqual([], payload["plugins/beta"]["cases"])
+        self.assertEqual(["calls-alpha"], payload["plugins/beta"]["suite-only"])
         self.assertEqual(4, payload["plugins/beta"]["agent-runs"])
+        self.assertEqual([], payload["plugins/alpha"]["suite-only"])
         self.assertEqual(
             ["control-no-fire", "one-basic", "one-trigger"],
             payload["plugins/alpha"]["cases"],
         )
         self.assertEqual(14, payload["plugins/alpha"]["agent-runs"])
+
+    def _add_beta_grader_reading_alpha(self, compare_arms=True):
+        _write(
+            self.repo,
+            "plugins/beta/evals/reads-alpha/prompt.md",
+            """
+            ---
+            description: "Beta case whose grader reads alpha:one"
+            runs: 2
+            ---
+
+            Check my alpha items from beta.
+            """,
+        )
+        _write(
+            self.repo,
+            "plugins/beta/evals/reads-alpha/graders/alpha-fired.md",
+            """
+            ---
+            type: tool_used
+            tool: Skill
+            input_match: '"skill":"alpha:one"'
+            ---
+            """,
+        )
+        _commit_all(self.repo, "add beta case reading alpha:one")
+        _git(self.repo, "branch", "-f", "base")
+        if compare_arms:
+            _add_compare_arms(self.repo)
+        path = self.repo / "plugins/alpha/skills/one/SKILL.md"
+        text = path.read_text(encoding="utf-8").replace("carefully", "strictly")
+        path.write_text(text, encoding="utf-8")
+
+    def test_grader_reading_other_plugin_skill_is_suite_only(self):
+        self._add_beta_grader_reading_alpha()
+        _commit_all(self.repo, "cut alpha one")
+
+        res = _run_select(self.repo)
+        self.assertEqual(0, res.returncode, res.stderr)
+        beta = _parse_blocks(res.stdout)["plugins/beta"]
+        self.assertNotIn("cases", beta)
+        self.assertEqual(
+            "reads-alpha; no file of this plugin under skills/, agents/, context/ or evals/"
+            " changed, so a compare run refuses it; run these in a suite run on the"
+            " default branch after merge",
+            beta["suite-only"],
+        )
+        self.assertEqual("4", beta["agent-runs"])
+
+    def test_grader_reading_other_plugin_skill_stays_on_cases_without_compare_arms(self):
+        self._add_beta_grader_reading_alpha(compare_arms=False)
+        _commit_all(self.repo, "cut alpha one")
+
+        payload = json.loads(_run_select(self.repo, as_json=True).stdout)
+        self.assertEqual(["reads-alpha"], payload["plugins/beta"]["cases"])
+        self.assertEqual([], payload["plugins/beta"]["suite-only"])
+
+    def test_grader_reading_other_plugin_skill_stays_on_cases_when_plugin_changes(self):
+        self._add_beta_grader_reading_alpha()
+        _write(self.repo, "plugins/beta/evals/group/sub/nested-dir/samples/ok.json", "{}\n")
+        _commit_all(self.repo, "cut alpha one and add a beta sample")
+
+        payload = json.loads(_run_select(self.repo, as_json=True).stdout)
+        self.assertEqual(["reads-alpha"], payload["plugins/beta"]["cases"])
+        self.assertEqual([], payload["plugins/beta"]["suite-only"])
 
     def test_invalid_diff_base_exits_2(self):
         res = _run_select(self.repo, diff_base="refs/heads/does-not-exist")

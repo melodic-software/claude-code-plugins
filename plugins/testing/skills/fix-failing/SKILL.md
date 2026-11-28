@@ -1,5 +1,5 @@
 ---
-description: "Find why tests fail, then fix them. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop; the `diagnose` action stops at the cause and changes no code. Use when: 'why does this fail', 'just tell me why this test fails', 'this test is failing', 'fix the failing tests', 'why is this test flaky', visible test failures, stack traces, or flaky tests; for authoring new tests use /testing:write, for running the suite /toolchain:check. Skip when a captured profile, trace or heap snapshot needs reading (`/debugging:analyze-profile`)."
+description: "Find why tests fail, then fix them: test triage, root-cause (never retry blindly), reproduce-fix-retest; `diagnose` changes no code. Use when: 'why does this fail', 'fix the failing tests', 'why is this test flaky', failing/flaky tests, stack traces. Not for authoring: /testing:write; runs: /toolchain:check; profiles: /debugging:analyze-profile."
 argument-hint: "[diagnose|loop] [failure]"
 user-invocable: true
 disable-model-invocation: false
@@ -86,7 +86,8 @@ drives the full cycle including code edits and suggests `/verification:confirm` 
 ## Next
 
 - All green after the regression pass: /verification:confirm fix.
-- A `diagnose` run stopped at the cause: /testing:fix-failing loop, or /implementation:implement fix for a product bug.
+- A `diagnose` run stopped at a test or environment cause: /testing:fix-failing loop.
+- A `diagnose` run stopped at a product bug: /implementation:implement fix.
 - The diagnosis showed feature tests are missing: /testing:write.
 
 ## Related

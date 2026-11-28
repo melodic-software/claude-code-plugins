@@ -3,6 +3,24 @@
 All notable changes to the `tdd` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.13] - 2026-11-28
+
+### Changed
+
+- Trimmed `/tdd:principles` frontmatter description (418 -> 348 chars) to <= 350 chars while preserving Beck/Khorikov test-design WHY topics, triggers, non-execution exclusion, and probe parity.
+
+## [0.6.12] - 2026-11-28
+
+### Changed
+
+- Trimmed `/tdd:principles` frontmatter description (621 -> 418 chars) by consolidating redundant quoted triggers into prose while preserving all test-design topics and the running/filtering-tests boundary.
+
+## [0.6.11] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
 ## [0.6.10] - 2026-11-24
 
 ### Changed

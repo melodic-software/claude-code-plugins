@@ -1,5 +1,5 @@
 ---
-description: "List of every Claude Code surface this machine can invoke: built-in commands, subagents, tools, bundled skills and workflows, and installed plugin components. Use when: 'what slash commands do I have', 'what agents are available', 'is /foo a real command', 'what changed after the update', 'what does marketplace X give me'. On-disk audit: /harness-ops:audit-install-state."
+description: "List every Claude Code surface this machine can invoke: built-in commands, subagents, tools, bundled skills/workflows, and installed plugin components. Use when 'what slash commands do I have', 'what agents are available', 'is /foo a real command', what changed after update, or marketplace contents. On-disk audit: /harness-ops:audit-install-state."
 argument-hint: "[--builtin|--plugins|--bundled|--agents|--tools|--hooks|--docs] [--marketplace <m>] [--diff <f>]"
 user-invocable: true
 disable-model-invocation: false
@@ -24,7 +24,7 @@ clearly separated, because they are evidence of different quality.
 The report is an inventory, not a judgment. Nothing here says a component is stale, misconfigured,
 or wrong; the neighbors below own those verdicts.
 
-## Scope boundary
+## What this skill does not do
 
 | Question | Owner |
 |---|---|

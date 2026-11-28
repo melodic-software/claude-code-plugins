@@ -1,5 +1,52 @@
 # Changelog for the PR pipeline convention
 
+## [14.0.1] - 2026-11-28
+
+### Fixed
+
+- `merge-holds.mjs` prints `no member veto and no hold path.` again when nothing holds, the verdict line both the current and the older ci-status queue step accept, so a pull request whose head still carries the older workflow no longer fails with `merge-holds.mjs exited 0 without its verdict.`
+
+## [14.0.0] - 2026-11-28
+
+### Changed
+
+- **Breaking:** the `do-not-merge` label is the one pull request hold. To hold a pull request, set the `do-not-merge` label instead of a body `Hold:` line or a "do not merge" comment. `merge-holds.mjs`, `enable-auto-merge.mjs`, `release-eval-hold.mjs`, `apply-patch.mjs`, `check-wip-cap.mjs` and the pr-unblock dispatchers no longer hold on body hold phrases, the lanes' hold line or member veto comments, and enable-auto-merge no longer turns a veto comment into the label. report-outcome holds a pull request with the label alone and writes no hold line into its body.
+- ci-status's queue step reads no member veto and accepts merge-holds.mjs's `no hold path.` verdict line; the pr-merge and pr-verify wake steps read only the label.
+- The maintenance monitor's open lane pull request count holds back only a pull request with a hold label, not one with a hold line in its body.
+- pr-unblock's body-refresh guard no longer refuses lane text for hold wording.
+- ci-status's queue step and enable-auto-merge no longer read inline review comments or review threads, which fed only the member veto; issue comments and reviews are still read, and a list that does not read whole still refuses.
+- A `do-not-merge` label the lanes App added for a member veto comment before this change stays on its pull request until a person removes it.
+
+## [13.7.1] - 2026-11-28
+
+### Fixed
+
+- A work-resolve-issue run that `issue-prior` stops before any model turn because a trusted open PR already closes the issue is now reported on the issue. `issue-prior` skips `closed-by-open-pr` instead of `not-applicable`, the run job's `skip-reason` output carries it, and the read file's new `scan-skip-reason` output hands it to the caller once the scan job's decode step has checked it. `work-resolve-issue.yml` then runs `report-outcome` with `dimension-skip: closed-by-open-pr`, which reads the issue's open closing PRs itself and waits on the trusted one with an `outcome=wait pr=<n>` marker, so work-unblock leaves the issue alone until that PR merges or closes. When no trusted PR closes the issue any more, it posts nothing.
+
+## [13.7.0] - 2026-11-28
+
+### Changed
+
+- pr-dispatch-feedback's scheduled sweep sends no round while GITHUB_TOKEN's core pool is under `sweep-hold` (0.2) of its limit and resets within `sweep-hold-minutes` (15), both new github-token fields in `rate-limits.json`. Those rounds would stop at the stop floor before finishing; the first tick after the reset decides the same heads again. A tick that has read no rate-limit header never holds.
+
+## [13.6.5] - 2026-11-28
+
+### Changed
+
+- `ci-status`'s review-lanes step waits up to 15 minutes for an unfinished review lane instead of 8, and stops 4 minutes before the job's 30-minute timeout rather than 2 minutes before `gh_read`'s deadline, so a lane whose last job waits 9 to 13 minutes for a runner is judged in the same run instead of failing and waiting about 30 minutes for `rerun-ci-status`.
+
+## [13.6.4] - 2026-11-28
+
+### Fixed
+
+- Check review upstream runs against the broker actor and attempt rule in `feedback-dispatch.mjs` (`trustedReviewRun` and `reviewRunAt`): when a review run was re-run by `github-actions[bot]`, fall back to a broker-accepted sibling review run on the same head, or skip with a logged reason naming the attempt and triggering actor when none exists.
+
+## [13.6.3] - 2026-11-28
+
+### Fixed
+
+- Signal 8 (`throughput-zero`) in `maintenance-monitor-signals` now counts open, non-draft, unheld pull requests authored by `merge.agent-identity` from the existing open-PR GraphQL listing instead of relying solely on `pr-merge`'s `sweep.candidates`, preventing false `throughput-zero` alerts when only non-lanes pull requests are open (falling back to `sweep.candidates` only when the 40-PR listing is truncated with none seen).
+
 ## [13.6.2] - 2026-11-27
 
 ### Fixed

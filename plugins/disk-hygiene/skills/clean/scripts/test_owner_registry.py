@@ -40,6 +40,8 @@ EXPECTED_IDS = {
     "openai-codex-cli",
     "chezmoi",
     "pulumi",
+    "claude-code-plugin-eval-run-roots",
+    "claude-code-plugin-eval-docker-link-swap",
 }
 JSON_TYPES = {
     "object": dict,
@@ -122,7 +124,7 @@ class OwnerRegistryTest(unittest.TestCase):
             bad["entries"][index]["verification"]["basis"] = []
             self.assertEqual(len(validate(bad, SCHEMA)), 2, entry["id"])
 
-    def test_seeds_the_six_owners(self) -> None:
+    def test_seeds_the_expected_owners(self) -> None:
         ids = [entry["id"] for entry in REGISTRY["entries"]]
         self.assertEqual(len(ids), len(set(ids)))
         self.assertEqual(set(ids), EXPECTED_IDS)

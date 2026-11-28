@@ -3,6 +3,18 @@
 All notable changes to the `firecrawl` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.9.8] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across all 3 `firecrawl` skills (1,546 -> 604 chars, -942 / -60.9%): `firecrawl` (697 -> 349), `setup` (440 -> 134, `disable-model-invocation: true`), and `update` (409 -> 121, `disable-model-invocation: true`), while preserving all 14 CLI subcommands, disk-spill posture, document/PDF extraction trigger, lazy-install setup guidance, and maintainer-only update bounds.
+
+## [0.9.7] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
 ## [0.9.6] - 2026-11-26
 
 ### Changed

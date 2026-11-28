@@ -1,4 +1,3 @@
-// Stand-in recorder: clicks the drawer toggle and writes per-frame state to the --out directory.
 import { mkdirSync, writeFileSync } from "node:fs";
 const out = process.argv[process.argv.indexOf("--out") + 1] ?? "evidence";
 mkdirSync(out, { recursive: true });

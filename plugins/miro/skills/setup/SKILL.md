@@ -1,5 +1,5 @@
 ---
-description: "Verify the Miro plugin without reading or exposing its API token. Use when: 'set up Miro', 'configure Miro', 'Miro setup', the Miro MCP server is unavailable, or a Miro tool reports an authentication error. Actions: check (read-only verification, default and only action. This plugin's entire configuration is native userConfig, so there is nothing an apply could write); check verify-api additionally authorizes one read-only API call."
+description: "Read-only check of the Miro plugin without reading or exposing its API token (check); check verify-api authorizes one read-only API call."
 argument-hint: "[check] [verify-api]"
 user-invocable: true
 disable-model-invocation: true
@@ -142,7 +142,7 @@ reveal the contents of wherever it keeps them.
   [Plugins reference: Where values are stored](https://code.claude.com/docs/en/plugins/manifest-reference#where-values-are-stored)
   live and give them its answer.
 
-## Boundaries
+## What this skill does not do
 
 - Do not read, echo, log, copy, or persist the token.
 - Do not write the plugin cache, Claude Code user settings, or `pluginConfigs`, per the uniform

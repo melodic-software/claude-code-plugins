@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "3.3.2",
+  "version": "3.4.1",
   "license": "MIT",
   "keywords": [
     "toolchain",
@@ -24,6 +24,12 @@
     "category": "development"
   },
   "userConfig": {
+    "result_gate_enabled": {
+      "type": "boolean",
+      "title": "Result-gate hook",
+      "description": "Run the turn-end Stop hook that checks the tree's recorded check or lint result. On by default. A repository's toolchain.yaml can turn it on but not off; only your user or managed settings turn it off. While it is on, turn_end_result_gate picks what it does.",
+      "default": true
+    },
     "turn_end_result_gate": {
       "type": "string",
       "title": "Turn-end result gate",

@@ -1,7 +1,9 @@
+// test-scope: .github/workflows/*.yml
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
-import { main, MENDED_OUTPUT, NATIVE_READS_PER_RUN, SESSION_CHECKS_PER_RUN } from "./clear-escalations.mjs";
+import { workflowText } from "../lib/workflow-text.mjs";
+import { main, MENDED_OUTPUT, NATIVE_READS_PER_RUN, REQUIRED_SUITE_MARKER, SESSION_CHECKS_PER_RUN } from "./clear-escalations.mjs";
 import { refusalBody, unblockHold } from "./enable-auto-merge.mjs";
 import { unblockStops } from "./merge-holds.mjs";
 import { escalationActivity, escalationRoute, ROUTES } from "../pr-unblock/escalation-routes.mjs";
@@ -47,8 +49,9 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
     if (path === `/repos/${REPO}/actions/workflows/pr-require-checks.yml/runs?head_sha=${HEAD}&per_page=100`) {
       return { workflow_runs: REQUIRED_SUITES.map((id) => ({ id: id * 10, check_suite_id: id })) };
     }
-    assert.equal(path, `/repos/${REPO}/commits/${HEAD}/check-runs?filter=all&per_page=100&page=1`);
-    return { check_runs: headChecks };
+    const page = Number(new RegExp(`^/repos/${REPO}/commits/${HEAD}/check-runs\\?filter=all&per_page=100&page=(\\d+)$`).exec(path)?.[1]);
+    assert.ok(page >= 1, path);
+    return { check_runs: headChecks.slice((page - 1) * 100, page * 100) };
   };
   const reads = [];
   const verify = async (pull, rung) => {
@@ -407,6 +410,44 @@ test("a fix-ci label comes off only while the head's own checks read failed", as
     assert.equal(w.writes().at(-1)?.method === "DELETE", cleared, label);
     assert.ok(w.calls.filter((call) => call.token === "checks").length <= 2, label);
   }
+});
+
+const requiredRunsReads = (w) => w.calls.filter((call) => call.path.startsWith(`/repos/${REPO}/actions/workflows/pr-require-checks.yml/runs?`)).length;
+const RECORDED = JSON.parse(readFileSync(new URL("./fixtures/clear-escalations-head-check-runs.json", import.meta.url), "utf8")).check_runs;
+const LIVE_SUITE = 124682814960;
+const LABELED_SUITE = 124682695859;
+const isMarker = (run) => run.name === REQUIRED_SUITE_MARKER.name;
+
+test("the Mark Lanes check run names pr-require-checks' suites, so the workflow-runs read is skipped", async () => {
+  const timeline = [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")];
+  for (const [label, headChecks, cleared, reads] of [
+    ["recorded head: Test Selection (0) failed in the live suite, beside a cancelled and a labeled-event suite", RECORDED, true, 0],
+    ["recorded head listed oldest first", [...RECORDED].reverse(), true, 0],
+    ["recorded labeled-event suite alone: its skipped Mark Lanes still names it, and only its CI Status failed", RECORDED.filter((run) => run.check_suite.id === LABELED_SUITE), false, 0],
+    ["recorded head without the live suite's Mark Lanes: its failure is not pr-require-checks'", RECORDED.filter((run) => !(isMarker(run) && run.check_suite.id === LIVE_SUITE)), false, 0],
+    ["recorded head with its failure moved to the Windows workflow's suite: no pr-require-checks job fails", RECORDED.map((run) => (run.conclusion === "failure" && run.name !== "CI Status" ? { ...run, check_suite: { id: 124682814962 } } : run)), false, 0],
+    ["recorded head with every Mark Lanes from another app: the workflow-runs read decides", RECORDED.map((run) => (isMarker(run) ? { ...run, app: { slug: "someone-else" } } : run)), false, 1],
+    ["hand-built, no live shape: no Mark Lanes run, red in a listed suite", RED, true, 1],
+    ["hand-built, no live shape: no Mark Lanes run, green", [check("test-node", "success")], false, 1],
+  ]) {
+    const w = world({ timeline, headChecks });
+    const { code } = await run(w);
+    assert.equal(code, 0, label);
+    assert.equal(w.writes().at(-1)?.method === "DELETE", cleared, `${label}: cleared`);
+    assert.equal(requiredRunsReads(w), reads, `${label}: pr-require-checks runs reads`);
+  }
+});
+
+test("the suite marker is pr-require-checks.yml's only Mark Lanes job, and it has no needs", () => {
+  const dir = new URL("../../workflows/", import.meta.url);
+  const workflow = workflowText(readFileSync(new URL("pr-require-checks.yml", dir), "utf8"));
+  const job = workflow.job(REQUIRED_SUITE_MARKER.job);
+  assert.equal(/^ {4}name: (.*)$/m.exec(job)?.[1], REQUIRED_SUITE_MARKER.name, "the mark-lanes job carries the marker's check-run name");
+  assert.doesNotMatch(job, /^ {4}needs:/m, "mark-lanes starts with the run, so its check run exists before any job can fail");
+  const named = readdirSync(dir)
+    .filter((file) => /\.ya?ml$/.test(file))
+    .flatMap((file) => [...readFileSync(new URL(file, dir), "utf8").matchAll(/^ {4}name: (.*)$/gm)].filter((match) => match[1].trim() === REQUIRED_SUITE_MARKER.name).map(() => file));
+  assert.deepEqual(named, ["pr-require-checks.yml"], "no other workflow job carries the marker's name");
 });
 
 test("a reason still held for a person keeps the label beside a fail-routed one", async () => {
@@ -1067,7 +1108,7 @@ test("labels past the read cap are read on a later run", async () => {
   assert.deepEqual([...read].sort((a, b) => a - b), numbers);
 });
 
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -1403,7 +1444,7 @@ const CI_FIX = ["ci-fix-round-cap", "ci-fix-empty", "ci-fix-invalid", "ci-fix-no
 
 test("a ci-fix stop comes off once a trusted push moved the head and no check but ci-status fails there", async () => {
   for (const reason of CI_FIX) {
-    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(reason)], reader: readerFor() });
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated(reason)], headChecks: GREEN, reader: readerFor() });
     await run(w, TRUST_ENV);
     assert.equal(w.writes().length, 2, reason);
     assert.match(w.writes()[0].body.body, new RegExp(`reason=${reason} head=${HEAD}`));
@@ -1423,19 +1464,89 @@ test("a ci-fix stop stays while a check fails, runs, or none has passed at the h
     [...GREEN, run_("test-go", null, 4)],
     [],
   ]) {
-    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], reader: readerFor({ checkRuns }) });
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], headChecks: checkRuns, reader: readerFor({ checkRuns }) });
     await run(w, TRUST_ENV);
     assert.deepEqual(w.writes(), [], JSON.stringify(checkRuns));
   }
-  const unmoved = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], reader: readerFor({ pushes: [pushedBy(STRANGER)] }) });
+  const unmoved = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], headChecks: GREEN, reader: readerFor({ pushes: [pushedBy(STRANGER)] }) });
   await run(unmoved, TRUST_ENV);
   assert.deepEqual(unmoved.writes(), []);
 });
 
 test("a ci-fix stop passes with a neutral check at the head", async () => {
-  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], reader: readerFor({ checkRuns: [...GREEN, run_("pr-unblock / publish-feedback", "neutral", 4)] }) });
+  const neutral = [...GREEN, run_("pr-unblock / publish-feedback", "neutral", 4)];
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], headChecks: neutral, reader: readerFor({ checkRuns: neutral }) });
   await run(w, TRUST_ENV);
   assert.equal(w.writes().at(-1)?.method, "DELETE");
+});
+
+const CHECK_RUNS_AT_HEAD = `/repos/${REPO}/commits/${HEAD}/check-runs?`;
+const REQUIRED_RUNS_AT_HEAD = `/repos/${REPO}/actions/workflows/pr-require-checks.yml/runs?head_sha=${HEAD}&`;
+
+test("a ci-fix stop reads the head's check runs once a run, whichever check judges it, and its verdict holds", async () => {
+  const unreadReader = (calls) => {
+    const inner = readerFor({ calls });
+    return async (method, path) => {
+      if (path.startsWith(CHECK_RUNS_AT_HEAD)) {
+        calls.push(path);
+        throw new Error("HTTP 502");
+      }
+      return inner(method, path);
+    };
+  };
+  for (const [label, headChecks, cleared, readerOf = (calls) => readerFor({ calls, checkRuns: headChecks })] of [
+    ["failing", RED, true],
+    ["cancelled", [check("test-node", "cancelled")], true],
+    ["passing", GREEN, true],
+    ["unread", new Error("HTTP 502"), false, unreadReader],
+  ]) {
+    const readerCalls = [];
+    const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], headChecks, reader: readerOf(readerCalls) });
+    const { code } = await run(w, TRUST_ENV);
+    assert.equal(code, 0, label);
+    assert.equal(w.writes().at(-1)?.method === "DELETE", cleared, `${label}: cleared`);
+    const paths = [...w.calls.map((call) => call.path), ...readerCalls];
+    const checkRunReads = paths.filter((path) => path.startsWith(CHECK_RUNS_AT_HEAD)).length;
+    const requiredReads = label === "unread" ? 0 : 1;
+    assert.equal(paths.filter((path) => path.startsWith(REQUIRED_RUNS_AT_HEAD)).length, requiredReads, `${label}: pr-require-checks runs read ${requiredReads} time(s)`);
+    if (label === "unread") {
+      assert.ok(checkRunReads <= 2, `${label}: a failed check-runs read is tried again once, no more: ${checkRunReads}`);
+    } else {
+      assert.equal(checkRunReads, 1, `${label}: check runs read once`);
+    }
+  }
+});
+
+test("a check-runs read that failed once is tried again for the next check of the same head", async () => {
+  const w = world({ timeline: [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")], headChecks: GREEN, reader: readerFor() });
+  const checks = w.checks;
+  let failed = 0;
+  w.checks = async (method, path) => {
+    if (path.startsWith(CHECK_RUNS_AT_HEAD) && failed === 0) {
+      failed += 1;
+      throw new Error("HTTP 502");
+    }
+    return checks(method, path);
+  };
+  const { code } = await run(w, TRUST_ENV);
+  assert.equal(code, 0);
+  assert.equal(failed, 1, "the first check-runs read failed");
+  assert.equal(w.writes().at(-1)?.method, "DELETE", "the retried read finds the head green and the label comes off");
+});
+
+test("a needs-human ci-fix stop and a needs-session stop judged at one head share one check-runs read a run", async () => {
+  const keyStatuses = [status("failure", ACTIONS_BOT, "2026-10-18T10:00:01Z", laneContext("ci-fix-escalated"))];
+  const timeline = [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated"), sessionLabeled(BOT, "2026-10-18T10:00:01Z"), stopped("ci-fix-escalated", KEY)];
+  const readerCalls = [];
+  const w = world({ timeline, sessionNumbers: [8], keyStatuses, headChecks: GREEN, reader: readerFor({ calls: readerCalls }) });
+  const { code, logs } = await run(w, TRUST_ENV);
+  assert.equal(code, 0);
+  assert.deepEqual(
+    w.writes().filter((call) => call.method === "DELETE").map((call) => call.path),
+    [`/repos/${REPO}/issues/7/labels/needs-human`, `/repos/${REPO}/issues/8/labels/needs-session`],
+    logs.join("\n"),
+  );
+  assert.equal([...w.calls.map((call) => call.path), ...readerCalls].filter((path) => path.startsWith(CHECK_RUNS_AT_HEAD)).length, 1);
 });
 
 test("a protected-path or own-patch stop stays, even once the PR is mergeable after a trusted move with everything green", async () => {

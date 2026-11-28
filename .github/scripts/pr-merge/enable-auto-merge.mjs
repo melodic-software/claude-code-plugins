@@ -29,37 +29,28 @@ import {
 } from "../pr-unblock/gate-source.mjs";
 import { readHoldPaths } from "../work-resolve-issue/report-outcome.mjs";
 import {
-  BODY_HOLD,
   costDecision,
-  HUMAN_VETO,
   costHold,
   humansOf,
-  LANE_HOLD,
   liftersOf,
-  MEMBERS,
   pathHoldKind,
   pathLifters,
-  personWrote,
   PIN_RE,
   UNPIN_RE,
   readPathHolds,
   readStatuses,
   unblockStops,
-  vetoers,
 } from "./merge-holds.mjs";
 import { ARM_HOLDS, NEEDS_HUMAN } from "../lib/lane-vocabulary.mjs";
-
-export { BODY_HOLD, HUMAN_VETO } from "./merge-holds.mjs";
+import { costLine, escapeCommand, GUARD_ERROR, pythonVerify, READER_HOLDS, READER_RATE_LIMIT_EXIT, readerEnv, ReaderRateLimited, rotated, SERVER_ERROR, SHA, VERIFY_FINAL, VERIFY_SCRIPT, VERIFY_TIMEOUT_MS, verifyHold } from "./verifier.mjs";
 
 const REPO = /^([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.-]+)$/;
-const SHA = /^[0-9a-f]{40}$/;
 const BOT_LOGIN = /^([a-z0-9][a-z0-9-]*)\[bot\]$/;
 export const HOLD_LABELS = ARM_HOLDS;
 const MAX_PAGES = 10;
 // The files listing stops at 3000, so a listing that fills every page may be cut short:
 // https://docs.github.com/en/rest/pulls/pulls#list-pull-requests-files
 const MAX_FILE_PAGES = 30;
-const VERIFY_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py";
 const WHOLE_REVIEW_SCRIPT = ".base/plugins/source-control/skills/babysit-prs/scripts/babysit_whole_review.py";
 
 export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: String) {
@@ -70,7 +61,6 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
         id number isDraft isCrossRepository isInMergeQueue headRefName headRefOid baseRefOid body updatedAt mergeStateStatus
         stack { baseRefName entries(first: 100) { totalCount nodes { position pullRequest { number state } } } }
         author { __typename login ... on User { databaseId } ... on Bot { databaseId } }
-        userContentEdits(first: 100) { totalCount nodes { editor { __typename login } } }
         labels(first: 100) { totalCount nodes { name } }
         autoMergeRequest { enabledAt }
       }
@@ -79,16 +69,14 @@ export const PULLS_QUERY = `query($owner: String!, $name: String!, $after: Strin
 }`;
 const COMMENT_FIELDS = "databaseId author { __typename login } editor { __typename login } body createdAt updatedAt lastEditedAt authorAssociation";
 const REVIEW_FIELDS = "author { __typename login ... on User { databaseId } } state commit { oid } body submittedAt authorAssociation";
-const THREAD_COMMENT_FIELDS = "author { __typename login } body createdAt authorAssociation";
-const THREAD_FIELDS = `id comments(last: 100) { totalCount nodes { ${THREAD_COMMENT_FIELDS} } }`;
 export const DETAIL_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
   repository(owner: $owner, name: $name) {
     pullRequest(number: $number) {
       comments(last: 100) { totalCount nodes { ${COMMENT_FIELDS} } }
       reviews(last: 100) { totalCount nodes { ${REVIEW_FIELDS} } }
-      reviewThreads(last: 100) { totalCount nodes { ${THREAD_FIELDS} } }
       timelineItems(itemTypes: [AUTO_MERGE_DISABLED_EVENT, AUTO_MERGE_ENABLED_EVENT, ADDED_TO_MERGE_QUEUE_EVENT], last: 1) { nodes { __typename ... on AutoMergeDisabledEvent { createdAt actor { __typename login } } ... on AutoMergeEnabledEvent { createdAt actor { __typename login } } ... on AddedToMergeQueueEvent { createdAt actor { __typename login } } } }
       files(first: 100) { totalCount nodes { path changeType } }
+      labels(first: 100) { totalCount nodes { name } }
     }
   }
 }`;
@@ -100,11 +88,7 @@ const pageOf = (field, fields) => `query($owner: String!, $name: String!, $numbe
 export const DISCUSSION_PAGE_QUERIES = Object.freeze({
   comments: pageOf("comments", COMMENT_FIELDS),
   reviews: pageOf("reviews", REVIEW_FIELDS),
-  reviewThreads: pageOf("reviewThreads", THREAD_FIELDS),
 });
-export const THREAD_PAGE_QUERY = `query($id: ID!, $after: String) {
-  node(id: $id) { ... on PullRequestReviewThread { comments(first: 100, after: $after) { totalCount pageInfo { hasNextPage endCursor } nodes { ${THREAD_COMMENT_FIELDS} } } } }
-}`;
 const MAX_DISCUSSION_PAGES = 30;
 export const ARM_MUTATION = `mutation($id: ID!, $head: GitObjectID!) {
   enablePullRequestAutoMerge(input: { pullRequestId: $id, mergeMethod: SQUASH, expectedHeadOid: $head }) {
@@ -157,7 +141,6 @@ export const STACK_QUEUED = "its async merge already put it in main's merge queu
 export const MERGE_RESULT_READS = 6;
 export const MERGE_RESULT_WAIT_MS = 5_000;
 
-const escapeCommand = (text) => String(text).replaceAll(/[\r\n%]/g, " ");
 const firstLine = (body) => bodyLines(body)[0];
 
 const TRANSIENT_CODES = new Set(["ECONNRESET", "ETIMEDOUT", "UND_ERR_SOCKET", "UND_ERR_CONNECT_TIMEOUT"]);
@@ -214,8 +197,6 @@ async function answerBody(text) {
   }
 }
 
-export const LANE_HOLD_REASON = "its body carries the lane's own 'Hold: a human merges this' line: a person merges it by hand, or removes that line";
-
 export function holdReason(pull, humanGated) {
   const labels = pull.labels?.nodes ?? [];
   if (!(pull.labels?.totalCount <= labels.length)) {
@@ -223,14 +204,7 @@ export function holdReason(pull, humanGated) {
   }
   const names = new Set(labels.map((label) => String(label?.name).toLowerCase()));
   const label = [...HOLD_LABELS, humanGated].find((name) => names.has(name.toLowerCase()));
-  if (label !== undefined) {
-    return `it carries ${label}`;
-  }
-  const body = String(pull.body ?? "");
-  if (LANE_HOLD.test(body)) {
-    return LANE_HOLD_REASON;
-  }
-  return BODY_HOLD.test(body) && personWrote(pull) ? "its body holds it" : null;
+  return label === undefined ? null : `it carries ${label}`;
 }
 
 const unlabeledAs = (connection, name) => {
@@ -280,11 +254,7 @@ export async function wholeDiscussion(github, variables, detail) {
       read[key] = await every(github, query, variables, (data) => data?.repository?.pullRequest?.[key]);
     }
   }
-  const threads = [];
-  for (const thread of read.reviewThreads.nodes) {
-    threads.push(whole(thread?.comments) ? thread : { ...thread, comments: await every(github, THREAD_PAGE_QUERY, { id: String(thread?.id) }, (data) => data?.node?.comments) });
-  }
-  return { ...read, reviewThreads: { ...read.reviewThreads, nodes: threads } };
+  return read;
 }
 
 const itemOf = (item) => ({
@@ -300,32 +270,9 @@ const itemOf = (item) => ({
 
 const headLifters = (detail, humans, head) => pathLifters((detail?.reviews?.nodes ?? []).map(itemOf), humans, head);
 
-export function memberVetoes(detail) {
-  const threads = detail?.reviewThreads;
-  if (![detail?.comments, detail?.reviews, threads].every(whole) || !threads.nodes.every((thread) => whole(thread?.comments))) {
-    return null;
-  }
-  const items = [...detail.comments.nodes, ...detail.reviews.nodes, ...threads.nodes.flatMap((thread) => thread.comments.nodes)].map(itemOf);
-  const vetoes = vetoers(items);
-  const at = items.filter((item) => item.isUser && vetoes.includes(item.login) && item.body.trim()).map((item) => item.at).sort().at(-1) ?? null;
-  return { vetoes, at };
+export function discussionUnread(detail) {
+  return [detail?.comments, detail?.reviews].every(whole) ? null : "its comments could not all be read";
 }
-
-export function discussionHold(detail) {
-  const read = memberVetoes(detail);
-  if (read === null) {
-    return "its comments could not all be read";
-  }
-  return read.vetoes.length ? `${read.vetoes.join(", ")} asked not to merge it` : null;
-}
-
-export const VETO_LABEL = "do-not-merge";
-export const VETO_MARKER = "<!-- member-veto-label -->";
-export const vetoNote = (vetoes) =>
-  [
-    VETO_MARKER,
-    `${vetoes.join(", ")} asked not to merge this pull request, so the lanes App added the \`${VETO_LABEL}\` label. It comes off once a later comment by each of them lifts the veto; the same label added by anyone else stays.`,
-  ].join("\n");
 
 const carries = (pull, label) => (pull.labels?.nodes ?? []).some((node) => String(node?.name).toLowerCase() === String(label).toLowerCase());
 
@@ -334,24 +281,6 @@ const newestAppComment = (comments, bot, test) =>
     .filter((c) => c?.author?.__typename === "Bot" && c.author.login === bot && test(c))
     .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
     .at(-1);
-
-const vetoNoted = (comments, bot) => newestAppComment(comments, bot, (c) => firstLine(c.body) === VETO_MARKER) !== undefined;
-
-export function vetoLabelOwned(timeline, login, body = "") {
-  const { labeled, since } = labelHistory(timeline, VETO_LABEL, new Set());
-  if (!isApp(labeled?.actor, login) || Number.isNaN(since) || BODY_HOLD.test(body) || LANE_HOLD.test(body)) {
-    return false;
-  }
-  const named = /\bdo[\s-]*not[\s-]*merge\b/i;
-  const veto = (item) => MEMBERS.has(String(item.author_association).toUpperCase()) && HUMAN_VETO.test(String(item.body ?? ""));
-  if (timeline.some((item) => item.event === "commented" && !isApp(item.user, login) && Date.parse(item.created_at) >= since && named.test(String(item.body ?? "")) && !veto(item))) {
-    return false;
-  }
-  return timeline.some((item) => {
-    const at = Date.parse(item.created_at);
-    return item.event === "commented" && isApp(item.user, login) && firstLine(item.body) === VETO_MARKER && at >= since && at - since <= PAIRED_MS;
-  });
-}
 
 function trustedHumans(env) {
   try {
@@ -394,37 +323,6 @@ export const EMPTY_DIFF_REASON = "its diff against main is empty, so its changes
 export const EMPTY_DIFF_REOPENED_REASON = `${EMPTY_DIFF_REASON}, and it was reopened after the lane closed it at this head, so a person decides it`;
 export const emptyDiffNote = (head) =>
   `Unattended merge: closed at head \`${head}\`. ${EMPTY_DIFF_REASON[0].toUpperCase()}${EMPTY_DIFF_REASON.slice(1)}: the base...head diff lists no file, so closing loses no work, and no fresh attempt starts. Reopen it to reverse this.`;
-
-export const VERIFY_FINAL = Object.freeze(["verify:repeated-fail"]);
-
-export const READER_HOLDS = Object.freeze({
-  link: "pr-merge's lane does not take its issue link (",
-  verdict: "pr-merge's gate refuses its verifier verdict (",
-  risk: "pr-merge's gate holds it on its risk score (",
-});
-
-export function verifyHold(evidence, head) {
-  if (evidence === null || typeof evidence !== "object" || !("refusal" in evidence)) {
-    return "its verifier verdict could not be read";
-  }
-  if (evidence.head !== head) {
-    return "its verifier verdict was read at another head";
-  }
-  if (typeof evidence.ineligible === "string") {
-    return `${READER_HOLDS.link}${escapeCommand(evidence.ineligible)})`;
-  }
-  if (evidence.refusal !== null) {
-    const detail = VERIFY_FINAL.includes(evidence.refusal) && typeof evidence.detail === "string" && evidence.detail ? `: ${escapeCommand(evidence.detail)}` : "";
-    return `${READER_HOLDS.verdict}${escapeCommand(evidence.refusal)}${detail})`;
-  }
-  if (evidence.ineligible !== null) {
-    return "its issue link could not be read";
-  }
-  if (typeof evidence.reviews === "string") {
-    return `${READER_HOLDS.risk}${escapeCommand(evidence.reviews)})`;
-  }
-  return evidence.reviews === null ? null : "its risk score could not be read";
-}
 
 export const TRUST_REFUSALS = Object.freeze(["untrusted-provenance", "untrusted-provenance-removed-by-non-human", "issue-labels-unreadable"]);
 
@@ -731,107 +629,6 @@ export function liftedByPerson(timeline, label, since) {
   );
 }
 
-export const READER_RATE_LIMIT_EXIT = 75;
-const GUARD_ERROR = "::error title=GitHub rate limit::";
-const SERVER_ERROR = "::error title=GitHub server error::";
-
-export class ReaderRateLimited extends Error {
-  constructor(what, stderr) {
-    const line = String(stderr ?? "")
-      .split("\n")
-      .find((text) => text.startsWith(GUARD_ERROR) || text.startsWith(SERVER_ERROR));
-    const serverError = line?.startsWith(SERVER_ERROR) === true;
-    const cause = serverError ? "a GitHub server error hold" : "a GitHub rate limit";
-    super(`${what} stopped on ${cause}: ${line ? line.slice((serverError ? SERVER_ERROR : GUARD_ERROR).length) : `it exited ${READER_RATE_LIMIT_EXIT}`}`);
-    this.name = "ReaderRateLimited";
-    this.serverError = serverError;
-  }
-}
-
-export const GH_CALLS_PREFIX = "babysit-gh-calls ";
-function ghCallsPayload(stderr) {
-  const line = bodyLines(stderr).findLast((text) => text.startsWith(GH_CALLS_PREFIX));
-  try {
-    return line === undefined ? null : JSON.parse(line.slice(GH_CALLS_PREFIX.length));
-  } catch {
-    return null;
-  }
-}
-
-export function ghCallsLine(stderr) {
-  const payload = ghCallsPayload(stderr);
-  return payload === null || typeof payload !== "object" ? null : `${GH_CALLS_PREFIX}${JSON.stringify(payload)}`;
-}
-
-export const LISTING_MISS_PREFIX = "babysit-listing-miss ";
-export function listingMissLines(stderr) {
-  return bodyLines(stderr).filter((text) => text.startsWith(LISTING_MISS_PREFIX));
-}
-
-export function ghCalls(stderr) {
-  const payload = ghCallsPayload(stderr);
-  const calls = payload?.calls;
-  if (!Number.isSafeInteger(payload?.total) || calls === null || typeof calls !== "object") {
-    return null;
-  }
-  const sum = (match) => Object.entries(calls).reduce((n, [kind, count]) => n + (match(kind) && Number.isSafeInteger(count) ? count : 0), 0);
-  return { total: payload.total, githubToken: sum((kind) => kind.startsWith("override ")), paginated: sum((kind) => kind.endsWith("+paginate")) };
-}
-
-export const costLine = ({ number, calls, ms }) =>
-  `#${number} ${calls === null ? "calls=unknown" : `calls=${calls.total} github-token=${calls.githubToken} paginated=${calls.paginated}`} ms=${ms}`;
-
-const readerEnv = (env, timeoutMs) => ({ ...env, BABYSIT_VERIFY_DEADLINE_SECONDS: String(timeoutMs / 1000), BABYSIT_VERIFY_CALLER: "enable-auto-merge.mjs" });
-
-export function pythonVerify(env, { spawn = spawnSync, clock = Date.now, lane = true } = {}) {
-  const verify = async ({ number, headRefOid: head, baseRefOid: base }, rung) => {
-    if (!SHA.test(String(base))) {
-      throw new Error("its base commit is not a commit SHA");
-    }
-    const args = [env.VERIFY_EVIDENCE_SCRIPT || VERIFY_SCRIPT, "evidence", ...(lane ? ["--lane-link", "--lane-reviews", "--lane-queue"] : []), "--shared-listing", "--repo", env.GITHUB_REPOSITORY, "--base-sha", base];
-    if (lane && typeof rung === "string") {
-      args.push("--rung", rung);
-    }
-    const started = clock();
-    const done = spawn("python3", [...args, String(number), head], { encoding: "utf8", env: readerEnv(env, VERIFY_TIMEOUT_MS), timeout: VERIFY_TIMEOUT_MS });
-    const cost = { number, calls: ghCalls(done.stderr), ms: clock() - started };
-    let evidence;
-    if (done.status === 0) {
-      try {
-        evidence = JSON.parse(String(done.stdout).trim().split("\n").at(-1));
-      } catch (error) {
-        evidence = error;
-      }
-    }
-    verify.costs.push(cost);
-    console.log(`enable-auto-merge: ${costLine(cost)}`);
-    const calls = ghCallsLine(done.stderr);
-    if (calls !== null) {
-      console.log(calls);
-    }
-    for (const miss of listingMissLines(done.stderr)) {
-      console.log(miss);
-    }
-    if (done.status === READER_RATE_LIMIT_EXIT) {
-      throw new ReaderRateLimited(`#${number}'s verifier read`, done.stderr);
-    }
-    if (done.status !== 0) {
-      const said = String(done.stderr ?? "")
-        .trim()
-        .split("\n")
-        .filter((text) => !text.startsWith(GH_CALLS_PREFIX) && !text.startsWith(LISTING_MISS_PREFIX))
-        .at(-1);
-      throw new Error(`babysit_verify_evidence.py exited ${done.status ?? done.signal}: ${said ?? ""}`);
-    }
-    if (evidence instanceof Error) {
-      throw evidence;
-    }
-    return evidence;
-  };
-  verify.costs = [];
-  return verify;
-}
-
 export function pythonRoom(env, spawn = spawnSync) {
   return async () => {
     const args = [
@@ -931,8 +728,7 @@ export const TRUSTED_READS = Object.freeze(["files", "cost", "lane-source", "ver
 const PASSES = Object.freeze(["pass", "pass-notes"]);
 
 export function trustedHoldReason(pull, humanGated) {
-  const held = holdReason(pull, humanGated) ?? holdReason(pull, NEEDS_HUMAN);
-  return held ?? (BODY_HOLD.test(String(pull.body ?? "")) ? "its body holds it" : null);
+  return holdReason(pull, humanGated) ?? holdReason(pull, NEEDS_HUMAN);
 }
 
 export function trustedVerdictHold(evidence, head) {
@@ -971,7 +767,7 @@ export function decideTrusted(pull, humanGated, facts = {}, bot = undefined) {
     if (!pinned(facts.comments, bot, pull.headRefOid, undefined, true)) {
       return none("already armed");
     }
-    const held = trustedHoldReason(pull, humanGated) ?? discussionHold(facts.discussion);
+    const held = trustedHoldReason(pull, humanGated) ?? discussionUnread(facts.discussion) ?? trustedHoldReason({ ...pull, labels: facts.discussion?.labels }, humanGated);
     if (held !== null) {
       return { action: "disarm", reason: held };
     }
@@ -994,9 +790,12 @@ export function decideTrusted(pull, humanGated, facts = {}, bot = undefined) {
           : !SHA.test(String(pull.headRefOid))
             ? "its head is not a commit SHA"
             : trustedHoldReason(pull, humanGated);
-  const judged = held === null ? judgeUnheld(pull, facts, bot) : none(held);
+  const judged = held === null ? judgeUnheld(pull, humanGated, facts, bot) : none(held);
   if (judged.action !== "none") {
     return judged;
+  }
+  if (facts.pinUnchanged === true) {
+    return { ...judged, pinUnchanged: true };
   }
   if (!("comments" in facts)) {
     return { action: "comments", reason: `${judged.reason}; its comments are not read yet, so a stale pin is not checked` };
@@ -1014,7 +813,7 @@ function stalePin(comments, bot, head) {
   return pin === undefined || UNPIN_RE.test(firstLine(pin.body)) ? null : `its newest lanes App pin names ${head}, a head it stays unarmed at`;
 }
 
-function judgeUnheld(pull, facts, bot) {
+function judgeUnheld(pull, humanGated, facts, bot) {
   const none = (reason) => ({ action: "none", reason });
   if (!("files" in facts)) {
     return { action: "files", reason: "its changed files are not read yet" };
@@ -1059,9 +858,9 @@ function judgeUnheld(pull, facts, bot) {
   if (!Array.isArray(facts.comments)) {
     return none("its comments could not be read, so its pin cannot be checked");
   }
-  const vetoed = discussionHold(facts.discussion);
-  if (vetoed !== null) {
-    return none(vetoed);
+  const unread = discussionUnread(facts.discussion) ?? trustedHoldReason({ ...pull, labels: facts.discussion?.labels }, humanGated);
+  if (unread !== null) {
+    return none(unread);
   }
   return { action: "arm", reason: "pr-verify passed its head and no hold stands", pin: !pinned(facts.comments, bot, pull.headRefOid, undefined, true) };
 }
@@ -1086,16 +885,10 @@ export function readRoom(answer) {
 }
 
 export const READER_EVENTS = Object.freeze(["schedule", "workflow_dispatch"]);
-export const VERIFY_TIMEOUT_MS = 4 * 60_000;
 export const LANE_ROOM_TIMEOUT_MS = 8 * 60_000;
 export const VERIFY_BUDGET_MS = 5 * 60_000;
 const NO_TIME_LEFT = "no time left in this run to read its verifier verdict";
 const READER_RUNS_ARM = "only a scheduled or hand-started run arms it, on the gate's verifier verdict";
-
-export function rotated(pulls, runNumber) {
-  const start = Number.isSafeInteger(runNumber) && pulls.length > 0 ? ((runNumber % pulls.length) + pulls.length) % pulls.length : 0;
-  return [...pulls.slice(start), ...pulls.slice(0, start)];
-}
 
 export function oldestFirst(pulls, candidate) {
   const oldest = pulls.filter(candidate).sort((a, b) => a.number - b.number);
@@ -1153,9 +946,6 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
         : !SHA.test(String(pull.headRefOid))
           ? "its head is not a commit SHA"
           : holdReason(pull, humanGated);
-  if (held === LANE_HOLD_REASON && !armed && detail !== null) {
-    return detail === undefined ? { action: "read", reason: "its discussion is not read yet" } : { action: "none", reason: held, clears: "person" };
-  }
   if (held !== null) {
     return { action: armed ? "disarm" : "none", reason: held };
   }
@@ -1176,9 +966,9 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
     return { action: armed ? "disarm" : "none", reason: FILES_CAPPED_REASON, clears: "person" };
   }
   if (Array.isArray(detail.files) && detail.files.length === 0) {
-    const vetoed = discussionHold(detail);
-    if (vetoed !== null) {
-      return { action: armed ? "disarm" : "none", reason: vetoed, withdraw: true };
+    const unread = discussionUnread(detail);
+    if (unread !== null) {
+      return { action: armed ? "disarm" : "none", reason: unread, withdraw: true };
     }
     if (newestAppComment(detail.comments?.nodes, bot, (c) => c.body === emptyDiffNote(pull.headRefOid)) !== undefined) {
       return { action: armed ? "disarm" : "none", reason: EMPTY_DIFF_REOPENED_REASON, clears: "person" };
@@ -1203,9 +993,9 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
     const partial = scored && (detail.verify.reviews === null || (typeof detail.verify.reviews === "string" && !detail.verify.reviews.startsWith("unreadable"))) ? {} : { partial: true };
     return !read && !armed ? { action: "verify", reason: "its verifier verdict is not read yet", fold: { ...held, partial: true } } : { ...held, ...partial };
   }
-  const vetoed = discussionHold(detail);
-  if (vetoed !== null) {
-    return { action: armed ? "disarm" : "none", reason: vetoed, withdraw: true };
+  const unread = discussionUnread(detail);
+  if (unread !== null) {
+    return { action: armed ? "disarm" : "none", reason: unread, withdraw: true };
   }
   const autoMerge = detail.timelineItems?.nodes?.at(-1);
   if (!armed && autoMerge?.__typename === "AutoMergeDisabledEvent" && autoMerge.actor?.__typename === "User") {
@@ -1237,7 +1027,8 @@ export function decide(pull, { bot, humanGated, holdPaths = null, pathHolds = tr
 }
 
 export const SKIP_VERSION = 1;
-export const SKIPPABLE = Object.freeze([READER_HOLDS.risk, "a pr-unblock lane stopped its head (", `${EJECTION_HOLD}queue-ejected:`]);
+export const TRUSTED_PIN_READ = "trusted author: its comments held no stale lanes App pin";
+export const SKIPPABLE = Object.freeze([READER_HOLDS.risk, "a pr-unblock lane stopped its head (", `${EJECTION_HOLD}queue-ejected:`, TRUSTED_PIN_READ]);
 export const SKIP_MAX_MINUTES = 60;
 export const SKIP_MAX_SKIPS = 3;
 const SKIP_CHUNK = 20;
@@ -1281,6 +1072,15 @@ export function rollupOf(node, head) {
     comments: [node.comments.totalCount, ...node.comments.nodes.map((c) => [c?.databaseId ?? null, c?.updatedAt ?? null])],
     threads: node.reviewThreads.nodes.map((t) => JSON.stringify([Boolean(t?.isResolved), Boolean(t?.isOutdated)])).sort(),
   };
+}
+
+const SKIP_STATE_COMMENTS = 50;
+
+export function commentMark(comments) {
+  const nodes = comments?.nodes;
+  return Array.isArray(nodes) && comments.totalCount === nodes.length && nodes.length <= SKIP_STATE_COMMENTS
+    ? [nodes.length, ...nodes.map((c) => JSON.stringify([c?.databaseId ?? null, c?.updatedAt ?? null])).sort()]
+    : null;
 }
 
 export const skipKey = (pull, rollup, main) =>
@@ -1665,58 +1465,6 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       }
       return discussions.get(number);
     };
-    const vetoLabel = async (pull, detail) => {
-      const read = memberVetoes(detail);
-      if (!reads || stopped !== null || read === null || !lanes(pull) || !(pull.labels?.totalCount <= (pull.labels?.nodes?.length ?? 0))) {
-        return false;
-      }
-      const base = `/repos/${repo[0]}/issues/${pull.number}`;
-      let labeled = false;
-      try {
-        if (read.vetoes.length > 0 && !carries(pull, VETO_LABEL)) {
-          if (liftedByPerson(await unlabeledTimeline(pull.number), VETO_LABEL, read.at)) {
-            console.log(`enable-auto-merge: #${pull.number} left without ${VETO_LABEL}: a person removed it after the newest veto, or the timeline did not read whole`);
-            return false;
-          }
-          if (!write) {
-            console.log(`enable-auto-merge: #${pull.number} would label ${VETO_LABEL} (report-only): ${read.vetoes.join(", ")} asked not to merge it`);
-            return false;
-          }
-          await github("POST", `${base}/labels`, { labels: [VETO_LABEL] });
-          labeled = true;
-          await github("POST", `${base}/comments`, { body: vetoNote(read.vetoes) });
-          await leaveQueue(pull, VETO_LABEL);
-          console.log(`enable-auto-merge: #${pull.number} labeled ${VETO_LABEL}: ${read.vetoes.join(", ")} asked not to merge it`);
-          return true;
-        }
-        if (read.vetoes.length === 0 && carries(pull, VETO_LABEL) && vetoNoted(detail.comments?.nodes, slug)) {
-          let timeline;
-          try {
-            timeline = await paginate(github, `${base}/timeline`);
-          } catch (error) {
-            console.log(`enable-auto-merge: #${pull.number} keeps ${VETO_LABEL}: its timeline did not read: ${describe(error)}`);
-            return false;
-          }
-          if (!vetoLabelOwned(timeline, env.LANES_BOT_LOGIN, pull.body ?? "")) {
-            console.log(`enable-auto-merge: #${pull.number} keeps ${VETO_LABEL}: the lanes App did not add it for a member veto`);
-            return false;
-          }
-          if (!write) {
-            console.log(`enable-auto-merge: #${pull.number} would lift ${VETO_LABEL} (report-only): no member veto stands`);
-            return false;
-          }
-          await github("DELETE", `${base}/labels/${encodeURIComponent(VETO_LABEL)}`);
-          pull.labels = unlabeledAs(pull.labels, VETO_LABEL);
-          console.log(`enable-auto-merge: #${pull.number} lifted ${VETO_LABEL}: no member veto stands`);
-          return true;
-        }
-      } catch (error) {
-        failed += 1;
-        const kept = labeled ? `; ${VETO_LABEL} is on without its ${VETO_MARKER} comment, so only a person takes it off` : "";
-        console.log(`::error title=enable-auto-merge::#${pull.number} member-veto label: ${describe(error)}${escapeCommand(kept)}`);
-      }
-      return false;
-    };
     const skips = { on: reads && write && Boolean(env.EAM_SKIP_OUT), maxMinutes: skipLimit(env.SKIP_MAX_MINUTES, SKIP_MAX_MINUTES), maxSkips: skipLimit(env.SKIP_MAX_SKIPS, SKIP_MAX_SKIPS) };
     const rollups = new Map();
     const kept = {};
@@ -1734,7 +1482,8 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       }
       if (skipMain !== null) {
         skipStore = loadSkips(env.EAM_SKIP_IN ?? "", repo[0], now(), skips);
-        const numbers = pulls.filter((pull) => lanes(pull) && pull.autoMergeRequest == null && pull.isDraft === false && holdReason(pull, humanGated) === null).map((pull) => pull.number);
+        const pinRecorded = (pull) => skipStore[pull.number]?.reason === TRUSTED_PIN_READ && pull.autoMergeRequest == null && pull.isInMergeQueue === false && trustedAuthor(pull);
+        const numbers = pulls.filter((pull) => (lanes(pull) && pull.autoMergeRequest == null && pull.isDraft === false && holdReason(pull, humanGated) === null) || pinRecorded(pull)).map((pull) => pull.number);
         keyable = numbers.length;
         for (let start = 0; start < numbers.length; start += SKIP_CHUNK) {
           try {
@@ -1742,7 +1491,8 @@ export async function main({ env = process.env, github, actions, laneReads, veri
             for (const number of numbers.slice(start, start + SKIP_CHUNK)) {
               const node = read?.[`p${number}`];
               const listed = pulls.find((pull) => pull.number === number);
-              const rollup = node?.number === number && node.headRefOid === listed.headRefOid && node.updatedAt === listed.updatedAt ? rollupOf(node, listed.headRefOid) : null;
+              const same = node?.number === number && node.headRefOid === listed.headRefOid && node.updatedAt === listed.updatedAt;
+              const rollup = same ? (lanes(listed) ? rollupOf(node, listed.headRefOid) : commentMark(node.comments)) : null;
               if (rollup !== null) rollups.set(number, rollup);
             }
           } catch (error) {
@@ -1752,6 +1502,11 @@ export async function main({ env = process.env, github, actions, laneReads, veri
       }
     }
     const humans = trustedHumans(env);
+    const filesOf = async (pull, detail) => {
+      const graphed = listedFiles(detail?.files);
+      return graphed !== null ? { paths: graphed, capped: false } : changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
+    };
+    const costOf = (pull, paths) => (costHold(paths, null) ? costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions) : null);
     const judging = { bot: slug, humanGated, holdPaths, pathHolds };
     trustedVerify ??= pythonVerify(env, { lane: false });
     laneSource ??= pythonLaneSource(env);
@@ -1776,7 +1531,12 @@ export async function main({ env = process.env, github, actions, laneReads, veri
     };
     const armTrusted = async (pull) => {
       const facts = {};
-      let { action, reason, pin } = decideTrusted(pull, humanGated, facts, slug);
+      const pinKey = skipMain !== null && pull.autoMergeRequest == null && pull.isInMergeQueue === false ? (mark) => skipKey(pull, { pinComments: mark, bot: slug }, skipMain) : null;
+      const prior = skipStore[pull.number];
+      if (pinKey !== null && rollups.has(pull.number) && prior?.reason === TRUSTED_PIN_READ && prior.head === pull.headRefOid && prior.key === pinKey(rollups.get(pull.number))) {
+        facts.pinUnchanged = true;
+      }
+      let { action, reason, pin, pinUnchanged } = decideTrusted(pull, humanGated, facts, slug);
       while (TRUSTED_READS.includes(action)) {
         if (!reads) {
           ({ action, reason } = { action: "none", reason: READER_RUNS_ARM });
@@ -1793,13 +1553,14 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         const key = { files: "files", cost: "cost", "lane-source": "laneSources", verify: "verify", comments: "comments" }[action];
         try {
           if (action === "comments") {
-            facts.discussion = await discussionOf(pull.number);
+            const read = await discussionOf(pull.number);
+            facts.discussion = read != null && !(read.labels?.totalCount <= (read.labels?.nodes?.length ?? 0)) ? { ...read, labels: await allLabels(github, repo[0], pull.number).catch(() => read.labels) } : read;
           }
           facts[key] =
             action === "files"
               ? await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number)
               : action === "cost"
-                ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions)
+                ? await costOf(pull, facts.files.paths)
                 : action === "lane-source"
                   ? laneSource(facts.files.paths)
                   : action === "verify"
@@ -1811,7 +1572,19 @@ export async function main({ env = process.env, github, actions, laneReads, veri
             console.log(`enable-auto-merge: #${pull.number} trusted author: its ${action} read failed: ${describe(error)}`);
           }
         }
-        ({ action, reason, pin } = decideTrusted(pull, humanGated, facts, slug));
+        ({ action, reason, pin, pinUnchanged } = decideTrusted(pull, humanGated, facts, slug));
+      }
+      if (action === "none" && pinKey !== null && stopped === null) {
+        const mark = pinUnchanged ? null : Array.isArray(facts.comments) ? commentMark(facts.discussion?.comments) : null;
+        if (pinUnchanged) {
+          skipped += 1;
+          kept[pull.number] = { ...prior, skips: prior.skips + 1 };
+          console.log(`enable-auto-merge: #${pull.number} trusted author: comments unchanged since ${prior.at} (skip ${prior.skips + 1} of ${skips.maxSkips}), so its pin is not read again`);
+        } else if (mark !== null) {
+          const at = now();
+          recorded += 1;
+          kept[pull.number] = { at: new Date(at).toISOString(), until: new Date(at + skips.maxMinutes * 60_000).toISOString(), key: pinKey(mark), head: pull.headRefOid, reason: TRUSTED_PIN_READ, skips: 0 };
+        }
       }
       if (action === "arm") {
         const full = lane === null ? { reason: "the lane's room was not read" } : roomHold(pull);
@@ -1922,13 +1695,6 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         await armTrusted(pull);
         continue;
       }
-      if (reads && stopped === null && lanes(pull) && carries(pull, VETO_LABEL)) {
-        try {
-          await vetoLabel(pull, await discussionOf(pull.number));
-        } catch (error) {
-          console.log(`enable-auto-merge: #${pull.number} discussion did not read for its ${VETO_LABEL} label: ${describe(error)}`);
-        }
-      }
       let { action, reason } = decide(pull, judging);
       let clears;
       let comment;
@@ -1969,15 +1735,13 @@ export async function main({ env = process.env, github, actions, laneReads, veri
         try {
           detail = await discussionOf(pull.number);
           if (detail !== null) {
-            await vetoLabel(pull, detail);
             const standing = priorRefusal(detail?.comments?.nodes, slug)?.body;
             const approvedBy = (detail.reviews?.nodes ?? []).map(itemOf).some((item) => item.isUser && humans.has(item.userId) && item.state === "APPROVED");
             unmarked = widen && !isPartial(standing, pull.headRefOid) && !((approvedBy || pathHolds === false) && holdPathOnly(standing, pull.headRefOid, humanGated, pathHolds));
           }
           if (detail !== null && !unmarked) {
-            const graphed = listedFiles(detail.files);
-            const { paths: files, capped } = graphed !== null ? { paths: graphed, capped: false } : await changedFiles(github, `${repo[1]}/${repo[2]}`, pull.number);
-            const decision = costHold(files, null) ? await costDecision(github, repo[0], pull.number, pull.body, humans, pull.headRefOid, actions) : null;
+            const { paths: files, capped } = await filesOf(pull, detail);
+            const decision = await costOf(pull, files);
             let lifters = headLifters(detail, humans, pull.headRefOid);
             const skipped = pathHolds === false ? pathHoldKind(files, holdPaths) : null;
             if (skipped?.kind === "hold-path") {

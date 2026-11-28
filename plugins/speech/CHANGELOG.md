@@ -3,6 +3,18 @@
 All notable changes to the `speech` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.3.2] - 2026-11-28
+
+### Changed
+
+- Trim `speech` skill frontmatter descriptions (`narrate` 629 -> 336, `setup` 488 -> 149; total 1117 -> 485 chars).
+
+## [1.3.1] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
 ## [1.3.0] - 2026-11-27
 
 ### Added

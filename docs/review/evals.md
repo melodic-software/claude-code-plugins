@@ -45,7 +45,8 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   terms" decided (or that word's last word, so `--lane` becomes `--area` for **focus area**), in
   either number, so that old and new are byte-identical once each swap is replaced, or only deletes
   lines a comment fills in a code, YAML or shell file (`#` for YAML, shell, Python, TOML and
-  PowerShell; `//` and `/* */` for JS, TS, JSONC, Go and C#; code before or after the comment
+  PowerShell; `//` and `/* */` for JS, TS, JSONC, Go and C#; `#` or `;` opening a line of
+  `.editorconfig`, whose comments only start a line; code before or after the comment
   disqualifies the line, and markdown is excluded because an HTML comment can carry instructions a
   model reads; so is a line inside a shell heredoc or multi-line quoted string, PowerShell here-string, YAML block scalar,
   Python, TOML or C# triple-quoted string, or JS, TS or Go backtick string, where a comment-shaped
@@ -81,7 +82,23 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   eval dir itself is hidden from the agent",
   [case-authoring.md:56-57](../../plugins/evals/skills/plugin-eval/reference/case-authoring.md), and a
   probe of 150 scaffolds found none of their non-heredoc comments in any workspace file or git
-  history).
+  history). A trailing comment (a `#` comment after code, the code left byte for byte) in a shell file
+  or a `case.yaml` counts like a whole comment line under that rule, in `case.yaml` only when the
+  file parses the same without it, and a `case.yaml` edit that drops one is never a
+  description-only edit. The static check sets aside only these reference forms: a `plugins: [...]` entry naming the suite's own
+  plugin, a `(cd <dir> && bash <script>)` run whose `<dir>` is outside the suite, and `$0` inside an `awk`, `sed`, `grep` or `jq` program. A file that pipes into a shell, runs a string or
+  sources a stream gets no quote reading, and a case file that `cd`s or `pushd`es into the suite or
+  finds its own folder in an unresolved form keeps the script visible (owner, 2026-11-27, "Go with
+  recommendations": extend the tooling so more eval comment deletions are proven hidden, sweep
+  what it proves, and bring back the rest with an exact case and run count). A
+  `plugins/*/skills/*/evals/` file is not in the plugin's eval directory, the only one a run hides
+  ([plugin-evals](https://code.claude.com/docs/en/plugin-evals#how-runs-are-isolated)), so the
+  agent can read it with the skill and its comments get no hidden exemption. Deleting whole-line
+  `#` or `;` comments from an `.editorconfig` anywhere under an `evals/` folder runs nothing,
+  whether or not the agent can see the folder; any other `.editorconfig` edit keeps the rules
+  above (owner, 2026-11-27, "Go with recommendations" on: "(a) exempt comment-only deletions in
+  `.editorconfig` files under eval folders, so deleting them runs nothing; an editor-settings
+  comment can't change what the agent does").
 - No run for a description-only case edit, an additive skill edit (added instructions can still
   lower adherence to the rest, so `select` lists its cases as affected but not run, Q8), a restated upstream fact swapped
   for a pointer to its source ([skills-and-agents.md](skills-and-agents.md), C3), or a repair that
@@ -113,8 +130,7 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   compare run before merge, whose PASS releases the eval hold (Q7).
 - A compare run's arms also carry the plugin's `context/**/*.md` under the markdown rules
   `select-plugins.mjs` applies to `skills/` and `agents/`; `plugin.json` and `probes/` stay refused
-  (owner decision,
-  [owner-decisions.md#L380](https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380)).
+  (owner decision).
 - A cut whose only covering cases are judged adds a deterministic case for the changed behavior in
   the same PR (Q45).
 - Five kinds of PR merge before their run, once `/evals:validate` passes: one that adds or edits
@@ -122,12 +138,10 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   arms that do not differ (Q43, Q56); a cut whose changed behavior cannot be checked without a
   judge (Q45); one that adds or edits a script or a case scaffold and cuts no existing skill
   text, since compare mode never runs a script beside a credential (`select-plugins.mjs`; owner
-  decision, melodic-software/architecture#208); a skill rename, since compare mode refuses its
-  manifest and probe edits and a renamed skill has no comparable base arm (owner decision,
-  [owner-decisions.md#L380](https://github.com/melodic-software/architecture/blob/3534f80d3eea2c08a582d1899c2862af44880b64/docs/owner-decisions.md#L380));
+  decision); a skill rename, since compare mode refuses its
+  manifest and probe edits and a renamed skill has no comparable base arm (owner decision);
   and one whose compare run cannot start, because the org API key is off or compare mode refuses
-  the PR, where a FAIL of the run that follows reverts it (owner decision,
-  [owner-decisions.md#L400](https://github.com/melodic-software/architecture/blob/5e9bdfd176c86f3ce17d0659b4121fdcb0bc6c04/docs/owner-decisions.md#L400)).
+  the PR, where a FAIL of the run that follows reverts it (owner decision).
   Any other cut keeps its compare run before merge. One suite run
   on the default branch, scoped to the affected cases, follows; a rename's run uses `runs: 3`.
   For a judged case, the dispatching session posts the
@@ -163,12 +177,8 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   are unassigned or used up, the run fails with an `::error::` naming the `EVALS` role; the owner
   reassigns it through the account rotation tool. The label run and the hill climb run on the key
   alone (Q14, Q53, as amended by the owner decision "Eval runs on a subscription token, case
-  pruning, and how #18356 lands", 2026-11-23, in
-  [owner-decisions.md](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md),
-  extended to suite runs by
-  [owner-decisions.md#L370](https://github.com/melodic-software/architecture/blob/9fecf3f103380aa38f9a7936c4209330f9ab4bcd/docs/owner-decisions.md#L370),
-  and moved to the `EVALS` role, key first, by the owner decision "Dedicated eval lane
-  credentials", [melodic-software/architecture#235](https://github.com/melodic-software/architecture/pull/235)).
+  pruning, and how #18356 lands", 2026-11-23, extended to suite runs and moved to the `EVALS`
+  role, key first, by owner decision).
 
 ## Budget
 

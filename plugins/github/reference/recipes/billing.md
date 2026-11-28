@@ -80,6 +80,10 @@ gate blocks an answer, report the gate per honest degradation rather than guessi
     there headroom being paid for that consistently goes unused?
 16. Are usage-retention windows understood? Is anyone relying on historical usage data that may
     have already aged out of what the platform retains?
+17. Are per-product metered usage summaries (such as Actions minutes and storage consumption broken
+    down by product on the enhanced billing platform) reviewed on a recurring cadence to catch
+    runaway workflows, storage growth, or approaching included-allowance ceilings before overage
+    occurs?
 
 ## Cost-control levers
 
@@ -95,9 +99,10 @@ carries. The exact mechanism for any lever is resolved live through the ladder.
 - **Seat pruning cadence.** Reclaiming dormant and departed-user seats on a regular cadence
   directly cuts per-seat spend. Tradeoff: pruning too aggressively creates re-provisioning friction
   and can interrupt someone mid-need; pair it with an easy re-grant path.
-- **Retention tuning for stored artifacts.** Shortening retention on build artifacts, caches, and
-  logs reduces recurring storage spend. Tradeoff: shorter windows lose forensic and debugging
-  history. Balance against how far back investigations actually reach.
+- **Retention tuning for stored artifacts.** Setting explicit org-wide and repository-level
+  retention ceilings on build artifacts, caches, and workflow logs below the platform maximum
+  reduces recurring storage spend. Tradeoff: shorter windows lose forensic and debugging history.
+  Balance against how far back investigations actually reach.
 - **Right-sizing compute and runners.** Matching runner and hosted-compute sizing to the real
   workload avoids paying for idle capacity. Tradeoff: undersizing slows pipelines and can cost more
   in developer wait time than it saves in compute.
@@ -158,6 +163,10 @@ re-checked live before you rely on it. Billing mechanics have historically shift
   was bounded and the finest available time granularity had been reduced from an earlier state.
   Re-verify the current retention window and granularity before relying on older or fine-grained
   usage history.
+- As of 2026-11 (official billing docs and live probes), the enhanced billing platform exposed
+  direct per-product usage-summary reads (including Actions usage summaries) on supported
+  organizations without requiring a separate paid add-on. Re-verify the current summary endpoint,
+  product filters, and role/modality gates live through the ladder before relying on this.
 
 ## Doc pointers
 

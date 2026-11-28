@@ -78,7 +78,6 @@ done
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$dir"
 forge="$(git rev-parse --path-format=absolute --git-common-dir)/eval-forge"
-# Added first, so a repository that already has an origin stops here before anything is written.
 git remote add origin "https://github.com/eval-fixture/app.git"
 git config remote.origin.vcs evalforge
 git config alias.remote-evalforge "!\"$forge/bin/git-remote-evalforge\""
@@ -99,9 +98,6 @@ else
   echo '[]' >"$forge/checks"
 fi
 
-# Review threads the graphql read serves, one unresolved thread per --thread or
-# --outdated-bot-thread, and the call record (pr merge, pr review, resolve thread, and every other
-# call the stand-in served) a grader reads.
 printf '%s\n' "${threads[@]+"${threads[@]}"}" | jq -Rnc '[inputs | select(length > 0) | (.[:index(" ")] == "bot") as $bot | {
   id: .[index(" ") + 1:], isResolved: false, isOutdated: $bot, resolvedBy: null, originalStartLine: null, originalLine: 1,
   comments: {totalCount: 1, pageInfo: {hasNextPage: false}, nodes: [{
@@ -112,11 +108,9 @@ printf '%s\n' "${threads[@]+"${threads[@]}"}" | jq -Rnc '[inputs | select(length
 : >"$forge/calls.jsonl"
 
 git init -q --bare "$forge/eval-fixture/app.git"
-# The base is the repository's default branch, which ls-remote reports as HEAD.
 git -C "$forge/eval-fixture/app.git" symbolic-ref HEAD "refs/heads/$base"
 export PATH="$forge/bin:$PATH"
 git push -q origin "$base" "$head" "${extra_heads[@]+"${extra_heads[@]}"}"
-# Copied after that push, so the call record holds only what the run pushes.
 cp "$here/git" "$forge/bin/git"
 chmod +x "$forge/bin/git"
 for b in "$head" "${extra_heads[@]+"${extra_heads[@]}"}"; do
@@ -125,5 +119,4 @@ done
 # A fetch opens FETCH_HEAD for writing before anything else, and on Linux nothing under a run root in
 # /tmp is writable to the run's Bash (with TMPDIR outside /tmp the root is writable, as
 # /evals:plugin-eval records), so the file points at the one writable path every run has.
-# A later read of FETCH_HEAD resolves to nothing; origin/<branch> is unaffected.
 ln -sf /dev/null "$(git rev-parse --path-format=absolute --git-path FETCH_HEAD)"

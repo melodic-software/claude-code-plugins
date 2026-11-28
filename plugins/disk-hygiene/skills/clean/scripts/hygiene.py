@@ -36,6 +36,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 import data_root_state  # noqa: E402  (path set above; plugin-bundled module)
 import engine_grammar  # noqa: E402  (path set above; plugin-bundled module)
+import hint_conditions  # noqa: E402  (path set above; plugin-bundled module)
 import policy_cascade  # noqa: E402  (path set above; plugin-bundled module)
 import investigated_catalog  # noqa: E402  (sibling module; a record is a hint only)
 import deep_inventory  # noqa: E402  (path set above; sibling module)
@@ -2302,6 +2303,9 @@ def scan_tree(
     review_ranking: dict[str, Any] | None = None
     if not sizes_only:
         annotate_tracked(entries, target, repositories, truncated, repo_errors)
+        hint_conditions.apply(
+            entries, policy["hints"], target, user_home(), set(truncated) | error_paths
+        )
         apply_rules(entries, policy.get("rules", []), set(truncated) | error_paths)
         apply_in_flight_refs(entries, target, in_flight_refs or [])
         stdlib_shadowing = annotate_stdlib_shadowing(entries, target)

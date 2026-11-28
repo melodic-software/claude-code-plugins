@@ -17,6 +17,7 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 import engine_grammar
+import hint_conditions
 import yaml_subset
 
 SCHEMA_VERSION = 1
@@ -443,11 +444,17 @@ def validate_hint(hint: Any) -> None:
     if not isinstance(hint, dict):
         raise PolicyError("each additional hint must be an object")
     required = {"id", "os", "kind", "pattern", "confidence_ceiling", "reason"}
-    if not required <= set(hint) or set(hint) - required - {"entry_types", "class"}:
+    optional = {"entry_types", "class", "requires"}
+    if not required <= set(hint) or set(hint) - required - optional:
         raise PolicyError(
             "each additional hint must contain exactly id/os/kind/pattern/confidence_ceiling/reason "
-            "and optionally entry_types and class"
+            "and optionally entry_types, class and requires"
         )
+    if "requires" in hint:
+        try:
+            hint_conditions.validate_requires(hint["requires"])
+        except hint_conditions.ConditionError as exc:
+            raise PolicyError(f"hint {hint.get('id')!r}: {exc}") from exc
     if "class" in hint and hint["class"] not in HINT_CLASSES:
         raise PolicyError(f"hint class must be one of {', '.join(HINT_CLASSES)}")
     if "entry_types" in hint:

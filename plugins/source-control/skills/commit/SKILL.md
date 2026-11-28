@@ -1,5 +1,5 @@
 ---
-description: "When the bundled commit skill or built-in commit-push-pr command resolves in this session, prefer the first only when none of this skill's contract (convention, trailer, surgical staging, pre-checks) is wanted and the second to commit, push, and open a PR at once; this skill for every other commit. Create a git commit with a subject matching the resolved convention (layered source-control config → project convention → Conventional Commits default), a Claude Co-authored-by trailer, and surgical staging (never `git add -A`), feeding the message to git via Bash heredoc. Use when: 'commit this', 'make a commit', 'commit with message HINT', not for push, branch creation, or PR creation (use /pull-request)."
+description: "Create a git commit with resolved subject convention, Co-authored-by trailer, and surgical staging (no git add -A). Prefer bundled commit/commit-push-pr if it resolves in this session only for generic or one-shot PR commits. Use when: 'commit this', 'make a commit', 'commit with message HINT'. Not for push or PRs: /source-control:pull-request."
 argument-hint: "[message-hint]"
 user-invocable: true
 disable-model-invocation: false

@@ -3,6 +3,18 @@
 All notable changes to the `formal-verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.3.13] - 2026-11-28
+
+### Changed
+
+- Trimmed `/formal-verification:chart` (355 -> 264 chars), `/formal-verification:setup` (391 -> 137 chars, user-invoked summary without trigger phrasing), and `/formal-verification:specify` (416 -> 346 chars) frontmatter descriptions while preserving TLC-only scope, checksum-verified setup posture, and all four `specify` modes and triggers.
+
+## [0.3.12] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
 ## [0.3.11] - 2026-11-26
 
 ### Changed

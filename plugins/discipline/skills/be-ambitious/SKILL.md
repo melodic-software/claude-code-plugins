@@ -1,5 +1,5 @@
 ---
-description: "Raises one request before work starts: shows the original beside a version with a higher goal, deeper methods and wider range, fenced to a scope the user accepts, and waits. After work, deepens and redoes it with an outside check. Typed by the user who suspects they asked for, or got, less than they want; only the user knows that."
+description: "Raise a request before work (altitude, depth, range, outside check) and wait, or deepen finished work and redo it with an outside check."
 argument-hint: "[depth] [request|feedback]"
 user-invocable: true
 disable-model-invocation: true

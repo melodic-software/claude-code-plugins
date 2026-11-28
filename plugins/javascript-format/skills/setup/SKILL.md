@@ -1,5 +1,5 @@
 ---
-description: "Verify javascript-format's prerequisites and which formatter and linter its hooks run here, and register its git pre-commit entries. Use when: 'set up javascript-format', 'configure javascript-format', 'is javascript-format working', 'which formatter does javascript-format run', formatting silently isn't happening, or a hook reported a missing prerequisite or drifted git hook. Actions: check (read-only, default) | check inspect (read-only) | apply [install-biome] | apply install-git-hooks [scope=local|shared]. Re-runnable."
+description: "Verify javascript-format prerequisites and hooks (check [inspect]), or install Biome and git hooks (apply [install-biome|install-git-hooks])."
 argument-hint: "[check|apply] [inspect|install-biome|install-git-hooks [scope=local|shared]]"
 user-invocable: true
 disable-model-invocation: true
@@ -275,8 +275,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Next
 
-- /toolchain:setup apply <id>, with the drafted `fix-cmd` and `lint-cmd`, when the repository wants
-  a tool the plugin ships no adapter for; /toolchain:lint then runs it on request.
+- Repository wants a tool the plugin ships no adapter for (drafted commands ready): /toolchain:setup apply <id>.
 - A hook stage over its time budget in `setup check inspect`: /performance:target.
 
 ## What this skill does not do

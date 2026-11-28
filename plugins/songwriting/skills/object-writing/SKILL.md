@@ -1,5 +1,5 @@
 ---
-description: "Raw sensory material with Pat Pattison's methods: sense-bound object writing (timed dives, the pivot chain, the seven-channel sense inventory, Rusty's-collar/Kami-kazi), an agent that performs the write itself, cliche taxonomy and redemption, and point of view (camera distance, pronoun consistency). Use when: 'object writing', 'you do the object writing', 'make this less abstract', 'show don't tell', '90-second writing prompt', 'this line sounds cliched', 'who is speaking in this lyric'. For metaphor use /songwriting:metaphor; for rhyme use /songwriting:rhyme; for daily curriculum use /songwriting:practice."
+description: "Raw sensory material (Pat Pattison): sense-bound object writing (timed dives, pivot chain, seven-channel sense inventory, Rusty's-collar/Kami-kazi), agent write, cliche taxonomy/redemption (line sounds cliched), point of view (camera, pronouns). Use when: 'object writing', 'show don't tell', 'who is speaking in this lyric'."
 argument-hint: "[object-writing|generate|cliche|pov|worksheet] [args]"
 user-invocable: true
 disable-model-invocation: false

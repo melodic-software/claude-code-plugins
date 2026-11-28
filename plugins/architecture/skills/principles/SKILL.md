@@ -1,5 +1,5 @@
 ---
-description: "Module-design vocabulary for architecture findings, and the checks built on it. Use when: 'what is a deep module', 'what is a seam', 'deep vs shallow module', 'what is the deletion test', 'leverage and locality', 'module design vocabulary', 'which word do we use for X in architecture findings'. Scanning a codebase for friction is /architecture:improve."
+description: "Module-design vocabulary and checks for architecture findings (deep vs shallow modules, seams, interfaces, adapters, deletion test; reads no code). Use for 'what is a deep module', 'what is a seam', 'leverage and locality', module design vocabulary, or which word fits architecture findings. Not for codebase scans: /architecture:improve."
 argument-hint: "[term or question]"
 user-invocable: true
 disable-model-invocation: false

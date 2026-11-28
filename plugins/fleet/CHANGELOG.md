@@ -3,6 +3,24 @@
 All notable changes to the `fleet` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.7.1] - 2026-11-28
+
+### Changed
+
+- Trimmed `/fleet:reach` frontmatter description (495 -> 343 chars, -152 / -30.7%). It keeps the cross-host/cross-platform verbs (`run`, `prompt`, `query`, `message`, `start`) and WSL/Windows targeting. The quoted triggers are cut to three (`'run this on HOST'`, `'from WSL to Windows'`, `'remote agent'`) and the others are dropped. The exclusions are `ListAgents`/`SendMessage` and `/session-flow:continue-in-background`, and repository fleets now route to `/repo-fleet-hygiene:audit` only.
+
+## [0.7.0] - 2026-11-28
+
+### Added
+
+- Add the `peer_list_enabled` hook-enablement setting (default `false`) in `plugin.json`, `schemas/fleet.schema.json`, and `hooks/peer-list.mjs` via the shared in-process `lib/hook-enabled.mjs` helper so the SessionStart peer-list hook is opt-in and configurable per user or per repository.
+
+## [0.6.2] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
 ## [0.6.1] - 2026-11-26
 
 ### Changed

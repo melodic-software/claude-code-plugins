@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # test-scope: plugins/testing/evals/k36-cart-total*/graders/* plugins/testing/evals/k36-cart-total*/samples/*
-# The two k36 cases differ only in their prompt, so the with-skill and
-# natural-phrasing results compare only while their graders and samples match.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

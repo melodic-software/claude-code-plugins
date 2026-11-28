@@ -1,5 +1,5 @@
 ---
-description: "Apply a file-name rename plan one file at a time, one human acceptance each: git mv, rewrite only the reference shapes each citing file's tier allows, rebuild generated records, and sweep for stragglers. Refuses a blanket yes, a range, a glob, and 'all'. Use when: 'apply the rename plan', 'apply FN-...', 'do the docs renames', 'rename these files', 'execute the file-name findings', 'accept that rename'. Needs a plan from docs-naming:audit-file-names; never commits."
+description: "Apply a file-name rename plan one file at a time (human must accept each): git mv, rewrite tier-allowed references, rebuild generated records, sweep stragglers; refuses blanket yes/ranges/globs/'all'; never commits. Use when: 'apply the rename plan', 'apply FN-...', 'rename these files'. Needs /docs-naming:audit-file-names."
 argument-hint: "[FN-xxxxxxxx ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

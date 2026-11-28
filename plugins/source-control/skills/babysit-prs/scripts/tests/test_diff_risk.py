@@ -280,7 +280,7 @@ class HighReasonTests(unittest.TestCase):
     def test_floor_paths_are_high_whatever_the_switch(self):
         self.assertEqual(
             Counter(c for _, c in FLOOR.classes),
-            {"trust": 26, "gate": 76, "enforcement": 84},
+            {"trust": 27, "gate": 77, "enforcement": 84},
         )
         self.assertEqual(
             FLOOR.high,
@@ -305,6 +305,7 @@ class HighReasonTests(unittest.TestCase):
             (".github/scripts/pr-merge/enable-auto-merge.mjs", ".github/scripts/pr-merge/enable-auto-merge.mjs"),
             (".github/scripts/pr-merge/superseded.mjs", ".github/scripts/pr-merge/superseded.mjs"),
             (".github/scripts/pr-merge/clear-escalations.mjs", ".github/scripts/pr-merge/clear-escalations.mjs"),
+            (".github/scripts/pr-merge/verifier.mjs", ".github/scripts/pr-merge/verifier.mjs"),
             ("plugins/source-control/skills/babysit-prs/scripts/diff_risk.py", "plugins/source-control/skills/babysit-prs/scripts/diff_risk.py"),
             ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py"),
             ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"),

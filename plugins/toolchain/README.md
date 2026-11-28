@@ -60,6 +60,29 @@ The option is read from your user or managed settings only, never from a
 repository's settings `env` block, so a repository you work in cannot turn it off.
 Any edit after a run changes the tree, so the record no longer counts.
 
+`result_gate_enabled` (default `true`) turns the Stop hook itself on or off. The hook
+runs only while it is `true` and `turn_end_result_gate` is not `off`; while it runs,
+`turn_end_result_gate` picks `advisory` or `enforce`. The boolean sits beside the
+string rather than replacing its `off`, so no existing setting changes meaning. The
+hook resolves it through the shared helper as a security control
+([hook enablement](../../docs/contracts/hook-enablement/README.md#the-per-hook-setting)),
+which keeps the guarantee above: a repository can turn the hook on but never off.
+Only a `false` in your user settings' `pluginConfigs`, or in managed settings, turns
+it off; a `CLAUDE_PLUGIN_OPTION_RESULT_GATE_ENABLED=false` in the environment is
+ignored.
+
+Reading the setting runs in-process inside the hook's Node process through the shared
+helper (`lib/hook-enabled.mjs`) with zero extra subprocesses
+([hook budget](../../docs/contracts/hook-budget/README.md#the-hook-enablement-helper)).
+
+A repository can commit `toolchain.yaml` in its convention home (default
+`docs/conventions`) to set this key, checked against
+[`schemas/toolchain.schema.json`](schemas/toolchain.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `result_gate_enabled` | `true`, `false` | `true` | Whether the turn-end Stop hook runs for contributors who have not set their own value. Only `true` takes effect; a `false` here is ignored. |
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -69,6 +92,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| `result_gate_enabled` | boolean | `true` | Run the turn-end Stop hook that checks the tree's recorded check or lint result. On by default. A repository's toolchain.yaml can turn it on but not off; only your user or managed settings turn it off. While it is on, turn_end_result_gate picks what it does. |
 | `turn_end_result_gate` | string | `"advisory"` | What a turn end does when the tree's recorded check or lint result is not a pass: advisory (default) warns and blocks nothing, enforce also blocks once on a recorded FAIL, off stays silent. Honored from user or managed settings only. |
 | `ratchet_break_glass` | boolean | `false` | When on, /toolchain:ratchet writes break_glass true into a ceilings file lacking the key, so a per-file counter honors inline exceptions with a reason, expiry and approver. Defaults to false, which writes false. The file's own break_glass key wins over this option. |
 

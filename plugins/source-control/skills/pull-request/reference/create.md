@@ -431,7 +431,7 @@ other issue or pull request without one, for example `delivered by #M` or `follo
 
 - **Pointer**: GitHub's [Linking a pull request to an issue using a keyword](https://docs.github.com/en/issues/tracking-your-work-with-issues/using-issues/linking-a-pull-request-to-an-issue#linking-a-pull-request-to-an-issue-using-a-keyword), for the keywords and where in a body they apply.
 
-**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}`; `${SIBLINGS_LINE}` (§2.4.0) when non-empty, at the first column directly below it; when §2.7's `--hold` gave a line, that line on its own line below those, before the first `##` block, so the §2.4.2 gates check the body the PR opens with; a blank line when any is non-empty; then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the `## Acceptance criteria` block when a plan supplied one and no scaffold heading holds it, then the `## Remaining` block for a `Refs:` link, then the `## Glossary candidates` block when an unattended run coined a term, then the `## Loosened checks` block when prep listed an entry, then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
+**Write the body to a file with the Write tool.** Compose the body as literal text: `${CLOSES_LINE}`; `${SIBLINGS_LINE}` (§2.4.0) when non-empty, at the first column directly below it; a blank line when either is non-empty; then one `## <heading>` block per entry in `${SECTION_ORDER[@]}` with real content, leaving out an optional heading that has none (`Related` carries `${REFS_LINES}` when non-empty, else `N/A`), then the `## Acceptance criteria` block when a plan supplied one and no scaffold heading holds it, then the `## Remaining` block for a `Refs:` link, then the `## Glossary candidates` block when an unattended run coined a term, then the `## Loosened checks` block when prep listed an entry, then the ad hoc `## Related` block when the rule above calls for one. Leave the attribution line out; §2.4.3 appends it after the gates. Write it to an absolute path outside the working tree (the session's scratchpad directory when one is listed, else the system temp directory), for example `<tmp>/pr-body-<branch-slug>.md`, and pass that path as `BODY_FILE` to every call below.
 
 **Why a file, not a shell variable:** the Write tool's content is a JSON string no shell parses, so a `$(...)`, `${...}` or backtick typed into the orphan-PR or multi-issue prompt stays literal, and a long body never pushes a Bash command past the tool's length cap (inline `--body` calls were rejected for length on an unattended lane). The §2.4.2 gates read the same file `--body-file` hands to `gh`.
 
@@ -639,6 +639,7 @@ and write targets that repository, and names the number.
 - **Open state:** always a draft at creation (`ready` flips it when the state resolves to `ready`). A draft owes no review: review lanes that filter
   drafts skip it, so opening ready for review would claim a review that has not happened.
   `/source-control:pull-request ready` performs the flip ([ready-for-review.md](ready-for-review.md)).
+- **Held create:** §2.7's `--hold` opens the PR with the `do-not-merge` label.
 
 **Sandboxed sessions: open the PR over REST.** The CLI's PR create sends a GraphQL query before touching the pull-request API, so under §2.4.0's GraphQL restriction it returns `HTTP 403` having created nothing. The REST pull-request endpoint works, with these differences: the base branch must be passed (resolved over REST as well, since §2.2's repository read 403s alongside the rest), a head from a fork must be namespaced `<fork-owner>:<branch>`, the body is sent from its file, `draft` is sent as a boolean, and the response carries the PR number and URL ([GitHub](../../../reference/providers/github/pull-request/create.md#open-the-pr-over-rest)). Placeholder expansion and the out-of-tree anchoring rule are as stated in §2.4.0, and apply to both of its calls.
 
@@ -699,10 +700,10 @@ BRANCH=$(git -C "$WT" branch --show-current)
 
 - `--draft '<reason>'` is §2.4.3's request level, the same flag the normal `create` path takes,
   for example `Draft: merge hold unread`.
-- `--hold '<line>'` takes a line starting `Hold:`, which §2.4.1's body composition places
-  below `${CLOSES_LINE}` and any `Siblings:` line in `$BODY_FILE` before the §2.4.2 gates run, so the PR opens
-  with the hold before `ready --unattended` can flip it. A value not starting `Hold:` is refused:
-  stop and report it.
+- `--hold` takes no value: §2.4.3's create adds the `do-not-merge` label, so the PR opens with its
+  merge held; the label never holds the ready flip. Where the label cannot be set at create, the
+  provider reference labels the PR right after; when that fails, report it, leave the PR a draft
+  and skip Phase 2.5 ([GitHub](../../../reference/providers/github/pull-request/create.md#label-a-held-pr-over-rest)).
 
 **Sub-steps relative to the normal `create` path:**
 

@@ -1,5 +1,5 @@
 ---
-description: "Single-lens review checkpoint between 'code works' and 'code is ready': self, code, code-design, architecture, security, spec, close-out, downstream, pr, criteria, slice or restatement mode, each delegated to its reviewer. Use when asked to 'review this', for a 'self-review' or 'quality gate', a code, architecture or security review, whether the change 'matches the spec/issue/plan', a 'close-out review' of a shipped spec container, 'what could this break' or the 'blast radius' of a written change, or after implementation completes."
+description: "Single-lens review checkpoint (self, code, code-design, architecture, security, spec, close-out, downstream, pr, criteria, slice, restatement), delegated reviewer. Use when: 'review this', 'self-review', 'quality gate', written change matches spec/issue/plan, shipped container close-out review, what could break/blast radius, after implementation."
 argument-hint: "[self|code|code-design|architecture|security|spec|close-out|downstream|pr|criteria|slice…]"
 user-invocable: true
 disable-model-invocation: false
@@ -166,7 +166,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 
 ## Next
 
-- All-clear verdict: /verification:confirm, then /source-control:pull-request create.
+- All-clear verdict: /verification:confirm.
 - Findings fixed: /review:quality-gate self, the Step 4 re-run.
 
 ## Related

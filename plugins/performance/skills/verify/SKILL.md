@@ -1,5 +1,5 @@
 ---
-description: "Fresh-context re-derivation of a performance result that does not inherit the implementer's numbers, reporting the target as met or not met without rounding a miss into a win. Use when: 'verify this speedup', 'is this result real', 'independent verification', 'write up the performance result'. Final phase after /performance:snapshot post. Skip when no baseline exists, or when reviewing a diff for general quality rather than a measured claim."
+description: "Final fresh-context re-derivation of a performance result after a post snapshot without implementer numbers: checks behavior parity to write up MET, NOT MET, or UNMEASURABLE without rounding a miss into a win. Use when: 'verify this speedup', 'is this result real', 'independent verification'. Not for diff review: /review:quality-gate."
 user-invocable: true
 argument-hint: "[<claim or target>]"
 disable-model-invocation: false
@@ -222,7 +222,7 @@ and again after it, and compare the two.
 ## Next
 
 - Target met on a drift-immune counter, to lock the win in (after the field read, when it shipped
-  behind a flag): `/performance:protect`, which then hands off to `/source-control:pull-request`.
+  behind a flag): `/performance:protect`.
 - Target met on a duration only: `/source-control:pull-request`.
 - Target met with a large realistic-to-ideal gap (re-scan), not met with another candidate due, or
   a field read showing no gain (flag turned off): `/performance:target`.

@@ -94,7 +94,7 @@ reason in full: this plugin keeps lookup in one skill, never fragmented across a
 Report every command as it happened: if one ran, say so and give its result, even when it failed;
 never claim a command did not run when it did.
 
-## Boundaries
+## What this skill does not do
 
 - `ctx7 setup`, in any form, and `ctx7 skills install` are refused; the rule is at the top of
   `apply`.

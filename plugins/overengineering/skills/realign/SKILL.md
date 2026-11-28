@@ -1,5 +1,5 @@
 ---
-description: "Executes an enforcement-surface audit's findings one at a time behind an explicit per-item human gate, down the rollback ladder: config-disable first, observe, delete last. The only skill in this plugin that changes the surface; it never scans or re-judges. Use when the user wants accepted audit findings carried out, a judged gate or hook retired, or one disabled and observed."
+description: "Executes enforcement-surface audit findings one at a time behind a per-item human gate down the rollback ladder: config-disable, observe, delete last. Only skill here that changes the surface; never scans or re-judges. Use when having accepted audit findings carried out, a gate or hook retired, or one disabled and observed."
 argument-hint: "[finding-id ...] [layer ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -204,11 +204,8 @@ consuming repo's tracked team file, `<home>/overengineering.yaml`:
 
 - Show the exact entry before writing it, and write only on an explicit yes under the per-item gate.
 - The `reason` is the operator's own words; ask for them rather than recycling audit prose.
-- Write it to the team-tracked layer: a personal-layer entry does not suppress.
-- Write it to the file that supplies the team layer now. When `<home>/overengineering.yaml` is absent
-  and the old `.claude/overengineering.md` exists, that is the old file's fenced block: creating the
-  new file for one entry would stop the old file applying and drop every setting in it. Print the
-  dual-read warning for the old file with the write.
+- Write it to the team-tracked layer (`<home>/overengineering.yaml`): a personal-layer entry does
+  not suppress.
 - Entry keys, the constituents-authoritative rule and the layering are
   `${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`'s. A `REALIGNED` finding needs no entry.
 

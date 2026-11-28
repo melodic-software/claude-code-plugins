@@ -3,6 +3,24 @@
 All notable changes to the `domain-driven-design` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.11.8] - 2026-11-28
+
+### Changed
+
+- Trimmed `/domain-driven-design:ubiquitous-language` frontmatter description (383 -> 349 chars) to <= 350 chars while preserving all six actions (`locate`, `lookup`, `seed`, `curate`, `audit`, `prune`), triggers, exclusions, and exact probe parity (0.43/0.67 train/val, 0.20/0.00 FP).
+
+## [0.11.7] - 2026-11-28
+
+### Changed
+
+- Trimmed `/domain-driven-design:ubiquitous-language` frontmatter description (639 -> 383 chars) while preserving all six glossary actions, canonical terms/rejected synonyms, domain-modeling and pre-naming lookup triggers, and exclusions.
+
+## [0.11.6] - 2026-11-28
+
+### Changed
+
+- Align skill `## Next`, `## Related`, `## See also`, exclusion headings (`## What this skill does not do`), and description skill tokens with the successor-routing rule.
+
 ## [0.11.5] - 2026-11-26
 
 ### Changed
