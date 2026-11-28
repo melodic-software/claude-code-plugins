@@ -17,6 +17,14 @@ other entries below leave `contract_version` as it is.
   new file and it leaves the list of `.claude/*` team-layer paths. The layering axis is unchanged,
   so `contract_version` stays.
 
+- **The `code-tidying` comment policy keys read `<home>/comment-policy.yaml`.** `comment_lint`,
+  `comment_adr_dir` and the three lint lists move from `code-tidying.yaml` to the team file
+  `<home>/comment-policy.yaml`; `comment_posture`, `comment_keep_list` and `class_c_max_lines`
+  move there and to the personal override `<home>/comment-policy.local.yaml`, and get a row of
+  their own. A key a layer's comment-policy file does not set is still read from the same layer's
+  code-tidying file, with a warning on every run, under retirement records `code-tidying-r001` and
+  `code-tidying-r002`, until a later change removes the read. The layering axis is unchanged, so
+  `contract_version` stays.
 - **The `rendered-views` row covers `branding` in plain ADR 0075 order.** Alongside `medium`
   (which keeps its declared publish trust walk), `docs/conventions/rendered-views.yaml`,
   `docs/conventions/rendered-views.local.yaml` and the plugin's `branding` `userConfig` option

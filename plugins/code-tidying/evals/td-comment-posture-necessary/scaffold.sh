@@ -37,8 +37,8 @@ EOF
 git add CLAUDE.md scripts/fetch-status.sh tests/fetch-status.test.sh
 if [[ -n "$posture" ]]; then
   mkdir -p docs/conventions
-  printf 'comment_posture: %s\n' "$posture" >docs/conventions/code-tidying.yaml
-  git add docs/conventions/code-tidying.yaml
+  printf 'comment_posture: %s\n' "$posture" >docs/conventions/comment-policy.yaml
+  git add docs/conventions/comment-policy.yaml
 fi
 git -c user.name=eval -c user.email=eval@example.invalid commit -q -m "add status tooling" -m "Uses a 5 second timeout to stay under the load balancer's 6 second idle cutoff."
 git checkout -q -b feature/status-tooling

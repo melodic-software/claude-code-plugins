@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/code-tidying/schemas/comment-policy.schema.json",
+  "title": "Comment policy",
+  "description": "Schema for <home>/comment-policy.yaml, the team layer of the comment policy the code-tidying plugin's comment lint and /code-tidying:remove-comments read, and its personal override comment-policy.local.yaml. A key set here wins over the plugin's userConfig value of the same name; the personal override wins over the team file, except for the keys marked team file only. Resolution: plugins/code-tidying/reference/config.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "comment_posture": {
+      "enum": ["auto", "none", "necessary", "explanatory", "strict", "balanced", "conservative", "aggressive"],
+      "default": "auto",
+      "description": "Which comments /code-tidying:remove-comments keeps and the comment lint passes. auto: necessary. none: only machine-read directives, license headers, TODO(#issue) markers, paired records and public-API doc comments stay. necessary: the floor plus the keep list comment_keep_list resolves. explanatory: every comment that passes the earn-its-keep test. Deprecated, still resolved: strict and balanced read as explanatory, conservative as explanatory plus safe, aggressive as necessary."
+    },
+    "comment_keep_list": {
+      "type": "string",
+      "minLength": 1,
+      "default": "default",
+      "description": "What the necessary posture keeps above the floor. default: the shipped list, skills/remove-comments/reference/keep-list.md. Otherwise a repository-relative path to a file whose criteria replace the shipped list; the floor always stays. An absolute path, a .. segment, a symlink on the path or a path naming no regular file is invalid."
+    },
+    "class_c_max_lines": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 40,
+      "default": 2,
+      "description": "Lines a kept linked comment paragraph may run: the comment lint fails a longer one, and remove-comments rewrites it terser."
+    },
+    "comment_lint": {
+      "enum": ["off", "report", "block"],
+      "default": "off",
+      "description": "Level of the comment lint, the git-hook entry comment-lint that judges the comment lines a change adds against comment_posture. off: it does not run. report: it prints its findings and passes. block: it prints them and fails. Team file only: the personal override is not read. It never runs under the explanatory posture."
+    },
+    "comment_lint_allow": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "default": [],
+      "description": "Extra comments the comment lint passes: each item is an extended regular expression matched against a comment's text, for markers a repository's own tools read. Team file only."
+    },
+    "comment_lint_exclude": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "default": [],
+      "description": "Repository-relative path globs of files the comment lint skips, each skip named on stderr; no other check reads it. * and ? match within one path segment, ** spans segments, every other character is literal. Keep each entry as narrow as the files need and state its justification beside it. Team file only."
+    },
+    "comment_lint_keep_opening": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "default": [],
+      "description": "Repository-relative path globs, in comment_lint_exclude's syntax, of files whose opening comment block the comment lint passes: the comment lines after an optional shebang and any blank or set - lines, up to the first other line. Every other comment in the file is judged as before. For a summary a person reads before running the file; keep each entry as narrow as those files need and state its justification beside it. Team file only."
+    },
+    "comment_adr_dir": {
+      "type": "string",
+      "minLength": 1,
+      "default": "docs/adr",
+      "description": "Repository-relative folder of the decision records an ADR pointer comment names; the comment lint passes a pointer only when its record exists there. A value outside the repository is ignored and the default applies. Team file only."
+    }
+  }
+}

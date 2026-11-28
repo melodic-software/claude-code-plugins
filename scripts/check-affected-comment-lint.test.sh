@@ -52,7 +52,7 @@ mkdir -p "$repo/plugins/code-tidying" "$repo/docs/conventions"
 for part in git-hooks lib scripts; do
   cp -R "$SELF_DIR/../plugins/code-tidying/$part" "$repo/plugins/code-tidying/"
 done
-printf 'comment_posture: necessary\ncomment_lint: block\n' >"$repo/docs/conventions/code-tidying.yaml"
+printf 'comment_posture: necessary\ncomment_lint: block\n' >"$repo/docs/conventions/comment-policy.yaml"
 git_test_config "$repo" add -A
 git_test_config "$repo" commit -q -m lint-base
 git_test_config "$repo" branch -q lint-base
@@ -76,7 +76,7 @@ run -- --base lint-base
 check "a committed comment the posture disallows fails comment-lint at its line" \
   '[[ $RC == 1 && $ERR == *"FAIL comment-lint"* && $ERR == *"tool.sh:8:"* ]]'
 
-printf 'comment_posture: necessary\ncomment_lint: off\n' >"$repo/docs/conventions/code-tidying.yaml"
+printf 'comment_posture: necessary\ncomment_lint: off\n' >"$repo/docs/conventions/comment-policy.yaml"
 git_test_config "$repo" commit -q -am lint-off
 run -- --base lint-base
 check "the merge-base's comment_lint level decides, not one the branch sets" \
@@ -90,7 +90,7 @@ check "an uncommitted comment the posture disallows fails comment-lint under --u
 
 git_test_config "$repo" reset -q --hard lint-base
 mkdir -p "$repo/team-conventions"
-git_test_config "$repo" mv docs/conventions/code-tidying.yaml team-conventions/code-tidying.yaml
+git_test_config "$repo" mv docs/conventions/comment-policy.yaml team-conventions/comment-policy.yaml
 printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `team-conventions`.\n<!-- END GENERATED: convention-home -->\n' >"$repo/AGENTS.md"
 git_test_config "$repo" add AGENTS.md
 git_test_config "$repo" commit -q -m home-base

@@ -157,10 +157,13 @@ personal variation is limited to focus area names the team does not track: an un
 
 Seven `userConfig` options. Six tune `remove-comments`, and none of them
 loosens a gate: they set what a run removes, never what it may apply without a
-proof. They also read from the team file `<home>/code-tidying.yaml` (schema:
-`schemas/code-tidying.schema.json`) and its personal override
-`<home>/code-tidying.local.yaml`, `<home>` being the bound convention home, else
-`docs/conventions`; these win over `userConfig` in that order. The seventh, `hard_exclusions`, is `userConfig` only: it is the
+proof. They also read from a team file and its personal override, which win over `userConfig`
+in that order: `comment_posture`, `comment_keep_list` and `class_c_max_lines` from
+`<home>/comment-policy.yaml` and `<home>/comment-policy.local.yaml` (schema:
+`schemas/comment-policy.schema.json`), the other three from `<home>/code-tidying.yaml` and
+`<home>/code-tidying.local.yaml` (schema: `schemas/code-tidying.schema.json`), `<home>` being the
+bound convention home, else `docs/conventions`. [reference/config.md](reference/config.md) maps
+every key to its file. The seventh, `hard_exclusions`, is `userConfig` only: it is the
 personal-posture channel of the exclusion override above, and loosening is its
 whole job:
 
@@ -205,7 +208,7 @@ value outside the set is named and its layer dropped.
 
 A `pre-commit` git-hook entry, `comment-lint`, fails a comment a change adds outside the comment
 posture. It detects and never edits; `/code-tidying:remove-comments` is the fix. Five team-file
-settings drive it, all read from `<home>/code-tidying.yaml` only, with no personal override and no
+settings drive it, all read from `<home>/comment-policy.yaml` only, with no personal override and no
 `userConfig` option:
 
 | Setting | Default | Effect |
@@ -290,7 +293,7 @@ bash git-hooks/comment-lint-ci.sh <head> <base>
 commit id; run it from inside the clone, with history back to their merge base and Python 3 with
 pygments on `PATH`. It adds a worktree at `<head>` without checking files out, soft-resets it to
 the merge base so the change is the staged diff, takes `AGENTS.md`, `CLAUDE.md` and the home's
-`code-tidying.yaml` and `code-tidying.local.yaml` as the merge base holds them, runs
+settings files (those `scripts/comment-settings.sh --files` names) as the merge base holds them, runs
 `comment-lint.sh` from beside itself, and removes the worktree. It exits with the lint's status
 (1 on a finding under `block`) and 2 on a usage error. A shared install
 (`apply install-git-hooks scope=shared`) commits it under `.githooks/code-tidying/` beside the

@@ -1,0 +1,5 @@
+comment_posture: necessary
+comment_edit_scope: files
+comment_lint: block
+comment_lint_exclude:
+  - vendor/**

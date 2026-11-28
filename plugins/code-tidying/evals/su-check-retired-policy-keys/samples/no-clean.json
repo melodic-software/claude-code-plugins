@@ -1,0 +1,32 @@
+{
+  "pass": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/code-tidying/lib/check-retirements.sh --manifest /opt/plugins/code-tidying/retirements.yaml --root /w"
+          }
+        }
+      ],
+      "why": "detection without --clean"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/code-tidying/lib/check-retirements.sh --manifest /opt/plugins/code-tidying/retirements.yaml --clean code-tidying-r001"
+          }
+        }
+      ],
+      "why": "a clean from check"
+    }
+  ]
+}

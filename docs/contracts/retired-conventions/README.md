@@ -326,6 +326,7 @@ the row states the manifest as it exists on `main`.
 | `harness-ops` | 5 | 2026-09-05 |
 | `improvement` | 2 | 2026-11-22 |
 | `codebase-health` | 2 | 2026-11-22 |
+| `code-tidying` | 2 | 2026-11-28 |
 
 Row shape for a plugin adding itself: `` `<plugin>` `` \| count \| `YYYY-MM-DD`. The convention-doc
 expression-form pilot was `plugin-quality`'s `.claude/plugin-quality.md` (ADR 0018), retired by that

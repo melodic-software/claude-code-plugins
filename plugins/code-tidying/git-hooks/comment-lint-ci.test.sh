@@ -7,7 +7,7 @@ export GIT_CONFIG_GLOBAL="${GIT_CONFIG_GLOBAL:-/dev/null}" GIT_CONFIG_NOSYSTEM=1
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLUGIN="$(cd "$HERE/.." && pwd)"
 SUT="$HERE/comment-lint-ci.sh"
-TEAM=docs/conventions/code-tidying.yaml
+TEAM=docs/conventions/comment-policy.yaml
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -102,9 +102,35 @@ commit_all "$clone" 'planted, level lowered'
 run_gate "$clone" >/dev/null
 check 'a branch cannot lower its own level' '1' "$?"
 
+legacy_clone() {
+  local clone
+  clone="$(new_clone "$1" off)"
+  git -C "$TMP/origin.$1" mv "$TEAM" docs/conventions/code-tidying.yaml
+  printf 'comment_posture: necessary\ncomment_lint: block\n' >"$TMP/origin.$1/docs/conventions/code-tidying.yaml"
+  commit_all "$TMP/origin.$1" 'the base keeps its level in code-tidying.yaml'
+  git -C "$clone" fetch -q origin
+  git -C "$clone" checkout -q -B feature origin/main
+  printf '%s\n' "$clone"
+}
+
+clone="$(legacy_clone legacy)"
+planted >>"$clone/src/app.py"
+commit_all "$clone" planted
+out="$(run_gate "$clone")"
+check 'a base level in code-tidying.yaml still blocks' '1' "$?"
+check 'a base level in code-tidying.yaml is named as a key to move' '1' \
+  "$(grep -c '^comment-settings: docs/conventions/code-tidying.yaml sets comment_posture, comment_lint; move them to docs/conventions/comment-policy.yaml$' <<<"$out")"
+
+clone="$(legacy_clone added)"
+planted >>"$clone/src/app.py"
+printf 'comment_lint: off\n' >"$clone/$TEAM"
+commit_all "$clone" 'planted, comment-policy.yaml added at off'
+run_gate "$clone" >/dev/null
+check 'a branch that adds comment-policy.yaml at off still gets the base level' '1' "$?"
+
 clone="$(new_clone personal block)"
 planted >>"$clone/src/app.py"
-printf 'comment_posture: explanatory\n' >"$clone/docs/conventions/code-tidying.local.yaml"
+printf 'comment_posture: explanatory\n' >"$clone/docs/conventions/comment-policy.local.yaml"
 commit_all "$clone" 'planted, personal override committed'
 run_gate "$clone" >/dev/null
 check 'a committed personal override cannot switch the lint off' '1' "$?"
@@ -112,7 +138,7 @@ check 'a committed personal override cannot switch the lint off' '1' "$?"
 clone="$(new_clone rehomed block)"
 planted >>"$clone/src/app.py"
 mkdir -p "$clone/own"
-printf 'comment_lint: off\n' >"$clone/own/code-tidying.yaml"
+printf 'comment_lint: off\n' >"$clone/own/comment-policy.yaml"
 printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in %s.\n<!-- END GENERATED: convention-home -->\n' "\`own\`" >"$clone/AGENTS.md"
 commit_all "$clone" 'planted, convention home moved'
 run_gate "$clone" >/dev/null
@@ -123,7 +149,7 @@ pointer() {
 }
 clone="$(new_clone renamed off)"
 mkdir "$TMP/origin.renamed/team"
-printf 'comment_posture: necessary\ncomment_lint: block\n' >"$TMP/origin.renamed/team/code-tidying.yaml"
+printf 'comment_posture: necessary\ncomment_lint: block\n' >"$TMP/origin.renamed/team/comment-policy.yaml"
 pointer team >"$TMP/origin.renamed/AGENTS.md"
 commit_all "$TMP/origin.renamed" 'the base binds its home to team'
 git -C "$clone" fetch -q origin
@@ -138,7 +164,7 @@ check 'a branch that renames the home directory still gets the base level' '1' "
 clone="$(new_clone linked-out block)"
 planted >>"$clone/src/app.py"
 printf 'keep\n' >"$TMP/outside.txt"
-ln -s "$TMP/outside.txt" "$clone/docs/conventions/code-tidying.local.yaml"
+ln -s "$TMP/outside.txt" "$clone/docs/conventions/comment-policy.local.yaml"
 commit_all "$clone" 'planted, a symlink where a settings file goes'
 run_gate "$clone" >/dev/null
 check 'a planted symlink fails like any planted comment' '1' "$?"

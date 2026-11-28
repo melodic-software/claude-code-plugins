@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| Retired conventions | FAIL | code-tidying-r001 docs/conventions/code-tidying.yaml (migrate); code-tidying-r002 docs/conventions/code-tidying.local.yaml (migrate) |",
+      "why": "both records in one row"
+    },
+    {
+      "answer": "- code-tidying-r002: docs/conventions/code-tidying.local.yaml\n- code-tidying-r001: docs/conventions/code-tidying.yaml",
+      "why": "either order"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "| Retired conventions | FAIL | code-tidying-r001 docs/conventions/code-tidying.yaml (migrate) |",
+      "why": "personal record missing"
+    },
+    {
+      "answer": "| Retired conventions | UNKNOWN | bash unavailable |",
+      "why": "helper not run"
+    }
+  ]
+}

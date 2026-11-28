@@ -9,6 +9,9 @@ SUT="$HERE/comment-settings.sh"
 ENTRY="$HERE/../skills/remove-comments/scripts/settings.sh"
 TEAM="docs/conventions/code-tidying.yaml"
 PERSONAL="docs/conventions/code-tidying.local.yaml"
+POLICY="docs/conventions/comment-policy.yaml"
+POLICY_PERSONAL="docs/conventions/comment-policy.local.yaml"
+EVERY="$POLICY, $POLICY_PERSONAL, $TEAM or $PERSONAL"
 
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -38,11 +41,11 @@ lines_for() { bash "$SUT" "$1" 2>/dev/null | grep "^$2${TAB}"; }
 
 repo="$(repo_with - -)"
 check 'no files leaves the posture unset' \
-  "comment_posture${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" "$(lines_for "$repo" comment_posture)"
+  "comment_posture${TAB}unset${TAB}no valid value in $EVERY" "$(lines_for "$repo" comment_posture)"
 check 'every key gets a line' '8' "$(bash "$SUT" "$repo" | wc -l | tr -d ' ')"
 check 'the skill-local entry point prints the same lines' "$(bash "$SUT" "$repo")" "$(bash "$ENTRY" "$repo")"
 check 'an unset lint level names the team file only' \
-  "comment_lint${TAB}unset${TAB}no valid value in $TEAM" "$(lines_for "$repo" comment_lint)"
+  "comment_lint${TAB}unset${TAB}no valid value in $POLICY or $TEAM" "$(lines_for "$repo" comment_lint)"
 check 'an unset allow list prints nothing' '' "$(bash "$SUT" --list comment_lint_allow "$repo")"
 
 for level in off report block; do
@@ -52,7 +55,7 @@ done
 
 repo="$(repo_with $'comment_lint: warn\n' -)"
 check 'a lint level outside off, report and block is invalid' \
-  "comment_lint${TAB}invalid${TAB}$TEAM: warn"$'\n'"comment_lint${TAB}unset${TAB}no valid value in $TEAM" \
+  "comment_lint${TAB}invalid${TAB}$TEAM: warn"$'\n'"comment_lint${TAB}unset${TAB}no valid value in $POLICY or $TEAM" \
   "$(lines_for "$repo" comment_lint)"
 
 repo="$(repo_with $'comment_adr_dir: docs/decisions\n' $'comment_adr_dir: docs/mine\n')"
@@ -62,7 +65,7 @@ check 'the ADR folder is read from the team file only' \
 for escape in /etc ../outside docs/../..; do
   repo="$(repo_with "comment_adr_dir: $escape"$'\n' -)"
   check "the ADR folder $escape outside the repository is invalid" \
-    "comment_adr_dir${TAB}invalid${TAB}$TEAM: $escape"$'\n'"comment_adr_dir${TAB}unset${TAB}no valid value in $TEAM" \
+    "comment_adr_dir${TAB}invalid${TAB}$TEAM: $escape"$'\n'"comment_adr_dir${TAB}unset${TAB}no valid value in $POLICY or $TEAM" \
     "$(lines_for "$repo" comment_adr_dir)"
 done
 
@@ -113,7 +116,7 @@ done
 
 repo="$(repo_with $'class_c_max_lines: 41\n' -)"
 check 'a line budget above 40 is invalid' \
-  "class_c_max_lines${TAB}invalid${TAB}$TEAM: 41"$'\n'"class_c_max_lines${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" \
+  "class_c_max_lines${TAB}invalid${TAB}$TEAM: 41"$'\n'"class_c_max_lines${TAB}unset${TAB}no valid value in $EVERY" \
   "$(lines_for "$repo" class_c_max_lines)"
 
 repo="$(repo_with $'class_c_max_lines: 3\nencode_constraints_unattended: true\n' -)"
@@ -123,7 +126,7 @@ check 'the encode pre-approval is read' \
 
 repo="$(repo_with $'comment_posture: none\ncomment_posture: necessary\n' -)"
 check 'a key set twice is invalid' \
-  "comment_posture${TAB}invalid${TAB}$TEAM: set 2 times"$'\n'"comment_posture${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" \
+  "comment_posture${TAB}invalid${TAB}$TEAM: set 2 times"$'\n'"comment_posture${TAB}unset${TAB}no valid value in $EVERY" \
   "$(lines_for "$repo" comment_posture)"
 
 repo="$(repo_with $'comment_keep_list: default\n' -)"
@@ -132,7 +135,7 @@ check 'the shipped keep list is selectable' \
 
 repo="$(repo_with - $'comment_keep_list: docs/comment-keeps.md\n')"
 check 'a keep-list path naming no file is invalid' \
-  "comment_keep_list${TAB}invalid${TAB}$PERSONAL: docs/comment-keeps.md"$'\n'"comment_keep_list${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" \
+  "comment_keep_list${TAB}invalid${TAB}$PERSONAL: docs/comment-keeps.md"$'\n'"comment_keep_list${TAB}unset${TAB}no valid value in $EVERY" \
   "$(lines_for "$repo" comment_keep_list)"
 printf -- '- a comment naming the vendor limit it works within\n' >"$repo/docs/comment-keeps.md"
 check 'a keep-list path naming a repository file is read' \
@@ -142,7 +145,7 @@ for escape in /etc/passwd ../outside.md docs/../../outside.md; do
   repo="$(repo_with "comment_keep_list: $escape"$'\n' -)"
   printf 'x\n' >"$repo/../outside.md"
   check "the keep-list path $escape outside the repository is invalid" \
-    "comment_keep_list${TAB}invalid${TAB}$TEAM: $escape"$'\n'"comment_keep_list${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" \
+    "comment_keep_list${TAB}invalid${TAB}$TEAM: $escape"$'\n'"comment_keep_list${TAB}unset${TAB}no valid value in $EVERY" \
     "$(lines_for "$repo" comment_keep_list)"
 done
 
@@ -150,7 +153,7 @@ repo="$(repo_with $'comment_keep_list: docs/keeps.md\n' -)"
 printf 'x\n' >"$TMP/outside.md"
 ln -s "$TMP/outside.md" "$repo/docs/keeps.md"
 check 'a keep-list path that is a symlink is invalid' \
-  "comment_keep_list${TAB}invalid${TAB}$TEAM: docs/keeps.md"$'\n'"comment_keep_list${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" \
+  "comment_keep_list${TAB}invalid${TAB}$TEAM: docs/keeps.md"$'\n'"comment_keep_list${TAB}unset${TAB}no valid value in $EVERY" \
   "$(lines_for "$repo" comment_keep_list)"
 
 repo="$(repo_with $'comment_keep_list: linked/keeps.md\n' -)"
@@ -158,7 +161,7 @@ mkdir -p "$TMP/outside-dir"
 printf 'x\n' >"$TMP/outside-dir/keeps.md"
 ln -s "$TMP/outside-dir" "$repo/linked"
 check 'a keep-list path through a symlinked directory is invalid' \
-  "comment_keep_list${TAB}invalid${TAB}$TEAM: linked/keeps.md"$'\n'"comment_keep_list${TAB}unset${TAB}no valid value in $TEAM or $PERSONAL" \
+  "comment_keep_list${TAB}invalid${TAB}$TEAM: linked/keeps.md"$'\n'"comment_keep_list${TAB}unset${TAB}no valid value in $EVERY" \
   "$(lines_for "$repo" comment_keep_list)"
 
 keep_list_in() { (cd "$1" && bash "$SUT" --keep-list "$2" 2>/dev/null); }
@@ -176,6 +179,93 @@ check 'a userConfig keep-list check outside a git working tree is invalid' \
   "$(keep_list_in "$(mktemp -d "$TMP/plain.XXXXXX")" docs/comment-keeps.md)"
 bash "$SUT" --keep-list >/dev/null 2>&1
 check '--keep-list without a value is a usage error' '2' "$?"
+
+policy_repo() {
+  local d
+  d="$(repo_with "$1" "$2")"
+  [[ "$3" != - ]] && printf '%s' "$3" >"$d/$POLICY"
+  [[ "$4" != - ]] && printf '%s' "$4" >"$d/$POLICY_PERSONAL"
+  printf '%s\n' "$d"
+}
+
+stderr_for() { { bash "$SUT" "$@" >/dev/null; } 2>&1; }
+
+repo="$(policy_repo - - $'comment_posture: none\ncomment_lint: block\ncomment_lint_allow:\n  - "^new"\nclass_c_max_lines: 5\ncomment_keep_list: default\n' $'comment_posture: explanatory\n')"
+check 'comment-policy.yaml alone supplies the lint level' \
+  "comment_lint${TAB}block${TAB}$POLICY" "$(lines_for "$repo" comment_lint)"
+check 'comment-policy.yaml alone supplies the allow list' '^new' "$(bash "$SUT" --list comment_lint_allow "$repo")"
+check 'comment-policy.yaml alone supplies the line budget' \
+  "class_c_max_lines${TAB}5${TAB}$POLICY" "$(lines_for "$repo" class_c_max_lines)"
+check 'comment-policy.yaml alone supplies the keep list' \
+  "comment_keep_list${TAB}default${TAB}$POLICY" "$(lines_for "$repo" comment_keep_list)"
+check 'comment-policy.local.yaml supplies the personal posture' \
+  "comment_posture${TAB}explanatory${TAB}$POLICY_PERSONAL" "$(lines_for "$repo" comment_posture)"
+check 'comment-policy files alone print no warning' '' "$(stderr_for "$repo")"
+
+repo="$(policy_repo $'comment_posture: necessary\ncomment_lint_allow:\n  - "^old"\nclass_c_max_lines: 3\n' $'comment_posture: none\n' $'comment_lint: block\n' -)"
+check 'a key comment-policy.yaml sets is read from it beside a fallback key' \
+  "comment_lint${TAB}block${TAB}$POLICY" "$(lines_for "$repo" comment_lint)"
+check 'a line budget comment-policy.yaml lacks falls back to code-tidying.yaml' \
+  "class_c_max_lines${TAB}3${TAB}$TEAM" "$(lines_for "$repo" class_c_max_lines)"
+check 'an allow list comment-policy.yaml lacks falls back to code-tidying.yaml' '^old' "$(bash "$SUT" --list comment_lint_allow "$repo")"
+check 'a personal posture comment-policy.local.yaml lacks falls back to code-tidying.local.yaml' \
+  "comment_posture${TAB}none${TAB}$PERSONAL" "$(lines_for "$repo" comment_posture)"
+
+repo="$(policy_repo $'comment_posture: necessary\n' - $'comment_lint: report\n' -)"
+check 'the team posture falls back to code-tidying.yaml' \
+  "comment_posture${TAB}necessary${TAB}$TEAM" "$(lines_for "$repo" comment_posture)"
+
+repo="$(policy_repo $'comment_posture: explanatory\ncomment_lint: report\ncomment_lint_allow:\n  - "^old"\nclass_c_max_lines: 3\n' $'comment_posture: necessary\n' $'comment_posture: none\ncomment_lint: block\ncomment_lint_allow:\n  - "^new"\nclass_c_max_lines: 9\n' $'comment_posture: auto\n')"
+check 'comment-policy.local.yaml beats code-tidying.local.yaml' \
+  "comment_posture${TAB}auto${TAB}$POLICY_PERSONAL" "$(lines_for "$repo" comment_posture)"
+check 'comment-policy.yaml beats code-tidying.yaml for the lint level' \
+  "comment_lint${TAB}block${TAB}$POLICY" "$(lines_for "$repo" comment_lint)"
+check 'comment-policy.yaml beats code-tidying.yaml for the allow list' '^new' "$(bash "$SUT" --list comment_lint_allow "$repo")"
+check 'comment-policy.yaml beats code-tidying.yaml for the line budget' \
+  "class_c_max_lines${TAB}9${TAB}$POLICY" "$(lines_for "$repo" class_c_max_lines)"
+
+repo="$(policy_repo - $'comment_posture: explanatory\n' $'comment_posture: necessary\n' -)"
+check 'a personal posture in code-tidying.local.yaml beats a team posture in comment-policy.yaml' \
+  "comment_posture${TAB}explanatory${TAB}$PERSONAL" "$(lines_for "$repo" comment_posture)"
+
+repo="$(policy_repo $'comment_posture: necessary\n' - $'comment_posture: strip\n' -)"
+check 'an invalid comment-policy.yaml value is named and does not fall back' \
+  "comment_posture${TAB}invalid${TAB}$POLICY: strip"$'\n'"comment_posture${TAB}unset${TAB}no valid value in $EVERY" \
+  "$(lines_for "$repo" comment_posture)"
+
+repo="$(policy_repo - $'comment_lint: off\ncomment_adr_dir: docs/mine\ncomment_lint_allow:\n  - "^personal"\n' $'comment_lint: report\n' $'comment_lint: off\ncomment_adr_dir: docs/mine\ncomment_lint_allow:\n  - "^personal"\n')"
+check 'comment-policy.local.yaml cannot change the lint level' \
+  "comment_lint${TAB}report${TAB}$POLICY" "$(lines_for "$repo" comment_lint)"
+check 'no personal file supplies the ADR folder' \
+  "comment_adr_dir${TAB}unset${TAB}no valid value in $POLICY or $TEAM" "$(lines_for "$repo" comment_adr_dir)"
+check 'no personal file supplies the allow list' '' "$(bash "$SUT" --list comment_lint_allow "$repo")"
+
+repo="$(policy_repo $'comment_edit_scope: files\n' $'comment_edit_scope: diff\n' $'comment_edit_scope: diff\n' $'comment_edit_scope: files\n')"
+check 'the edit scope is read from code-tidying files only' \
+  "comment_edit_scope${TAB}diff${TAB}$PERSONAL" "$(lines_for "$repo" comment_edit_scope)"
+repo="$(policy_repo $'comment_edit_scope: files\n' - $'comment_edit_scope: diff\n' -)"
+check 'the edit scope in comment-policy.yaml is not read' \
+  "comment_edit_scope${TAB}files${TAB}$TEAM" "$(lines_for "$repo" comment_edit_scope)"
+
+repo="$(policy_repo $'comment_posture: necessary\ncomment_lint: block\ncomment_edit_scope: files\n' $'class_c_max_lines: 4\ncomment_edit_scope: diff\n' $'comment_lint: block\n' -)"
+check 'each code-tidying file that sets a policy key is named on stderr, read or shadowed' \
+  "comment-settings: $TEAM sets comment_posture, comment_lint; move them to $POLICY"$'\n'"comment-settings: $PERSONAL sets class_c_max_lines; move them to $POLICY_PERSONAL" \
+  "$(stderr_for "$repo")"
+check 'the warning leaves the key lines unchanged' '8' "$(bash "$SUT" "$repo" 2>/dev/null | wc -l | tr -d ' ')"
+check 'a list read prints no warning' '' "$(stderr_for --list comment_lint_allow "$repo")"
+repo="$(policy_repo $'comment_edit_scope: files\n' - $'comment_lint: block\n' -)"
+check 'a code-tidying file with no policy key prints no warning' '' "$(stderr_for "$repo")"
+repo="$(policy_repo - $'comment_lint: off\ncomment_lint_exclude:\n  - "vendor/**"\nclass_c_max_lines: 4\n' $'comment_lint: report\n' -)"
+check 'a team-only key in code-tidying.local.yaml is named to delete, not to move' \
+  "comment-settings: $PERSONAL sets class_c_max_lines; move them to $POLICY_PERSONAL"$'\n'"comment-settings: $PERSONAL sets comment_lint, comment_lint_exclude, read from the team layer only; delete them" \
+  "$(stderr_for "$repo")"
+check 'the lint level a personal file sets is not read' \
+  "comment_lint${TAB}report${TAB}$POLICY" "$(lines_for "$repo" comment_lint)"
+
+check '--files names the policy layer files in read order' \
+  $'comment-policy.yaml\ncode-tidying.yaml\ncomment-policy.local.yaml\ncode-tidying.local.yaml' "$(bash "$SUT" --files)"
+bash "$SUT" --files "$repo" >/dev/null 2>&1
+check '--files with a directory is a usage error' '2' "$?"
 
 bound_repo() {
   local d

@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "| Retired conventions | FAIL | code-tidying-r001 docs/conventions/code-tidying.yaml: migrate with apply |",
+      "why": "label before the id"
+    },
+    {
+      "answer": "code-tidying-r002 docs/conventions/code-tidying.local.yaml (migrate): FAIL, remediation apply",
+      "why": "label after the id"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "empty"
+    },
+    {
+      "answer": "| Retired conventions | WARN | code-tidying-r001 docs/conventions/code-tidying.yaml |",
+      "why": "reported as WARN"
+    },
+    {
+      "answer": "Retired conventions: code-tidying-r001 should be migrated.",
+      "why": "no severity label"
+    }
+  ]
+}

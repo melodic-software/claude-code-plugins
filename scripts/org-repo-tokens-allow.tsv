@@ -18,6 +18,7 @@ plugins/code-metrics/schemas/code-metrics.schema.json	melodic-software/claude-co
 plugins/code-metrics/skills/audit-suppressions/SKILL.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/code-tidying/git-hooks/entries.json	melodic-software/claude-code-plugins	1	shipped default lefthook remote; install.mjs uses the installed marketplace's git URL when it has one
 plugins/code-tidying/schemas/code-tidying.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
+plugins/code-tidying/schemas/comment-policy.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/code-tidying/skills/remove-comments/actions/remove.md	melodic-software/claude-code-plugins	3	raw link to this marketplace's own published doc
 plugins/code-tidying/skills/tidy/SKILL.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc
 plugins/code-tidying/skills/tidy/areas/docs-prose.md	melodic-software/claude-code-plugins	1	raw link to this marketplace's own published doc

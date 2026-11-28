@@ -17,7 +17,7 @@ code-tidying comment-lint: fail a comment a change adds outside the comment post
   comment-lint.sh               the staged changes (git runs it as pre-commit)
   comment-lint.sh --worktree    the uncommitted changes against HEAD, untracked files included
 
-Reads the team file <home>/code-tidying.yaml: comment_lint (off, the default, report or
+Reads the team file <home>/comment-policy.yaml: comment_lint (off, the default, report or
 block), comment_lint_allow (extended regular expressions a comment may match),
 comment_lint_exclude (path globs of files the lint skips, each skip named on stderr:
 * and ? stay within one path segment, ** spans segments), comment_lint_keep_opening
@@ -25,9 +25,12 @@ comment_lint_exclude (path globs of files the lint skips, each skip named on std
 comment lines after an optional shebang and any blank or set - lines) and
 comment_adr_dir (the decision-record folder, default docs/adr).
 comment_posture and class_c_max_lines (the most lines a linked comment paragraph may
-run, default 2) come from the team file and the personal override; a userConfig value
-never reaches a git hook. explanatory (and strict, balanced, conservative)
-runs nothing; auto and aggressive read as necessary.
+run, default 2) come from the team file and the personal override
+<home>/comment-policy.local.yaml; a userConfig value never reaches a git hook.
+A key a comment-policy file does not set is read from the same layer's
+code-tidying.yaml or code-tidying.local.yaml, named on stderr as a key to move.
+explanatory (and strict, balanced, conservative) runs nothing; auto and aggressive
+read as necessary.
 
 Judges the files whose extension code-extensions.txt lists (in any letter case), and
 extensionless files whose first line is a code-shebang.ere line (an sh, bash, dash,
@@ -65,7 +68,7 @@ checks_init pre-commit "$@" || exit 0
 setting() {
   awk -F '\t' -v k="$1" '$1 == k && $2 != "invalid" { print $2; exit }' "$CHECKS_TMP/settings"
 }
-checks_bash_run "$settings" . >"$CHECKS_TMP/settings" 2>/dev/null
+checks_bash_run "$settings" . >"$CHECKS_TMP/settings"
 level="$(setting comment_lint)"
 case "$level" in
 report | block) ;;

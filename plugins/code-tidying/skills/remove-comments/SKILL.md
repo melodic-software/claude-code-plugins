@@ -24,7 +24,7 @@ Unless this section says otherwise, treat a failure (not a repository, git unava
 
 Scope (rung, base, count, then a 10-path preview; re-run the script without `--max` for the full set): !`${CLAUDE_SKILL_DIR}/scripts/scope-code-files.sh --max 10 2>/dev/null || echo "(not a git repository)"`
 Tooling layer (present/absent per analysis layer; an absent row names the capability lost): !`${CLAUDE_SKILL_DIR}/scripts/comment-tooling-probe.sh 2>/dev/null || echo "(probe unavailable)"`
-Repository settings (team then personal layer, one line per key): !`${CLAUDE_SKILL_DIR}/scripts/settings.sh 2>/dev/null || echo "(settings unavailable)"`
+Repository settings (team then personal layer, one line per key): !`${CLAUDE_SKILL_DIR}/scripts/settings.sh 2>&1 || echo "(settings unavailable)"`
 
 All three run before the argument is read, so each is a preview: the scope line is **void whenever
 the argument names an explicit target**, and the tooling line is re-derived in the workflow.
@@ -34,10 +34,15 @@ the argument names an explicit target**, and the tooling line is re-derived in t
 Arguments: `$ARGUMENTS`
 
 Each key resolves through four layers, lowest first, a later one winning: the default below,
-`userConfig`, the team layer `<home>/code-tidying.yaml`, and the personal override
-`<home>/code-tidying.local.yaml`, `<home>` being the repository's bound convention home, else
-`docs/conventions` (the settings line above, from
-`${CLAUDE_SKILL_DIR}/scripts/settings.sh`). A per-run token beats every layer. A layer holding a
+`userConfig`, the team layer, and the personal override. For the comment policy keys
+(`comment_posture`, `comment_keep_list`, `class_c_max_lines`) the team layer is
+`<home>/comment-policy.yaml` and the personal override `<home>/comment-policy.local.yaml`; for the
+others it is `<home>/code-tidying.yaml` and `<home>/code-tidying.local.yaml`. `<home>` is the
+repository's bound convention home, else `docs/conventions` (the settings line above, from
+`${CLAUDE_SKILL_DIR}/scripts/settings.sh`). A policy key a comment-policy file does not set is read
+from the same layer's code-tidying file, and a `comment-settings:` line in the settings output names
+each code-tidying file still holding one: repeat it in the report's first lines, with
+`/code-tidying:setup apply` as the move. A per-run token beats every layer. A layer holding a
 value outside a key's set is named (file or `userConfig`, key, value) and dropped; a valid higher
 layer still wins, else the default. Report each key's value and the layer it came from once, in
 the report's first lines.

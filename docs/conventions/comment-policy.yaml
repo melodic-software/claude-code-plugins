@@ -1,0 +1,46 @@
+# yaml-language-server: $schema=../../plugins/code-tidying/schemas/comment-policy.schema.json
+comment_posture: necessary
+comment_lint: block
+comment_lint_allow:
+  - '^#[[:space:]]*test-scope:'
+  - '^//[[:space:]]*test-scope:'
+  - '^(#|//)[[:space:]]*fixture-isolation-scope:[[:space:]]*[^[:space:]]'
+  - '^#[[:space:]]*discriminating-skip-required:[[:space:]]*[^[:space:]]'
+  - '^#[[:space:]]*discriminating-skip-ok:[[:space:]]*[^[:space:]]'
+  - '^#[[:space:]]*slow-shape-ok:[[:space:]]*[^[:space:]]'
+  - '^(#|//)[[:space:]]*cant-fail-ok:[[:space:]]*[^[:space:]]'
+  - '^(#|//)[[:space:]]*(BEGIN|END) hold-floor[[:space:]]'
+  - '^(#|//)[[:space:]]*(BEGIN|END) api-budget[[:space:]]'
+  - '^(#|//)[[:space:]]*(BEGIN|END) GENERATED:'
+  - '^(#|//)[[:space:]]*prereq-ok:[[:space:]]*[^[:space:]]'
+  - '^/\*[[:space:]]*rv-chrome:(begin|end)[[:space:]]*\*/$'
+  - '^/\*(EMBED|WAV):[^*]+\*/$'
+comment_lint_exclude:
+  # Unedited vendored Apache-2.0 copy of https://github.com/GoogleChrome/web-vitals (web-vitals.LICENSE beside it); see #18772.
+  - plugins/planning/shared/web/web-vitals.attribution.iife.js
+  # A skill's vendor/ folder, byte-identical to upstream per the skill-quality vendor gate: https://github.com/melodic-software/claude-code-plugins/issues/18772
+  - plugins/*/skills/*/vendor/**
+  # Copied verbatim into generated wizards; evals read their `# STAGES` markers: https://github.com/melodic-software/claude-code-plugins/issues/18772
+  - plugins/wizard/skills/generate/template.sh
+  - plugins/wizard/skills/unattended/template.ps1
+  # Fixtures whose line numbers and counts are their tests' oracle: https://github.com/melodic-software/claude-code-plugins/issues/18772
+  - plugins/code-metrics/scripts/fixtures/clone-classes/**
+  - plugins/code-metrics/scripts/fixtures/sources/cluster/**
+  - plugins/code-metrics/scripts/fixtures/sources/cm-sample.sh
+  - plugins/code-metrics/scripts/fixtures/sources/cm-sample.ts
+  - plugins/code-metrics/scripts/fixtures/sources/cm_sample.py
+  - plugins/code-metrics/scripts/fixtures/sources/cm-sample.go
+  - plugins/user-interface/tests/fixtures/review/all-rules.css
+  # Unedited vendored copy from Claude Code's built-in plugin-authoring skill: https://github.com/melodic-software/claude-code-plugins/issues/18772
+  - plugins/themes/hooks/make-colors.js
+comment_lint_keep_opening:
+  # Eval scaffolds and the fixture helpers they run open with the summary a person reads before approving the run: https://github.com/melodic-software/claude-code-plugins/issues/18772
+  - plugins/*/evals/*/scaffold.sh
+  - plugins/*/evals/routing/*/*/scaffold.sh
+  - plugins/*/skills/*/evals/*/scaffold.sh
+  - plugins/*/evals/**/fixtures/**/*.sh
+  - plugins/review/evals/revert-cases.sh
+  # Extensionless gh-forge stand-ins install.sh copies into the run's bin, so a person approves their opening block before the run (owner keep): https://github.com/melodic-software/claude-code-plugins/issues/18772
+  - plugins/source-control/evals/fixtures/gh-forge/gh
+  - plugins/source-control/evals/fixtures/gh-forge/git
+  - plugins/source-control/evals/fixtures/gh-forge/git-remote-evalforge
