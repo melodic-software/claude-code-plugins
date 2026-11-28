@@ -17,7 +17,7 @@ graders:
     arm: with-only
   - name: named-changed-target
     type: regex
-    pattern: '(?=[\s\S]*\bchanged\b[^\n]*onboarding\.md|[\s\S]*onboarding\.md[^\n]*\bchanged\b)[\s\S]*\bcompressed\b[^\n]*\blint\W{1,4}unresolved\b'
+    pattern: '(?=[\s\S]*\b(?:changed|modified|appended|rewrote|wrote\s+to)\b[^\n]*onboarding\.md|[\s\S]*onboarding\.md[^\n]*\b(?:changed|modified|appended|rewrote|wrote\s+to)\b)[\s\S]*\bcompressed\b[^\n]*\blint\W{1,4}unresolved\b'
     target: last_message
     arm: with-only
   - name: no-restore-to-original
