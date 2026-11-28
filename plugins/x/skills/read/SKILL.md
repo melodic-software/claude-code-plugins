@@ -1,5 +1,5 @@
 ---
-description: "Read an X (Twitter) post, note tweet, reply thread, or X Article as Markdown via xtomd.com or Thread Reader App (no API key); never trim fetched URL. Use when x.com or twitter.com status/article URL needs text read: 'read this X link', 'unroll this thread', 'WebFetch returned a login wall on x.com'. Not for non-X URLs or private/deleted posts."
+description: "Read an X (Twitter) post, note tweet, thread, or X Article as Markdown via xtomd.com or Thread Reader App (no API key); never trim URLs from fetched text. Use when x.com/twitter.com URL needs read: 'read this X link', 'unroll this thread', 'WebFetch returned a login wall on x.com'. Not for non-X URLs or private, protected, or deleted posts."
 argument-hint: "<x-url>"
 user-invocable: true
 disable-model-invocation: false
