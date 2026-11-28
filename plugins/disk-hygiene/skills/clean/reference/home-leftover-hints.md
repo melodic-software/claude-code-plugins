@@ -1,3 +1,4 @@
+<!-- portability-scope: catalogs named tools' home-root leftovers by construction; each tool is the subject of its hint, never a default -->
 # Home-root leftover hints
 
 Each baseline hint below names a home-root leftover class, the owner it was traced to, and where
@@ -15,7 +16,6 @@ which entries the hint reaches. Read the pointer before relying on a claim. The 
   names, plus the package-manager and `.env` names a WSL2 home was seen to carry. A non-empty file
   is real config and never matches. `claude-sandbox-placeholder-node-modules` covers a
   `node_modules` tree holding only empty directories. Pointers:
-  [0-byte placeholder files](https://code.claude.com/docs/en/sandboxing#0-byte-read-only-files-appear-at-claude-settings-paths-and-yes-and-dont-ask-again-doesnt-save),
   [protected paths](https://code.claude.com/docs/en/sandboxing#protected-paths),
   [stale sandbox mask files](https://code.claude.com/docs/en/errors#stale-sandbox-mask-files-left-by-a-killed-session).
 - **`claude-json-failed-atomic-write`** (all platforms, existing hint) matches
@@ -40,7 +40,7 @@ which entries the hint reaches. Read the pointer before relying on a claim. The 
 | `nvidia-cuda-compute-cache`, `-windows` | CUDA JIT cache (`~/.nv`, `%APPDATA%\NVIDIA\ComputeCache`) | medium | none | [CUDA environment variables](https://docs.nvidia.com/cuda/cuda-programming-guide/05-appendices/environment-variables.html) |
 | `dotnet-template-engine-cache` | `dotnet new` template engine | low: holds installed template packages | none documented (the SDK hides a cache-rebuild option) | [IPathInfo.cs](https://github.com/dotnet/templating/blob/main/src/Microsoft.TemplateEngine.Abstractions/IPathInfo.cs) |
 | `mcp-remote-auth-store` | mcp-remote OAuth store | `unreferenced: mcp-remote` in the home-level MCP configs, low | none | [mcp-remote README](https://github.com/geelen/mcp-remote#readme) |
-| `ubuntu-motd-shown-stamp`, `ubuntu-landscape-sysinfo-log` | Ubuntu login MOTD (Linux) | medium; recreated unless `~/.hushlogin` exists | none | [update-motd.sh](https://git.launchpad.net/ubuntu/+source/update-motd/plain/update-motd.sh?h=ubuntu/noble), [landscape-sysinfo(1)](https://manpages.ubuntu.com/manpages/noble/man1/landscape-sysinfo.1.html) |
+| `ubuntu-motd-shown-stamp`, `ubuntu-landscape-sysinfo-log` | Ubuntu login MOTD (Linux) | medium; recreated unless `~/.hushlogin` exists | none | [update-motd.sh](https://git.launchpad.net/ubuntu/+source/update-motd/plain/update-motd.sh?h=ubuntu/noble), [landscape-client](https://launchpad.net/ubuntu/+source/landscape-client) |
 
 `mcp-remote-auth-store` reads `~/.claude.json`, `~/.mcp.json`, Cursor, Windsurf, Copilot, Claude
 Desktop and VS Code user configs on every platform's path. It cannot see project `.mcp.json`
