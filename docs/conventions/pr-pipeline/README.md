@@ -296,7 +296,7 @@ dispatches it.
 on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-hosted`. It takes only
 the upstream run id from the event and reads the rest back. It dispatches `pr-unblock.yml` with
 `activity: address-feedback` when the upstream is a `pull_request` run of one of those two paths in
-this repository, exactly one open non-draft PR into `main` has its head, the lanes App or an
+this repository whose actor and triggering actor satisfy the broker's review-upstream rule (attempt 1 by the lanes App, or any attempt triggered by a listed human; when a review event's latest attempt was a bot re-run, the dispatcher falls back to the sibling broker-accepted review run at that head, or skips naming the attempt and triggering actor if none exists), exactly one open non-draft PR into `main` has its head, the lanes App or an
 [adopted owner](#owner-pull-requests) opened that PR, it carries no `do-not-merge`, both lanes' newest reviewed-head markers
 name the head, an unresolved thread exists that `address-feedback` would keep (left only by the
 reviewer bot, one the lane never answered where a fix request, below, follows the reviewer bot's
