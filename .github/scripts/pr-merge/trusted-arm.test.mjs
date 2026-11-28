@@ -917,3 +917,16 @@ test("labels that grow past 100 after the listing, with the whole read failing, 
   assert.equal(armedHeads(result), 0, result.lines.join("\n"));
   assert.match(leftLine(result, 500), /left: its labels could not all be read$/);
 });
+
+test("labels that grow past 100 after the listing are read again whole before the arm: a hold label on the second page refuses, and a whole list with none arms", async () => {
+  const grown = (second) => {
+    const during = clean();
+    const laneSource = () => { Object.assign(during, { labels: { totalCount: 101, nodes: PLAIN_LABELS }, labelPages: [PLAIN_LABELS, [{ name: second }]] }); return []; };
+    return run([during], { laneSource });
+  };
+  const held = await grown("do-not-merge");
+  assert.equal(armedHeads(held), 0, held.lines.join("\n"));
+  assert.match(leftLine(held, 500), /left: it carries do-not-merge$/);
+  const unheld = await grown("area-100");
+  assert.equal(armedHeads(unheld), 1, unheld.lines.join("\n"));
+});
