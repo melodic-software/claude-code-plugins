@@ -1608,6 +1608,23 @@ test("pr-run-activity-read.yml: an issue run re-checks its blockers inside the s
   assert.equal(evaluate(report.if, { ...stopped, "needs.check-issue-fields.outputs.issue-run-started": "true" }), false, "a run that started leaves it to the caller");
 });
 
+test("pr-run-activity-read.yml: issue-prior's skip reason reaches the run job's skip-reason, and the caller only once the scan job's decode checked it", () => {
+  const read = workflow("pr-run-activity-read.yml");
+  const skipOf = (prior, config = "") =>
+    evaluate(read.jobs.run.outputs["skip-reason"], {
+      "steps.config.outputs.skip-reason": config,
+      "steps.issue-prior.outputs.skip-reason": prior,
+      "steps.act-script.outputs.skip-reason": "",
+    });
+  assert.equal(skipOf("closed-by-open-pr"), "closed-by-open-pr");
+  assert.equal(skipOf(""), "");
+  assert.equal(skipOf("", "disabled-by-config"), "disabled-by-config");
+  assert.equal(read.on.workflow_call.outputs["scan-skip-reason"].value, "${{ jobs.scan.outputs.skip-reason }}");
+  const scanned = (decode) => evaluate(read.jobs.scan.outputs["skip-reason"], { "steps.decode.outcome": decode, "needs.run.outputs.skip-reason": "closed-by-open-pr" });
+  assert.equal(scanned("success"), "closed-by-open-pr");
+  assert.equal(scanned("failure"), "", "a refused decode hands the caller no skip reason");
+});
+
 test("pr-run-activity-read.yml: issue-prior's stale branch reaches write-issue, and lane.json only while unnoted", () => {
   const steps = workflow("pr-run-activity-read.yml").jobs.run.steps;
   const write = steps.find((step) => step.id === "write-issue");

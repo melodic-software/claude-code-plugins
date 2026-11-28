@@ -3155,13 +3155,13 @@ test("--find-prior stops not-applicable on an open lanes-App PR, with no comment
   assert.deepEqual(writesToGitHub(calls), []);
 });
 
-test("--find-prior stops not-applicable on a listed human's closing PR, names that PR and writes nothing", async () => {
+test("--find-prior stops closed-by-open-pr on a listed human's closing PR, names that PR and writes nothing", async () => {
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
     const { calls, output } = await runPrior({ nodes: [closer("User", "kyle-sexton", OWNER_ID)] });
-    assert.equal(output, "proceed=false\nskip-reason=not-applicable\nreuse-branch=\n");
+    assert.equal(output, "proceed=false\nskip-reason=closed-by-open-pr\nreuse-branch=\n");
     assert.deepEqual(writesToGitHub(calls), []);
   } finally {
     console.log = log;
@@ -3301,7 +3301,7 @@ test("--find-prior reads every page of closing PRs, so outsiders' PRs cannot hid
   const { code, calls, output } = await runPrior({ graphqlPages: [outsiders, [closer("User", "kyle-sexton", OWNER_ID)]] });
   assert.equal(code, 0);
   assert.deepEqual(calls.filter((c) => c.path === "/graphql").map((c) => c.body.variables.after), [null, "c1"]);
-  assert.equal(output, "proceed=false\nskip-reason=not-applicable\nreuse-branch=\n");
+  assert.equal(output, "proceed=false\nskip-reason=closed-by-open-pr\nreuse-branch=\n");
 });
 
 test("--find-prior holds on a pull request listing that is not a list", async () => {
@@ -5477,6 +5477,57 @@ test("main on done still opens the PR when no open PR closes the issue, or only 
     assert.ok(opened(calls), JSON.stringify(nodes));
     assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/comments")), JSON.stringify(nodes));
   }
+});
+
+async function preBuildSkip(closing, { pulls = {} } = {}) {
+  return withAsyncDir({ "trusted.json": TRUSTED_LIST }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["POST", /^\/graphql$/, ...closing],
+      ...Object.entries(pulls).map(([number, pull]) => ["GET", new RegExp(`/pulls/${number}$`), 200, pull]),
+      ...HISTORY,
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    const lines = [];
+    const log = console.log;
+    console.log = (line) => lines.push(line);
+    try {
+      const code = await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json"), DIMENSION_SKIP: "closed-by-open-pr" }, fetch });
+      return { code, calls, lines };
+    } finally {
+      console.log = log;
+    }
+  });
+}
+const issueComments = (calls) => calls.filter((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments"));
+
+test("main on a closed-by-open-pr pre-build skip reads the closers itself and waits on the trusted one, with agent-ready kept", async () => {
+  const { code, calls, lines } = await preBuildSkip([200, graphql([{ ...closer("User", "kyle-sexton", OWNER_ID), number: 10686 }])], {
+    pulls: { 10686: { ...HUMAN_PULL, state: "open", merged_at: null } },
+  });
+  assert.equal(code, 0);
+  const [comment] = issueComments(calls).map((c) => c.body.body);
+  assert.ok(comment.startsWith("<!-- work-resolve-issue outcome=wait pr=10686 run=123 -->"), comment);
+  assert.match(comment, /`closed-by-open-pr`/);
+  assert.match(comment, /PR .10686 already closes this issue/);
+  assert.match(comment, /once #10686 merges or closes/);
+  assert.ok(!comment.includes("Partial work"), comment);
+  assert.ok(!calls.some((c) => c.method === "POST" && c.path === "/repos/o/r/pulls"));
+  assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/labels") || c.method === "DELETE"));
+  assert.ok(lines.some((line) => line.includes("waits on #10686")), lines.join("\n"));
+});
+
+test("main on a closed-by-open-pr pre-build skip posts nothing when no trusted open PR closes the issue any more", async () => {
+  for (const nodes of [[], [closer("User", "stranger", 42)]]) {
+    const { code, calls } = await preBuildSkip([200, graphql(nodes)]);
+    assert.equal(code, 0, JSON.stringify(nodes));
+    assert.deepEqual(issueComments(calls), [], JSON.stringify(nodes));
+  }
+});
+
+test("main on a closed-by-open-pr pre-build skip fails and posts nothing when the closers cannot be read", async () => {
+  const { code, calls } = await preBuildSkip([502, {}]);
+  assert.equal(code, 1);
+  assert.deepEqual(issueComments(calls), []);
 });
 
 test("main on done keeps the lanes App's own open PR from the branch without reading the closers", async () => {

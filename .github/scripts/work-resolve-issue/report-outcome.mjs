@@ -536,6 +536,7 @@ function outsideAuthorPlan({ issueNumber, runUrl, runId }) {
 }
 
 export const WORKFLOW_STALE = "workflow-stale";
+export const CLOSED_BY_OPEN_PR = "closed-by-open-pr";
 
 export const LANE_WORKFLOWS = [".github/workflows/pr-run-activity-write.yml", ".github/workflows/work-resolve-issue.yml"];
 export const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40})( breaker)? -->/;
@@ -1243,7 +1244,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   }
   const trusted = trustedCloser(closing, { repo, bot, humans });
   if (trusted) {
-    return { action: "stop", reason: `open PR #${trusted.number} closes the issue` };
+    return { action: "stop", skip: CLOSED_BY_OPEN_PR, reason: `open PR #${trusted.number} closes the issue` };
   }
   const reported = reportedIn(markers);
   const laneTip = ({ tip }) => laneCommit(tip, bot);
@@ -1567,7 +1568,7 @@ export async function findPriorMain({ env = process.env, fetchImpl, sleep, latch
             : {}),
           ...pruned,
         }
-      : { proceed: "false", "skip-reason": "not-applicable", "reuse-branch": prior.action === "reuse" ? prior.branch : "", ...pruned };
+      : { proceed: "false", "skip-reason": prior.skip ?? "not-applicable", "reuse-branch": prior.action === "reuse" ? prior.branch : "", ...pruned };
     appendFileSync(env.GITHUB_OUTPUT, Object.entries(outputs).map(([key, value]) => `${key}=${value}\n`).join(""));
     console.log(
       prior.stale
@@ -1776,7 +1777,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
   try {
     const issueNumber = targetIssue(env);
     const dimensionSkip = env.DIMENSION_SKIP ?? "";
-    if (dimensionSkip && !Object.hasOwn(DIMENSION_STEPS, dimensionSkip) && dimensionSkip !== OUTSIDE_AUTHOR && dimensionSkip !== WORKFLOW_STALE) {
+    if (dimensionSkip && !Object.hasOwn(DIMENSION_STEPS, dimensionSkip) && ![OUTSIDE_AUTHOR, WORKFLOW_STALE, CLOSED_BY_OPEN_PR].includes(dimensionSkip)) {
       throw new Error("DIMENSION_SKIP is not an issue-dimension skip reason");
     }
     const escalation = env.ESCALATION_REASON ?? "";
@@ -1815,6 +1816,26 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       const posted = comments.some((comment) => comment.user?.login === bot && parseOutcomeMarker(comment.body)?.outcome === OUTSIDE_AUTHOR);
       const plan = outsideAuthorPlan({ issueNumber, runUrl, runId });
       await applyHandBack(github, repo, posted ? { ...plan, comment: "" } : plan, { setStatus, leaveAgentReady, stateOf });
+      return 0;
+    }
+    if (dimensionSkip === CLOSED_BY_OPEN_PR) {
+      const humans = readHumansOrNone(env.TRUSTED_ACTORS);
+      const [owner, name] = env.GITHUB_REPOSITORY.split("/");
+      const closer = trustedCloser(await closingPulls(github, { owner, name, number: issueNumber }), { repo: env.GITHUB_REPOSITORY, bot, humans });
+      if (!closer) {
+        console.log(`report-outcome: the run stopped before the model on issue #${issueNumber} for an open closing PR, and no open PR the lanes App or a listed human opened closes it now; nothing is posted`);
+        return 0;
+      }
+      const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/docs/conventions/work-items.yaml");
+      const plan = routeStop(CLOSED_BY_OPEN_PR, {
+        outcome: stopped(`Open PR #${closer.number} already closes this issue, so the run stopped before the model ran.`),
+        issueNumber,
+        branch: "",
+        humanLabel,
+        runUrl,
+        runId,
+      });
+      await finishStop(github, repo, plan, { bot, appId, humans, runId, limits: readLimits(resolvedConfigPath(env)), setStatus, leaveAgentReady, statusOf, stateOf, field });
       return 0;
     }
     if (dimensionSkip) {
@@ -2024,7 +2045,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           });
       if (closer) {
         console.log(`report-outcome: open PR #${closer.number} already closes issue #${issueNumber}, so no PR opens from ${plan.branch}`);
-        plan = routeStop("closed-by-open-pr", {
+        plan = routeStop(CLOSED_BY_OPEN_PR, {
           outcome: stopped(`Open PR #${closer.number} already closes this issue, so no second PR opened from \`${plan.branch}\`.`),
           issueNumber,
           branch: plan.branch,

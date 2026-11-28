@@ -2305,9 +2305,15 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   `GITHUB_TOKEN`, and reads the issue's lane branches (`git/matching-refs` on
   `work-resolve-issue/issue-<n>-`), their PRs, their tip commits, their commits ahead of the
   default branch, the issue's open closing PRs and the lanes App's outcome markers on it. It skips
-  the run `not-applicable`, with no model and no comment, when a lanes-App PR from a
-  lane branch is open, or when an open PR in this repository closes the issue and the lanes App or
-  a listed human (`trusted-actors.json`) opened it; anyone's other closing PR is ignored. It also
+  the run, with no model and no comment, `not-applicable` when a lanes-App PR from a lane branch
+  is open, and `closed-by-open-pr` when an open PR in this repository closes the issue and the
+  lanes App or a listed human (`trusted-actors.json`) opened it; anyone's other closing PR is
+  ignored. The run job's `skip-reason` output carries that reason, and once the scan job's decode
+  step has checked it against the closed-name shape, so does the read file's `scan-skip-reason`
+  output; no PR number crosses. Given `DIMENSION_SKIP=closed-by-open-pr`, `report-outcome` reads
+  the issue's open closing PRs itself, with the same trust rule, and stops `closed-by-open-pr` on
+  the `wait` route naming the one it finds (below), or posts nothing when none closes the issue
+  now; a failed read fails the job and posts nothing. It also
   skips `not-applicable` and sets the `reuse-branch` output to the first lane branch, newest run
   and attempt first, that has commits ahead, a tip commit GitHub verified whose author is the
   lanes App bot and whose committer is `web-flow`, as the App's API commits are (a branch name
