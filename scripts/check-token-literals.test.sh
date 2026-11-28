@@ -185,6 +185,13 @@ if ((RC == 2)) && [[ -n "${ERR}" && -z "${OUT}" ]]; then
 else
   fail "a bad --base: wanted exit 2 (rc=${RC}, stdout='${OUT}', stderr='${ERR}')"
 fi
+git -C "${f}" tag token-literals-fixture-only-base
+run_check --base token-literals-fixture-only-base
+if ((RC == 0)) && [[ -n "${OUT}" ]]; then
+  ok "--base resolves in the scanned tree, not the caller's working directory"
+else
+  fail "a --base only the scanned tree holds: wanted exit 0 (rc=${RC}, stdout='${OUT}', stderr='${ERR}')"
+fi
 git -C "${f}" rm -qf --cached scripts/token-literals-allowlist.txt
 git -C "${f}" commit -qm "no allowlist" >/dev/null 2>&1
 run_check --base HEAD

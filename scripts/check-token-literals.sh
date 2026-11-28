@@ -51,6 +51,8 @@ while (($# > 0)); do
 done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
+# shellcheck source=lib/gate-entry.sh
+. "${SCRIPT_DIR}/lib/gate-entry.sh" || exit 2
 REPO_ROOT="$(cd "${CHECK_DATA_ROOT:-${SCRIPT_DIR}/..}" && pwd)" || exit 2
 
 if ! command -v node >/dev/null 2>&1; then
@@ -69,10 +71,8 @@ fi
 base_list=""
 has_base=0
 if [[ -n "${base}" ]]; then
-  if ! git -C "${REPO_ROOT}" rev-parse --verify --quiet "${base}^{commit}" >/dev/null; then
-    echo "check-token-literals: --base ${base} names no commit" >&2
-    exit 2
-  fi
+  cd "${REPO_ROOT}" || exit 2
+  gate_entry::require_base "${base}" "check-token-literals: --base ${base} names no commit"
   if git -C "${REPO_ROOT}" cat-file -e "${base}:scripts/token-literals-allowlist.txt" 2>/dev/null; then
     base_list="$(git -C "${REPO_ROOT}" show "${base}:scripts/token-literals-allowlist.txt")" || {
       echo "check-token-literals: git show of the allowlist at ${base} failed" >&2
