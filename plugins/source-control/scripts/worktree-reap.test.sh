@@ -582,7 +582,7 @@ WIN_REPORT="$(reap_env env PATH="$shim:$PATH" bash "$REAP" --report "$RUN_DRY" 2
 assert_contains "Windows bash: --report still prints a run's report" "$WIN_REPORT" "would remove 4 worktrees"
 reap_env env WORKTREE_REAP_PROC_ROOT="$PROC_OK" bash "$REAP" --root "$ROOT_WIN" --no-log --no-pr-proof >/dev/null 2>&1
 assert_dir_absent "control: the same reap off Windows removes the landed worktree" "$ROOT_WIN/wt"
-assert_contains "--help keeps 'Windows bash', which the provisioning Windows runner checks before it runs the reap""$(bash "$REAP" --help 2>&1)" "Windows bash"
+assert_contains "--help keeps 'Windows bash', which the provisioning Windows runner checks before it runs the reap" "$(bash "$REAP" --help 2>&1)" "Windows bash"
 
 path_without() {
   local farm="$1" d f n
