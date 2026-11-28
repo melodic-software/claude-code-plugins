@@ -81,8 +81,11 @@ PAGE_CSP = (
     "form-action 'none'; base-uri 'none'"
 )
 SHARED_WEB = HERE.parent / "shared" / "web"
-_BRANDING_SPEC = importlib.util.spec_from_file_location(
-    "planning_branding_helper", HERE.parent / "lib" / "branding_helper.py"
+_BRANDING_PATH = HERE.parent / "lib" / "branding_helper.py"
+_BRANDING_SPEC = (
+    importlib.util.spec_from_file_location("planning_branding_helper", _BRANDING_PATH)
+    if _BRANDING_PATH.is_file()
+    else None
 )
 _BRANDING_MOD = importlib.util.module_from_spec(_BRANDING_SPEC) if _BRANDING_SPEC else None
 if _BRANDING_SPEC and _BRANDING_SPEC.loader and _BRANDING_MOD is not None:

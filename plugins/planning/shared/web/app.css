@@ -1,22 +1,65 @@
+:root {
+  --muted: var(--gray-700);
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) .app[data-theme="dark"] {
+    --bg: var(--slate);
+    --fg: var(--ivory);
+    --panel: var(--gray-700);
+    --muted: var(--gray-300);
+    --link: var(--clay-soft);
+    --focus: var(--clay-soft);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="light"] .app[data-theme="dark"] {
+  --bg: var(--slate);
+  --fg: var(--ivory);
+  --panel: var(--gray-700);
+  --muted: var(--gray-300);
+  --link: var(--clay-soft);
+  --focus: var(--clay-soft);
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .app[data-theme="light"] {
+    --bg: var(--ivory);
+    --fg: var(--slate);
+    --panel: var(--white);
+    --muted: var(--gray-700);
+    --link: var(--clay-deep);
+    --focus: var(--clay-deep);
+    color-scheme: light;
+  }
+}
+:root[data-theme="dark"] .app[data-theme="light"] {
+  --bg: var(--ivory);
+  --fg: var(--slate);
+  --panel: var(--white);
+  --muted: var(--gray-700);
+  --link: var(--clay-deep);
+  --focus: var(--clay-deep);
+  color-scheme: light;
+}
 .app {
   --sunk: var(--bg);
   --pane: var(--panel);
   --raise: var(--panel);
   --line: oklch(1 0 none / 0.08);
   --line-strong: oklch(1 0 none / 0.15);
-  --line-input: oklch(1 0 none / 0.38);
+  --line-input: oklch(1 0 none / 0.45);
   --text: var(--fg);
   --faint: var(--muted);
-  --accent-text: var(--link);
-  --accent-soft: color-mix(in oklch, var(--accent) 15%, transparent);
-  --on-accent: var(--bg);
+  --accent-text: color-mix(in oklab, var(--link) 78%, var(--fg));
+  --accent-soft: color-mix(in oklch, var(--accent) 12%, transparent);
+  --on-accent: var(--slate);
   --brass: oklch(0.83 0.12 82);
   --brass-soft: color-mix(in oklch, var(--brass) 13%, transparent);
   --brass-text: var(--brass);
   --on-brass: oklch(0.22 0.04 70);
   --ok: oklch(0.77 0.15 155);
   --away: oklch(0.80 0.15 75);
-  --warn: oklch(0.69 0.19 25);
+  --warn: oklch(0.78 0.14 25);
   --on-warn: oklch(0.2 0.04 25);
   --shadow-pop: 0 1px 0 oklch(1 0 none / 0.05) inset, 0 16px 40px oklch(0 0 none / 0.5);
   --r-sm: 6px;
@@ -48,8 +91,9 @@
     --line: oklch(0.25 0.02 250 / 0.1);
     --line-strong: oklch(0.25 0.02 250 / 0.18);
     --line-input: oklch(0.25 0.02 250 / 0.55);
+    --accent-text: var(--link);
     --accent-soft: color-mix(in oklch, var(--accent) 11%, transparent);
-    --on-accent: var(--bg);
+    --on-accent: var(--slate);
     --brass: oklch(0.64 0.13 70);
     --brass-soft: color-mix(in oklch, var(--brass) 12%, transparent);
     --brass-text: oklch(0.50 0.12 65);
@@ -129,7 +173,7 @@
 .app .vf-vote .vf-i { inline-size: 14px; block-size: 14px; }
 @media (hover: hover) and (pointer: fine) {
   .app .vf-btn-ghost:hover:not(:disabled), .app .vf-tbtn:hover, .app .vf-propose:hover { background: var(--raise); color: var(--text); }
-  .app .vf-btn-primary:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklab, var(--accent) 88%, var(--text)); }
+  .app .vf-btn-primary:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklab, var(--accent) 84%, var(--white)); }
   .app .vf-btn-brass:hover:not([aria-disabled="true"], :disabled) { background: color-mix(in oklch, var(--brass) 88%, white); }
   .app .vf-q:hover { background: var(--raise); color: var(--text); }
   .app .vf-vote:hover:not(:disabled) { border-color: var(--accent); color: var(--text); }

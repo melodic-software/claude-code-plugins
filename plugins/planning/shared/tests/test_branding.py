@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import unittest
@@ -89,6 +90,58 @@ class TestSharedServerBranding(unittest.TestCase):
             self.assertEqual(code, 200)
             self.assertNotIn(b'class="rv-brand"', index_html)
             self.assertNotIn(b"%%BRANDING_LOGO%%", index_html)
+
+    def test_managed_settings_and_dropins_override_user_settings_for_branding(self):
+        base = tmpdir(self)
+        cfg_dir = base / "user-cfg"
+        cfg_dir.mkdir()
+        (cfg_dir / "settings.json").write_text(
+            json.dumps(
+                {
+                    "pluginConfigs": {
+                        "planning@melodic-software": {
+                            "options": {"branding": json.dumps({"logo": {"label": "User Brand"}})}
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        managed_dir = base / "managed"
+        dropin_dir = managed_dir / "managed-settings.d"
+        dropin_dir.mkdir(parents=True)
+        (managed_dir / "managed-settings.json").write_text(
+            json.dumps(
+                {
+                    "pluginConfigs": {
+                        "planning@melodic-software": {
+                            "options": {"branding": json.dumps({"logo": {"label": "Managed Base"}})}
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        (dropin_dir / "10-brand.json").write_text(
+            json.dumps(
+                {
+                    "pluginConfigs": {
+                        "planning@melodic-software": {
+                            "options": {"branding": json.dumps({"logo": {"label": "Managed Dropin"}})}
+                        }
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        env = {k: v for k, v in os.environ.items() if k != "CLAUDE_PLUGIN_OPTION_BRANDING"}
+        env["CLAUDE_CONFIG_DIR"] = str(cfg_dir)
+        with mock.patch.dict(os.environ, env, clear=True):
+            got = server._BRANDING_MOD._installed_branding_option(managed_dir=managed_dir)
+            self.assertEqual(json.loads(got), {"logo": {"label": "Managed Dropin"}})
+            (dropin_dir / "10-brand.json").unlink()
+            got_base = server._BRANDING_MOD._installed_branding_option(managed_dir=managed_dir)
+            self.assertEqual(json.loads(got_base), {"logo": {"label": "Managed Base"}})
 
 
 if __name__ == "__main__":

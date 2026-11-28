@@ -10,11 +10,17 @@ import html
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 VIEW_SETTINGS = PLUGIN_ROOT / "lib" / "view-settings.mjs"
 TOKENS_FILE = PLUGIN_ROOT / "reference" / "html-tokens.css"
+MANAGED_DIRS = {
+    "darwin": Path("/Library/Application Support/ClaudeCode"),
+    "linux": Path("/etc/claude-code"),
+    "win32": Path("C:/Program Files/ClaudeCode"),
+}
 
 LOGO_SLOT_CSS = "\n".join(
     (
@@ -54,30 +60,34 @@ def logo_slot_css(logo: dict | None) -> str:
     return LOGO_SLOT_CSS
 
 
-def _installed_branding_option() -> str | None:
-    """Read `userConfig.branding` from Claude Code settings when no explicit option was given."""
-    parts = PLUGIN_ROOT.as_posix().split("/")
-    plugin_id = None
-    settings_path = None
-    if "cache" in parts:
-        idx = len(parts) - 1 - parts[::-1].index("cache")
-        if idx > 0 and parts[idx - 1] == "plugins" and len(parts) - idx == 4 and all(parts[idx + 1 :]):
-            marketplace, name = parts[idx + 1], parts[idx + 2]
-            plugin_id = f"{name}@{marketplace}"
-            config_root = "/".join(parts[: idx - 1]) or "/"
-            settings_path = Path(config_root) / "settings.json"
-    if settings_path is None:
-        cfg_dir = os.environ.get("CLAUDE_CONFIG_DIR")
-        if not cfg_dir:
-            return None
-        settings_path = Path(cfg_dir) / "settings.json"
+def _managed_settings_files(managed_dir: Path | None = None) -> list[Path]:
+    base = managed_dir if managed_dir is not None else MANAGED_DIRS.get(sys.platform)
+    if base is None:
+        return []
+    files = [base / "managed-settings.json"]
+    dropin = base / "managed-settings.d"
     try:
+        if dropin.is_dir():
+            names = sorted(
+                p.name for p in dropin.iterdir() if p.name.endswith(".json") and not p.name.startswith(".")
+            )
+            files.extend(dropin / name for name in names)
+    except OSError:
+        pass
+    return files
+
+
+def _read_branding_from_file(settings_path: Path, plugin_id: str | None) -> str | None:
+    try:
+        if not settings_path.is_file():
+            return None
         data = json.loads(settings_path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     configs = data.get("pluginConfigs") if isinstance(data, dict) else None
     if not isinstance(configs, dict):
         return None
+    found = None
     for key in sorted(configs):
         if plugin_id is not None and key != plugin_id:
             continue
@@ -86,9 +96,36 @@ def _installed_branding_option() -> str | None:
         entry = configs.get(key)
         opts = entry.get("options") if isinstance(entry, dict) else None
         val = opts.get("branding") if isinstance(opts, dict) else None
-        if isinstance(val, str) and val:
-            return val
-    return None
+        if isinstance(val, str):
+            found = val
+    return found
+
+
+def _installed_branding_option(managed_dir: Path | None = None) -> str | None:
+    """Read `userConfig.branding` from env, user settings, and managed settings (managed wins)."""
+    env_val = os.environ.get("CLAUDE_PLUGIN_OPTION_BRANDING")
+    if env_val and not env_val.startswith("${user_config."):
+        return env_val
+    parts = PLUGIN_ROOT.as_posix().split("/")
+    plugin_id = None
+    user_settings = None
+    if "cache" in parts:
+        idx = len(parts) - 1 - parts[::-1].index("cache")
+        if idx > 0 and parts[idx - 1] == "plugins" and len(parts) - idx == 4 and all(parts[idx + 1 :]):
+            marketplace, name = parts[idx + 1], parts[idx + 2]
+            plugin_id = f"{name}@{marketplace}"
+            config_root = "/".join(parts[: idx - 1]) or "/"
+            user_settings = Path(config_root) / "settings.json"
+    if user_settings is None:
+        cfg_dir = os.environ.get("CLAUDE_CONFIG_DIR")
+        if cfg_dir:
+            user_settings = Path(cfg_dir) / "settings.json"
+    resolved = _read_branding_from_file(user_settings, plugin_id) if user_settings is not None else None
+    for managed_file in _managed_settings_files(managed_dir):
+        val = _read_branding_from_file(managed_file, plugin_id)
+        if val is not None:
+            resolved = val
+    return resolved or None
 
 
 def resolve_branding(project_root: Path | str | None = None, *, option: str | None = None, team_ref: str | None = None) -> dict:
