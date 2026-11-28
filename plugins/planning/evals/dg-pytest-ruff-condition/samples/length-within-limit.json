@@ -153,6 +153,34 @@
     {
       "answer": "ProposeGoal's own cap is 500 characters, lower than /goal's.\n",
       "why": "tool cap description, no count"
+    },
+    {
+      "answer": "The draft is 4210 characters, more than the 4000 limit.\n",
+      "why": "over the limit with more than"
+    },
+    {
+      "answer": "It comes to 4210 characters, longer than allowed.\n",
+      "why": "over the limit with longer than"
+    },
+    {
+      "answer": "That's an estimated 300 characters.\n",
+      "why": "estimate"
+    },
+    {
+      "answer": "It is approx. 300 characters.\n",
+      "why": "estimate with approx"
+    },
+    {
+      "answer": "It is ≈300 characters.\n",
+      "why": "estimate with ≈"
+    },
+    {
+      "answer": "Conditions are capped at 4000 characters.\n",
+      "why": "limit description with capped at"
+    },
+    {
+      "answer": "It stays within the 4000 characters allowed.\n",
+      "why": "limit description with within the"
     }
   ]
 }
