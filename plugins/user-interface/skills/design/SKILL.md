@@ -1,5 +1,5 @@
 ---
-description: "Design and build UI components, forms, screens, pages, CLI color/output, TUIs, prompts, PowerShell, banners, Claude Code mods; detects project design system/tools, routes project-first, choose build-or-buy library, how UI should look/style. Use when: 'build or buy a date picker', 'how should this TUI look', 'make this UI match our design system'."
+description: "Design/build UI: components, forms/screens/pages, CLI color, TUI, prompts, PowerShell/banners, mods; detects design system/tools, routes project-first, chooses build-or-adopt library, decides how UI should look (shadow, error). Use when: 'build the checkout page in React', 'how should this TUI look', 'which design tool should I use'. Not for CSS: /user-interface:write-css; variants: /prototype:explore-directions."
 argument-hint: "[what to design]"
 user-invocable: true
 disable-model-invocation: false
