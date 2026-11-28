@@ -35,7 +35,7 @@ HARD path exclusions: `${user_config.hard_exclusions}` (unexpanded, empty, or an
 
 Comment posture: `comment_posture` resolves through four layers, lowest first, a later one winning:
 the default `auto`, `userConfig` (`${user_config.comment_posture}`), the team file
-`<home>/code-tidying.yaml` and the personal override `<home>/code-tidying.local.yaml` (`<home>` the
+`<home>/comment-policy.yaml` and the personal override `<home>/comment-policy.local.yaml` (`<home>` the
 repository's bound convention home, else `docs/conventions`), the last two from the settings line
 above (`${CLAUDE_SKILL_DIR}/scripts/comment-settings.sh`). `auto` means `necessary`; `strict`, `balanced` and `conservative` read as `explanatory`, `aggressive` as
 `necessary`. An unexpanded or empty `userConfig` value is unset, and any other value outside `auto`,
