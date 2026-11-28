@@ -27,14 +27,8 @@ EOF
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --dry-run)
-    DRY_RUN=1
-    shift
-    ;;
-  --apply)
-    DRY_RUN=0
-    shift
-    ;;
+  --dry-run) DRY_RUN=1 ;;
+  --apply) DRY_RUN=0 ;;
   -h | --help)
     usage
     exit 0
@@ -44,6 +38,7 @@ while [[ $# -gt 0 ]]; do
     exit 2
     ;;
   esac
+  shift
 done
 
 REPO_ROOT="$(clean_repo_root)"
