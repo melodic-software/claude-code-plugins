@@ -1,8 +1,8 @@
 # Proving a check
 
 How section 4 proves a check before it is proposed for install. The proof script is
-`<plugin-root>/scripts/prove-check.sh`, run from inside the repository. It runs the check
-command, so it is not pre-approved and each proof asks first.
+`<plugin-root>/scripts/prove-check.sh`; old-ref and plant proofs run from inside the repository.
+It runs the check command, so it is not pre-approved and each proof asks first.
 
 Pick the proof by what the check reads:
 

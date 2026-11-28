@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Exit: 0 the proof holds (fails at old, passes at new), 1 the proof fails,
+# Exit: 0 the proof holds (fails at old and passes at new, or fails on
+#         with-mistake and passes on without-mistake), 1 the proof fails,
 # 2 usage or environment error.
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_CONFIG
