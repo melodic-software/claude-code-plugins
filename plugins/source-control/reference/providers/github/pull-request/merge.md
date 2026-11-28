@@ -110,8 +110,8 @@ checks. The first line of the output is the verdict:
 - `BLOCKED no-verify-pass` (exit 1): pr-verify judges this PR and has not passed this head yet.
   Run the check again every 90 seconds; the script itself ends the wait 30 minutes after the
   head's last check finished.
-- `BLOCKED <kind>` (exit 1), any other kind (`hold-label`, `not-ready`, `head-moved`, `closed`): a
-  hold, reported with the lines after it.
+- `BLOCKED <kind>` (exit 1), any other kind (`hold-label`, `not-ready`, `head-moved`, `closed`,
+  `verify-fail`): a hold, reported with the lines after it.
 - `UNCHECKED:` (exit 3): a read failed, a hold reported with its reason.
 
 A failed check clears only by passing or through the guardrails `merge_guard_ignored_checks`
