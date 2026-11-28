@@ -1,5 +1,5 @@
 ---
-description: "Check mutation-testing prerequisites, baseline, config layers, and suppressions (`check`), or write team/local/user config (`apply`)."
+description: "Check mutation-testing prerequisites, baseline, config layers, and suppressions (`check`), or configure team/local files or user guidance (`apply`)."
 argument-hint: "[check|apply [team|local|user]]"
 user-invocable: true
 disable-model-invocation: true
