@@ -1,5 +1,5 @@
 ---
-description: "Looks up current library documentation, API references and code examples through Context7 (ctx7 CLI or the Context7 MCP server). Use when: 'look up the docs for X', 'how do I migrate to X v2', or whenever a question names a library, framework, SDK, CLI tool, or cloud service, including API syntax, configuration, setup, and version-migration questions. The update action checks the CLI and upstream skill content for drift. For CLI/MCP setup, auth, and Windows gotchas, run /context7:setup."
+description: "Look up current library documentation, API references, and code examples via Context7 (ctx7 CLI or MCP server); update checks CLI/upstream drift. Use when: 'look up the docs for X', 'how do I migrate to X v2', or asking about library, framework, SDK, CLI, or cloud API syntax, config, or migration. Not for ctx7/MCP setup or auth: /context7:setup."
 argument-hint: "[lookup <library> <query>|update]"
 user-invocable: true
 disable-model-invocation: false
