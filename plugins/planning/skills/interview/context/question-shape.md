@@ -61,6 +61,9 @@ Before the recommendation, `context` carries what drives the decision and nothin
 - the problem the decision solves, in one or two sentences;
 - what the source says or ships, paraphrased, with a short quote only where the exact words matter;
 - what exists today and the gap;
+- what exists today stated in a numbered Context line, never only in an alternative's cost; a
+  question about one part of an absorbed step also says whether today's code has that step at all
+  ("intake groups nothing today; every report opens its own issue");
 - which parts of an absorbed idea come from the source and which are ours, labeled;
 - every term the question relies on that a reader with none of the session's knowledge may not
   share, defined inline with its source (a sourced term's agreement: SKILL.md "Agree a term where
@@ -69,6 +72,8 @@ Before the recommendation, `context` carries what drives the decision and nothin
   it. A definition that leans on another coined term defines that one too, in the same question
   ("a cluster is the reports sharing one fingerprint" defines the fingerprint beside it), and
   naming a term is not defining it: each later question gives the definition again in full.
+- a term named only in passing, as a dependency ("escalate only works once the cluster step
+  exists"), still counts as relied on, so that question defines it too.
 
 This holds in every lane and is the one home for which terms a question defines: no lane puts a
 terms table at the top of a round in its place.
