@@ -1,3 +1,4 @@
+// test-scope: .github/workflows/*.yml
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
@@ -48,8 +49,9 @@ function world({ timeline, mainFiles = [{ filename: "README.md" }], mergeable = 
     if (path === `/repos/${REPO}/actions/workflows/pr-require-checks.yml/runs?head_sha=${HEAD}&per_page=100`) {
       return { workflow_runs: REQUIRED_SUITES.map((id) => ({ id: id * 10, check_suite_id: id })) };
     }
-    assert.equal(path, `/repos/${REPO}/commits/${HEAD}/check-runs?filter=all&per_page=100&page=1`);
-    return { check_runs: headChecks };
+    const page = Number(new RegExp(`^/repos/${REPO}/commits/${HEAD}/check-runs\\?filter=all&per_page=100&page=(\\d+)$`).exec(path)?.[1]);
+    assert.ok(page >= 1, path);
+    return { check_runs: headChecks.slice((page - 1) * 100, page * 100) };
   };
   const reads = [];
   const verify = async (pull, rung) => {
@@ -410,20 +412,23 @@ test("a fix-ci label comes off only while the head's own checks read failed", as
   }
 });
 
-const marker = (suite, conclusion = "success", id = 90 + suite) => check(REQUIRED_SUITE_MARKER.name, conclusion, { id, suite });
 const requiredRunsReads = (w) => w.calls.filter((call) => call.path.startsWith(`/repos/${REPO}/actions/workflows/pr-require-checks.yml/runs?`)).length;
+const RECORDED = JSON.parse(readFileSync(new URL("./fixtures/clear-escalations-head-check-runs.json", import.meta.url), "utf8")).check_runs;
+const LIVE_SUITE = 124682814960;
+const LABELED_SUITE = 124682695859;
+const isMarker = (run) => run.name === REQUIRED_SUITE_MARKER.name;
 
 test("the Mark Lanes check run names pr-require-checks' suites, so the workflow-runs read is skipped", async () => {
   const timeline = [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")];
   for (const [label, headChecks, cleared, reads] of [
-    ["marked suite red", [marker(700), check("test-node", "failure", { id: 2, suite: 700 })], true, 0],
-    ["marked suite green, another workflow's suite red", [marker(700), check("test-node", "success", { id: 2, suite: 700 }), check("test-windows", "failure", { id: 3, suite: 900 })], false, 0],
-    ["a skipped Mark Lanes on a labeled-event suite", [marker(700, "skipped"), check("lint-repo", "failure", { id: 2, suite: 700 })], true, 0],
-    ["several marked suites, the red one second", [marker(700), marker(701, "skipped"), check("test-node", "success", { id: 2, suite: 700 }), check("lint-shell", "cancelled", { id: 3, suite: 701 })], true, 0],
-    ["several marked suites, red only in an unmarked one", [marker(700), marker(701), check("test-node", "failure", { id: 2, suite: 702 })], false, 0],
-    ["another app's Mark Lanes", [marker(700), { ...marker(702), app: { slug: "someone-else" } }, check("test-node", "failure", { id: 2, suite: 702 })], false, 0],
-    ["no marker: the workflow-runs read decides, as before", RED, true, 1],
-    ["no marker and green: the workflow-runs read decides, as before", [check("test-node", "success")], false, 1],
+    ["recorded head: Test Selection (0) failed in the live suite, beside a cancelled and a labeled-event suite", RECORDED, true, 0],
+    ["recorded head listed oldest first", [...RECORDED].reverse(), true, 0],
+    ["recorded labeled-event suite alone: its skipped Mark Lanes still names it, and only its CI Status failed", RECORDED.filter((run) => run.check_suite.id === LABELED_SUITE), false, 0],
+    ["recorded head without the live suite's Mark Lanes: its failure is not pr-require-checks'", RECORDED.filter((run) => !(isMarker(run) && run.check_suite.id === LIVE_SUITE)), false, 0],
+    ["recorded head with its failure moved to the Windows workflow's suite: no pr-require-checks job fails", RECORDED.map((run) => (run.conclusion === "failure" && run.name !== "CI Status" ? { ...run, check_suite: { id: 124682814962 } } : run)), false, 0],
+    ["recorded head with every Mark Lanes from another app: the workflow-runs read decides", RECORDED.map((run) => (isMarker(run) ? { ...run, app: { slug: "someone-else" } } : run)), false, 1],
+    ["hand-built, no live shape: no Mark Lanes run, red in a listed suite", RED, true, 1],
+    ["hand-built, no live shape: no Mark Lanes run, green", [check("test-node", "success")], false, 1],
   ]) {
     const w = world({ timeline, headChecks });
     const { code } = await run(w);
