@@ -24,7 +24,7 @@ clearly separated, because they are evidence of different quality.
 The report is an inventory, not a judgment. Nothing here says a component is stale, misconfigured,
 or wrong; the neighbors below own those verdicts.
 
-## Scope boundary
+## What this skill does not do
 
 | Question | Owner |
 |---|---|

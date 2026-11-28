@@ -6,14 +6,14 @@ request and on into post-merge, release and maintenance work. A task is one work
 in [the PR pipeline contract](../pr-pipeline/README.md) and `docs/conventions/pr-pipeline.yaml`;
 this map only places the tasks.
 
-This map is a point-in-time snapshot, written by hand. **As of**: 2026-11-25, every
+This map is a point-in-time snapshot, written by hand. **As of**: 2026-11-27, every
 `.github/workflows/*.yml` file has a row, named in its Task cell or its Shape cell, and every
-plugin in `.claude-plugin/marketplace.json` is listed under [Plugins](#plugins). No check
-compares the map with that directory or that file, so a workflow or plugin added, renamed or
-removed since then may be missing or out of date here. **Recheck trigger**: a pull request that
-adds, renames or removes a file in `.github/workflows/` or a plugin, changes a workflow's
-triggers, jobs or outputs, or changes which plugin skills or scripts a workflow runs; update the
-rows and the as-of date in the same pull request.
+plugin in `.claude-plugin/marketplace.json` is listed once under [Plugins](#plugins). Required CI
+runs `scripts/check-lifecycle-map.sh --check` to enforce that file and plugin parity; triggers,
+jobs, outputs, and which plugin skills or scripts a workflow runs are not checked automatically.
+**Recheck trigger**: a pull request that changes a workflow's triggers, jobs or outputs, or changes
+which plugin skills or scripts a workflow runs; update the rows and the as-of date in the same pull
+request.
 
 ## Columns
 
@@ -134,7 +134,7 @@ rows and the as-of date in the same pull request.
 | Report changed areas for tidying | step in `maintenance-tidy-code-upkeep.yml` | observability | no | push to main | the pushed range | job summary |
 | Tidy code by area | step in `maintenance-tidy-code-upkeep.yml` | git host | yes | schedule, daily; `workflow_dispatch` | settings; open tidy PRs; sweep records | one tidy branch and PR per area |
 | Gate the architecture scan | step in `maintenance-scan-architecture.yml` | orchestrator | no | schedule, daily; `workflow_dispatch` | `lanes` block in `pr-pipeline.yaml`; `find_open_item_cap`; open `source: architecture-improve` issues; earlier runs; main history | run or a named stop reason |
-| Scan the architecture | step in `maintenance-scan-architecture-find.yml`, called by `maintenance-scan-architecture.yml` | tracker | yes | the gate says run | the repository at main; the room under the cap | issues labeled `source: architecture-improve`, which admission holds for a person |
+| Scan the architecture | step in `maintenance-scan-architecture-find.yml`, called by `maintenance-scan-architecture.yml` | tracker | yes | the gate says run | the repository at main; the room under the cap | issues labeled `source: architecture-improve`, filed by the lanes App, which admission takes as own-agent filings |
 | Measure a skill edit (`maintenance-measure-skill-edit.yml`) | own run | git host | yes | `workflow_dispatch` by a listed human | plugin and skill names; the skill's eval suite | draft PR when the edit scores better than the merged skill |
 
 ## Plugins
@@ -195,7 +195,7 @@ otherwise they run only in a person's own Claude Code session:
 `autonomy`, `bugs`, `codebase-health`, `computer-use`, `context-budget`, `context-usage`,
 `corrections`, `coupling`, `debugging`, `desktop-notification`, `developer-experience`,
 `discipline`, `disk-hygiene`, `display-redaction`, `docs-naming`, `domain-driven-design`,
-`education`, `eol-normalizer`, `event-storming`, `explainer-video`, `external-agents`, `fleet`,
+`education`, `engineering-concepts`, `eol-normalizer`, `event-storming`, `explainer-video`, `external-agents`, `fleet`,
 `gaming`, `github`, `go-format`, `harness-config`, `harness-memory`,
 `javascript-format`, `kindle-dedrm`, `machine-health`, `markdown-format`, `mcp-tools`, `miro`,
 `naming`, `overengineering`, `pixel-art`, `playgrounds`, `plugin-diagnostics`,

@@ -9,8 +9,6 @@ allowed-tools:
   - 'Bash(node ${CLAUDE_PLUGIN_ROOT}/lib/prerequisites.mjs latest ${CLAUDE_PLUGIN_ROOT} --for skill:playwright --data-dir ${CLAUDE_PLUGIN_DATA})'
 shell: bash
 metadata:
-  source: https://github.com/microsoft/playwright-cli
-  upstream-package: "@playwright/cli"
   upstream-version: 0.1.25
   upstream-sha: 57f7a10fa21f3728fe8a4189244a8f61a95e6239
   synced: 2026-11-22

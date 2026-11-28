@@ -209,10 +209,6 @@ export function casePlugins(entry) {
   return items.every((item) => /^"[^"\\]+"$/.test(item)) ? items.map((item) => item.slice(1, -1)) : null;
 }
 
-// `<case>: <reason>` for each case in a selected plugin's tree at the head
-// whose `plugins:` key loads something outside the plugin, or a directory
-// inside it that the pull request changes. tree(plugin) and read() as in
-// linkRefusals and refusals.
 export function caseLoadRefusals(paths, plugins, tree = () => undefined, read = () => undefined) {
   const out = [];
   for (const plugin of plugins) {
@@ -252,9 +248,6 @@ export function caseLoadRefusals(paths, plugins, tree = () => undefined, read = 
   return out;
 }
 
-// `<path>: <reason>` for each changed path of a selected plugin that breaks a
-// rule. read(side, path) returns the file text at "base" or "head", null when
-// absent there, or undefined when nothing can be read.
 export function refusals(paths, plugins, read = () => undefined) {
   const out = [];
   for (const path of paths) {

@@ -2494,10 +2494,11 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   It holds: it ends green with a notice, keeps `agent-ready` and posts no marker, and the
   work-unblock sweep re-fires it on the stranded backoff (`limits.stranded-backoff-hours`), at most
   24 hours between re-fires. A fault hold has no hard count, only that backoff, and a re-fire can
-  spend a model run each time. `wait` (`blocked-by-pr`) keeps `agent-ready` with
-  `outcome=wait pr=<n>`, naming the first `#<n>` in the reason: the work-unblock sweep restarts the
-  issue once that pull request merges or closes, its waits counted against `limits.stop-retries`
-  apart from its retries; a pull request that is not open, or none named, retries instead.
+  spend a model run each time. `wait` (`blocked-by-pr`, `closed-by-open-pr`) keeps `agent-ready`
+  with `outcome=wait pr=<n>`, naming the first `#<n>` in the reason: the work-unblock sweep
+  restarts the issue once that pull request merges or closes, its waits counted against
+  `limits.stop-retries` apart from its retries; a pull request that is not open, or none named,
+  retries instead.
   `intake` removes `agent-ready`, `status: ready` and `admission-deferred`, so the triage sweep,
   which counts `outcome=intake` as a hand-back, sends the issue back through intake. On
   `blocked-by-issue` (`retries: 1`) the comment also names, outside the quoted run words, the
@@ -2566,8 +2567,9 @@ that a listed human re-files the work as a new issue. What changes from the PR f
   open from the branch, `report-outcome` reads the issue's open closing PRs again, with the same
   trust rule as `issue-prior`: a closing keyword can land on another PR while the model runs. When
   one closes the issue, it opens no PR, logs that PR's number and stops `closed-by-open-pr`, which
-  routes to `retry`, so the next run stops in `issue-prior` while that PR stays open. A failed read
-  fails the job and opens no PR.
+  routes to `wait` on that PR: work-unblock starts the issue again only once the PR merges or
+  closes, within `limits.stop-retries`, and a run started meanwhile stops in `issue-prior`. A
+  failed read fails the job and opens no PR.
 - A stopped run's leftover branch is deleted on the issue's next run (owner decision on #7948).
   With the model running or a branch reused, `issue-prior` names, as `prune-branches`, every lane
   branch of the issue whose run posted a lanes-App outcome marker, whose commits ahead of the

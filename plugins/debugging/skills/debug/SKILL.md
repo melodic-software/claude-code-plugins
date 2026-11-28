@@ -1,5 +1,5 @@
 ---
-description: "Debug broken behavior via a disciplined six-phase loop: build feedback loop → reproduce → hypothesize → instrument → fix + regression test → cleanup. Use when: the user reports an OBSERVED FAILURE with no pre-existing reproduction, in any of three shapes: wrong or broken behavior ('debug this', 'why is X broken', 'X is throwing'), a performance regression ('this is slow'), or an intermittent or flaky failure, whether seen in the UI, logs, production, or a screenshot. Phase 1 builds the loop; no phase proceeds without a fast, deterministic signal. Action diagnose ('diagnose this', 'just find the cause') stops at the confirmed cause at file:line, changing no code. Skip when: the symptom is already a failing test with no reproduction gap. Cycle it directly. Skip when a captured profile, trace or heap snapshot is in hand and the failure does not reproduce (`/debugging:analyze-profile`). Outputs: reproduction loop, root-cause hypothesis, regression test or documented seam gap, cleaned fix, post-mortem finding."
+description: "Reproduce and fix (or diagnose at file:line, no edits) an observed failure with no repro: wrong, throwing, or broken behavior, slowness, or flaky/intermittent failure in UI, logs, production, or a screenshot. Use when 'debug this', 'why is X broken', 'diagnose this'. Not for an existing failing test (`/testing:fix-failing`) or a captured profile, trace, or snapshot with no repro (`/debugging:analyze-profile`)."
 argument-hint: "[diagnose] [--unattended] [bug description or observation]"
 user-invocable: true
 disable-model-invocation: false
@@ -430,7 +430,7 @@ four-part records live in [reference/native-debug.md](reference/native-debug.md)
 
 ## Next
 
-- The fix landed with its regression test, or a documented seam gap: `/verification:confirm fix`, then `/review:quality-gate`; when Phase 2 kept a drive report whose recorded commit is the PR's base commit, name its `report.json` path as the `--before` evidence (from any other commit, name it as pre-fix evidence of that commit).
+- The fix landed with its regression test, or a documented seam gap: `/verification:confirm fix`; when Phase 2 kept a drive report whose recorded commit is the PR's base commit, name its `report.json` path as the `--before` evidence (from any other commit, name it as pre-fix evidence of that commit).
 - A `diagnose` run stopped at the cause: `/implementation:implement fix`, reusing the reported loop.
 - An artifact with no reproduction: `/debugging:analyze-profile`.
 - The root cause is a design flaw that a focused patch cannot fix: `/planning:interview`.

@@ -1,5 +1,5 @@
 ---
-description: "Re-runs overengineering:audit and reports only what changed in the enforcement surface since the last run: new findings, verdicts that moved, closed findings, status changes. Read-only; never invokes realign. Use when the user asks what changed since the last enforcement audit, whether any verdict moved, or wants the audit on a recurring schedule."
+description: "Re-runs /overengineering:audit and reports only what changed in the enforcement surface since the last run: new findings, verdicts that moved, closed findings, status changes. Read-only; never invokes realign. Use when the user asks what changed since the last enforcement audit, whether any verdict moved, or wants the audit on a recurring schedule."
 argument-hint: "[--unattended] [layer ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

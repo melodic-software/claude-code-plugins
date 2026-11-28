@@ -1,4 +1,5 @@
 ---
+# portability-ok: R6 kept-adapter operation - cant-fail-scan.sh
 description: "Find tests that cannot fail or check little: assertion-free, tautological, vacuous, recomputed or mock-only expectations, asserts that never run, snapshot-only oracles, change detectors, retry-masking runner configs (Playwright, pytest, Vitest, Jest), stray `test.only`. JS/TS, Python, C#, Bash, PowerShell, Go. Use when: 'find tests that prove nothing', 'audit test quality', a CI gate on can't-fail tests (`--check`, `--strict`), or findings for the fix pass (`--persist-findings`, `--judge`). Read-only: nothing edits a test."
 argument-hint: "[--check] [--strict] [--persist-findings] [--file <path>] [--judge [<base>]] [--repo <repo> ...]"
 user-invocable: true
@@ -45,14 +46,14 @@ states the fired condition in the run's own values.
 | `testing/audit/rule-mock-only-oracle` | a mock-constructing test whose every assertion is a mock-interaction assertion | IMPORTANT | omitted | no | yes |
 | `testing/audit/rule-flaky-passes-suite` | a runner set to retry a failing test with nothing that fails the run on a retry-earned pass, so a test passing on a retry leaves the run green: a Playwright config with retries and `failOnFlakyTests` absent or literal `false`; a pytest config with `--reruns`, `--force-reruns` or `reruns` and no `--fail-on-flaky` in `addopts`; a Vitest config with `retry` (or `retry.count`) under a `test` key; a Jest `jest.retryTimes(n)` call. A literal `0` never fires | IMPORTANT | omitted | no | yes |
 | `testing/audit/rule-only-not-forbidden` | a Playwright config with `forbidOnly` absent or literal `false`, so a committed `test.only` shrinks the suite to one test | IMPORTANT | omitted | no | yes |
-| `testing/audit/rule-inert-assertion` | an assertion that never evaluates: an unawaited async matcher, a Python tuple assert or mock attribute, a bare `.Should();`, a constant C# oracle (`Assert.True(true)`, `Assert.NotNull(typeof(T))`, or `Equal`, `NotEqual` or `Same` on two `typeof` operands, which can also be a constant fail), a bats `run` nothing checks | IMPORTANT | `high` | yes | yes |
+| `testing/audit/rule-inert-assertion` | an assertion that never evaluates: an unawaited async matcher, a Python tuple assert or mock attribute, a bare `.Should();`, a constant C# oracle (`Assert.True(true)`, `Assert.NotNull(typeof(T))`, or `Equal`, `NotEqual` or `Same` on two `typeof` operands, which can also be a constant fail), a bats `run` nothing checks | IMPORTANT | `high` | yes | yes <!-- portability-ok: R6 kept-adapter operation - cant-fail-scan.sh --> |
 | `testing/audit/rule-constant-restatement` | a constant, or a literal the test bound, compared to a literal with no call before it | SUGGESTION | omitted | report-only | report-only |
 | `testing/audit/rule-source-text-read` | a tracked non-test source file read by a static path and searched as text | SUGGESTION | omitted | report-only | report-only |
-| `testing/audit/rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over a computed result, with no `else` and no length check; in C#, a bare `return;` before every assertion (one inside a `catch ... when (...)` guard is left alone) | IMPORTANT | omitted | yes | yes |
+| `testing/audit/rule-conditional-assertion` | every assertion inside an `if`, a `catch` or a loop over a computed result, with no `else` and no length check; in C#, a bare `return;` before every assertion (one inside a `catch ... when (...)` guard is left alone) | IMPORTANT | omitted | yes | yes <!-- portability-ok: R6 kept-adapter operation - cant-fail-scan.sh --> |
 | `testing/audit/rule-recomputed-derived` | an expected value rebuilt from the call's own arguments with an operator or aggregate (`reduce`, `sum(`, `a + b`); a property test (a marker such as `fc.assert(`, `@given(` or `Prop.ForAll` in its body or its decorator or attribute stack) and Playwright are exempt, while an example test in the same file is still judged | SUGGESTION | omitted | report-only | report-only |
 | `testing/audit/rule-snapshot-only` | every assertion is a snapshot call ("snapshot is the only oracle: review it as code"); an image comparison never counts | SUGGESTION | omitted | report-only | report-only |
 | `testing/audit/rule-weak-oracle` | every assertion is a weak matcher (`toBeDefined`, `is not None`, `Assert.NotNull`) or an over-broad exception check (`toThrow()`, `pytest.raises(Exception)`) | SUGGESTION | omitted | report-only | report-only |
-| `testing/audit/rule-throw-only-oracle` | every assertion checks only that a value the test built with `new` exists or has its own type (`Assert.NotNull(widget)`, `Assert.IsType<Widget>(widget)`), so only a throwing constructor fails the test; C# only | SUGGESTION | omitted | report-only | report-only |
+| `testing/audit/rule-throw-only-oracle` | every assertion checks only that a value the test built with `new` exists or has its own type (`Assert.NotNull(widget)`, `Assert.IsType<Widget>(widget)`), so only a throwing constructor fails the test; C# only | SUGGESTION | omitted | report-only | report-only <!-- portability-ok: R6 kept-adapter operation - cant-fail-scan.sh --> |
 
 - **`Tier` comes from each rule's row in the detector-findings severity crosswalk** (the contract
   cited under Persisting findings): IMPORTANT for rules whose test cannot fail on the path they
@@ -90,7 +91,7 @@ Scan root: the current repo's git toplevel, or `$CANT_FAIL_SCAN_ROOT` to narrow 
 supported operator lever). A whole-tree scan runs the per-file engine on every core, or on
 `$CANT_FAIL_SCAN_JOBS` files at a time, with the serial run's output. Ecosystems, each defined by an
 adapter file in `adapters/` ([format](reference/adapter-format.md)): JS/TS (`*.test.*`/`*.spec.*`: Jest, Vitest, node:test, Playwright),
-Python (`test_*.py`/`*_test.py`: pytest, unittest), C# (`*Test.cs`/`*Tests.cs`, Reqnroll
+Python (`test_*.py`/`*_test.py`: pytest, unittest), C# (`*Test.cs`/`*Tests.cs`, Reqnroll <!-- portability-ok: R6 kept-adapter operation - cant-fail-scan.sh -->
 `*StepDefinitions.cs` with each `[Then]` step judged as a test, `UnitTest*.cs`, and any other
 `*.cs` file holding a test attribute such as `[Fact]`: xUnit, NUnit, MSTest), Bash (`*.test.sh`
 harnesses, `*.bats`), PowerShell (`*.Tests.ps1`, Pester) and Go (`*_test.go`).
@@ -134,19 +135,19 @@ forms", "Resolving repositories", "Fan-out" and "Merging findings" say. What dif
 
 Each finding ends with `[project: <path>; ci: <yes|no|unknown>; kind: <kind>]`, in the Finding cell of
 the `--findings` table (the table keeps its seven columns) and before `Action:` in the text modes
-(`--brief` shows it only for a C# finding). The scan reads files only; it never builds or runs a
+(`--brief` shows it only for a C# finding). The scan reads files only; it never builds or runs a <!-- portability-ok: R6 kept-adapter operation - cant-fail-scan.sh -->
 project, and a value the evidence does not settle is `unknown`, never a guess.
 
-- **`project`** (C# only): the nearest `.csproj` above the test file. Other languages report `unknown`.
-- **`ci`**: `yes` when a `.github/workflows` `dotnet test` or `dotnet build` targets the project's
-  `.csproj`, a `.sln`/`.slnx` that lists it, or a directory holding one. `no` when workflows were read,
+- **`project`** (C# only): the nearest `.csproj` above the test file. Other languages report `unknown`. <!-- portability-ok: R6 kept-adapter operation - cant-fail-scan.sh -->
+- **`ci`**: `yes` when a `.github/workflows` `dotnet test` or `dotnet build` targets the project's <!-- portability-ok: R6 kept-adapter operation - cant-fail-scan.sh -->
+  `.csproj`, a `.sln`/`.slnx` that lists it, or a directory holding one. `no` when workflows were read, <!-- portability-ok: R6 kept-adapter operation - cant-fail-scan.sh -->
   at least one such command was found and none targets it. `unknown` with no workflow, a workflow that
   does not parse (no `jobs:` key, a tab indent), a variable, `.slnf` or continued command target, a
   `working-directory`, a local action (`uses: ./`, other than a reusable workflow) or a step that
-  starts a script, or no `dotnet` command at all. A script step or local action in any workflow makes
+  starts a script, or no `dotnet` command at all. A script step or local action in any workflow makes <!-- portability-ok: R6 kept-adapter operation - cant-fail-scan.sh -->
   untargeted projects report `ci: unknown`, because the scan does not scope steps to jobs.
 - **`kind`**: `unit`, `integration`, `functional`, `architecture`, `live` or `operational`. A
-  `project_kinds` entry (`<glob>=<kind>` against the repo-relative `.csproj` path, first match wins;
+  `project_kinds` entry (`<glob>=<kind>` against the repo-relative `.csproj` path, first match wins; <!-- portability-ok: R6 kept-adapter operation - cant-fail-scan.sh -->
   quote an entry that starts with `*`) decides first. Otherwise the project path's name tokens
   (`Unit`, `Integration`, `Smoke` is `live`, `Functional`, `Architecture`, `Provisioning` is
   `operational`) and package references (Reqnroll and Playwright are `functional`, ArchUnitNET
@@ -301,7 +302,7 @@ above, with `cant-fail-ok: relation across rows`.
 - **Judge skips in bash `*.test.sh`**: the discriminating-skip repo gate owns that shape.
 - **Read runner config beyond Playwright's JS/TS config and three retry settings.** pytest's
   reruns, Vitest's `retry` and Jest's `retryTimes` are read for `rule-flaky-passes-suite`; Vitest's
-  `allowOnly`, the other runners' equivalents, and Playwright's C# and Python bindings, which
+  `allowOnly`, the other runners' equivalents, and Playwright's C# and Python bindings, which <!-- portability-ok: R6 kept-adapter operation - cant-fail-scan.sh -->
   configure the runner in their own surfaces rather than in a config object read here, are out of
   scope.
 - **Write anything on bare invocation**. Persisting is only ever behind `--persist-findings`.
@@ -330,7 +331,7 @@ above, with `cant-fail-ok: relation across rows`.
   tighten the token list to chase recall at precision's expense.
 - **`recomputed-expectation` v1 is the decidable core**: textually identical actual/expected on one
   line (chains spanning lines are not matched, and only the first `expect` per line is examined).
-  `x = f(a); assert x == f(a)` and C#'s generic `Assert.Equal<T>(a, a)` are the same defect and are
+  `x = f(a); assert x == f(a)` and C#'s generic `Assert.Equal<T>(a, a)` are the same defect and are <!-- portability-ok: R6 kept-adapter operation - cant-fail-scan.sh -->
   not detected.
 - **The JS regex-literal masker triggers only after an operator or opening delimiter**, never after
   an identifier, so a regex directly after `return` is not masked: reading division as a regex would

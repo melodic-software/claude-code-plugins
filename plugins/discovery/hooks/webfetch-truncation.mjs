@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { pathToFileURL } from 'node:url'
+import { isHookEnabled } from '../lib/hook-enabled.mjs'
 
 export const MAX_STDIN_BYTES = 2 * 1024 * 1024
 const IDLE_MS = 2000
@@ -57,6 +58,7 @@ function readStdin(done) {
 }
 
 function main() {
+  if (!isHookEnabled('discovery', 'webfetch_truncation_enabled', true)) return
   readStdin(raw => {
     if (!raw) return
     let payload

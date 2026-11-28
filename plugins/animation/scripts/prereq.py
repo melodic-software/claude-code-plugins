@@ -109,7 +109,7 @@ def _row(name, playwright_core):
             (name, 'INFO', f'{dist} {have}, not the pinned {pinned} {want}: statistics may differ from the shipped '
              'pack and regression', '')
     return name, 'FAIL', f'{pinned} not installed', \
-        f'start a new Claude Code session, whose SessionStart hook installs the packages, or run `{_install_line()}`, ' \
+        f'run `{_install_line()}`, or set `install_python_deps_enabled` to `true` and start a new Claude Code session, ' \
         'then run the scripts through `pydeps.py run` (see the plugin README)'
 
 

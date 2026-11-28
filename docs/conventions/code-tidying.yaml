@@ -45,3 +45,7 @@ comment_lint_keep_opening:
   - plugins/*/skills/*/evals/*/scaffold.sh
   - plugins/*/evals/**/fixtures/**/*.sh
   - plugins/review/evals/revert-cases.sh
+  # Extensionless gh-forge stand-ins install.sh copies into the run's bin, so a person approves their opening block before the run (owner keep): https://github.com/melodic-software/claude-code-plugins/issues/18772
+  - plugins/source-control/evals/fixtures/gh-forge/gh
+  - plugins/source-control/evals/fixtures/gh-forge/git
+  - plugins/source-control/evals/fixtures/gh-forge/git-remote-evalforge

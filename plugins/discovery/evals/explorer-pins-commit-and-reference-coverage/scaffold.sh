@@ -21,8 +21,6 @@ printf '%s\n' \
   'def test_half_even():' \
   '    assert str(round_minor(0.125)) == "0.12"' >tests/test_rounding.py
 git add src tests
-# Fixed identity and dates make the commit sha the same on every run, so the
-# grader can match the exact value a correct run must record.
 GIT_AUTHOR_DATE='2026-01-01T00:00:00Z' GIT_COMMITTER_DATE='2026-01-01T00:00:00Z' \
   git -c user.name=eval -c user.email=eval@example.invalid -c commit.gpgsign=false \
   commit -q -m "add payments rounding fixtures"

@@ -238,15 +238,15 @@ def run(data, script_args, requirements=REQUIREMENTS):
     if not target.is_dir():
         drop_ready_stamp(data)
         sys.stderr.write(f'{PLUGIN}: the Python packages are not installed for {sys.implementation.cache_tag}. '
-                         'Start a new Claude Code session, whose SessionStart hook installs them, or run: '
-                         f'{repair_line(data)}\n')
+                         f'Run: {repair_line(data)}, or set install_python_deps_enabled to true and start a new '
+                         'Claude Code session.\n')
         return 2
     code = subprocess.run([sys.executable, '-S', *script_args], env=_env(target)).returncode
     if code and ready_stamp(data).exists():
         drop_ready_stamp(data)
-        sys.stderr.write(f'{PLUGIN}: the run failed; if the Python packages no longer load, the next Claude Code '
-                         'session start re-probes them and rebuilds them, or run now: '
-                         f'{repair_line(data)}\n')
+        sys.stderr.write(f'{PLUGIN}: the run failed; if the Python packages no longer load, run: '
+                         f'{repair_line(data)}, or set install_python_deps_enabled to true and start a new '
+                         'Claude Code session.\n')
     return code
 
 
@@ -258,8 +258,9 @@ def check(data, requirements=REQUIREMENTS, probe=PROBE):
     if target.is_dir() and loads(target, probe):
         rows.append(('PASS', CHECK_LABEL, str(target)))
     else:
-        rows.append(('FAIL', CHECK_LABEL, f'not installed for {sys.implementation.cache_tag}; the SessionStart hook '
-                                          f'installs it, or run: {repair_line(data)}'))
+        rows.append(('FAIL', CHECK_LABEL, f'not installed for {sys.implementation.cache_tag}; run: '
+                                          f'{repair_line(data)}, or set install_python_deps_enabled to true '
+                                          'and start a new session'))
     for tool, missing in CHECK_TOOLS.items():
         found = shutil.which(tool)
         rows.append(('PASS', tool, found) if found else ('FAIL', tool, f'not on PATH; {missing}'))

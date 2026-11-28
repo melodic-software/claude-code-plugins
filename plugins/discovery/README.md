@@ -59,7 +59,8 @@ A `PostToolUse` hook on `WebFetch` (`hooks/webfetch-truncation.mjs`) adds one li
 the result's last line is a truncation marker or placeholder, such as `[Content truncated for
 length...]` or `[... content continues ...]`: the result covers only part of the page, and
 `/discovery:read-docs` reads the rest. It never blocks a call or changes the result, and it does not
-echo the fetched line back.
+echo the fetched line back. Control it with the `webfetch_truncation_enabled` on/off setting
+(default `true`; user `userConfig` beats `docs/conventions/discovery.yaml`).
 
 On current Claude Code, WebFetch ends a result for a page over its read cap with its own read-on
 note and takes an optional `offset` input. The hook flags that note too, and for it the context
@@ -175,6 +176,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `research_recency_standard_days` | number<br>*min 1* | `30` | Recency window /discovery:research applies to a standard library, tool, CLI or API. Default 30. docs/conventions/discovery.yaml overrides this. |
 | `research_recency_guide_days` | number<br>*min 1* | `90` | Recency window /discovery:research applies to a tool- or vendor-specific architecture guide. Default 90. docs/conventions/discovery.yaml overrides this. |
 | `medium` | string | `"auto"` | Where the /discovery:blindspot view goes. auto (default): a local file. terminal: no page; file: a local file; artifact: a private Artifact; hosted = artifact. A terminal or file value in any rendered-views setting wins over this option. |
+| `webfetch_truncation_enabled` | boolean | `true` | Add a context note after a truncated WebFetch result naming /discovery:read-docs. Default true. Set false to stop the note; overrides docs/conventions/discovery.yaml for this user. |
 
 ### How to set these
 

@@ -2,11 +2,16 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/plugins/explainer-video/schemas/explainer-video.schema.json",
   "title": "Explainer-video team config",
-  "description": "Schema for explainer-video.yaml in a repository's convention home (default docs/conventions): the team layer of the explainer-video plugin's settings. Keys are read by /explainer-video:produce and listed in plugins/explainer-video/README.md, Configuration. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
+  "description": "Schema for explainer-video.yaml in a repository's convention home (default docs/conventions): the team layer of the explainer-video plugin's settings. Keys are read by /explainer-video:produce and the install-python-deps SessionStart hook, and listed in plugins/explainer-video/README.md, Configuration. Contract: docs/adr/0064-home-plugin-customization-in-docs-conventions-yaml.md.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
     "$schema": { "type": "string" },
+    "install_python_deps_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Whether the SessionStart install-python-deps hook installs explainer-video Python packages (ManimCE) into the plugin data directory. A user-layer value in pluginConfigs wins when set; otherwise this repository value overrides the plugin default (false)."
+    },
     "verification": {
       "enum": ["off", "light", "standard", "strict"],
       "default": "light",

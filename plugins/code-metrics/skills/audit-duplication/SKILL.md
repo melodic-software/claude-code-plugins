@@ -28,7 +28,7 @@ Collectors, tried in ladder order per language:
 |---|---|---|---|
 | `jscpd` | every language | `lines`, `tokens` | `jscpd` resolves on `PATH` or in `./node_modules/.bin` |
 | `dupl` | Go only | `lines`, `tokens` null | `jscpd` did not resolve and `dupl` did |
-| `cpd` (PMD) | TypeScript/JavaScript, Python, Go, C# | `lines`, `tokens` | `jscpd` did not resolve and `pmd` did (never for Bash: CPD has no shell language) |
+| `cpd` (PMD) | TypeScript/JavaScript, Python, Go, C# | `lines`, `tokens` | `jscpd` did not resolve and `pmd` did (never for Bash: CPD has no shell language) <!-- portability-ok: R6 kept-adapter operation - PMD CPD language coverage --> |
 
 No collector resolves means the language's row says so with the tool's install hint and the run
 continues. This plugin never installs, downloads, or `npx`-fetches a detector.
@@ -162,7 +162,7 @@ overrides are validated against the ladder file and an unknown name is dropped w
 - It does not judge. No duplication figure here is a bar, and no `check` gate exists in this
   version.
 - It does not find cross-language clones. Every detector here is token-based within one language
-  (`jscpd` groups JavaScript with TypeScript and nothing wider), so a C# method reimplemented in
+  (`jscpd` groups JavaScript with TypeScript and nothing wider), so a C# method reimplemented in <!-- portability-ok: R6 kept-adapter operation - PMD CPD language coverage -->
   Python is invisible to it.
 - It does not measure size, complexity, coverage, or type debt; those are the sibling `audit-*`
   skills in this plugin, and `/code-metrics:principles` explains what each number can and cannot

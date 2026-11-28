@@ -1,3 +1,5 @@
+<!-- portability-scope: ecosystem=windows - R3 declared-ecosystem surface (Windows DirectX 12 PE32 inspection) -->
+
 # Candidate selection
 
 Which games the mod can change, what `assess` checks, and which sources to trust for per-game

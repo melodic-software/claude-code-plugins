@@ -32,6 +32,11 @@
           "description": "Globs whose matches are protected from deletion.",
           "type": "array",
           "items": { "$ref": "#/$defs/protectionGlob" }
+        },
+        "additional_inventory_bounded_stores": {
+          "description": "Known-large stores the inventory sums under an entry budget instead of listing entry by entry, appended to the baseline list. A relative glob is read against the home directory, an absolute one against the whole path; '*' matches one path segment. Each match is one bounded row reported as not fully inventoried.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/protectionGlob" }
         }
       }
     },
@@ -45,6 +50,9 @@
         "additional_hints": { "$ref": "#/$defs/overlayV1/properties/additional_hints" },
         "additional_protected_path_globs": {
           "$ref": "#/$defs/overlayV1/properties/additional_protected_path_globs"
+        },
+        "additional_inventory_bounded_stores": {
+          "$ref": "#/$defs/overlayV1/properties/additional_inventory_bounded_stores"
         },
         "rules": {
           "description": "Rules that decide what a hinted entry is preselected for. Rules match on hint id or on hint class. Later layers append; when two rules match the same entry, the rule from the later layer wins.",
@@ -81,8 +89,37 @@
           "type": "array",
           "minItems": 1,
           "items": { "enum": ["file", "directory", "link", "other"] }
+        },
+        "requires": {
+          "description": "Facts the matched entry must also show, or the hint is dropped and the entry records unmet_hint_conditions. Each fails closed: a fact that cannot be read is unmet. zero_bytes: a file of size 0, or a directory tree holding only directories, all walked. absent_siblings: bare names that must not exist beside the entry. absent_children: bare names that must not exist inside the directory entry. unreferenced: none of home_files (relative to the home directory; missing files are fine, unreadable ones are not) may contain text.",
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "zero_bytes": { "const": true },
+            "absent_siblings": { "$ref": "#/$defs/bareNames" },
+            "absent_children": { "$ref": "#/$defs/bareNames" },
+            "unreferenced": {
+              "type": "object",
+              "required": ["text", "home_files"],
+              "additionalProperties": false,
+              "properties": {
+                "text": { "$ref": "#/$defs/nonEmptyString" },
+                "home_files": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": { "$ref": "#/$defs/nonEmptyString" }
+                }
+              }
+            }
+          }
         }
       }
+    },
+    "bareNames": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string", "minLength": 1, "pattern": "^[^/\\\\]+$" }
     },
     "protectionGlob": {
       "oneOf": [

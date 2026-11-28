@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# test-scope: plugins/evals/skills/plugin-eval/scripts/select-cases.py plugins/evals/skills/plugin-eval/scripts/select_mapping.py plugins/evals/skills/plugin-eval/scripts/eval_visibility.py plugins/evals/skills/plugin-eval/scripts/no_run_text.py
+# test-scope: plugins/evals/skills/plugin-eval/scripts/select-cases.py plugins/evals/skills/plugin-eval/scripts/select_mapping.py plugins/evals/skills/plugin-eval/scripts/suite_refs.py plugins/evals/skills/plugin-eval/scripts/eval_visibility.py plugins/evals/skills/plugin-eval/scripts/no_run_text.py
 """Tests for the edits select-cases.py runs no eval case for: Next, Related and See also edits,
 routing-only description edits, decided-term swaps and comment-line deletions.
 """
@@ -624,7 +624,9 @@ class SelectCasesNoRunTest(unittest.TestCase):
         import no_run_text
 
         text = '# Seeds it.\n$text = @"\n# Heading the model reads\nbody\n"@\n'
-        self.assertEqual(("hash", frozenset({3, 4, 5})), no_run_text.comment_style("a.ps1", text))
+        self.assertEqual(
+            ("hash", frozenset({3, 4, 5}), {}), no_run_text.comment_style("a.ps1", text)
+        )
 
     def test_directive_comment_deletion_is_not_a_comment_deletion(self):
         text = "# shellcheck disable=SC2086\necho hi\n"

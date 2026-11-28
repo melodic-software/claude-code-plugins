@@ -3,6 +3,12 @@
 All notable changes to the `machine-health` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.28.2] - 2026-11-27
+
+### Fixed
+
+- Exclude validated `<style>` bodies without raw `<` from the HTML text escaping scan in shared `html-escape.mjs` and `view-builder.mjs` so quoted CSS font stacks, attribute selectors and child combinators pass validation.
+
 ## [0.28.1] - 2026-11-27
 
 ### Changed

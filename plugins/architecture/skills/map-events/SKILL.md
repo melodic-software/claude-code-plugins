@@ -9,6 +9,8 @@ metadata:
   summary: Chart publishers, consumers, and orphan messages
 ---
 
+<!-- portability-scope: ecosystem=dotnet - R3 declared-ecosystem surface (C# async message topology) -->
+
 ## Repository context
 
 The current repository is both the consumer and the default subject. Collect the project root with

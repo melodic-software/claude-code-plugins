@@ -197,7 +197,7 @@ unambiguous; ask only where the answer is genuinely the user's.
    any later question, name the detected test runner and what it supports, so the user can stop
    here; read its kind from the audit skill's
    [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md) "`test-command` filter
-   forms". A path-list runner or `dotnet test` supports `audit --exercised` and the mutation gate of
+   forms". A path-list runner or `dotnet test` supports `audit --exercised` and the mutation gate of <!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh -->
    `/testing:cleanup` (if enabled), which runs through it. A name-filter-only runner, or one whose kind that section
    leaves unknown, supports neither: `audit --exercised` refuses
    unless the tool's own restriction reads `yes` in that file, and cleanup's mutation runs always
@@ -215,9 +215,9 @@ unambiguous; ask only where the answer is genuinely the user's.
    already runs its tests with, resolved by the steps in
    [the plugin's ecosystem-resolution copy](../../reference/ecosystem-resolution.md), with `{tests}`
    where the paths go. The audit fills `{tests}` with each path quoted as its own argument. When the
-   detected runner is `dotnet test`, propose `dotnet test {tests}`: the audit runs it once per test
+   detected runner is `dotnet test`, propose `dotnet test {tests}`: the audit runs it once per test <!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh -->
    project, with `{tests}` replaced by that project and a name filter for the test files' classes.
-   Propose nothing for a runner that only filters by name; step 2 already said what that costs. The runner kinds and the `dotnet test` form are in the
+   Propose nothing for a runner that only filters by name; step 2 already said what that costs. The runner kinds and the `dotnet test` form are in the <!-- portability-ok: R6 kept-adapter operation - dotnet-test-selection.sh -->
    audit skill's [`tool-test-restriction.md`](../audit/context/tool-test-restriction.md).
 7. **Write the config** to `docs/conventions/mutation-testing.yaml`, the template's YAML block
    without its Markdown, following

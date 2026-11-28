@@ -241,11 +241,10 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
                 takes_value=False,
                 help=(
                     "inventory only explicitly selected immediate children "
-                    "of the target; on a volume root (OS-managed or not) "
-                    "those children are non-OS directories and regular files, "
-                    "and on any other directory they are directories, so "
-                    "approved children can be re-inventoried without a "
-                    "whole-tree walk"
+                    "of the target: directories and regular files, non-OS "
+                    "ones on a volume root (OS-managed or not), so approved "
+                    "children can be re-inventoried in one snapshot without "
+                    "a whole-tree walk"
                 ),
             ),
             Flag(
@@ -268,6 +267,13 @@ SUBCOMMANDS: tuple[Subcommand, ...] = (
         (
             Flag("--target", required=True, example="target-dir"),
             _data_root_flag(),
+            Flag("--policy", example="policy.json"),
+            Flag(
+                "--user-policy",
+                example="policy.json",
+                help="the file the policy_file userConfig option names",
+            ),
+            Flag("--project-dir", example="project-dir"),
             Flag(
                 "--deep",
                 takes_value=False,

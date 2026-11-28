@@ -166,7 +166,7 @@ in them would reach the Bash tool unsubstituted, and the Bash tool's environment
 
 ## Next
 
-- All-clear verdict: /verification:confirm, then /source-control:pull-request create.
+- All-clear verdict: /verification:confirm.
 - Findings fixed: /review:quality-gate self, the Step 4 re-run.
 
 ## Related

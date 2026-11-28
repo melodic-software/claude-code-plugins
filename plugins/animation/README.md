@@ -15,7 +15,7 @@ Canvas 2D modules (`renderFrame(t)`), headless Chromium draws the frames, and ff
 | Skill | What it does |
 |---|---|
 | `/animation:rotoscope <clip> <work dir>` | Copies a reference clip drawing by drawing: traces each distinct drawing to vector paths, renders them through the ink.js brush engine, measures every drawing against its source (XOR against a codec-noise floor, SSIM, edge-band SSIM, paper color), fits per-shot brush overrides, and reviews 1:1 crops. Each run appends to a learnings file, and a retro step promotes recurring findings into the defaults. |
-| `/animation:setup` | Checks the prerequisites (ffmpeg with libx264, ffprobe, Node, playwright-core with Chromium, the pinned numpy and opencv, and the `playwright_core` option when set) and prints a PASS/FAIL/INFO table with one remedy line per failure. Check-only: it installs nothing (the SessionStart hook installs the Python packages). |
+| `/animation:setup` | Checks the prerequisites (ffmpeg with libx264, ffprobe, Node, playwright-core with Chromium, the pinned numpy and opencv, and the `playwright_core` option when set) and prints a PASS/FAIL/INFO table with one remedy line per failure. Check-only: it installs nothing (the SessionStart hook installs the Python packages when `install_python_deps_enabled` is on). |
 | `/animation:learn-style <work dir> <pack dir>` | Measures a rotoscope work directory into a style pack: palette and tone ramp, the seven style knobs, and statistic bands (edge softness, stroke and gap widths, edge roughness, gray inside the ink, boil of the frame and caption, holds on 1s/2s/3s). Then proves the pack by authoring a new scene with ink.js and checking its render against the bands. |
 | `/animation:produce <production dir>` | From a brief and one or more style packs, writes pre-production boards and stops for approval. After that, a shot list, scenes, rendered frames, a delivered file, and a review against the pack. `shots.json` is the cut list `inkstats.py --cuts` reads. |
 
@@ -46,9 +46,11 @@ Linux only; Windows and macOS are untested by hand (the scripts use no shell and
 UTF-8, but no run there has been recorded).
 
 - Python 3.12 or later (numpy 2.5 requires it) with pip. numpy and opencv are not vendored and
-  never fetched while a skill runs: a SessionStart hook installs the hash-locked set in
-  `requirements.txt` into the plugin data directory (`pip install --require-hashes`, wheels only),
-  and does nothing once it loads. A failed install is reported as a notice with the repair line.
+  never fetched while a skill runs: the SessionStart hook (`install_python_deps_enabled`, off by
+  default) can install the hash-locked set in `requirements.txt` into the plugin data directory
+  (`pip install --require-hashes`, wheels only), and does nothing once it loads. A failed install is
+  reported as a notice with the repair line; running without the packages prints the same install
+  command.
   Run every script through
   `python3 ${CLAUDE_PLUGIN_ROOT}/scripts/pydeps.py run --data-dir "${CLAUDE_PLUGIN_DATA}" -- <script> ...`.
   The pins keep the statistics and the shipped regression reproducible byte for byte. To change
@@ -75,6 +77,16 @@ It exits 0 only when every drawing passes and the encoded replica passes the woo
 `regress.py --synthetic <empty dir>` needs no unshipped input: it renders, encodes and re-traces the
 committed `fixtures/synthetic.js`.
 
+## Configuration
+
+A repository can commit `animation.yaml` in its convention home (default `docs/conventions`)
+to set these keys, checked against
+[`schemas/animation.schema.json`](schemas/animation.schema.json):
+
+| Key | Values | Default | What it controls |
+|---|---|---|---|
+| `install_python_deps_enabled` | `true`, `false` | `false` | Whether the SessionStart `install-python-deps` hook installs animation's hash-locked Python packages (numpy, opencv) into the plugin data directory. A user-layer value in `pluginConfigs` wins when set; otherwise this repository value overrides the plugin default ([hook enablement](../../docs/contracts/hook-enablement/README.md)). |
+
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
 ### Options reference
@@ -84,6 +96,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
+| `install_python_deps_enabled` | boolean | `false` | Install animation Python packages (numpy, opencv) into the plugin data directory at session start. Off by default; running any skill script without them prints the one-line install command. |
 | `playwright_core` | directory | *(none)* | The playwright-core package directory, or a folder holding node_modules/playwright-core, to render with. Leave unset to use the working directory's install or a playwright-cli install on PATH. |
 
 ### How to set these

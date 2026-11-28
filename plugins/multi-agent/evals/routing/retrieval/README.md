@@ -7,16 +7,22 @@ configuration each setup needs. The paid runs belong to the run slice
 
 ## The cases
 
-Each `rt-*` case asks one codebase-retrieval question: locate code, trace callers, or where
-something happens. `fixtures/snapshot.sh`, called by each case's `scaffold.sh`, extracts
+The six baseline `rt-*` cases ask codebase-retrieval questions (locate code, trace callers, or where
+something happens). `fixtures/snapshot.sh`, called by each baseline case's `scaffold.sh`, extracts
 `plugins/multi-agent` and `plugins/evals` as they stood at commit
 `af668bcb5c5380bb867be64f4d2cec96ce911bd3` into the run's workspace with `git archive`, so every
-arm searches the same files. Run from a clone that holds that commit; in one that does not, such as
-a shallow clone, the scaffold exits non-zero and the run scores 0.
+arm searches the same files. Run those cases from a clone that holds that commit; in one that does
+not, such as a shallow clone, the scaffold exits non-zero and the run scores 0.
+
+The three `rt-hard-*` cases ([#17732](https://github.com/melodic-software/claude-code-plugins/issues/17732))
+test harder retrieval synthesis: weighing conflicting sources, tracking a fact that changed across
+versions, and checking a primary source against misleading secondary summaries. Each `rt-hard-*`
+case's `scaffold.sh` writes synthetic offline fixture documents directly into the workspace, with no
+network access and no git history dependency.
 
 Every grader is a deterministic `regex` over the final reply, and each has must-pass and must-fail
 answers under `samples/`. No case has an `llm` or `baseline` grader, so no judge model scores a run
-and no grader needs calibration. Each answer key was read off the snapshot's files.
+and no grader needs calibration. Each answer key was read off the snapshot's or fixture's files.
 
 | Case | Kind | Answer |
 | --- | --- | --- |
@@ -26,9 +32,30 @@ and no grader needs calibration. Each answer key was read off the snapshot's fil
 | `rt-python-only-syntax` | Locate code | `validate-cases.py` in the evals plugin's validate skill, `python_only_tokens` |
 | `rt-fetch-host-gate` | Where it happens | `plugins/multi-agent/hooks/drift-checker-fetch-gate.mjs`, `decide`, `FETCH_HOSTS` |
 | `rt-frontier-guard` | Where it happens | `plugins/multi-agent/scripts/resolve-roles.sh`, `role_json`, fallback `opus` |
+| `rt-hard-conflicting-sources` | Conflicting sources | `docs/contracts/webhook-delivery.md`, `90`, `decorrelated` |
+| `rt-hard-version-changed-fact` | Version-changed fact | `zstd`, `--codec`, `3.0.0` |
+| `rt-hard-primary-source-claim` | Primary-source claim | `denied`, `ERR_EXPORT_SCOPE_REQUIRED`, `src/authz/export_gate.py` |
 
 Check the cases before a paid run with
 `/evals:validate plugins/multi-agent/evals/routing/retrieval`.
+
+## Pre-run decision rule (hard retrieval)
+
+Fixed before the paid run ([decision comment](https://github.com/melodic-software/claude-code-plugins/issues/17732#issuecomment-7086389928)):
+
+- **Arms:** `sonnet-medium` vs `opus-medium`.
+- **Cases measured:** the three `rt-hard-*` cases only (run with `--case 'rt-hard-*'`, since the
+  six baseline `rt-*` cases already scored near 1.00 across arms in `#10022`):
+
+```bash
+claude plugin eval plugins/multi-agent --case 'rt-hard-*' --scaffold --ablation none --model <model>
+```
+
+- **Threshold:** change the `retrieval` role default in `plugins/multi-agent/reference/defaults.yaml`
+  only if `opus-medium` beats `sonnet-medium` by at least `0.25` pass rate across the three
+  `rt-hard-*` cases; otherwise keep `sonnet`.
+- **Recording:** record the measured outcome in `defaults.yaml`'s `retrieval` basis; any default
+  change lands in a separate follow-up pull request.
 
 ## Arms
 

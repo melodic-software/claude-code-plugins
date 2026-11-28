@@ -17,7 +17,7 @@
 - [Internal-schema drift: fail loud, never guess](#internal-schema-drift-fail-loud-never-guess)
 - [Captured values on Windows carry `\r`: strip it before embedding in any command or JSON](#captured-values-on-windows-carry-r-strip-it-before-embedding-in-any-command-or-json)
 - [A fleet-sized value on jq's command line fails the exec](#a-fleet-sized-value-on-jqs-command-line-fails-the-exec)
-- [`--all` with `install_new: all` is a mass install of every catalog, and nothing warns you](#--all-with-install_new-all-is-a-mass-install-of-every-catalog-and-nothing-warns-you)
+- [`--all` with `install_new: all` was a mass install of every catalog](#--all-with-install_new-all-was-a-mass-install-of-every-catalog)
 - [A disabled-by-default install writes `false`, and only an install record can be uninstalled](#a-disabled-by-default-install-writes-false-and-only-an-install-record-can-be-uninstalled)
 
 Failure modes this skill is specifically built to avoid, and what breaks if the safeguard is
@@ -107,7 +107,7 @@ Re-read state immediately before each mutating
 step (`sync.md`'s "Concurrency" section, `converge.md` Step 4) rather than driving a whole multi-step
 sync off one snapshot taken at the start. When a mutation's actual result doesn't match what the
 snapshot predicted, that's this race. Note it in the report, don't treat it as a bug to chase. For
-an update call the CLI answers "already at the latest version", the report's `Moved during this run:`
+an update call the CLI answers "already at the latest version", the report's `moved during this run:`
 row is that note: `sync.md`'s "Concurrency" section says how the run's snapshots separate a moved id
 from a true no-op.
 
@@ -347,12 +347,13 @@ A surviving `\r` corrupts the value once it is either:
   hand-written `jq -r … | while read` over `fleet-state.sh`'s JSON produce it, with the all-but-last
   signature.
 
-**Never hand-write an id extraction.** `fleet-state.sh --ids <selector>` emits the id list for each
-`sync` step directly, one fully-qualified id per line, CR-free by construction, so the loop that
-feeds `claude plugin` needs no `jq` of its own at all:
+**Never hand-write an id extraction.** `fleet-state.sh --ids <selector>` emits the records for each
+`sync` step directly, one per line with the fully-qualified id first and the selector's other
+columns after a tab, CR-free by construction, so the loop that feeds `claude plugin` needs no `jq`
+of its own at all:
 
 ```bash
-while IFS= read -r id; do
+while IFS=$'\t' read -r id _; do
   [[ -n "$id" ]] || continue
   claude plugin update "$id" -s user
 done < <(…/scripts/fleet-state.sh --ids update-candidates-user)
@@ -385,7 +386,7 @@ report lists it under `Action needed`.
 - **Recheck trigger**: a `sync` run on Linux or Windows reporting a jq exec failure on a value this
   section says travels through a file.
 
-## `--all` with `install_new: all` is a mass install of every catalog, and nothing warns you
+## `--all` with `install_new: all` was a mass install of every catalog
 
 Observed 2026-09-14 on **Claude Code 2.1.270**, harness-ops 0.56.2. A `sync --all` run under
 `install_new: all` installed **2,231** plugins at user scope in about 20 minutes, 1,953 of them
@@ -407,14 +408,9 @@ it. `audit` would have predicted it, but `audit` is a separate invocation an ope
 `--all` has no particular reason to run first. Step 4's report names what it installed only
 *after* installing it.
 
-**The rule, until the skill enforces a volume gate itself:** treat `--all` combined with a rendered
-`install_new` of `all` as requiring an explicit human confirmation that names the number. Resolve
-the per-marketplace install gap first (`fleet-state.sh --marketplace <name> --ids
-missing-user-install` per marketplace (the selector `sync-run.sh` itself projects for Step 4), or
-one `audit all`), present the total, and proceed only on a yes. An agent running this unattended
-should downgrade its own effective policy to `ask` rather than assume the configured `all` was
-written with the cross-marketplace case in mind: an operator sets that option while thinking about
-the marketplace they maintain.
+**The script now holds it.** Under `--all` with policy `all`, `sync-run.sh` stops before Step 4
+the way it does for `ask` (`install_held: "all-target"`), installs nothing, and a person resolves
+the gap through the ask offer and the `--only-install` re-entry; `audit` predicts the same stop.
 
 **Reverting is exact but slow.** The run journal records one `Successfully installed plugin: <id>`
 line per install, so the revert set is `grep -oE "Successfully installed plugin: [^ ]+"` over

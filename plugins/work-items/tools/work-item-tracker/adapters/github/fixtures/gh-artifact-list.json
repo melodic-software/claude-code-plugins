@@ -1,0 +1,30 @@
+[
+  {
+    "body": "# OAuth callback plan",
+    "bodyHtml": "<h1>OAuth callback plan</h1>",
+    "createdAt": "2026-09-21T23:00:00Z",
+    "creator": { "id": 2, "login": "hubot" },
+    "description": "Register the callback URL.",
+    "id": 6626,
+    "name": "plan.md",
+    "number": 1,
+    "type": "generic",
+    "updatedAt": "2026-09-24T21:00:00Z",
+    "updatedByActor": { "id": 1, "login": "monalisa" },
+    "url": "https://github.com/o/r/issues/42/artifacts/1"
+  },
+  {
+    "body": "<!doctype html><h1>Report</h1>",
+    "bodyHtml": "",
+    "createdAt": "2026-09-22T10:00:00Z",
+    "creator": { "id": 2, "login": "hubot" },
+    "description": "",
+    "id": 6627,
+    "name": "report.html",
+    "number": 2,
+    "type": "embedded_html",
+    "updatedAt": "2026-09-22T10:00:00Z",
+    "updatedByActor": { "id": 2, "login": "hubot" },
+    "url": "https://github.com/o/r/issues/42/artifacts/2"
+  }
+]

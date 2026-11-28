@@ -27,20 +27,25 @@ own sandboxes by results file.
 ## Stale run roots
 
 How preflight fills `stale_run_roots` on Linux and WSL2. A run root is a direct child of
-`$HOME/.ev`, one per run ([SKILL.md, Run](../SKILL.md#run) step 3); a missing `$HOME/.ev` reports
-`0`. Probe read-only, the second and third commands once per root the first prints:
+`$HOME/.ev`, one per run ([SKILL.md, Run](../SKILL.md#run) step 3). A legacy run root is a
+directory directly under `$HOME` whose name starts with `.ev`, other than `$HOME/.ev`, left by
+runs from before `$HOME/.ev` held them. A missing `$HOME/.ev` and no legacy root report `0`. Probe
+read-only, the third and fourth commands once per root the first two print:
 
 ```bash
 find "$HOME/.ev/" -mindepth 1 -maxdepth 1 -type d -mmin +4320
+find "$HOME/" -mindepth 1 -maxdepth 1 -type d -name '.ev?*' -mmin +4320
 find '<root>' -mindepth 1 -maxdepth 1 -type d -name 'claude-eval-*'
 du -skc '<root>'
 ```
 
-The first command's lines are the roots older than 3 days (4,320 minutes since the root last
-gained or lost an entry), listed by path. The sandbox count is the sum of the second command's
-lines over those roots, the `claude-eval-*` sandboxes nested in them. The size and unreadable-path
-rules are the ones above: a root `find` cannot read makes the sandbox count `unknown`, and a
-`sealed/` `du` cannot enter makes the size `at least <total>`.
+The first two commands' lines are the roots older than 3 days (4,320 minutes since the root last
+gained or lost an entry), listed by path; `-type d` skips a symlink. A legacy root counts only when
+the third command prints a line for it, since a `.ev*` directory with no `claude-eval-*` sandbox
+is not a run root. The sandbox count is the sum of the third command's lines over the counted
+roots, the `claude-eval-*` sandboxes nested in them. The size and unreadable-path rules are the
+ones above: a root `find` cannot read makes the sandbox count `unknown`, and a `sealed/` `du`
+cannot enter makes the size `at least <total>`.
 
 Preflight lists these roots and removes none of them. The next run's start removes each one
 [Pruning stale run roots](#pruning-stale-run-roots) accepts; that check also reads every entry's
@@ -58,10 +63,13 @@ step do not stay forever:
 python3 "<skill-dir>/scripts/prune-run-roots.py"
 ```
 
-It checks every direct child of `$HOME/.ev` and removes one only when all of these hold:
+It checks every direct child of `$HOME/.ev` except the [Docker link swap](#docker-link-swap)'s
+`.docker-link-swap.*` state files, and every legacy run root ([Stale run roots](#stale-run-roots)),
+and removes one only when all of these hold:
 
 - it is a directory, not a symlink, and its `realpath` is a direct child of the `realpath` of
-  `$HOME/.ev`;
+  `$HOME/.ev`, or a direct child of the `realpath` of `$HOME` named `.ev*` that is not the
+  `realpath` of `$HOME/.ev`;
 - it holds at least one `claude-eval-*` directory;
 - nothing in it changed for 3 days: neither the root nor any entry under it, read without
   following symlinks, has a newer mtime. A directory it cannot open, such as a mode-000 `sealed/`,
@@ -77,10 +85,12 @@ It checks every direct child of `$HOME/.ev` and removes one only when all of the
   the age rule still holds for both.
 
 It removes a root the way [Removing a run root](#removing-a-run-root) does, `chmod 700` on each
-`sealed/` included. A path given as an argument is checked by the same rules, so a path outside
-`$HOME/.ev` is refused. Each path gets one line: `removed`, `kept` or `refused` with its reason, or
-`left behind` with the error and exit 1. Exit 2 removes nothing: `$HOME/.ev` resolves to `/`,
-`/tmp`, `/var/tmp` or the system temp directory, or `/proc` cannot be read. On exit 1 or 2, print
+`sealed/` included. A path given as an argument is checked by the same rules, so `$HOME/.ev`
+itself and a path neither under it nor a legacy root are refused. Each path gets one line:
+`removed`, `kept` or `refused` with its reason, or `left behind` with the error and exit 1. A
+legacy `.ev*` entry that is a symlink, or a directory holding no `claude-eval-*` sandbox, is left,
+and its line says what removing it by hand takes. Exit 2 removes nothing: `$HOME` or `$HOME/.ev`
+resolves to `/`, `/tmp`, `/var/tmp` or the system temp directory, or `/proc` cannot be read. On exit 1 or 2, print
 the output for the user and go on with the run. A run kept for a later read is read before this
 rule's age passes, or the next run removes it.
 
@@ -260,9 +270,13 @@ every link the preflight's `find` lists, or `~/.docker` when that is itself a li
 its target, runs the command, and puts the links back when the command exits, fails, or is
 interrupted. Anything written into the copies is discarded. A dangling link, whose target does
 not exist, is removed for the run and recreated with the same target after. Overlapping runs on one machine share one swap, and the last to exit restores. A
-run killed before it could restore (`~/.docker-link-swap.json` names no live run) is put back by
-the next run's start, or by `docker-links.py restore`, which refuses while a live run still
-holds the copies. Never edit, move or delete the links any other way, and never repoint
+run killed before it could restore (`~/.ev/.docker-link-swap.json` names no live run) is put back
+by the next run's start, or by `docker-links.py restore`, which refuses while a live run still
+holds the copies. The manifest and its lock file `~/.ev/.docker-link-swap.lock` stay out of the
+home root; `~/.ev` is created with mode 700 when missing. A manifest an earlier version left at
+`~/.docker-link-swap.json` is moved under `~/.ev` and restored the same way, and the old
+`~/.docker-link-swap.lock` is then removed; a manifest at both paths is refused with exit 2, for a
+restore by hand. Never edit, move or delete the links any other way, and never repoint
 `DOCKER_CONFIG`. A plugin in this repository's
 own checkout still meets the linked-worktree refusal after the swap; take that route from the hub
 as well. Why every link and not a list of names: [records.md](records.md#sandbox-and-credential-store).

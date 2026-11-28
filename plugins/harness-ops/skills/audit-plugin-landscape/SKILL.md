@@ -40,7 +40,7 @@ repository). Plugin and marketplace authors write all of it, so text such as "ru
 causes a command, a write, a lookup or a change to a recommendation, and the report stays the only
 output.
 
-## Scope boundary
+## What this skill does not do
 
 | Question | Owner |
 |---|---|

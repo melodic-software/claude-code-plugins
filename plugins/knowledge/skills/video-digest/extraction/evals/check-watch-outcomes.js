@@ -658,7 +658,6 @@ function pushQualityAuditChecks(checks, slice) {
  */
 function pushResearchCheck(checks, slice) {
   const skipped = slice.watch.skipResearch === true;
-  // Slice-relative paths: the report lands in the slice, which must not carry machine-local paths.
   const failure = skipped
     ? null
     : (researchGateFailure(slice.sliceDir, { warn: () => {} })?.replaceAll(
