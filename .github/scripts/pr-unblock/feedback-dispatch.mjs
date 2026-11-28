@@ -3,7 +3,7 @@ import { pathToFileURL } from "node:url";
 
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../lib/github-client.mjs";
 import { trustedListPath } from "../lib/trusted-actors.mjs";
-import { countRequests, DISPATCH_FLOOR_GRACE_MS, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { apiLimitsOrBuiltIn, countRequests, DISPATCH_FLOOR_GRACE_MS, rateLimitLatch, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { LaneRunPending } from "../lib/lane-binding.mjs";
 import { ACTIONS_BOT_ID, FEEDBACK_HOLDS } from "../lib/lane-vocabulary.mjs";
@@ -537,9 +537,39 @@ export const SWEEP_TICK_CAP = 5;
  */
 export const SWEEP_DECIDE_BUDGET_MS = 5 * 60_000;
 
-export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, onSent = () => {}, clock = Date.now, ...rest }) {
+const WHOLE = /^\d+$/;
+/**
+ * The notice line when the core pool is under the `sweep-hold` share of its limit and resets
+ * within `sweep-hold-minutes`, else null. Rounds sent then hit the stop floor before they finish,
+ * so they spend the window's last calls for nothing; the first tick after the reset decides them
+ * again from GitHub's state. A missing or unreadable reading never holds.
+ */
+export function lateWindowHold(reading, limits, now, pending) {
+  const { limit, remaining, reset } = reading ?? {};
+  if (![limit, remaining, reset].every((value) => WHOLE.test(String(value ?? ""))) || !(Number(limit) > 0)) {
+    return null;
+  }
+  const share = limits["sweep-hold"];
+  const minutes = limits["sweep-hold-minutes"];
+  const left = Number(reset) * 1000 - now;
+  if (!(Number(remaining) < share * Number(limit) && left > 0 && left < minutes * 60_000)) {
+    return null;
+  }
+  return (
+    `::notice::sweep: held, no round sent: core remaining=${remaining} of ${limit}, under sweep-hold ${share}, ` +
+    `and it resets ${resetLabel(Number(reset))} in ${Math.ceil(left / 60_000)} min, under sweep-hold-minutes ${minutes}; ` +
+    `${pending} open PRs wait for the first tick after the reset`
+  );
+}
+
+export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, onSent = () => {}, clock = Date.now, hold = () => null, ...rest }) {
   const context = { api, repository, appSenderId, log, settings, rest: { ...rest, defer: true } };
   const listed = await openPulls(context);
+  const held = hold(listed.length);
+  if (held !== null) {
+    log(held);
+    return null;
+  }
   const pulls = listed.filter((pull) => pull.user?.id === appSenderId);
   const owners = listed.filter((pull) => pull.user?.id !== appSenderId);
   const decided = [];
@@ -1208,8 +1238,9 @@ export async function main(env, deps = {}) {
   }
 }
 
-async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapped, log = (line) => console.log(line), now = Date.now() }, tick, eventRun) {
+async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapped, reading: seen, log = (line) => console.log(line), now = Date.now() }, tick, eventRun) {
   const budget = api ? null : budgetedFetch({ log, floorGraceMs: DISPATCH_FLOOR_GRACE_MS });
+  const reading = seen ?? ((resource) => budget?.reading(resource) ?? null);
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   const reads =
     api ??
@@ -1267,7 +1298,13 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
       const refire = swept.refireOf ? `refire-of${suffix}=${swept.refireOf}\n` : "";
       appendFileSync(env.GITHUB_OUTPUT, `run-id${suffix}=${swept.workflowRunId}\nupstream-run-id${suffix}=${swept.upstreamRunId}\n${refire}`);
     };
-    const sweep = async () => (await sweepReleased({ ...common, onSent: write })) ?? recoverLost({ ...common, now });
+    let held = false;
+    const hold = (pending) => {
+      const line = lateWindowHold(reading("core"), apiLimitsOrBuiltIn({ resolvedPath: "", log })["github-token"], now, pending);
+      held = line !== null;
+      return line;
+    };
+    const sweep = async () => (await sweepReleased({ ...common, onSent: write, hold })) ?? (held ? null : recoverLost({ ...common, now }));
     const swept = await sweep().finally(summary);
     if (swept !== null && sends === 0) {
       write(swept);
