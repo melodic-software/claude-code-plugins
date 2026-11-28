@@ -296,7 +296,7 @@ dispatches it.
 on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-hosted`. It takes only
 the upstream run id from the event and reads the rest back. It dispatches `pr-unblock.yml` with
 `activity: address-feedback` when the upstream is a `pull_request` run of one of those two paths in
-this repository, exactly one open non-draft PR into `main` has its head, the lanes App or an
+this repository whose actor and triggering actor satisfy the broker's review-upstream rule (attempt 1 by the lanes App, or any attempt triggered by a listed human; when a review event's latest attempt was a bot re-run, the dispatcher falls back to the sibling broker-accepted review run at that head, or skips naming the attempt and triggering actor if none exists), exactly one open non-draft PR into `main` has its head, the lanes App or an
 [adopted owner](#owner-pull-requests) opened that PR, it carries no `do-not-merge`, both lanes' newest reviewed-head markers
 name the head, an unresolved thread exists that `address-feedback` would keep (left only by the
 reviewer bot, one the lane never answered where a fix request, below, follows the reviewer bot's
@@ -1577,8 +1577,8 @@ the rules that only tighten in
     `babysit_review_evidence.py`, which compute the security review's clear condition,
     `.github/scripts/pr-merge/merge-holds.mjs`, `scripts/sync-hold-floor.py`, which writes the
     floor's copies, and the pr-merge scripts that apply and enforce the holds:
-    `enable-auto-merge.mjs`, `superseded.mjs`, `clear-escalations.mjs`, `gate-check.mjs` and
-    `head-ref-map.mjs`.
+    `enable-auto-merge.mjs`, `superseded.mjs`, `clear-escalations.mjs`, `verifier.mjs`,
+    `gate-check.mjs` and `head-ref-map.mjs`.
   - `gate`, a person merges it: the rest of the merge gate's own code, which is the rate guard
     (`.github/actions/log-api-budget/rate-guard.mjs`) with its rate-limit defaults
     (`.github/actions/log-api-budget/rate-limits.json`) and every other script of
@@ -3172,8 +3172,7 @@ listed human or the lanes App, and no run's patch stopped over the scan job's si
 (`scan-refused-patch`) since a listed human last added `agent-ready`. A filing short of any of these reads `verify:untrusted-spec`, and a
 failed read `verify:unreadable`. github-actions[bot] never counts as an own-agent identity, even if
 the list names it, and comments still count only when a listed human wrote them.
-A lanes App filing intake briefed and no one vetoed is spec too (the owner's standing rule,
-[owner-decisions L318](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L318)):
+A lanes App filing intake briefed and no one vetoed is spec too (owner's standing rule):
 the newest `<!-- issue-admission-record -->` comment the lanes App posted, by its account id,
 canonical and never edited, names the issue's current title and body by sha256
 (`.github/scripts/lib/admission-record.mjs`), its labels read whole carry no hold state
@@ -3183,8 +3182,7 @@ merge gate reads the same facts again at each judgment (`briefed_issue`), and a 
 on the issue still stops a lane merge (`issue_hold_refusal`). A marker in anyone else's comment,
 an edit after the record, or a hold keeps the body out of the spec.
 Intake-triage's own verdict briefs such a filing too, under the same vetoes
-([#18107](https://github.com/melodic-software/claude-code-plugins/issues/18107),
-[architecture PR 167](https://github.com/melodic-software/architecture/pull/167)): the first
+([#18107](https://github.com/melodic-software/claude-code-plugins/issues/18107)): the first
 `<!-- intake-triage verdict -->` comment the lanes App posted, by its account id and last edited by
 no other account, says the verdict holds nothing because the issue is at `status: ready` or
 admission moved it, and its last line stamps the issue's current title and body by sha256
@@ -3632,7 +3630,7 @@ them on every `pull_request` run, contract-only runs included:
   of the action's repository points to (an unauthenticated `git ls-remote --tags`), so a branch,
   a commit no tag names or a SHA swapped for a tag keeps the hold. An official vendor's action
   (`actions`, `github`, `dependabot`, `microsoft`, `azure`, `anthropics`, `openai`, any case;
-  owner decision D3, architecture `docs/owner-decisions.md` L351) may instead move from one
+  owner decision D3) may instead move from one
   version tag (`vN`, `vN.N`, `vN.N.N`) to another that exists in its repository; any other tag
   swap keeps the hold. Any other line, file, status or owner, a
   patch GitHub omitted or cut short, or an unread tag list keeps the hold, and an unreadable
@@ -3916,7 +3914,7 @@ Its scripts and tests are in
 | 5 held PRs | pr-merge's newest `pr-merge-summary` lists PRs blocked and untouched for over 24 hours, batched | `held-over-24h` |
 | 6 report-only audit | the newest scheduled run of `maintenance-audit-test-selection` or `maintenance-file-upstream-drift-issues` failed: the first on findings, the daily drift filer on a failed issue write, an unreachable upstream or a check script that broke its exit contract, after filing every issue, or in its report job with nothing filed when a drift check could not finish | `audit:<workflow>` |
 | 7 platform incident | githubstatus.com has an incident naming Actions that is open or began in the window, or shows Actions not operational; listed in the run summary only, never filed, since nothing in this repository acts on it | `platform:<incident>`, `platform:actions` |
-| 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while pr-merge's newest live sweep, at most 70 minutes old, counts candidates | `throughput-zero` |
+| 8 throughput | no PR by `merge.agent-identity` merged for 3 hours while at least one open, non-draft, unheld PR by `merge.agent-identity` waits (read from the open-PR GraphQL listing; falls back to pr-merge's sweep candidates when truncated past 40 open PRs with none seen) and pr-merge's newest live sweep is at most 70 minutes old | `throughput-zero` |
 | 9 lane stop | a comment by `merge.agent-identity` created in the window starts with a `<!-- work-resolve-issue outcome=funding\|limited\|turn-cap\|failed ... -->` marker, alone or after the attended queue's escalation marker line, one issue per outcome listing each stopped issue | `lane-stop:funding`, `lane-stop:limited`, `lane-stop:turn-cap`, `lane-stop:failed` |
 | 10 stalled lane stop | an open pull request into main, of any author, carries a pr-unblock lane-stopped comment by `merge.agent-identity` naming its current head, or a `needs-human-cleared` comment for that head whose reason now routes to a failing status, older than 2 hours (four `pr-unblock-dispatch.yml` ticks), with no `pr-unblock / <activity>` check run but a skip started on that head since, and no `stop-resolved` skip since: its same-head retries are spent; one issue lists each such stop | `stalled-lane-stop` |
 | 11 post-merge unreadable | each of the newest 4 post-merge reports (`pr-merge-post-merge-report`, kept by `dispatch-post-merge-runs` in a trusted scheduled or manual `pr-merge` run on `main`) has exit code 3: the post-merge check could not read lane merges, so merges hold with only a warning; the issue names the newest report's reason, each monitoring run prints it as an `::error` while it holds, and it only notifies and clears on a readable report. A run that kept no report neither counts nor resets; no report within 70 minutes leaves the signal unread | `post-merge-unreadable` |

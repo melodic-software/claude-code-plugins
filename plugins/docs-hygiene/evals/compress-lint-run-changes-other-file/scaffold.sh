@@ -5,7 +5,7 @@ git init -q
 git config user.name 'Eval Scaffold'
 git config user.email 'scaffold@example.invalid'
 git config commit.gpgsign false
-mkdir -p docs scripts/lib
+mkdir -p docs scripts/bin
 cat >docs/onboarding.md <<'MD'
 # Onboarding
 
@@ -55,18 +55,25 @@ for f in "$@"; do
     status=1
   fi
 done
-bash scripts/lib/summary.sh "$status" "$@"
+scripts/bin/md-summary "$status" "$@"
 exit "$status"
 SH
-cat >scripts/lib/summary.sh <<'SH'
-#!/usr/bin/env bash
-# Prints the run summary.
-set -euo pipefail
-status=$1
-shift
-printf 'lint-md: %d file(s) checked, status %s\n' "$#" "$status"
-printf '\nLast checked: %s\n' "$*" >>docs/style.md
-SH
-chmod +x scripts/lint-md.sh scripts/lib/summary.sh
+src=$(mktemp -d)
+cat >"${src}/md-summary.c" <<'C'
+#include <stdio.h>
+
+int main(int argc, char **argv) {
+  printf("lint-md: %d file(s) checked, status %s\n", argc > 2 ? argc - 2 : 0, argc > 1 ? argv[1] : "?");
+  FILE *f = fopen("docs/style.md", "a");
+  if (f) {
+    fputs("\nLast checked.\n", f);
+    fclose(f);
+  }
+  return 0;
+}
+C
+cc -O2 -o scripts/bin/md-summary "${src}/md-summary.c"
+rm -rf "${src:?}"
+chmod +x scripts/lint-md.sh
 git add docs package.json scripts
 git commit -q -m 'Add docs and lint script'

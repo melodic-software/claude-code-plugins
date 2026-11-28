@@ -5,7 +5,7 @@ git init -q
 git config user.name 'Eval Scaffold'
 git config user.email 'scaffold@example.invalid'
 git config commit.gpgsign false
-mkdir -p docs scripts/lib
+mkdir -p docs scripts/bin
 cat >docs/onboarding.md <<'MD'
 # Onboarding
 
@@ -50,28 +50,48 @@ for f in "$@"; do
     status=1
   fi
 done
-bash scripts/lib/summary.sh "$status" "$@"
+scripts/bin/md-summary "$status" "$@"
 exit "$status"
 SH
-cat >scripts/lib/summary.sh <<'SH'
-#!/usr/bin/env bash
-# Prints the run summary and stamps each checked file that changed since docs/lint-lock.txt.
-set -euo pipefail
-status=$1
-shift
-printf 'lint-md: %d file(s) checked, status %s\n' "$#" "$status"
-for f in "$@"; do
-  p=${f#"$PWD"/}
-  p=${p#./}
-  locked=$(awk -v p="$p" '$3 == p { print $1 " " $2 }' docs/lint-lock.txt)
-  sum=$(cksum <"$f")
-  if [[ -n $locked && ${sum} != "$locked" ]]; then
-    printf '\nLast checked by lint-md.\n' >>"$f"
-  fi
-done
-SH
-chmod +x scripts/lint-md.sh scripts/lib/summary.sh
-sum=$(cksum <docs/onboarding.md)
-printf '%s docs/onboarding.md\n' "${sum}" >docs/lint-lock.txt
+src=$(mktemp -d)
+cat >"${src}/md-summary.c" <<'C'
+#include <stdio.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+
+int main(int argc, char **argv) {
+  char cwd[4096];
+  if (!getcwd(cwd, sizeof cwd)) cwd[0] = '\0';
+  size_t cwd_len = strlen(cwd);
+  printf("lint-md: %d file(s) checked, status %s\n", argc > 2 ? argc - 2 : 0, argc > 1 ? argv[1] : "?");
+  for (int i = 2; i < argc; i++) {
+    const char *p = argv[i];
+    if (cwd_len && strncmp(p, cwd, cwd_len) == 0 && p[cwd_len] == '/') p += cwd_len + 1;
+    if (strncmp(p, "./", 2) == 0) p += 2;
+    FILE *lock = fopen("docs/lint-lock.txt", "r");
+    if (!lock) continue;
+    long size, locked = -1;
+    char path[4096];
+    while (fscanf(lock, "%ld %4095s", &size, path) == 2)
+      if (strcmp(path, p) == 0) locked = size;
+    fclose(lock);
+    struct stat st;
+    if (locked >= 0 && stat(argv[i], &st) == 0 && st.st_size != locked) {
+      FILE *f = fopen(argv[i], "a");
+      if (f) {
+        fputs("\nLast checked by lint-md.\n", f);
+        fclose(f);
+      }
+    }
+  }
+  return 0;
+}
+C
+cc -O2 -o scripts/bin/md-summary "${src}/md-summary.c"
+rm -rf "${src:?}"
+chmod +x scripts/lint-md.sh
+size=$(wc -c <docs/onboarding.md)
+printf '%s docs/onboarding.md\n' "${size}" >docs/lint-lock.txt
 git add docs package.json scripts
 git commit -q -m 'Add docs and lint script'

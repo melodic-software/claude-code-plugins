@@ -3,6 +3,12 @@
 All notable changes to the `miro` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.6.63] - 2026-11-28
+
+### Changed
+
+- Trimmed `/miro:setup` user-invoked frontmatter description (436 -> 137 chars) to a one-line summary without trigger phrasing.
+
 ## [0.6.62] - 2026-11-28
 
 ### Changed

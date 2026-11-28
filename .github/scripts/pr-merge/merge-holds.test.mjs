@@ -416,6 +416,7 @@ const FLOOR_FILES = [
   ".github/scripts/pr-merge/enable-auto-merge.mjs",
   ".github/scripts/pr-merge/superseded.mjs",
   ".github/scripts/pr-merge/clear-escalations.mjs",
+  ".github/scripts/pr-merge/verifier.mjs",
   ".github/scripts/pr-merge/gate-check.mjs",
   ".github/scripts/pr-merge/who.mjs",
   ".github/scripts/pr-merge/rate-stop.bash",

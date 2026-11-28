@@ -577,8 +577,24 @@ kitTest('parseReply reads none, a finding, and rejects malformed or overlong rep
   expect(parseReply('finding: x\ncategory: taste\nrule: r')).toEqual({ kind: 'unparsable', reason: 'bad_category', lengths: { finding: 1, rule: 1, evidence: 0 } })
   expect(parseReply('finding: x\ncategory: process')).toEqual({ kind: 'unparsable', reason: 'no_rule', lengths: { finding: 1, rule: 0, evidence: 0 } })
   expect(parseReply(`finding: ${'x'.repeat(241)}\ncategory: process\nrule: r`)).toEqual({ kind: 'unparsable', reason: 'field_too_long:finding', lengths: { finding: 241, rule: 1, evidence: 0 } })
-  expect(parseReply(`finding: x\ncategory: process\nrule: ${'r'.repeat(300)}\nevidence: ${'e'.repeat(250)}`)).toEqual({ kind: 'unparsable', reason: 'field_too_long:rule', lengths: { finding: 1, rule: 300, evidence: 250 } })
   expect(parseReply('no labels here')).toEqual({ kind: 'unparsable', reason: 'no_finding' })
+})
+
+kitTest('parseReply cuts an overlong rule or evidence to the cap and keeps the finding', async () => {
+  expect(parseReply('finding: x\ncategory: process\nrule: abcdefgh\nevidence: ok', 5)).toEqual({ kind: 'finding', value: { finding: 'x.', category: 'process', rule: 'abcd…', evidence: 'ok' } })
+  expect(parseReply('finding: x\ncategory: process\nrule: ok\nevidence: 123456', 5)).toEqual({ kind: 'finding', value: { finding: 'x.', category: 'process', rule: 'ok', evidence: '1234…' } })
+  expect(parseReply('finding: x\ncategory: process\nrule: abcde\nevidence: 12345', 5)).toMatchObject({ kind: 'finding', value: { rule: 'abcde', evidence: '12345' } })
+  const observedMax = parseReply(`finding: x\ncategory: process\nrule: ${'r'.repeat(340)}\nevidence: ${'e'.repeat(287)}`)
+  expect(observedMax).toMatchObject({ kind: 'finding', value: { rule: `${'r'.repeat(239)}…`, evidence: `${'e'.repeat(239)}…` } })
+  expect(parseReply('finding: abcdef\ncategory: process\nrule: abcdefgh\nevidence: 123456', 5)).toEqual({ kind: 'unparsable', reason: 'field_too_long:finding', lengths: { finding: 6, rule: 8, evidence: 6 } })
+})
+
+kitTest('buildPrompt states the field cap for rule and evidence and keeps the finding at 200', async () => {
+  const p = buildPrompt([], [], undefined, [], false, { fieldMax: 120 })
+  expect(p).toContain('where it is written, at most 120 characters>')
+  expect(p).toContain('the act in this session that breaks it, at most 120 characters>')
+  expect(p).toContain('finding: <one sentence of at most 200 characters')
+  expect(buildPrompt([], [])).toContain('the act in this session that breaks it, at most 240 characters>')
 })
 
 kitTest('parseReply stays linear on a long run of asterisks', async () => {
