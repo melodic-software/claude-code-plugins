@@ -1,6 +1,6 @@
 ---
 # portability-ok: R6 kept-adapter operation - audit-suppressions.sh C# patterns
-description: "List lint/type/coverage/mutation/security suppressions (change, path, tree): eslint-disable, @ts-expect-error, noqa, type: ignore, shellcheck, pragma, nolint, markdownlint, rubocop, c8, Stryker, nosec, nosemgrep, gitleaks; rule ids, reason, justified, correctness. Reports, never gates. Use when: 'audit lint suppressions', 'count suppressions'."
+description: "List lint/type/coverage/mutation/security suppressions (change, path, tree): eslint-disable, @ts-expect-error, Python (noqa, type: ignore, pylint, pyright), C#/PowerShell SuppressMessage, Java @SuppressWarnings, pragma, shellcheck, nolint, markdownlint, rubocop, istanbul/c8/coverage.py, Stryker, bandit nosec, nosemgrep, gitleaks; rule ids, reason, justified, correctness. Reports, never gates. Use when: 'audit lint suppressions', 'count suppressions'. Not for complexity: /code-metrics:audit."
 argument-hint: "[--json|--findings [--memory-dir <dir>]] [--all] [--base <ref>] [<path>...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

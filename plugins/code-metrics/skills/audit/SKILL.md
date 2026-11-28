@@ -1,5 +1,5 @@
 ---
-description: "Measure code for changed files (diff), paths, or tree (--all) and report numbers beside a reference (opt-in size --check mode). Actions: size (line count per every text file), complexity (per-function cyclomatic, cognitive, Halstead difficulty), type-debt (typed-code percentage, anys, mypy). Use when: 'lines per file', 'type coverage', 'type debt'."
+description: "Measure code for changed files (diff), paths, or tree (--all) and report numbers beside a reference (opt-in size --check mode). Actions: size (lines per text file), complexity (per-function cyclomatic, cognitive, Halstead difficulty), type-debt (typed-code percentage, anys, mypy). Use when: 'lines per file', 'type coverage', 'type debt'. Not for line coverage or CRAP: /code-metrics:audit-coverage."
 argument-hint: "<size|complexity|type-debt> [--json] [--all] [--base <ref>] [--check] [<path>...] [--repo <repo>...]"
 user-invocable: true
 disable-model-invocation: false
