@@ -327,7 +327,7 @@ test("the dispatch job's token is actions: write and contents: read, and nothing
   );
   const checkout = dispatch.split("\n      - name: Check out the api-budget library\n")[1].split("\n      - name: ")[0];
   assert.match(checkout, /^ {8}if: steps\.tip\.outputs\.sha != ''\n {8}continue-on-error: true\n/);
-  assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {12}\/lib\/publish-gate\.mjs\n(?: {12}\/\S+\n)* {10}sparse-checkout-cone-mode: false\n/);
+  assert.match(checkout, /\n {10}ref: \$\{\{ steps\.tip\.outputs\.sha \}\}\n {10}path: \.base\n {10}persist-credentials: false\n {10}sparse-checkout: \|\n {12}\/\.github\/actions\/log-api-budget\/\n {12}\/lib\/publish-gate\.mjs\n {12}\/\.github\/scripts\/pr-merge\/cancel-orphaned-runs\.mjs\n {12}\/\.github\/scripts\/lib\/github-client\.mjs\n {12}\/\.node-version\n {10}sparse-checkout-cone-mode: false\n/);
 });
 
 test("dispatch-full-run's sparse checkout holds every module the orphaned-run cancel loads", () => {
