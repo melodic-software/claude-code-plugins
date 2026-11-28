@@ -1,5 +1,5 @@
 ---
-description: "Report-only permission grant audit: allowed-tools frontmatter, permissions.allow — portable auto-mode durability (dropped interpreter wildcards, machine paths, substitution tokens, inert plugin grants, guarded helper denied despite allow rule). Use when: 'why was my allowed-tools grant ignored', 'audit allow rules', 'is this permission portable'."
+description: "Report-only permission grant audit: allowed-tools frontmatter, permissions.allow, portable auto-mode durability (dropped interpreter wildcards, machine paths, substitution tokens, inert plugin grants, guarded helper denied despite allow rule). Use when: 'why was my allowed-tools grant ignored', 'audit allow rules', 'is this permission portable'."
 argument-hint: "[frontmatter|settings|plugins|all] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
