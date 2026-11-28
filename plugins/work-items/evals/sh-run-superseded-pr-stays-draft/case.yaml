@@ -3,7 +3,7 @@ name: sh-run-superseded-pr-stays-draft
 graders:
   - name: 'pr-906-stays-draft'
     type: 'regex'
-    pattern: '\b906\b[^\n]{0,80}\b(?:stays|stayed|remains|is left|is still|is|left|leave|leaves|kept|keep|keeps)\b(?:\s+(?:as|in|a))*\s+draft\b|\b(?:leave|leaves|keep|keeps)\s+(?:PR\s+)?#?906\s+(?:(?:as|in)\s+)?(?:a\s+)?draft\b|\b(?:the|this)\s+PR\s+(?:stays|stayed|remains|is left|is kept)(?:\s+(?:as|in|a))*\s+draft\b'
+    pattern: '\b906\b[^\n]{0,80}\b(?:stays|stayed|remains|is left|left|leave|leaves|kept|keep|keeps)\b(?:\s+(?:as|in|a))*\s+draft\b|\bheld/superseded:[^\n]{0,20}\b906\s+is\s+draft\b|\b(?:leave|leaves|keep|keeps)\s+(?:PR\s+)?#?906\s+(?:(?:as|in)\s+)?(?:a\s+)?draft\b|\b(?:the|this)\s+PR\s+(?:stays|stayed|remains|is left|is kept)(?:\s+(?:as|in|a))*\s+draft\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

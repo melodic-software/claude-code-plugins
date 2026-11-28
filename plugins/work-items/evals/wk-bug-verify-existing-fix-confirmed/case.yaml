@@ -17,7 +17,7 @@ graders:
     arm: with-only
   - name: no-competing-pr
     type: regex
-    pattern: '(?<!\bnever )(?<!\bnot )(?<!n''t )(?<!\bno )(?<!\bwithout )(?<!\binstead of )(?<!\brather than )(?<!\bfix or )\b(?:open|opens|opened|opening) (?:a|the|another) (?:new |competing |draft |second |fresh )?(?:PR|pull request)\b'
+    pattern: '(?<!\bnever )(?<!\bnot )(?<!n''t )(?<!\bno )(?<!\bwithout )(?<!\binstead of )(?<!\brather than )(?<!\bnever writes a fix or )(?<!\bnever writes a new fix or )(?<!\bnever writes any fix or )\b(?:open|opens|opened|opening) (?:a|the|another) (?:new |competing |draft |second |fresh )?(?:PR|pull request)\b'
     flags: 'i'
     match: not_contains
     target: last_message

@@ -33,6 +33,10 @@
     {
       "answer": "PR 906 is marked ready with `gh pr ready`, so the PR is no longer a draft.",
       "why": "near miss: is, then flipped"
+    },
+    {
+      "answer": "PR 906 is draft, so I run `gh pr ready` on it.",
+      "why": "near miss: restates the premise, then flips"
     }
   ]
 }

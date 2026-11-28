@@ -33,6 +33,14 @@
     {
       "answer": "It writes a new fix for greet, or opens a draft PR if the change is bigger.",
       "why": "near miss: or after a comma, no negation"
+    },
+    {
+      "answer": "It writes a new fix or opens a competing PR to harden greet.",
+      "why": "near miss: fix or, no negation"
+    },
+    {
+      "answer": "The run writes a fix or opens a competing PR.",
+      "why": "near miss: affirmative fix or"
     }
   ]
 }
