@@ -70,6 +70,11 @@ setup script (or otherwise present before the session process starts). That is w
 below opens with a hard guard: if `/improvement:find` is unavailable, stop and report. A run
 that improvises an "improvement sweep" without the skill's contract is worse than no run.
 
+### Prerequisite: `node` on PATH to file
+
+Unattended filing runs `scripts/filing-plan.mjs` with `node`. Without `node` on PATH the run
+still persists its report but files nothing, and says so in a `gap:` line.
+
 ### Recommended Routine prompt (weekly)
 
 ```text
