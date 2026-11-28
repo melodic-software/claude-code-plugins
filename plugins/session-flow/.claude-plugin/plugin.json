@@ -262,7 +262,7 @@
     "observer_field_max": {
       "type": "number",
       "title": "Observer field cap",
-      "description": "Most characters in a check reply's finding, rule or evidence before the reply counts as parse_failed; default 240.",
+      "description": "Most characters in a check reply's rule or evidence, which the check prompt states and longer ones are cut to; a longer finding counts as parse_failed; default 240.",
       "default": 240,
       "min": 1
     },
