@@ -94,7 +94,7 @@ graders:
     arm: both
   - name: no-generated
     type: regex
-    pattern: '(?:(?<!\bdo\s)\b(?:no|none|not|zero|without)\b(?!\s+(?:sure|check(?:ed)?|verif(?:y|ied)|know)\b)|n(?:''|’)t\b)[^\n.;,]{0,30}\bgenerated\s+(?:files?|records?)\b|\bgenerated(?:\s+(?:files?|records?))?\s*[:|]\s*(?:none|no|0)\b|\bno\b[^\n.;,]{0,20}\bregenerate\b'
+    pattern: '(?:(?<!\bdo\s)\b(?:no|none|not|zero|without)\b(?!\s+(?:sure|check(?:ed)?|verif(?:y|ied)|know)\b)|(?<!\bdo)n(?:''|’)t\b(?!\s+(?:sure|check(?:ed)?|verif(?:y|ied)|know)\b))[^\n.;,]{0,30}\bgenerated\s+(?:files?|records?)\b|\bgenerated(?:\s+(?:files?|records?))?\s*[:|]\s*(?:none|no|0)\b|\bno\b[^\n.;,]{0,20}\bregenerate\b'
     flags: 'i'
     target: last_message
     arm: both
@@ -106,7 +106,7 @@ graders:
     arm: both
   - name: released-untouched
     type: regex
-    pattern: '\breleased\b(?:(?!\b(?:while|but|whereas)\b|;(?=[^\n]{0,20}\b(?:historical|current|ADRs?|prose)\b)|\.\s)[^\n]){0,100}?(?:(?<!not\s)frozen|un(?:touched|rewritten|edited|changed)|never\s+(?:touched|rewritten|edited|changed)|(?:not|n(?:''|’)t)\s+(?:be\s+)?(?:rewritten|touched|edited|changed|modified)|(?:left|kept)\s+(?:alone|as\s+written|unchanged)|(?:stays?|remains?)\s+as\s+(?:published|written)|only\s+listed|listed\s+only|do\s+not\s+touch)|\bnothing\b[^\n.;]{0,40}?\breleased\b[^\n.;]{0,60}?\b(?:rewritten|edited|touched|changed)\b|^(?=[\s\S]*?(?:`none`|\|\s*none\s*\|)[^\n]{0,80}?\b(?:never\s+touched|everything)\b)(?=[\s\S]*?\breleased\s*\(report\))(?![\s\S]*?\breleased\s*\(edit\))'
+    pattern: '\breleased\b(?:(?!\b(?:while|but|whereas)\b|;(?=[^\n]{0,20}\b(?:historical|current|ADRs?|prose)\b)|\.\s)[^\n]){0,100}?(?:(?<!not\s)(?<!n[''’]t\s)frozen|un(?:touched|rewritten|edited|changed)|never\s+(?:touched|rewritten|edited|changed)|(?:not|n(?:''|’)t)\s+(?:be\s+)?(?:rewritten|touched|edited|changed|modified)|(?:left|kept)\s+(?:alone|as\s+written|unchanged)|(?:stays?|remains?)\s+as\s+(?:published|written)|only\s+listed|listed\s+only|do\s+not\s+touch)|\bnothing\b[^\n.;]{0,40}?\breleased\b[^\n.;]{0,60}?\b(?:rewritten|edited|touched|changed)\b|^(?=[\s\S]*?(?:`none`|\|\s*none\s*\|)[^\n]{0,80}?\b(?:never\s+touched|everything)\b)(?=[\s\S]*?\breleased\s*\(report\))(?![\s\S]*?\breleased\s*\(edit\))'
     flags: 'i'
     target: last_message
     arm: both

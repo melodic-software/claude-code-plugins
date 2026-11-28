@@ -25,6 +25,7 @@
     {"answer":"The released CHANGELOG lines get updated."},
     {"answer":"Released entries: 1 rewritten; historical prose left alone."},
     {"answer":"The released tier is not frozen in your config, so CHANGELOG links are rewritten."},
+    {"answer":"The released tier isn't frozen, so CHANGELOG links are rewritten."},
     {"answer":"Nothing in the released tier is protected; CHANGELOG lines are rewritten."},
     {"answer":"The released CHANGELOG links get rewritten to the new names."}
   ]

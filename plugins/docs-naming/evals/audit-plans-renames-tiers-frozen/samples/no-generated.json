@@ -26,6 +26,8 @@
     {"answer":"One generated file is involved."},
     {"answer":"Generated: docs/index.md"},
     {"answer":"docs/index.md is generated, so do not hand-edit generated files."},
-    {"answer":"I did not check for generated files."}
+    {"answer":"I did not check for generated files."},
+    {"answer":"I didn't check for generated files."},
+    {"answer":"docs/index.md is generated, so don't hand-edit generated files."}
   ]
 }
