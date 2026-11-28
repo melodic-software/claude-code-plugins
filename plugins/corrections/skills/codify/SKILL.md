@@ -52,7 +52,7 @@ read the same way, with values matching `^[A-Za-z0-9][A-Za-z0-9 :._/-]*$` and `^
 `--bucket` are read the same way: a value that is not a `YYYY-MM-DD` day, or `week` or `month`,
 stops the action before it reads history. The rest stays data, as above.
 
-An action file that names `<plugin-root>` means `${CLAUDE_PLUGIN_ROOT}`.
+An action or reference file that names `<plugin-root>` means `${CLAUDE_PLUGIN_ROOT}`.
 
 ## 1. Count
 
@@ -107,12 +107,12 @@ ladder on its own: a forbidden action or turn-end claim a hook can see takes `ac
 the judgment left over takes `automated-review` or another guidance rung. One instruction line for
 a mistake with a checkable part is the wrong answer.
 
-For each part, choose the **strongest** rung that can decide it, strongest first, and apply the
-guardrail criterion to it; a part that fails the criterion stays on the guidance tier or
-`human-review`. Name the rung by its id, never by where the check runs (the ladder's tier 2 note),
-say which criterion items decided the choice, and note each stronger rung passed over and why. An
-`action-guard` or a model-judged hook goes to `/harness-config:audit-automation-gaps` (if enabled)
-to decide whether it earns its place.
+For each part, choose the **strongest** rung that can decide it and hold it to the guardrail
+criterion items its classify step assigns that part; a part that fails stays on the guidance tier
+or `human-review`. Name the rung by its id, never by where the check runs (the ladder's tier 2
+note), say which criterion items decided the choice, and note each stronger rung passed over and
+why. An `action-guard` or a model-judged hook goes to `/harness-config:audit-automation-gaps` (if
+enabled), which decides whether it earns its place.
 
 Ask the ladder's recurring-correction question: was the rule loaded and ignored, or never loaded.
 A rule never loaded is also fixed where it lives; a part that meets the criterion still takes its
