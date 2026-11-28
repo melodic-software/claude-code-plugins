@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test-scope: docs/conventions/work-items.yaml
+# test-scope: docs/conventions/work-items.yaml plugins/work-items/.claude-plugin/plugin.json
 set -uo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_CONFIG GIT_INDEX_FILE GIT_COMMON_DIR
 export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/debugging/.claude-plugin/plugin.json
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
 unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
@@ -188,10 +189,24 @@ check("--branding-option passes userConfig branding into the built page", optRun
 
 const cacheRoot = `${work}/claude-cfg`;
 const cachedPlugin = `${cacheRoot}/plugins/cache/test-mkt/debugging/1.0.0`;
-const { cpSync } = await import("node:fs");
-mkdirSync(cachedPlugin, { recursive: true });
-for (const rel of [".claude-plugin", "lib", "reference", "scripts", "skills/debug/templates"]) {
-  cpSync(`${dir}/../${rel}`, `${cachedPlugin}/${rel}`, { recursive: true });
+const { dirname: pathDirname } = await import("node:path");
+for (const rel of [
+  ".claude-plugin/plugin.json",
+  "lib/config-cascade.mjs",
+  "lib/html-escape.mjs",
+  "lib/plugin-options.mjs",
+  "lib/state-key.sh",
+  "lib/view-builder.mjs",
+  "lib/view-registry.mjs",
+  "lib/view-runtime.js",
+  "lib/view-settings.mjs",
+  "lib/yaml-subset.mjs",
+  "reference/html-tokens.css",
+  "scripts/build-view.mjs",
+  "skills/debug/templates/post-mortem-view.html",
+]) {
+  mkdirSync(pathDirname(`${cachedPlugin}/${rel}`), { recursive: true });
+  copyFileSync(`${dir}/../${rel}`, `${cachedPlugin}/${rel}`);
 }
 writeFileSync(`${cacheRoot}/settings.json`, JSON.stringify({
   pluginConfigs: { "debugging@test-mkt": { options: { branding: JSON.stringify({ logo: { label: "Cached Install Brand" } }) } } },
