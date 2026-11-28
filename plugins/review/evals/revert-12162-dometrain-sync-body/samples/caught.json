@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Blocking | Claiming measured no-loss for trimming `dometrain/skills/sync/SKILL.md` from a single case (`sy-check-report-only`) scoring 1.000 before and after provides no detection power; without a negative control there is no evidence the suite would fail on a broken body. | plugins/dometrain/skills/sync/SKILL.md:12 |\n\nSummary: run a detection control or add non-saturated cases before trimming this body.",
+      "why": "blocking finding citing ceiling-saturated single case and missing negative control"
+    },
+    {
+      "answer": "Blocking finding: `sy-check-report-only` is saturated at 1.000 on both arms and no negative control was run, so the eval cannot distinguish the trimmed `sync` body from an emptied one. The cut is unmeasured.",
+      "why": "names the reverted measurement defect without a line number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings: none. No blocking or advisory findings. The fixed grader confirms 1.000 on both models.",
+      "why": "approves with no findings"
+    },
+    {
+      "answer": "| 1 | Advisory | `SKILL.md:15` wraps mid-clause; consider re-wrapping the paragraph to match the rest of the file. | plugins/dometrain/skills/sync/SKILL.md:15 |\n\nSummary: minor wrapping nit only.",
+      "why": "cites a reverted line for a wrapping nit while missing the unmeasured-cut defect"
+    }
+  ]
+}

@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Blocking | K3 passes its pre-registered byte-cost limit by only 925 bytes (218159 vs 219084) while 5 of 6 runs escalated to whole-page cost, and the PR itself discloses a duplicate-children slice bug (59193 unique bytes printed 75892) that invalidates the byte-budget comparison. Fix deduplication and re-measure before shipping this bullet. | lib/docs-lookup-procedure.md:62 |\n\nSummary: K3's cost-criterion pass is unreliable.",
+      "why": "blocking finding naming the 925-byte margin, duplicate-children bug, and whole-page escalations"
+    },
+    {
+      "answer": "Blocking finding: the byte-cost pass (925 bytes under limit) cannot be trusted while the slice script prints child sections twice, and 5 of 6 K3 runs escalated to the whole page anyway. Re-measure after fixing slice deduplication before adding the coverage-check bullet.",
+      "why": "names the reverted cost/measurement defect without a line number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings: none. No blocking or advisory findings. Shared copies are synced and the pre-registered table shows K3 passing.",
+      "why": "approves with no findings"
+    },
+    {
+      "answer": "| 1 | Advisory | `docs-lookup-procedure.md:62` is a long sentence; splitting it into two shorter sentences would improve readability. | lib/docs-lookup-procedure.md:62 |\n\nSummary: readability suggestion only.",
+      "why": "cites line 62 for prose style while missing the invalid byte-cost defect"
+    }
+  ]
+}
