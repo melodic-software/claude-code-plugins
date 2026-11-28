@@ -3,6 +3,18 @@
     {
       "answer": "reassess: no verdict: the PR states no goal",
       "why": "the failure line"
+    },
+    {
+      "answer": "Without a stated goal, no verdict is `continue`, `rework` or `close`.\nreassess: no verdict: no goal stated.",
+      "why": "second review: names the verdict words only to say none applies"
+    },
+    {
+      "answer": "The PR body and its linked issues state no goal, so reassess gives no verdict and wrote nothing.",
+      "why": "prose no-verdict outcome"
+    },
+    {
+      "answer": "reassess: no verdict: no goal stated.\n\n{\"verdict\": null}",
+      "why": "no-verdict line, and the JSON holds no verdict"
     }
   ],
   "fail": [
@@ -21,6 +33,18 @@
     {
       "answer": "reassess: no verdict: no goal stated.\nThe verdict is close.",
       "why": "a verdict after the failure line"
+    },
+    {
+      "answer": "reassess: no verdict: no goal stated. Tentatively, the verdict would be close.",
+      "why": "a tentative close, which reassess.md:37 rules out"
+    },
+    {
+      "answer": "The PR states no goal, but its change already landed. **Verdict:** `close`",
+      "why": "a verdict despite no goal"
+    },
+    {
+      "answer": "{\n  \"verdict\": \"rework\",\n  \"goal\": {\"text\": \"\", \"source\": \"none\"}\n}",
+      "why": "a JSON verdict with an empty goal"
     }
   ]
 }
