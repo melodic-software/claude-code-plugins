@@ -1,5 +1,5 @@
 ---
-description: "Style pack from a rotoscoped clip: measure its traces and drawings into knob values and statistic bands, prove the bands against adversarial controls, and check new scenes against the pack. Use when: 'learn this style', 'make a style pack', 'extract the style from this clip', 'does my film match the style', 'check this scene against the woodcut pack', 'which statistics separate styles'. Needs a rotoscope work dir; not for copying a clip one to one."
+description: "Build a style pack from a rotoscoped clip work dir: measure traces and drawings into knob values and statistic bands, prove against adversarial controls, and check scenes. Use when extracting or matching styles: 'learn this style', 'make a style pack', 'does my film match the style'. Not for copying a clip one to one: /animation:rotoscope."
 argument-hint: "<rotoscope work dir> <pack dir> [--cuts T,T,..] [--credit TEXT] [--negative SUMMARY.json ...]"
 user-invocable: true
 disable-model-invocation: false
