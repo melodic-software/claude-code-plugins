@@ -336,4 +336,60 @@ run_inc diff "$WT_CE" --main-root "$REPO_CE" --worktree-only
 assert_exit "carried manifest: no manifest and a copy differing from main exits 1" 1 "$?"
 assert_eq "carried manifest: a differing copy without a manifest gives one NO-MANIFEST row" "NO-MANIFEST" "$(printf '%s\n' "$OUT" | cut -f1 | sort -u)"
 
+if stat -c '%.9Z' "$WT_CE/.git" 2>/dev/null | grep -Eq '^[0-9]+\.[0-9]{9}$'; then
+  REPO_CT="$(mkfixture)"
+  printf '*.env\n' >"$REPO_CT/.gitignore"
+  printf '*.env\n' >"$REPO_CT/.worktreeinclude"
+  git -C "$REPO_CT" add .gitignore .worktreeinclude
+  git -C "$REPO_CT" commit -qm "include env files"
+  WT_CT="$TEST_TMPDIR/wt-ct"
+  git -C "$REPO_CT" worktree add -q -b feat/ct "$WT_CT" main >/dev/null 2>&1
+  printf 'carried-v1\n' >"$REPO_CT/app.env"
+  cp -p "$REPO_CT/app.env" "$WT_CT/app.env"
+  printf 'main-only\n' >"$WT_CT/dropped.env"
+  printf 'main-moved-on\n' >"$REPO_CT/app.env"
+  sleep 0.1
+  touch "$WT_CT/.git"
+
+  run_inc diff "$WT_CT" --main-root "$REPO_CT" --worktree-only
+  assert_exit "no-manifest ctime: copies all older than the worktree's .git read clean" 0 "$?"
+  assert_eq "no-manifest ctime: a clean read prints no row" "" "$OUT"
+
+  STAT_BIN="$TEST_TMPDIR/stat-bin"
+  mkdir -p "$STAT_BIN"
+  printf '#!/usr/bin/env bash\nexit 1\n' >"$STAT_BIN/stat"
+  chmod +x "$STAT_BIN/stat"
+  OUT="$(PATH="$STAT_BIN:$PATH" bash "$INCLUDE" diff "$WT_CT" --main-root "$REPO_CT" --worktree-only 2>/dev/null)"
+  assert_exit "no-manifest ctime: a failed stat keeps the difference" 1 "$?"
+  assert_eq "no-manifest ctime: a failed stat reads NO-MANIFEST" "NO-MANIFEST" "$(cut -f1 <<<"$OUT")"
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "%%.9Z"\n' >"$STAT_BIN/stat"
+  OUT="$(PATH="$STAT_BIN:$PATH" bash "$INCLUDE" diff "$WT_CT" --main-root "$REPO_CT" --worktree-only 2>/dev/null)"
+  assert_exit "no-manifest ctime: a stat without nanosecond ctime keeps the difference" 1 "$?"
+
+  ln -s "$REPO_CT/README.md" "$WT_CT/linked.env"
+  touch "$WT_CT/.git"
+  run_inc diff "$WT_CT" --main-root "$REPO_CT" --worktree-only
+  assert_exit "no-manifest ctime: a symlinked copy keeps the difference" 1 "$?"
+  rm -f "$WT_CT/linked.env"
+
+  ln "$WT_CT/.git" "$WT_CT/same-inode.env"
+  run_inc diff "$WT_CT" --main-root "$REPO_CT" --worktree-only
+  assert_exit "no-manifest ctime: a ctime equal to the .git file's counts as edited" 1 "$?"
+  rm -f "$WT_CT/same-inode.env"
+  sleep 0.1
+  touch "$WT_CT/.git"
+
+  cp -p "$WT_CT/app.env" "$TEST_TMPDIR/app.ref"
+  sleep 0.1
+  printf 'carried-v2\n' >"$WT_CT/app.env"
+  touch -r "$TEST_TMPDIR/app.ref" "$WT_CT/app.env"
+  run_inc diff "$WT_CT" --main-root "$REPO_CT" --worktree-only
+  assert_exit "no-manifest ctime: an edit with a preserved mtime but a fresh ctime blocks" 1 "$?"
+  assert_eq "no-manifest ctime: that edit reads NO-MANIFEST" "NO-MANIFEST" "$(cut -f1 <<<"$OUT")"
+  assert_eq "no-manifest ctime: the edit kept its old mtime" \
+    "$(stat -c %Y "$TEST_TMPDIR/app.ref")" "$(stat -c %Y "$WT_CT/app.env")"
+else
+  skip_case "no-manifest ctime: stat has no nanosecond ctime format here"
+fi
+
 [[ $FAILED -eq 0 ]] || exit 1

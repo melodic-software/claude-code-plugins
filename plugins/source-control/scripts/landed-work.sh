@@ -13,7 +13,10 @@ set -uo pipefail
 LANDED_DIR="${BASH_SOURCE[0]%/*}"
 [[ "$LANDED_DIR" == "${BASH_SOURCE[0]}" ]] && LANDED_DIR=.
 # shellcheck source=lib/worktree-facts.sh
-source "$LANDED_DIR/lib/worktree-facts.sh" || { echo "error: cannot load lib/worktree-facts.sh" >&2; exit 4; }
+source "$LANDED_DIR/lib/worktree-facts.sh" || {
+  echo "error: cannot load lib/worktree-facts.sh" >&2
+  exit 4
+}
 
 PROG=${0##*/}
 
@@ -56,15 +59,17 @@ Options:
                       paged GraphQL listing (\`gh api\`) of merged PRs per
                       repository and base, read once and reused for every
                       worktree (the only network use). The number of gh calls
-                      the run made, one per page, is printed on stderr. A
+                      the run made, one per page and per branch lookup, is
+                      printed on stderr. A
                       failed read keeps the prior verdict
                       and names the read in the reason. Off by default, so the
                       script stays offline.
   --merged-pr-limit <n>
                       Most merged PRs that listing reads, most recently updated
                       first, 100 per page.
-                      Default: 1000. A branch whose PR is older than that window
-                      stays unproven, and its reason says the listing was full.
+                      Default: 1000. When the listing is full and a branch is
+                      not in it, one more query asks for that branch's merged
+                      PRs alone, so a PR older than the window still proves it.
   --stats-file <path> Write run counters (\`gh_calls=<N>\` and
                       \`rate_limited=<yes|no>\`) to <path>.
   --path-key <value>  Print the path comparison key for <value> and exit. A
@@ -84,20 +89,20 @@ die() {
 CASE_INSENSITIVE_PATHS=false
 WINDOWS_PATHS=false
 case "$(uname -s 2>/dev/null || true)" in
-MINGW* | MSYS* | CYGWIN*)
-  CASE_INSENSITIVE_PATHS=true
-  WINDOWS_PATHS=true
-  ;;
-*) ;;
+  MINGW* | MSYS* | CYGWIN*)
+    CASE_INSENSITIVE_PATHS=true
+    WINDOWS_PATHS=true
+    ;;
+  *) ;;
 esac
 
 path_key() {
   local value="${1//\\//}"
   if [[ "$WINDOWS_PATHS" == "true" ]]; then
     case "$value" in
-    /?/*) value="${value:1:1}:${value:2}" ;;
-    /?) value="${value:1:1}:" ;;
-    *) ;;
+      /?/*) value="${value:1:1}:${value:2}" ;;
+      /?) value="${value:1:1}:" ;;
+      *) ;;
     esac
   fi
   while [[ "$value" == */ ]]; do value="${value%/}"; done
@@ -119,56 +124,56 @@ EXPLICIT_TARGETS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-  --help | -h)
-    usage
-    exit 0
-    ;;
-  --path-key)
-    [[ $# -ge 2 ]] || die "--path-key requires a value"
-    path_key "$2"
-    printf '\n'
-    exit 0
-    ;;
-  --repo-dir)
-    [[ $# -ge 2 ]] || die "--repo-dir requires a value"
-    REPO_DIR="$2"
-    shift 2
-    ;;
-  --worktree)
-    [[ $# -ge 2 ]] || die "--worktree requires a value"
-    EXPLICIT_TARGETS+=("$2")
-    shift 2
-    ;;
-  --base)
-    [[ $# -ge 2 ]] || die "--base requires a value"
-    BASE_REF="$2"
-    shift 2
-    ;;
-  --merged-refs-file)
-    [[ $# -ge 2 ]] || die "--merged-refs-file requires a value"
-    MERGED_REFS_FILE="$2"
-    shift 2
-    ;;
-  --no-peers)
-    DO_PEERS=false
-    shift
-    ;;
-  --merged-pr-proof)
-    USE_PR_PROOF=true
-    shift
-    ;;
-  --merged-pr-limit)
-    [[ $# -ge 2 ]] || die "--merged-pr-limit requires a value"
-    [[ "$2" =~ ^[1-9][0-9]*$ ]] || die "--merged-pr-limit must be a positive integer: $2"
-    MERGED_PR_LIMIT="$2"
-    shift 2
-    ;;
-  --stats-file)
-    [[ $# -ge 2 ]] || die "--stats-file requires a value"
-    STATS_FILE="$2"
-    shift 2
-    ;;
-  *) die "unknown argument: $1" ;;
+    --help | -h)
+      usage
+      exit 0
+      ;;
+    --path-key)
+      [[ $# -ge 2 ]] || die "--path-key requires a value"
+      path_key "$2"
+      printf '\n'
+      exit 0
+      ;;
+    --repo-dir)
+      [[ $# -ge 2 ]] || die "--repo-dir requires a value"
+      REPO_DIR="$2"
+      shift 2
+      ;;
+    --worktree)
+      [[ $# -ge 2 ]] || die "--worktree requires a value"
+      EXPLICIT_TARGETS+=("$2")
+      shift 2
+      ;;
+    --base)
+      [[ $# -ge 2 ]] || die "--base requires a value"
+      BASE_REF="$2"
+      shift 2
+      ;;
+    --merged-refs-file)
+      [[ $# -ge 2 ]] || die "--merged-refs-file requires a value"
+      MERGED_REFS_FILE="$2"
+      shift 2
+      ;;
+    --no-peers)
+      DO_PEERS=false
+      shift
+      ;;
+    --merged-pr-proof)
+      USE_PR_PROOF=true
+      shift
+      ;;
+    --merged-pr-limit)
+      [[ $# -ge 2 ]] || die "--merged-pr-limit requires a value"
+      [[ "$2" =~ ^[1-9][0-9]*$ ]] || die "--merged-pr-limit must be a positive integer: $2"
+      MERGED_PR_LIMIT="$2"
+      shift 2
+      ;;
+    --stats-file)
+      [[ $# -ge 2 ]] || die "--stats-file requires a value"
+      STATS_FILE="$2"
+      shift 2
+      ;;
+    *) die "unknown argument: $1" ;;
   esac
 done
 
@@ -223,16 +228,16 @@ status_counts() {
     x="${line:0:1}"
     y="${line:1:1}"
     case "$x$y" in
-    '??')
-      S_UNTRACKED=$((S_UNTRACKED + 1))
-      continue
-      ;;
-    '!!') continue ;;
-    DD | AU | UD | UA | DU | AA | UU)
-      S_CONFLICTED=$((S_CONFLICTED + 1))
-      continue
-      ;;
-    *) ;;
+      '??')
+        S_UNTRACKED=$((S_UNTRACKED + 1))
+        continue
+        ;;
+      '!!') continue ;;
+      DD | AU | UD | UA | DU | AA | UU)
+        S_CONFLICTED=$((S_CONFLICTED + 1))
+        continue
+        ;;
+      *) ;;
     esac
     [[ "$x" != " " ]] && S_STAGED=$((S_STAGED + 1))
     [[ "$y" != " " ]] && S_UNSTAGED=$((S_UNSTAGED + 1))
@@ -298,7 +303,10 @@ only_empty_commits_unhashed() {
   git -C "$p" rev-list --no-merges "$range" 2>/dev/null | sort >"$all" || rc=1
   if ((rc == 0)); then
     while read -r c; do
-      git -C "$p" diff-tree --quiet --root --no-commit-id -r "$c" 2>/dev/null || { rc=1; break; }
+      git -C "$p" diff-tree --quiet --root --no-commit-id -r "$c" 2>/dev/null || {
+        rc=1
+        break
+      }
     done < <(comm -23 "$all" "$hashed")
   fi
   rm -f "$all"
@@ -466,6 +474,15 @@ MERGED_PR_QUERY='query($owner: String!, $name: String!, $base: String!, $first: 
     }
   }
 }'
+# shellcheck disable=SC2016 # GraphQL variables, not shell expansions
+MERGED_PR_BRANCH_QUERY='query($owner: String!, $name: String!, $base: String!, $head: String!) {
+  repository(owner: $owner, name: $name) {
+    pullRequests(states: MERGED, baseRefName: $base, headRefName: $head, first: 20) {
+      pageInfo { hasNextPage endCursor }
+      nodes { headRefName headRefOid baseRefName commits(first: 100) { nodes { commit { oid } } } }
+    }
+  }
+}'
 MERGED_PR_JQ='.data.repository.pullRequests
   | (.nodes[] | "pr " + .headRefName + " " + .baseRefName, "head " + .headRefOid,
       (.commits.nodes[] | "commit " + .commit.oid)),
@@ -518,12 +535,47 @@ merged_pr_listing() {
   [[ -z "$MP_ERR" ]]
 }
 
+merged_pr_branch_lookup() {
+  local p="$1" base_name="$2" branch="$3" out="$4" err
+  GH_CALLS=$((GH_CALLS + 1))
+  if ! (cd "$p" && gh api graphql -f query="$MERGED_PR_BRANCH_QUERY" -F owner='{owner}' -F name='{repo}' \
+    -f base="$base_name" -f head="$branch" --jq "$MERGED_PR_JQ") >"$out.page" 2>"$out.err"; then
+    err=$(head -n 1 "$out.err" | tr '\t;' '  ' | cut -c1-120)
+    MP_ERR="gh-pr-branch${err:+ ($err)}"
+    if grep -qi 'rate limit' "$out.err" 2>/dev/null; then
+      RATE_LIMITED="yes"
+    fi
+    return 1
+  fi
+  grep -v '^page ' "$out.page" >"$out"
+  return 0
+}
+
 add_reason() { L_REASON="${L_REASON:+$L_REASON; }$1"; }
+
+read_pr_rows() {
+  local kind val in_base=false
+  while read -r kind val; do
+    case "$kind" in
+      pr)
+        in_base=false
+        if [[ "$val" == "$base_name" ]]; then in_base=true; fi
+        ;;
+      head) [[ "$in_base" == "true" ]] && pr_heads+=("$val") ;;
+      commit) [[ "$in_base" == "true" ]] && printf '%s\n' "$val" >>"$commits_file" ;;
+      *) ;;
+    esac
+  done <"$1"
+}
+
+filter_branch_rows() {
+  awk -v b="$2" '$1 == "pr" { keep = ($2 "" == b ""); if (keep) print "pr " $3; next } keep' "$1"
+}
 
 merged_pr_proof() {
   local p="$1" branch="$2" out="$WORKDIR/merged-pr.out" head_oid unpushed_list sha
   local -a pr_heads=()
-  local commits_file="$WORKDIR/merged-pr.commits" kind val
+  local commits_file="$WORKDIR/merged-pr.commits"
   : >"$commits_file"
   if ! command -v gh >/dev/null 2>&1; then
     add_reason "merged-pr-read-failed:gh-not-found"
@@ -539,29 +591,24 @@ merged_pr_proof() {
     add_reason "merged-pr-read-failed:$MP_ERR"
     return 1
   fi
-  if ! awk -v b="$branch" '$1 == "pr" { keep = ($2 "" == b ""); if (keep) print "pr " $3; next } keep' \
-    "$MP_FILE" >"$out"; then
+  if ! filter_branch_rows "$MP_FILE" "$branch" >"$out"; then
     add_reason "merged-pr-read-failed:branch-filter"
     return 1
   fi
-  local in_base=false
-  while read -r kind val; do
-    case "$kind" in
-    pr)
-      in_base=false
-      if [[ "$val" == "$base_name" ]]; then in_base=true; fi
-      ;;
-    head) [[ "$in_base" == "true" ]] && pr_heads+=("$val") ;;
-    commit) [[ "$in_base" == "true" ]] && printf '%s\n' "$val" >>"$commits_file" ;;
-    *) ;;
-    esac
-  done <"$out"
-  if [[ ${#pr_heads[@]} -eq 0 ]]; then
-    local window=""
-    if [[ "$(grep -c '^pr ' "$MP_FILE")" -ge "$MERGED_PR_LIMIT" ]]; then
-      window="-in-newest-$MERGED_PR_LIMIT"
+  read_pr_rows "$out"
+  if [[ ${#pr_heads[@]} -eq 0 && "$(grep -c '^pr ' "$MP_FILE")" -ge "$MERGED_PR_LIMIT" ]]; then
+    if ! merged_pr_branch_lookup "$p" "$base_name" "$branch" "$WORKDIR/merged-pr.branch"; then
+      add_reason "merged-pr-read-failed:$MP_ERR"
+      return 1
     fi
-    add_reason "no-merged-pr-into-$base_name-for-branch$window"
+    if ! filter_branch_rows "$WORKDIR/merged-pr.branch" "$branch" >"$out"; then
+      add_reason "merged-pr-read-failed:branch-filter"
+      return 1
+    fi
+    read_pr_rows "$out"
+  fi
+  if [[ ${#pr_heads[@]} -eq 0 ]]; then
+    add_reason "no-merged-pr-into-$base_name-for-branch"
     return 1
   fi
 
