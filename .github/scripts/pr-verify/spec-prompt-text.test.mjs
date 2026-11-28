@@ -47,6 +47,13 @@ test("a refs pull request for a monitor-incident, dead-link-rollup or demotion-a
   assert.ok(spec.includes(rule), "spec-prompt.md carries the maintenance-template refs rule");
 });
 
+test("prompt.md names the non-files-only vendored reference scope alongside skills and vendor baselines", () => {
+  assert.ok(
+    chunk.includes("a `.md` or `.css` file under that plugin's `reference/` (for a non-`files-only` vendored row)"),
+    "prompt.md documents non-files-only vendored reference scope",
+  );
+});
+
 test("nothing a chunk reports is cut from the final judge", () => {
   assert.doesNotMatch(spec, /notes_left_out|A cut can hide/);
   for (const text of [spec, flat("./chunk-note.md")]) assert.doesNotMatch(text, /leaves? (it |the path )?out|a count of the files/);

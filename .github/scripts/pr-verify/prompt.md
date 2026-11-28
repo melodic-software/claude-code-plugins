@@ -37,7 +37,8 @@ DIFF_PARTSCHUNK_NOTE
   pinned to it, and the pull request changes nothing but those pages. For a vendored-copy sync the
   `body` names the upstream and the vendored skill's update steps and no page, and every file the
   pull request changes is a markdown file under that plugin's `skills/`, a `.md`, `.jsonc` or
-  `LICENSE` file in a `vendor/` baseline there, or a changelog fragment directly under
+  `LICENSE` file in a `vendor/` baseline there, a `.md` or `.css` file under that plugin's
+  `reference/` (for a non-`files-only` vendored row), or a changelog fragment directly under
   `.changes/<plugin>/`; scripts, hooks, libraries, the plugin manifest, MCP config, eval suites and
   the skill's update procedure are outside it, and a skill's `SKILL.md` changes only its sync
   stamps and prose. A changed file inside that scope is not out of scope for this spec. An issue the
