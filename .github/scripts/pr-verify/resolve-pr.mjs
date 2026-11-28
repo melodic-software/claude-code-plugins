@@ -26,7 +26,6 @@ import { ACTIONS_BOT_ID, briefedIssue, carriesSplit, ownAgentIds, readSchedule, 
 import { actionsBotOnly, baseAdmissionRules, DRIFT_TITLE, driftIssue, loadRules, ownAgentText, personChecks, refinementSpec, SPLIT_CHILD_MARKER, splitChildBody, splitScope, taskItems, trustedDriftSpec, vendoredDriftLead, vendoredRows } from "../intake-triage/issue-spec.mjs";
 import { issueBody, issueTitle, SCHEDULE_MARKER } from "../recurring-schedule/file-due.mjs";
 import { FILING, incidentKey, readMarker } from "../maintenance-monitor-signals/issues.mjs";
-import { DEMOTION, parseRecordMarker } from "../post-merge-demotion-alert/demotion-record.mjs";
 
 export { DEPENDENCY_MANAGERS, isDependencyManager, refsIssue, vendoredRows };
 
@@ -757,6 +756,9 @@ export const deadLinksRollup = (issue) =>
   issue.title === DEAD_LINKS_TITLE &&
   String(issue.body ?? "").split("\n", 1)[0].replace(/\r$/, "") === DEAD_LINKS_MARKER;
 
+const DEMOTION = "babysit-merge-demotion";
+const DEMOTION_MARKER = /^<!-- babysit-merge-demotion sha=[0-9a-f]{40} signal=(schedule|dispatch|canary|revert|read-back) -->$/;
+
 export function demotionAlertSpec(signal) {
   return [
     `# Resolve post-merge demotion (${signal})`,
@@ -776,8 +778,8 @@ export function demotionAlert(issue, laneAppId) {
     return null;
   }
   const first = String(issue.body ?? "").split("\n", 1)[0].replace(/\r$/, "");
-  const record = parseRecordMarker(first);
-  return record?.kind === DEMOTION ? demotionAlertSpec(record.signal) : null;
+  const match = DEMOTION_MARKER.exec(first);
+  return match ? demotionAlertSpec(match[1]) : null;
 }
 
 const SKILL_READS_MAX = 10;
