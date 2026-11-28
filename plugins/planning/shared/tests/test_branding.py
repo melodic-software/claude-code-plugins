@@ -72,6 +72,26 @@ class TestSharedServerBranding(unittest.TestCase):
             self.assertNotIn(b"accent picker", index_html.lower())
             self.assertNotIn(b"palette picker", index_html.lower())
 
+    def test_caches_branding_at_startup_without_spawning_per_request(self):
+        base = tmpdir(self)
+        data_dir = base / "data"
+        cached = {"css": ":root { --accent: #1A4D2E; }", "slot_html": '<div class="rv-brand"></div>', "notices": []}
+        with mock.patch.object(server._BRANDING_MOD, "resolve_branding", return_value=cached) as resolve_mock:
+            app = server.App(data_dir, watch_tunnel=False)
+            app.serve()
+            self.addCleanup(app.shutdown)
+            port = app.guest_port
+
+            for _ in range(3):
+                code, _, css = call(port, "GET", "/branding.css")
+                self.assertEqual(code, 200)
+                self.assertIn(b"--accent: #1A4D2E;", css)
+                code, _, index_html = call(port, "GET", "/")
+                self.assertEqual(code, 200)
+                self.assertIn(b'class="rv-brand"', index_html)
+
+            self.assertEqual(resolve_mock.call_count, 1)
+
     def test_default_unbranded_repo_serves_empty_branding_and_no_slot(self):
         base = tmpdir(self)
         data_dir = base / "data"

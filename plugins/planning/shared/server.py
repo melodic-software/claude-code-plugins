@@ -91,8 +91,11 @@ STATIC = {
 }
 PAGE_CSP = "default-src 'self'; img-src 'self' data:; font-src 'self' data:; frame-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
 TOKENS_FILE = HERE.parent / "reference" / "html-tokens.css"
-_BRANDING_SPEC = importlib.util.spec_from_file_location(
-    "planning_branding_helper", HERE.parent / "lib" / "branding_helper.py"
+_BRANDING_PATH = HERE.parent / "lib" / "branding_helper.py"
+_BRANDING_SPEC = (
+    importlib.util.spec_from_file_location("planning_branding_helper", _BRANDING_PATH)
+    if _BRANDING_PATH.is_file()
+    else None
 )
 _BRANDING_MOD = importlib.util.module_from_spec(_BRANDING_SPEC) if _BRANDING_SPEC else None
 if _BRANDING_SPEC and _BRANDING_SPEC.loader and _BRANDING_MOD is not None:
@@ -1338,21 +1341,21 @@ class App:
             self.live_starter.resume()
         self.write_owner_link()
         self.sync_tunnel(restart=False)
+        self._branding = self._resolve_branding()
         self.log.info("started: guest %d, control %d, build %s", self.guest_port, self.control_port, self.build)
 
-    def branding(self):
+    def _resolve_branding(self):
         if _BRANDING_MOD is None:
             return {"css": "", "slot_html": "", "notices": []}
         res = _BRANDING_MOD.resolve_branding(self._repo_root)
-        seen = getattr(self, "_branding_notices", None)
-        if seen is None:
-            seen = self._branding_notices = set()
         for n in res.get("notices") or ():
             text = n.get("text") if isinstance(n, dict) else str(n)
-            if text and text not in seen:
-                seen.add(text)
+            if text:
                 self.log.warning("branding: %s", text)
         return res
+
+    def branding(self):
+        return self._branding
 
     def start_live(self, approved):
         """Start the live prototype approve_live marked starting, outside the state lock: the starter answers its https
