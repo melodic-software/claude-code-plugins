@@ -42,6 +42,11 @@ async function main() {
     ok("set-style lightning reaches the guest's page", await until(guest, () => window.Core.state.settings.lightning === true));
     await until(guest, () => !!document.querySelector(".vf-lite-rec"));
     c = await guest.evaluate(card);
+    ok("Answer first: the short card holds Claude's take until the guest answers or asks",
+      !!c && c.shown && c.rec === "(major) Answer first - Claude's take shows once you answer or vote" && c.lines.length === 0, JSON.stringify(c));
+    await guest.click(".vf-claudebar");
+    await until(guest, () => document.querySelector(".vf-lite-rec strong")?.textContent === "Cap retries at five");
+    c = await guest.evaluate(card);
     ok("the short card tags a major question and bolds the answer in a few words", !!c && c.shown && c.bold === "Cap retries at five", JSON.stringify(c));
     ok("  then its basis after a dash and each other option's letter and short label",
       !!c && c.rec === "(major) Cap retries at five - Five covers every recovery the logs show (or: a Reuse the queue's cap, b No cap at all)", c && c.rec);
@@ -49,8 +54,10 @@ async function main() {
     ok("  the full question's background is folded away", !!c && !c.context);
     ok("  with one control that opens all of Q1", !!c && c.toggle === "Show all of Q1" && c.expanded === "false", JSON.stringify(c));
 
-    await guest.click(".vf-lite-toggle");
+    await guest.focus(".vf-lite-toggle");
+    await guest.keyboard.press("Enter");
     await until(guest, () => document.querySelector(".vf-lite-toggle")?.getAttribute("aria-expanded") === "true");
+    ok("  pressing the toggle keeps keyboard focus on it", await guest.evaluate(() => document.activeElement?.classList.contains("vf-lite-toggle")));
     c = await guest.evaluate(card);
     ok("Show all of Q1 expands it to the full card: the background is back, the summary gone", !!c && c.context && c.rec === null && c.toggle === "Show the short card", JSON.stringify(c));
     await guest.click(".vf-lite-toggle");

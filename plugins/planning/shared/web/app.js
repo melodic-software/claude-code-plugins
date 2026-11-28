@@ -976,23 +976,29 @@
     function fillLite(q, open) {
       qLite.hidden = !st().lightning;
       if (qLite.hidden) return;
-      const L = QuestionShape.lightning(q), sig = JSON.stringify([q.id, open, L]);
+      const L = QuestionShape.lightning(q), hide = L.status === "rec" && claudeHidden(q.id);
+      const sig = JSON.stringify([q.id, open, hide, L]);
       if (qLite._sig === sig) return;
       qLite._sig = sig;
       qLite.replaceChildren();
       if (!open) {
         const line = E("p", "vf-lite-rec");
         if (L.major) line.append(E("span", "vf-lite-major", "(major)"), " ");
-        line.append(E("strong", null, L.status === "rec" ? L.rec : L.status === "withheld" ? "Withheld" : "No recommendation"));
-        if (L.basis) line.append(` - ${L.basis}`);
-        if (L.alts.length) line.append(" ", E("span", "vf-lite-alts", `(or: ${L.alts.map(a => `${a.key} ${a.label}`).join(", ")})`));
+        if (hide) line.append(E("strong", null, "Answer first"), " - Claude's take shows once you answer or vote");
+        else {
+          line.append(E("strong", null, L.status === "rec" ? L.rec : L.status === "withheld" ? "Withheld" : "No recommendation"));
+          if (L.basis) line.append(` - ${L.basis}`);
+          if (L.alts.length) line.append(" ", E("span", "vf-lite-alts", `(or: ${L.alts.map(a => `${a.key} ${a.label}`).join(", ")})`));
+        }
         qLite.append(line);
-        for (const [label, text] of L.lines) { const p = E("p", "vf-lite-line"); p.append(E("b", null, `${label}:`), ` ${text}`); qLite.append(p); }
-        if (L.commits.length) { const ul = E("ul", "vf-lite-commits"); for (const c of L.commits) ul.append(E("li", null, c)); qLite.append(ul); }
+        if (!hide) {
+          for (const [label, text] of L.lines) { const p = E("p", "vf-lite-line"); p.append(E("b", null, `${label}:`), ` ${text}`); qLite.append(p); }
+          if (L.commits.length) { const ul = E("ul", "vf-lite-commits"); for (const c of L.commits) ul.append(E("li", null, c)); qLite.append(ul); }
+        }
       }
       const b = btn("vf-btn vf-btn-ghost vf-btn-sm vf-lite-toggle", open ? "Show the short card" : `Show all of ${q.id}`);
       b.setAttribute("aria-expanded", String(open));
-      b.onclick = () => { if (open) ui.liteOpen.delete(q.id); else ui.liteOpen.add(q.id); render(); };
+      b.onclick = () => { if (open) ui.liteOpen.delete(q.id); else ui.liteOpen.add(q.id); render(); qLite.querySelector(".vf-lite-toggle")?.focus(); };
       qLite.append(b);
     }
     const reviewRow = E("div", "vf-reviewrow");

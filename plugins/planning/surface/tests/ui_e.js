@@ -95,7 +95,7 @@ async page => {
   ok("  and Show the short card folds it again", (await liteCard()).lite !== null);
   await pick("E2");
   lc = await liteCard();
-  ok("a withheld question's short card says Withheld and why, with no options", lc.lite === "Withheld - a load test on the shared runner would settle it.", JSON.stringify(lc));
+  ok("a withheld question's short card says Withheld and why, with no options", lc.lite === "Withheld - a load test on the shared build pool would settle it.", JSON.stringify(lc));
   await page.unroute("**/api/state");
   await nudgeVisible(); await page.waitForTimeout(400);
   ok("without meta.style the page shows the full card and no short-card control", await until(() => !document.getElementById("liteToggle") && !!document.querySelector(".recbox, .blk h4"), 8000));
