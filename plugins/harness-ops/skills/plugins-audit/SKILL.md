@@ -1,5 +1,5 @@
 ---
-description: "Read-only dry run of /harness-ops:plugins sync: predicts the marketplace refreshes, updates, installs, enables and scope divergences sync or converge would act on, and issues none of those calls. Its update count is a lower bound against the unrefreshed catalog. Use when: 'are my plugins current', 'check plugin drift', 'audit my plugins', 'what would plugin sync do', or before relying on a plugin that might be stale."
+description: "Read-only dry run of /harness-ops:plugins sync: predicts marketplace refreshes, update count (lower bound on unrefreshed catalog), installs, enables, scope divergences sync/converge would act on (runs none). Use for 'are my plugins current', 'check plugin drift', 'audit my plugins', what would plugin sync do, or before relying on a stale plugin."
 argument-hint: "[<marketplace>|all]"
 user-invocable: true
 disable-model-invocation: false

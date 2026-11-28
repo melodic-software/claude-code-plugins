@@ -1,5 +1,5 @@
 ---
-description: "Map of where this repo's skills and agents duplicate a native Claude Code surface; read-only unless `apply` bakes an approved reference. Use when: 'does this skill duplicate a built-in', 'what does Claude Code already ship for this', 'is our install-state audit the same as /doctor', 'refresh the native-surfaces registry', 'which of our skills overlap bundled skills'. Enumerating what is invocable: /harness-ops:inventory."
+description: "Map where repo skills and agents duplicate native Claude Code surfaces; read-only unless apply bakes an approved reference. Use for 'does this skill duplicate a built-in', 'refresh the native-surfaces registry', 'which of our skills overlap bundled skills', or what Claude Code already ships. Not for enumerating invocables: /harness-ops:inventory."
 argument-hint: "[report|apply <plugin>|dismiss <native> <plugin:name> <reason>] [--store <p>] [--inventory <p>]"
 user-invocable: true
 disable-model-invocation: false

@@ -1,5 +1,5 @@
 ---
-description: "When the bundled explain-usage skill resolves in this session, prefer it for a plain-language breakdown of this session's tokens; this skill for cross-session reports from the local telemetry stores (OTEL DuckDB, hook event log, ccusage): token burn, cost, hook latency, per-session activity, usage per work item; read-only except the explicit clean action. Use when: 'claude observability', 'how am I doing', 'what did this session do', 'which hooks fired', 'compare two sessions', 'tokens per work item'."
+description: "Cross-session local telemetry stores (OTEL DuckDB, hook log, ccusage): token burn, cost, latency, session activity, usage; read-only except clean. If bundled explain-usage resolves in this session, prefer it for session tokens. Use for 'claude observability', 'which hooks fired', 'tokens per work item', compare two sessions, what a session did."
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/build-dashboard.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-dashboard.mjs\":*)"]
