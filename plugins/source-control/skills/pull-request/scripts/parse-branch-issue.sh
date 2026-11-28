@@ -120,8 +120,16 @@ if [[ -n "$REPO_ROOT" ]]; then
       elif [[ -e "$TEAM_YAML" ]]; then
         note "${CONVENTION_KEY_YAML_REL} is not tracked by git, so it is not a config layer"
       fi
+      if [[ -f "${REPO_ROOT}/.claude/source-control.local.md" ]]; then
+        note "retired config file ${REPO_ROOT}/.claude/source-control.local.md is not read; settings in it no longer apply"
+      fi
       ;;
   esac
+fi
+if [[ -n "${HOME:-}" && -f "${HOME}/.claude/source-control.md" ]]; then
+  if [[ -z "${REPO_ROOT:-}" || ! "${HOME}/.claude/source-control.md" -ef "${REPO_ROOT}/.claude/source-control.local.md" ]]; then
+    note "retired config file ${HOME}/.claude/source-control.md is not read; settings in it no longer apply"
+  fi
 fi
 
 layer_label() {

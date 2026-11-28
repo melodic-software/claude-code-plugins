@@ -231,6 +231,21 @@ if [[ -n "$ROOT" && -f "$PERSONAL_NEW" ]]; then
   PERSONAL="$PERSONAL_NEW"
 fi
 
+warn_retired() {
+  local seen=() f prev dup
+  for f in "${ROOT:+$ROOT/.claude/testing.yaml}" "${ROOT:+$ROOT/.claude/testing.local.yaml}" "${HOME:+$HOME/.claude/testing.yaml}"; do
+    [[ -n "$f" && -f "$f" ]] || continue
+    dup=0
+    for prev in ${seen[@]+"${seen[@]}"}; do
+      [[ "$f" -ef "$prev" ]] && dup=1 && break
+    done
+    ((dup)) && continue
+    seen+=("$f")
+    warn "retired config file $f is not read; settings in it no longer apply"
+  done
+}
+warn_retired
+
 under_link() {
   local d="$1"
   [[ -n "$ROOT" ]] || return 1

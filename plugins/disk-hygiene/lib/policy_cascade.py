@@ -364,7 +364,9 @@ def standing_policy_paths(
     if user is not None and user.is_file():
         layers.append(user)
     old_user = home_dir / ".claude" / "disk-hygiene.json"
-    if old_user.is_file():
+    if old_user.is_file() and not (
+        user is not None and user.is_file() and same_file(user, old_user)
+    ):
         warnings.append(
             f"retired policy file {old_user} is not read; protections in it no longer apply "
             f"(configure the {POLICY_FILE_OPTION} option and remove the old file)"
@@ -376,8 +378,12 @@ def standing_policy_paths(
             if candidate.is_file():
                 layers.append(candidate)
         old_project = project_dir / ".claude" / "disk-hygiene.json"
-        if old_project.is_file() and not (
-            old_user.is_file() and same_file(old_user, old_project)
+        if (
+            old_project.is_file()
+            and not (old_user.is_file() and same_file(old_user, old_project))
+            and not (
+                user is not None and user.is_file() and same_file(user, old_project)
+            )
         ):
             warnings.append(
                 f"retired policy file {old_project} is not read; protections in it no longer apply "

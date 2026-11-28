@@ -141,6 +141,40 @@ class PolicyCascadeTests(unittest.TestCase):
         self.assertIn(str(old_project), joined)
         self.assertIn("is not read", joined)
 
+    def test_user_policy_pointing_at_retired_path_reads_it_without_warning(
+        self,
+    ) -> None:
+        home = self.base / "home"
+        project = self.base / "project"
+        (home / ".claude").mkdir(parents=True)
+        (project / ".claude").mkdir(parents=True)
+        old_user = home / ".claude" / "disk-hygiene.json"
+        old_project = project / ".claude" / "disk-hygiene.json"
+        old_user.write_text(
+            json.dumps(
+                {"version": 1, "additional_protected_path_globs": ["client/**"]}
+            ),
+            encoding="utf-8",
+        )
+        with mock.patch.object(Path, "home", return_value=home):
+            policy = policy_cascade.load_policy(None, project, str(old_user))
+        self.assertEqual(["baseline", str(old_user)], policy["policy_sources"])
+        self.assertEqual(["client/**"], policy["additional_protected_path_globs"])
+        self.assertEqual([], policy["policy_warnings"])
+
+        old_user.unlink()
+        old_project.write_text(
+            json.dumps(
+                {"version": 1, "additional_protected_path_globs": ["proj-keep/**"]}
+            ),
+            encoding="utf-8",
+        )
+        with mock.patch.object(Path, "home", return_value=home):
+            policy = policy_cascade.load_policy(None, project, str(old_project))
+        self.assertEqual(["baseline", str(old_project)], policy["policy_sources"])
+        self.assertEqual(["proj-keep/**"], policy["additional_protected_path_globs"])
+        self.assertEqual([], policy["policy_warnings"])
+
 
 if __name__ == "__main__":
     unittest.main()

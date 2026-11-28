@@ -419,8 +419,8 @@ run_cfg "a personal YAML the shared reader rejects stops resolution" \
 new_case
 retired_md_layer "${CASE_HOME}/.claude/source-control.md" '-([0-9]+)$'
 retired_md_layer "${CASE_REPO}/.claude/source-control.local.md" '-([0-9]+)$'
-run_cfg "retired ~/.claude/source-control.md and .claude/source-control.local.md are ignored cleanly" \
-  "feat/12-add-widget-1234" "" - "12" 0 empty
+run_cfg "retired ~/.claude/source-control.md and .claude/source-control.local.md are not read and emit a notice" \
+  "feat/12-add-widget-1234" "" - "12" 0 "retired config file .* is not read; settings in it no longer apply"
 run_explain "default supplies the pattern when only retired .claude files exist" \
   "feat/12-add-widget-1234" "12" 'default$'
 
@@ -428,8 +428,8 @@ new_case
 retired_md_layer "${CASE_HOME}/.claude/source-control.md" '(['
 retired_md_layer "${CASE_REPO}/.claude/source-control.local.md" '(['
 yaml_layer "${CASE_REPO}/$TEAM_YAML_REL" '-([0-9]+)$'
-run_cfg "retired .claude files (even malformed) are ignored beside the team YAML" \
-  "feat/12-add-widget-1234" "" - "1234" 0 empty
+run_cfg "retired .claude files (even malformed) are not read beside the team YAML and emit a notice" \
+  "feat/12-add-widget-1234" "" - "1234" 0 "retired config file .* is not read; settings in it no longer apply"
 
 echo
 echo "Results: ${PASS} passed, ${FAIL} failed"

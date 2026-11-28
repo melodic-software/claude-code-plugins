@@ -224,11 +224,11 @@ assert_eq "with docs block and personal override, retired .claude/testing.yaml i
   "$DOCS $PY" "$(records layer)"
 assert_eq "no key from the retired .claude file merges in" "py-unittest" "$(records adapters.disable)"
 assert_eq "the personal override still merges over the docs block" "warn" "$(records rules.zero-assertion)"
-assert_eq "and no warning prints for the retired .claude file" "" "$(errs)"
+assert_contains "and prints a retired-file notice for .claude/testing.yaml" "$(errs)" "retired config file $REPO/.claude/testing.yaml is not read; settings in it no longer apply"
 rm -f "$PY" "$DOCS"
 run
-assert_eq "a retired .claude/testing.yaml alone is ignored cleanly" "0:" "$rc:$out"
-assert_eq "with no warning" "" "$(errs)"
+assert_eq "a retired .claude/testing.yaml alone emits no records" "0:" "$rc:$(records layer)"
+assert_contains "with a retired-file notice on stderr" "$(errs)" "retired config file $REPO/.claude/testing.yaml is not read; settings in it no longer apply"
 cat >"$DOCS" <<'EOF'
 # Testing
 
@@ -246,7 +246,7 @@ adapters:
 ```
 EOF
 run
-assert_eq "a docs file with no block prints nothing even beside retired .claude/testing.yaml" "0:" "$rc:$out"
+assert_eq "a docs file with no block emits no records even beside retired .claude/testing.yaml" "0:" "$rc:$(records layer)"
 rm -f "$REPO/.claude/testing.yaml"
 printf '# Testing\n\n```yaml config\n```\n' >"$DOCS"
 run
@@ -334,7 +334,8 @@ assert_eq "testing.yaml wins over the docs block and retired .claude file is ign
 assert_eq "no key from either ignored file merges in" "yaml-team/**" "$(records paths.exclude)"
 assert_eq "the personal override still merges over testing.yaml" "warn" "$(records rules.zero-assertion)"
 assert_contains "one warning names testing.yaml and the docs file" "$(errs)" "$TY and $DOCS both exist; using $TY"
-assert_eq "only that one warning prints" 1 "$(errs | wc -l | tr -d ' ')"
+assert_contains "and one retired-file notice names .claude/testing.yaml" "$(errs)" "retired config file $REPO/.claude/testing.yaml is not read; settings in it no longer apply"
+assert_eq "only those two notices print" 2 "$(errs | wc -l | tr -d ' ')"
 printf '# Testing\n\nProse only.\n' >"$DOCS"
 rm -f "$REPO/.claude/testing.yaml" "$PY"
 assert_eq "a docs file of prose with no block draws no warning" "" "$(errs)"
@@ -387,14 +388,15 @@ printf 'e2e_driver: run\n' >"$REPO/.claude/testing.local.yaml"
 erun
 assert_eq "retired ~/.claude/testing.yaml and .claude/testing.local.yaml are ignored in e2e mode" \
   "e2e_driver	auto	default" "$(head -1 <<<"$out")"
-assert_eq "with nothing on stderr" "" "$err"
+assert_contains "naming retired .claude/testing.local.yaml on stderr" "$err" "retired config file $REPO/.claude/testing.local.yaml is not read; settings in it no longer apply"
+assert_contains "naming retired ~/.claude/testing.yaml on stderr" "$err" "retired config file $HOME/.claude/testing.yaml is not read; settings in it no longer apply"
 printf "e2e_driver: 'harness'  # the repo's own specs\n" >"$TY"
 erun --user e2e_driver=playwright
 assert_eq "testing.yaml wins over userConfig" "e2e_driver	harness	$TY" "$(head -1 <<<"$out")"
 printf 'e2e_driver: chrome\r\n' >"$PY"
 erun
 assert_eq "the personal override wins over testing.yaml (CRLF loads)" "e2e_driver	chrome	$PY" "$(head -1 <<<"$out")"
-assert_eq "with nothing on stderr" "" "$err"
+assert_contains "with a retired-file notice on stderr for ~/.claude/testing.yaml" "$err" "retired config file $HOME/.claude/testing.yaml is not read; settings in it no longer apply"
 rm -f "$HOME/.claude/testing.yaml" "$REPO/.claude/testing.local.yaml" "$PY"
 
 printf 'e2e_driver: cdp\n' >"$TY"
@@ -532,7 +534,7 @@ wrun
 assert_eq "retired ~/.claude/testing.yaml is ignored for write keys" \
   "0:tdd_refactor_step	on	default
 first_test	user-flow	default" "$rc:$out"
-assert_eq "with nothing on stderr" "" "$err"
+assert_contains "with a retired-file notice on stderr for ~/.claude/testing.yaml" "$err" "retired config file $HOME/.claude/testing.yaml is not read; settings in it no longer apply"
 rm -f "$HOME/.claude/testing.yaml"
 printf 'tdd_refactor_step: sometimes\nfirst_test: e2e\n' >"$TY"
 wrun
@@ -560,7 +562,7 @@ err="$(cat "$err")"
 assert_eq "write outside a repository with no --root: both defaults" \
   "0:tdd_refactor_step	on	default
 first_test	user-flow	default" "$rc:$out"
-assert_eq "and retired ~/.claude/testing.yaml draws no warning" "" "$err"
+assert_contains "and retired ~/.claude/testing.yaml emits a retired-file notice" "$err" "retired config file $HOME/.claude/testing.yaml is not read; settings in it no longer apply"
 rm -f "$HOME/.claude/testing.yaml"
 printf 'tdd_refactor_step: off\nfirst_test: unit\npaths:\n  exclude: [write-file/**]\n' >"$TY"
 run
@@ -662,8 +664,8 @@ assert_eq "the e2e keys read the bound home too" "e2e_driver	chrome	$REPO/config
 rm -f "$REPO/config/testing.yaml" "$REPO/config/testing.local.yaml"
 printf 'rules:\n  rule-zero-assertion: warn\n' >"$REPO/.claude/testing.local.yaml"
 run
-assert_eq "a retired .claude/testing.local.yaml alone is ignored even with a bound home" "0:" "$rc:$out"
-assert_eq "with no warning" "" "$(errs)"
+assert_eq "a retired .claude/testing.local.yaml alone emits no records even with a bound home" "0:" "$rc:$(records layer)"
+assert_contains "with a retired-file notice on stderr" "$(errs)" "retired config file $REPO/.claude/testing.local.yaml is not read; settings in it no longer apply"
 rm -f "$REPO/.claude/testing.local.yaml"
 printf '<!-- BEGIN GENERATED: convention-home -->\nTeam conventions live in `missing`.\n<!-- END GENERATED: convention-home -->\n' >"$REPO/AGENTS.md"
 run
