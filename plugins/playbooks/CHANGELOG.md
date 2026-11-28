@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.36.23] - 2026-11-28
+
+### Changed
+
+- Removed unregistered metadata keys (`author`, `source`, `compiled-by`) with no consumer from `/playbooks:boris` frontmatter.
+
 ## [0.36.22] - 2026-11-26
 
 ### Changed
