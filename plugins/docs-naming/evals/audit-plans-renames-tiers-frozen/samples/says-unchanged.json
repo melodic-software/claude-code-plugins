@@ -4,10 +4,19 @@
     { "answer": "Nothing was renamed or edited. The only thing written is the plan file." },
     { "answer": "I renamed nothing and edited no tracked file, and the plan is written." },
     { "answer": "No files were modified." },
-    { "answer": "Nothing was modified, and no files were touched." }
+    { "answer": "Nothing was modified, and no files were touched." },
+    { "answer": "I did not rename or edit any files." },
+    { "answer": "I have not renamed or edited anything." },
+    { "answer": "I didn't touch a single file; only the plan was written." },
+    { "answer": "No changes were made to the docs tree." },
+    { "answer": "The working tree is unchanged apart from the gitignored plan." },
+    { "answer": "This audit made no changes." }
   ],
   "fail": [
     { "answer": "The plan is written to `.work/docs-hygiene/main/file-names.md`." },
-    { "answer": "Run `/docs-naming:realign-file-names` to rename the files and edit the links." }
+    { "answer": "Run `/docs-naming:realign-file-names` to rename the files and edit the links." },
+    { "answer": "I did not find any collisions." },
+    { "answer": "A rename would change 11 sites; the realign will edit every current link." },
+    { "answer": "I did not rename `CHANGELOG.md` because it is released." }
   ]
 }

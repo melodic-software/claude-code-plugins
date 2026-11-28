@@ -23,35 +23,35 @@ graders:
     arm: both
   - name: form-table-first
     type: regex
-    pattern: '^(?:(?!FN-[0-9a-f]{8})[\s\S])*?\blinks-and-paths\b'
+    pattern: '^(?:(?!(?:FN-[0-9a-f]{8}[^\n]{0,80}?(?:Release_Notes|Rate_Limits|CATALOG)\.md|(?:Release_Notes|Rate_Limits|CATALOG)\.md[^\n]{0,40}?(?:release-notes|rate-limits|catalog)\.md))[\s\S])*?\blinks-and-paths\b'
     target: last_message
     arm: both
   - name: form-table-mappings
     type: regex
-    pattern: '^(?:(?=(?:(?!FN-[0-9a-f]{8})[\s\S])*?(?:`all`|\|\s*all\s*\|)(?:(?!FN-[0-9a-f]{8})[^\n]){0,80}?\bevery\b)(?=(?:(?!FN-[0-9a-f]{8})[\s\S])*?\blinks-and-paths\b(?:(?!FN-[0-9a-f]{8})[^\n]){0,160}?\bprose\b)(?=(?:(?!FN-[0-9a-f]{8})[\s\S])*?(?:`none`|\|\s*none\s*\|)(?:(?!FN-[0-9a-f]{8})[^\n]){0,80}?\b(?:nothing|everything)\b)|(?=(?:(?!FN-[0-9a-f]{8})[\s\S])*?(?:\bcurrent\b(?:(?!\b(?:historical|released)\b)[^\n;]){0,60}?\ball\b|\ball\b(?:(?!\b(?:links-and-paths|none)\b)[^\n;]){0,60}?\bcurrent\b))(?=(?:(?!FN-[0-9a-f]{8})[\s\S])*?(?:(?:\bhistorical\b|\bADRs?\b|docs/adr\b)(?:(?!\b(?:current|released)\b)[^\n;]){0,60}?\blinks-and-paths\b|\blinks-and-paths\b(?:(?!\b(?:all|none)\b)[^\n;]){0,60}?(?:\bhistorical\b|\bADRs?\b|docs/adr\b)))(?=(?:(?!FN-[0-9a-f]{8})[\s\S])*?(?:\breleased\b(?:(?!\b(?:current|historical)\b)[^\n;]){0,60}?\bnone\b|\bnone\b(?:(?!\b(?:all|links-and-paths)\b)[^\n;]){0,60}?\breleased\b)))'
+    pattern: '^(?:(?=(?:(?!(?:FN-[0-9a-f]{8}[^\n]{0,80}?(?:Release_Notes|Rate_Limits|CATALOG)\.md|(?:Release_Notes|Rate_Limits|CATALOG)\.md[^\n]{0,40}?(?:release-notes|rate-limits|catalog)\.md))[\s\S])*?(?:`all`|\|\s*all\s*\|)(?:(?!(?:FN-[0-9a-f]{8}[^\n]{0,80}?(?:Release_Notes|Rate_Limits|CATALOG)\.md|(?:Release_Notes|Rate_Limits|CATALOG)\.md[^\n]{0,40}?(?:release-notes|rate-limits|catalog)\.md))[^\n]){0,80}?\bevery\b)(?=(?:(?!(?:FN-[0-9a-f]{8}[^\n]{0,80}?(?:Release_Notes|Rate_Limits|CATALOG)\.md|(?:Release_Notes|Rate_Limits|CATALOG)\.md[^\n]{0,40}?(?:release-notes|rate-limits|catalog)\.md))[\s\S])*?\blinks-and-paths\b(?:(?!(?:FN-[0-9a-f]{8}[^\n]{0,80}?(?:Release_Notes|Rate_Limits|CATALOG)\.md|(?:Release_Notes|Rate_Limits|CATALOG)\.md[^\n]{0,40}?(?:release-notes|rate-limits|catalog)\.md))[^\n]){0,160}?\bprose\b)(?=(?:(?!(?:FN-[0-9a-f]{8}[^\n]{0,80}?(?:Release_Notes|Rate_Limits|CATALOG)\.md|(?:Release_Notes|Rate_Limits|CATALOG)\.md[^\n]{0,40}?(?:release-notes|rate-limits|catalog)\.md))[\s\S])*?(?:`none`|\|\s*none\s*\|)(?:(?!(?:FN-[0-9a-f]{8}[^\n]{0,80}?(?:Release_Notes|Rate_Limits|CATALOG)\.md|(?:Release_Notes|Rate_Limits|CATALOG)\.md[^\n]{0,40}?(?:release-notes|rate-limits|catalog)\.md))[^\n]){0,80}?\b(?:nothing|everything)\b)|(?=(?:(?!(?:FN-[0-9a-f]{8}[^\n]{0,80}?(?:Release_Notes|Rate_Limits|CATALOG)\.md|(?:Release_Notes|Rate_Limits|CATALOG)\.md[^\n]{0,40}?(?:release-notes|rate-limits|catalog)\.md))[\s\S])*?(?:(?:\bcurrent\b|\beverything else\b|\ball other files\b)(?:(?!\b(?:historical|released)\b)[^\n;]){0,60}?\ball\b|\ball\b(?:(?!\b(?:links-and-paths|none)\b)[^\n;]){0,60}?(?:\bcurrent\b|\beverything else\b)))(?=(?:(?!(?:FN-[0-9a-f]{8}[^\n]{0,80}?(?:Release_Notes|Rate_Limits|CATALOG)\.md|(?:Release_Notes|Rate_Limits|CATALOG)\.md[^\n]{0,40}?(?:release-notes|rate-limits|catalog)\.md))[\s\S])*?(?:(?:\bhistorical\b|\bADRs?\b|docs/adr\b)(?:(?!\b(?:current|released)\b)[^\n;]){0,60}?\blinks-and-paths\b|\blinks-and-paths\b(?:(?!\b(?:all|none)\b)[^\n;]){0,60}?(?:\bhistorical\b|\bADRs?\b|docs/adr\b)))(?=(?:(?!(?:FN-[0-9a-f]{8}[^\n]{0,80}?(?:Release_Notes|Rate_Limits|CATALOG)\.md|(?:Release_Notes|Rate_Limits|CATALOG)\.md[^\n]{0,40}?(?:release-notes|rate-limits|catalog)\.md))[\s\S])*?(?:(?:\breleased\b|\bCHANGELOG\b)(?:(?!\b(?:current|historical)\b)[^\n;]){0,60}?\bnone\b|\bnone\b(?:(?!\b(?:all|links-and-paths)\b)[^\n;]){0,60}?(?:\breleased\b|\bCHANGELOG\b))))'
     flags: 'i'
     target: last_message
     arm: both
   - name: review-sites-listed
     type: regex
-    pattern: '^(?=[\s\S]*(?:index\.md\D{1,16}8\b|see CATALOG for the full list))(?=[\s\S]*(?:index\.md\D{1,16}9\b|edit CATALOG by hand))'
+    pattern: '^(?=[\s\S]*(?:(?:index\.md\D{1,16}|\b[Ll]ine\s+)8\b|see [*_`]*CATALOG[*_`]* for the full list))(?=[\s\S]*(?:(?:index\.md\D{1,16}|\b[Ll]ine\s+)9\b|edit [*_`]*CATALOG[*_`]* by hand))'
     target: last_message
     arm: both
   - name: report-count-stated
     type: regex
-    pattern: '(?<![\d.])\b(?:4|four)\b(?!\.\d)[*_`]*\s+(?:sites?[*_`]*\s+)?(?:(?:are|is|will(?:\s+be)?|stay|stays|remain|remains)\s+)?(?:marked\s+)?[*_`]*(?:(?:report|frozen)\b|untouched\b|(?:not|never|won(?:''|’)t)[*_`]*\s+(?:be\s+)?[*_`]*(?:edited|rewritten|touched)\b|(?:left|stays?|remains?|kept)\s+(?:alone|as written|unchanged)\b|listed\b)|\b(?:report|frozen)\b[^\n]{0,40}?\bsites?\b(?:\s*\([^)\n]{0,20}\))?[^\n]{0,20}?(?<![\d.])\b(?:4|four)\b(?!\.\d)'
+    pattern: '(?<![\d.])\b(?:4|four)\b(?!\.\d)[*_`]*\s+(?:(?:sites?|site\(s\))[*_`]*\s+(?:\([^)\n]{0,60}\)\s+|(?:in|across|from)\s[^\n\d;|,]{1,60}?\s)?)?(?:(?:are|is|will(?:\s+be)?|stay|stays|remain|remains)\s+)?(?:marked\s+)?[*_`]*(?:(?:report(?:ed)?|frozen)\b|untouched\b|unchanged\b|alone\b|as[ -]written\b|(?:not|never|won(?:''|’)t)[*_`]*\s+(?:be\s+)?[*_`]*(?:edited|rewritten|touched|changed|modified)\b|(?:left|stays?|remains?|kept)\s+(?:alone|as[ -]written|as[ -]is|unchanged|untouched)\b|listed\s+(?:only|and)\b)|\b(?:report|frozen)\b[^\n\d;]{0,40}?\bsites?\b(?:\s*\([^)\n]{0,20}\))?[^\n\d;]{0,20}?(?<![\d.])\b(?:4|four)\b(?!\.\d)|\breport[*_`]*\s*[:|]\s*[*_`]*(?:4|four)\b(?!\.\d)'
     flags: 'i'
     target: last_message
     arm: both
   - name: says-unchanged
     type: regex
-    pattern: '\b(?:nothing\s+(?:was|has\s+been|got)\s+(?:renamed|edited|changed|touched|modified)|(?:renamed|edited|changed|touched|modified)\s+(?:and\s+(?:renamed|edited|changed|touched|modified)\s+)?nothing|no\s+files?\s+(?:was|were|has\s+been|have\s+been)\s+(?:renamed|edited|changed|touched|modified))\b'
+    pattern: '\b(?:nothing\s+(?:was|has\s+been|got)\s+(?:renamed|edited|changed|touched|modified)|(?:renamed|edited|changed|touched|modified)\s+(?:and\s+(?:renamed|edited|changed|touched|modified)\s+)?nothing|no\s+files?\s+(?:was|were|has\s+been|have\s+been)\s+(?:renamed|edited|changed|touched|modified)|(?:did\s+not|didn[''’]t|have\s+not|haven[''’]t|has\s+not|hasn[''’]t|never)\s+(?:renamed?|edit(?:ed)?|changed?|touch(?:ed)?|modif(?:y|ied))(?:,?\s+(?:or|and|nor)\s+(?:renamed?|edit(?:ed)?|changed?|touch(?:ed)?|modif(?:y|ied)))?\s+(?:anything|any\s+files?|a\s+(?:single\s+)?file)|made\s+no\s+changes|no\s+changes\s+(?:were|have\s+been)\s+made|(?:working\s+)?tree\s+(?:is|was|stays|remains)\s+(?:unchanged|untouched))\b'
     flags: 'i'
     target: last_message
     arm: both
   - name: names-realign
     type: regex
-    pattern: 'docs-naming:realign-file-names'
+    pattern: '\brealign-file-names\b'
     target: last_message
     arm: both
   - name: no-rename
@@ -79,40 +79,40 @@ graders:
     arm: with-only
   - name: row-release-notes
     type: regex
-    pattern: 'Release_Notes\.md[^\n]{0,40}?release-notes\.md(?=[^\n]*?(?<![\d.])5\s+(?:sites?\b|in\s+\d))(?=[^\n]*\b2\s+current\s*\(edit\))(?=[^\n]*\b1\s+historical\s*\(edit\))(?=[^\n]*\b1\s+historical\s*\(report\))(?=[^\n]*\b1\s+released\s*\(report\))'
+    pattern: '(?:^|\n)(?=[^\n]*Release_Notes\.md[^\n]{0,40}?release-notes\.md)(?=[^\n]*?(?<![\d.])5[*_`]*\s*(?:sites?\b|site\(s\)|in\s+\d|\|))(?=[^\n]*\b2\s+current\s*\(`?edit`?\))(?=[^\n]*\b1\s+historical\s*\(`?edit`?\))(?=[^\n]*\b1\s+historical\s*\(`?report`?\))(?=[^\n]*\b1\s+released\s*\(`?report`?\))'
     target: last_message
     arm: both
   - name: row-catalog
     type: regex
-    pattern: 'CATALOG\.md[^\n]{0,40}?\bcatalog\.md(?=[^\n]*?(?<![\d.])4\s+(?:sites?\b|in\s+\d))(?=[^\n]*\b1\s+current\s*\(edit\))(?=[^\n]*\b2\s+(?:current\s+\()?review)(?=[^\n]*\b1\s+released\s*\(report\))'
+    pattern: '(?:^|\n)(?=[^\n]*CATALOG\.md[^\n]{0,40}?\bcatalog\.md)(?=[^\n]*?(?<![\d.])4[*_`]*\s*(?:sites?\b|site\(s\)|in\s+\d|\|))(?=[^\n]*\b1\s+current\s*\(`?edit`?\))(?=[^\n]*\b2\s+(?:current\s+\(`?)?review)(?=[^\n]*\b1\s+released\s*\(`?report`?\))'
     target: last_message
     arm: both
   - name: row-rate-limits
     type: regex
-    pattern: 'Rate_Limits\.md[^\n]{0,40}?rate-limits\.md(?=[^\n]*?(?<![\d.])2\s+(?:sites?\b|in\s+\d))(?=[^\n]*\b1\s+current\s*\(edit\))(?=[^\n]*\b1\s+released\s*\(report\))'
+    pattern: '(?:^|\n)(?=[^\n]*Rate_Limits\.md[^\n]{0,40}?rate-limits\.md)(?=[^\n]*?(?<![\d.])2[*_`]*\s*(?:sites?\b|site\(s\)|in\s+\d|\|))(?=[^\n]*\b1\s+current\s*\(`?edit`?\))(?=[^\n]*\b1\s+released\s*\(`?report`?\))'
     target: last_message
     arm: both
   - name: no-generated
     type: regex
-    pattern: '\b(?:no|none|not)\b[^\n.;,]{0,30}\bgenerated\s+files?\b|\bgenerated(?:\s+files?)?\s*[:|]\s*(?:none|no|0)\b'
+    pattern: '(?:(?<!\bdo\s)\b(?:no|none|not|zero|without)\b(?!\s+(?:sure|check(?:ed)?|verif(?:y|ied)|know)\b)|n(?:''|’)t\b)[^\n.;,]{0,30}\bgenerated\s+(?:files?|records?)\b|\bgenerated(?:\s+(?:files?|records?))?\s*[:|]\s*(?:none|no|0)\b|\bno\b[^\n.;,]{0,20}\bregenerate\b'
     flags: 'i'
     target: last_message
     arm: both
   - name: review-excerpts
     type: regex
-    pattern: '^(?=[\s\S]*(?:index\.md\D{1,16}|\bline\s+)8\b[^\n]*see CATALOG for the full list)(?=[\s\S]*(?:index\.md\D{1,16}|\bline\s+)9\b[^\n]*edit CATALOG by hand)'
+    pattern: '^(?=[\s\S]*(?:(?:index\.md\D{1,16}|\bline\s+|\n\|\s*)8\b[^\n]*(?:\n[ \t]+>?[^\n]*|\n>[^\n]*)?see [*_`]*CATALOG[*_`]* for the full list|see [*_`]*CATALOG[*_`]* for the full list[^\n]*(?:index\.md\D{1,16}|\bline\s+|\n\|\s*)8\b))(?=[\s\S]*(?:(?:index\.md\D{1,16}|\bline\s+|\n\|\s*)9\b[^\n]*(?:\n[ \t]+>?[^\n]*|\n>[^\n]*)?edit [*_`]*CATALOG[*_`]* by hand|edit [*_`]*CATALOG[*_`]* by hand[^\n]*(?:index\.md\D{1,16}|\bline\s+|\n\|\s*)9\b))'
     flags: 'i'
     target: last_message
     arm: both
   - name: released-untouched
     type: regex
-    pattern: '\breleased\b[^\n]{0,100}?(?:frozen|un(?:touched|rewritten|edited|changed)|never\s+(?:touched|rewritten|edited)|not\s+(?:be\s+)?(?:rewritten|touched|edited)|left\s+(?:alone|as\s+written|unchanged)|stays?\s+as\s+(?:published|written)|only\s+listed|listed\s+only|do\s+not\s+touch)|^(?=[\s\S]*?(?:`none`|\|\s*none\s*\|)[^\n]{0,80}?\b(?:never\s+touched|everything)\b)(?=[\s\S]*?\breleased\s*\(report\))(?![\s\S]*?\breleased\s*\(edit\))'
+    pattern: '\breleased\b(?:(?!\b(?:while|but|whereas)\b|;(?=[^\n]{0,20}\b(?:historical|current|ADRs?|prose)\b)|\.\s)[^\n]){0,100}?(?:(?<!not\s)frozen|un(?:touched|rewritten|edited|changed)|never\s+(?:touched|rewritten|edited|changed)|(?:not|n(?:''|’)t)\s+(?:be\s+)?(?:rewritten|touched|edited|changed|modified)|(?:left|kept)\s+(?:alone|as\s+written|unchanged)|(?:stays?|remains?)\s+as\s+(?:published|written)|only\s+listed|listed\s+only|do\s+not\s+touch)|\bnothing\b[^\n.;]{0,40}?\breleased\b[^\n.;]{0,60}?\b(?:rewritten|edited|touched|changed)\b|^(?=[\s\S]*?(?:`none`|\|\s*none\s*\|)[^\n]{0,80}?\b(?:never\s+touched|everything)\b)(?=[\s\S]*?\breleased\s*\(report\))(?![\s\S]*?\breleased\s*\(edit\))'
     flags: 'i'
     target: last_message
     arm: both
   - name: historical-links-only
     type: regex
-    pattern: '(?:^|\n)(?![^\n]*(?:(?<!never\s)(?<!not\s)(?<!no\s)(?<!n''t\s)\b(?:rewrit\w*|edits?|edited|updates?|updated|changes?|changed)\b(?!(?=(?:(?!\bprose\b)[^\n;.|]){0,40}?\bonly\b)(?:(?!\bprose\b)[^\n;.|]){0,40}?\b(?:links?|paths?)\b(?:(?!\bprose\b)[^\n;.|]){0,40}?(?:,|\b(?:while|but|leaving|leaves)\b)(?:(?!\b(?:links?|paths?|prose|and|or)\b)[^\n;.|]){0,40}?\bprose\b)[^\n;.|]{0,40}?\bprose\b|\bprose\b(?:(?!\b(?:not|never|no)\b|n''t\b)[^\n;.|]){0,40}\b(?:rewrit\w*|edits?|edited|updates?|updated|changes?|changed)\b))(?=[^\n]*links-and-paths)(?=[^\n]*\bprose\b)[^\n]*(?:\b(?:left|leaves?|stays?|kept|untouched|unchanged|preserved|alone|never)\b|\bas written\b|\|[^|\n]*\bprose\b[^|\n]*\|[ \t]*(?=\n|$))'
+    pattern: '(?:^|\n)(?![^\n]*(?:(?<!never\s)(?<!not\s)(?<!no\s)(?<!n''t\s)\b(?:rewrit\w*|edits?|edited|updates?|updated|changes?|changed|repoint\w*|touch(?:es|ed)?)\b(?!(?=(?:(?!\b(?:prose|narrative|sentences?)\b)[^\n;.|]){0,40}?\bonly\b)(?:(?!\b(?:prose|narrative|sentences?)\b)[^\n;.|]){0,40}?\b(?:links?|paths?)\b(?:(?!\b(?:prose|narrative|sentences?)\b)[^\n;.|]){0,40}?(?:,|\b(?:while|but|leaving|leaves)\b)(?:(?!\b(?:links?|paths?|prose|narrative|sentences?|and|or)\b)[^\n;.|]){0,40}?\b(?:prose|narrative|sentences?)\b)(?:(?!\b(?:while|but|whereas|leaving|leaves|not|never|no|stays?|left|kept|preserved|untouched|unchanged|alone)\b|n''t\b)[^\n;.|]){0,40}?\b(?:prose|narrative|sentences?)\b|\b(?:prose|narrative|sentences?)\b(?:(?!\b(?:while|but|whereas|leaving|leaves|not|never|no|stays?|left|kept|preserved|untouched|unchanged|alone)\b|n''t\b)[^\n;.|]){0,40}\b(?:rewrit\w*|edits?|edited|updates?|updated|changes?|changed|repoint\w*|touch(?:es|ed)?)\b))(?=[^\n]*links-and-paths)(?=[^\n]*\b(?:prose|narrative|sentences?)\b)[^\n]*(?:\b(?:left|leaves?|stays?|kept|keeps?|untouched|unchanged|preserved|alone|never)\b|\bas written\b|(?:\bnot|n''t)\s+(?:be\s+)?(?:rewritten|edited|touched|changed|updated)\b|\|[^|\n]*\b(?:prose|narrative|sentences?)\b[^|\n]*\|[ \t]*(?=\n|$)|\blinks-and-paths\b[^|\n]*\|[^|\n]*\|[^|\n]*\b(?:prose|narrative|sentences?)\b)'
     flags: 'i'
     target: last_message
     arm: both

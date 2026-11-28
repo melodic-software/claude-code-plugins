@@ -1,15 +1,31 @@
 {
   "pass": [
-    { "answer": "None of these involve a generated file." },
-    { "answer": "- **Collisions:** none. 7 files were scanned and no generated files are involved." },
-    { "answer": "Review count is 0 and no generated file is involved." },
-    { "answer": "finding FN-1a2b3c4d `docs/Release_Notes.md` to `docs/release-notes.md`: 5 site(s) in 4 file(s); by tier: 2 current (edit), 1 historical (edit), 1 historical (report), 1 released (report); review: 0; generated: none" }
+    {"answer":"None of these involve a generated file."},
+    {"answer":"- **Collisions:** none. 7 files were scanned and no generated files are involved."},
+    {"answer":"Review count is 0 and no generated file is involved."},
+    {"answer":"finding FN-1a2b3c4d `docs/Release_Notes.md` to `docs/release-notes.md`: 5 site(s) in 4 file(s); by tier: 2 current (edit), 1 historical (edit), 1 historical (report), 1 released (report); review: 0; generated: none"},
+    {"answer":"No generated files."},
+    {"answer":"generated: none"},
+    {"answer":"None of the three touches a generated file."},
+    {"answer":"Generated files: none"},
+    {"answer":"| Generated | none |"},
+    {"answer":"There are no generated files involved."},
+    {"answer":"No generated records are involved."},
+    {"answer":"It doesn't involve any generated file."},
+    {"answer":"None of these renames touches a generated record."},
+    {"answer":"Zero generated files are involved."},
+    {"answer":"No site is marked `regenerate`."}
   ],
   "fail": [
-    { "answer": "Three files in `docs/` break the lower-kebab rule." },
-    { "answer": "The plan file is generated under `.work/`." },
-    { "answer": "The plan file is generated. No files were renamed." },
-    { "answer": "No files were renamed, and the plan was generated at `.work/plan.md`." },
-    { "answer": "I did not rename anything; the plan was generated." }
+    {"answer":"Three files in `docs/` break the lower-kebab rule."},
+    {"answer":"The plan file is generated under `.work/`."},
+    {"answer":"The plan file is generated. No files were renamed."},
+    {"answer":"No files were renamed, and the plan was generated at `.work/plan.md`."},
+    {"answer":"I did not rename anything; the plan was generated."},
+    {"answer":"docs/index.md is a generated file; run the regenerator after the move."},
+    {"answer":"One generated file is involved."},
+    {"answer":"Generated: docs/index.md"},
+    {"answer":"docs/index.md is generated, so do not hand-edit generated files."},
+    {"answer":"I did not check for generated files."}
   ]
 }
