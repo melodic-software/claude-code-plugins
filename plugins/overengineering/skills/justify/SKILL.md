@@ -1,5 +1,5 @@
 ---
-description: "Read-only: judges on evidence whether one named artifact (file, doc section, dependency, component) had and still has reason to exist, or proposal (plan step, design option, mechanism to add) is needed. Use when asking if a thing needs to exist, earns its keep, 'overengineered', 'we need X', or 'simpler way'. Not for audits: /overengineering:audit."
+description: "Read-only: judges on evidence whether one artifact (file, doc section, dependency, component) had and still has reason to exist, or proposal (plan step, design option, mechanism to add) is needed. Use when asked if a thing needs to exist, earns keep, 'overengineered', 'we need X', 'simpler way'. Not for enforcement surface: /overengineering:audit."
 argument-hint: "[path|path#heading|kind:identifier|proposal]"
 user-invocable: true
 disable-model-invocation: false
