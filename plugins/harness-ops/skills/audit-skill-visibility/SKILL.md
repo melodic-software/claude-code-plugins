@@ -1,5 +1,5 @@
 ---
-description: "Audit which skills the model can see, which are starved or dropped, and whether skill listing is over budget. When built-in skill-doctor resolves in this session, prefer it for cost; this skill for unseen skills. Use for 'audit skill visibility', 'which skills are starved', 'is my skill listing over budget', or why Claude never suggests a skill."
+description: "Audit which skills the model can see, which are starved or dropped, and whether skill listing is over budget. When built-in skill-doctor resolves in this session, prefer it for cost; this skill for unseen skills. Use when 'audit skill visibility', 'which skills are starved', 'is my skill listing over budget', or why Claude never suggests a skill."
 argument-hint: "[--unattended] [--installed [dir]] [--plugins-root <dir>] [--render markdown|json]"
 user-invocable: true
 shell: bash

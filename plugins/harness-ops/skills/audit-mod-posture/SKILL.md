@@ -1,5 +1,5 @@
 ---
-description: "Read-only audit of mods this Claude Code can run (installed and built-in mods, hooks, calls, sec-default guard state); never loads a mod or prints settings. Use for 'mod posture', 'audit my mods', 'can a mod bypass my deny rules', or which mods run here. Not for writing a mod or settings correctness: /harness-config:audit."
+description: "Read-only audit of mods this Claude Code can run (installed and built-in mods, hooks, calls, sec-default guard state); never loads a mod or prints settings. Use when 'mod posture', 'audit my mods', 'can a mod bypass my deny rules', or which mods run here. Not for writing a mod or settings correctness: /harness-config:audit."
 argument-hint: "[--builtin-json <inventory-report>] [--project <dir>] [--surface desktop]"
 user-invocable: true
 disable-model-invocation: false

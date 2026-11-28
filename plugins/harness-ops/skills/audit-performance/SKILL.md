@@ -1,5 +1,5 @@
 ---
-description: "Read-only slowness diagnostic that never 'fixes' (run before restart/delete): version, retention, bloat, hook/subagent fan-out, kernel-leak. Use for 'Claude Code is slow', 'typing lags', sluggish session, machine freezes, slow hooks, or too many subagents. Not for bugs (/harness-ops:known-issues) or stale files (/harness-ops:audit-install-state)."
+description: "Read-only slowness diagnostic that never 'fixes' (run before restart/delete): version, retention, bloat, hook/subagent fan-out, kernel-leak. Use when 'Claude Code is slow', 'typing lags', sluggish session, machine freezes, slow hooks, or too many subagents. Not for bugs (/harness-ops:known-issues) or stale files (/harness-ops:audit-install-state)."
 argument-hint: "[--unattended] [--root <path>] [--session-id <id>] [--note <fact>]"
 user-invocable: true
 disable-model-invocation: false

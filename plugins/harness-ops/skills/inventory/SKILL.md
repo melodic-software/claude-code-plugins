@@ -1,5 +1,5 @@
 ---
-description: "List every Claude Code surface this machine can invoke: built-in commands, subagents, tools, bundled skills/workflows, and installed plugin components. Use for 'what slash commands do I have', 'what agents are available', 'is /foo a real command', what changed after update, or marketplace contents. On-disk audit: /harness-ops:audit-install-state."
+description: "List every Claude Code surface this machine can invoke: built-in commands, subagents, tools, bundled skills/workflows, and installed plugin components. Use when 'what slash commands do I have', 'what agents are available', 'is /foo a real command', what changed after update, or marketplace contents. On-disk audit: /harness-ops:audit-install-state."
 argument-hint: "[--builtin|--plugins|--bundled|--agents|--tools|--hooks|--docs] [--marketplace <m>] [--diff <f>]"
 user-invocable: true
 disable-model-invocation: false

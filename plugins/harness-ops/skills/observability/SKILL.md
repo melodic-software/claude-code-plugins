@@ -1,5 +1,5 @@
 ---
-description: "Cross-session local telemetry stores (OTEL DuckDB, hook log, ccusage): token burn, cost, latency, session activity, usage; read-only except clean. If bundled explain-usage resolves in this session, prefer it for session tokens. Use for 'claude observability', 'which hooks fired', 'tokens per work item', compare two sessions, what a session did."
+description: "Cross-session local telemetry stores (OTEL DuckDB, hook log, ccusage): token burn, cost, latency, session activity, usage; read-only except clean. If bundled explain-usage resolves in this session, prefer it for session tokens. Use when 'claude observability', 'which hooks fired', 'tokens per work item', compare two sessions, what a session did."
 user-invocable: true
 disable-model-invocation: false
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/build-dashboard.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/build-dashboard.mjs\":*)"]
