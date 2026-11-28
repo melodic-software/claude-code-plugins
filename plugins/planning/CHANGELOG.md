@@ -3,6 +3,18 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.2.1] - 2026-11-27
+
+### Fixed
+
+- `/planning:draft-goal-condition` puts a clock-time end inside the drafted condition, never leaving it out or offering it as a clause the user may append.
+
+## [6.2.0] - 2026-11-27
+
+### Added
+
+- `scripts/check-round-codes.sh` adds three deterministic interview-round checks: under `--pacing single`, it fails a `Later:` topic that matches another question title in the round or open in the ledger (`preview=<line>:later:<Qid>`) and flags Context or Alternatives word overlap with another question title (`preview=<line>:overlap:<Qid>`); for every `My recommendation:` question, it requires a checkable basis (`basis=<line>:missing`, `basis=<line>:uncheckable`), a confirmable `Flips if:` / `Would change if:` condition (`flips-if=<line>:uncheckable`), and a flip condition when Context names an open or unknown fact (`missing=<line>:flips-if`); and its `undefined=` term check now covers terms defined in another question's `Context:` in addition to the ledger's `## Terminology matrix`.
+
 ## [6.1.3] - 2026-11-27
 
 ### Fixed

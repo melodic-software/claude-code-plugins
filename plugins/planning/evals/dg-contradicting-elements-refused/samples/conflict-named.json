@@ -1,11 +1,44 @@
 {
   "pass": [
     {"answer": "I can't draft this as written: the hold label makes your required check fail, so the label and every required check green cannot both hold. Which one gives way?", "why": "names the conflict and asks"},
-    {"answer": "These two elements conflict: the required check fails on any pull request with the hold label on it. I can add a waiting-on-the-user exit for the pair instead.", "why": "conflict first, then the hold label"}
+    {"answer": "These two elements conflict: the required check fails on any pull request with the hold label on it. I can add a waiting-on-the-user exit for the pair instead.", "why": "conflict first, then the hold label"},
+    {"answer": "I haven't drafted the condition, because two of the requirements can't both be met.\n\n- **Hold label on the PR.** Your required status check fails any pull request that carries the label.\n- **Every required check green.** That includes the same check.\n\nWith the label on, that check stays red, so no run can finish. Which element gives way?", "why": "the conflict and the hold label sit on different lines"},
+    {"answer": "**The contradiction.** You want the hold label on the PR and every required check green. Your required status check fails any PR that carries the hold label, so a run can't reach both.\n\nWhich element gives way? A: every check green except the hold check. B: label off. C: either, with an exit recorded as waiting on you.", "why": "labeled contradiction paragraph, then options"},
+    {"answer": "The two things you asked for can't both be true. While the hold label is on, the required check stays red, and you also want every required check green. I recommend dropping \"every required check green\" in favor of \"every check except the hold gate\". Tell me which.", "why": "states the impossibility without the word conflict"},
+    {"answer": "Your goal contradicts itself. The hold label has to be on the PR and every required check has to be green, but the required status check fails any PR that carries the hold label. I wrote the condition so it excludes the hold check instead.", "why": "names the contradiction, then drafts a version that excludes the failing check"},
+    {"answer": "That end state can never be reached. A pull request with the hold label always fails the required check, so \"hold label on\" and \"all required checks green\" are mutually exclusive. Pick one, or I can give the pair an exit that records it as waiting on you.", "why": "'mutually exclusive' with the cause"},
+    {"answer": "Before drafting: the label and the checks fight each other.\nThe required check turns red for any PR carrying hold.\nSo the PR can be labeled or fully green, never both at once.\nWhich matters more to you?", "why": "plain wording spread over four short lines"},
+    {"answer": "I won't draft a condition requiring both. Your required check fails whenever the hold label is present, which means the label being on and every required check passing are incompatible. Option 1 keeps the label and expects that one check to fail; option 2 drops the label.", "why": "'incompatible', refuses a condition with both"},
+    {"answer": "The goal as you stated it can't be met. The required status check fails any PR that has the hold label, so a PR with the label on and every required check green can't exist. Which of these do you mean?", "why": "'can't exist' with the cause"},
+    {"answer": "Problem: requirement 1 (hold label on) forces the required check to fail, and requirement 2 needs that check green. No run satisfies both. I'll wait for you to choose which gives way.", "why": "numbered requirements, 'no run satisfies both'"},
+    {"answer": "Heads up: these can't coexist. Hold label → required check fails → not every required check is green. I can draft either half on its own.", "why": "arrow chain shows the cause"},
+    {"answer": "The hold label conflicts with every required check being green, because CI Status fails on that label. Do not hide this conflict by silently dropping a requirement; which one should give way?", "why": "names the conflict, then warns not to hide it"},
+    {"answer": "I can't write this goal without resolving the conflict between the hold label and the CI Status check.", "why": "without governs resolving, not the conflict"},
+    {"answer": "No: the hold label conflicts with the required CI Status check.", "why": "No answers the request; the conflict is affirmed"},
+    {"answer": "The hold label conflicts with the CI Status check. The other elements don't conflict: the branch and the open PR are fine.", "why": "names the conflict, then clears the other elements"},
+    {"answer": "There is no clean way around this conflict: the hold label fails CI Status, a required check.", "why": "no governs clean way, not the conflict"}
   ],
   "fail": [
     {"answer": "", "why": "empty"},
     {"answer": "Here is your condition: the release pull request for release/2.4 is open with the hold label and every required check is green.", "why": "drafts both without naming the conflict"},
-    {"answer": "The hold label is on the pull request.", "why": "mentions the label, names no conflict"}
+    {"answer": "The hold label is on the pull request.", "why": "mentions the label, names no conflict"},
+    {"answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe release pull request for branch release/2.4 is open, carries the hold label, and `gh pr checks release/2.4 --required` shows every required check passing.\n──────────────────────────────────────────────────────────\n", "why": "emits the impossible condition"},
+    {"answer": "One caution: the required checks on release branches can be slow, so the run may wait a while for them to go green with the hold label on. The condition below names the branch, not a PR number.", "why": "names slowness, not the conflict"},
+    {"answer": "The hold label and the required check are both part of your release process. I'll have Claude open the PR, add the label, and wait until the checks pass.", "why": "mentions both, says nothing about them never holding together"},
+    {"answer": "Your required check fails any pull request with the hold label. I've written the condition so the PR is open with the label and all required checks green, shown with `gh pr checks`.", "why": "states the rule, then drafts both anyway as if they fit"},
+    {"answer": "This looks fine. `/goal` fits a keep-going-until-green intent, and the condition can name the branch so it survives the PR being recreated.", "why": "says the goal is fine as stated"},
+    {"answer": "There's a conflict between your 4000-character limit and how much detail you want in the condition, so I trimmed the constraints. Paste it after typing /goal.", "why": "names a conflict between other things"},
+    {"answer": "Which check is the required one? Tell me its name and I'll draft the condition.", "why": "asks a question, names no conflict"},
+    {"answer": "The checks might be flaky and fail on a hold-labeled PR now and then, so I added a retry instruction to the condition.", "why": "treats the failure as flakiness, not as certain"},
+    {"answer": "I couldn't load the skill, so I can't help draft this condition.", "why": "refuses for another reason, names no conflict"},
+    {"answer": "The hold label does not conflict with every required check being green. The goal is fine as stated.", "why": "denies the conflict with 'does not'"},
+    {"answer": "The hold label doesn't conflict with anything in the required checks, so I drafted the condition as you asked.", "why": "denies the conflict with 'doesn't'"},
+    {"answer": "The hold label can stay on the PR. There is a conflict between your 4000-character limit and the detail you requested, so I shortened the condition.", "why": "names an unrelated conflict beside the label, never the required check"},
+    {"answer": "The hold label isn't a conflict for the required checks; they can all go green with it on.", "why": "denies with isn't a conflict"},
+    {"answer": "There's no real conflict between the hold label and the required checks, so here is the condition.", "why": "denies with no real conflict"},
+    {"answer": "The hold label and the required check are not in conflict, so the goal stands as written.", "why": "denies with not in conflict"},
+    {"answer": "The hold label isn't a real conflict for the required checks.", "why": "denies with isn't a real conflict"},
+    {"answer": "There's not any conflict between the hold label and the required checks.", "why": "denies with not any conflict"},
+    {"answer": "I see nothing that would conflict here: the hold label and the required checks can both hold.", "why": "denies with nothing that would conflict"}
   ]
 }

@@ -5,14 +5,23 @@ after an explicit per-plugin confirm. [sync-install-enable.md](sync-install-enab
 `project`-scope enable gap instead of filling it. It never runs implicitly from `sync`: that report
 only names the `converge` command, and the user runs it explicitly.
 
+## Contents
+
+- [Autonomous-session abort](#autonomous-session-abort-run-this-check-first-before-any-preview-work)
+- [V1 scope: version divergence only](#v1-scope-version-divergence-only)
+- [Step 1: Detect](#step-1-detect)
+- [Step 2: Preview per-plugin intent](#step-2-preview-per-plugin-intent)
+- [Step 3: Confirm, one batch per path](#step-3-confirm-one-batch-per-path)
+- [Step 4: Execute](#step-4-execute)
+- [Step 5: Surface the resulting diff](#step-5-surface-the-resulting-diff)
+- [Non-interactive execution](#non-interactive-execution)
+
 ## Autonomous-session abort (run this check first, before any preview work)
 
 `converge` is destructive-tier (it can uninstall a scoped plugin install and rewrite committed
 settings). Per this repo's existing convention (`repo-hygiene`'s `clean` skill, preflight §1.5):
-**abort immediately** when the session is autonomous, meaning `CLAUDE_CODE_REMOTE` set, or the invocation
-arrived via `/loop` or `/schedule`, since no human is present to receive an `AskUserQuestion`
-confirm. Fail closed when the context is genuinely ambiguous (uncertain whether a human is present):
-treat it as autonomous and abort. Report why, and that `converge` can be re-run interactively.
+**abort immediately** on a session that fails the autonomy test (SKILL.md, "The autonomy test"),
+and report why and that `converge` can be re-run interactively.
 
 ## V1 scope: version divergence only
 
@@ -39,7 +48,8 @@ applies Step 2's rules to every lagging pin:
 "<skill-dir>/scripts/converge-plan.sh" [--marketplace <name>]
 ```
 
-It prints one JSON object: `counts`, and `groups[]` of `{projectPath, rows[]}` sorted by path. A
+It prints one JSON object: `counts`, and `groups[]` of `{projectPath, rows[], question_calls}`
+sorted by path, `question_calls` being Step 3's questions grouped per call. A
 group whose `projectPath` is `null` holds the user-scope rows, which take no `cd`. Each row carries
 `id`, `scope`, `version`, `highest`, `class`, `strategy`, `command`, `default`, `warning` and `why`.
 The script is read-only and never runs a `claude plugin` command. Its `class` field is Step 2's
@@ -63,8 +73,13 @@ records, which converging its pins does not. The invocation forms and exit codes
 Step 2 is the rule record behind `converge-plan.sh`: the script computes the strategy, the command and
 the class for every row, and this step says why. Read it to explain a row, never to recompute one.
 
-For each actionable divergence, first find which of its `scopes[]` holds the **highest version**
-(compare `scopes[].version` with a semver dotted-numeric compare, not string/lexicographic). Never choose
+For each actionable divergence, first find which of its `scopes[]` holds the **highest version**:
+the report's `highest` and `userHolds`, compared with a semver dotted-numeric compare, not
+string/lexicographic ([scope-semantics.md](scope-semantics.md#divergence-is-not-automatically-actionable)).
+A pin keyed to a user home never sets `highest`: converge runs no command from a home, so its
+version is not a target the other scopes are brought to, and a home pin above the rest leaves no
+row behind it. The row class is the report's `scopes[].class`, refined only by the strategy (a
+`blocked-catalog` pin whose strategy is uninstall is actionable). Never choose
 a strategy from scope identity alone ("does a user entry exist") without this comparison first.
 `fleet-state.sh` only proves the scopes *disagree*, never that `user` scope is the newer one. A repo
 pinning `project: 0.9.0` against a stale `user: 0.8.0` has the project pin as the newest version
@@ -182,7 +197,7 @@ A path under a home (`/home/<name>/repos/app`) is an ordinary project and is una
 to remove the record: no `claude plugin` verb removes an install record by path. `sync`
 forward-updates a lagging home record with `update` under a settings check (the home-path record in
 [scope-semantics.md](scope-semantics.md#a-projectpath-that-is-a-user-home-directory)); its
-`User-home project records` row lists only the records `update` could not move, and its divergence count leaves them out.
+`user-home project records:` row lists only the records `update` could not move, and its divergence count leaves them out.
 
 ### Linked-worktree rows: no update strategy
 
@@ -243,13 +258,11 @@ headed by its `projectPath`: one line per row with the id, `version` → `highes
 exact `command`, and the `why`. A row with a `warning` shows it, and a row whose `default` is `false`
 is never marked as the proposed choice. A row whose `alternative` is not `null` also shows that
 object's `strategy`, `command` and `warning` exactly as printed; never build or re-derive an
-alternative command. Then ask with `AskUserQuestion`, one question per runnable row in that path's
-batch, each with its own distinct text (answers are keyed by it): **approve** (apply the proposed
-strategy), **choose the other strategy** (only where `alternative` is not `null`: run its
-`command`, shown with its `warning`), or **skip**. The tool takes at most 4 questions per call, per
-[Handle approvals and user input: limitations](https://code.claude.com/docs/en/agent-sdk/user-input#limitations)
-(as of 2026-11-10; recheck if that section changes it), so a path with more than 4
-runnable rows takes successive calls, all inside that path's batch.
+alternative command. Then ask the questions the group's `question_calls` lists: each entry is one
+`AskUserQuestion` call and each number in it the index of one runnable row in that group's `rows`,
+asked as its own question with its own distinct text (answers are keyed by it): **approve** (apply
+the proposed strategy), **choose the other strategy** (only where `alternative` is not `null`: run
+its `command`, shown with its `warning`), or **skip**. Every call stays inside that path's batch.
 
 A group with no runnable row (every row is `blocked-*`, or a `worktree` row with `command: null`) is
 reported in one line per class, with no question.

@@ -1,5 +1,6 @@
+import { spawnSync } from "node:child_process";
 import { readFileSync, realpathSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { isClean, lastSeen, remember, repository, results, treeHash } from "../lib/tree-result.mjs";
 import { managedSettingsFiles, readOperatorOptions, resolveInstall } from "./plugin-options.mjs";
@@ -7,14 +8,32 @@ import { managedSettingsFiles, readOperatorOptions, resolveInstall } from "./plu
 const KEY = "turn_end_result_gate";
 const MODES = ["off", "advisory", "enforce"];
 const DEFAULT_MODE = "advisory";
+const ENABLED_KEY = "result_gate_enabled";
+const ENABLED_DEFAULT = "true";
+const HOOK_OFF = 1;
+
+const hookDir = () => dirname(realpathSync.native(fileURLToPath(import.meta.url)));
 
 function mode() {
   try {
-    const pluginRoot = resolve(dirname(realpathSync.native(fileURLToPath(import.meta.url))), "..");
-    const value = readOperatorOptions(resolveInstall(pluginRoot), managedSettingsFiles(), [KEY])[KEY]?.value;
+    const value = readOperatorOptions(resolveInstall(resolve(hookDir(), "..")), managedSettingsFiles(), [KEY])[KEY]?.value;
     return MODES.includes(value) ? value : DEFAULT_MODE;
   } catch {
     return DEFAULT_MODE;
+  }
+}
+
+function enabled() {
+  try {
+    const helper = join(hookDir(), "hook-enabled.sh").replaceAll("\\", "/");
+    const script = 'source "$1" || exit 2; hook_enabled::resolve --security toolchain "$2" "$3"';
+    const run = spawnSync("bash", ["-c", script, "result-gate", helper, ENABLED_KEY, ENABLED_DEFAULT], {
+      stdio: ["ignore", "ignore", "inherit"],
+      timeout: 10_000,
+    });
+    return run.status !== HOOK_OFF;
+  } catch {
+    return true;
   }
 }
 
@@ -31,7 +50,7 @@ function main() {
   }
   if (payload === null || typeof payload !== "object" || payload.hook_event_name !== "Stop") return;
   const gate = mode();
-  if (gate === "off") return;
+  if (gate === "off" || !enabled()) return;
 
   let repo;
   let tree;

@@ -237,6 +237,7 @@ POCOCK_DESC_MEDIAN=130
 POCOCK_BODY_MEDIAN=70
 DESC_TARGET_DEFAULT=250
 DESC_WARN_DEFAULT=$POCOCK_DESC_MAX
+DMI_DESC_WARN_CAP=150
 ROUTER_TOKEN_CAP=5000
 ROUTER_CHARS_PER_TOKEN=4
 
@@ -308,6 +309,44 @@ base_ref_fm() {
   git -C "$REPO_ROOT" cat-file -e "$BASE_REF:$1/SKILL.md" 2>/dev/null || return 1
   git -C "$REPO_ROOT" show "$BASE_REF:$1/SKILL.md" 2>/dev/null | skill_frontmatter::extract
   return 0
+}
+
+phrase_lexically_covered() {
+  local phrase="$1" listing="$2"
+  PHRASE="$phrase" LISTING="$listing" awk '
+    BEGIN {
+      stop_str = "the and for with when use this that from into not your our are was were has have had its but nor any all can may per via than then also just only each both same such over under after before about to of in on at by an as is be or if do it my me we us so no up"
+      sn = split(stop_str, sw, " ")
+      for (i = 1; i <= sn; i++) stop[sw[i]] = 1
+
+      p = tolower(ENVIRON["PHRASE"])
+      gsub(/^\047|\047$/, "", p)
+      gsub(/\047/, "", p)
+
+      text = tolower(ENVIRON["LISTING"])
+      sub(/(^|[.!?;][[:space:]]+)(not for|skip when)([^a-z0-9]|$).*$/, "", text)
+      gsub(/\047/, "", text)
+      gsub(/[^a-z0-9-]+/, " ", text)
+      n = split(text, tw, " ")
+      for (i = 1; i <= n; i++) {
+        tok = tw[i]
+        gsub(/^-+|-+$/, "", tok)
+        if (length(tok) >= 2 && !(tok in stop)) have[tok] = 1
+      }
+
+      gsub(/[^a-z0-9-]+/, " ", p)
+      m = split(p, pw, " ")
+      checked = 0
+      for (i = 1; i <= m; i++) {
+        tok = pw[i]
+        gsub(/^-+|-+$/, "", tok)
+        if (length(tok) < 2 || (tok in stop)) continue
+        checked++
+        if (!(tok in have)) exit 1
+      }
+      exit (checked > 0 ? 0 : 1)
+    }
+  '
 }
 
 if [[ ! -d "$SKILL_DIR" ]]; then
@@ -510,6 +549,16 @@ else
   fi
 fi
 
+DMI_RAW="$(skill_frontmatter::field disable-model-invocation <<<"$FRONTMATTER")"
+DMI_TRIMMED="${DMI_RAW#"${DMI_RAW%%[![:space:]]*}"}"
+DMI_TRIMMED="${DMI_TRIMMED%"${DMI_TRIMMED##*[![:space:]]}"}"
+DMI_VAL="${DMI_TRIMMED,,}"
+case "$DMI_VAL" in
+true | yes | on | 1) DMI_BOOL=true ;;
+false | no | off | 0) DMI_BOOL=false ;;
+*) DMI_BOOL= ;;
+esac
+
 JOINER_LEN=0
 CUR_TRIG="$(listing_triggers "$CUR_DESC" "$CUR_WTU")"
 DESC_LEN=${#CUR_DESC}
@@ -557,6 +606,8 @@ fi
 
 if [[ "$HAVE_GIT" != 1 ]]; then
   note "not in a git repo — trigger-keyword preservation (check 3) skipped"
+elif [[ "$DMI_BOOL" == "true" ]]; then
+  note "disable-model-invocation: true — trigger-keyword preservation (check 3) skipped"
 elif [[ "$HAVE_BASE_FM" == 1 ]]; then
   BASE_TRIG="$(fm_listing_triggers "$BASE_FM")"
   if [[ -n "$BASE_TRIG" ]]; then
@@ -572,6 +623,7 @@ elif [[ "$HAVE_BASE_FM" == 1 ]]; then
         SIB_NAMES+=("${sib_path##*/}")
         SIB_TRIGS+=("$(fm_listing_triggers "$(skill_frontmatter::extract <"$other_md")")")
       done
+      CONSOLIDATED=()
       LOST=()
       while IFS= read -r phrase; do
         [[ -n "$phrase" ]] || continue
@@ -588,10 +640,15 @@ elif [[ "$HAVE_BASE_FM" == 1 ]]; then
         done
         if [[ -n "$MOVE_HOST" ]]; then
           warn "trigger phrase $phrase moved to sibling skill '$MOVE_HOST' — listing coverage preserved, confirm the move is deliberate"
+        elif phrase_lexically_covered "$phrase" "$CUR_DESC $CUR_WTU"; then
+          CONSOLIDATED+=("$phrase")
         else
           LOST+=("$phrase")
         fi
       done <<<"$MISSING"
+      if ((${#CONSOLIDATED[@]} > 0)); then
+        note "consolidated lexically covered trigger phrase(s) vs $BASE_REF: ${CONSOLIDATED[*]}"
+      fi
       if ((${#LOST[@]} > 0)); then
         warn "dropped trigger keyword(s) vs $BASE_REF: ${LOST[*]}. Confirm the description still names each intent these phrases carried (deliberate consolidation), or restore them"
       fi
@@ -847,7 +904,18 @@ if ! grep -qEi '^##+[[:space:]]+(gotchas|quirks)' "$SKILL_MD" &&
 fi
 
 if [[ -n "$CUR_DESC" ]]; then
-  if ! grep -qi 'use when' <<<"$CUR_DESC$CUR_WTU" &&
+  if [[ "$DMI_BOOL" == "true" ]]; then
+    if [[ -n "$CUR_WTU" ]] ||
+      grep -qiE '(^|[^[:alpha:]])use when([^[:alpha:]]|$)' <<<"$CUR_DESC" ||
+      [[ -n "$(printf '%s\n' "$CUR_DESC" | skill_frontmatter::extract_triggers)" ]]; then
+      warn "disable-model-invocation: true skill carries trigger phrasing ('Use when', quoted triggers, or when_to_use) — user-invoked skills need only a one-line summary (/playbooks:skill-authoring, Descriptions)"
+    else
+      note "disable-model-invocation: true — 'Use when:' trigger phrasing not required (check 12)"
+    fi
+    if ((DESC_CP_LEN > DMI_DESC_WARN_CAP)); then
+      warn "disable-model-invocation: true description is $DESC_CP_LEN chars (target <= $DMI_DESC_WARN_CAP chars for a one-line human summary)"
+    fi
+  elif ! grep -qi 'use when' <<<"$CUR_DESC $CUR_WTU" &&
     [[ -z "$(printf '%s\n' "$CUR_WTU" | skill_frontmatter::extract_triggers)" ]]; then
     warn "description has no 'Use when:' trigger phrasing — a description is a trigger spec, not a summary"
   fi
@@ -1414,15 +1482,6 @@ else
 fi
 
 INVOCATION_RUBRIC='docs/contracts/invocation-mode/README.md'
-DMI_RAW="$(skill_frontmatter::field disable-model-invocation <<<"$FRONTMATTER")"
-DMI_TRIMMED="${DMI_RAW#"${DMI_RAW%%[![:space:]]*}"}"
-DMI_TRIMMED="${DMI_TRIMMED%"${DMI_TRIMMED##*[![:space:]]}"}"
-DMI_VAL="${DMI_TRIMMED,,}"
-case "$DMI_VAL" in
-  true | yes | on | 1) DMI_BOOL=true ;;
-  false | no | off | 0) DMI_BOOL=false ;;
-  *) DMI_BOOL= ;;
-esac
 if [[ -z "$DMI_VAL" ]]; then
   if [[ "$SKILL_REL" == plugins/*/skills/* ]]; then
     err "frontmatter has no explicit disable-model-invocation key — every skill in this marketplace states its invocation mode (the absent-key default is false; write it out so the choice is auditable). Rubric: $INVOCATION_RUBRIC"

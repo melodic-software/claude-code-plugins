@@ -15,7 +15,7 @@ graders:
     focus: 'trace'
   - name: 'expectation-4'
     type: 'llm'
-    criteria: 'The only line the response adds after the render is the reload guidance, stated as the docs'' two-step: bare /reload-plugins first, /reload-plugins --force only if the bare command warns about re-reading the conversation'
+    criteria: 'The response adds no reload advice after the render: the render''s own closing Reload lines carry it, and the response neither repeats them nor recommends /reload-plugins --force up front'
     focus: 'trace'
   - name: 'expectation-5'
     type: 'llm'

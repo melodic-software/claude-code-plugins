@@ -371,6 +371,12 @@ activities:
     effect: publish-artifact
     gating: advisory
     reads-untrusted: true
+  file-architecture-findings:
+    script: .github/scripts/maintenance-scan-architecture/file-findings.mjs
+    args: file
+    effect: mutate-tracker
+    gating: advisory
+    reads-untrusted: true
 
 lanes:
   work-resolve-issue:
@@ -466,6 +472,8 @@ lanes:
     stage: maintenance
     enabled: true
     every-days: 1
+    slots:
+      - activity: file-architecture-findings
 
 models:
   profiles:

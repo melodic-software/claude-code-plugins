@@ -1,0 +1,92 @@
+{
+  "run": {
+    "digest_version": 1,
+    "run_dir": null,
+    "cwd": null,
+    "home": null,
+    "mode": null,
+    "allow_downgrade": false,
+    "install_new": null,
+    "install_new_invalid": null,
+    "source_pull": null,
+    "source_pull_invalid": null,
+    "quiet_auto_update": [],
+    "timings": null,
+    "marketplaces": [],
+    "errors": [],
+    "verdict": {"result": null, "action_count": 0, "reload": false, "actions": []}
+  },
+  "marketplace": {
+    "name": null,
+    "auto_update": null,
+    "catalog_source": null,
+    "catalog_last_updated": null,
+    "source_checkout": null,
+    "source_pull": null,
+    "timings": null,
+    "cli": {"calls": 0, "seconds": 0},
+    "refresh": {"rc": null, "output": "", "reason": "", "predicted": false, "label": "", "skipped": null},
+    "project_root": null,
+    "in_repo_records": null,
+    "in_repo_ids": [],
+    "in_repo": {"updated": [], "failed": [], "would_update": [], "live_read": []},
+    "user_sweep": {"updated": [], "failed": [], "would_update": [], "withheld_downgrades": []},
+    "other_paths": {
+      "updated": [], "not_moved": [], "failed": [], "would_update": [],
+      "skipped": {"records": 0, "paths": 0}, "catalog_moved": 0
+    },
+    "downgraded": [],
+    "moved_during_run": [],
+    "noop_unverified": 0,
+    "install_gap": [],
+    "install_offer": [],
+    "installed": [],
+    "installed_with_unset_user_config": [],
+    "install_enable_deferred": false,
+    "stopped_before_install": false,
+    "install_held": null,
+    "enable_gap": [],
+    "enabled": [],
+    "project_enable_rows": [],
+    "pending_enable": [],
+    "normalize": null,
+    "cache_content": null,
+    "catalog_regression": null,
+    "divergences": {
+      "pre": null, "mid": null, "post": null, "new_total": null,
+      "new_by_interval": {"in_repo": null, "user_sweep": null, "concurrent": null},
+      "pre_existing": null,
+      "actionable_here": null, "actionable_elsewhere": null, "in_worktrees": null, "blocked": null,
+      "by_path": [], "blocked_paths": null,
+      "record_count": null, "records_file": null, "note": null
+    },
+    "user_scope_orphans": [],
+    "user_home_records": {"total": 0, "paths": []},
+    "delisted": [],
+    "delisted_project": [],
+    "delisted_settings_only": [],
+    "stale_project_records": {
+      "total": 0, "paths": 0, "project": 0, "local": 0,
+      "by_parent": [], "more_parents": 0, "list_file": null
+    },
+    "self_updated": false,
+    "self_update": null,
+    "updated_with_monitors": [],
+    "errors": [],
+    "verdict": {
+      "status": null, "needs_update": false, "changed": false, "reload": false, "pending": 0, "pending_kinds": [],
+      "actions": [],
+      "installed": {"ok": [], "failed": [], "predicted": [], "left": []},
+      "enabled": {"ok": [], "failed": [], "predicted": [], "unfilled": []},
+      "installed_disabled": []
+    }
+  },
+  "shapes": {
+    "call": {"label": "", "rc": null, "output": "", "predicted": false},
+    "normalize": {
+      "rc": 0, "output": "", "checked_only": false,
+      "status": null, "moved": null, "keys": null, "reason": null,
+      "project_report": null
+    }
+  }
+}

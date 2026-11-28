@@ -25,7 +25,7 @@ How this skill reads them:
 - **Code Snippets**: higher means better coverage
 - **Source Reputation**: prefer High or Medium
 - **Benchmark Score**: higher is better
-- **Versions**: use a version-specific ID when the user specifies a version
+- **Versions**: pass the project's or question's version via `--tag` (CLI) or `version` (MCP); see [Versions](#versions)
 
 ## Selection process
 
@@ -61,17 +61,22 @@ MSYS_NO_PATHCONV=1 ctx7 docs /websites/twilio "How to send an SMS" --language Ru
 - **Recheck trigger**: this plugin starts requiring a minimum `ctx7` version, which would let the
   probe go.
 
-### Version-specific IDs
+### Versions
 
-If the user mentions a specific version, use the version-specific ID:
+When the user's project or question names a version, pass it as its own argument rather than appending a version suffix to the library ID:
+
+- **CLI:** run `ctx7 docs --help` once per session; when it lists `--tag`, pass `--tag <version>` using the version as written in the project or question (for example `--tag 14.3.0` or `--tag ^15.4.3`), even when it is not listed in `ctx7 library` output. On an older install that lacks `--tag`, fall back to a listed `/org/project/<version>` ID from `ctx7 library`.
+- **MCP:** pass the version through `query-docs`'s `version` input when the tool schema lists it.
 
 ```bash
 # Latest indexed
 MSYS_NO_PATHCONV=1 ctx7 docs /vercel/next.js "app router proxy"
 
-# Version-specific (version format comes from the library result's Versions field)
-MSYS_NO_PATHCONV=1 ctx7 docs /vercel/next.js/v14.3.0 "app router middleware"
+# Versioned lookup (when ctx7 docs --help lists --tag)
+MSYS_NO_PATHCONV=1 ctx7 docs /vercel/next.js "app router middleware" --tag 14.3.0
 ```
+
+- **Pointer**: when deciding whether `--tag` or `query-docs`'s `version` input exists and how Context7 matches an unlisted version, check `ctx7 docs --help` live and fetch [Context7 CLI § Query Library Documentation](https://context7.com/docs/clients/cli#query-library-documentation) and [Context7: MCP Tools](https://github.com/upstash/context7#mcp-tools) live.
 
 ## Writing good queries
 

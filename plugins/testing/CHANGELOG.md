@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.0.7] - 2026-11-27
+
+### Changed
+
+- Synced shared `reference/detector-findings.md` with `portability-ok` annotations from `docs/contracts/detector-findings/README.md` and annotated surviving ecosystem specifics under ADR 0101 (#17746); no behavior change.
+
 ## [6.0.6] - 2026-11-26
 
 ### Changed

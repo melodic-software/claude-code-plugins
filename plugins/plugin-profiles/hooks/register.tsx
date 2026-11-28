@@ -4,6 +4,9 @@ import type { EngineInterface, Register } from 'claude-code'
 import type { PickerEntry, Switch } from '../types'
 
 const CLI = 'scripts/profiles.mjs'
+const HOOK_ENABLEMENT = 'lib/hook-enablement.mjs'
+const MODULE_KEY = 'plugin_profile_module_enabled'
+const OFF = 1
 const COMMAND = 'plugin-profile'
 const RELOAD = 'reload-plugins'
 const MORE = 'More profiles'
@@ -52,6 +55,13 @@ const cli = async ($: EngineInterface, args: readonly string[]) =>
     timeoutMs: 60_000,
     env: { CLAUDE_CODE_SESSION_ID: await $.session.id() },
   })
+
+const moduleEnabled = async ($: EngineInterface) => {
+  const root = await $.session.root().catch(() => '')
+  const argv = ['node', `${$.plugin.root}/${HOOK_ENABLEMENT}`, MODULE_KEY, 'true', '--settings', ...(root ? ['--root', root] : [])]
+  const r = await $.process.run(argv, { timeoutMs: 10_000 }).catch(() => undefined)
+  return r?.exitCode !== OFF
+}
 
 /** Whether the picker pane is up, from the engine's record, which outlives a reload of this module. */
 const pickerOpen = async ($: EngineInterface) => (await $.ui.panes()).some(pane => pane.id === PICKER)
@@ -258,8 +268,11 @@ const markReloading = async ($: EngineInterface) => {
 }
 
 export const register: Register = on => {
+  let enabled = false
   on('session.start', async ($, e, next) => {
     const started = await next(e)
+    enabled = await moduleEnabled($)
+    if (!enabled) return started
     await registerCommand($)
     void finish($).catch(() => undefined)
     return started
@@ -271,7 +284,7 @@ export const register: Register = on => {
     return next(e)
   }).catch(($, e, next) => next(e))
   on('prompt.submit', async ($, e, next) => {
-    if (reregister) {
+    if (reregister && enabled) {
       reregister = false
       await registerCommand($).catch(() => undefined)
     }

@@ -1,8 +1,16 @@
 Result: clean, nothing changed and nothing under Action needed
-Marketplace: market1: current (autoUpdate: on)
-In-repo: 0: <case> has no project/local installs
-Divergences: 0 actionable
-Timing: <elided>
 
-Run journal: <run_dir>
-Timing: <elided>
+Marketplace: market1
+  status:       current
+  autoUpdate:   on
+  in-repo:      0, <case> has no project/local installs
+  divergences:  0 actionable
+
+Run
+  journal:             <run_dir>
+  total:               <elided>
+  marketplace block:   <elided>
+  slowest step:        <elided>
+  outside the steps:   <elided>
+  outside the blocks:  <elided>
+  clock resolution:    <elided>
