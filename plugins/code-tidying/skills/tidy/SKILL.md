@@ -1,5 +1,5 @@
 ---
-description: "When the bundled simplify skill resolves in this session, prefer it for the current diff; this skill for proactive focus area hunts. Hunts one rotated focus area for Beck tidyings and ships one structure-only PR. Use when: 'tidy', 'tidy up', 'boy scout', 'polish', 'small refactors', 'improve gradually', 'clean up in passing', 'tidying day', 'tidy focus area', 'run tidy'. Skip when /simplify refines the current diff; batch-simplify processes a diff window."
+description: "When bundled simplify resolves, prefer it for the current diff; this skill for proactive focus area hunts. Hunts one rotated focus area for Beck tidyings and ships one structure-only PR. Use when: 'tidy up', 'boy scout', 'small refactors', or 'tidy focus area'. Not for current diff (/simplify) or diff windows (/code-tidying:batch-simplify)."
 argument-hint: "[<area>|<glob>...|dry-run|self-update|help] [override] [in-place[=commit]] [--repo <repo> ...]"
 disable-model-invocation: false
 user-invocable: true
