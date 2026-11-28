@@ -1,5 +1,5 @@
 ---
-description: "Run one repo's PR queue as a standing or drain merge lane via /loop (needs OWNER/REPO), invoking /source-control:babysit-prs each cycle (human-only merge until repo adopts it). Use for 'babysit loop', 'merge lane', or draining a PR queue. Not for single sweeps: /source-control:babysit-prs; or one PR: /source-control:pull-request."
+description: "Run one project's PR queue as a standing or drain merge lane via /loop (needs OWNER/REPO), invoking /source-control:babysit-prs each cycle (human approval until adopted). Use for 'babysit loop', 'merge lane', or draining a queue. Not for single sweeps (run once) or one PR: /source-control:pull-request."
 argument-hint: "<owner/repo> [safe|worker|autopilot] [--drain] [--strip-do-not-merge]"
 user-invocable: true
 disable-model-invocation: false

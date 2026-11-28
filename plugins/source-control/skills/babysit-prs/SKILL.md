@@ -1,5 +1,5 @@
 ---
-description: "Babysit open GitHub pull requests as a tiered fleet sweep: safe default checks own PRs and fixes branch issues (no thread resolve or merge); 'worker' resolves outdated bot threads and merges; 'autopilot' covers all authors. Use when advancing a PR fleet or pairing with /loop. Not for one PR: /source-control:pull-request."
+description: "Babysit open GitHub pull requests as a repo fleet loop: safe default checks own PRs, fixes branch issues (no thread resolve/merge); 'worker' tier resolves outdated bot threads/merges; 'autopilot' tier adds all authors. Use to babysit, watch, or advance a PR fleet or pair with /loop. Not for one PR: /source-control:pull-request."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "[worker|autopilot|help] [--unattended] [owner/repo|#n|owner/repo#n]"
