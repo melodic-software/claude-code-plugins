@@ -418,4 +418,4 @@ pointers; this record holds that decision and our own probe results, not the pag
 - **Recheck trigger**: either memory section changes the triggers it names; a changelog entry names
   a load trigger for a subdirectory's `AGENTS.md` or an `@` import inside a rules file; or a new
   Claude Code release, for the import row only, which is undocumented and re-measured per release.
-  `cutover-check`'s nested write probe re-measures the second row on every run.
+  `cutover-check`'s nested write probe re-measures the first `Write sub/new.txt` row on every run.
