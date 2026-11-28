@@ -1,5 +1,5 @@
 ---
-description: "When explain-usage resolves in this session, prefer it for where session tokens went; startup cost before work, per-tool attribution, whether settings change saved tokens (read-only; fix applies one trim behind approval). Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most'."
+description: "When explain-usage resolves in this session, prefer it for where session tokens went; use this for startup cost before work, per-tool attribution, whether settings saved tokens (read-only; fix applies a trim with approval). Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most'."
 argument-hint: "[--full-sweep|--tools T1,T2|--ledger|--measure-only|fix] [--unattended]"
 user-invocable: true
 disable-model-invocation: false
