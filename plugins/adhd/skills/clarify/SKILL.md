@@ -1,5 +1,5 @@
 ---
-description: "Faithful restructure of one dense, decision-heavy message: one decision at a time, the session's jargon defined, the choices surfaced with operative terms quoted verbatim, and an HTML decision table for decision-dense content. Use when the user says 'make this clear', 'clarify this', 'help me digest this', 'break this down', 'I can't parse this', 'what am I actually deciding here' or 'this is a wall of text'; with no argument it targets the previous assistant response. Changes structure only: a plain-language drop is /education:explain, a picture or ELI5 is /education:illustrate, a standing session style is /adhd:shape."
+description: "Restructure a dense, decision-heavy message (or previous response): clear chunks, choices, jargon defined, verbatim terms, HTML decision table (no simplifying). Use when asked to digest, parse, or see what you're deciding: 'clarify this', 'break this down', 'wall of text'. Not for ELI5: /education:explain, /education:illustrate; style: /adhd:shape."
 argument-hint: "[--medium <medium>] [artifact to clarify]"
 user-invocable: true
 disable-model-invocation: false
