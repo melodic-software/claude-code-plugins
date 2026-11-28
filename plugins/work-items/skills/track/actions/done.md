@@ -51,6 +51,8 @@ The summary is institutional memory someone reads later, so lead with what was d
 
    The seam claim is a lease (assignee + lease comment), not a label. Closing removes the item from the frontier, so no `status:*` label cleanup is part of this flow.
 
+   After a direct close succeeds, dual-write the item's native lifecycle status through the seam (`"$TRACKER" set-native-status '<id>' --status Done` for `completed`, `"Not planned"` for `--not-planned`, or `"Duplicate"` for a duplicate close; exit `6` means native statuses are unavailable on the bound provider or repository and is ignored cleanly without failing `done`).
+
 1. **Belt-and-suspenders: verify PR body keyword presence.** Primary path is `/source-control:pull-request create`'s pre-create linkage gate. This step fires when `/work-items:track done` is invoked without having gone through `/source-control:pull-request create` (rare, the manual close path). Only runs when `--pr` is provided and `closes` is not `null`.
 
    Apply the read-modify-write keyword check + prepend from the adapter "PR closing-keyword mechanics" section, keyed to this item: if the (unmerged) PR body carries neither a closing keyword for this item (its `closes` line, or any of the provider's other closing keywords the adapter section lists) nor an opt-out marker for it (its `refs` line, an opt-out marker that section lists, or `No related issue:`), prepend the `closes` line. A closing keyword targeting a *different* item does not count. If an opt-out marker for this item is present, leave the body alone (Step 4's opt-out branch handles it); if merged, the keyword can no longer auto-fire and Step 4's close is the only path.

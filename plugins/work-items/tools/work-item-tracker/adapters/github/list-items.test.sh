@@ -2,7 +2,9 @@
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/* plugins/work-items/tools/work-item-tracker/lib/* docs/conventions/work-items.yaml
 set -uo pipefail
+unset RUNNER_TEMP GITHUB_ACTIONS
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-items.sh"
+FIXTURES="$(dirname "$S")/fixtures"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
@@ -134,6 +136,39 @@ EOF
   assert_contains "REST session: a full page fetches page 2" "$(cat "$REST/argv")" "-f page=2"
   assert_eq "REST session: past the ceiling → truncated:true" "true" "$(jq -c '.truncated' <<<"$OUT")"
   assert_eq "REST session: past the ceiling keeps the ceiling's worth" "150" "$(jq '.items | length' <<<"$OUT")"
+
+  cp "$FIXTURES/gh-issue-native-status-rest.json" "$REST/page-1.json"
+  OUT="$(rest_list)"
+  assert_eq "REST session: surfaces native_status Backlog, In review, and null for pre-preview issues" \
+    '["Backlog","In review",null]' "$(jq -c '[.items[].native_status]' <<<"$OUT")"
+
+  DUAL="$FIX/dual"
+  mkdir -p "$DUAL/bin"
+  cat >"$DUAL/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$GH_STUB_ARGV"
+if [[ "$1 $2" == "issue list" ]]; then
+  jq -c '[.[] | {number, title, state: (.state | ascii_upcase), assignees, labels, issueType: .type, blockedBy: {nodes: []}, url: .html_url, createdAt: .created_at, milestone}]' "$GH_STUB_FIXTURE"
+elif [[ "$1" == "api" && "$*" == *"repos/o/r/issues"* ]]; then
+  cat "$GH_STUB_REST_FILE"
+else
+  exit 90
+fi
+EOF
+  chmod +x "$DUAL/bin/gh"
+  : >"$DUAL/argv"
+  OUT="$(PATH="$DUAL/bin:$PATH" GH_STUB_ARGV="$DUAL/argv" GH_STUB_FIXTURE="$FIXTURES/gh-issue-native-status-rest.json" \
+    GH_STUB_REST_FILE="$FIXTURES/gh-issue-native-status-rest.json" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
+  assert_eq "gh issue list path: surfaces native_status via REST enrichment" \
+    '["Backlog","In review",null]' "$(jq -c '[.items[].native_status]' <<<"$OUT")"
+
+  jq 'map(del(.status))' "$FIXTURES/gh-issue-native-status-rest.json" >"$DUAL/unenrolled.json"
+  OUT="$(PATH="$DUAL/bin:$PATH" GH_STUB_ARGV="$DUAL/argv" GH_STUB_FIXTURE="$FIXTURES/gh-issue-native-status-rest.json" \
+    GH_STUB_REST_FILE="$DUAL/unenrolled.json" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
+  assert_eq "gh issue list path: un-enrolled repo degrades cleanly to native_status null" \
+    '[null,null,null]' "$(jq -c '[.items[].native_status]' <<<"$OUT")"
 fi
 
 [[ $FAILED -eq 0 ]] || exit 1
