@@ -1,4 +1,3 @@
-# Negative fixture (Python): genuinely discriminating tests — zero findings.
 import pytest
 
 from subject import add, cumsum, divide, notify
@@ -9,7 +8,7 @@ def test_add():
 
 
 def test_divide_by_zero():
-    # exception oracle, no assert keyword
+    # uses pytest.raises instead of an assert statement
     with pytest.raises(ZeroDivisionError):
         divide(1, 0)
 
@@ -20,7 +19,7 @@ def test_pending():
 
 
 def test_notify_records_and_calls(mocker):
-    # mock interaction PLUS a real value assertion — not a mock-only oracle
+    # mock interaction and a value assertion
     mailer = mocker.Mock()
     receipt = notify(mailer)
     mailer.send.assert_called_once()
@@ -28,8 +27,7 @@ def test_notify_records_and_calls(mocker):
 
 
 def test_callback_flag(mocker):
-    # real value assertion on an attribute that merely CONTAINS a mock-property
-    # token (.called_back) — the mock-assert stripper must not eat it
+    # value assertion on an attribute named like a mock property (.called_back)
     mailer = mocker.Mock()
     receipt = notify(mailer)
     mailer.send.assert_called_once()
@@ -37,5 +35,5 @@ def test_callback_flag(mocker):
 
 
 def test_cumsum_recurrence():
-    # same callee, different arguments — not a recomputed expectation
+    # expectation built from the same callee with different arguments
     assert cumsum(4) == cumsum(3) + 4

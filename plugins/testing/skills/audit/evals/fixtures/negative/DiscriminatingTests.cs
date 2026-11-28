@@ -1,4 +1,3 @@
-// Negative fixture (C#): genuinely discriminating tests — zero findings.
 using Moq;
 using Xunit;
 
@@ -19,7 +18,7 @@ public class DiscriminatingTests
     [Fact]
     public void Notify_Sends_And_Returns_Receipt()
     {
-        // mock interaction PLUS a real value assertion — not a mock-only oracle
+        // mock interaction and a value assertion
         var mailer = new Mock<IMailer>();
         var receipt = Notifier.Notify(mailer.Object);
         mailer.Verify(m => m.Send(), Times.Once);
@@ -33,8 +32,7 @@ public class DiscriminatingTests
     [Fact]
     public void Transport_Receives_And_Confirms()
     {
-        // NSubstitute chain plus a same-line real assertion — the strip is
-        // bounded to the chain and must not eat the assertion after it
+        // NSubstitute Received chain and an assertion on the same line
         var transport = Substitute.For<ITransport>();
         var ok = Sender.Ping(transport);
         transport.Received(1).Send("ping"); Assert.True(ok);
@@ -43,7 +41,7 @@ public class DiscriminatingTests
     [Fact]
     public void Fib_Recurrence_Holds()
     {
-        // same callee, different arguments — not a recomputed expectation
+        // expectation built from the same callee with different arguments
         Assert.Equal(Fib.Of(9) + Fib.Of(8), Fib.Of(10));
     }
 }
