@@ -3,6 +3,12 @@
 All notable changes to the `repo-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.22.13] - 2026-11-28
+
+### Changed
+
+- Trim skill frontmatter descriptions across `clean` (917 -> 344 chars) and `setup` (726 -> 146 chars), reducing total frontmatter description length from 1,643 to 490 characters (-1,153 chars).
+
 ## [0.22.12] - 2026-11-28
 
 ### Changed
