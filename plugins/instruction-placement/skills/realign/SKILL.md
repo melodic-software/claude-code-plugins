@@ -1,5 +1,5 @@
 ---
-description: "Apply an instruction-placement audit's findings behind an explicit per-item human gate. Consumes the audit artifact; never re-judges. Each accepted finding is the whole move. Hard-denied safety content has no path here. Use when: 'apply the placement findings', 'do the migration', 'move those conventions to rules', 'execute finding IP-004', 'realign our instruction layer', 'the audit says move it, do it'. No blanket-approve. Audit proposes; this applies."
+description: "Apply accepted instruction-placement audit findings behind a per-item human gate (artifact-driven; whole move per finding; no blanket-approve; never re-judges; hard-denied safety excluded). Use when: 'apply the placement findings', 'execute finding IP-004', 'realign our instruction layer'. Not for proposing moves: /instruction-placement:audit."
 argument-hint: "[finding-id ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

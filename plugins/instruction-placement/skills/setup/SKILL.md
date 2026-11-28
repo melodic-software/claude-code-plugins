@@ -1,5 +1,5 @@
 ---
-description: "Verify instruction-placement's prerequisites, resolve its effective configuration for this repository, and register its rules-index git pre-commit entry. Confirm that the index target exists AND that nothing in the repository stops Claude Code loading it (a root CLAUDE.md is read instead of the AGENTS.md beside it, so an unimported AGENTS.md index is inert while every other gate reports green), that `git` backs tracked-file discovery, and that the Claude Code CLI plus `jq` are present for the optional empirical load probe. Reports the resolved index target, breadth ceiling, and index row cap, with sources; moves old suppression files. Use when: 'set up instruction-placement', 'configure instruction-placement', 'where will the index go', 'why is my index not loading', 'is instruction-placement working', or before a first audit on a new repository. Actions: check (read-only, default) | check inspect (read-only) | apply | apply install-git-hooks [scope=local|shared] | apply migrate-config. Re-runnable."
+description: "Check prerequisites/index reachability (check, check inspect) or configure hooks and config migration (apply, install-git-hooks, migrate-config)."
 argument-hint: "[check|apply] [inspect|install-git-hooks [scope=local|shared]|migrate-config]"
 user-invocable: true
 disable-model-invocation: true
