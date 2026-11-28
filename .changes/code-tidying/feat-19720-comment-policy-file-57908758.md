@@ -19,5 +19,6 @@ bump: minor
 
 - Policy keys in `code-tidying.yaml` and `code-tidying.local.yaml`. A key a layer's comment-policy
   file does not set is still read from the same layer's code-tidying file, and every run names that
-  file on stderr with the keys to move; the comment lint and `/code-tidying:remove-comments` show
-  the line.
+  file on stderr with the keys to move, and names a team-only key in `code-tidying.local.yaml`,
+  which no personal file supplies, as one to delete; the comment lint and
+  `/code-tidying:remove-comments` show the line.

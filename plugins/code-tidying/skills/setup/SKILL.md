@@ -183,8 +183,8 @@ answer unambiguous; ask only where a focus area's scope genuinely needs the user
    migrated result, then `--clean <id> --i-migrated`. Re-run detection last and report the final
    state. Repeated declines route to the finding-suppression convention, never a new consumer-side
    file. For `code-tidying-r001` and `code-tidying-r002`, show the operator `comment-settings.sh`'s
-   lines before and after the move: each moved key names the comment-policy file and no
-   `comment-settings:` line prints. A `--clean` without `--i-migrated` is refused for a `migrate`
+   lines before and after the move: each moved key names the comment-policy file, and after the
+   clean no `comment-settings:` line prints. A `--clean` without `--i-migrated` is refused for a `migrate`
    record.
 
 Re-running `apply` after everything passes changes nothing and reports "already configured".

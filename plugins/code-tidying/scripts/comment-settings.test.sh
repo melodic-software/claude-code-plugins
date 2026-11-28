@@ -188,7 +188,7 @@ policy_repo() {
   printf '%s\n' "$d"
 }
 
-stderr_for() { bash "$SUT" "$@" 2>&1 >/dev/null; }
+stderr_for() { { bash "$SUT" "$@" >/dev/null; } 2>&1; }
 
 repo="$(policy_repo - - $'comment_posture: none\ncomment_lint: block\ncomment_lint_allow:\n  - "^new"\nclass_c_max_lines: 5\ncomment_keep_list: default\n' $'comment_posture: explanatory\n')"
 check 'comment-policy.yaml alone supplies the lint level' \
@@ -255,6 +255,12 @@ check 'the warning leaves the key lines unchanged' '8' "$(bash "$SUT" "$repo" 2>
 check 'a list read prints no warning' '' "$(stderr_for --list comment_lint_allow "$repo")"
 repo="$(policy_repo $'comment_edit_scope: files\n' - $'comment_lint: block\n' -)"
 check 'a code-tidying file with no policy key prints no warning' '' "$(stderr_for "$repo")"
+repo="$(policy_repo - $'comment_lint: off\ncomment_lint_exclude:\n  - "vendor/**"\nclass_c_max_lines: 4\n' $'comment_lint: report\n' -)"
+check 'a team-only key in code-tidying.local.yaml is named to delete, not to move' \
+  "comment-settings: $PERSONAL sets class_c_max_lines; move them to $POLICY_PERSONAL"$'\n'"comment-settings: $PERSONAL sets comment_lint, comment_lint_exclude, read from the team layer only; delete them" \
+  "$(stderr_for "$repo")"
+check 'the lint level a personal file sets is not read' \
+  "comment_lint${TAB}report${TAB}$POLICY" "$(lines_for "$repo" comment_lint)"
 
 check '--files names the policy layer files in read order' \
   $'comment-policy.yaml\ncode-tidying.yaml\ncomment-policy.local.yaml\ncode-tidying.local.yaml' "$(bash "$SUT" --files)"

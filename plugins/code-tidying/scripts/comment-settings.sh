@@ -27,7 +27,8 @@ comment_lint_keep_opening) are read from <home>/comment-policy.yaml and its pers
 override <home>/comment-policy.local.yaml. When a layer's comment-policy file does not
 set a policy key, that layer's code-tidying file is read for it instead, and each
 code-tidying file that sets a policy key is named on stderr with the keys to move.
-comment_lint, comment_adr_dir and the three lists are read from the team layer only.
+comment_lint, comment_adr_dir and the three lists are read from the team layer only;
+code-tidying.local.yaml is named with any of them it sets as keys to delete.
 The other keys are read from <home>/code-tidying.yaml and
 <home>/code-tidying.local.yaml.
 
@@ -179,11 +180,17 @@ if [[ -n "$list_key" ]]; then
 fi
 
 warn_moved() {
-  local key keys=""
+  local key keys="" dead=""
   for key in $POLICY_KEYS; do
-    sets_key "$1" "$key" && keys+="${keys:+, }$key"
+    sets_key "$1" "$key" || continue
+    if [[ "$1" == "$PERSONAL" && "$TEAM_ONLY_KEYS$LIST_KEYS" == *" $key "* ]]; then
+      dead+="${dead:+, }$key"
+    else
+      keys+="${keys:+, }$key"
+    fi
   done
   [[ -z "$keys" ]] || printf 'comment-settings: %s sets %s; move them to %s\n' "$1" "$keys" "$2" >&2
+  [[ -z "$dead" ]] || printf 'comment-settings: %s sets %s, read from the team layer only; delete them\n' "$1" "$dead" >&2
 }
 warn_moved "$TEAM" "$POLICY"
 warn_moved "$PERSONAL" "$POLICY_PERSONAL"

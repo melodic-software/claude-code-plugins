@@ -46,7 +46,9 @@ A layer whose comment-policy file does not set a policy key is read from the sam
 code-tidying file for it. A comment-policy file that sets the key, with a valid value or not, wins,
 so an invalid value there is dropped and never falls through to the code-tidying copy. A personal
 value beats the team value whichever file supplies each. Every run names on stderr each
-code-tidying file that still sets a policy key, with the keys to move; retirement records
+code-tidying file that still sets a policy key, with the keys to move, and names a team-only key
+(`comment_lint`, `comment_adr_dir` or a lint list) in `code-tidying.local.yaml` as one to delete,
+since no personal file supplies it; retirement records
 `code-tidying-r001` and `code-tidying-r002` report the same keys in `/code-tidying:setup check`, and
 `apply` moves them.
 
