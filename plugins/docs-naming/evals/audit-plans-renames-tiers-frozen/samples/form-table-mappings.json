@@ -1,0 +1,13 @@
+{
+  "pass": [
+    { "answer": "| Form | Rewrites | Leaves |\n|---|---|---|\n| `all` (current tier) | every reference shape | nothing |\n| `links-and-paths` (historical tier: `docs/adr/**`) | links and paths | prose |\n| `none` (released tier: `CHANGELOG.md`) | nothing | everything |\n\nFN-1a2b3c4d `docs/CATALOG.md` → `docs/catalog.md`" },
+    { "answer": "- **Current files** (`guide.md`, `index.md`) use `all`.\n- **`docs/adr/`** is historical and uses `links-and-paths`.\n- **`CHANGELOG.md`** is released and uses `none`.\n\nFN-1a2b3c4d" },
+    { "answer": "| Form | Rewrites | Leaves alone |\n|---|---|---|\n| `all` (current docs) | every shape | nothing |\n| `links-and-paths` (`docs/adr/**`) | links and paths | prose |\n| `none` (`CHANGELOG.md`, released) | nothing | everything |\n\nFN-1a2b3c4d" },
+    { "answer": "`CHANGELOG.md` is in the `released` tier, which is `none`. `docs/adr/**` is `historical`, which is `links-and-paths`. Everything else is `current`, which is `all`.\n\nFN-1a2b3c4d" }
+  ],
+  "fail": [
+    { "answer": "Historical links-and-paths leaves prose untouched.\n\nFN-1a2b3c4d `docs/CATALOG.md` → `docs/catalog.md`: 4 sites" },
+    { "answer": "FN-1a2b3c4d `docs/CATALOG.md` → `docs/catalog.md`\n\n| `all` (current) | `links-and-paths` (historical) | `none` (released) |" },
+    { "answer": "| Current | Proposed |\n|---|---|\n| `docs/CATALOG.md` | `docs/catalog.md` |" }
+  ]
+}

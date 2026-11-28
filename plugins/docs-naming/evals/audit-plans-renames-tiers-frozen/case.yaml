@@ -26,6 +26,12 @@ graders:
     pattern: '^(?:(?!FN-[0-9a-f]{8})[\s\S])*?\blinks-and-paths\b'
     target: last_message
     arm: both
+  - name: form-table-mappings
+    type: regex
+    pattern: '^(?=(?:(?!FN-[0-9a-f]{8})[\s\S])*?(?:\bcurrent\b(?:(?!\b(?:historical|released)\b)[^\n;]){0,60}?\ball\b|\ball\b(?:(?!\b(?:links-and-paths|none)\b)[^\n;]){0,60}?\bcurrent\b))(?=(?:(?!FN-[0-9a-f]{8})[\s\S])*?(?:(?:\bhistorical\b|\bADRs?\b|docs/adr\b)(?:(?!\b(?:current|released)\b)[^\n;]){0,60}?\blinks-and-paths\b|\blinks-and-paths\b(?:(?!\b(?:all|none)\b)[^\n;]){0,60}?(?:\bhistorical\b|\bADRs?\b|docs/adr\b)))(?=(?:(?!FN-[0-9a-f]{8})[\s\S])*?(?:\breleased\b(?:(?!\b(?:current|historical)\b)[^\n;]){0,60}?\bnone\b|\bnone\b(?:(?!\b(?:all|links-and-paths)\b)[^\n;]){0,60}?\breleased\b))'
+    flags: 'i'
+    target: last_message
+    arm: both
   - name: review-sites-listed
     type: regex
     pattern: '^(?=[\s\S]*(?:index\.md\D{1,16}8\b|see CATALOG for the full list))(?=[\s\S]*(?:index\.md\D{1,16}9\b|edit CATALOG by hand))'
