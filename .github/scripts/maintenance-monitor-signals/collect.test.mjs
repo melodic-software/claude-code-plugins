@@ -103,7 +103,15 @@ function fakeApi(routes, { nulls = new Set() } = {}) {
     const first = /pullRequests\(states: OPEN, baseRefName: "main", first: (\d+)/.exec(query);
     if (first) {
       const pulls = resolve(`/repos/${repo}/pulls?state=open&base=main&sort=updated&direction=desc&per_page=10000&page=1`);
-      const nodes = pulls.slice(0, Number(first[1])).map((pull) => ({ number: pull.number, isDraft: pull.draft === true, headRefOid: pull.head.sha, comments: commentPage(comments(pull.number)) }));
+      const nodes = pulls.slice(0, Number(first[1])).map((pull) => ({
+        number: pull.number,
+        isDraft: pull.draft === true,
+        headRefOid: pull.head.sha,
+        author: pull.user ? { __typename: /\[bot\]$/.test(pull.user.login) ? "Bot" : "User", login: pull.user.login.replace(/\[bot\]$/, "") } : null,
+        labels: { nodes: (pull.labels ?? []).map((name) => (typeof name === "string" ? { name } : name)) },
+        body: pull.body ?? "",
+        comments: commentPage(comments(pull.number)),
+      }));
       return { data: { repository: { pullRequests: { totalCount: pulls.length, nodes } } } };
     }
     const repository = {};
@@ -889,6 +897,53 @@ test("stalled stops: an older head's marker does not stop the read before the cu
   const data = await collect(input(api));
   assert.deepEqual(data.stalledStops.map((s) => [s.pr, s.activity]), [[8501, "fix-ci"]]);
   assert.ok(data.gaps.includes("stalled stops: #8502 has over 300 comments and none names a stop on its head; older ones not read"), data.gaps.join("\n"));
+});
+
+test("openLanePrs counts only open, non-draft, unheld PRs by agentIdentity and returns null when truncated with none seen", async () => {
+  const lane = { login: "melodic-automation-lanes[bot]" };
+  const owner = { login: "kyle-sexton" };
+  const open = [
+    { number: 9501, head: { sha: sha("1") }, user: owner, labels: [], body: "" },
+    { number: 9502, head: { sha: sha("2") }, user: lane, draft: true, labels: [], body: "" },
+    { number: 9503, head: { sha: sha("3") }, user: lane, labels: ["do-not-merge"], body: "" },
+    { number: 9504, head: { sha: sha("4") }, user: lane, labels: ["needs-human"], body: "" },
+    { number: 9505, head: { sha: sha("5") }, user: lane, labels: [], body: "Hold: a human merges this" },
+    { number: 9506, head: { sha: sha("6") }, user: lane, labels: ["bug"], body: "Closes #1" },
+  ];
+  const api = fakeApi([
+    [/\/pulls\?state=open/, open],
+    [/\/issues\/950\d\/comments/, []],
+    ...routes(),
+  ]);
+  const data = await collect(input(api));
+  assert.equal(data.openLanePrs, 1);
+
+  const ownerOnly = fakeApi([
+    [/\/pulls\?state=open/, [open[0]]],
+    [/\/issues\/9501\/comments/, []],
+    ...routes(),
+  ]);
+  const quietData = await collect(input(ownerOnly));
+  assert.equal(quietData.openLanePrs, 0);
+  assert.equal(detect(quietData).some((f) => f.key === "throughput-zero"), false);
+
+  const truncated = fakeApi([
+    [/\/pulls\?state=open/, Array.from({ length: LIMITS.stalledPulls + 5 }, (_, i) => ({ number: 9600 + i, head: { sha: sha("a") }, user: owner }))],
+    [/\/issues\/96\d\d\/comments/, []],
+    ...routes(),
+  ]);
+  const truncatedData = await collect(input(truncated));
+  assert.equal(truncatedData.openLanePrs, null);
+  assert.ok(truncatedData.gaps.some((g) => g.startsWith("stalled stops:")));
+  assert.ok(!truncatedData.gaps.some((g) => g.startsWith("open pull requests:")));
+
+  const failedOpenList = fakeApi([
+    [GRAPHQL, Object.assign(new Error("HTTP 502"), { status: 502 })],
+    ...routes(),
+  ]);
+  const failedData = await collect(input(failedOpenList));
+  assert.equal(failedData.openLanePrs, undefined);
+  assert.ok(failedData.gaps.some((g) => g.startsWith("open pull requests:")));
 });
 
 test("stalled stops: a freshly stopped PR behind more than 20 idle ones is read and listed", async () => {

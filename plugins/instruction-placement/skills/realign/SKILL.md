@@ -1,5 +1,5 @@
 ---
-description: "Apply an instruction-placement audit's findings behind an explicit per-item human gate. Consumes the audit artifact; never re-judges. Each accepted finding is the whole move. Hard-denied safety content has no path here. Use when: 'apply the placement findings', 'do the migration', 'move those conventions to rules', 'execute finding IP-004', 'realign our instruction layer', 'the audit says move it, do it'. No blanket-approve. Audit proposes; this applies."
+description: "Apply accepted instruction-placement audit findings behind a per-item human gate (artifact-driven; whole move per finding; no blanket-approve; never re-judges; hard-denied safety excluded). Use when: 'apply the placement findings', 'execute finding IP-004', 'realign our instruction layer'. Not for proposing moves: /instruction-placement:audit."
 argument-hint: "[finding-id ...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -101,10 +101,6 @@ in the table above. Do not invent a format here. Four rules bind the write:
   shown entry. Never write `~/.claude/**`, an old path, or the `.local.yaml` personal override: a
   personal-layer entry the team layer does not carry is reported `personal-only, not applied` and
   suppresses nothing, so writing one would look like recording a decision while recording none.
-  When the old `.claude/instruction-placement.md` still supplies the team layer, ask the operator to
-  run `/instruction-placement:setup apply migrate-config` first: an entry written to the new file
-  alone makes the old file's entries stop applying. If they decline, write the new file and name
-  each old entry that stops applying.
 - **Say that it needs committing.** The file is tracked, and an uncommitted entry has reached no
   other worktree yet. Name that rather than implying the decision is already everywhere.
 
@@ -145,8 +141,7 @@ to another path or another branch's artifact: findings cite line ranges, and a r
 elsewhere points at different text here. Name such a file a leftover and run a fresh audit instead.
 
 Then, **before the first finding is presented**, resolve `<home>/instruction-placement.yaml` across
-its layers, old paths included while they exist, with the old-path warning printed for each
-(`consumer-config.md` "Layers and merge semantics"), and drop every finding the merged surface
+its layers (`consumer-config.md` "Layers and merge semantics"), and drop every finding the merged surface
 covers, reporting each as suppressed with its reason, date, and contributing layer. Match on the `finding_id` the artifact's `Suppression key`
 already carries; **do not derive one here.** This skill has no detector stream, and a second
 derivation is a second heading parse whose disagreement produces a decline nothing ever matches.

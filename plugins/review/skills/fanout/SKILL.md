@@ -1,5 +1,5 @@
 ---
-description: "Breadth review: fans a change out to many reviewers at once (this plugin's reviewer agents, the project's per-concern criteria docs, orchestrator review plugins) and merges their findings into one deduplicated, severity-ranked report on disk. Use when asked for a breadth review of a change (every reviewer at once, every angle or side, one combined ranked report), or to 'fix the review findings' (the fix action applies the merged set of persisted findings)."
+description: "Breadth review: fans a change to many reviewers (agents, criteria docs, review plugins) into one combined, deduplicated, severity-ranked report on disk; fix applies persisted findings. Use for a breadth review (every reviewer, angle, or side at once) or 'fix the review findings'. Not for one lens: /review:quality-gate."
 argument-hint: "[run-everything|fix] [--yes] [--unattended]"
 user-invocable: true
 disable-model-invocation: false

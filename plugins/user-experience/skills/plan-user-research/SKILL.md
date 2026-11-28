@@ -1,5 +1,5 @@
 ---
-description: "User research plans and instruments for the app being built: picks the method, then writes the discussion guide, screener, usability test script, survey or inclusive-research plan, evidence-labeled. Use when: 'write a discussion guide', 'write an interview script', 'write a screener', 'write a facilitator guide for a usability test', 'draft survey questions', 'interviews or another research method'."
+description: "User research plans and instruments for the app being built (never recruits or runs sessions): picks the method and writes evidence-labeled discussion guides, screeners, usability test scripts, surveys, or inclusive-research plans. Use when: 'write a discussion guide', 'write a screener', or 'draft survey questions'."
 argument-hint: "[research question or app context]"
 user-invocable: true
 disable-model-invocation: false

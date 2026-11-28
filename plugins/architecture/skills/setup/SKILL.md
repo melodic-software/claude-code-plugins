@@ -1,5 +1,5 @@
 ---
-description: "Verify and converge the architecture plugin's consumer configuration: the convention-home binding, and the architecture topic doc declaring where landscape and portfolio artifacts land (architecture_dir) and which landscape dialect to emit (landscape_dialect). Use when: 'set up architecture', 'where should the landscape go', 'declare our architecture directory', 'map-landscape says there is no architecture home', 'switch the landscape dialect to structurizr', before a first /architecture:map-landscape run in a repository, or after changing the convention home. Actions: check (read-only), apply (writes the pointer region and topic doc, on explicit request)."
+description: "Check (read-only default) or apply architecture setup: convention-home binding and topic doc (architecture_dir, landscape_dialect)."
 argument-hint: "[check|apply] [home=<dir>] [architecture_dir=<path>] [landscape_dialect=<structurizr|mermaid>]"
 user-invocable: true
 disable-model-invocation: true

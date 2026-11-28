@@ -1,5 +1,5 @@
 ---
-description: "Pass/fail gate over path-scoped instruction surfaces: every .claude/rules/ glob must resolve, and the always-loaded rules index must match disk. Failures are SILENT in Claude Code. Use when: 'check my rules', 'are my path-scoped rules actually firing', 'is the rules index stale', 'validate paths frontmatter', 'why is my rule not loading', 'CI gate for .claude/rules', or after a change to a rule's paths: or the rules tree. Read-only; sibling realign applies fixes."
+description: "Read-only pass/fail CI gate for path-scoped instruction surfaces (silent failures in Claude Code): verifies every .claude/rules/ glob resolves and the rules index matches disk. Use when: 'check my rules', 'validate paths frontmatter', 'is the rules index stale', or editing rules/paths. Not for applying fixes: /instruction-placement:realign."
 argument-hint: "[--file <index-path>] [--breadth-max <pct>] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

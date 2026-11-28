@@ -1,5 +1,5 @@
 ---
-description: "Surface the USER's unknown-unknowns before they work in unfamiliar territory and coach a sharper prompt. Use when: 'what am I missing', 'find my blindspots', 'blind spot pass', 'what do I not know here', 'sharpen this prompt', 'I am new to this area', or about to work in an unfamiliar area and the goal is a better prompt, not the codebase handoff /discovery:explore produces."
+description: "Surface the user's unknown-unknowns before unfamiliar work in a new area or domain and coach a sharper prompt (read-only; writes no EXPLORE.md). Use when: 'what am I missing', 'find my blindspots', 'sharpen this prompt'. Not for codebase handoffs: /discovery:explore. Not for external research: /discovery:research."
 argument-hint: "[area-or-domain]"
 user-invocable: true
 disable-model-invocation: false

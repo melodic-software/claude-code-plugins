@@ -1,0 +1,34 @@
+{
+  "skill": "instruction-placement:establish-hub",
+  "plugin": "instruction-placement",
+  "skill_dir": "plugins/instruction-placement/skills/establish-hub",
+  "competitors": [
+    "instruction-placement:audit",
+    "instruction-placement:check",
+    "instruction-placement:delta",
+    "instruction-placement:migrate",
+    "instruction-placement:realign"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "create a central hub repository where cross-repo agent sessions start"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "check which sections in our multi-repo hub AGENTS.md are missing or drifted"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "set up a shared starting repo for our organization's agent sessions"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "discover our estate repos and propose the hub instruction files before writing anything"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "where should agent sessions start when work spans several repositories"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "audit our existing hub repository and report missing cross-repo navigation sections"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "bootstrap a private hub repo that links out to all our sibling repositories"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "verify whether our organization hub repository still matches the recommended catalog"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "build a starting repository for multi-repo work with an AGENTS.md and ignored scratch dir"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "check our cross-repository hub setup without modifying any files"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "scan root CLAUDE.md and docs/ in this single repo to demote oversized rules"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "check whether .claude/rules globs resolve and the generated rules index is in sync"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "report only what moved since last week's instruction placement run"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "replace this repository's CLAUDE.md with AGENTS.md and a one-line shim"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "apply the accepted instruction placement moves from our findings artifact"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "add a GitHub Actions workflow to run ESLint on pull requests"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "migrate our existing repo instructions from CLAUDE.md to AGENTS.md"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "propose better placement for conventions buried in our docs/ folder"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "show placement drift since our previous baseline snapshot"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "run a read-only CI gate on path-scoped rule files"}
+  ]
+}

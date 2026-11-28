@@ -1,5 +1,5 @@
 ---
-description: "When the bundled explain-usage skill resolves in this session, prefer it for where this session's tokens went; this skill for startup cost before any work, per-tool attribution, and whether a settings change saved anything. Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most', 'did that settings change save tokens'. Read-only; `fix` applies one trim behind approval."
+description: "When explain-usage resolves in this session, prefer it for where session tokens went; use this for startup cost before work, per-tool attribution, whether settings saved tokens (read-only; fix applies a trim with approval). Use when: 'what is eating my context window at startup', 'measure my startup payload', 'which built-in tools cost the most'."
 argument-hint: "[--full-sweep|--tools T1,T2|--ledger|--measure-only|fix] [--unattended]"
 user-invocable: true
 disable-model-invocation: false

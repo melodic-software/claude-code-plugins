@@ -430,40 +430,64 @@ export const waitedPull = (reason, issueNumber) =>
   [...String(reason ?? "").matchAll(/[#＃]([1-9][0-9]{0,9})\b/g)].map((match) => match[1]).find((number) => Number(number) !== issueNumber) ?? "";
 const PUSHBACK_SECURITY_WHY =
   "the run pushed back without naming cause intent, and its words may name a security risk, so intake triage judges the issue again on evidence; if the run names it again once this intake round is spent, the issue reaches a person";
-function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "", after = "", why = "", neutral = false }) {
+const PRE_BUILD_VERDICT = { wait: "Waiting", retry: "Retrying" };
+const lowerFirst = (text) => `${text.charAt(0).toLowerCase()}${text.slice(1)}`;
+
+function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, branch, runUrl, runId, onResumed = false, pr = "", after = "", why = "", neutral = false, preBuild = false }) {
   const exit = ROUTE_OUTCOME[route];
-  const lines = [
-    `<!-- work-resolve-issue outcome=${exit}${neutral ? " security" : ""}${pr ? ` pr=${pr}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`,
-    `${stopLine(stop)} ${neutral ? PUSHBACK_SECURITY_WHY : stopWhy(shown)}.`,
-    ...(why ? [why] : []),
-    ...(after ? [`It must land after #${after}: intake triage records #${after} on its \`Blocked by:\` line, which writes the blocked-by edge.`] : []),
+  const marker = `<!-- work-resolve-issue outcome=${exit}${neutral ? " security" : ""}${pr ? ` pr=${pr}` : ""}${runId ? ` run=${runId}` : ""}${resumedTag(onResumed)} -->`;
+  const kept =
     route === "retry"
       ? `It keeps \`agent-ready\`, and work-unblock starts it again (retry ${retries + 1} of ${cap}).`
       : route === "wait"
         ? `It keeps \`agent-ready\`, and work-unblock starts it again once #${pr} merges or closes (wait ${retries + 1} of ${cap}).`
-        : ROUTE_TEXT[neutral ? "intake-security" : route],
-  ];
+        : ROUTE_TEXT[neutral ? "intake-security" : route];
+  const next =
+    route === "host-run"
+      ? `To hand it back to the lane, remove \`${HOST_RUN_LABEL}\` and set Work status to agent-ready again.`
+      : route === "attended"
+        ? `Once the step is done, a listed human removes \`${ATTENDED_LABEL}\` and sets Work status to agent-ready again.`
+        : route === "fail"
+          ? "To run it again, set Work status to agent-ready."
+          : "";
+  const lines = preBuild
+    ? [
+        marker,
+        `### ${WORK_RESOLVE_ISSUE} / report-outcome`,
+        `${PRE_BUILD_VERDICT[route] ?? "Stopped"}: ${lowerFirst(outcome.reason)}`,
+        "",
+        `- Stop: \`${stop}\`${shown === stop ? "" : `, then \`${shown}\`: ${stopWhy(shown)}`}.`,
+        ...(why ? [`- ${why}`] : []),
+        `- ${kept}`,
+        ...(next ? [`- ${next}`] : []),
+        ...(runUrl ? [`- Run: ${runUrl}`] : []),
+      ]
+    : [
+        marker,
+        `${stopLine(stop)} ${neutral ? PUSHBACK_SECURITY_WHY : stopWhy(shown)}.`,
+        ...(why ? [why] : []),
+        ...(after ? [`It must land after #${after}: intake triage records #${after} on its \`Blocked by:\` line, which writes the blocked-by edge.`] : []),
+        kept,
+      ];
   const words = outcome.reason || outcome.summary;
-  if (words) {
-    lines.push("", RUN_WORDS, "", quoted(words));
-  }
-  if (outcome.exit === "pushback" && String(outcome.cause ?? "").trim()) {
-    lines.push("", "The cause the run named:", "", quoted(String(outcome.cause)));
-  }
-  if (route === "close" && outcome.reason && outcome.summary) {
-    lines.push("", "The run's report:", "", quoted(outcome.summary));
-  }
-  lines.push(...notDoneLines(outcome.notDone));
-  if (branch) {
-    lines.push("", `Partial work is on the branch \`${branch}\`. The next run continues from it while it is not behind the default branch, and otherwise starts fresh.`);
-  }
-  lines.push(...runLines(runUrl));
-  if (route === "host-run") {
-    lines.push("", `To hand it back to the lane, remove \`${HOST_RUN_LABEL}\` and set Work status to agent-ready again.`);
-  } else if (route === "attended") {
-    lines.push("", `Once the step is done, a listed human removes \`${ATTENDED_LABEL}\` and sets Work status to agent-ready again.`);
-  } else if (route === "fail") {
-    lines.push("", "To run it again, set Work status to agent-ready.");
+  if (!preBuild) {
+    if (words) {
+      lines.push("", RUN_WORDS, "", quoted(words));
+    }
+    if (outcome.exit === "pushback" && String(outcome.cause ?? "").trim()) {
+      lines.push("", "The cause the run named:", "", quoted(String(outcome.cause)));
+    }
+    if (route === "close" && outcome.reason && outcome.summary) {
+      lines.push("", "The run's report:", "", quoted(outcome.summary));
+    }
+    lines.push(...notDoneLines(outcome.notDone));
+    if (branch) {
+      lines.push("", `Partial work is on the branch \`${branch}\`. The next run continues from it while it is not behind the default branch, and otherwise starts fresh.`);
+    }
+    lines.push(...runLines(runUrl));
+    if (next) {
+      lines.push("", next);
+    }
   }
   return {
     action: route,
@@ -536,6 +560,7 @@ function outsideAuthorPlan({ issueNumber, runUrl, runId }) {
 }
 
 export const WORKFLOW_STALE = "workflow-stale";
+export const CLOSED_BY_OPEN_PR = "closed-by-open-pr";
 
 export const LANE_WORKFLOWS = [".github/workflows/pr-run-activity-write.yml", ".github/workflows/work-resolve-issue.yml"];
 export const REFIRED = /^<!-- work-unblock refired ([0-9a-f]{40}-[0-9a-f]{40})( breaker)? -->/;
@@ -1243,7 +1268,7 @@ export function findPrior({ issueNumber, repo, bot, humans, branches, closing, m
   }
   const trusted = trustedCloser(closing, { repo, bot, humans });
   if (trusted) {
-    return { action: "stop", reason: `open PR #${trusted.number} closes the issue` };
+    return { action: "stop", skip: CLOSED_BY_OPEN_PR, reason: `open PR #${trusted.number} closes the issue` };
   }
   const reported = reportedIn(markers);
   const laneTip = ({ tip }) => laneCommit(tip, bot);
@@ -1567,7 +1592,7 @@ export async function findPriorMain({ env = process.env, fetchImpl, sleep, latch
             : {}),
           ...pruned,
         }
-      : { proceed: "false", "skip-reason": "not-applicable", "reuse-branch": prior.action === "reuse" ? prior.branch : "", ...pruned };
+      : { proceed: "false", "skip-reason": prior.skip ?? "not-applicable", "reuse-branch": prior.action === "reuse" ? prior.branch : "", ...pruned };
     appendFileSync(env.GITHUB_OUTPUT, Object.entries(outputs).map(([key, value]) => `${key}=${value}\n`).join(""));
     console.log(
       prior.stale
@@ -1776,7 +1801,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
   try {
     const issueNumber = targetIssue(env);
     const dimensionSkip = env.DIMENSION_SKIP ?? "";
-    if (dimensionSkip && !Object.hasOwn(DIMENSION_STEPS, dimensionSkip) && dimensionSkip !== OUTSIDE_AUTHOR && dimensionSkip !== WORKFLOW_STALE) {
+    if (dimensionSkip && !Object.hasOwn(DIMENSION_STEPS, dimensionSkip) && ![OUTSIDE_AUTHOR, WORKFLOW_STALE, CLOSED_BY_OPEN_PR].includes(dimensionSkip)) {
       throw new Error("DIMENSION_SKIP is not an issue-dimension skip reason");
     }
     const escalation = env.ESCALATION_REASON ?? "";
@@ -1815,6 +1840,27 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
       const posted = comments.some((comment) => comment.user?.login === bot && parseOutcomeMarker(comment.body)?.outcome === OUTSIDE_AUTHOR);
       const plan = outsideAuthorPlan({ issueNumber, runUrl, runId });
       await applyHandBack(github, repo, posted ? { ...plan, comment: "" } : plan, { setStatus, leaveAgentReady, stateOf });
+      return 0;
+    }
+    if (dimensionSkip === CLOSED_BY_OPEN_PR) {
+      const humans = readHumansOrNone(env.TRUSTED_ACTORS);
+      const [owner, name] = env.GITHUB_REPOSITORY.split("/");
+      const closer = trustedCloser(await closingPulls(github, { owner, name, number: issueNumber }), { repo: env.GITHUB_REPOSITORY, bot, humans });
+      if (!closer) {
+        console.log(`report-outcome: the run stopped before the model on issue #${issueNumber} for an open closing PR, and no open PR the lanes App or a listed human opened closes it now; nothing is posted`);
+        return 0;
+      }
+      const humanLabel = humanLabelFrom(env.TRACKER_CONFIG ?? ".base/docs/conventions/work-items.yaml");
+      const plan = routeStop(CLOSED_BY_OPEN_PR, {
+        outcome: stopped(`Open PR #${closer.number} already closes this issue, so the run stopped before the model ran.`),
+        issueNumber,
+        branch: "",
+        humanLabel,
+        runUrl,
+        runId,
+        preBuild: true,
+      });
+      await finishStop(github, repo, plan, { bot, appId, humans, runId, limits: readLimits(resolvedConfigPath(env)), setStatus, leaveAgentReady, statusOf, stateOf, field });
       return 0;
     }
     if (dimensionSkip) {
@@ -2024,7 +2070,7 @@ export async function main({ env = process.env, fetch = globalThis.fetch, now = 
           });
       if (closer) {
         console.log(`report-outcome: open PR #${closer.number} already closes issue #${issueNumber}, so no PR opens from ${plan.branch}`);
-        plan = routeStop("closed-by-open-pr", {
+        plan = routeStop(CLOSED_BY_OPEN_PR, {
           outcome: stopped(`Open PR #${closer.number} already closes this issue, so no second PR opened from \`${plan.branch}\`.`),
           issueNumber,
           branch: plan.branch,
