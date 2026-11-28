@@ -1,5 +1,5 @@
 ---
-description: "Read-only verdict (`workflow`, `subagent`, or `single-context`) and run shape for a task; downgrades `workflow` to `subagent` when unavailable. Use when asked 'workflow or subagents', 'how should I orchestrate this', 'is the Workflow tool available'. Not for tier assignment: /multi-agent:route."
+description: "Read-only verdict (`workflow`, `subagent`, or `single`) and run shape for a task; downgrades `workflow` to `subagent` when unavailable. Use when asked 'workflow or subagents', 'how should I orchestrate this', 'is the Workflow tool available'. Not for tier assignment: /multi-agent:route."
 argument-hint: "<task description>"
 user-invocable: true
 disable-model-invocation: false
