@@ -1,5 +1,5 @@
 ---
-description: "Scrape, search, or crawl a web page/site via firecrawl-cli (disk). CLI: scrape, batch-scrape, search, crawl, map, parse, interact, agent, monitor, developer, research, doctor, search-feedback, credit-usage. Use when: 'scrape this page', 'this page needs JS', 'WebFetch is blocked' (403/429/Cloudflare/PDF). Not for plain page (WebFetch) or synthesis."
+description: "Scrape/search/crawl web page/site via firecrawl-cli (disk): scrape, batch-scrape, search, crawl, map, parse, interact, agent, monitor, developer, research, doctor, search-feedback, credit-usage. Use when: 'scrape this page', 'WebFetch is blocked' (403/429/Cloudflare/JS page), 'extract text from this PDF/doc'. Not for plain WebFetch page/synthesis."
 argument-hint: "<scrape|search|crawl|map|parse|interact|agent|monitor|developer|research|doctor|…> [args]"
 user-invocable: true
 disable-model-invocation: false
