@@ -598,6 +598,7 @@ const SVG_ATTRS = new Set([
   "refy", "orient", "markerunits", "clip-path", "mask", "preserveaspectratio",
   "focusable", "patternunits", "xlink:href", "title",
 ]);
+const SVG_ARIA = /^aria-[a-z0-9-]+$/;
 const ATTRS = new Set([
   "lang", "charset", "http-equiv", "content", "name", "class", "id", "href", "role", "type", "hidden", "tabindex",
   "aria-label", "aria-labelledby", "aria-pressed", "aria-current", "aria-live", "aria-hidden",
@@ -644,15 +645,16 @@ export function validateDeepeningPage(html) {
     if (match[0].startsWith("</")) continue;
     for (const attr of match[2].matchAll(/([^\s"'>=/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)) {
       const [name, value] = [attr[1].toLowerCase(), attr[2] ?? attr[3] ?? attr[4] ?? ""];
-      if (!ATTRS.has(name) || (SVG_ATTRS.has(name) && !SVG_TAGS.has(tag))) failures.push(`attr:${name}`);
+      const svgAria = SVG_TAGS.has(tag) && SVG_ARIA.test(name);
+      if ((!ATTRS.has(name) && !svgAria) || (SVG_ATTRS.has(name) && !SVG_TAGS.has(tag))) failures.push(`attr:${name}`);
       if (!ESCAPED_TEXT.test(value)) failures.push("unescaped");
       if (name === "xmlns" && value !== "http://www.w3.org/2000/svg") failures.push("xmlns");
       if ((name === "href" || name === "xlink:href") && !(value.startsWith("#") && TOKEN.test(value.slice(1)))) failures.push("href");
       if (/url\(/i.test(value) && !URL_FRAGMENT.test(value)) failures.push("url");
       if ((name === "id" || name === "data-part") && !TOKEN.test(value)) failures.push(`opaque:${name}`);
       if (name === "http-equiv" && value !== "Content-Security-Policy") failures.push("http-equiv");
-      if (Object.hasOwn(READER_VALUES, name) && !READER_VALUES[name].includes(value)) failures.push(`value:${name}`);
-      if (name === "aria-labelledby" && !TOKEN.test(value)) failures.push(`opaque:${name}`);
+      if (!SVG_TAGS.has(tag) && Object.hasOwn(READER_VALUES, name) && !READER_VALUES[name].includes(value)) failures.push(`value:${name}`);
+      if (!SVG_TAGS.has(tag) && name === "aria-labelledby" && !TOKEN.test(value)) failures.push(`opaque:${name}`);
     }
   }
   const textLeft = rest.replace(/<!doctype html>/i, "").replace(/<\/?[A-Za-z][A-Za-z0-9]*\b[^>]*>/g, "");

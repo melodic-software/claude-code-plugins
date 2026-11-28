@@ -4,12 +4,38 @@ import { tmpdir } from "node:os";
 import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { applyBranding } from "../lib/html-branding.mjs";
+import { escapeHtml } from "../lib/html-escape.mjs";
 import { managedSettingsFiles, readOperatorOptions, resolveInstall } from "../lib/plugin-options.mjs";
 import { buildView, ViewBuildError } from "../lib/view-builder.mjs";
 import { brandingReportLines, findRoot, resolveBranding } from "../lib/view-settings.mjs";
 import { DeepeningRecordError, parseDeepening, renderDeepening, validateDeepeningPage } from "./deepening-report.mjs";
 
 const PLUGIN_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
+
+const breakSlots = (text, sep) => {
+  let out = text;
+  while (out.includes("{{")) out = out.replaceAll("{{", `{${sep}{`);
+  return out;
+};
+
+const applyTemplateBranding = (template, { tokensCss, branding }) => {
+  const logo = branding?.logo;
+  if (!logo || (!logo.label?.includes("{{") && !logo.svg?.includes("{{"))) {
+    return applyBranding(template, { tokensCss, branding });
+  }
+  const safeLabel = logo.label ? breakSlots(logo.label, " ") : logo.label;
+  const safeSvg = logo.svg ? breakSlots(logo.svg, " ") : logo.svg;
+  let branded = applyBranding(template, {
+    tokensCss,
+    branding: { ...branding, logo: { ...logo, label: safeLabel, svg: safeSvg } },
+  });
+  if (logo.label?.includes("{{")) {
+    const from = `<span class="rv-brand-label">${escapeHtml(safeLabel)}</span>`;
+    const to = `<span class="rv-brand-label">${breakSlots(escapeHtml(logo.label), "<span></span>")}</span>`;
+    branded = branded.replace(from, () => to);
+  }
+  return branded;
+};
 
 const readBrandingOption = (flagValue) => {
   if (flagValue !== undefined) return flagValue;
@@ -137,7 +163,7 @@ try {
   const tokensCss = readFileSync(fileURLToPath(new URL("../reference/html-tokens.css", import.meta.url)), "utf8");
   const page = kind === "deepening" ? deepeningPage(record, branding) : buildView({
     profile: "interactive",
-    template: applyBranding(
+    template: applyTemplateBranding(
       readFileSync(fileURLToPath(new URL("../templates/map-view.html", import.meta.url)), "utf8"),
       { tokensCss, branding },
     ),

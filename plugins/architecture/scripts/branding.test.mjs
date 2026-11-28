@@ -7,7 +7,7 @@ import { describe, test } from "node:test";
 import { fileURLToPath } from "node:url";
 import { stripTokenComment } from "../lib/html-branding.mjs";
 import { validateView } from "../lib/view-builder.mjs";
-import { parseDeepening, renderDeepening, validateDeepeningPage } from "../scripts/deepening-report.mjs";
+import { parseDeepening, renderDeepening, validateDeepeningPage } from "./deepening-report.mjs";
 process.env.GIT_CONFIG_GLOBAL ??= "/dev/null";
 process.env.GIT_CONFIG_NOSYSTEM = "1";
 
@@ -289,5 +289,61 @@ describe("architecture branded page builds", () => {
     const html = renderDeepening(parsed);
     assert.deepEqual(validateDeepeningPage(html), { ok: true, failures: [] });
     assert.doesNotMatch(html, /class="rv-brand"/);
+  });
+
+  test("validateDeepeningPage accepts resolver SVG aria-* attributes while rejecting aria-describedby on non-SVG elements", () => {
+    const work = mkdtempSync(join(tmpdir(), "arch-svg-aria-"));
+    try {
+      const brandingOption = JSON.stringify({
+        logo: {
+          svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" aria-describedby="logo-desc" aria-labelledby="logo-title logo-desc"><desc id="logo-desc">Company logo</desc><rect width="16" height="16" fill="currentColor"/></svg>',
+          label: "Acme",
+        },
+      });
+      const env = { ...process.env, TMPDIR: work, TEMP: work, TMP: work };
+      const deepBuilt = spawnSync("node", [BUILD_VIEW, "deepening", "--record", DEEPENING_FIXTURE, "--branding-option", brandingOption], {
+        cwd: work,
+        encoding: "utf8",
+        env,
+      });
+      assert.equal(deepBuilt.status, 0, deepBuilt.stderr);
+      const deepHtml = readFileSync(deepBuilt.stdout.trim(), "utf8");
+      assert.deepEqual(validateDeepeningPage(deepHtml), { ok: true, failures: [] });
+      assert.match(deepHtml, /aria-describedby="logo-desc"/);
+
+      const nonSvgAria = deepHtml.replace('<div class="rv-bar">', '<div class="rv-bar" aria-describedby="logo-desc">');
+      const checked = validateDeepeningPage(nonSvgAria);
+      assert.equal(checked.ok, false);
+      assert.ok(checked.failures.includes("attr:aria-describedby"));
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
+  });
+
+  test("branding labels and SVG logos containing {{ build cleanly in interactive map-view", () => {
+    const work = mkdtempSync(join(tmpdir(), "arch-braces-"));
+    try {
+      const mapRecord = join(work, "map.json");
+      writeFileSync(mapRecord, JSON.stringify(MAP_RECORD));
+      const brandingOption = JSON.stringify({
+        logo: {
+          svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" aria-label="{{ Acme }}"><rect width="16" height="16" fill="currentColor"/></svg>',
+          label: "{{ Acme }}",
+        },
+      });
+      const env = { ...process.env, TMPDIR: work, TEMP: work, TMP: work };
+      const mapBuilt = spawnSync("node", [BUILD_VIEW, "dependencies", "--record", mapRecord, "--branding-option", brandingOption], {
+        cwd: work,
+        encoding: "utf8",
+        env,
+      });
+      assert.equal(mapBuilt.status, 0, mapBuilt.stderr);
+      const mapHtml = readFileSync(mapBuilt.stdout.trim(), "utf8");
+      assert.deepEqual(validateView(mapHtml), { ok: true, failures: [] });
+      const labelHtml = /<span class="rv-brand-label">([\s\S]*?)<\/span>(?=<\/div>)/.exec(mapHtml)?.[1] ?? "";
+      assert.equal(labelHtml.replace(/<[^>]+>/g, ""), "{{ Acme }}");
+    } finally {
+      rmSync(work, { recursive: true, force: true });
+    }
   });
 });
