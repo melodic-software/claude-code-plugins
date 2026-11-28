@@ -5499,10 +5499,24 @@ async function preBuildSkip(closing, { pulls = {} } = {}) {
   });
 }
 const issueComments = (calls) => calls.filter((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments"));
+const sample = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8"));
+const sampledClosers = (overrides) => {
+  const answer = sample("closing-pulls.json");
+  const refs = answer.data.repository.issue.closedByPullRequestsReferences;
+  const [node] = refs.nodes;
+  refs.nodes = overrides.map(({ author, ...rest }) => ({ ...node, ...rest, author: { ...node.author, ...author } }));
+  return answer;
+};
+const sampledPull = ({ user, ...rest }) => {
+  const pull = sample("pull-open.json");
+  return { ...pull, ...rest, user: { ...pull.user, ...user } };
+};
+const SAME_REPO_CLOSER = { number: 10686, repository: { nameWithOwner: "o/r" } };
+const TRUSTED_CLOSER = { ...SAME_REPO_CLOSER, author: { databaseId: OWNER_ID } };
 
 test("main on a closed-by-open-pr pre-build skip reads the closers itself and waits on the trusted one, with agent-ready kept", async () => {
-  const { code, calls, lines } = await preBuildSkip([200, graphql([{ ...closer("User", "kyle-sexton", OWNER_ID), number: 10686 }])], {
-    pulls: { 10686: { ...HUMAN_PULL, state: "open", merged_at: null } },
+  const { code, calls, lines } = await preBuildSkip([200, sampledClosers([TRUSTED_CLOSER])], {
+    pulls: { 10686: sampledPull({ number: 10686, user: { id: OWNER_ID } }) },
   });
   assert.equal(code, 0);
   const [comment] = issueComments(calls).map((c) => c.body.body);
@@ -5522,8 +5536,8 @@ test("main on a closed-by-open-pr pre-build skip reads the closers itself and wa
 });
 
 test("main on a closed-by-open-pr pre-build skip retries, in the lane output format, when the closer closed before the stop was written", async () => {
-  const { code, calls } = await preBuildSkip([200, graphql([{ ...closer("User", "kyle-sexton", OWNER_ID), number: 10686 }])], {
-    pulls: { 10686: { ...HUMAN_PULL, state: "closed", merged_at: null } },
+  const { code, calls } = await preBuildSkip([200, sampledClosers([TRUSTED_CLOSER])], {
+    pulls: { 10686: sampledPull({ number: 10686, state: "closed", closed_at: "2026-11-28T00:00:00Z", user: { id: OWNER_ID } }) },
   });
   assert.equal(code, 0);
   const [comment] = issueComments(calls).map((c) => c.body.body);
@@ -5535,8 +5549,8 @@ test("main on a closed-by-open-pr pre-build skip retries, in the lane output for
 });
 
 test("main on a closed-by-open-pr pre-build skip posts nothing when no trusted open PR closes the issue any more", async () => {
-  for (const nodes of [[], [closer("User", "stranger", 42)]]) {
-    const { code, calls } = await preBuildSkip([200, graphql(nodes)]);
+  for (const nodes of [[], [SAME_REPO_CLOSER]]) {
+    const { code, calls } = await preBuildSkip([200, sampledClosers(nodes)]);
     assert.equal(code, 0, JSON.stringify(nodes));
     assert.deepEqual(issueComments(calls), [], JSON.stringify(nodes));
   }
