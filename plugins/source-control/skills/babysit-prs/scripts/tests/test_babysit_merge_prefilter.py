@@ -28,7 +28,7 @@ def _candidate(number: int, *, labels: list[str] | None = None, body: str = "") 
     }
 
 
-HELD_BODIES = (
+HOLD_TEXT_BODIES = (
     "Refs: #1\r\n\r\nHold: a human merges this\r\n",
     "Superseded. Do not merge this draft.",
     "Refs: #1\rHold: a bare CR line break",
@@ -62,23 +62,35 @@ class HeldCandidatesNeverReachTheGate(unittest.TestCase):
     def test_held_candidates_are_dropped_with_no_call(self) -> None:
         candidates = [
             _candidate(1),
-            _candidate(2, body=HELD_BODIES[0]),
-            _candidate(3, labels=["Do-Not-Merge"]),
+            _candidate(2, body=HOLD_TEXT_BODIES[0]),
+            _candidate(3, labels=["Do-Not-Merge"], body=HOLD_TEXT_BODIES[0]),
             _candidate(4, labels=["needs-review"], body=FREE_BODIES[1]),
             _candidate(7, labels=["Needs-Human"]),
         ]
         kept, held = self._run(candidates)
-        self.assertEqual([c["number"] for c in kept], [1, 4])
+        self.assertEqual([c["number"] for c in kept], [1, 2, 4])
         self.assertEqual(
             [(h["number"], h["reason"]) for h in held],
-            [(2, "body-hold"), (3, "do-not-merge"), (7, "needs-human")],
+            [(3, "do-not-merge"), (7, "needs-human")],
         )
         self.assertEqual(set(kept[0]), {"number", "head", "updatedAt"})
-        self.assertEqual(held[0]["head"], candidates[1]["head"])
+        self.assertEqual(held[0]["head"], candidates[2]["head"])
+
+    def test_body_text_alone_holds_nothing(self) -> None:
+        for body in HOLD_TEXT_BODIES:
+            with self.subTest(body=body):
+                self.assertIsNone(prefilter.hold(_candidate(1, body=body)))
+                self.assertEqual(
+                    prefilter.hold(_candidate(1, labels=["do-not-merge"], body=body)),
+                    "do-not-merge",
+                )
 
     def test_one_held_candidate_stays_when_every_candidate_is_held(self) -> None:
         kept, held = self._run(
-            [_candidate(5, body=HELD_BODIES[1]), _candidate(6, labels=["do-not-merge"])]
+            [
+                _candidate(5, labels=["needs-human"]),
+                _candidate(6, labels=["do-not-merge"]),
+            ]
         )
         self.assertEqual(
             kept, [{k: _candidate(5)[k] for k in ("number", "head", "updatedAt")}]
@@ -108,7 +120,7 @@ class PrefilterDropsOnlyWhatTheGateRefuses(fixtures.TierEvaluateHarness):
 
     def test_agrees_with_the_gate(self) -> None:
         cases = [
-            *({"body": b} for b in HELD_BODIES + FREE_BODIES),
+            *({"body": b} for b in HOLD_TEXT_BODIES + FREE_BODIES),
             {"labels": ["do-not-merge"]},
             {"labels": ["needs-review"]},
             {"labels": ["needs-human"]},

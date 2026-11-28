@@ -48,11 +48,9 @@ SCHEMA_VERSION = 1
 OVERLAY_VERSIONS = (1, 2)
 RULE_MIN_AGE_BASES = ("mtime", "atime", "ctime")
 ELEVATION_VALUES = ("never", "uac-prompt")
-POLICY_FILE_NAME = "disk-hygiene.json"
 TEAM_POLICY_NAME = "disk-hygiene.yaml"
 PERSONAL_POLICY_NAME = "disk-hygiene.local.yaml"
 POLICY_FILE_OPTION = "policy_file"
-POLICY_SETUP_COMMAND = "/disk-hygiene:setup apply"
 DEFAULT_CONVENTION_HOME = ("docs", "conventions")
 CONVENTION_HOME_MARKERS = (
     "<!-- BEGIN GENERATED: convention-home -->",
@@ -887,7 +885,6 @@ def hard_protection(
 convention_home = policy_cascade.convention_home
 user_policy_path = policy_cascade.user_policy_path
 _same_file = policy_cascade.same_file
-old_policy_paths = policy_cascade.old_policy_paths
 standing_policy_paths = policy_cascade.standing_policy_paths
 repository_policy_paths = policy_cascade.repository_policy_paths
 

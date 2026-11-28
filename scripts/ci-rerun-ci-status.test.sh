@@ -185,6 +185,29 @@ if [[ -n "${STUB_ETAG:-}" && "$*" =~ ^api\ -i\ repos/o/r/actions/runs/[0-9]+($|\
   printf 'HTTP/2.0 200 OK\r\nEtag: %s\r\nX-Ratelimit-Remaining: 9\r\n\r\n%s\n' "$STUB_ETAG" "$body"
   exit 0
 fi
+# Answers a read of a resource whose current ETag is $1 and body $2 from gh's
+# captured output (fixtures/gh-api-conditional): when If-None-Match names that
+# ETag, the 304 headers (strong ETag), no body, gh's stderr line and exit 1;
+# else the 200 headers and the body.
+tagged() {
+  if [[ "$ARGS" == *" -H If-None-Match: $1" ]]; then
+    sed "s|^Etag: .*|Etag: ${1#W/}"$'\r'"|" "$STUB_FIXTURES/run-304.out"
+    cat "$STUB_FIXTURES/run-304.err" >&2
+    exit 1
+  fi
+  sed "s|^Etag: .*|Etag: $1"$'\r'"|" "$STUB_FIXTURES/run-200.headers"
+  printf '%s\n' "$2"
+  exit 0
+}
+ARGS="$*"
+# With STUB_RUN_ETAGS set, the nth read of a run gets the nth line of
+# STUB_RUN_SEQ under the nth line of STUB_RUN_ETAGS (the last once they run out).
+if [[ -n "${STUB_RUN_ETAGS:-}" && "$*" =~ ^api\ -i\ repos/o/r/actions/runs/[0-9]+($|\ -H) ]]; then
+  n=$(grep -cE '^api -i repos/o/r/actions/runs/[0-9]+($| -H)' "$STUB_LOG")
+  total=$(wc -l <<<"$STUB_RUN_SEQ")
+  n=$((n < total ? n : total))
+  tagged "$(sed -n "${n}p" <<<"$STUB_RUN_ETAGS")" "$(sed -n "${n}p" <<<"$STUB_RUN_SEQ")"
+fi
 case "$*" in
 *'/actions/runs?head_sha='*)
   [[ -z "${STUB_HEAD_FAIL:-}" ]] || exit 1
@@ -212,8 +235,15 @@ case "$*" in
   ok200 "$STUB_RUNS"
   ;;
 */actions/runs/*/jobs*)
-  # STUB_JOBS_LATER answers once a poll has read the run by id.
-  if [[ -n "${STUB_JOBS_LATER:-}" ]] && grep -qE '^api -i repos/o/r/actions/runs/[0-9]+($| -H)' "$STUB_LOG"; then ok200 "$STUB_JOBS_LATER"; else ok200 "$STUB_JOBS"; fi
+  # STUB_JOBS_LATER answers once a poll has read the run by id; STUB_JOBS_ETAG
+  # (or STUB_JOBS_LATER_ETAG) tags the answer.
+  if [[ -n "${STUB_JOBS_LATER:-}" ]] && grep -qE '^api -i repos/o/r/actions/runs/[0-9]+($| -H)' "$STUB_LOG"; then
+    [[ -z "${STUB_JOBS_LATER_ETAG:-}" ]] || tagged "$STUB_JOBS_LATER_ETAG" "$STUB_JOBS_LATER"
+    ok200 "$STUB_JOBS_LATER"
+  else
+    [[ -z "${STUB_JOBS_ETAG:-}" ]] || tagged "$STUB_JOBS_ETAG" "$STUB_JOBS"
+    ok200 "$STUB_JOBS"
+  fi
   ;;
 "api -i repos/o/r/actions/runs/"[0-9]*)
   n=$(grep -c '^api -i repos/o/r/actions/runs/[0-9]*$' "$STUB_LOG")
@@ -275,7 +305,7 @@ expect() {
   rm -f "$TMP_ROOT/record.json"
   rm -rf "$TMP_ROOT/rt"
   mkdir -p "$TMP_ROOT/rt"
-  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
+  out="$(PATH="$TMP_ROOT/bin:$PATH" STUB_LOG="$TMP_ROOT/log" STUB_FIXTURES="$ROOT/scripts/fixtures/gh-api-conditional" GITHUB_REPOSITORY=o/r HEAD_SHA="${HEAD_SHA-$HEAD}" \
     PR_NUMBER="${PR_NUMBER-42}" LANE_PATH="${LANE_PATH-$CODE}" LANE_DONE_AT="${LANE_DONE_AT-$LATER}" \
     GITHUB_OUTPUT="$TMP_ROOT/out" RECORD_FILE="$TMP_ROOT/record.json" GITHUB_RUN_ID=555 \
     REVIEW_ATTEMPT="${REVIEW_ATTEMPT-1}" REVIEW_RERUNNER_ID="${REVIEW_RERUNNER_ID-$KYLE}" \
@@ -492,11 +522,48 @@ STUB_ETAG='W/"e1"' STUB_NOT_MODIFIED_FILE="$TMP_ROOT/not-modified" \
 check_reran 1 "the conditionally polled run's ci-status is re-run once"
 if [[ "$(grep -c '^sleep 60$' "$TMP_ROOT/log")" == 4 && "$(grep -c '^sleep' "$TMP_ROOT/log")" == 4 ]]; then ok "two 304s cost two 60 s polls and no retry"; else fail "sleeps: $(grep '^sleep' "$TMP_ROOT/log" | paste -sd'|')"; fi
 check_calls 9 "each poll still sends one read"
-if [[ "$(grep -c "If-None-Match: W/\"e1\"" "$TMP_ROOT/log")" == 3 && "$(grep -c '^304 ' "$TMP_ROOT/rt/api-budget/github-token")" == 2 ]]; then
-  ok "every repeat poll is conditional, and each 304 keeps its reading"
+if [[ "$(grep -c "If-None-Match: W/\"e1\"" "$TMP_ROOT/log")" == 4 && "$(grep -c '^304 ' "$TMP_ROOT/rt/api-budget/github-token")" == 2 ]]; then
+  ok "every repeat read of the run, each poll and the recheck before the re-run, is conditional, and each 304 keeps its reading"
 else
   fail "conditional reads: $(grep -c 'If-None-Match' "$TMP_ROOT/log"), 304 readings: $(grep -c '^304 ' "$TMP_ROOT/rt/api-budget/github-token")"
 fi
+reads() { awk '$1 == "api" && $2 == "-i" { p = $3; sub(/^repos\/o\/r\//, "", p); sub(/\?.*/, "", p); print p }' "$TMP_ROOT/log" | paste -sd' '; }
+EXPECTED_READS='actions/runs actions/runs/9/jobs actions/runs/9 actions/runs/9 actions/runs/9/jobs pulls/42 actions/runs/9'
+STUB_RUN_SEQ="$(run 9 in_progress)
+$(run 9)
+$(run 9)"
+expect "a polled run read again unconditionally re-runs as attempt 2" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
+plain_out="$(cat "$TMP_ROOT/out")" plain_record="$(cat "$TMP_ROOT/record.json")"
+STUB_RUN_ETAGS='W/"r1"
+W/"r2"
+W/"r2"' STUB_JOBS_ETAG='W/"j1"' \
+  expect "after a poll, the unchanged jobs and run answer 304 and the re-run goes on as attempt 2" 0 "Re-running ci-status (job 77) of run 9 on $HEAD as attempt 2."
+if [[ "$(cat "$TMP_ROOT/out")" == "$plain_out" && "$(cat "$TMP_ROOT/record.json")" == "$plain_record" ]]; then
+  ok "two 304s hand on the same job id and record as 200s of the same bodies"
+else
+  fail "304 outputs: $(paste -sd'|' "$TMP_ROOT/out") record: $(cat "$TMP_ROOT/record.json"), want $plain_out $plain_record"
+fi
+if [[ "$(reads)" == "$EXPECTED_READS" ]]; then ok "the conditional reads are the same reads in the same order"; else fail "reads: $(reads)"; fi
+check_calls 7 "a 304 is still one read with one reading"
+if [[ "$(grep -c '^304 ' "$TMP_ROOT/rt/api-budget/github-token")" == 2 ]] &&
+  grep -qxF 'api -i repos/o/r/actions/runs/9 -H If-None-Match: W/"r1"' "$TMP_ROOT/log" &&
+  [[ "$(grep -cxF 'api -i repos/o/r/actions/runs/9 -H If-None-Match: W/"r2"' "$TMP_ROOT/log")" == 1 ]] &&
+  [[ "$(tail -n 1 "$TMP_ROOT/log")" == 'api -i repos/o/r/actions/runs/9 -H If-None-Match: W/"r2"' ]] &&
+  grep -qxF "api -i repos/o/r/actions/runs/9/jobs?filter=latest&per_page=100 -H If-None-Match: W/\"j1\"" "$TMP_ROOT/log"; then
+  ok "each path is re-read with its own last ETag, across the reads of other paths between"
+else
+  fail "conditional reads: $(grep 'If-None-Match' "$TMP_ROOT/log" | paste -sd'|'), 304 readings: $(grep -c '^304 ' "$TMP_ROOT/rt/api-budget/github-token")"
+fi
+for moved in "$(run 9 completed "$HEAD" "$RCF" pull_request "$LATER" 2)" "$(run 9 in_progress "$HEAD" "$RCF" pull_request "$LATER" 2)"; do
+  STUB_RUN_SEQ="$(run 9 in_progress)
+$(run 9)
+$moved" STUB_RUN_ETAGS='W/"r1"
+W/"r2"
+W/"r3"' STUB_JOBS_ETAG='W/"j1"' \
+    expect "a conditional recheck answered 200 with $(jq -r '"\(.status) attempt \(.run_attempt)"' <<<"$moved") is left to that re-run" 0 "moved past attempt 1 or is running again"
+  check_reran 0 "a changed run at the recheck hands on no job id or record"
+  if [[ "$(tail -n 1 "$TMP_ROOT/log")" == 'api -i repos/o/r/actions/runs/9 -H If-None-Match: W/"r2"' ]]; then ok "the recheck asked whether the run changed"; else fail "last read: $(tail -n 1 "$TMP_ROOT/log")"; fi
+done
 STUB_RUN_SEQ="$(run 9 in_progress)"
 expect "a run still going after the limit fails" 1 "::error::run 9 on $HEAD has not finished after 600s"
 check_reran 0 "nothing is re-run past the poll limit"

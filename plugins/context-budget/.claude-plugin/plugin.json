@@ -5,13 +5,19 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "2.1.10",
+  "version": "2.2.0",
   "license": "MIT",
   "engines": {
     "claude-code": ">=2.1.287"
   },
   "types": "./types/index.d.ts",
   "userConfig": {
+    "context_budget_enabled": {
+      "type": "boolean",
+      "title": "Live breakdown module",
+      "description": "Runs the live context breakdown module (pane, above-prompt band, and /context-budget command). Default true. Set false to turn the module off; overrides docs/conventions/context-budget.yaml for this user. When off, nothing draws or measures regardless of live_display.",
+      "default": true
+    },
     "live_display": {
       "type": "string",
       "title": "Live context display",

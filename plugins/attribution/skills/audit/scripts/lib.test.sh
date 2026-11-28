@@ -44,23 +44,17 @@ list=()
 
 reset
 printf '%s\n' '{"stamp_expiry_days": 30, "gates": {"min_n_per_class": 4}, "excluded_paths": ["a/**", "b c/**"]}' >"$USER_JSON"
+err="$(cfg_layers_init "$ROOT" 2>&1 >/dev/null)"
+assert_eq "an old user-global JSON file prints no warning" "$err" ""
 cfg_layers_init "$ROOT"
-assert_eq "the user-global JSON file is the only layer" "$(layers)" "$USER_JSON"
+assert_eq "the old user-global JSON file is not a layer" "$(layers)" ""
 cfg_scalar v stamp_expiry_days
-assert_eq "a JSON scalar is read" "$v" "30"
-assert_eq "a JSON scalar names its layer" "$CFG_SOURCE" "$USER_JSON"
+assert_eq "a value only the old user-global JSON sets is not read" "$v|$CFG_SOURCE" "|"
 cfg_scalar v gates.min_n_per_class
-assert_eq "a dotted key reads a nested JSON value" "$v" "4"
+assert_eq "a dotted key in the old user-global JSON is not read" "$v|$CFG_SOURCE" "|"
 list=()
 cfg_list list excluded_paths
-assert_eq "a JSON list is read, one element per entry" "$(printf '%s|' "${list[@]}")" "a/**|b c/**|"
-assert_eq "a JSON list names its layer" "$CFG_SOURCE" "$USER_JSON"
-
-printf '%s\n' '{"excluded_paths": false}' >"$USER_JSON"
-cfg_layers_init "$ROOT"
-list=(stale)
-cfg_list list excluded_paths
-assert_eq "a JSON non-list value clears the list" "${#list[@]}|$CFG_SOURCE" "0|$USER_JSON"
+assert_eq "a list in the old user-global JSON is not read" "${#list[@]}|$CFG_SOURCE" "0|"
 
 reset
 printf '%s\n' '{"stamp_expiry_days": 30}' >"$OLD_TEAM"
@@ -78,14 +72,11 @@ cfg_scalar v stamp_expiry_days
 assert_eq "the YAML personal override supplies the value" "$v|$CFG_SOURCE" "90|$YAML_LOCAL"
 
 reset
-printf '%s\n' '{"stamp_expiry_days": 30, "gates": {"min_n_per_class": 4}}' >"$USER_JSON"
 printf '%s\n' 'stamp_expiry_days: 60' 'excluded_paths:' '  - y/**' >"$YAML_TEAM"
 cfg_layers_init "$ROOT"
-assert_eq "the user-global layer comes before the team layer" "$(layers)" "$USER_JSON"$'\n'"$YAML_TEAM"
+assert_eq "the team layer is the sole file layer" "$(layers)" "$YAML_TEAM"
 cfg_scalar v stamp_expiry_days
-assert_eq "the team value refines the user-global one" "$v|$CFG_SOURCE" "60|$YAML_TEAM"
-cfg_scalar v gates.min_n_per_class
-assert_eq "a key only the user-global layer sets is read from it" "$v|$CFG_SOURCE" "4|$USER_JSON"
+assert_eq "the team value is read" "$v|$CFG_SOURCE" "60|$YAML_TEAM"
 cfg_scalar v budgets.corpus_fetch_ceiling
 assert_eq "an unsupplied value names no layer" "$v|$CFG_SOURCE" "|"
 list=()
@@ -95,7 +86,7 @@ assert_eq "a YAML list names its layer" "$CFG_SOURCE" "$YAML_TEAM"
 
 printf '%s\n' 'stamp_expiry_days: 90' 'excluded_paths: []' >"$YAML_LOCAL"
 cfg_layers_init "$ROOT"
-assert_eq "the personal override comes last" "$(layers)" "$USER_JSON"$'\n'"$YAML_TEAM"$'\n'"$YAML_LOCAL"
+assert_eq "the personal override comes after the team layer" "$(layers)" "$YAML_TEAM"$'\n'"$YAML_LOCAL"
 cfg_scalar v stamp_expiry_days
 assert_eq "the personal override refines the team layer" "$v|$CFG_SOURCE" "90|$YAML_LOCAL"
 list=(stale)
@@ -154,27 +145,16 @@ CFG_USER_CONFIG=()
 
 reset
 printf '%s\n' '{"stamp_expiry_days": 30, "budgets": {"corpus_fetch_ceiling": 50}}' >"$USER_JSON"
-err="$(cfg_layers_init "$ROOT" 2>&1 >/dev/null)"
-assert_eq "the old file prints one warning" "$(printf '%s\n' "$err" | grep -c 'retired location')" "1"
-assert_eq "the warning names the old file and the setup command" \
-  "$([[ "$err" == *"$USER_JSON"* && "$err" == *"/attribution:setup apply"* ]] && echo named || echo "$err")" "named"
-cfg_layers_init "$ROOT" 2>/dev/null
-cfg_scalar v stamp_expiry_days
-assert_eq "an old-file value still applies" "$v|$CFG_SOURCE" "30|$USER_JSON"
-cfg_scalar v budgets.corpus_fetch_ceiling
-assert_eq "an old-file per-user value still applies" "$v|$CFG_SOURCE" "50|$USER_JSON"
-
 cfg_user_config "budgets.corpus_fetch_ceiling=90"
 printf '%s\n' 'stamp_expiry_days: 60' >"$YAML_TEAM"
 err="$(cfg_layers_init "$ROOT" 2>&1 >/dev/null)"
-assert_eq "with both present the warning names the old file and the new homes" \
-  "$([[ "$err" == *"$USER_JSON"* && "$err" == *"userConfig"* && "$err" == *"$YAML_TEAM"* ]] && echo named || echo "$err")" "named"
-cfg_layers_init "$ROOT" 2>/dev/null
-assert_eq "the old file sits below userConfig" "$(layers)" "$USER_JSON"$'\n'"userConfig"$'\n'"$YAML_TEAM"
+assert_eq "with an old file beside canonical layers no warning is printed" "$err" ""
+cfg_layers_init "$ROOT"
+assert_eq "only canonical layers are registered" "$(layers)" "userConfig"$'\n'"$YAML_TEAM"
 cfg_scalar v budgets.corpus_fetch_ceiling
-assert_eq "userConfig beats the old file" "$v|$CFG_SOURCE" "90|userConfig"
+assert_eq "userConfig supplies per-user value" "$v|$CFG_SOURCE" "90|userConfig"
 cfg_scalar v stamp_expiry_days
-assert_eq "the team file beats the old file" "$v|$CFG_SOURCE" "60|$YAML_TEAM"
+assert_eq "the team file supplies repository value" "$v|$CFG_SOURCE" "60|$YAML_TEAM"
 CFG_USER_CONFIG=()
 
 reset

@@ -4,7 +4,7 @@
       "answer": "| user-global `~/.claude/bugs.md` | absent |\n| team `docs/conventions/bugs.yaml` | tracked |\n| personal override `.claude/bugs.local.md` | ignored |"
     },
     {
-      "answer": "| `gotchas_file` | unset |\n| team `docs/conventions/bugs.yaml` | tracked |\n| personal override `.claude/bugs.local.md` (old path) | ignored |"
+      "answer": "| `gotchas_file` | unset |\n| team `docs/conventions/bugs.yaml` | tracked |\n| personal override `docs/conventions/bugs.local.md` | ignored |"
     }
   ],
   "fail": [

@@ -1,5 +1,5 @@
 ---
-description: "The reader lost the thread of the previous reply. Explain it again, adding the context they lacked, in ASD-STE100 Simplified Technical English and the project's own domain terms. Type /discipline:wait-what the moment you notice you are skimming; only the reader knows when they stopped following."
+description: "Re-explain the previous reply from the last clear point with missing context, in ASD-STE100 Simplified Technical English and project domain terms."
 user-invocable: true
 disable-model-invocation: true
 metadata:

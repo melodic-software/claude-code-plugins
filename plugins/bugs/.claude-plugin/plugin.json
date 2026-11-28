@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "1.0.4",
+  "version": "1.0.5",
   "license": "MIT",
   "keywords": [
     "bug",
@@ -31,7 +31,7 @@
     "gotchas_file": {
       "type": "file",
       "title": "Personal gotchas file",
-      "description": "A Markdown file of your own whose ## Gotchas section /bugs:scan and /bugs:write read in every repository, before the team and personal override layers. Replaces ~/.claude/bugs.md, which /bugs:setup apply moves here."
+      "description": "A Markdown file of your own whose ## Gotchas section /bugs:scan and /bugs:write read in every repository, before the team and personal override layers."
     }
   }
 }

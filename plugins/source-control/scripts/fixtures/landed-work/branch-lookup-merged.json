@@ -1,0 +1,31 @@
+{
+  "data": {
+    "repository": {
+      "pullRequests": {
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "Y3Vyc29yOnYyOpK0MjAyNi0xMS0yMVQyMjozNToyNFrPAAAAAUPBIs8="
+        },
+        "nodes": [
+          {
+            "headRefName": "fix/pr-verify-cap-head-fail",
+            "headRefOid": "11483a016920129120e77e318dea3e7057aae6f1",
+            "baseRefName": "main",
+            "commits": {
+              "nodes": [
+                { "commit": { "oid": "afb785c721c5b6e9be922e7ace5accdb1157f627" } },
+                { "commit": { "oid": "a71c474d192a4030ec8e0cdc1cb2f2a1bdbd8501" } },
+                { "commit": { "oid": "bd9774734c49921ba417984ba337ba7e8fcb5f94" } },
+                { "commit": { "oid": "5dc6f4deee916e0af65e820cc8335dcb5e193481" } },
+                { "commit": { "oid": "aebeb1114eb571ec8fbb3aa2fc8814021b9cfd0b" } },
+                { "commit": { "oid": "7fe2095def5b53ec2269365c5e152556e07081ef" } },
+                { "commit": { "oid": "496ffb87261139087dd331a8528d3b9939e2c727" } },
+                { "commit": { "oid": "11483a016920129120e77e318dea3e7057aae6f1" } }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  }
+}

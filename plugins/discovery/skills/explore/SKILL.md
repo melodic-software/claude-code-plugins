@@ -1,5 +1,5 @@
 ---
-description: "Explore the local codebase before changes; a folder outside any repo, or machine state, is research's. Persists EXPLORE.md via a fresh-context subagent. Use when: 'explore the codebase', 'what exists for X', 'how does this work', 'trace the dependencies', 'what tests cover this', or as step 1 before a code change. Skip a bare locate ('where is X', 'what calls Y'): dispatch the built-in Explore agent. Skip why it was built that way: '/discovery:trace-intent'."
+description: "Explore local codebase, trace dependencies, and check tests before a code change; persists EXPLORE.md via fresh-context subagent (change-prep/explain, read-only). Use when: 'what exists for X', 'how does this work', 'what tests cover this'. Not for bare locates (Explore agent), rationale: /discovery:trace-intent, or non-repo: /discovery:research."
 argument-hint: "[--output change-prep|explain] [scope]"
 user-invocable: true
 disable-model-invocation: false

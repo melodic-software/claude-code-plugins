@@ -1,5 +1,5 @@
 ---
-description: "Audit markdown, commit messages, PR bodies and interface copy for AI-writing tells (slop) from Wikipedia's Signs of AI writing plus model-era tells: em dashes, emoji, AI vocabulary, negative parallelisms, chatbot phrases, filler, stacked hedges, citation artifacts, model-era phrases ('that's the unlock', 'the part most people skip'), plus a judgment rubric for superficial analysis, vague attribution, promotional tone, metaphor jargon ('load-bearing', 'seam'), figures for facts, over-compression, mechanism-free claims and generic headlines. Use when: 'check for AI slop', 'de-slop this doc', 'unslop this', 'find AI tells', 'does this read AI-written', 'remove em dashes', 'check this commit message', 'unslop this PR body', 'is this headline generic', or before publishing agent-written prose. Read-only by default; explicit 'fix' rewrites behind a semantic-diff guard ('detect and rewrite'). Empty target audits tracked markdown, busiest files first. Not for code comments (/code-tidying:remove-comments audit)."
+description: "Audit markdown, commit message, PR body, interface copy for AI-writing tells (slop, unslop, AI-written, em dash, emoji, filler, hedge, promotional, vague attribution, headline); read-only, guarded fix rewrites. Use when 'check for AI slop', 'de-slop this doc', 'does this read AI-written'. Not for code comments: /code-tidying:remove-comments."
 argument-hint: "[audit|fix] [target|user-scope [memory]|commit [rev]|pr-body|copy <files>] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -202,10 +202,7 @@ the fix flow, under [Non-repository targets](#non-repository-targets).
   explicit path.
 - `plugins/` is not in scope; plugin content is audited in its own repository.
 - The detector's config layers are the team and personal YAML files, read from the session's
-  project directory. The old JSON file `$HOME/.claude/ai-slop.json` (read there even when
-  `CLAUDE_CONFIG_DIR` is set) stands in for the personal layer while no personal override
-  exists. Each run then prints one warning naming it and `/ai-slop:setup apply`, which moves it to
-  the personal override.
+  project directory.
 - A path target such as `~/.claude` covers every `*.md` beneath it.
 
 ### Non-repository targets
@@ -225,7 +222,7 @@ is outside a repository, the whole run follows these rules:
 - Order files by modification time, newest first, ties broken by path. Ordering never changes
   inclusion. `rubric-fanout.sh plan` picks this order for a target outside a repository; apply
   it to the report too.
-- Config layers come from the session's project directory and the old `~/.claude` file, not from
+- Config layers come from the session's project directory, not from
   the target. `--show-config` names the layers in effect. A path glob such as `excluded_paths`
   applies only when it matches the path as the detector sees it.
 - No findings file: none is written, and the fix flow's closing re-emit is skipped.

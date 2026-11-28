@@ -2,11 +2,10 @@ import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { PickerEntry, Switch } from '../types'
+import { createModEnablement, refreshModEnablement } from './mod-hook-enabled'
 
 const CLI = 'scripts/profiles.mjs'
-const HOOK_ENABLEMENT = 'lib/hook-enablement.mjs'
 const MODULE_KEY = 'plugin_profile_module_enabled'
-const OFF = 1
 const COMMAND = 'plugin-profile'
 const RELOAD = 'reload-plugins'
 const MORE = 'More profiles'
@@ -55,13 +54,6 @@ const cli = async ($: EngineInterface, args: readonly string[]) =>
     timeoutMs: 60_000,
     env: { CLAUDE_CODE_SESSION_ID: await $.session.id() },
   })
-
-const moduleEnabled = async ($: EngineInterface) => {
-  const root = await $.session.root().catch(() => '')
-  const argv = ['node', `${$.plugin.root}/${HOOK_ENABLEMENT}`, MODULE_KEY, 'true', '--settings', ...(root ? ['--root', root] : [])]
-  const r = await $.process.run(argv, { timeoutMs: 10_000 }).catch(() => undefined)
-  return r?.exitCode !== OFF
-}
 
 /** Whether the picker pane is up, from the engine's record, which outlives a reload of this module. */
 const pickerOpen = async ($: EngineInterface) => (await $.ui.panes()).some(pane => pane.id === PICKER)
@@ -267,12 +259,17 @@ const markReloading = async ($: EngineInterface) => {
   return true
 }
 
-export const register: Register = on => {
-  let enabled = false
+export const register: Register = (on, options) => {
+  const gate = createModEnablement(options, {
+    plugin: 'plugin-profiles',
+    key: MODULE_KEY,
+    defaultValue: true,
+  })
+  if (gate.isDisabledAtLoad()) return
+
   on('session.start', async ($, e, next) => {
     const started = await next(e)
-    enabled = await moduleEnabled($)
-    if (!enabled) return started
+    if (!(await refreshModEnablement($, gate, e.cwd))) return started
     await registerCommand($)
     void finish($).catch(() => undefined)
     return started
@@ -280,18 +277,21 @@ export const register: Register = on => {
 
   let reregister = false
   on('session.end', async ($, e, next) => {
+    if (!gate.isEnabled()) return next(e)
     reregister = true
     return next(e)
   }).catch(($, e, next) => next(e))
   on('prompt.submit', async ($, e, next) => {
-    if (reregister && enabled) {
+    if (!gate.isEnabled()) return next(e)
+    if (reregister) {
       reregister = false
       await registerCommand($).catch(() => undefined)
     }
     return next(e)
   }).catch(($, e, next) => next(e))
 
-  on('ui.render', { component: 'Pane', requestId: PICKER }, async ($, e) => {
+  on('ui.render', { component: 'Pane', requestId: PICKER }, async ($, e, next) => {
+    if (!gate.isEnabled()) return next(e)
     const { Box, Text, Button } = $.ui.resolve(e)
     const entries = await read($, picker)
     if (!entries.length) return <Text dimColor>No profiles to pick.</Text>
@@ -330,21 +330,25 @@ export const register: Register = on => {
   })
 
   on('ui.focus', { requestId: PICKER }, async ($, e, next) => {
+    if (!gate.isEnabled()) return next(e)
     await update($, focused, () => (e.element?.startsWith(ROW) ? e.element.slice(ROW.length) : null))
     return next(e)
   }).catch(($, e, next) => next(e))
 
   on('ui.close', { id: PICKER }, async ($, e, next) => {
+    if (!gate.isEnabled()) return next(e)
     const result = await next(e)
     if (e.origin.kind === 'person') $.ui.log(NOT_CHOSEN)
     return result
   }).catch(($, e, next) => next(e))
 
-  on('command.run', { command: COMMAND }, async ($, e) => ({ text: await outcome(() => switchProfile($, e.args.trim())) }))
+  on('command.run', { command: COMMAND }, async ($, e, next) =>
+    gate.isEnabled() ? { text: await outcome(() => switchProfile($, e.args.trim())) } : next(e),
+  )
 
   on('turn.complete', async ($, e, next) => {
     const result = await next(e)
-    if (e.agentId === undefined && (await markReloading($))) {
+    if (gate.isEnabled() && e.agentId === undefined && (await markReloading($))) {
       void $.command.run({ command: RELOAD }).then(
         () => finish($),
         err => $.ui.log(`/${RELOAD} did not run: ${err instanceof Error ? err.message : String(err)}`, { to: 'debug' }),
@@ -354,6 +358,7 @@ export const register: Register = on => {
   }).catch(($, e, next) => next(e))
 
   on('command.run', { command: RELOAD }, async ($, e, next) => {
+    if (!gate.isEnabled()) return next(e)
     await markReloading($)
     const result = await next(e)
     await finish($).catch(() => undefined)

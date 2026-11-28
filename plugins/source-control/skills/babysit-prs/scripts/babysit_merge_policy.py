@@ -119,9 +119,6 @@ LOOP_MERGE_RUNG = {
 UNTRUSTED_PROVENANCE_LABEL = "provenance: untrusted"
 
 OPT_IN_LABEL = "merge: agent-allowed"
-BODY_MERGE_HOLD_RE = re.compile(
-    r"\bdo(?:n['’]?t| not)\s+merge\b|(?:^|\r)[^\S\r\n]*hold:", re.I | re.M
-)
 MERGE_HOLD_LABELS = (
     "do-not-merge",
     "pr-verify-failed",
@@ -5235,11 +5232,17 @@ def standards_sha(repo: str) -> str:
 
 def standards_file(repo: str, path: str) -> str | None:
     """`path` in the standards repository `repo` at `standards_sha`, or None
-    when absent; each path read once a process."""
+    when absent; each path read once a process, from the job's standards
+    checkout (`STANDARDS_CHECKOUT_ENV`) when its HEAD is that commit, else
+    through the contents API."""
     key = (repo, path)
     if key not in _STANDARDS_TEXT:
         owner, name = _split_repo(repo)
-        _STANDARDS_TEXT[key] = _file_at(owner, name, path, standards_sha(repo))
+        sha = standards_sha(repo)
+        text = checkout_file_at(path, sha, STANDARDS_CHECKOUT_ENV)
+        _STANDARDS_TEXT[key] = (
+            text if text is not None else _file_at(owner, name, path, sha)
+        )
     return _STANDARDS_TEXT[key]
 
 
@@ -5321,22 +5324,15 @@ ACTIVITY_EVENTS = frozenset(
 )
 
 
-def _untrusted_hold(event: Mapping[str, Any], act: Mapping[str, Any], who: Any) -> bool:
+def _untrusted_hold(event: Mapping[str, Any], act: Mapping[str, Any]) -> bool:
     """An act by an account off the trusted-actor list that still holds the
-    pull request: a changes-requested review, or a `User`'s comment or review
-    whose text carries a `BODY_MERGE_HOLD_RE` phrase ("do not merge", a "Hold:"
-    line). Only an OWNER, MEMBER or COLLABORATOR (`author_association`) holds,
-    as for `human_veto_logins`: on a public repository anyone else's act would
-    keep any pull request from going idle. A bot's text is not read, since
-    review lanes and the lanes App quote the phrase."""
-    if str(act.get("author_association") or "").upper() not in BLOCKER_ASSOCIATIONS:
-        return False
-    if event.get("event") == "reviewed" and (
-        str(act.get("state") or "").lower() == "changes_requested"
-    ):
-        return True
-    return json_object(who).get("type") == "User" and bool(
-        BODY_MERGE_HOLD_RE.search(str(act.get("body") or ""))
+    pull request: a changes-requested review. Only an OWNER, MEMBER or
+    COLLABORATOR (`author_association`) holds: on a public repository anyone
+    else's review would keep any pull request from going idle."""
+    return (
+        str(act.get("author_association") or "").upper() in BLOCKER_ASSOCIATIONS
+        and event.get("event") == "reviewed"
+        and str(act.get("state") or "").lower() == "changes_requested"
     )
 
 
@@ -5351,12 +5347,10 @@ def trusted_activity(
     (`actor`, else `user`; an inline thread's each comment by its own `user`)
     is in `actor_ids`, at its newest `created_at`, `updated_at` or
     `submitted_at`. Commits and pushes are read apart (`_head_committed`,
-    `_head_last_seen`); a body edit, which names no editor here, is not read,
-    and a body hold refuses on its own.
+    `_head_last_seen`); a body edit, which names no editor here, is not read.
     Any other account's activity moves nothing, so it cannot keep the pull
     request from going idle, but for a repository member's or collaborator's
     hold (`_untrusted_hold`, owner decision Q30): its changes-requested review
-    or a person's comment or review carrying a `BODY_MERGE_HOLD_RE` phrase
     counts like a trusted account's. The lane's
     own pin and reasons comments do not count when `actor_ids` leaves the
     lane's identity out, as `trusted_actors(exclude=...)` does. An event whose
@@ -5376,7 +5370,7 @@ def trusted_activity(
             uid = json_object(who).get("id")
             if type(uid) is not int:
                 raise PolicyReadError(f"{event.get('event')} event actor unreadable")
-            if uid not in actor_ids and not _untrusted_hold(event, act, who):
+            if uid not in actor_ids and not _untrusted_hold(event, act):
                 continue
             times = [
                 act.get(k)
@@ -5409,8 +5403,8 @@ def adoption_refusal(
     raw `updated_at`, which any commenter moves: #9136), and its head
     commit's committer date, `head_committed()`,
     read last, both at least `idle_hours` old, an unreadable one not idle;
-    and no hold: a `MERGE_HOLD_LABELS` label, the resolved `human_gated` role
-    label, or a body hold (`BODY_MERGE_HOLD_RE`). Fresh activity is excused
+    and no hold: a `MERGE_HOLD_LABELS` label or the resolved `human_gated`
+    role label. Fresh activity is excused
     while `queued_at_head()` (`lane_queued_at_head`) or `toggled_at_head()`
     (`lane_toggled_at_head`), read only then and in that order: the lane's
     own enqueue, with nobody else speaking after its pin, and its whole-review
@@ -5435,8 +5429,6 @@ def adoption_refusal(
     )
     if held:
         return f"hold-label:{held}"
-    if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
-        return "hold-body"
 
     def idle(read: Callable[[], Any]) -> bool:
         try:
@@ -6153,7 +6145,7 @@ def dependabot_eligibility(
     pusher's), never demoted, always refused; a green `ci-status` on
     the head; and no human blocking comment. A running `ci-status` waits. The
     rung and its cap still bind it. No closing issue and no denied-path rule: `ci-status` is the gate. The
-    hold labels and a body hold are the gate's, as for every pull
+    hold labels are the gate's, as for every pull
     request. `.github/dependabot.yml` and the Dependabot policy bind at the
     base and at the default branch head `main_sha` (`_dependabot_main_sha`
     of `branch` when None), each by the rule that only tightens."""
@@ -6539,7 +6531,7 @@ def in_flight(
 
 ENTRY_HOLD_QUERY = (
     "query PolicyEntryHold($o:String!,$r:String!,$n:Int!){repository(owner:$o,name:$r){"
-    "pullRequest(number:$n){number body labels(first:100){totalCount nodes{name}} "
+    "pullRequest(number:$n){number labels(first:100){totalCount nodes{name}} "
     "timelineItems(itemTypes:[ADDED_TO_MERGE_QUEUE_EVENT],last:1){nodes{"
     "... on AddedToMergeQueueEvent{createdAt}}}}}}"
 )
@@ -6563,32 +6555,13 @@ def _discussion_login(item: dict[str, Any]) -> str:
 def _human_blockers(owner: str, name: str, number: int, identity: str) -> list[str]:
     """Logins of members whose item on the pull request reads as blocking, by
     the autopilot tier's predicates."""
-    from babysit_merge import HUMAN_MERGE_VETO_RE  # noqa: PLC0415 - import cycle
-
     return sorted(
         {
             _discussion_login(item)
             for item in _member_discussion(owner, name, number, identity)
             if has_blocking_text(body := str(item.get("body") or ""))
             or has_blocking_severity(body)
-            or HUMAN_MERGE_VETO_RE.search(body)
         }
-    )
-
-
-def _member_vetoes(owner: str, name: str, number: int, identity: str) -> list[str]:
-    """Logins of members whose newest item with text says "do not merge", the
-    rule enable-auto-merge.mjs arms on and `babysit_merge.human_veto_logins`
-    gates on."""
-    from babysit_merge import vetoing_logins  # noqa: PLC0415 - import cycle
-
-    return vetoing_logins(
-        (
-            _discussion_login(item),
-            str(item.get("submitted_at") or item.get("created_at") or ""),
-            str(item.get("body") or ""),
-        )
-        for item in _member_discussion(owner, name, number, identity)
     )
 
 
@@ -6646,18 +6619,14 @@ def entry_hold(
     authority: str | None = None,
 ) -> str | None:
     """Why a queued entry of the agent identity must leave the queue (D3): the
-    `do-not-merge` or human-gated label, a body hold, a human blocking comment, or the opt-in
+    `do-not-merge` or human-gated label, a human blocking comment, or the opt-in
     label removed since the enqueue or put back by a non-human. An unreadable
     entry is a hold. Not `queued` (a pull request never enqueued, as the
     gate's capped close reads it), no queue event is needed and the opt-in
     label is not compared; a failed read still holds. The pr-merge lane's
-    `authority` counts only a member veto: a wider read than the one its arm
-    path takes would dequeue what the next run arms again."""
-    from babysit_merge import (  # noqa: PLC0415
-        BODY_MERGE_HOLD_RE,
-        human_gated_label,
-        merge_hold_label,
-    )
+    `authority` reads no comment: its arm path holds on labels alone, and a
+    wider read would dequeue what the next run arms again."""
+    from babysit_merge import human_gated_label, merge_hold_label  # noqa: PLC0415
     from babysit_postmerge import PostMergeReadError  # noqa: PLC0415
 
     owner, name = _split_repo(repo)
@@ -6677,11 +6646,9 @@ def entry_hold(
             return "unreadable"
         if held_by := merge_hold_label(labels, human_gated=human_gated_label(repo)):
             return held_by
-        if BODY_MERGE_HOLD_RE.search(str(pr.get("body") or "")):
-            return "body-hold"
-        read = _member_vetoes if authority == PR_MERGE else _human_blockers
-        blockers = read(owner, name, number, identity)
-        if blockers:
+        if authority != PR_MERGE and (
+            blockers := _human_blockers(owner, name, number, identity)
+        ):
             return f"human-blocking-comment:{','.join(blockers)}"
         if not queued:
             return None
@@ -6873,7 +6840,8 @@ def _git(root: Path, *args: str) -> str | None:
 
 
 def _git_file_at(root: Path, path: str, sha: str) -> str | None:
-    """The file's text at `sha` in the clone at `root`, or None when absent
+    """The file's text at `sha` in the clone at `root`, its bytes decoded as
+    `_file_at` decodes them with no newline translation, or None when absent
     from a readable tree."""
     entry = _git(root, "ls-tree", "-z", sha, "--", path)
     if entry is None:
@@ -6885,10 +6853,20 @@ def _git_file_at(root: Path, path: str, sha: str) -> str | None:
         raise _SymlinkAt(f"{path} at {sha} is a symlink")
     if kind != "blob":
         raise PolicyReadError(f"{path} at {sha} is not a file")
-    text = _git(root, "cat-file", "blob", f"{sha}:{path}")
-    if text is None:
-        raise PolicyReadError(f"{path} at {sha} is unreadable")
-    return text
+    try:
+        proc = run_command(
+            ["git", "--no-replace-objects", "-C", str(root)]
+            + ["cat-file", "blob", f"{sha}:{path}"],
+            allowed_executables=("git",),
+            check=False,
+            env_overrides=HISTORY_GIT_ENV,
+            binary=True,
+        )
+        if proc.returncode != 0:
+            raise ValueError(f"git cat-file exited {proc.returncode}")
+        return proc.stdout.decode("utf-8")
+    except (RuntimeError, ValueError, OSError) as exc:
+        raise PolicyReadError(f"{path} at {sha} is unreadable") from exc
 
 
 def _full_history_root(checkout: Path) -> Path | None:
@@ -6907,15 +6885,16 @@ def _full_history_root(checkout: Path) -> Path | None:
 
 
 CONFIG_CHECKOUT_ENV = "BABYSIT_CONFIG_CHECKOUT"
+STANDARDS_CHECKOUT_ENV = "STANDARDS_DIR"
 
 
-def _config_checkout(sha: str) -> Path | None:
+def _config_checkout(sha: str, env: str = CONFIG_CHECKOUT_ENV) -> Path | None:
     """The top of the first `CONFIG_CHECKOUT_ENV` checkout (`os.pathsep`-
     separated, shallow or sparse: ci-status's base-config and .base) whose
     HEAD is `sha`, else None. A file it cannot answer (a symlink, a blob a
     sparse partial checkout lacks, which is never fetched) is read through the
     API."""
-    for raw in os.environ.get(CONFIG_CHECKOUT_ENV, "").split(os.pathsep):
+    for raw in os.environ.get(env, "").split(os.pathsep):
         raw = raw.strip()
         if not raw or not Path(raw).is_dir():
             continue
@@ -6927,17 +6906,27 @@ def _config_checkout(sha: str) -> Path | None:
     return None
 
 
-def checkout_file_at(path: str, sha: str) -> str | None:
-    """The file's text at `sha` from a `CONFIG_CHECKOUT_ENV` checkout whose
-    HEAD is `sha` (`_config_checkout`), or None when no checkout holds it, so
-    the caller reads it through the API."""
-    root = _config_checkout(sha) if SHA_RE.fullmatch(sha or "") else None
+def checkout_file_at(
+    path: str, sha: str, env: str = CONFIG_CHECKOUT_ENV
+) -> str | None:
+    """The file's text at `sha` from an `env` checkout whose HEAD is `sha`
+    (`_config_checkout`), or None when no checkout holds it, so the caller
+    reads it through the API."""
+    root = _config_checkout(sha, env) if SHA_RE.fullmatch(sha or "") else None
     if root is None:
         return None
     try:
         return _git_file_at(root, path, sha)
     except PolicyReadError:
         return None
+
+
+def checkout_lacks(path: str, sha: str) -> bool:
+    """Whether a `CONFIG_CHECKOUT_ENV` checkout whose HEAD is `sha` shows
+    `path` absent from that commit's tree, which a shallow sparse partial
+    clone still holds whole; False when no checkout can tell."""
+    root = _config_checkout(sha) if SHA_RE.fullmatch(sha or "") else None
+    return root is not None and _git(root, "ls-tree", "-z", sha, "--", path) == ""
 
 
 def _clones_holding(sha: str) -> Iterator[Path]:
@@ -7853,7 +7842,11 @@ def assess(
     (`with_default_branch`; `merge.max-in-flight` the head's alone,
     `_run_max_in_flight`) and its authority, and the post-merge check: any
     refusal there stops the reads and leaves the path not `enabled`, so no
-    later read can lead to a write. Then the rung (demotion and cap), the
+    later read can lead to a write. Then the rung (demotion and cap): an
+    effective rung of off refuses there (`rung-off:<input>`), as `lane_room`
+    does, with no in-flight, promotion or eligibility read (so no review
+    evidence is scored), except for a Dependabot pull request in the lane,
+    whose class the gate still reads for its dependency hold. Otherwise the
     in-flight rule, the promotion evidence for the rung (`RUNG_CELLS`; no
     work class is read) and the pull request's eligibility: each refuses a
     merge, and all are reported, but
@@ -8065,6 +8058,21 @@ def assess(
         cap=cap.value,
         demoted=demotion.active,
     )
+    details.update(
+        rung=rung.rung,
+        rungInputs=dict(rung.inputs),
+        rungCap={"value": cap.value, "reason": cap.reason},
+    )
+    if rung.rung == "off" and not dependabot_pr:
+        inputs["rung"] = rung.rung
+        return UnattendedPolicy(
+            f"rung-off:{rung.limited_by}",
+            identity,
+            details,
+            enabled=True,
+            promoted=lane,
+            inputs=inputs,
+        )
     flight_cap, cap_source = _run_max_in_flight(
         repo, default, head if isinstance(head, str) else None, config
     )
@@ -8078,9 +8086,6 @@ def assess(
         max_in_flight=flight_cap,
     )
     details.update(
-        rung=rung.rung,
-        rungInputs=dict(rung.inputs),
-        rungCap={"value": cap.value, "reason": cap.reason},
         inFlight={
             "clear": flight.clear,
             "reason": flight.reason,

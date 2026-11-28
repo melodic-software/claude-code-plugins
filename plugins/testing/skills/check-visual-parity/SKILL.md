@@ -1,5 +1,5 @@
 ---
-description: "Hold a UI pixel-for-pixel steady through a change: PNG screenshots of the listed states before the first edit (baseline), then again at each green checkpoint, with differing pixels counted against pixel_tolerance (compare). Never edits a baseline. Use when: a plan phase has a Parity contract line, a refactor must leave the UI unchanged, 'check visual parity', 'did this change the UI'."
+description: "Hold UI pixel-for-pixel steady through a change: PNG screenshots of listed states before first edit (baseline), then at each green checkpoint counting differing pixels vs pixel_tolerance (compare). Never edits baseline. Use when plan phase has Parity contract line, refactor must leave UI unchanged, 'check visual parity', 'did this change the UI'."
 argument-hint: "<baseline|compare> [states]"
 user-invocable: true
 disable-model-invocation: false
@@ -90,12 +90,10 @@ pixel_tolerance:
 ```
 
 The personal override `docs/conventions/testing.local.yaml` (`source=personal-override`) and the
-plugin option can only lower the team value. So can the old `~/.claude/testing.yaml` and, when the
-new personal file is absent, the old `.claude/testing.local.yaml`; each one found prints a warning
-naming where to move it. The script reports a raise as ignored, and names an invalid layer and
-drops it. Quote a `reason` that holds a colon followed by a space.
+plugin option can only lower the team value. The script reports a raise as ignored, and names an
+invalid layer and drops it. Quote a `reason` that holds a colon followed by a space.
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
+Config locations across all plugins: [config locations](../../reference/config-locations.md).
 
 A tolerance above 0 is used only with its recorded reason; never pass a higher `--tolerance` than
 this line gives. To keep a known baseline mismatch under tolerance, the team records a

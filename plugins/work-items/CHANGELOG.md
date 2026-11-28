@@ -3,6 +3,41 @@
 All notable changes to the `work-items` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [16.5.1] - 2026-11-28
+
+### Changed
+
+- Replaced restated `EnterWorktree`, `${user_config.…}` placeholder, and bare `2.1.285` probe details in `/work-items:work-loop` with live section-anchored Claude Code docs pointers and the `#4598` probe reference.
+
+- Backfilled 20-query invocation probe `plugins/work-items/probes/measure-delivery.json` and trimmed frontmatter `description` fields across all 12 `work-items` skills to cut ambient listing budget by 2,550 chars (`6,433 -> 3,883`, `-39.6%`; `attend-queue` `587 -> 341`, `decompose` `485 -> 343`, `measure-delivery` `430 -> 336`, `morning-brief` `680 -> 343`, `onboard-adapter` `494 -> 349`, `scan-todos` `405 -> 329`, `setup` `1,000 -> 138`, `ship` `457 -> 344`, `track` `474 -> 348`, `triage` `520 -> 336`, `work-loop` `480 -> 346`, `work` `421 -> 330`) while keeping `disable-model-invocation: true` trigger-free on `setup` and preserving read-only, never-merge, and safety boundaries.
+
+## [16.5.0] - 2026-11-28
+
+### Added
+
+- `work-item-tracker` and `/work-items:morning-brief` add phase-2 dual-write and dual-read support for native GitHub Issue Statuses (`set-native-status` verb, best-effort `create-item`, `claim`, and `done` transitions, `native_status` on `get-item` and `list-items`, and REST `Native statuses (open)` counts in `morning-brief`), degrading cleanly when un-enrolled or `null` while keeping `Work status` and trusted-actor verification untouched.
+
+## [16.4.1] - 2026-11-28
+
+### Changed
+
+- `/work-items:work` and `/work-items:ship run` pass `create --pushed --hold` as a flag when `merge-hold.sh` reports a hold, so the pull request opens with the `do-not-merge` label; `merge-hold.sh` exit 0 prints nothing.
+- `/work-items:work` no longer lists a hold among the `ready` refusals that leave a pull request a draft: the only hold-related draft is a `do-not-merge` label that failed to set at create.
+
+## [16.4.0] - 2026-11-28
+
+### Added
+
+- Adopt the shared rendered-views token layer (`reference/html-tokens.css`), chrome theme toggle, comment box, and branding overrides (palette, type stacks, logo slot, and `branding` `userConfig` option) in the morning-brief and triage-board HTML views.
+
+## [16.3.2] - 2026-11-28
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
 ## [16.3.1] - 2026-11-27
 
 ### Fixed

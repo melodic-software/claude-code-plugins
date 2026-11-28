@@ -57,14 +57,10 @@ an earlier one key by key:
    the layer below.
 3. personal override `docs/conventions/review-digest.local.yaml`, the same keys as the team file.
 
-The old files `~/.claude/review-digest.json` and `.claude/review-digest.local.json` are still read
-while they exist, each just below the layer that replaces it, so the new layer wins on each key it
-sets. Every run warns once per old file and names `/review:setup apply`, which moves the old file's
-settings to its new home, checks they resolve the same, and deletes it. A later release stops
-reading the old paths.
+Old `~/.claude/review-digest.json` and `.claude/review-digest.local.json` files are not read.
 
 The result names the layer that supplied each value (`team <commit>:<path>`, `userConfig`,
-`personal-override <path>`, `user-global <path>` for the old per-user file, or `default`). Quote
+`personal-override <path>`, or `default`). Quote
 glob values in the YAML files (`"**/hooks/**"`), since a plain `*` opens an alias.
 
 The team layer, and the rendered-views team file, are read from the pull request's base commit

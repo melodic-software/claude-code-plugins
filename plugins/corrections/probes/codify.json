@@ -1,0 +1,32 @@
+{
+  "skill": "corrections:codify",
+  "plugin": "corrections",
+  "skill_dir": "plugins/corrections/skills/codify",
+  "competitors": [
+    "docs-hygiene:write-for-agents",
+    "toolchain:ratchet",
+    "architecture:enforce-boundaries"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "this mistake keeps repeating across commits — pick the strongest guardrail rung and prove a check"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "mine recent merged pull requests for recurring review comments to codify"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "convert our instruction file rules into automated checks with a tracking ledger"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "extract the design corrections from this session into DESIGN.md taste rules"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "scan closed bug tracker items to find recurring defects worth a check"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "propose user-scope instruction lines for preferences I keep retyping across sessions"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "take this review findings file and prove a check for each recurring defect"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "count how many Codifies checks landed in git history by month"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "log a quick mistake observation to the codify findings buffer without running a proof"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "group buffered mistake observations by producer and compare counts to threshold"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "trim our AGENTS.md file to cut derivable prose"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "add a CI ceiling to hold our current suppression count while we clean up"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "write an architecture boundary test forbidding domain imports from infra"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "move this long section out of CLAUDE.md into a pointer doc"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "ratchet our eslint warning count so new PRs cannot increase it"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "check which module references cross our declared layer boundaries"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "rewrite this agent-loaded rule markdown so it earns its context budget"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "vendor a counter script in CI to stop warnings from growing"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "enforce layer dependency rules in our TypeScript packages"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "draft a concise CLAUDE.md pointer to our conventions directory"}
+  ]
+}

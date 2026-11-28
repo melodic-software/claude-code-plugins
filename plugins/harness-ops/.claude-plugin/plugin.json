@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "11.3.5",
+  "version": "11.3.8",
   "license": "MIT",
   "keywords": [
     "claude-code",
@@ -96,6 +96,12 @@
       "type": "file",
       "title": "Transcript sources file",
       "description": "JSON file of the Claude Code configuration directories this plugin's transcript-mining skills read, here and on hosts reached over ssh. Unset: only this host's, CLAUDE_CONFIG_DIR or ~/.claude. A missing file falls back to that with a warning; a malformed one stops the run."
+    },
+    "branding": {
+      "type": "string",
+      "title": "Rendered-view branding (JSON)",
+      "description": "Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored.",
+      "default": ""
     }
   }
 }

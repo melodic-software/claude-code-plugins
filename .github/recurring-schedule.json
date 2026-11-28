@@ -72,8 +72,8 @@
       "area": [],
       "category": "general",
       "triggers": [],
-      "last_checked": "2026-10-24",
-      "next_due": "2026-11-24",
+      "last_checked": "2026-11-28",
+      "next_due": "2026-12-28",
       "notes": "Run github-iac eng/ci-perf snapshot.sh capture/compare read-only with --raw-root under .work/; append the scored rows to github-iac eng/ci-perf/GOAL.md's Run log; file an issue per row over target (targets p50 5 min, p95 12 min). Spec: #3932.",
       "close_previous": true
     },

@@ -833,6 +833,8 @@ merge:
         class: trust
       - glob: ".github/scripts/pr-merge/clear-escalations.mjs"
         class: trust
+      - glob: ".github/scripts/pr-merge/verifier.mjs"
+        class: trust
       - glob: ".github/scripts/pr-merge/release-eval-hold.mjs"
         class: trust
       - glob: ".github/scripts/pr-merge/carry-run-cache.mjs"
@@ -858,6 +860,8 @@ merge:
       - glob: ".github/scripts/pr-merge/who.mjs"
         class: gate
       - glob: ".github/scripts/pr-merge/post-unarmed-status.mjs"
+        class: gate
+      - glob: ".github/scripts/pr-merge/cancel-orphaned-runs.mjs"
         class: gate
       - glob: ".github/scripts/pr-merge/verify-answers.mjs"
         class: gate
@@ -950,6 +954,8 @@ merge:
       - glob: ".github/scripts/maintenance-scan-architecture/prompt.md"
         class: enforcement
       - glob: "plugins/improvement/lib/state-key.sh"
+        class: enforcement
+      - glob: "plugins/improvement/scripts/filing-plan.mjs"
         class: enforcement
       - glob: "plugins/architecture/lib/resolve-convention-home.sh"
         class: enforcement

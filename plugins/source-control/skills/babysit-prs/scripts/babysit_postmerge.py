@@ -3245,7 +3245,15 @@ def _role_label(
 
 def _default_branch_text(owner: str, name: str, path: str) -> str | None:
     """`path`'s text on the default branch, or None when it is absent (404).
-    Any other failed read raises `PostMergeReadError`."""
+    The read names no ref, so main's tip the step resolved
+    (`policy.passed_main_tip`) stands for it: a `policy.CONFIG_CHECKOUT_ENV`
+    checkout at that commit answers with no API call
+    (`policy.checkout_file_at`). Any other failed read raises
+    `PostMergeReadError`."""
+    tip = policy.passed_main_tip(owner, name)
+    local = policy.checkout_file_at(path, tip) if tip else None
+    if local is not None:
+        return local
     try:
         proc = gh_capture(
             [

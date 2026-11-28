@@ -1,5 +1,5 @@
 ---
-description: "Verify harness-config's readiness for this repository: the external CLI prerequisites its audit scripts need, jq (the JSON-parsing audit scripts) and curl (the plugin-drift check), and the tracked suppression record in docs/conventions/harness-config.yaml, so the audit skills run instead of failing. Use when: 'set up harness-config', 'configure harness-config', 'is harness-config working', 'set up audit-pass suppressions', or an audit skill reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found) | wsl-profile (print an opt-in WSL hardening settings block, writes nothing). Re-runnable and safe."
+description: "Check jq/curl prerequisites and harness-config.yaml suppressions (check, default), apply fixes (apply), or print WSL hardening (wsl-profile)."
 argument-hint: "[check|apply|wsl-profile]"
 user-invocable: true
 disable-model-invocation: true
@@ -48,7 +48,7 @@ option reads `${user_config.audit_pass_suppressions_file}` here; empty or a lite
 
 Action routing: no argument or `check` runs the check; `apply` runs the check first, then remediation;
 `wsl-profile` runs only its own section. All are non-interactive, so never prompt when the action is
-given, except before `apply` moves an old-location suppression file.
+given.
 
 ## `check` (read-only)
 
@@ -130,19 +130,13 @@ tracked/ignored question has opposite correct answers per layer, so verify each 
   letters, digits, `_` and `-`, so the key is written `"anchor/v1":`.
 - **personal override** `<home>/audit-pass.local.md`: must be gitignored and never staged. Staged or
   tracked is a FAIL: a personal deviation can reach team history.
-- **old locations** `~/.claude/audit-pass.md` (the `userConfig` layer's) and
-  `.claude/audit-pass.local.md` (the personal override's), each row naming the file, where it
-  moves, and `/harness-config:setup apply`. Retired conventions: run
+- **retired conventions**: run
   `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --root "<root>"`,
   with `<root>` the repo root anchored above. Exit 0 → PASS. Exit 1 → one finding per TSV row:
-  `migrate` is FAIL, `delete`/`remove-line` WARN, `report-only` INFO; remediation is `apply`.
+  `migrate` is FAIL, `delete`/`remove-line` WARN, `report-only` INFO.
   Exit 2 → FAIL, never silent. Bash unavailable → report the step UNKNOWN with remediation, never
-  green. The one record, `harness-config-r001`, covers `.claude/audit-pass.local.md`;
-  `~/.claude/audit-pass.md` is machine scope, outside the manifest, so a present one is a WARN.
-  The audit engine still reads an old file while no new-location file supplies its layer, and
-  ignores it once one does, so with both present the row says the old file's entries no longer
-  take part. An old `.claude/audit-pass.local.md` also gets the personal override's
-  gitignored-and-never-staged check above. See [config locations](../../reference/config-locations.md).
+  green. Record `harness-config-r001` (`.claude/audit-pass.local.md`) is `report-only`:
+  harness-config no longer reads that file. See [config locations](../../reference/config-locations.md).
 
 Parse each present layer and report as malformed any entry missing **any** of its five required
 keys: `check`, `claim`, `sites`, `reason`, `date`. Checking only `reason` and `date` would pass an
@@ -194,33 +188,10 @@ Then converge the one surface this plugin owns, conservatively:
 - **Team layer present but untracked**: report the STOP and the exact `git add` the operator should
   run. Never stage on their behalf.
 - **Personal override present but not ignored**: recommend the recursive `<home>/**/*.local.*` line
-  (`.claude/**/*.local.*` for an old-location file) and leave the `.gitignore` edit to the consumer.
+  and leave the `.gitignore` edit to the consumer.
 - **Malformed or unrecognized entries**: report them and stop. Never rewrite, reorder, or drop an
   operator's suppression: an entry this skill cannot reconcile is a question for the operator, and a
   silent rewrite would hide the very finding the entry was suppressing.
-- **An old-location file**: move it, so its entries end in one file, never two. This step asks
-  before it writes, unlike the rest of `apply`; with no one to answer, report the move and leave
-  the files as they are. Per old file:
-  1. Resolve the new file: `<home>/audit-pass.local.md` for `.claude/audit-pass.local.md`; for
-     `~/.claude/audit-pass.md`, the file `audit_pass_suppressions_file` names. With that option
-     unset, tell the operator to set it in `/config` to a file outside any repository, then rerun
-     `apply`; stop for this file.
-  2. Preview: name the old file, the new file, and each entry by `finding_id`. An id both files
-     carry with any differing key is a conflict: show both and stop for this file. An id both carry
-     identically is listed once.
-  3. On a yes, write the old file's entries into the new file's fenced `suppressions:` block,
-     creating the file in the same Markdown shape when absent and keeping the new file's own
-     entries and prose. A new `<home>/audit-pass.local.md` is gitignored first, per the personal
-     override check above; if it would not be, stop and recommend the `<home>/**/*.local.*` line.
-  4. Verify: run the audit engine `--json` (pass `--user-suppressions` with the option's file) and
-     confirm `suppressions.layers` shows the layer reading the new file, no new `malformed` line
-     names it, and parsing the new file's fenced block yields every `finding_id` the old file held,
-     each with the same keys. On any mismatch, restore the new file to its earlier content, keep the old file, and
-     report the difference.
-  5. Delete the old file: `.claude/audit-pass.local.md` through
-     `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --root "<root>" --clean harness-config-r001 --i-migrated`,
-     with the same `<root>` as `check`; `~/.claude/audit-pass.md` with a plain delete. Then rerun
-     `check` and report that its row is gone.
 
 Every write names the file and the exact change before making it, and preserves unrelated content.
 
@@ -245,8 +216,7 @@ check an edited profile, run `... wsl-profile.sh lint <file>`.
 
 ## Gotchas
 
-- **Never run a git command against the `userConfig` layer.** The option's file and the old
-  `~/.claude/audit-pass.md` sit outside the worktree, so `git check-ignore` and `git status` return a meaningless verdict there, or a
+- **Never run a git command against the `userConfig` layer.** The option's file sits outside the worktree, so `git check-ignore` and `git status` return a meaningless verdict there, or a
   confidently wrong one when the home directory is itself a git repository.
 - **Missing config is not a failure.** All three suppression layers absent means no suppressions,
   which is the normal state for a repo that has never suppressed a finding. INFO, never FAIL.
@@ -263,7 +233,6 @@ check an edited profile, run `... wsl-profile.sh lint <file>`.
   `audit-permission-state`, `audit-prompting-postures`, `draft-auto-mode-rules`, `unhobble`).
 - Write the plugin cache, Claude Code user settings, or `pluginConfigs`; `wsl-profile` prints a block and the user merges it.
 - Install system packages.
-- Write the consumer's `.gitignore`, stage anything, or edit an operator's suppression entries; the
-  old-location move copies entries unchanged and asks first.
+- Write the consumer's `.gitignore`, stage anything, or edit an operator's suppression entries.
 - Download anything. `check` makes no network call; the audit skills' own doc/marketplace fetches are
   theirs, not setup's.

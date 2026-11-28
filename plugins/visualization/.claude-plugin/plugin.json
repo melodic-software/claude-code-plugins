@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "2.0.1",
+  "version": "2.1.0",
   "license": "MIT",
   "keywords": [
     "visualize",
@@ -29,6 +29,12 @@
       "description": "Preferred delivery medium. auto (default) defers to the shared medium resolver, then decides by content and available surfaces; terminal always renders inline; file renders richer forms as a local HTML file, never published; artifact or hosted prefers a published Artifact, else a file.",
       "default": "auto",
       "options": ["auto", "terminal", "file", "artifact", "hosted"]
+    },
+    "branding": {
+      "type": "string",
+      "title": "Rendered-view branding (JSON)",
+      "description": "Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored.",
+      "default": ""
     },
     "thin_context_prompt": {
       "type": "string",

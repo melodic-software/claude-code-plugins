@@ -3,6 +3,26 @@
 All notable changes to the `visualization` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.1.0] - 2026-11-28
+
+### Added
+
+- Shared `reference/html-tokens.css` token layer, `lib/html-branding.mjs` page branding helper, and `branding` `userConfig` option so rendered pages apply consumer palette, type, and logo overrides in `.rv-bar` while keeping the theme toggle, comment box, and accessibility floor unchanged (#19172).
+
+## [2.0.3] - 2026-11-28
+
+### Changed
+
+- Trim `visualization` skill frontmatter descriptions (`present` 498 -> 302, `visualize` 969 -> 385; total 1,467 -> 687 chars). The `visualize` description keeps the full `ClaudeDesign` routing clause: the built-in tool only when the person names, links, or asks for work in an existing claude.ai/design project; otherwise this skill renders its own output.
+
+## [2.0.2] - 2026-11-28
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources; no behavior change.
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
 ## [2.0.1] - 2026-11-26
 
 ### Changed

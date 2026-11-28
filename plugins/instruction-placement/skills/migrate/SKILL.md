@@ -1,5 +1,5 @@
 ---
-description: "Move instruction content to AGENTS.md as the one content home, keeping a one-line CLAUDE.md shim while a shim is what makes it load. Plans first; every write is operator-gated. Use when: 'migrate to AGENTS.md', 'plan the AGENTS.md migration', 'move CLAUDE.md content to AGENTS.md', 'add the AGENTS.md shim', 'our CLAUDE.md should be one line', 'share instructions with Codex and Cursor', 'can we drop the CLAUDE.md shims yet'. Not the placement sweep (audit) or applying findings (realign)."
+description: "Move instructions to AGENTS.md with a one-line CLAUDE.md shim (plan, apply, cutover-check, remove-shims; writes operator-gated). Use when: 'migrate to AGENTS.md', 'share instructions with Codex and Cursor', 'can we drop the CLAUDE.md shims yet'. Not for sweeps (/instruction-placement:audit) or findings (/instruction-placement:realign)."
 argument-hint: "[plan|apply|cutover-check|remove-shims] [path ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -321,9 +321,9 @@ Root and nested shims come out **together**, since a root `CLAUDE.md` decides wh
 `AGENTS.md` is read ([when Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md)):
 removing one without the other leaves files that review as correct and load nothing.
 
-**The nested canary runs from the nested directory, and its line has to be unique.** A session
-started there loads that directory's `AGENTS.md` and every ancestor's, measured on 2.1.278 with no
-tools available: running from the directory is itself the trigger, so no Read is needed. It also
+**The nested canary runs from the nested directory, and its line has to be unique.** Running from
+that directory loads its `AGENTS.md` and every ancestor's (probe record:
+[`reference/sources.md`](reference/sources.md), "The nested write trigger"), so no Read is needed. It also
 means a line the nested file shares with the root file is answered by the **root** file, so the
 nested surface would pass while loading nothing of its own. The canary line is therefore the longest
 plain line **contained in** no line of any other `AGENTS.md` that loads beside it, ancestors above

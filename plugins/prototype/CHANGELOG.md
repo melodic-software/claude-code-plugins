@@ -3,6 +3,18 @@
 All notable changes to the `prototype` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [1.0.3] - 2026-11-28
+
+### Changed
+
+- Trim skill frontmatter descriptions across `explore-directions` (1,011 -> 343 chars) and `pressure-test` (841 -> 348 chars), reducing changed description length from 1,852 to 691 characters (-1,161 chars; plugin total 1,977 -> 816 chars with `build-generator` unchanged at 125 chars).
+
+## [1.0.2] - 2026-11-28
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
 ## [1.0.1] - 2026-11-26
 
 ### Changed

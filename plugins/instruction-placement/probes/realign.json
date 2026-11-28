@@ -1,0 +1,34 @@
+{
+  "skill": "instruction-placement:realign",
+  "plugin": "instruction-placement",
+  "skill_dir": "plugins/instruction-placement/skills/realign",
+  "competitors": [
+    "instruction-placement:audit",
+    "instruction-placement:check",
+    "instruction-placement:delta",
+    "instruction-placement:establish-hub",
+    "instruction-placement:migrate"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "apply the accepted placement audit findings one finding at a time"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "execute finding IP-007 from the placement findings artifact"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "perform the realign edits for each approved placement proposal"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "carry out the moves the placement audit proposed with per-item confirmation"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "realign our instruction files using the latest placement report"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "walk me through applying findings IP-002 and IP-006 without blanket approval"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "consume the placement audit artifact and apply each move I approve"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "do the instruction moves that the audit recommended, asking per item"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "execute pending placement findings from our last audit run"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "apply the vetted convention-to-rules moves from the findings file"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "run a read-only sweep to find conventions on the wrong surface"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "check whether every .claude/rules glob resolves and the index is fresh"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "migrate root CLAUDE.md content into AGENTS.md with a one-line shim"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "show only what moved since the previous placement audit"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "establish a hub repo for cross-repository agent sessions"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "benchmark latency of the search endpoint"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "propose which parts of CLAUDE.md could become path-scoped rules"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "run the CI gate validating our .claude/rules paths frontmatter"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "check if we can remove the CLAUDE.md shims pointing to AGENTS.md"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "run a scheduled placement delta check above the noise budget"}
+  ]
+}

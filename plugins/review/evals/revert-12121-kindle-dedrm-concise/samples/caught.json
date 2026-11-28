@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Blocking | The `manage` body cut ships as 'measured no-loss' without a negative/detection control showing the `md-*` suite can detect removed procedure text, and Opus actually dropped from 0.933 to 0.908 with `md-installer-popup` left unmeasured. | plugins/kindle-dedrm/skills/manage/SKILL.md:10 |\n\nSummary: validate that the suite detects a degraded body before shipping the cut.",
+      "why": "blocking finding naming missing negative control and unmeasured case"
+    },
+    {
+      "answer": "Advisory/Blocking: there is no detection control proving the `md-*` outcome cases would score lower if `manage` body instructions were removed, so near-ceiling scores (0.933) do not prove the body trim had no loss.",
+      "why": "names the missing detection control without a line number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings: none. No blocking or advisory findings. Both Opus and Sonnet passes show no loss.",
+      "why": "approves with no findings"
+    },
+    {
+      "answer": "| 1 | Advisory | `SKILL.md:29` could use backticks around the command flag for consistent markdown formatting. | plugins/kindle-dedrm/skills/manage/SKILL.md:29 |\n\nSummary: formatting nit only.",
+      "why": "unrelated formatting nit on a reverted line"
+    }
+  ]
+}

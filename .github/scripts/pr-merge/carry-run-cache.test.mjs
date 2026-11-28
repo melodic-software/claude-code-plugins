@@ -3,7 +3,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { carry, main, read } from "./carry-run-cache.mjs";
+import { carry, main, read, withCarried } from "./carry-run-cache.mjs";
 import { forgetMainTip } from "./head-ref-map.mjs";
 import { mainCall } from "./on-main.fixture.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -94,6 +94,22 @@ test("drops every section that can change between runs", () => {
     "carried-on-branch",
     "carried-run-record",
   ]);
+});
+
+test("never carries a run's draft judgments or run artifacts into a later run", () => {
+  const onBranch = { [`${REPO}|${MAIN_SHA}...main`]: entry(true) };
+  const restored = { "on-branch": onBranch, "carried-on-branch": onBranch };
+  for (const section of ["draft-judgment", "run-artifacts"]) {
+    restored[section] = { [`${REPO}|7`]: entry(true) };
+    restored[`carried-${section}`] = { [`${REPO}|7`]: entry(true) };
+  }
+  assert.deepEqual(Object.keys(carry(restored, opts)).sort(), [
+    "carried-fail-head-ref",
+    "carried-lane-run",
+    "carried-on-branch",
+    "carried-run-record",
+  ]);
+  assert.deepEqual(withCarried({}, restored), { "carried-on-branch": onBranch });
 });
 
 test("drops a run record that would turn a FAIL away", () => {

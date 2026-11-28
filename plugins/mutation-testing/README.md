@@ -80,8 +80,7 @@ The user layer is this plugin's `userConfig`, not a file: two options that mean 
 every repository, the operator set and a mutant cap. A repository's team or local file overrides
 them. `/mutation-testing:setup apply user` settles them and names the route below for saving them;
 it writes nothing itself. `apply local` writes the untracked personal override instead of the team
-file. An old `.claude/mutation-testing.local.md` is still read, with a warning on every run, until
-`apply local` moves it to the new file and deletes it.
+file. Old `.claude/mutation-testing.local.md` files are not read.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 

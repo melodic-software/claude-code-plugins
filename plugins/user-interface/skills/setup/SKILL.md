@@ -1,5 +1,5 @@
 ---
-description: "Show where each user-interface setting comes from across the four config layers, or change one key in one layer: check reports values with provenance and layer problems, apply writes one key."
+description: "Inspect user-interface settings across the four config layers (check, read-only, with provenance/issues) or change one key in one layer (apply)."
 argument-hint: "[check|apply] [--local] [<key>=<value>]"
 user-invocable: true
 disable-model-invocation: true

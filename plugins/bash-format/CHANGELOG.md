@@ -3,6 +3,24 @@
 All notable changes to the `bash-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.8] - 2026-11-28
+
+### Changed
+
+- Updated `/bash-format:setup` remote-job skip guidance to point at lefthook's `lefthook-local` and `skip` docs instead of naming a hardcoded `lefthook-local.yml` file.
+
+## [3.2.7] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [3.2.6] - 2026-11-28
+
+### Changed
+
+- Trimmed `/bash-format:setup` user-invoked frontmatter description (506 -> 143 chars) to a one-line summary without trigger phrasing.
+
 ## [3.2.5] - 2026-11-28
 
 ### Changed

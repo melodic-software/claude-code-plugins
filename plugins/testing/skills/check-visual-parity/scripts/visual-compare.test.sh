@@ -160,29 +160,17 @@ assert_not_contains "the new personal file alone draws no old-location warning" 
 rm -f "$R/$PERSONAL"
 
 layer "$R/$OLD_PERSONAL" 1 "old laptop"
-run config --repo "$R"
-assert_eq "the old personal file alone still applies" "pixel_tolerance=1 source=personal-override reason=old laptop" "$out"
-assert_contains "with one warning naming it and the new location" "$err" \
-  "visual-compare: warning: $R/$OLD_PERSONAL is an old location, still read for now; move it to $R/$PERSONAL"
-layer "$R/$OLD_PERSONAL" 0
-layer "$R/$PERSONAL" 1 "new laptop"
-run config --repo "$R"
-assert_eq "both personal files: the new one wins over the old one's lower value" \
-  "pixel_tolerance=1 source=personal-override reason=new laptop" "$out"
-assert_contains "with one warning naming both" "$err" \
-  "visual-compare: warning: $R/$PERSONAL and $R/$OLD_PERSONAL both exist; using $R/$PERSONAL, ignoring the old file"
-rm -f "$R/$PERSONAL" "$R/$OLD_PERSONAL"
-
-layer "$UG" 5 "home machine"
-run config --repo "$R"
-assert_contains "user-global 5 over team 2 prints 2" "$out" "pixel_tolerance=2 source=team"
-assert_contains "and reports the raise as ignored" "$err" "ignored"
-assert_contains "the old user-global file draws a warning naming where to move it" "$err" \
-  "visual-compare: warning: $UG is an old location, still read for now: there is no user-global file layer; move each setting to its testing userConfig option, else to $R/$PERSONAL"
 layer "$UG" 1 "home fonts differ"
 run config --repo "$R"
-assert_eq "user-global 1 over team 2 decides" "pixel_tolerance=1 source=user-global reason=home fonts differ" "$out"
-rm -f "$UG"
+assert_eq "retired .claude/testing.local.yaml and ~/.claude/testing.yaml are ignored" \
+  "pixel_tolerance=2 source=team (working tree, no origin) reason=anti-aliasing on the CI image" "$out"
+assert_eq "with no warning" "" "$err"
+layer "$R/$PERSONAL" 1 "new laptop"
+run config --repo "$R"
+assert_eq "personal override applies quietly beside retired old files" \
+  "pixel_tolerance=1 source=personal-override reason=new laptop" "$out"
+assert_eq "still with no warning" "" "$err"
+rm -f "$R/$PERSONAL" "$R/$OLD_PERSONAL" "$UG"
 
 layer "$R/$TEAM" 3 "subpixel text"
 run config --repo "$R" --user pixel_tolerance=1
@@ -237,13 +225,11 @@ run config --repo "$R"
 assert_contains "a map pixels is named too" "$err" "$R/$PERSONAL: pixel_tolerance.pixels: '<list or map>'"
 assert_contains "and dropped" "$out" "pixel_tolerance=2 source=team"
 rm -f "$R/$PERSONAL"
-mkdir -p "$HOME/.claude"
-printf 'pixel_tolerance: 1\n' >"$UG"
-layer "$R/$PERSONAL" 1 "personal reason"
+printf 'pixel_tolerance: 1\n' >"$R/$PERSONAL"
 run config --repo "$R"
-assert_contains "a scalar pixel_tolerance is named as not a map" "$err" "$UG: pixel_tolerance: '1' is not a map"
-assert_eq "and a valid other layer still decides" "pixel_tolerance=1 source=personal-override reason=personal reason" "$out"
-rm -f "$UG" "$R/$PERSONAL"
+assert_contains "a scalar pixel_tolerance is named as not a map" "$err" "$R/$PERSONAL: pixel_tolerance: '1' is not a map"
+assert_eq "and the valid team layer still decides" "pixel_tolerance=2 source=team (working tree, no origin) reason=team reason" "$out"
+rm -f "$R/$PERSONAL"
 layer "$R/$TEAM" x "team reason"
 run config --repo "$R"
 assert_eq "with no valid layer, the default 0" "pixel_tolerance=0 source=default reason=" "$out"

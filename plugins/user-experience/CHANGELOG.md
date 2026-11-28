@@ -3,6 +3,12 @@
 All notable changes to the `user-experience` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.29] - 2026-11-28
+
+### Changed
+
+- Trimmed all six `user-experience` skill frontmatter descriptions (`evaluate` 414 -> 327, `plan-user-research` 402 -> 318, `setup` 297 -> 138, `shape` 373 -> 328, `structure` 413 -> 280, `synthesize` 388 -> 319 chars; total 2,287 -> 1,710 chars) while preserving evidence-labeled posture, `setup` one-line summary without trigger phrasing, and sibling routing boundaries.
+
 ## [0.4.28] - 2026-11-26
 
 ### Changed

@@ -112,7 +112,15 @@ lefthook remote this marketplace ships, the per-clone skip of one job and declin
 shell hooks (suite `lib/hook-enabled.test.sh`), and
 [`lib/hook-enabled.mjs`](../../../lib/hook-enabled.mjs) provides the same precedence and flags for
 Node.js hooks (`isHookEnabled(plugin, key, defaultValue, opts)` and `resolveHookEnabled`, suite
-`lib/hook-enabled.test.mjs`), so no plugin writes the precedence itself. To adopt it, a plugin:
+`lib/hook-enabled.test.mjs`), so no plugin writes the precedence itself. For hooks modules
+(`modules` in `hooks/hooks.json`), [`lib/mod-hook-enabled.ts`](../../../lib/mod-hook-enabled.ts)
+(suite `lib/mod-hook-enabled.test.mjs`) provides the same precedence and `security: true`
+policy-floor semantics in-process with zero subprocess spawns (`createModEnablement` plus
+`refreshModEnablement($, gate, e.cwd)` in `session.start`, reading `$.settings.read` across
+`policy`, `flag`, and `user` to separate explicit user values from manifest defaults filled into
+`options`, then reading `<root>/<convention-home>/<plugin>.yaml` after resolving the repository's
+bound convention home through `$.fs.stat` and `$.fs.read`). To adopt the shell or Node.js helper, a
+plugin:
 
 1. Registers a copy in `scripts/shared-copies.txt`, for example
    `lib/hook-enabled.sh plugins/<plugin>/hooks/hook-enabled.sh` (or

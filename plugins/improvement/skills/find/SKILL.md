@@ -1,5 +1,5 @@
 ---
-description: "Rank improvements across code, performance, product, config, Claude Code setup, evidence-cited and sized S/M/L; unmeasured targets yield 'instrument this'. Never edits; unattended files work items. Use when: 'what should we improve', 'improvement sweep', 'what could we improve in X', 'tech debt sweep', 'where is the highest-value work', 'what would move the needle', 'run an improvement scan'. Skip: `/architecture:improve`, `/code-tidying:tidy`, `/codebase-health:audit`, `/review:fanout`, `/work-items:scan-todos`."
+description: "Rank evidence-cited improvements (S/M/L) across code, performance, product, config, Claude Code setup; unmeasured yield 'instrument this'. Never edits; unattended files work items. Use when: 'what should we improve', 'improvement sweep', 'tech debt sweep', or what could/would move the needle (run a scan). Not for one fix: /improvement:improve."
 argument-hint: "[target] [--small|--medium|--large] [--unattended] [repo-path] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
@@ -139,10 +139,7 @@ Two hard rules follow:
 The churn keys, the unattended controls and the Tier 2 sources resolve through the layers in
 `${CLAUDE_PLUGIN_ROOT}/reference/config.md` (one Read of that file): plugin default, `userConfig`,
 the team `<home>/improvement.yaml`, then the personal `<home>/improvement.local.yaml`, with that
-file's merge semantics, root rule and dual-read window. While an old file
-(`~/.claude/improvement.md`, `.claude/improvement.md` or `.claude/improvement.local.md`) exists,
-read it as that file says and print its one warning line in the run's output, naming each old
-file, its new location and `/improvement:setup apply`.
+file's merge semantics and root rule.
 
 The `userConfig` layer, read from this text, where Claude Code substitutes it
 ([reference a saved value](https://code.claude.com/docs/en/plugins/manifest-reference#reference-a-saved-value));

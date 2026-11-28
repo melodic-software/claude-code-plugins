@@ -167,8 +167,8 @@ judge::derive() {
   fi
   judge::file_repo "$file"
   root="${FREPO:-${CLAUDE_PROJECT_DIR:-}}"
-  for cfg in "${HOME:-}/.claude/testing.yaml" "$root/docs/conventions/testing.yaml" "$root/docs/conventions/testing.md" \
-    "$root/docs/conventions/testing.local.yaml" "$root/.claude/testing.yaml" "$root/.claude/testing.local.yaml"; do
+  for cfg in "$root/docs/conventions/testing.yaml" "$root/docs/conventions/testing.md" \
+    "$root/docs/conventions/testing.local.yaml"; do
     [[ -f "$cfg" ]] && cfgs+=("$cfg")
   done
   while read -r h _; do

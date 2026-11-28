@@ -1,5 +1,5 @@
 ---
-description: "Audit an arbitrary directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftover artifacts; classify evidence into confidence tiers; and optionally remove exact validated paths after explicit per-tier approval. Read-only by default; removes nothing without the user's own answer naming one tier and its paths. Use when: 'audit this directory', 'find orphaned files', 'what junk can I clean up', 'reclaim disk space', 'find temp or lock leftovers', 'clean up my home directory'. Skip when: repository cache/build cleanup belongs to repo-hygiene, a product has its own prune/GC command, or the target is an OS-managed root."
+description: "Audit a directory tree for orphaned, temp, stale-lock, failed-write, partial-download, and empty leftovers; classify by tier; remove validated paths after explicit per-tier approval (read-only by default). Use when: 'audit this directory', 'what junk can I clean up', 'find temp or lock leftovers'. Not for repos: /repo-hygiene:clean, GC, OS roots."
 argument-hint: "[--execute] [--deep] [--max-depth <N>] [--sizes-only] [--policy <file>] [--quiet] <target-directory>"
 user-invocable: true
 disable-model-invocation: false
@@ -236,13 +236,7 @@ invocation-specific choice and replaces every standing layer. Every overlay can 
 and add protected globs, and `version: 2` adds `rules` and `elevation`; none can weaken hard guards.
 The [overlay schema](reference/policy-overlay.schema.json) lists every field; version 1 files load
 unchanged. The scan output names its `policy_sources`, its `policy_warnings` and the effective
-`elevation`. Scan errors and unvisited protected roots are coverage gaps, not clean. A hint's `entry_types` and the snapshot's `empty_directory_paths` are in [scan-flags.md](reference/scan-flags.md#coverage-and-hint-fields).
-
-The old files `~/.claude/disk-hygiene.json` and `<project>/.claude/disk-hygiene.json` are still
-read, each in place of its layer (the `policy_file` file, then the team file) while no new file
-supplies that layer. Each one found adds a `policy_warnings` line naming the file and where it
-moves. Relay every line, and point at `/disk-hygiene:setup apply`, which moves the files. Other
-locations: [config locations](../../reference/config-locations.md).
+`elevation`. Scan errors and unvisited protected roots are coverage gaps, not clean. A hint's `entry_types` and the snapshot's `empty_directory_paths` are in [scan-flags.md](reference/scan-flags.md#coverage-and-hint-fields). Other locations: [config locations](../../reference/config-locations.md).
 
 The scan output may also carry an `os_autoclean` advisory when the target overlaps a zone an OS
 mechanism (Windows Storage Sense, systemd-tmpfiles) should own. Surface its recommendation in the

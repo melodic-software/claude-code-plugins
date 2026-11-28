@@ -3,6 +3,18 @@
 All notable changes to the `mutation-testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.24.0] - 2026-11-28
+
+### Removed
+
+- Drop legacy `.claude/mutation-testing.local.md` dual-read, warning, and move flow from `/mutation-testing:setup` and multi-repo audit context.
+
+## [0.23.10] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across all four `mutation-testing` skills (`audit` 530 -> 346 chars, `principles` 511 -> 338 chars, `seed-faults` 412 -> 342 chars, `setup` 719 -> 148 chars; total 2172 -> 1174 chars, -998 chars) while preserving all modes, source-reversion/no-commit safety posture, and sibling exclusions.
+
 ## [0.23.9] - 2026-11-27
 
 ### Changed

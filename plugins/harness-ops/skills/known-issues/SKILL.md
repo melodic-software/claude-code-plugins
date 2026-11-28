@@ -1,5 +1,5 @@
 ---
-description: "Lookup and tracking of known Claude product issues: GitHub bug search, service health and model quality checks, and a persistent registry of tracked issues. Use when: 'is this broken', 'any workarounds', 'troubleshoot Claude Code', 'feature behaves unexpectedly', 'scan repo for issues', 'file a bug'. Actions: status (default), search FEATURE, check-all, scan, list, quality, create."
+description: "Lookup and track known Claude product issues: GitHub bug search, service health, model quality checks, persistent registry. Actions: status (default), search FEATURE, check-all, scan, list, quality, create. Use when 'is this broken', 'troubleshoot Claude Code', 'scan repo for issues', workarounds, feature behaves unexpectedly, or file a bug."
 argument-hint: "<status|search|check-all|scan|list|quality|create> [args]"
 user-invocable: true
 disable-model-invocation: false

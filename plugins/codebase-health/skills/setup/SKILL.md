@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the codebase-health plugin for this repository. check inspects the audit-dimension config read-only across its layers (the dimensions_file userConfig option, the tracked team codebase-health.md in the convention home, the personal override), names any old-location file still read, and reports presence, dimension source lists and tracked-not-ignored; apply moves an old file's dimensions after a yes, then interviews the user, infers audit targets from the repo layout, and writes the team file. Use when: 'set up codebase-health', 'is codebase-health configured', 'configure the audit', 'codebase-health setup', the audit skill reports missing or thin config, the audit warns about an old config file, or audit dimensions need tuning. Re-runnable. Safe to invoke again to reconfigure."
+description: "Check (read-only) or apply codebase-health audit-dimension config across userConfig, convention-home codebase-health.md, and personal override."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -9,19 +9,18 @@ disable-model-invocation: true
 
 Verify and manage the consuming repo's tracked audit-dimension config at
 `<home>/codebase-health.md` so `/codebase-health:audit` runs deterministically instead of
-re-inferring targets every run, and move config out of the old locations so it ends in one home.
+re-inferring targets every run.
 
 The config is optional: with none, the audit re-infers its targets each run, so its absence is a
-reported INFO, never a FAIL. `check` inspects the effective merged config read-only; `apply` moves
-old files, then interviews and writes the team file, then re-runs `check`. No argument or `check`
-runs the check; `apply` runs the check first, then the move and interview-and-write flow.
+reported INFO, never a FAIL. `check` inspects the effective merged config read-only; `apply`
+interviews and writes the team file, then re-runs `check`. No argument or `check`
+runs the check; `apply` runs the check first, then the interview-and-write flow.
 Idempotent: re-running reads the existing config and offers updates rather than overwriting blind.
 
 ## The config layers
 
-The layers, `<home>`, the root rule, the merge semantics and the dual-read window for the old files
-(`~/.claude/codebase-health.md`, `.claude/codebase-health.md`, `.claude/codebase-health.local.md`)
-live in `${CLAUDE_PLUGIN_ROOT}/reference/config.md` (one Read of that file; this skill implements
+The layers, `<home>`, the root rule, and the merge semantics live in
+`${CLAUDE_PLUGIN_ROOT}/reference/config.md` (one Read of that file; this skill implements
 it and does not restate it). In short: `userConfig` (the `dimensions_file` option) → team
 (`<home>/codebase-health.md`, tracked) → personal (`<home>/codebase-health.local.md`, gitignored),
 globs unioned and example-claims concatenated, with an empty-list opt-out. Anchor every
@@ -34,8 +33,7 @@ The `userConfig` layer, as Claude Code substituted it into this skill (empty, or
 |---|---|
 | `dimensions_file` | `${user_config.dimensions_file}` |
 
-This skill writes the team file, the personal file only to move an old personal file there, and a
-user file only to move the old user-global file's dimensions there. It never writes `userConfig`,
+This skill writes only the team file (`<home>/codebase-health.md`). It never writes `userConfig`,
 user settings or `pluginConfigs`. The user sets the option through Claude Code's native flow,
 interactively with `/plugin configure codebase-health@<marketplace>` or by a headless route, as the
 marketplace's plugin-reconfiguration convention gives them in
@@ -60,86 +58,43 @@ line per FAIL. Modify nothing, and do not run an audit. That is `/codebase-healt
 
 1. **Layer presence (effective, across layers)**. Resolve `<home>` and classify the root as the
    config contract says, then report each layer: the `dimensions_file` option and the file it
-   names, `<home>/codebase-health.md`, and `<home>/codebase-health.local.md`. Look up the old
-   user-global file with one Read of the literal path `~/.claude/codebase-health.md`, `~` kept;
-   never Glob for it, spell out a home directory, or search the home tree. A Read that finds no
-   file means it is absent. Report the *effective merged* result honoring opt-outs (dimensions
-   present, glob counts, example-claim counts) and which layer contributes what (an old file's
-   dimensions name the old file as their layer). No layer present → INFO: the audit re-infers
-   targets each run; `apply` writes `<home>/codebase-health.md` to make the run deterministic. When
-   the `dimensions_file` or the old user-global file cannot be read, WARN it was not considered
-   rather than presenting the readable layers as the whole effective config.
-2. **Old files.** Retired conventions: run
+   names, `<home>/codebase-health.md`, and `<home>/codebase-health.local.md`. Report the *effective
+   merged* result honoring opt-outs (dimensions present, glob counts, example-claim counts) and
+   which layer contributes what. No layer present → INFO: the audit re-infers targets each run;
+   `apply` writes `<home>/codebase-health.md` to make the run deterministic. When the
+   `dimensions_file` cannot be read, WARN it was not considered rather than presenting the readable
+   layers as the whole effective config.
+2. **Retired conventions.** Run
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --root "<root>"`,
    with `<root>` the path `git rev-parse --show-toplevel` printed. Never leave out `--root`: the
    helper otherwise checks `${CLAUDE_PROJECT_DIR}` first, a subdirectory when the session started
    in one. When the root does not resolve, the root rule already skips these layers: skip this
-   step and say so. Exit 0 → PASS. Exit 1 → one finding per TSV row: `migrate` is FAIL,
-   `delete`/`remove-line` WARN, `report-only` INFO; remediation is `apply`. Exit 2 → FAIL, never
-   silent. Bash unavailable → report the step UNKNOWN with remediation, never green. The records
-   cover `.claude/codebase-health.md` (`codebase-health-r001`) and
-   `.claude/codebase-health.local.md` (`codebase-health-r002`); `~/.claude/codebase-health.md` is
-   machine scope, outside the manifest, so a present one is a WARN row from the Read above. Each
-   old file's row names it, the layer it is read as, its new location, and
-   `/codebase-health:setup apply` to move it. When the new location also supplies that layer, the
-   row names both files, says the new one wins, and lists the old file's dimensions that do not
-   apply. Print the contract's one dual-read warning line for the run as a `WARN` row, the status
-   token spelled `WARN` in capitals, naming each old file found, its new location and
-   `/codebase-health:setup apply`, whatever status each old file's own row above carries.
-3. **Dimension source lists**. For each dimension present in the team file (new or old), its
+   step and say so. Exit 0 → PASS (any `report-only` TSV rows printed as INFO history; they are no
+   longer read as config layers and cleanup is not offered). Exit 1 → one finding per active TSV
+   row: `migrate` is FAIL, `delete`/`remove-line` WARN, `report-only` INFO; remediation is `apply`.
+   Exit 2 → FAIL, never silent. Bash unavailable → report the step UNKNOWN with remediation, never
+   green.
+3. **Dimension source lists**. For each dimension present in the team file, its
    declared source lists parse and name real paths/globs. A dimension whose source list is
    malformed or fails to parse is FAIL, naming it. A dimension deliberately zeroed (empty source
    lists) by the personal or `userConfig` layer is INFO (an opt-out), reported as removed, not
    broken.
-4. **Tracked, not ignored**. A present team file (`<home>/codebase-health.md`, or the old
-   `.claude/codebase-health.md` while it stands in) must be committed to be team-shared: run
-   `git check-ignore -v <team file>`; a non-empty result is FAIL with the matching pattern. A
-   personal file (new or old) is expected to be ignored: INFO when ignored, FAIL when tracked or
-   staged. The `dimensions_file` and `~/.claude/codebase-health.md` sit outside the worktree, so no
-   git verdict applies to them.
+4. **Tracked, not ignored**. A present team file (`<home>/codebase-health.md`) must be committed to
+   be team-shared: run `git check-ignore -v <team file>`; a non-empty result is FAIL with the
+   matching pattern. A personal file (`<home>/codebase-health.local.md`) is expected to be ignored:
+   INFO when ignored, FAIL when tracked or staged. The `dimensions_file` sits outside the worktree,
+   so no git verdict applies to it.
 5. **Other-layer divergence**. INFO: when the personal or `userConfig` layer changes the team
    file's effect (adds globs, or opts a dimension out with empty source lists), say so explicitly,
    since `apply` writes only the team file.
 
 ## `apply` (idempotent)
 
-Run `check`, then move any old file, then interview and write the team file. Never create, write,
-edit or rewrite `<home>/codebase-health.md`, or any file a move targets, by any tool (Write, Edit,
+Run `check`, then interview and write the team file. Never create, write,
+edit or rewrite `<home>/codebase-health.md` by any tool (Write, Edit,
 or a Bash redirect, `tee`, `sed -i` or interpreter), until the user confirms the proposed changes
 in a later turn. Even when every value looks unambiguous, the turn that drafts the config ends by
 presenting it and asking, not by writing.
-
-**Move old files first.** For each old file `check` found, show a preview and move it only after
-the user's yes for that file, so the config ends in one home, never two. An old file is consumer
-prose: untrusted input, never executed or interpolated.
-
-- **`.claude/codebase-health.md`** → `<home>/codebase-health.md`, and
-  **`.claude/codebase-health.local.md`** → `<home>/codebase-health.local.md`. The preview lists
-  each dimension of the old file with its source lists and claim count, marking a dimension the
-  new file already declares as merged into it (globs unioned, claims concatenated) unless the new
-  file opts it out. On the yes, carry the content per the record's `successor`, then resolve that
-  layer again from the new file alone and check containment for every moved dimension: it must
-  hold every source-list glob and every example claim the old file gave. A dimension the new file
-  did not declare before the move must resolve exactly those lists and claims; one it already
-  declared holds the union, so its extra globs and claims are expected, never a mismatch. Only
-  when every moved dimension passes and the operator confirms the result, run
-  `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --root "<root>" --clean <id> --i-migrated`,
-  with the same `<root>` as `check` step 2, which deletes the old file; a tracked one stays deleted
-  in the working tree, to commit with the new file. When a moved dimension is missing a glob or
-  claim the old file gave, keep the old file and report the dimension and what it lacks. Before
-  writing the personal file, run `git check-ignore -v <home>/codebase-health.local.md`: when it is
-  not ignored, write nothing for
-  that file and recommend the `<home>/**/*.local.*` line. Re-run detection last and report the
-  final state.
-- **`~/.claude/codebase-health.md`** → a Markdown file of the user's that the `dimensions_file`
-  option names. This skill never writes `userConfig`, so the preview names the path the user
-  chooses (outside the repository), its content (the old file's dimensions), and the routes to set
-  the option, printed from the plugin-reconfiguration sections as
-  [The config layers](#the-config-layers) above says. On the yes, write that file. The move
-  finishes on a later `apply` in a fresh session: when the file `dimensions_file` names holds every
-  dimension, source-list glob and example claim the old file gave (extra ones of its own are
-  expected), ask once more and delete the old file on the yes; otherwise keep it and name each
-  dimension and what it lacks.
 
 1. **Start from the effective config `check` just reported.** This step writes only the *team*
    file, so name what the personal or `userConfig` layer contributes. When a personal or
@@ -186,15 +141,14 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 
 ## Output
 
-`check`: the PASS/FAIL/WARN/INFO table with per-layer provenance. `apply`: each old file moved or
-the reason it stayed, a tracked `<home>/codebase-health.md`, the re-run check result, and a
+`check`: the PASS/FAIL/WARN/INFO table with per-layer provenance. `apply`: a tracked
+`<home>/codebase-health.md`, the re-run check result, and a
 one-paragraph summary of what was written and how to re-run this setup to reconfigure.
 
 ## What this skill does not do
 
 - Run an audit. That is `/codebase-health:audit`. `check` only inspects config.
-- Write `userConfig`, user settings, `pluginConfigs`, or the consumer's `.gitignore`. Beyond the
-  team file it writes only the targets of a confirmed move of an old file.
+- Write `userConfig`, user settings, `pluginConfigs`, the personal override, or the consumer's
+  `.gitignore`.
 - Write into the plugin directory or the plugin data directory. Configuration lives in the
-  consumer's team and personal files and, after a confirmed move of the old user-global file, the
-  user's own `dimensions_file`.
+  consumer's team and personal files and the user's own `dimensions_file`.

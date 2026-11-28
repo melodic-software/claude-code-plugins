@@ -1,0 +1,22 @@
+schema_version: "1.1"
+name: interview-lightning-default-setting
+description: "`interview_style: lightning` in docs/conventions/planning.yaml makes the condensed style the default with no word said. Why hard: nothing in the prompt mentions lightning, so only the setting can turn it on."
+tags: [interview, lightning, no-network]
+expected_outcome: "Round 1 prints condensed entries and ends with the more-Q<N> hint."
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: "/planning:interview Add a nightly job that deletes expired password-reset tokens from the database."
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Write, Edit]
+  max_turns: 30
+  timeout_seconds: 900
+graders:
+  - name: condensed-answer-line
+    type: regex
+    pattern: "^\\S*\\s*\\*\\*[^*\\n]{1,80}\\*\\* - \\S"
+    flags: m
+    arm: with-only
+  - name: more-hint
+    type: regex
+    pattern: "say \"more Q"
+    arm: with-only

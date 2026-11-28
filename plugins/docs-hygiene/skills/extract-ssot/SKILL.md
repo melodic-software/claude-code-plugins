@@ -1,5 +1,5 @@
 ---
-description: "Deduplicate repeated markdown (rule files, skill bodies, ADRs, docs) into one named source of truth and migrate every call site to cite it by exact heading. Use when the same prose, literal, or concept recurs across files: 'DRY this prose', 'extract a shared rule', 'single source of truth for X', a value-bump diff touching several files. Below the Rule of Three it offers only non-abstracting remedies and refuses a new SSOT artifact. Load it before planning how to turn text copied into several files into one place to change it, including when the user proposes a new shared file."
+description: "Deduplicate markdown repeated across files (rules, skills, ADRs, docs) into one source of truth cited by exact heading; below Rule of Three, offers non-abstracting remedies only. Use when 'DRY this prose', 'extract a shared rule', 'single source of truth for X', or planning one place to change copied text, even when a new shared file is proposed."
 argument-hint: "[identify|verify|plan|execute|batch|unwind] [<cluster>] [--fix] [--dry-run] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

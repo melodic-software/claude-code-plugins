@@ -1,5 +1,5 @@
 ---
-description: "Verify or configure the docs-naming file-name skills for this repository: `check` resolves all three configuration layers, reports which layer supplied each key, and verifies that the casing regex compiles, every tier names a known form, every generated file's regenerator resolves, the team layer is tracked, and the personal override is ignored; `apply` writes the tracked `docs/conventions/docs-naming.yaml` team layer per key, idempotently, and edits no other file. Use when: 'set up docs-naming', 'configure the file-name rule', 'is docs-naming configured', 'which casing rule is in effect', 'change the docs naming regex', 'add a frozen tier', 'docs-naming setup', or an audit reports a configuration layer it could not read."
+description: "Verify docs-naming layers, regex, tiers, and regenerators (check, read-only), or write docs/conventions/docs-naming.yaml per key (apply)."
 argument-hint: "[check|apply] [--defaults] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -21,13 +21,8 @@ which is empty. The old team and personal override JSON files under `.claude/`
 are not read; `check` names each, and `apply` seeds an absent team YAML from the
 old team file.
 
-The old user files, `~/.claude/docs-naming.json` and
-`~/.claude/docs-hygiene.json`, are still read in the option's place while the
-option is unset or invalid (the first that exists), each run warns about them,
-and `apply` previews copying their keys into the option.
-
-The option's current value is `${user_config.file_names}`. Pass it to both
-scripts as `--user-config '<that value>'` on every call, one single-quoted
+The option's current value is `${user_config.file_names}`. Pass it to
+`setup-check.sh` as `--user-config '<that value>'` on every call, one single-quoted
 argument (escape any single quote in it). An empty value or the literal
 `${user_config.…}` placeholder means unset.
 
@@ -60,13 +55,10 @@ Rows, each PASS, FAIL, WARN, or INFO:
 2. **layer userConfig / team / personal-override**: absent (INFO), or present
    (the team and personal override rows name the file). The userConfig row is
    WARN when the option is not one JSON object, which is ignored. A present file
-   that does not parse, or an old user file that declares an unknown schema,
-   surfaces at the **resolve** row with the file named. **old user file**: WARN
-   per file at an old user path, saying whether it is read and that `apply`
-   previews copying its keys into the option. **old team file** and **old
-   personal override file**: WARN per unread JSON file under `.claude/`, naming
-   the next step (`apply` seeds an absent team YAML, else copy by hand; then
-   delete).
+   that does not parse surfaces at the **resolve** row with the file named.
+   **old team file** and **old personal override file**: WARN per unread JSON
+   file under `.claude/`, naming the next step (`apply` seeds an absent team
+   YAML, else copy by hand; then delete).
 3. **key shape**: every key carries the type the contract declares.
 4. **rule**, **regex**, **regex quoting**: the casing rule is one this version
    implements, the regex compiles under `grep -E`, and it carries no single
@@ -98,11 +90,7 @@ never green.
 
 Both records here, `docs-naming-r001` (`.claude/docs-hygiene.json`) and
 `docs-naming-r002` (`.claude/docs-hygiene.local.json`), are `report-only`: INFO,
-no cleanup, since neither file is read; the old-file rows name the next step. The old
-user files under `~/.claude/` sit outside the repository and have no record; the
-**old user file** rows report them, and `apply` step 5 handles them.
-
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
+no cleanup, since neither file is read; the old-file rows name the next step.
 
 ## `apply` (idempotent)
 
@@ -140,36 +128,7 @@ This plugin still reads, or reports as retired, the `.claude/` paths named here;
    confirms the result, run
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --clean <id> --i-migrated`.
    Re-run detection last and report the final state.
-5. **Copy old user files into the option.** When `check` printed an **old user
-   file** row, run:
-
-   ```bash
-   ${CLAUDE_SKILL_DIR}/scripts/setup-apply.sh --user-config-value --user-config '<option>'
-   ```
-
-   It writes nothing. It prints a `from:` line per old file naming the keys it
-   would add (keys the option does not already set, and the additive keys whose
-   list in the option lacks some of the old file's entries, which it appends;
-   `docs-naming.json` before `docs-hygiene.json`), the merged `value:`, and a
-   `values.json:` line.
-   Show that preview and ask whether to copy. On a yes, the operator saves it
-   through Claude Code's native flow, `/plugin configure docs-naming@<marketplace>`
-   interactively; this skill never writes user settings or `pluginConfigs`, and
-   never uninstalls to reconfigure. Read
-   [The routes](../../reference/plugin-reconfiguration.md#the-routes) and
-   [Caveats every setup skill's short form carries](../../reference/plugin-reconfiguration.md#caveats-every-setup-skills-short-form-carries)
-   and print what they give: the preferred `claude plugin configure` command in
-   full first, with the `values.json:` text as its `values.json`, then the
-   fallback route, its behavior on an already-installed plugin and the scope to
-   pass. Leave the old file in place; the operator deletes it once a
-   **fresh-session** `check` shows the option set and no key missing. Report
-   only an observed value.
-
-   - **Pointer**: for the headless command's flags and how it reports a saved
-     or refused value, fetch
-     [plugin CLI reference § plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
-     live.
-6. **Verify.** Re-run `check` and report the persisted values from its table,
+5. **Verify.** Re-run `check` and report the persisted values from its table,
    never from the write alone. A WARN saying the file is untracked means "commit
    it to share it", never success.
 
@@ -189,9 +148,8 @@ supplied any value differing from the bundled default.
 ## What this skill does NOT do
 
 - Write the personal override, the `file_names` option, user settings, or
-  `pluginConfigs`. Those are the operator's own; step 5 hands the option's value
-  to Claude Code's native flow.
-- Delete or edit an old user file.
+  `pluginConfigs`. Those are the operator's own; configure `file_names` through
+  `/plugin configure docs-naming@<marketplace>`.
 - Edit the consumer's `.gitignore`. It recommends one line.
 - Install anything, or fetch a regenerator a `generated` entry names.
 - Run an audit, a rename, or a gate emission. Those skills read the same

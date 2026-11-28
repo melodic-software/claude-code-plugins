@@ -12,7 +12,10 @@ run-name: "PR Rate Merge Risk #${{ github.event.workflow_run.pull_requests[0].nu
 permissions: {}
 
 concurrency:
-  group: pr-rate-merge-risk-${{ github.event.workflow_run.pull_requests[0].number || 'none' }}-${{ github.event.workflow_run.head_sha }}
+  group: >-
+    ${{ github.event.workflow_run.conclusion == 'cancelled'
+    && format('pr-rate-merge-risk-upstream-cancelled-{0}', github.run_id)
+    || format('pr-rate-merge-risk-{0}-{1}', github.event.workflow_run.pull_requests[0].number || 'none', github.event.workflow_run.head_sha) }}
   cancel-in-progress: false
 
 defaults:

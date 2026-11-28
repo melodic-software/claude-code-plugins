@@ -1,5 +1,5 @@
 ---
-description: "Council review: a panel of configured reviewer members (provider, model, brief, effort), chosen for this change by its paths, size or merge risk, reviews one change and writes one ranked findings report; optional repeated rounds run /review:fanout fix between them and stop on a checkable condition. Use when asked for a council review, a panel or multi-model review of a change, or a cross-vendor second opinion."
+description: "Council review: a panel of configured members (provider, model, brief, effort) chosen by paths, size, or merge risk writes one ranked findings report, with optional /review:fanout fix rounds stopping on a checkable condition. Use when asked for 'council review', a multi-model panel review, or a cross-vendor second opinion."
 argument-hint: "[--yes] [--unattended]"
 user-invocable: true
 disable-model-invocation: false

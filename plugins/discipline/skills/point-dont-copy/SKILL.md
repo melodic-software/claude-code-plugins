@@ -1,5 +1,5 @@
 ---
-description: "Re-anchors pointer-over-copy discipline: audits the work in flight for copied content, internal-name coupling, and closed capability lists, and corrects by pointing at the living source. Use when: 'point don't copy', 'you copied that', 'don't duplicate the docs', 'cite instead of paste', 'link don't restate', 'you enumerated the tools', 'that couples to internal names', 'this will drift', or at conversation start on documentation work."
+description: "Re-anchor pointer-over-copy discipline: audit work in flight (or --repo) for copied, duplicated, or restated content/prose, internal-name coupling, and capability lists that drift; link and point to the living source instead of pasting. Use when 'point don't copy', 'don't duplicate the docs', 'cite instead of paste', or on doc work."
 argument-hint: "[target] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
