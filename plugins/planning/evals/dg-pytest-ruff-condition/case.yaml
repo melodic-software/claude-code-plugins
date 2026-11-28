@@ -27,7 +27,7 @@ graders:
     arm: both
   - name: length-within-limit
     type: regex
-    pattern: 'chars=\d+[ \t]+limit=\d+[ \t]+status=ok|(?<!~)(?<![\d,])\b(?:\d{1,3}[ \t]*/[ \t]*\d,?\d{3}|[1-3],?\d{3}[ \t]*/[ \t]*4,?000|[1-4]?\d{1,2}[ \t]*/[ \t]*500)[ \t]*(?:characters|chars)\b|^(?![^\n]*(?:\b(?:over|exceed(?:s|ed|ing)?|above|too long|cut|not within|not under|more than|longer than|beyond|past|cap|capped|roughly|about|around|approx\w*|estimated?)\b|~[ \t]*\d|≈|\bwon''t fit|n''t fit|\bdoes not fit))[^\n]*?(?<!at most )(?<!up to )(?<!limit of )(?<!maximum of )(?<!limit: )(?<!limit is )(?<!under )(?<!below )(?<!within )(?<!than )(?<![\d,/])(?<!/ )\b(?!4,?000\b)\d[\d,]*(?![\d,]*[ \t]*/)(?:[ \t]+of[ \t]+(?:the[ \t]+|your[ \t]+)?[\d,]+)?[ \t]*(?:characters|chars)\b'
+    pattern: 'chars=\d+[ \t]+limit=\d+[ \t]+status=ok|(?<!~)(?<![\d,])\b(?:\d{1,3}[ \t]*/[ \t]*\d,?\d{3}|[1-3],?\d{3}[ \t]*/[ \t]*4,?000|[1-4]?\d{1,2}[ \t]*/[ \t]*500)[ \t]*(?:characters|chars)\b|^(?![^\n]*(?:\b(?:over|exceed(?:s|ed|ing)?|above|too long|cut|not within|not under|more than|longer than|beyond|past|roughly|about|around|approx\w*|estimated?)\b|~[ \t]*\d|≈|\bwon''t fit|n''t fit|\bdoes not fit))[^\n]*?(?<!at most )(?<!up to )(?<!limit of )(?<!maximum of )(?<!limit: )(?<!limit is )(?<!cap is )(?<!cap of )(?<!capped at )(?<!under )(?<!below )(?<!within )(?<!than )(?<![\d,/])(?<!/ )\b(?!4,?000\b)\d[\d,]*(?![\d,]*[ \t]*/)(?:[ \t]+of[ \t]+(?:the[ \t]+|your[ \t]+)?[\d,]+)?[ \t]*(?:characters|chars)\b'
     flags: mi
     arm: both
   - name: session-note
