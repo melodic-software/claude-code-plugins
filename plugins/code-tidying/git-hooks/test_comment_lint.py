@@ -231,6 +231,32 @@ class Shape2ToolDirective(unittest.TestCase):
     def test_plain_comment_fails(self):
         self.assertEqual(flagged("a.sh", "# set up the cache\nx=1\n"), [1])
 
+    def test_actionlint_directives_pass(self):
+        workflow = (
+            "jobs:\n"
+            "  a:\n"
+            "    # actionlint:ignore-next-line cache-call-unrestricted -- skipped on issues by this job's if\n"
+            "    uses: ./.github/workflows/b.yml\n"
+            "  c:\n"
+            "    # actionlint-ignore-next-line expression\n"
+            "    runs-on: ubuntu-latest\n"
+            "    steps:\n"
+            "      - run: echo ok # actionlint:ignore expression,shellcheck\n"
+            "      - run: echo ok # actionlint-ignore shellcheck\n"
+        )
+        self.assertEqual(flagged("w.yml", workflow), [])
+
+    def test_comment_naming_actionlint_fails(self):
+        workflow = (
+            "jobs:\n"
+            "  a:\n"
+            "    # actionlint reports this, so keep it\n"
+            "    runs-on: ubuntu-latest\n"
+            "    # actionlint:ignored by hand earlier\n"
+            "    steps: []\n"
+        )
+        self.assertEqual(flagged("w.yml", workflow), [3, 5])
+
 
 class Shape3License(unittest.TestCase):
     def test_license_run_passes_whole(self):
