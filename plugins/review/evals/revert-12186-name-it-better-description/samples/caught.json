@@ -1,0 +1,22 @@
+{
+  "pass": [
+    {
+      "answer": "| 1 | Blocking | The no-loss claim for shortening `name-it-better`'s description has no negative/detection control and runs without competitor plugins loaded, so ceiling-level trigger and routing scores do not show the eval can detect a degraded description. | plugins/naming/skills/name-it-better/SKILL.md:2 |\n\nSummary: prove the suite detects a broken description before shipping this cut.",
+      "why": "blocking finding naming missing detection control and no rival plugins"
+    },
+    {
+      "answer": "Blocking: without a negative control demonstrating that a generic description scores worse on these probes and routing cases, a flat score does not measure whether the 650 -> 624 character cut preserved routing quality.",
+      "why": "names the missing negative control without a line number"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Findings: none. No blocking or advisory findings. The three edits preserve meaning and trigger probes passed on both models.",
+      "why": "approves with no findings"
+    },
+    {
+      "answer": "| 1 | Advisory | `SKILL.md:2` merges two sentences with a semicolon; two short sentences would be easier to scan. | plugins/naming/skills/name-it-better/SKILL.md:2 |\n\nSummary: minor style preference.",
+      "why": "cites line 2 for a style nit while missing the unmeasured-cut defect"
+    }
+  ]
+}
