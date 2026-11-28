@@ -130,8 +130,7 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   compare run before merge, whose PASS releases the eval hold (Q7).
 - A compare run's arms also carry the plugin's `context/**/*.md` under the markdown rules
   `select-plugins.mjs` applies to `skills/` and `agents/`; `plugin.json` and `probes/` stay refused
-  (owner decision,
-  [owner-decisions.md#L380](https://github.com/melodic-software/architecture/blob/05ddd704c535f4c99c3410e06e2e962056d3b2bd/docs/owner-decisions.md#L380)).
+  (owner decision).
 - A cut whose only covering cases are judged adds a deterministic case for the changed behavior in
   the same PR (Q45).
 - Five kinds of PR merge before their run, once `/evals:validate` passes: one that adds or edits
@@ -139,12 +138,10 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   arms that do not differ (Q43, Q56); a cut whose changed behavior cannot be checked without a
   judge (Q45); one that adds or edits a script or a case scaffold and cuts no existing skill
   text, since compare mode never runs a script beside a credential (`select-plugins.mjs`; owner
-  decision, melodic-software/architecture#208); a skill rename, since compare mode refuses its
-  manifest and probe edits and a renamed skill has no comparable base arm (owner decision,
-  [owner-decisions.md#L380](https://github.com/melodic-software/architecture/blob/3534f80d3eea2c08a582d1899c2862af44880b64/docs/owner-decisions.md#L380));
+  decision); a skill rename, since compare mode refuses its
+  manifest and probe edits and a renamed skill has no comparable base arm (owner decision);
   and one whose compare run cannot start, because the org API key is off or compare mode refuses
-  the PR, where a FAIL of the run that follows reverts it (owner decision,
-  [owner-decisions.md#L400](https://github.com/melodic-software/architecture/blob/5e9bdfd176c86f3ce17d0659b4121fdcb0bc6c04/docs/owner-decisions.md#L400)).
+  the PR, where a FAIL of the run that follows reverts it (owner decision).
   Any other cut keeps its compare run before merge. One suite run
   on the default branch, scoped to the affected cases, follows; a rename's run uses `runs: 3`.
   For a judged case, the dispatching session posts the
@@ -180,12 +177,8 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
   are unassigned or used up, the run fails with an `::error::` naming the `EVALS` role; the owner
   reassigns it through the account rotation tool. The label run and the hill climb run on the key
   alone (Q14, Q53, as amended by the owner decision "Eval runs on a subscription token, case
-  pruning, and how #18356 lands", 2026-11-23, in
-  [owner-decisions.md](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md),
-  extended to suite runs by
-  [owner-decisions.md#L370](https://github.com/melodic-software/architecture/blob/9fecf3f103380aa38f9a7936c4209330f9ab4bcd/docs/owner-decisions.md#L370),
-  and moved to the `EVALS` role, key first, by the owner decision "Dedicated eval lane
-  credentials", [melodic-software/architecture#235](https://github.com/melodic-software/architecture/pull/235)).
+  pruning, and how #18356 lands", 2026-11-23, extended to suite runs and moved to the `EVALS`
+  role, key first, by owner decision).
 
 ## Budget
 

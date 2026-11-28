@@ -1,5 +1,5 @@
 ---
-description: "Report (check, the default) or resolve (apply) the knowledge plugin's library_dir against the repository's artifact convention and its extraction prerequisites; apply install-deps provisions the extraction node deps and Chromium."
+description: "Report (check, default) or resolve (apply) knowledge library_dir and extraction prerequisites; apply install-deps provisions node deps and Chromium."
 argument-hint: "[check|apply] [install-deps]"
 user-invocable: true
 disable-model-invocation: true

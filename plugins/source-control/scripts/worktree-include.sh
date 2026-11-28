@@ -173,29 +173,72 @@ manifest_rows() {
   done <"$wt_list"
 }
 
+hash_paths() {
+  local root="$1" rel
+  shift
+  for rel; do printf './%s\n' "$rel"; done | git -C "$root" hash-object --no-filters --stdin-paths 2>/dev/null
+}
+
+files_differ() {
+  local cmp_rc
+  cmp -s -- "$1" "$2"
+  cmp_rc=$?
+  ((cmp_rc <= 1)) || die "diff: failed comparing $3" 3
+  ((cmp_rc == 1))
+}
+
 main_rows() {
-  local wt_top="$1" main_root="$2" wt_list="$3" rel cmp_rc
+  local wt_top="$1" main_root="$2" wt_list="$3" rel i j=0
+  local -a rows=() both=() wt_oids=() main_oids=()
   while IFS= read -r -d '' rel; do
     [[ -n "$rel" ]] || continue
     wt_seen["$rel"]=1
     [[ "$rel" != *$'\t'* && "$rel" != *$'\n'* ]] || die "diff: carried file path holds a tab or newline: $rel" 3
     [[ -f "$wt_top/$rel" ]] || continue
     [[ -r "$wt_top/$rel" ]] || die "diff: unreadable worktree file: $wt_top/$rel" 3
-    if [[ -e "$main_root/$rel" ]]; then
-      [[ -f "$main_root/$rel" && -r "$main_root/$rel" ]] || die "diff: unreadable main file: $main_root/$rel" 3
-      cmp -s -- "$wt_top/$rel" "$main_root/$rel"
-      cmp_rc=$?
-      if ((cmp_rc == 1)); then
-        diff_status+=("MODIFIED")
-        diff_rel+=("$rel")
-      elif ((cmp_rc > 1)); then
-        die "diff: failed comparing $rel" 3
-      fi
+    if [[ ! -e "$main_root/$rel" ]]; then
+      rows+=("N$rel")
+      continue
+    fi
+    [[ -f "$main_root/$rel" && -r "$main_root/$rel" ]] || die "diff: unreadable main file: $main_root/$rel" 3
+    if [[ "$rel" == *$'\r' ]]; then
+      ! files_differ "$wt_top/$rel" "$main_root/$rel" "$rel" || rows+=("M$rel")
     else
-      diff_status+=("NEW")
-      diff_rel+=("$rel")
+      both+=("$rel")
+      rows+=("")
     fi
   done <"$wt_list"
+  if ((${#both[@]} > 0)) &&
+    [[ "$(git -C "$wt_top" rev-parse --show-object-format 2>/dev/null)" == "$(git -C "$main_root" rev-parse --show-object-format 2>/dev/null)" ]]; then
+    mapfile -t wt_oids < <(hash_paths "$wt_top" "${both[@]}")
+    mapfile -t main_oids < <(hash_paths "$main_root" "${both[@]}")
+  fi
+  if ((${#wt_oids[@]} != ${#both[@]} || ${#main_oids[@]} != ${#both[@]})); then
+    wt_oids=() main_oids=()
+    for rel in "${both[@]}"; do
+      main_oids+=(same)
+      if files_differ "$wt_top/$rel" "$main_root/$rel" "$rel"; then wt_oids+=(differs); else wt_oids+=(same); fi
+    done
+  fi
+  for i in "${!rows[@]}"; do
+    case "${rows[$i]}" in
+      N*)
+        diff_status+=("NEW")
+        diff_rel+=("${rows[$i]#N}")
+        ;;
+      M*)
+        diff_status+=("MODIFIED")
+        diff_rel+=("${rows[$i]#M}")
+        ;;
+      *)
+        [[ "${wt_oids[$j]}" == "${main_oids[$j]}" ]] || {
+          diff_status+=("MODIFIED")
+          diff_rel+=("${both[$j]}")
+        }
+        ((j += 1))
+        ;;
+    esac
+  done
 }
 
 valid_rel_path() {

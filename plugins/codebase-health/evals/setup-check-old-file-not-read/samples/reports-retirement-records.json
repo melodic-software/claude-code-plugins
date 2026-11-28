@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "| Retired conventions | INFO | codebase-health-r001 .claude/codebase-health.md (report-only); codebase-health-r002 .claude/codebase-health.local.md (report-only) |", "why": "both records in one row" },
+    { "answer": "- codebase-health-r002: .claude/codebase-health.local.md\n- codebase-health-r001: .claude/codebase-health.md", "why": "either order" }
+  ],
+  "fail": [
+    { "answer": "| Retired conventions | INFO | codebase-health-r001 .claude/codebase-health.md (report-only) |", "why": "personal record missing" },
+    { "answer": "| Retired conventions | UNKNOWN | bash unavailable |", "why": "helper not run" }
+  ]
+}

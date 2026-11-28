@@ -3,6 +3,28 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.3.3] - 2026-11-28
+
+### Changed
+
+- `worktree-include.sh diff` compares carried files against the main checkout with two batched `git hash-object` calls in place of one `cmp` per file, in the default diff and in the `--worktree-only` check of a worktree with no carried manifest. Rows and exit codes are unchanged; it falls back to `cmp` when the two repositories use different object formats or a file changes during the run.
+
+- The babysit-prs verdict reader shares a FAIL index's run artifacts across one pr-merge run's gate processes (`BABYSIT_RUN_CACHE`, section `run-artifacts`, for `run_cache.MAX_AGE`) when the set holds a FAIL, noting when it was read. A set with no FAIL is read by every process, since a re-run keeps the run's id. One Merge job made 40 `runs/{id}/artifacts` reads, none shared.
+
+## [15.3.2] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [15.3.1] - 2026-11-28
+
+### Changed
+
+- Comments outside the necessary posture are removed from this plugin's shared library copies, synced from their canonical sources, and from its eval fixtures; no behavior change.
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
 ## [15.3.0] - 2026-11-27
 
 ### Added

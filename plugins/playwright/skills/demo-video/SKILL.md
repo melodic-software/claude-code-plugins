@@ -1,5 +1,5 @@
 ---
-description: "Produce a short demo video of a web UI change for a pull request: explore the flow unrecorded, script and replay it with 4K frame capture, plan the edit (zoom on each action, drawn cursor, click ripples, captions, optional narration), render an H.264 MP4, gate it with frame-measured quality control and an independent frame review, then attach it to the PR. Use when: 'demo video', 'record a demo of this change', 'make a PR video', 'produced walkthrough video', 'produced screen recording of a web flow', 'video proof a UI change works', 'video evidence for the PR'."
+description: "Produce a short PR demo video of a web UI flow: explore unrecorded, replay with 4K capture, edit (zoom, cursor, ripples, captions, optional narration), render H.264 MP4, gate with frame QC and review, and attach to the PR. Use when: 'demo video', 'record a demo of this change', 'make a PR video'. Not for E2E checks: /playwright:playwright."
 argument-hint: "<url or flow to demo> [--style produced|plain]"
 user-invocable: true
 disable-model-invocation: false

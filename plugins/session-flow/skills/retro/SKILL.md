@@ -1,5 +1,5 @@
 ---
-description: "Structured retrospective of a session, or of chosen CI lane runs from their sealed transcripts: transcript metrics, quality across five dimensions, feedback-memory regression check, and codified learnings. Use when: 'retro', 'what did we learn', 'retro these CI runs', 'why did this lane run go wrong', or at end of session. Mid-session: /session-flow:running-retro."
+description: "Structured retrospective of a session or chosen CI lane runs from sealed transcripts: metrics, quality across 5 dimensions, feedback-memory regression check, and codified learnings. Use when: 'retro', 'what did we learn', 'retro these CI runs', why a lane run went wrong, or end of session. Not for mid-session: /session-flow:running-retro."
 argument-hint: "[session [--pattern '<regex>']|quick|ci-runs <run>…] [--sink <dir>] [--unattended]"
 user-invocable: true
 disable-model-invocation: false

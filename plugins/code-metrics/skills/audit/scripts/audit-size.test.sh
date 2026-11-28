@@ -121,21 +121,11 @@ printf 'size:\n  check: report\n' >"$GATE/docs/conventions/code-metrics.local.ya
 out="$(gate --check)"
 assert_eq "a personal override of report wins over the team rule (exit 0)" 0 "$?"
 assert_contains "the report names the personal layer" "$out" "\`size.check\` is \`report\` (local)"
-case "$out" in
-*"old personal override"*) fail "the new personal file alone prints no old-path warning" "no warning" "$out" ;;
-*) pass "the new personal file alone prints no old-path warning" ;;
-esac
 rm -f "$GATE/docs/conventions/code-metrics.local.yaml"
 printf 'size:\n  check: report\n' >"$GATE/.claude/code-metrics.local.yaml"
 out="$(gate --check)"
-assert_eq "an old personal file alone still applies (exit 0)" 0 "$?"
-assert_contains "an old personal file alone is named with its new location" "$out" "/.claude/code-metrics.local.yaml is the old personal override, still read as the personal layer; move it to "
-printf 'size:\n  check: crossing-or-growth\n' >"$GATE/.claude/code-metrics.local.yaml"
-printf 'size:\n  check: report\n' >"$GATE/docs/conventions/code-metrics.local.yaml"
-out="$(gate --check)"
-assert_eq "with both personal files the new one wins (exit 0)" 0 "$?"
-assert_contains "with both personal files the warning names both" "$out" "/docs/conventions/code-metrics.local.yaml exists"
-rm -f "$GATE/.claude/code-metrics.local.yaml" "$GATE/docs/conventions/code-metrics.local.yaml" "$GATE/.gitignore"
+assert_eq "an old personal file alone is not read (exit 1)" 1 "$?"
+rm -f "$GATE/.claude/code-metrics.local.yaml" "$GATE/.gitignore"
 
 team $'  file_lines: 5\n'
 user_file="$GATE_HOME/cfg/code-metrics.yaml"
@@ -145,21 +135,10 @@ printf 'size:\n  check: crossing\n' >"$user_file"
 out="$(gate --check --user-file "$user_file")"
 assert_eq "the option's file alone sets the rule (exit 1)" 1 "$?"
 assert_contains "the report names the userConfig layer" "$out" "Rule \`crossing\` (userConfig)"
-case "$out" in
-*"old user-global file"*) fail "the option's file alone prints no old-path warning" "no warning" "$out" ;;
-*) pass "the option's file alone prints no old-path warning" ;;
-esac
 rm -f "$user_file"
 printf 'size:\n  check: crossing\n' >"$old_user"
 out="$(gate --check)"
-assert_eq "an old user-global file alone still applies (exit 1)" 1 "$?"
-assert_contains "an old user-global file alone supplies the userConfig layer" "$out" "Rule \`crossing\` (userConfig)"
-assert_contains "an old user-global file alone is named with the option" "$out" "$old_user is the old user-global file, still read as the userConfig layer; move it to the file the config_file userConfig option names"
-printf 'size:\n  check: report\n' >"$user_file"
-out="$(gate --check --user-file "$user_file")"
-assert_eq "with both user files the option's file wins (exit 0)" 0 "$?"
-assert_contains "with both user files the report names its rule" "$out" "\`size.check\` is \`report\` (userConfig)"
-assert_contains "with both user files the warning names both" "$out" "$old_user is the old user-global file and is not read because $user_file exists"
+assert_eq "an old user-global file alone is not read (exit 0)" 0 "$?"
 rm -rf "${GATE_HOME:?}/cfg" "${GATE_HOME:?}/.claude"
 
 team $'  file_lines: 50\n  check: crossing\n'
