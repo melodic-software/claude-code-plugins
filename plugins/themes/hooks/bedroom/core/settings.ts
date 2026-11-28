@@ -44,9 +44,18 @@ export const OVERRIDES = ['time', 'date', 'weather', 'lightning', 'sound', 'sign
 export type Override = (typeof OVERRIDES)[number]
 
 let options: PluginOptions = {}
+let enabledCheck: () => boolean = () => true
 /** The options of this activation: a change to them reloads the module. */
 export function useOptions(given: PluginOptions): void {
   options = given
+}
+
+export function useEnabled(check: () => boolean): void {
+  enabledCheck = check
+}
+
+export function isModEnabled(): boolean {
+  return enabledCheck()
 }
 
 function isValid(spec: Spec, value: unknown): boolean {
