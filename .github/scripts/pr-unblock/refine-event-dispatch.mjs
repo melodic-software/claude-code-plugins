@@ -1,6 +1,6 @@
 import { runAsScript } from "../lib/run-main.mjs";
 import { loadTrustedList, trustedListPath } from "../lib/trusted-actors.mjs";
-import { baseHumanGatedLabel, createGitHubApi, loadBaseDocsTargets, loadBaseLimits, loadBaseRefineActivities, loadBaseTidyCutoffs, wrapRunIds } from "./dispatch.mjs";
+import { baseHumanGatedLabel, createGitHubApi, loadBaseDocsPlan, loadBaseLimits, loadBaseRefineActivities, loadBaseTidyCutoffs, wrapRunIds } from "./dispatch.mjs";
 import { RUN_ID } from "./dispatch-record.mjs";
 import { DEFAULTS, dispatchDocsFixes } from "./fix-docs-dispatch.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
@@ -18,7 +18,7 @@ export async function main(
     loadLimits = loadBaseLimits,
     loadTidyCutoffs = loadBaseTidyCutoffs,
     loadActivities = loadBaseRefineActivities,
-    loadDocsTargets = loadBaseDocsTargets,
+    loadDocsPlan = loadBaseDocsPlan,
     readGateLabel = baseHumanGatedLabel,
     readHumans = () => loadTrustedList(trustedListPath(env)).humans,
   } = {},
@@ -58,7 +58,7 @@ export async function main(
   try {
     const limits = await loadLimits(env);
     const tidyCutoffs = await loadTidyCutoffs(env);
-    const docsTargets = await loadDocsTargets(env);
+    const plansDocsFix = await loadDocsPlan(env, log);
     const activities = [...new Set(await loadActivities(env))];
     const unknown = activities.filter((activity) => !REFINE_ACTIVITIES.includes(activity));
     if (unknown.length > 0) {
@@ -80,7 +80,7 @@ export async function main(
         maxDispatch: limits["fix-docs-per-run"] ?? 2,
         maxRunsPerHead: limits["limit-stops-per-head"] ?? DEFAULTS.maxRunsPerHead,
         tidyCutoffs,
-        docsTargets,
+        plansDocsFix,
         gateLabel,
         appSenderId,
       });

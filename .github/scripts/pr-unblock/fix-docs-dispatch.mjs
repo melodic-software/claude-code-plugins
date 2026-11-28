@@ -80,7 +80,7 @@ function laneRunHead(node) {
   return allLaneCommits([rest], `${node.author.login}[bot]`);
 }
 
-export function skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel = null, appSenderId, tidyCutoffs = null, docsTargets = null }) {
+export function skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel = null, appSenderId, tidyCutoffs = null, plansDocsFix = null }) {
   if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
     return "not a ready same-repository PR into the base";
   }
@@ -98,7 +98,7 @@ export function skipReason(node, { base, actionsAppId, checkName, earlierCheckNa
     return "held";
   }
   const paths = (node.files?.nodes ?? []).map((file) => String(file?.path ?? ""));
-  if (docsTargets !== null && !node.files?.pageInfo?.hasNextPage && docsTargets(paths).length === 0) {
+  if (plansDocsFix !== null && !node.files?.pageInfo?.hasNextPage && !plansDocsFix(paths)) {
     return "changes no file pr-refine's fix-docs pass targets";
   }
   const commit = node.commits?.nodes?.[0]?.commit;
@@ -197,7 +197,7 @@ export async function dispatchDocsFixes({
   gateLabel = null,
   appSenderId,
   tidyCutoffs = null,
-  docsTargets = null,
+  plansDocsFix = null,
 }) {
   if (maxDispatch === 0) {
     log("fix-docs is off (fix-docs-per-run: 0)");
@@ -209,7 +209,7 @@ export async function dispatchDocsFixes({
     const { rateLimit, pullRequests } = await api.listDocsFixCandidates({ base, after });
     log(`fix-docs listing page ${page}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
     for (const node of pullRequests.nodes) {
-      const reason = skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel, appSenderId, tidyCutoffs, docsTargets });
+      const reason = skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel, appSenderId, tidyCutoffs, plansDocsFix });
       if (reason.startsWith("head already has") || (reason === "" && isHandled(record, earlierCheckName, node.headRefOid))) {
         markHandled(record, checkName, node.headRefOid);
       } else if (reason === "" && !isHandled(record, checkName, node.headRefOid)) {

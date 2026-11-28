@@ -681,12 +681,31 @@ export async function loadBaseRefineActivities(env) {
   return fromBase(env, "refineDispatchActivitiesFromBase");
 }
 
-export async function loadBaseDocsTargets(env) {
-  const { laneSlots, slotTargets } = await import(new URL("../../actions/resolve-config/resolve.mjs", import.meta.url).href);
-  const slot = laneSlots(await fromBase(env, "configFromBase"), "pr-refine").find((entry) => entry.name === DOCS_FIX_DEFAULTS.activity);
+export async function loadBaseDocsPlan(env, log = (line) => console.log(line)) {
   const ownersPath = `${basePath(env)}/.github/CODEOWNERS`;
   const codeowners = existsSync(ownersPath) ? readFileSync(ownersPath, "utf8") : undefined;
-  return (paths) => (slot?.enabled ? slotTargets(slot, paths, codeowners) : []);
+  return docsPlanFrom(await fromBase(env, "configFromBase"), codeowners, log);
+}
+
+export async function docsPlanFrom(doc, codeowners, log) {
+  const { laneSlots, slotTargets } = await import(new URL("../../actions/resolve-config/resolve.mjs", import.meta.url).href);
+  const { planPasses } = await import(new URL("../pr-refine/plan-passes.mjs", import.meta.url).href);
+  let slots;
+  try {
+    slots = laneSlots(doc, "pr-refine");
+  } catch (error) {
+    if (error.code !== "undefined-lane") {
+      throw error;
+    }
+    log(`::warning::the base config has no pr-refine lane (${error.message}); fix-docs targets nothing and is not dispatched`);
+    return () => false;
+  }
+  if (!slots.some((slot) => slot.name === DOCS_FIX_DEFAULTS.activity)) {
+    log(`::warning::the base config's pr-refine lane has no ${DOCS_FIX_DEFAULTS.activity} slot; fix-docs targets nothing and is not dispatched`);
+    return () => false;
+  }
+  const targetsOf = (slot, paths) => ((slot.activity.inputs ?? []).includes("changed-paths") ? slotTargets(slot, paths, codeowners) : null);
+  return (paths) => planPasses({ slots, changedPaths: paths, targetsOf }).passes.some((pass) => pass.name === DOCS_FIX_DEFAULTS.activity);
 }
 
 export function wrapRunIds(base, env) {

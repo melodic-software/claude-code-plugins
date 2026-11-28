@@ -6,7 +6,8 @@ import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { STANDARDS_FIXTURE } from "../lib/trusted-actors.fixtures.mjs";
-import { createGitHubApi, loadBaseDocsTargets, PULL_QUERY } from "./dispatch.mjs";
+import { configFromBase } from "../../actions/resolve-config/resolve-config.mjs";
+import { createGitHubApi, docsPlanFrom, loadBaseDocsPlan, PULL_QUERY } from "./dispatch.mjs";
 import { main, REFINE_ACTIVITIES } from "./refine-event-dispatch.mjs";
 
 const HEAD = "a".repeat(40);
@@ -57,12 +58,12 @@ function fakeApi({ node = pr(), historyRuns = 0 } = {}) {
   };
 }
 
-async function run(api, { prNumber = "77", limits = {}, sender = "4242", attempt = "1", activities = [] } = {}) {
+async function run(api, { prNumber = "77", limits = {}, sender = "4242", attempt = "1", activities = [], loadDocsPlan = (env, log) => loadBaseDocsPlan(PLANNER_BASE, log) } = {}) {
   const dir = mkdtempSync(join(tmpdir(), "refine-event-"));
   const lines = [];
   try {
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "555", RUN_IDS_FILE: join(dir, "ids"), PR_NUMBER: prNumber, APP_SENDER_ID: "1", SENDER_ID: sender, ...(attempt === null ? {} : { RUN_ATTEMPT: attempt }) };
-    const code = await main(env, { api, log: (line) => lines.push(line), loadLimits: async () => limits, loadTidyCutoffs: async () => null, loadActivities: async () => activities, loadDocsTargets: () => loadBaseDocsTargets(PLANNER_BASE), readGateLabel: () => null, readHumans: () => new Set([4242]) });
+    const code = await main(env, { api, log: (line) => lines.push(line), loadLimits: async () => limits, loadTidyCutoffs: async () => null, loadActivities: async () => activities, loadDocsPlan, readGateLabel: () => null, readHumans: () => new Set([4242]) });
     let ids = "";
     try {
       ids = readFileSync(env.RUN_IDS_FILE, "utf8");
@@ -175,7 +176,7 @@ test("by default the sender check reads the humans of the standards checkout's t
       try {
         const api = fakeApi();
         const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "555", RUN_IDS_FILE: join(dir, "ids"), PR_NUMBER: "77", APP_SENDER_ID: "1", SENDER_ID: sender, RUN_ATTEMPT: "1", BASE_PATH: base, STANDARDS_DIR: join(base, "standards") };
-        assert.equal(await main(env, { api, log: () => {}, loadLimits: async () => ({}), loadTidyCutoffs: async () => null, loadActivities: async () => [], loadDocsTargets: async () => null, readGateLabel: () => null }), 0);
+        assert.equal(await main(env, { api, log: () => {}, loadLimits: async () => ({}), loadTidyCutoffs: async () => null, loadActivities: async () => [], loadDocsPlan: async () => null, readGateLabel: () => null }), 0);
         assert.equal(api.calls.dispatch.length, dispatched, `sender ${sender}`);
       } finally {
         rmSync(dir, { recursive: true, force: true });
@@ -183,7 +184,7 @@ test("by default the sender check reads the humans of the standards checkout's t
     }
     const api = fakeApi();
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "555", RUN_IDS_FILE: join(base, "ids"), PR_NUMBER: "77", APP_SENDER_ID: "1", SENDER_ID: "4242", RUN_ATTEMPT: "1", BASE_PATH: base };
-    const deps = { api, log: () => {}, loadLimits: async () => ({}), loadTidyCutoffs: async () => null, loadActivities: async () => [], loadDocsTargets: async () => null, readGateLabel: () => null };
+    const deps = { api, log: () => {}, loadLimits: async () => ({}), loadTidyCutoffs: async () => null, loadActivities: async () => [], loadDocsPlan: async () => null, readGateLabel: () => null };
     await assert.rejects(main(env, deps), /STANDARDS_DIR is unset/, "with no standards checkout the base's copy, which lists 4242, is not read");
     assert.equal(api.calls.dispatch.length, 0);
   } finally {
@@ -220,6 +221,16 @@ test("a configured activity needs no fix-docs: none due, fix-docs off, or the PR
   const { code } = await run(unread, { activities: ["fix-marker"] });
   assert.equal(code, 0);
   assert.deepEqual(unread.calls.dispatch, [markerDispatch], "the PR read failed");
+});
+
+test("a base config with no pr-refine lane skips fix-docs with a warning and still dispatches a configured activity", async () => {
+  const doc = structuredClone(configFromBase(PLANNER_BASE));
+  delete doc.lanes["pr-refine"];
+  const api = fakeApi();
+  const { code, lines } = await run(api, { activities: ["fix-marker"], loadDocsPlan: (env, log) => docsPlanFrom(doc, undefined, log) });
+  assert.equal(code, 0);
+  assert.deepEqual(api.calls.dispatch, [markerDispatch]);
+  assert.ok(lines.some((line) => line.startsWith("::warning::") && line.includes("no pr-refine lane")));
 });
 
 test("the lanes App's event dispatches fix-docs but no configured activity", async () => {

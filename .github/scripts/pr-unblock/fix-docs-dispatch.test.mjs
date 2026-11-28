@@ -4,7 +4,8 @@ import { fileURLToPath } from "node:url";
 
 import { STANDARDS_FIXTURE } from "../lib/trusted-actors.fixtures.mjs";
 import { emptyRecord, isHandled, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, loadBaseDocsTargets, PULL_QUERY } from "./dispatch.mjs";
+import { configFromBase } from "../../actions/resolve-config/resolve-config.mjs";
+import { createGitHubApi, docsPlanFrom, loadBaseDocsPlan, PULL_QUERY } from "./dispatch.mjs";
 import { dispatchDocsFixes, docsRunState, heldHandoff, heldHead, HISTORY_COMMITS, HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 
 const ACTIONS = 15368;
@@ -15,6 +16,7 @@ const RELEASE_APP = 337859524;
 const STANDARDS_SYNC_APP = 300666570;
 const LANES_APP = 337595936;
 const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
+const baseDoc = () => structuredClone(configFromBase({ BASE_PATH: REPO_ROOT, STANDARDS_DIR: STANDARDS_FIXTURE }));
 
 const checkRun = (name, app = ACTIONS) => ({ __typename: "CheckRun", name, checkSuite: { app: { databaseId: app } } });
 
@@ -143,16 +145,41 @@ test("a run listing that cannot be read, rate-limited or not, defers with a warn
   assert.ok(broken.lines.some((line) => line.startsWith("::warning::") && line.includes("could not be read") && line.includes("404")));
 });
 
-test("a PR is dispatched only when pr-refine's planner would give its fix-docs pass a target; a file list cut off at 100 leaves it to the lane", async () => {
-  const docsTargets = await loadBaseDocsTargets({ BASE_PATH: REPO_ROOT, STANDARDS_DIR: STANDARDS_FIXTURE });
-  const dispatched = async (paths, more = false) => numbers((await run({ pages: [[pr(6, { paths, more })]] }, { docsTargets })).api);
+test("a PR is dispatched only when pr-refine's planner would plan its fix-docs pass; a file list cut off at 100 leaves it to the lane", async () => {
+  const plansDocsFix = await loadBaseDocsPlan({ BASE_PATH: REPO_ROOT, STANDARDS_DIR: STANDARDS_FIXTURE });
+  const dispatched = async (paths, more = false) => numbers((await run({ pages: [[pr(6, { paths, more })]] }, { plansDocsFix })).api);
   for (const paths of [["src/a.js", "README.txt", "notes.mdx"], [".changes/x/f.md"], ["plugins/x/skills/y/SKILL.md"], ["docs/conventions/pr-pipeline/README.md"]]) {
-    assert.deepEqual(docsTargets(paths), [], paths.join());
+    assert.equal(plansDocsFix(paths), false, paths.join());
     assert.deepEqual(await dispatched(paths), [], paths.join());
   }
   assert.deepEqual(await dispatched(["a/b/c.md", ".changes/x/f.md"]), ["6"], "a docs file the pass targets");
   assert.deepEqual(await dispatched(["src/a.js"], true), ["6"], "a cut-off list");
-  assert.deepEqual(numbers((await run({ pages: [[pr(6, { paths: ["src/a.js"] })]] })).api), ["6"], "no planner targets given: no path filter");
+  assert.deepEqual(numbers((await run({ pages: [[pr(6, { paths: ["src/a.js"] })]] })).api), ["6"], "no planner given: no path filter");
+});
+
+test("a fix-docs activity without the changed-paths input is planned on its paths predicate alone, as pr-refine's planner plans it", async () => {
+  const doc = baseDoc();
+  delete doc.activities["fix-docs"].inputs;
+  const plansDocsFix = await docsPlanFrom(doc, undefined, () => {});
+  assert.equal(plansDocsFix(["plugins/x/skills/y/SKILL.md"]), true, "a skill file the changed-paths targets would drop");
+  assert.equal(plansDocsFix([".changes/x/f.md"]), false, "a path the predicate's paths-ignore drops");
+  assert.equal(plansDocsFix(["src/a.js"]), false, "no Markdown file");
+  assert.deepEqual(numbers((await run({ pages: [[pr(6, { paths: ["plugins/x/skills/y/SKILL.md"] })]] }, { plansDocsFix })).api), ["6"]);
+});
+
+test("a base config with no pr-refine lane, or a lane with no fix-docs slot, plans no fix-docs and warns", async () => {
+  const noLane = baseDoc();
+  delete noLane.lanes["pr-refine"];
+  const noSlot = baseDoc();
+  noSlot.lanes["pr-refine"].slots = noSlot.lanes["pr-refine"].slots.filter((slot) => slot.activity !== "fix-docs");
+  for (const [what, doc] of [["no lane", noLane], ["no slot", noSlot]]) {
+    const lines = [];
+    const plansDocsFix = await docsPlanFrom(doc, undefined, (line) => lines.push(line));
+    assert.equal(plansDocsFix(["docs/guide.md"]), false, what);
+    assert.equal(lines.length, 1, what);
+    assert.ok(lines[0].startsWith("::warning::") && lines[0].includes("pr-refine"), what);
+    assert.deepEqual(numbers((await run({ pages: [[pr(6)]] }, { plansDocsFix })).api), [], what);
+  }
 });
 
 test("a draft, a fork, a PR into another base, or a held PR is not dispatched", async () => {
