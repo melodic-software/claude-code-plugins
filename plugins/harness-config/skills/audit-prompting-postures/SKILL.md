@@ -1,5 +1,5 @@
 ---
-description: "Report-only audit of posture guidance an instruction component lacks per official prompting guide: missing delegation criteria, guardrails, stop rules (when to stop), confirm destructive actions. Use when: 'posture audit', 'audit prompting postures', 'is my skill missing guardrails', or align CLAUDE.md. Not for wrong text: audit-instructions."
+description: "Report-only audit of posture guidance an instruction component lacks per official prompting guide: missing delegation criteria, guardrails, stop rules (when to stop), confirm destructive actions. Use when: 'posture audit', 'audit prompting postures', 'is my skill missing guardrails', or align CLAUDE.md. Not for wrong text: /harness-config:audit-instructions."
 argument-hint: "[skills|agents|hooks|output-styles|claude-md|rules|all]"
 disallowed-tools: Edit, NotebookEdit
 user-invocable: true
