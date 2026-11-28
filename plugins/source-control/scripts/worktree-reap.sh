@@ -38,10 +38,24 @@ verdict (remove, keep or review), reason and outcome, and one closing
 {"type":"run"} line. Run and reviews/ files older than 14 days are deleted at
 start. The closing summary is the report for the run's own file.
 
+Platforms: Linux and macOS. Under Windows bash (uname -s MINGW*, MSYS* or
+CYGWIN*) /proc lists only that bash's own processes, so a native Windows
+process holding a worktree is invisible: a reap or --dry-run there refuses with
+exit 3; --report still runs. Without GNU realpath -e, find -printf or timeout
+the script falls back to cd -P, readlink and a shell watchdog; without flock,
+--log takes its lock through perl, and with neither it refuses (exit 2).
+
+Exit status:
+  0  finished with no failed removal, or another run holds the log lock
+  1  a removal failed, or --report found no finished run file
+  2  bad arguments, a missing helper script, or no flock or perl for --log
+  3  refused on Windows bash, which cannot see native Windows processes
+
 Environment seams:
-  WORKTREE_REAP_SCRIPTS    Override the source-control scripts directory.
-  WORKTREE_REAP_PROC_ROOT  Override /proc for process-hold scans (testing).
-  WORKTREE_REAP_NOW        Override current epoch seconds (testing).
+  WORKTREE_REAP_SCRIPTS        Override the source-control scripts directory.
+  WORKTREE_REAP_PROC_ROOT      Override /proc for process-hold scans (testing).
+  WORKTREE_REAP_NOW            Override current epoch seconds (testing).
+  WORKTREE_REAP_FETCH_TIMEOUT  Override the 180-second fetch timeout (testing).
 EOF
 }
 
@@ -250,18 +264,83 @@ if $report_only; then
   exit
 fi
 
+case "$(uname -s 2>/dev/null || true)" in
+  MINGW* | MSYS* | CYGWIN*)
+    printf '%s: refusing to run under Windows bash (%s): it cannot see native Windows processes, so a worktree in use could be removed\n' \
+      "$PROG" "$(uname -s)" >&2
+    exit 3
+    ;;
+  *) ;;
+esac
+
 proc_root="${WORKTREE_REAP_PROC_ROOT:-/proc}"
 now="${WORKTREE_REAP_NOW:-$(date +%s)}"
 [[ "$now" =~ ^[0-9]+$ ]] || {
   printf '%s: WORKTREE_REAP_NOW must be epoch seconds\n' "$PROG" >&2
   exit 2
 }
+fetch_timeout="${WORKTREE_REAP_FETCH_TIMEOUT:-180}"
+[[ "$fetch_timeout" =~ ^[1-9][0-9]*$ ]] || {
+  printf '%s: WORKTREE_REAP_FETCH_TIMEOUT must be a positive integer\n' "$PROG" >&2
+  exit 2
+}
+
+fallbacks=()
+if realpath -e / >/dev/null 2>&1; then
+  canon_dir() { realpath -e -- "$1" 2>/dev/null; }
+else
+  fallbacks+=("realpath -e: cd -P")
+  canon_dir() { [[ -d "$1" ]] && (cd -P -- "$1" 2>/dev/null && pwd -P); }
+fi
+if find / -maxdepth 0 -printf '' >/dev/null 2>&1; then
+  find_printf=true
+else
+  find_printf=false
+  fallbacks+=("find -printf: readlink")
+fi
+timeout_bin=""
+for t in timeout gtimeout; do
+  command -v "$t" >/dev/null 2>&1 && {
+    timeout_bin="$t"
+    break
+  }
+done
+[[ -n "$timeout_bin" ]] || fallbacks+=("timeout: shell watchdog")
+with_timeout() {
+  local secs="$1" pid dog rc
+  shift
+  if [[ -n "$timeout_bin" ]]; then
+    "$timeout_bin" "$secs" "$@"
+    return
+  fi
+  "$@" &
+  pid=$!
+  (
+    sleep "$secs"
+    kill -TERM "$pid"
+  ) >/dev/null 2>&1 &
+  dog=$!
+  wait "$pid"
+  rc=$?
+  kill "$dog" 2>/dev/null
+  wait "$dog" 2>/dev/null
+  return "$rc"
+}
 
 if $use_log; then
+  if command -v flock >/dev/null 2>&1; then
+    lock_fd9() { flock -n 9; }
+  elif command -v perl >/dev/null 2>&1; then
+    fallbacks+=("flock: perl")
+    lock_fd9() { perl -MFcntl=:flock -e 'open(my $fh, ">&=", 9) or exit 2; flock($fh, LOCK_EX | LOCK_NB) or exit 1'; }
+  else
+    printf '%s: --log needs flock or perl to hold its lock; install one or pass --no-log\n' "$PROG" >&2
+    exit 2
+  fi
   mkdir -p "$(dirname -- "$log")"
   exec > >(tee -a "$log") 2>&1
   exec 9>"$log.lock"
-  if ! flock -n 9; then
+  if ! lock_fd9; then
     printf '%s another reap run holds %s; exiting\n' "$(date -Is)" "$log.lock"
     exit 0
   fi
@@ -294,7 +373,7 @@ roots=()
 declare -A seen_roots=()
 for r in "${raw_roots[@]}"; do
   resolved=""
-  if resolved="$(realpath -e -- "$r" 2>/dev/null)" && [[ -d "$resolved" ]]; then
+  if resolved="$(canon_dir "$r")" && [[ -d "$resolved" ]]; then
     if [[ -z "${seen_roots[$resolved]+x}" ]]; then
       seen_roots["$resolved"]=1
       roots+=("$resolved")
@@ -324,6 +403,10 @@ roots_display="$(
 )"
 printf '%s start (%s): roots %s, reap age %s h, idle %s m, scripts %s\n' \
   "$(date -Is)" "$mode" "$roots_display" "$hours" "$idle_minutes" "$scripts"
+((${#fallbacks[@]} == 0)) || printf '  tool fallbacks: %s\n' "$(
+  IFS=,
+  printf '%s' "${fallbacks[*]}"
+)"
 avail_before=$(df -Pk -- "${roots[0]}" | awk 'NR==2 {print $4}')
 
 scan_proc_targets_z() {
@@ -331,7 +414,14 @@ scan_proc_targets_z() {
     shopt -s nullglob
     local -a entries=("$proc_root"/[0-9]*/cwd "$proc_root"/[0-9]*/fd/*)
     ((${#entries[@]} > 0)) || exit 0
-    find "${entries[@]}" -maxdepth 0 -type l -printf '%l\0' 2>/dev/null || true
+    if $find_printf; then
+      find "${entries[@]}" -maxdepth 0 -type l -printf '%l\0' 2>/dev/null || true
+    else
+      local e t
+      for e in "${entries[@]}"; do
+        [[ -L "$e" ]] && t="$(readlink -- "$e" 2>/dev/null)" && printf '%s\0' "$t"
+      done
+    fi
   )
 }
 
@@ -373,7 +463,7 @@ for entries in (d.get("plugins") or {}).values():
   }
   while IFS= read -r p; do
     [[ -n "$p" ]] || continue
-    p_canon="$(realpath -e -- "$p" 2>/dev/null)" || p_canon="$p"
+    p_canon="$(canon_dir "$p")" || p_canon="$p"
     plugin_records["$p_canon"]=$((${plugin_records["$p_canon"]:-0} + 1))
   done < <(read_plugin_paths)
 fi
@@ -385,7 +475,7 @@ for r in "${roots[@]}"; do
     gitdir="$(sed -n 's/^gitdir: //p' "$gitfile")"
     common="${gitdir%/worktrees/*}"
     [[ "$common" == */.git && -d "$common" ]] || continue
-    repo_root="$(realpath -e -- "${common%/.git}" 2>/dev/null)" || repo_root="${common%/.git}"
+    repo_root="$(canon_dir "${common%/.git}")" || repo_root="${common%/.git}"
     repos["$repo_root"]=1
   done < <(
     shopt -s nullglob
@@ -582,7 +672,7 @@ repo_keep() {
   local repo="$1" why="$2" wpath whead wbranch _b wlinked _rest real
   while IFS=$'\t' read -r wpath whead wbranch _b wlinked _rest; do
     [[ "$wpath" == path || "$wlinked" != yes ]] && continue
-    real="$(realpath -e -- "$wpath" 2>/dev/null)" || real="$wpath"
+    real="$(canon_dir "$wpath")" || real="$wpath"
     path_under_any_root "$real" || continue
     set_fact "$real" worktree-reap repo "$why"
     keep_row "$real" "$repo" "${wbranch#refs/heads/}" "$whead"
@@ -611,7 +701,7 @@ for repo in "${repo_list[@]}"; do
   else
     git -C "$repo" worktree prune --verbose
   fi
-  if ! timeout 180 git -C "$repo" fetch --prune --no-tags --quiet origin; then
+  if ! with_timeout "$fetch_timeout" git -C "$repo" fetch --prune --no-tags --quiet origin; then
     phase_add fetch "$t0"
     printf '  skip repo: fetch from origin failed or timed out; its worktrees are left alone\n'
     repo_keep "$repo" fetch-failed
@@ -645,7 +735,7 @@ for repo in "${repo_list[@]}"; do
     [[ "$path" == path || "$linked" != yes ]] && continue
     branch="${branch#refs/heads/}"
     raw="$path"
-    if [[ ! -d "$path" ]] || ! path="$(realpath -e -- "$path" 2>/dev/null)"; then
+    if [[ ! -d "$path" ]] || ! path="$(canon_dir "$path")"; then
       path_under_any_root "$raw" || continue
       set_fact "$raw" worktree-reap missing yes
       keep_row "$raw" "$repo" "$branch" "$head"

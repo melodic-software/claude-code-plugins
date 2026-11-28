@@ -42,6 +42,9 @@ test-windows-lib plugins/kindle-dedrm/skills/manage/tests plugins/kindle-dedrm/*
 test-windows-worktree plugins/source-control/scripts/worktree-claim.test.sh
 test-windows-worktree plugins/source-control/scripts/lib/worktree-facts.test.sh
 test-windows-worktree plugins/source-control/scripts/worktree-root-scan.test.sh
+test-windows-worktree plugins/source-control/scripts/worktree-reap.test.sh
+test-windows-worktree plugins/source-control/scripts/worktree-include.test.sh
+test-windows-worktree plugins/source-control/scripts/landed-work.test.sh
 test-windows-worktree plugins/playbooks/skills/repo-sweep/scripts/tick.test.sh
 test-windows-worktree plugins/playbooks/skills/repo-sweep/scripts/state.test.sh
 test-windows-worktree plugins/planning/shared/tests/test_server.py plugins/planning/shared/tests/test_s*.py plugins/planning/shared/tests/test_tunnel.py plugins/planning/shared/*.py plugins/planning/shared/tests/support.py

@@ -369,6 +369,15 @@ jobs:
       - name: Test the worktree root scan on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/source-control/scripts/worktree-root-scan.test.sh')
         run: bash plugins/source-control/scripts/worktree-root-scan.test.sh
+      - name: Test the worktree reap refusal on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/source-control/scripts/worktree-reap.test.sh')
+        run: bash plugins/source-control/scripts/worktree-reap.test.sh
+      - name: Test the worktree carried-file helper on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/source-control/scripts/worktree-include.test.sh')
+        run: bash plugins/source-control/scripts/worktree-include.test.sh
+      - name: Test the landed-work engine on Windows
+        if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/source-control/scripts/landed-work.test.sh')
+        run: bash plugins/source-control/scripts/landed-work.test.sh
       - name: Test the repo-sweep tick script on Windows
         if: contains(fromJSON(needs.select-tests-windows.outputs.steps), 'plugins/playbooks/skills/repo-sweep/scripts/tick.test.sh')
         run: bash plugins/playbooks/skills/repo-sweep/scripts/tick.test.sh
