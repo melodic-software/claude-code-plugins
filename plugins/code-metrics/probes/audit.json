@@ -1,0 +1,33 @@
+{
+  "skill": "code-metrics:audit",
+  "plugin": "code-metrics",
+  "skill_dir": "plugins/code-metrics/skills/audit",
+  "competitors": [
+    "code-metrics:audit-coverage",
+    "code-metrics:audit-duplication",
+    "code-metrics:audit-suppressions",
+    "code-metrics:principles"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "count line lengths for the files modified on my branch"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "check per-function cyclomatic and cognitive complexity in src/"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "measure TypeScript type-debt and count any usage across changed files"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "run the file size check mode against our configured line reference"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "report Halstead difficulty numbers for every function in this module"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "what percentage of our Python code is typed according to mypy"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "find which modified source files cross the 1000-line size reference"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "audit function complexity metrics across the entire repository"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "measure typed-code ratio in the diff with type-coverage"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "list line counts for every text file under packages/api"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "read coverage/lcov.info and compute CRAP scores per function"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "detect duplicated clone blocks across my branch changes"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "list all eslint-disable and noqa suppressions lacking a reason"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "explain why the bundled cyclomatic complexity reference is 20"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "is CRAP a validated predictor of change risk or just a formula"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "count copy-paste code clones while excluding sanctioned registries"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "parse coverage.xml to see which functions are complex and untested"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "audit @ts-expect-error and type: ignore directives added in this diff"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "what is the difference between cyclomatic and cognitive complexity"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "find redundant duplicated code lines across the tree"}
+  ]
+}

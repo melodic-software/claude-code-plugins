@@ -1,6 +1,6 @@
 ---
 # portability-ok: R6 kept-adapter operation - audit-suppressions.sh C# patterns
-description: "List every lint and type-checker suppression in a change, a path, or the tree (`--all`): eslint-disable, @ts-expect-error, noqa, type: ignore, pylint, pyright, shellcheck disable, C# pragmas and SuppressMessage, nolint, PowerShell SuppressMessageAttribute, markdownlint, rubocop, @SuppressWarnings; and the directives that switch off the evidence a quality bar relies on: coverage exclusions (istanbul, c8, coverage.py), mutation-testing exclusions (Stryker), security-scanner suppressions (bandit nosec, nosemgrep, gitleaks allow). Each row names its rule ids, its reason, and whether it is justified; listed correctness rules are marked. Reports, never gates. Use when: 'how many suppressions', 'find eslint-disable comments', 'which noqa have no reason', 'suppressions added in this change', 'audit lint suppressions', 'count suppressions to ratchet'. Complexity: /code-metrics:audit complexity."
+description: "List lint/type/coverage/mutation/security suppressions (change, path, tree): eslint-disable, @ts-expect-error, noqa, type: ignore, shellcheck, pragma, nolint, markdownlint, rubocop, c8, Stryker, nosec, nosemgrep, gitleaks; rule ids, reason, justified, correctness. Reports, never gates. Use when: 'audit lint suppressions', 'count suppressions'."
 argument-hint: "[--json|--findings [--memory-dir <dir>]] [--all] [--base <ref>] [<path>...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
