@@ -1402,6 +1402,7 @@ CARRIED_RUN_SECTION = "carried-run-record"
 CARRIED_RECORD_SECTION = "carried-fail-head-ref"
 CARRIED_ON_BRANCH = "carried-on-branch"
 UNREAD_RECORD_SECTION = "unreadable-fail-head-ref"
+DRAFT_JUDGMENT_SECTION = "draft-judgment"
 RUN_ARTIFACTS_SECTION = "run-artifacts"
 RUN_FIELDS = (
     "id",
@@ -4548,13 +4549,21 @@ class Reader:
         completes, so the run it judged is among them. The verifier run's
         creation is read fresh (`_fresh_created`), so no carried record can
         turn a FAIL away. A failed read, a list cut short, a time that cannot
-        be read, or no run before it answers False: the FAIL counts."""
+        be read, or no run before it answers False: the FAIL counts. An answer
+        read whole is shared by the run's gate processes, however long ago:
+        it rests on runs at a fixed head created before a fixed run."""
         key = (sha, run_id)
         if key not in self._draft_judgments:
-            try:
-                self._draft_judgments[key] = self._judged_a_draft(sha, run_id)
-            except _Unreadable:
-                self._draft_judgments[key] = False
+            shared_key = f"{self.repo}|{sha}|{run_id}"
+            judged = run_cache.get(DRAFT_JUDGMENT_SECTION, shared_key, None)
+            if not isinstance(judged, bool):
+                try:
+                    judged = self._judged_a_draft(sha, run_id)
+                except _Unreadable:
+                    judged = False
+                else:
+                    run_cache.put(DRAFT_JUDGMENT_SECTION, shared_key, judged)
+            self._draft_judgments[key] = judged
         return self._draft_judgments[key]
 
     def _judged_a_draft(self, sha: str, run_id: int) -> bool:
@@ -4570,17 +4579,21 @@ class Reader:
         )
         runs = listed.get("workflow_runs")
         if not is_json_array(runs) or listed.get("total_count") != len(runs):
-            return False
+            raise _Unreadable(
+                f"the checks runs at {sha[:12]} could not be listed whole"
+            )
         created = self._fresh_created(run_id)
         if created is None:
-            return False
+            raise _Unreadable(f"run {run_id}'s creation time could not be read")
         before: list[Any] = []
         for checks in map(json_object, runs):
             try:
                 if postmerge._time(checks.get("created_at")) < created:
                     before.append(checks.get("id"))
-            except postmerge.PostMergeReadError:
-                return False
+            except postmerge.PostMergeReadError as exc:
+                raise _Unreadable(
+                    f"a checks run at {sha[:12]} has no readable creation time"
+                ) from exc
         return bool(before) and all(self._draft_run(i) for i in before)
 
     def _draft_run(self, run_id: Any) -> bool:
@@ -4589,11 +4602,11 @@ class Reader:
         as `success` (a draft's run) or `skipped` (not), a condition that
         reads the run's own event, which a re-run keeps. The jobs API can list
         a finished job's steps empty or cut short (pr-require-checks.yml's
-        ci-status notes), so anything else raises `_Unreadable`: jobs not read
-        whole, no one ci-status job, the step not listed once, or no such
+        ci-status notes), so anything else raises `_Unreadable`: an id that is
+        not an integer, jobs not read whole, no one ci-status job, the step not listed once, or no such
         conclusion (resolve-pr.mjs `draftRun`)."""
         if type(run_id) is not int:
-            return False
+            raise _Unreadable(f"a checks run lists the id {run_id!r}")
         if run_id not in self._draft_runs:
             listed = json_object(
                 self._actions(
