@@ -3,6 +3,12 @@
 All notable changes to the `spelling` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.4.6] - 2026-11-28
+
+### Changed
+
+- References to the standards concern file name `docs/conventions/standards.yaml` (standards contract 2.0.0), in place of `.claude/standards.yaml`.
+
 ## [3.4.5] - 2026-11-28
 
 ### Changed

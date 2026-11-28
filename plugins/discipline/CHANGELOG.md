@@ -5,6 +5,12 @@ All notable changes to the `discipline` plugin are documented here. Format follo
 
 Entries below `0.9.0` were released under the plugin's former name, `re-anchor`.
 
+## [0.31.9] - 2026-11-28
+
+### Changed
+
+- References to the standards concern file name `docs/conventions/standards.yaml` (standards contract 2.0.0), in place of `.claude/standards.yaml`.
+
 ## [0.31.8] - 2026-11-28
 
 ### Changed
