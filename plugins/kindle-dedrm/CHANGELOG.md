@@ -3,6 +3,12 @@
 All notable changes to the `kindle-dedrm` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.8.38] - 2026-11-28
+
+### Changed
+
+- Trimmed `kindle-dedrm` skill frontmatter descriptions (`manage` 621 -> 339 chars, `setup` 618 -> 148 chars; total 1239 -> 487 chars, -752 chars) while preserving Windows-only personal-use owned-book scope, all actions, per-item cleanup confirmation, and `/kindle-dedrm:setup` delegation.
+
 ## [0.8.37] - 2026-11-26
 
 ### Changed
