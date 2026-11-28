@@ -1131,3 +1131,4 @@ lib/resolve-convention-home.sh plugins/engineering-concepts/lib/resolve-conventi
 lib/prerequisites.mjs plugins/engineering-concepts/lib/prerequisites.mjs
 lib/prerequisites.sh plugins/engineering-concepts/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/engineering-concepts/lib/prerequisites.ps1
+lib/hook-enabled.mjs plugins/discovery/lib/hook-enabled.mjs
