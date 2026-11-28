@@ -57,8 +57,7 @@ the home `findings-artifact.md` defines. Memory tier and checkout-local, which i
 spine is recomputed next run, and one from another checkout describes a tree this one lacks.
 
 **The suppression surface** is where an operator's decline lives: the tracked
-`<home>/instruction-placement.yaml`, resolved across its cascade layers, old paths included while
-they exist, with the old-path warning printed for each. `<home>` is the convention home that the
+`<home>/instruction-placement.yaml`, resolved across its cascade layers. `<home>` is the convention home that the
 marked pointer region in the root `AGENTS.md` or `CLAUDE.md` binds, `docs/conventions` when no
 region binds one, not the memory-tier home the baseline lives under
 ([`${CLAUDE_PLUGIN_ROOT}/reference/consumer-config.md`](../../reference/consumer-config.md) "Layers
@@ -123,8 +122,7 @@ else noticing between `check` runs.
 Each step names what "done" looks like, so a partial run is visible rather than assumed complete.
 
 1. Resolve the home, read this branch's spine baseline and findings artifact,
-   and resolve the suppression surface across its layers, old paths included while they exist,
-   printing the old-path warning for each; a missing surface is the ordinary
+   and resolve the suppression surface across its layers; a missing surface is the ordinary
    no-suppressions state. All four baseline/artifact combinations resolve explicitly, none an error:
 
    | Baseline | Artifact | Disposition |

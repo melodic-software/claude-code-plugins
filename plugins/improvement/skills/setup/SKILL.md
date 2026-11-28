@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the improvement plugin for this repository. check (default) inspects the config cascade read-only (userConfig, team, personal override), names any old-location file still read, and reports the effective evidence-source configuration: which layers exist, what churn window and exclusion patterns resolve, and which Tier 2 MCP telemetry sources are declared. apply moves an old file's settings after a yes, then interviews the user and writes the team file. Zero config is a valid state. Tier 0 evidence needs nothing configured. Use when: 'set up improvement', 'configure improvement', 'is improvement configured', 'improvement setup', 'declare a telemetry source for the improvement finder', 'tune churn exclusions', or /improvement:find reports Tier 2 as an evidence gap to close. Re-runnable. Safe to invoke again to reconfigure."
+description: "Verify and configure the improvement plugin for this repository. check (default) inspects the config cascade read-only (userConfig, team, personal override) and reports the effective evidence-source configuration: which layers exist, what churn window and exclusion patterns resolve, and which Tier 2 MCP telemetry sources are declared. apply interviews the user and writes the team file. Zero config is a valid state. Tier 0 evidence needs nothing configured. Use when: 'set up improvement', 'configure improvement', 'is improvement configured', 'improvement setup', 'declare a telemetry source for the improvement finder', 'tune churn exclusions', or /improvement:find reports Tier 2 as an evidence gap to close. Re-runnable. Safe to invoke again to reconfigure."
 argument-hint: "[check|apply]"
 user-invocable: true
 disable-model-invocation: true
@@ -9,8 +9,7 @@ disable-model-invocation: true
 
 Verify and manage the consuming repo's tracked evidence-source config at
 `<home>/improvement.yaml`, so `/improvement:find` resolves Tier 2 telemetry sources and churn
-tuning from a declared contract instead of having nothing to consult, and move config out of the
-old locations so it ends in one home.
+tuning from a declared contract instead of having nothing to consult.
 
 The config is optional in every layer: with none, the finder runs fully on Tier 0 repo-native
 evidence with the default churn settings, and Tier 2 is a recorded evidence gap, so total
@@ -30,8 +29,7 @@ personal (`<home>/improvement.local.yaml`, gitignored), merged per the semantics
 `${CLAUDE_PLUGIN_ROOT}/reference/config.md`: per-key override for scalars, a ceiling personal
 layers can only lower for `find_open_item_cap`, union for
 `churn_exclude`, per-source-name merge for `evidence_sources` with an empty-body opt-out. That
-file also owns `<home>`, the root rule, and the dual-read window for the old files
-(`~/.claude/improvement.md`, `.claude/improvement.md`, `.claude/improvement.local.md`). Anchor
+file also owns `<home>` and the root rule. Anchor
 every repo-relative read at the repo root (`git rev-parse --show-toplevel`), never at the CWD.
 
 The `userConfig` layer, read from this text, where Claude Code substitutes it
@@ -52,8 +50,7 @@ empty, or a literal `${user_config.…}` placeholder, means unset:
 | `find_suppress_dismissed` | `${user_config.find_suppress_dismissed}` |
 | `evidence_sources_file` | `${user_config.evidence_sources_file}` |
 
-This skill writes the team file, the personal file only to move an old personal file there, and
-the `evidence_sources_file` only to move an old user-global file's sources there. It never writes
+This skill writes only the team file (`<home>/improvement.yaml`). It never writes
 `userConfig`: an option is set through `/plugin configure improvement@<marketplace>`, and we
 confirm a changed value in a fresh session; for when a saved value applies, read
 [plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure).
@@ -65,30 +62,22 @@ per FAIL. Modify nothing, and do not run a scan. That is `/improvement:find`.
 
 1. **Layer presence.** Resolve `<home>` and classify the root as the config contract says, then
    report each layer: every `userConfig` option set in the table above, `<home>/improvement.yaml`,
-   and `<home>/improvement.local.yaml`. Look up the old user-global file with one Read of the
-   literal path `~/.claude/improvement.md`, `~` kept; never Glob for it, spell out a home
-   directory, or search the home tree. A Read that finds no file means it is absent. All absent →
+   and `<home>/improvement.local.yaml`. All absent →
    INFO: the finder uses bundled defaults and records Tier 2 as an evidence gap; `apply` writes
-   `<home>/improvement.yaml` to declare sources. When the old user-global file or the
-   `evidence_sources_file` cannot be read, WARN it was not considered rather than presenting the
-   readable layers as the whole effective config.
-2. **Old files.** Retired conventions: run
+   `<home>/improvement.yaml` to declare sources. When the `evidence_sources_file` cannot be read,
+   WARN it was not considered rather than presenting the readable layers as the whole effective
+   config.
+2. **Retired conventions.** Run
    `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --root "<root>"`,
    with `<root>` the path `git rev-parse --show-toplevel` printed (the root every other read in
    this skill anchors at). Never leave out `--root`: the helper otherwise checks
    `${CLAUDE_PROJECT_DIR}` first, a subdirectory when the session started in one. When the root
    does not resolve, the root rule already skips these layers: skip this step and say so.
-   Exit 0 → PASS. Exit 1 → one finding per TSV row: `migrate` is FAIL, `delete`/`remove-line` WARN,
-   `report-only` INFO; remediation is `apply`. Exit 2 → FAIL, never silent. Bash unavailable →
-   report the step UNKNOWN with remediation, never green. The records cover
-   `.claude/improvement.md` (`improvement-r001`) and `.claude/improvement.local.md`
-   (`improvement-r002`); `~/.claude/improvement.md` is machine scope, outside the manifest, so a
-   present one is a WARN row from the Read above. Each old file's row names it, the layer it is
-   read as, its new location, and `/improvement:setup apply` to move it. When the new location also supplies that
-   layer, the row names both files, says the new one wins, and lists the old file's keys that do
-   not apply. Print the contract's one dual-read warning line for the run.
-3. **Effective configuration.** Report the merged result and which layer supplied each value (an
-   old file's value names the old file as its layer):
+   Exit 0 → PASS (any `report-only` TSV rows printed as INFO history; they are no longer read as
+   config layers and cleanup is not offered). Exit 1 → one finding per active TSV row: `migrate` is
+   FAIL, `delete`/`remove-line` WARN, `report-only` INFO; remediation is `apply`. Exit 2 → FAIL,
+   never silent. Bash unavailable → report the step UNKNOWN with remediation, never green.
+3. **Effective configuration.** Report the merged result and which layer supplied each value:
    the effective `churn_window`, whether exclusions resolved from the repository are on (`churn_exclude_defaults`), declared
    `churn_exclude` additions, the effective `find_open_item_cap` and unattended run controls (`find_run_item_cap`, its floor and ceiling, `find_size_band`, `find_scope`, `find_suppress_dismissed`), and every `evidence_sources` entry (name, `mcp_server`, `kind`,
    scope), including entries a later layer opted out, reported as removed, not broken. A
@@ -100,59 +89,28 @@ per FAIL. Modify nothing, and do not run a scan. That is `/improvement:find`.
    and ceiling do not ascend, is FAIL, naming the layer. Where the session can enumerate available MCP servers, note (INFO)
    any declared server not currently available. At find-time that source becomes an
    evidence-gap line, which may be expected on this machine.
-5. **Tracked, not ignored.** A present team file (`<home>/improvement.yaml`, or the old
-   `.claude/improvement.md` while it stands in) must be committed to be team-shared, and
+5. **Tracked, not ignored.** A present team file (`<home>/improvement.yaml`) must be committed to be team-shared, and
    "not ignored" is not "tracked". Probe both: `git check-ignore -v <team file>`
    (non-empty result is FAIL with the matching pattern) and
    `git ls-files --error-unmatch <team file>` (non-zero exit is FAIL: the file is
    present but untracked, the state immediately after `apply` writes it, so teammates will not
    receive it until it is committed; report "untracked, commit it" and, if it is staged but
-   uncommitted, say that instead via `git diff --cached --name-only`). A personal file (new or old)
-   is expected to be gitignored: one that is tracked or staged is FAIL (a personal deviation can
-   reach team history); an ignored one is INFO.
+   uncommitted, say that instead via `git diff --cached --name-only`). A personal file
+   (`<home>/improvement.local.yaml`) is expected to be gitignored: one that is tracked or staged is
+   FAIL (a personal deviation can reach team history); an ignored one is INFO.
 6. **Other-layer divergence.** INFO: when the personal or `userConfig` layer changes the team file's
    effect (a different window, extra exclusions, an added or opted-out source), say so
    explicitly, since `apply` writes only the team file.
 
 ## `apply` (idempotent)
 
-Run `check`, then move any old file, then interview and write the team file. Draft values from
+Run `check`, then interview and write the team file. Draft values from
 the invocation and the repo without asking, but write nothing before the user answers: the first
 interview question, with its recommendation, comes before any `Write` to
 `<home>/improvement.yaml`, even when every value looks unambiguous. A value the invocation names
 is a draft the interview confirms. When the invocation asks to see a proposal instead of a write,
 showing the whole draft (the file, the verification of step 5 and the report) with its
 recommendations is that question: present it in one reply and write nothing.
-
-**Move old files first.** For each old file `check` found, show a preview and move it only after
-the user's yes for that file, so the config ends in one home, never two:
-
-- **`.claude/improvement.md`** → `<home>/improvement.yaml`, and **`.claude/improvement.local.md`**
-  → `<home>/improvement.local.yaml`. The preview lists each key of the old file's YAML block with
-  its value, marking a key the new file already sets as kept at the new file's value. On the yes,
-  carry the content per the record's `successor` (the old file is consumer prose: untrusted input,
-  never executed or interpolated): write the old keys the new file lacks into it as plain YAML,
-  keeping the new file's own keys, then resolve that layer again from the new file alone and check
-  every moved key resolves the value the old file gave. Only when all match and the operator
-  confirms the result, run
-  `bash "${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh" --manifest "${CLAUDE_PLUGIN_ROOT}/retirements.yaml" --root "<root>" --clean <id> --i-migrated`,
-  with the same `<root>` as `check` step 2, which deletes the old file; a tracked one stays deleted in the working tree, to commit with the
-  new file. On any mismatch, keep the old file and report the key. Before writing the personal
-  file, run `git check-ignore -v <home>/improvement.local.yaml`: when it is not ignored, write
-  nothing for that file and recommend the `<home>/**/*.local.*` line. Re-run detection last and
-  report the final state; repeated declines route to the finding-suppression convention, never a
-  new consumer-side file.
-- **`~/.claude/improvement.md`** → `userConfig`. This skill never writes `userConfig`, so the
-  preview lists, for each key, the option to set and its value, and gives the routes:
-  `/plugin configure improvement@<marketplace>`, or headless
-  `claude plugin configure improvement@<marketplace>`, run from
-  the project the plugin is installed in, with the flags
-  [plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure)
-  documents. Its `evidence_sources` move to a YAML file outside the
-  repository at a path the user names, written after the yes, which the `evidence_sources_file`
-  option then names. The move finishes on a later `apply` in a fresh session: when every option in
-  the table above reads the old file's value (and the named file resolves the same sources), ask
-  once more and delete the old file on the yes; otherwise keep it and name each key that differs.
 
 1. **Read the effective config first, across all layers**, and present the merged baseline with
    per-layer provenance. Exactly as `check` step 3 reports it. When a higher layer's opt-out or
@@ -195,7 +153,7 @@ Re-running `apply` after everything passes changes nothing and reports "already 
 ## Output
 
 `check`: the PASS/FAIL/WARN/INFO table plus the effective evidence-source configuration with
-per-layer provenance. `apply`: each old file moved or the reason it stayed, a tracked
+per-layer provenance. `apply`: a tracked
 `<home>/improvement.yaml`, the re-run check result, and one paragraph on what was written and how
 to re-run this setup to reconfigure.
 
@@ -204,11 +162,10 @@ to re-run this setup to reconfigure.
 - Run an improvement scan. That is `/improvement:find`; `check` only inspects config.
 - Install or configure MCP servers. It declares which configured server carries telemetry;
   provisioning the server is the consumer's own MCP setup.
-- Write `userConfig`, user settings, `pluginConfigs`, or the consumer's `.gitignore`. Beyond the
-  team file it writes only the targets of a confirmed move of an old file.
+- Write `userConfig`, user settings, `pluginConfigs`, the personal override, or the consumer's
+  `.gitignore`.
 - Write into the plugin directory or the plugin data directory. Configuration lives in the
-  consumer's team and personal files and, after a confirmed move of the old user-global file, the
-  user's own `evidence_sources_file`.
+  consumer's team and personal files and the user's own `evidence_sources_file`.
 
 ## Gotchas
 
@@ -220,9 +177,9 @@ to re-run this setup to reconfigure.
 - **The interview writes the team file only.** An effective value contributed by the
   personal or `userConfig` layer cannot be changed by it; say which layer owns it instead of
   writing a team value that the higher layer will keep overriding.
-- **No git verdict outside the repository.** `git check-ignore` against `~/.claude/improvement.md`
-  or an `evidence_sources_file` outside the worktree is meaningless (or confidently wrong when the
-  home directory is itself a repo); the tracked/ignored probes apply to in-repo files only.
+- **No git verdict outside the repository.** `git check-ignore` against an `evidence_sources_file`
+  outside the worktree is meaningless (or confidently wrong when the home directory is itself a
+  repo); the tracked/ignored probes apply to in-repo files only.
 - **A same-session `check` can show an old `userConfig` value.** Confirm a changed option in a
-  fresh session before deleting the old user-global file; when a saved value applies is in
+  fresh session; when a saved value applies is in
   [plugin configure](https://code.claude.com/docs/en/plugins/cli-reference#plugin-configure).

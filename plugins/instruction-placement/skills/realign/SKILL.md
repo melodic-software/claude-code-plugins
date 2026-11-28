@@ -101,10 +101,6 @@ in the table above. Do not invent a format here. Four rules bind the write:
   shown entry. Never write `~/.claude/**`, an old path, or the `.local.yaml` personal override: a
   personal-layer entry the team layer does not carry is reported `personal-only, not applied` and
   suppresses nothing, so writing one would look like recording a decision while recording none.
-  When the old `.claude/instruction-placement.md` still supplies the team layer, ask the operator to
-  run `/instruction-placement:setup apply migrate-config` first: an entry written to the new file
-  alone makes the old file's entries stop applying. If they decline, write the new file and name
-  each old entry that stops applying.
 - **Say that it needs committing.** The file is tracked, and an uncommitted entry has reached no
   other worktree yet. Name that rather than implying the decision is already everywhere.
 
@@ -145,8 +141,7 @@ to another path or another branch's artifact: findings cite line ranges, and a r
 elsewhere points at different text here. Name such a file a leftover and run a fresh audit instead.
 
 Then, **before the first finding is presented**, resolve `<home>/instruction-placement.yaml` across
-its layers, old paths included while they exist, with the old-path warning printed for each
-(`consumer-config.md` "Layers and merge semantics"), and drop every finding the merged surface
+its layers (`consumer-config.md` "Layers and merge semantics"), and drop every finding the merged surface
 covers, reporting each as suppressed with its reason, date, and contributing layer. Match on the `finding_id` the artifact's `Suppression key`
 already carries; **do not derive one here.** This skill has no detector stream, and a second
 derivation is a second heading parse whose disagreement produces a decline nothing ever matches.

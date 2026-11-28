@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: dl-old-team-path-not-read
+graders:
+  - name: 'both-candidates-reported'
+    type: 'regex'
+    pattern: '^(?![\s\S]*(?<!\bno )(?<!\bnot )(?<!\bun)(?<!\b0 )\bsuppress(?:ed|ing|es)\b[^\n]{0,80}?\bDeploy conventions\b)(?![\s\S]*\bDeploy conventions\b[^\n]{0,40}?(?<!\bnot )(?<!\bun)(?<!\b0 )\bsuppressed\b)(?=[\s\S]*\bDeploy conventions\b)[\s\S]*\bLint rules\b'
+    flags: 'im'
+    target: 'last_message'
+  - name: 'meets-expectations'
+    type: 'llm'
+    criteria: 'Read the reply as the account of what the delta run does when only the old .claude/instruction-placement.md exists and docs/conventions/instruction-placement.yaml is absent. PASS only if it satisfies every point: (1) Does not read or apply .claude/instruction-placement.md, so Deploy conventions is NOT suppressed and is reported as movement alongside Lint rules; (2) Prints no dual-read warning and does not name apply migrate-config; (3) Writes no file. FAIL if Deploy conventions is suppressed or any dual-read warning or migrate-config command is printed.'

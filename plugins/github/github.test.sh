@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/github/*
 set -uo pipefail
+unset RUNNER_TEMP GITHUB_ACTIONS
 
 [[ "${BASH_VERSINFO[0]}" -ge 4 ]] || {
   echo "SKIP: bash 4+ required (mapfile)" >&2
@@ -94,7 +95,7 @@ else
   fi
 fi
 
-recipes=(billing.md security-posture.md rulesets-repo-drift.md actions-policy.md)
+recipes=(billing.md security-posture.md rulesets-repo-drift.md actions-policy.md projects-and-issues.md)
 fixed_headings=(
   "## Credential-and-gate preflight"
   "## Audit-question checklist"
@@ -127,6 +128,47 @@ for r in "${recipes[@]}"; do
     fail "$r checklist has only $qcount numbered questions (<10)"
   fi
 done
+
+mapfile -t disk_recipes < <(find "$RECIPES_DIR" -maxdepth 1 -type f -name '*.md' -printf '%f\n' | sort)
+recipe_diff=$(diff <(printf '%s\n' "${recipes[@]}" | sort) <(printf '%s\n' "${disk_recipes[@]}") || true)
+if [[ -z "$recipe_diff" ]]; then
+  ok "recipe inventory: every file in reference/recipes/ is covered by github.test.sh"
+else
+  fail "recipe inventory mismatch (test list vs disk):"$'\n'"$recipe_diff"
+fi
+
+mapfile -t linked_recipes < <(grep -oE 'recipes/[a-z0-9-]+\.md' "$AREAS" | sed 's|^recipes/||' | sort -u)
+link_diff=$(diff <(printf '%s\n' "${disk_recipes[@]}") <(printf '%s\n' "${linked_recipes[@]}") || true)
+if [[ -z "$link_diff" ]]; then
+  ok "recipe links: areas.md links every recipe under reference/recipes/"
+else
+  fail "recipe links mismatch (disk vs areas.md):"$'\n'"$link_diff"
+fi
+
+require_checklist_token() {
+  local recipe="$1" token="$2"
+  local checklist
+  checklist=$(awk '/^## Audit-question checklist$/{flag=1; next} /^## /{flag=0} flag' "$RECIPES_DIR/$recipe")
+  if grep -qF -- "$token" <<<"$checklist"; then
+    ok "$recipe checklist covers '$token'"
+  else
+    fail "$recipe checklist missing '$token'"
+  fi
+}
+
+require_checklist_token actions-policy.md 'actions.lock'
+require_checklist_token actions-policy.md '$/'
+require_checklist_token actions-policy.md 'parallel:'
+require_checklist_token actions-policy.md 'archive: false'
+require_checklist_token actions-policy.md 'event/actor policies'
+require_checklist_token actions-policy.md 'repo_property_*'
+require_checklist_token billing.md 'metered usage summaries'
+require_checklist_token rulesets-repo-drift.md 'immutable releases'
+require_checklist_token projects-and-issues.md 'planning-statuses'
+require_checklist_token projects-and-issues.md 'Repository Boards'
+require_checklist_token projects-and-issues.md 'Issue Artifacts'
+require_checklist_token projects-and-issues.md 'Relates to'
+require_checklist_token projects-and-issues.md 'archived'
 
 for s in audit advise setup; do
   e="$PLUGIN_DIR/skills/$s/evals/evals.json"
