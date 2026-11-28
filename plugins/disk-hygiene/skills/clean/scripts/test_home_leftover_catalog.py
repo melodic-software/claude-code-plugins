@@ -321,6 +321,42 @@ class HomeLeftoverCatalogTest(unittest.TestCase):
             entry["unmet_hint_conditions"],
         )
 
+    def test_a_descendant_the_walk_cannot_stat_keeps_node_modules(self) -> None:
+        if hasattr(os, "geteuid") and os.geteuid() == 0:
+            self.skipTest("root stats inside a mode-0644 directory")
+        build(self.home, {"node_modules": ("pkg/index.js", "module.exports = 1\n")})
+        package = self.home / "node_modules" / "pkg"
+        package.chmod(0o644)
+        self.addCleanup(package.chmod, 0o755)
+        snapshot = self.scan()
+        self.assertIn(
+            "node_modules/pkg/index.js", {e["path"] for e in snapshot["errors"]}
+        )
+        entry = hygiene.entry_map(snapshot)["node_modules"]
+        self.assertNotIn("claude-sandbox-placeholder-node-modules", hint_ids(entry))
+        self.assertIn(
+            {
+                "hint_id": "claude-sandbox-placeholder-node-modules",
+                "detail": "zero_bytes: directory tree holds a file or an unwalked path",
+            },
+            entry["unmet_hint_conditions"],
+        )
+
+    def test_an_unknown_home_keeps_the_token_store_and_the_scan_completes(self) -> None:
+        build(self.home, {".mcp-auth": ("tokens.json", "{}")})
+        with mock.patch.object(hygiene, "user_home", return_value=None):
+            entry = hygiene.entry_map(self.scan())[".mcp-auth"]
+        self.assertEqual(set(), hint_ids(entry))
+        self.assertEqual(
+            [
+                {
+                    "hint_id": "mcp-remote-auth-store",
+                    "detail": "unreferenced: home directory unknown",
+                }
+            ],
+            entry["unmet_hint_conditions"],
+        )
+
     def test_a_live_socket_blocks_the_service_hub_preview(self) -> None:
         build(self.home, {".ServiceHub": ("hub.log", "x")})
         server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

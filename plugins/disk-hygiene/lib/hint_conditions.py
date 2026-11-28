@@ -74,7 +74,7 @@ class _Facts:
         self,
         entries: list[dict[str, Any]],
         target: Path,
-        home: Path,
+        home: Path | None,
         unwalked: set[str],
     ) -> None:
         self.entries = entries
@@ -89,8 +89,10 @@ class _Facts:
         if self._content_dirs is None:
             found: set[str] = set()
             for entry in self.entries:
-                if entry["kind"] != "directory" or entry["path"] in self.unwalked:
+                if entry["kind"] != "directory":
                     found.update(str(p) for p in PurePosixPath(entry["path"]).parents)
+            for unknown in self.unwalked:
+                found.update(str(p) for p in PurePosixPath(unknown).parents)
             self._content_dirs = found
         return self._content_dirs
 
@@ -151,6 +153,8 @@ def _unmet(
             return found
     spec = requires.get("unreferenced")
     if spec:
+        if facts.home is None:
+            return "unreferenced: home directory unknown"
         needle = spec["text"].encode("utf-8")
         for relative in spec["home_files"]:
             text = facts.file_bytes(facts.home.joinpath(*PurePosixPath(relative).parts))
@@ -165,7 +169,7 @@ def apply(
     entries: list[dict[str, Any]],
     hints: Iterable[dict[str, Any]],
     target: Path,
-    home: Path,
+    home: Path | None,
     unwalked: set[str],
 ) -> int:
     """Drop each matched hint whose requirements fail; return how many were dropped.
