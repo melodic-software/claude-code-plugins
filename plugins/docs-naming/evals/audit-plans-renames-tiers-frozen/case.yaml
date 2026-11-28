@@ -94,7 +94,7 @@ graders:
     arm: both
   - name: no-generated
     type: regex
-    pattern: '\b(?:no|none|not)\b[^\n.;,]{0,30}\bgenerated\s+files?\b|\bgenerated\s+files?\s*[:|]\s*(?:none|no|0)\b'
+    pattern: '\b(?:no|none|not)\b[^\n.;,]{0,30}\bgenerated\s+files?\b|\bgenerated(?:\s+files?)?\s*[:|]\s*(?:none|no|0)\b'
     flags: 'i'
     target: last_message
     arm: both

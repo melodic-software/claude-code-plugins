@@ -2,7 +2,8 @@
   "pass": [
     { "answer": "None of these involve a generated file." },
     { "answer": "- **Collisions:** none. 7 files were scanned and no generated files are involved." },
-    { "answer": "Review count is 0 and no generated file is involved." }
+    { "answer": "Review count is 0 and no generated file is involved." },
+    { "answer": "finding FN-1a2b3c4d `docs/Release_Notes.md` to `docs/release-notes.md`: 5 site(s) in 4 file(s); by tier: 2 current (edit), 1 historical (edit), 1 historical (report), 1 released (report); review: 0; generated: none" }
   ],
   "fail": [
     { "answer": "Three files in `docs/` break the lower-kebab rule." },
