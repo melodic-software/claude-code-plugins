@@ -85,9 +85,8 @@ dimension, gather whatever evidence its tier sources yield, then propose candida
 the "Resolution ladder" section of the plugin's contract binding
 [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](../../reference/standards-contract.md)
 and read the files whose `Applies when` matches a scanned dimension; a candidate that brings the
-target in line with one cites that file, and none proposes what one rules out. A loaded file that
-cites shipped concept ids follows the binding's "Adopted shipped concepts" paragraph, with
-`/engineering-concepts:lookup` (if enabled); otherwise apply each entry as written.
+target in line with one cites that file, and none proposes what one rules out. Read guidance
+through the binding's "Guidance layer (every rung)" paragraph: advice below every standard.
 
 **Docs/markdown improvement is out of scope**. Owned lanes (`docs-hygiene`, `codebase-health`) cover it;
 finding a docs candidate means naming the owning lane, not adding it to this list.

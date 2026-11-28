@@ -151,6 +151,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `yt_dlp_cookies_from_browser` | string | *(none)* | Browser to pull cookies from (e.g. chrome, firefox, edge), forcing one instead of the automatic platform-ordered fallback. YouTube only, since the X adapter is cookies-file-only. Empty by default. A cookies file, when set, wins over this. |
 | `max_concurrent_acquires` | number<br>*min 1, max 3* | `1` | Cap on concurrent yt-dlp acquisition runs during a video-digest batch, 1 to 3. Default 1; raising it increases HTTP 429 throttling risk. |
 | `asr_python` | string | *(none)* | Path to the Python interpreter that imports faster_whisper, probed before python, python3 and py on PATH (video-digest's optional ASR rung). Use it when the default Python refuses pip install --user. Empty by default. Nothing is installed. |
+| `branding` | string | *(none)* | Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored. |
 
 ### How to set these
 

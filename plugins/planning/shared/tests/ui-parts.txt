@@ -25,6 +25,7 @@ ui_speech.js a
 ui_welcome.js a
 ui_avatars.js a
 ui_move.js a
+ui_lightning.js a
 ui_layout.js b
 ui_layout_keyboard.js b
 ui_composer.js b

@@ -206,6 +206,8 @@ statistics and grading are [`/evals:methodology`](../../plugins/evals/skills/met
 - A dispatched suite run's `eval-browser-<run id>-<attempt>` artifact, kept 3 days, holds each
   run's final reply in `<plugin>/last-messages.jsonl` beside `results.json`, left out when the
   leak scan blocks it (`last-messages.mjs`).
+- A compare run's arm artifacts, `eval-hill-climb-pass-compare-before-…` and `…-compare-after-…`,
+  kept 1 day, hold the same `last-messages.jsonl` beside `results.json`, under the same leak scan.
 
 ## Graders
 

@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
+# test-scope: plugins/education/.claude-plugin/plugin.json
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
+export GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)" || exit 2
 
@@ -13,7 +16,7 @@ work="$(mktemp -d)" || exit 2
 trap 'rm -rf "$work"' EXIT
 
 node --input-type=module - "$SCRIPT_DIR" "$work" <<'NODE'
-import { readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";
 import { spawnSync } from "node:child_process";
 
@@ -98,6 +101,45 @@ check(
   "the lessons reference routes codebase lessons through the builder",
   lessons.includes("build-lesson.mjs") && lessons.includes("Do not hand-write the HTML"),
 );
+
+const brandRepo = `${work}/brand-repo`;
+const emptyHome = `${work}/empty-home`;
+mkdirSync(`${brandRepo}/docs/conventions`, { recursive: true });
+mkdirSync(`${brandRepo}/assets`, { recursive: true });
+mkdirSync(emptyHome, { recursive: true });
+spawnSync("git", ["init", "-q", brandRepo], { encoding: "utf8" });
+writeFileSync(`${brandRepo}/assets/logo.png`, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "base64"));
+writeFileSync(`${brandRepo}/docs/conventions/rendered-views.yaml`, [
+  "branding:",
+  "  palette:",
+  "    light:",
+  '      bg: "#F8F4EC"',
+  '      muted: "#595954"',
+  '      fg: "#CCCCCC"',
+  "  type:",
+  '    sans: "IBM Plex Sans, sans-serif"',
+  "  logo:",
+  '    file: "assets/logo.png"',
+  '    label: "Acme Teach"',
+].join("\n") + "\n");
+const brandEnv = { ...process.env, CLAUDE_PROJECT_DIR: brandRepo, HOME: emptyHome, USERPROFILE: emptyHome, CLAUDE_PLUGIN_OPTION_BRANDING: "" };
+const brandedCli = spawnSync(process.execPath, [builderPath], { input: JSON.stringify(model), encoding: "utf8", env: brandEnv });
+const brandedPage = brandedCli.stdout;
+check("branded lesson builds and validates", brandedCli.status === 0 && validateRenderedPage(brandedPage).ok, brandedCli.stderr);
+check("branded lesson emits contrast-floor notice on stderr", brandedCli.stderr.includes("notice:") && brandedCli.stderr.includes("fg"));
+const brandedStyle = /<style>([^]*?)<\/style>/i.exec(brandedPage)?.[1] ?? "";
+check("branded lesson strips all leading token header comments", !brandedStyle.includes("GENERATED") && !brandedStyle.includes("Provenance:"));
+check("branded lesson applies tokens, overrides, raster logo slot and enforces floor",
+  brandedPage.includes("--ivory: #FAF9F5;") &&
+  brandedPage.includes("--bg: #F8F4EC;") &&
+  !brandedPage.includes("--fg: #CCCCCC;") &&
+  brandedPage.includes("--sans: IBM Plex Sans, sans-serif;") &&
+  brandedPage.includes('class="rv-brand-mark rv-logo"') &&
+  brandedPage.includes("Acme Teach") &&
+  brandedPage.includes("outline: 3px solid var(--focus)"));
+const optEnv = { ...process.env, CLAUDE_PROJECT_DIR: emptyHome, HOME: emptyHome, USERPROFILE: emptyHome, CLAUDE_PLUGIN_OPTION_BRANDING: "" };
+const optCli = spawnSync(process.execPath, [builderPath, "--branding-option", '{"logo":{"label":"CLI Teach"}}'], { input: JSON.stringify(model), encoding: "utf8", env: optEnv });
+check("--branding-option passes userConfig branding into lesson", optCli.status === 0 && validateRenderedPage(optCli.stdout).ok && optCli.stdout.includes("CLI Teach"), optCli.stderr);
 
 if (failed > 0) process.exit(1);
 NODE

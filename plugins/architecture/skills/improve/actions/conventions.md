@@ -25,7 +25,7 @@ collect:
   `<home>/architecture/README.md`, read by name: the list's paths do not match that file. Resolve
   `<home>` ("Convention home"); with no home, no topic doc or no such section, it holds nothing.
 - **Paved-path entries**, from the file the standards index's `paved-path` row points at. The
-  index is `docs/standards/README.md` unless `.claude/standards.yaml` sets another `standards_dir`.
+  index is `docs/standards/README.md` unless `docs/conventions/standards.yaml` sets another `standards_dir`.
   With no index or no `paved-path` row, there are none.
 - **Recorded decisions** ("Recorded decisions").
 

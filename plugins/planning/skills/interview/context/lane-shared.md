@@ -123,6 +123,7 @@ Resolve each key once, before the first `ensure-running`, through the layers in 
 | `shared_session.follow` | `true`, `false` | `true` | `follow` |
 | `shared_session.prototype_tiers` | a list of `screenshot`, `snapshot`, `live`, each at most once | `[screenshot, snapshot]` | `prototypeTiers` |
 | `questions_per_round` (SKILL.md "Round cap and citation links") | an integer, `1` or more | `4` | `roundCap`: the resolved value, `8` when it is larger |
+| `interview_style` | `standard`, `lightning` | `standard` | `style`; later changes go through the `set-style` op |
 | userConfig `shared_session_open_browser` | `true`, `false` | `true` | none: adds `--open` |
 | userConfig `tunnel_hostname` | a hostname, or empty | empty | none: `--tunnel-hostname` (a named tunnel) |
 | userConfig `tunnel_token_file` | an absolute path, or one starting with `~/` | empty | none: `--tunnel-token-file` |
@@ -145,6 +146,7 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 |---|---|---|
 | `set-title`, `set-goal` | `title` / `goal` | Name the session and what it is for |
 | `set-intro` | `intro` | "Why you're here", as the owner confirmed it; empty removes it |
+| `set-style` | `style` (`standard`, `lightning`) | The session's style, resolved from `interview_style` and the owner's words in the session: `lightning` shows every question on every page as a short card each person can open to the full question; the owner also changes it from Settings, and guests never can |
 | `set-repo` | `repo`, `commit` | The GitHub `owner/name` and the full commit SHA the facts were read at, a commit already pushed to GitHub, so `#N` and `path:line` in the page's text link; every guest sees the name. Send both again when the commit moves |
 | `open-round` | `questions` (1 to 8), `placements` | Close the round Claude is working on (or start round 1) and open the next |
 | `close-round` | `placements`, `reason` | Close the round without a new one (only placements, or the interview is done) |
@@ -165,14 +167,17 @@ against `<plugin-root>/shared/schema/ops.schema.json` before any lands, and all 
 | `handle` | `seqs` | Mark events handled |
 
 Each question follows [`question-shape.md`](question-shape.md) plus `purpose`, `format`,
-`answerScope`, `references` and an optional `for`; ids follow the `id` row there. Pick each new id as the larger of
+`answerScope`, `references`, an optional `for` and `major: true` on a major question (problem,
+intent, vision, goals, quality bar, or another consequential call), which a lightning card tags
+`(major)`; ids follow the `id` row there. A lightning card reads the Flips if, Second view and
+Departs from lines from `basis`, so write each as its own labeled line there. Pick each new id as the larger of
 `round.sh next-id`'s next id for the interview ledger and the highest `Q<N>` already in the session
 plus one, because the session can hold ids that moderators created. Ids the session ran ahead of
 the ledger are declared with a gap line ([`loop.md`](loop.md) "The open-question register").
 
 **Round cap.** A shared-session round holds at most `roundCap` questions, the host's resolved
 `questions_per_round` and never more than the server's limit of 8, which the server enforces; the
-rest go to a later round.
+rest go to a later round. Under the `lightning` style the cap is 8 whatever `roundCap` says.
 An asset id exists only after its `apply`, so add assets in one apply and the round that uses them
 in the next.
 

@@ -291,6 +291,8 @@ section.answer[hidden]{display:none}
 .cur .earlier q{white-space:pre-wrap;color:var(--ink)}
 .cur .readback{flex:1 0 100%;display:grid;gap:4px;border-left:3px solid var(--accent);padding:2px 10px;overflow-wrap:anywhere}
 .recbox .flip{margin:0}
+.lite p{margin:0 0 4px;max-width:80ch}
+.lite-major,.lite-alts{color:var(--muted)}
 .cur .aside-why{flex:1 1 20em}
 .agrid{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr);grid-template-rows:minmax(0,1fr);gap:14px;flex:1 1 auto;min-height:0}
 .compose{align-content:start}
@@ -641,7 +643,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     listener: {state: "idle"}, online: false, session: "", sel: null, pick: new Set(), busy: false, toast: "", toastBad: false, toastUndo: false,
     view: "groups", filter: "all", search: "", fly: null, pinned: null, railHidden: false, vtab: null, api: 1, settings: {}, watchSeq: 0, stateAt: 0,
     instance: "", restarted: false, finished: null, need: null, actKeys: null,
-    armed: null, snap: {}, conflict: null, undo: null, propEdit: null, propDraft: null, propMsg: null, revs: null, loaded: false, replies: {}, noteSeen: 0, noteToast: "", noteQueued: [], noteOpen: new Set(), moreShut: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
+    armed: null, snap: {}, conflict: null, undo: null, propEdit: null, propDraft: null, propMsg: null, revs: null, loaded: false, replies: {}, noteSeen: 0, noteToast: "", noteQueued: [], noteOpen: new Set(), moreShut: new Set(), liteOpen: new Set(), hiddenBase: null, vfiles: {}, gal: {a: null, b: null, on: false}};
   let Q = {};
 
   const lsGet = (k, d) => { try { const v = localStorage.getItem("iv2:" + S.session + ":" + k); return v === null ? d : JSON.parse(v); } catch (e) { return d; } };
@@ -883,6 +885,16 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
   const groupTitle = gid => (groupById(gid) || {}).title || gid;
   const basisLabel = q => { const m = String(q.basis || "").match(/^\s*(?:basis\s*:\s*)?\**(verified|judgment)\b|(?:^|[.!?;(\n]|\s-)\s*\**(?:basis\s*:\s*)?(verified|judgment)\**(?:\s*:[^\n]*)?[.)]*\s*$/i); return m ? (m[1] || m[2]).toLowerCase() : ""; };
   const withheld = q => q.withheld === true;
+  const lightningOn = () => (S.doc.meta || {}).style === "lightning";
+  /** The lightning card's summary: the answer in a few words, its basis, the other options' letters and the labeled lines. */
+  function liteHtml(q){
+    const L = QuestionShape.lightning(q);
+    let line = (L.major ? '<span class="lite-major">(major)</span> ' : "") + "<b>" + esc(L.status === "rec" ? L.rec : L.status === "withheld" ? "Withheld" : "No recommendation") + "</b>";
+    if (L.basis) line += " - " + esc(L.basis);
+    if (L.alts.length) line += ' <span class="lite-alts">(or: ' + esc(L.alts.map(a => a.key + " " + a.label).join(", ")) + ")</span>";
+    return '<section class="blk lite" id="lite"><p class="lite-rec">' + line + "</p>" + L.lines.map(([k, t]) => '<p class="lite-line"><b>' + esc(k) + ":</b> " + esc(t) + "</p>").join("") + "</section>";
+  }
+  const liteToggle = (q, open) => '<div class="arow"><button type="button" class="tbtn small" id="liteToggle" data-lite="' + esc(q.id) + '" aria-expanded="' + open + '">' + (open ? "Show the short card" : "Show all of " + esc(q.id)) + "</button></div>";
   const eligible = q => stateOf(q) === "open" && !upChanged(q) && !!q.recommendation && !withheld(q) && !(q.group && lockedBy(q.group).length) && upOf(q).every(p => parentMet(p) && !isStale(Q[p]));
   const chainOf = q => (q.supersedesChain || []).filter(c => c && Q[c.id]);
   function chainHtml(q){
@@ -1454,11 +1466,15 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (q.claudeNote) h += '<div class="note"><b>Claude:</b> ' + lineHtml(q.claudeNote) + "</div>";
     const lc = latestClaude(q);
     if (lc) h += '<div class="latest" id="latest"><span class="who">' + esc(whoLabel(lc)) + " &middot; " + esc(fmt(lc.at)) + "</span>" + mdHtml(lc.text) + "</div>";
+    const lite = lightningOn() && !S.liteOpen.has(q.id);
+    if (lite) h += liteHtml(q);
+    if (lightningOn()) h += liteToggle(q, !lite);
     let facts = String(q.facts || "").replace(/\r/g, "");
     const sm = facts.match(/^(?:[ \t]*\n)*((?:>[^\n]*(?:\n|$)|[ \t]*\n(?=[ \t]*>))+)/), src = sm ? sm[1].replace(/^>[ \t]?/gm, "").trim() : "";
-    if (src) { facts = facts.slice(sm[0].length); h += '<details class="src" id="src"' + (lsGet("srcOpen", true) ? " open" : "") + "><summary>Source text</summary>" + mdHtml(src.replace(/^/gm, "> ")) + "</details>"; }
-    if (String(q.context || "").trim()) h += '<section class="blk" id="qContext"><h4>Context</h4>' + mdHtml(q.context) + "</section>";
-    if (q.recommendation) h += '<section class="blk"><h4>' + (withheld(q) ? "Recommendation withheld" : (marks ? "➡️ " : "") + "Recommendation (Rec)") + (basisLabel(q) && !withheld(q) ? ' <span class="chip basis basis-' + basisLabel(q) + '" title="Basis: ' + basisLabel(q) + '">' + (basisLabel(q) === "verified" ? "Verified" : "Judgment") + "</span>" : "") + '</h4><div class="recbox">' +
+    if (src) facts = facts.slice(sm[0].length);
+    if (src && !lite) { h += '<details class="src" id="src"' + (lsGet("srcOpen", true) ? " open" : "") + "><summary>Source text</summary>" + mdHtml(src.replace(/^/gm, "> ")) + "</details>"; }
+    if (!lite && String(q.context || "").trim()) h += '<section class="blk" id="qContext"><h4>Context</h4>' + mdHtml(q.context) + "</section>";
+    if (!lite && q.recommendation) h += '<section class="blk"><h4>' + (withheld(q) ? "Recommendation withheld" : (marks ? "➡️ " : "") + "Recommendation (Rec)") + (basisLabel(q) && !withheld(q) ? ' <span class="chip basis basis-' + basisLabel(q) + '" title="Basis: ' + basisLabel(q) + '">' + (basisLabel(q) === "verified" ? "Verified" : "Judgment") + "</span>" : "") + '</h4><div class="recbox">' +
       (withheld(q) ? mdHtml(q.recommendation) : '<p id="recWhere">The full recommendation is the Rec row under Decide.</p><p class="flip" id="flipIf"><b>Flips if:</b> ' + (flipsIf(q) ? lineHtml(flipsIf(q)) : '<span class="kbd">not stated</span>') + "</p>") + "</div></section>";
     if (q.commits && q.commits.length) {
       const cf = confirmed(q), acc = accepted(q);
@@ -1476,7 +1492,7 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     const whyText = String(q.basis || "").replace(/^[ \t>*-]*(?:\*\*)?Flips if:.*(?:\n|$)/im, "").trim();
     const why = q.recommendation && whyText ? mdHtml(whyText) : "", tab = (id, label, open) => '<button type="button" class="dtab" id="' + id + 'Btn" data-discl="' + id + '" aria-expanded="' + open + '" aria-controls="' + id + '">' + label + "</button>";
     const whyOpen = lsGet("whyOpen", false) === true, moreOpen = !S.moreShut.has(q.id) && (lsGet("moreOpen", false) === true || (st !== "arch" && !isAnswered(st)));
-    if (why || more) h += '<div class="discl" id="discl"><div class="dtabs">' + (why ? tab("why", "Why", whyOpen) : "") + (more ? tab("more", "Details: what we know, alternatives", moreOpen) : "") + "</div>" +
+    if (!lite && (why || more)) h += '<div class="discl" id="discl"><div class="dtabs">' + (why ? tab("why", "Why", whyOpen) : "") + (more ? tab("more", "Details: what we know, alternatives", moreOpen) : "") + "</div>" +
       (why ? '<div class="dpanel" id="why" role="region" aria-labelledby="whyBtn"' + (whyOpen ? "" : " hidden") + ">" + why + "</div>" : "") +
       (more ? '<div class="dpanel" id="more" role="region" aria-labelledby="moreBtn"' + (moreOpen ? "" : " hidden") + ">" + more + "</div>" : "") + "</div>";
     h += threadHtml(q);
@@ -2573,6 +2589,8 @@ dialog ul{max-height:40vh;overflow:auto;padding-left:20px;font-size:13.5px}
     if (t.closest("[data-wrapup], #wrapChip")) { wrapUp(); return; }
     if (t.closest("[data-sendnote]")) { sendNote(); return; }
     if (t.closest("[data-notenewest]")) { const n = $("noteNewest"); if (n) { n.scrollIntoView({block: "nearest"}); n.focus({preventScroll: true}); } return; }
+    const lt = t.closest("button[data-lite]");
+    if (lt) { const id = lt.dataset.lite; if (S.liteOpen.has(id)) S.liteOpen.delete(id); else S.liteOpen.add(id); renderDetail(); const b = $("liteToggle"); if (b) b.focus(); return; }
     const dt = t.closest("[data-discl]");
     if (dt) {
       const k = dt.dataset.discl, open = dt.getAttribute("aria-expanded") !== "true", panel = $(k);

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# test-scope: plugins/architecture/.claude-plugin/plugin.json plugins/architecture/lib/plugin-options.mjs plugins/architecture/lib/html-branding.mjs plugins/architecture/reference/html-tokens.css
 # Exit 0 clean, 1 findings, 2 environment (node missing).
 set -euo pipefail
 

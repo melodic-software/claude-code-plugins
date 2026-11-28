@@ -1,11 +1,12 @@
 import { readFileSync } from "node:fs";
-import { escapeHtml } from "../lib/html-escape.mjs";
+import { applyBranding } from "../lib/html-branding.mjs";
+import { escapeHtml, styleRefused } from "../lib/html-escape.mjs";
 
 const TAILWIND = "https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.5/dist/index.global.js";
 const MERMAID = "https://cdn.jsdelivr.net/npm/mermaid@12.3.0/dist/mermaid.min.js";
 const TAILWIND_SRI = "sha256-LQdTYZ03u0RSdhuHT/xq5kKengUesm9ExayDxzYvx7E=";
 const MERMAID_SRI = "sha256-M234A9h6OLcKAec25mbI92AdLOQvXkfI+v5dchB0uaM=";
-export const CSP = `default-src 'none'; script-src 'unsafe-inline' ${TAILWIND} ${MERMAID}; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'`;
+export const CSP = `default-src 'none'; script-src 'unsafe-inline' ${TAILWIND} ${MERMAID}; style-src 'unsafe-inline'; img-src data:; font-src data:; base-uri 'none'; form-action 'none'`;
 
 export const BANDS = [
   ["Strong", "strong", "badge-strong"],
@@ -312,7 +313,7 @@ const SCRIPTS = [
 ];
 
 const REPORT_STYLE = `
-  :root { --amber: #B45309; --muted: #6B6A64; }
+  :root { --muted: var(--gray-700); }
   body { max-width: 1360px; }
   [hidden]:not([hidden=until-found]) { display: none !important; }
   h3 { font-family: var(--serif); font-size: 1.15rem; margin: 0; }
@@ -358,11 +359,11 @@ const REPORT_STYLE = `
   .badges { display: flex; gap: .75rem; flex-wrap: wrap; margin: 0; }
   .badge { border-left: 4px solid var(--muted); padding-left: .5rem; font-weight: 600; }
   .badge-strong { border-color: var(--olive); }
-  .badge-explore { border-color: var(--amber); }
+  .badge-explore { border-color: var(--accent); }
   .badge-speculative { border-color: var(--muted); }
   .size-basis { color: var(--muted); }
   .tag { font-family: var(--mono); font-size: .85rem; border: 1px solid var(--muted); border-radius: 6px; padding: 0 .4rem; }
-  .adr { border-left: 4px solid var(--amber); padding-left: .75rem; }
+  .adr { border-left: 4px solid var(--accent); padding-left: .75rem; }
   .panels { display: flex; flex-direction: column; gap: 1rem; }
   figure { margin: 0; min-width: 0; cursor: zoom-in; }
   figcaption { display: flex; justify-content: space-between; align-items: baseline; gap: .5rem; font-size: .85rem; color: var(--muted); margin-bottom: .35rem; }
@@ -374,17 +375,17 @@ const REPORT_STYLE = `
   .rv-mermaid .edge-list { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .edge-list { margin: 0; padding-left: 1.1rem; font-size: .85rem; }
   .drawn { background: var(--white); color: var(--slate); border: 1px solid var(--gray-300); border-radius: var(--radius-row); padding: .75rem; display: grid; gap: .35rem; }
-  .drawn .box, .drawn .nest { border-color: #87867F; }
-  .drawn .deep { border-color: #141413; }
+  .drawn .box, .drawn .nest { border-color: var(--gray-500); }
+  .drawn .deep { border-color: var(--slate); }
   .drawn.boxes { display: flex; flex-wrap: wrap; }
   .box { border: 1.5px solid var(--muted); border-radius: 4px; padding: .3rem .5rem; font-size: .8rem; }
   .layer { border-left-width: 6px; }
-  .deep { background: #141413; color: #FAF9F5; border: 3px solid #141413; }
+  .deep { background: var(--slate); color: var(--ivory); border: 3px solid var(--slate); }
   .nest { border: 1.5px solid var(--muted); border-radius: 4px; padding: .3rem .5rem .5rem; font-size: .75rem; }
   .nest .nest { margin-top: .3rem; }
   .faded { opacity: .6; }
   .zoom { width: min(96vw, 1600px); max-width: none; max-height: 92vh; margin: auto; padding: 0; border: var(--border); border-radius: var(--radius-panel); background: var(--panel); color: var(--fg); }
-  .zoom::backdrop { background: rgb(20 20 19 / .6); }
+  .zoom::backdrop { background: color-mix(in srgb, var(--slate) 60%, transparent); }
   .zoom-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .75rem 1rem; border-bottom: var(--border); }
   .zoom-head h2 { margin: 0; padding: 0; border: 0; font-size: 1rem; }
   .zoom-body { padding: 1.25rem; overflow: auto; max-height: calc(92vh - 4rem); box-sizing: border-box; }
@@ -499,8 +500,8 @@ export function legendLines(report) {
   ];
 }
 
-/** The report page for a record parseDeepening read. */
-export function renderDeepening(report) {
+/** The report page for a record parseDeepening read, optionally styled with resolved branding. */
+export function renderDeepening(report, { branding = null } = {}) {
   const titles = new Map(report.candidates.map((candidate) => [candidate.id, candidate.title]));
   const top = report.candidates.find((candidate) => candidate.id === report.top);
   const tally = BANDS.map(([word]) => `${report.candidates.filter((candidate) => candidate.recommendation === word).length} ${word}`).join(", ");
@@ -519,7 +520,7 @@ export function renderDeepening(report) {
   });
   const topDependents = builtOn(top.id);
   const legend = legendLines(report).map(([term, meaning]) => `<li><strong>${esc(term)}:</strong> ${esc(meaning)}</li>`).join("\n");
-  return `<!doctype html>
+  const html = `<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
@@ -573,17 +574,37 @@ ${SCRIPTS[2]}
 </body>
 </html>
 `;
+  return branding ? applyBranding(html, { tokensCss: "", branding }) : html;
 }
 
 
+const SVG_TAGS = new Set([
+  "svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon",
+  "text", "tspan", "desc", "defs", "lineargradient", "radialgradient", "stop",
+  "marker", "clippath", "mask", "pattern",
+]);
 const TAGS = new Set([
   "html", "head", "meta", "title", "style", "body", "main", "header", "section", "article", "nav",
   "h1", "h2", "h3", "h4", "p", "ul", "li", "a", "div", "span", "pre", "strong", "figure", "figcaption",
   "button", "details", "summary", "dialog",
+  ...SVG_TAGS,
 ]);
+const SVG_ATTRS = new Set([
+  "xmlns", "viewbox", "width", "height", "x", "y", "x1", "y1", "x2", "y2", "cx", "cy",
+  "r", "rx", "ry", "d", "points", "fill", "stroke", "stroke-width", "stroke-linecap",
+  "stroke-linejoin", "stroke-dasharray", "opacity", "fill-opacity", "stroke-opacity",
+  "transform", "text-anchor", "dominant-baseline", "font-size", "font-weight",
+  "offset", "stop-color", "stop-opacity", "gradientunits", "gradienttransform",
+  "marker-start", "marker-mid", "marker-end", "markerwidth", "markerheight", "refx",
+  "refy", "orient", "markerunits", "clip-path", "mask", "preserveaspectratio",
+  "focusable", "patternunits", "xlink:href", "title",
+]);
+const SVG_ARIA = /^aria-[a-z0-9-]+$/;
 const ATTRS = new Set([
   "lang", "charset", "http-equiv", "content", "name", "class", "id", "href", "role", "type", "hidden", "tabindex",
-  "aria-label", "aria-labelledby", "aria-pressed", "aria-current", "aria-live", "data-rv-theme", "data-part", "data-step", "data-enlarge", "data-zoom-close",
+  "aria-label", "aria-labelledby", "aria-pressed", "aria-current", "aria-live",
+  "data-rv-theme", "data-part", "data-step", "data-enlarge", "data-zoom-close",
+  ...SVG_ATTRS,
 ]);
 const READER_VALUES = {
   hidden: ["until-found"],
@@ -596,6 +617,7 @@ const READER_VALUES = {
 };
 const ESCAPED_TEXT = /^(?:[^&<>"']|&(?:amp|lt|gt|quot|#x27);)*$/;
 const TOKEN = /^[a-z0-9-]{1,40}$/;
+const URL_FRAGMENT = /^url\(#[a-z0-9-]{1,32}\)$/;
 const MERMAID_TEXT = /^[A-Za-z0-9 _./:\-"\n[\]|>;,#]*$/;
 const unescape = (value) => value.replaceAll("&quot;", '"').replaceAll("&#x27;", "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
 
@@ -611,8 +633,9 @@ export function validateDeepeningPage(html) {
     rest = rest.replace(script, "");
   }
   if (/<script|<\/script/i.test(rest)) failures.push("script-extra");
+  if (rest.includes("<!--")) failures.push("comment");
   const styles = [...rest.matchAll(/<style\b[^>]*>([\s\S]*?)(?:<\/style[\s/>]|$)/gi)];
-  if (styles.length !== 1 || /url\(|@import|expression\(|\\/i.test(styles[0][1])) failures.push("style");
+  if (styles.length !== 1 || styleRefused(styles[0][1]) || styles[0][1].includes("<")) failures.push("style");
   rest = rest.replace(/<style>[\s\S]*?<\/style>/, "");
   for (const [, body] of rest.matchAll(/<pre class="mermaid">([^<]*)<\/pre>/g)) {
     if (!MERMAID_TEXT.test(unescape(body)) || !/^flowchart (LR|TB)\n/.test(unescape(body))) failures.push("mermaid-source");
@@ -623,13 +646,16 @@ export function validateDeepeningPage(html) {
     if (match[0].startsWith("</")) continue;
     for (const attr of match[2].matchAll(/([^\s"'>=/]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)) {
       const [name, value] = [attr[1].toLowerCase(), attr[2] ?? attr[3] ?? attr[4] ?? ""];
-      if (!ATTRS.has(name)) failures.push(`attr:${name}`);
+      const svgAria = SVG_TAGS.has(tag) && SVG_ARIA.test(name);
+      if ((!ATTRS.has(name) && !svgAria) || (SVG_ATTRS.has(name) && !SVG_TAGS.has(tag))) failures.push(`attr:${name}`);
       if (!ESCAPED_TEXT.test(value)) failures.push("unescaped");
-      if (name === "href" && !(value.startsWith("#") && TOKEN.test(value.slice(1)))) failures.push("href");
+      if (name === "xmlns" && value !== "http://www.w3.org/2000/svg") failures.push("xmlns");
+      if ((name === "href" || name === "xlink:href") && !(value.startsWith("#") && TOKEN.test(value.slice(1)))) failures.push("href");
+      if (/url\(/i.test(value) && !URL_FRAGMENT.test(value)) failures.push("url");
       if ((name === "id" || name === "data-part") && !TOKEN.test(value)) failures.push(`opaque:${name}`);
       if (name === "http-equiv" && value !== "Content-Security-Policy") failures.push("http-equiv");
-      if (Object.hasOwn(READER_VALUES, name) && !READER_VALUES[name].includes(value)) failures.push(`value:${name}`);
-      if (name === "aria-labelledby" && !TOKEN.test(value)) failures.push(`opaque:${name}`);
+      if (!SVG_TAGS.has(tag) && Object.hasOwn(READER_VALUES, name) && !READER_VALUES[name].includes(value)) failures.push(`value:${name}`);
+      if (!SVG_TAGS.has(tag) && name === "aria-labelledby" && !TOKEN.test(value)) failures.push(`opaque:${name}`);
     }
   }
   const textLeft = rest.replace(/<!doctype html>/i, "").replace(/<\/?[A-Za-z][A-Za-z0-9]*\b[^>]*>/g, "");

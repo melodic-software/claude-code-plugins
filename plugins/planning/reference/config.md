@@ -144,8 +144,8 @@ plan_panel_rubric:
 
 ## Convention-home keys
 
-Six interview keys (`question_pacing`, `question_detail`, `questions_per_round`,
-`citation_links`, `domain_docs`, `answer_audit_rounds`) and three plan keys resolve through the
+Seven interview keys (`question_pacing`, `question_detail`, `interview_style`,
+`questions_per_round`, `citation_links`, `domain_docs`, `answer_audit_rounds`) and three plan keys resolve through the
 bound convention home and the four layers of
 [ADR 0075](https://raw.githubusercontent.com/melodic-software/claude-code-plugins/main/docs/adr/0075-resolve-plugin-settings-through-one-four-layer-cascade-and-a-bound-convention-home.md),
 lowest first: the default, the `userConfig` option of the same name, the team file
@@ -157,6 +157,7 @@ lowest first: the default, the `userConfig` option of the same name, the team fi
 |---|---|---|---|
 | `question_pacing` | `round`, `single`, `auto` | `round` | `/planning:interview`, first round: `round` asks a round's ready questions as one set, `single` one question per message, `auto` picks `single` for a broad, open-ended topic and `round` otherwise. A request in the session ("one at a time") overrides it for that session |
 | `question_detail` | `full`, `standard`, `minimal` | `standard` | `/planning:interview`, every round: how much of each question `round.sh show` prints from the saved round file, which always holds the full block. `standard` drops `Origin:`, `Basis:`, `Checked against:` and the `Source:` quote's body; `minimal` also drops `Context:` and the source and counts the alternatives; no level hides a line the interview skill's "Save the full block; print it at the detail level" protects. A request in the session ("full round") overrides it for that session |
+| `interview_style` | `standard`, `lightning` | `standard` | `/planning:interview`, every round: `lightning` prints each question as a condensed entry through `round.sh show --level lightning`, the round file still holding the full block; under it the round cap is 8, a whole round goes in one message and `question_detail` does not apply. Every gate and the full confirmation stay. `lightning` as the first argument word, or "lightning", "go lightning" or "speed this up" mid-interview, turns it on for the session; "stop lightning" turns it off. Rules: the interview skill's `context/lightning.md` |
 | `questions_per_round` | an integer, `1` or more | `4` | `/planning:interview`, every round in every lane: the most questions one round asks; ready questions over it go to the next round in blast-radius order. `check-round-codes.sh --cap` and `round.sh add-round --cap` take the resolved value; a shared session holds at most `8` whatever it says. A request in the session overrides it for that session |
 | `citation_links` | `plain`, `vscode`, `file` | `plain` | `/planning:interview`, every round: how `round.sh show --links` prints a file citation from the saved round file, which keeps plain labels. `plain` prints `file.md:48`; `vscode` a link that opens the line, in the WSL remote form when `WSL_DISTRO_NAME` is set; `file` a `file://` link with no line. With no Bash the plain form prints |
 | `domain_docs` | `auto`, `ask`, `off` | `auto` | `/planning:interview`, engineering sessions, Domain-aware behaviors: `auto` writes a resolved term through the glossary skill and hands each qualifying decision to `/architecture:adr` at round step 8, "Decision record"; `ask` asks before each write; `off` writes neither and records them in the register. A request in the session overrides it for that session |

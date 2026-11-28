@@ -3,7 +3,7 @@ name: sh-run-non-container-parent-per-item
 graders:
   - name: 'states-per-item-prs'
     type: 'regex'
-    pattern: 'execution[- ]shape[\s*_`:]{1,6}(?:[^\n]{0,20}\s)?per[- ]item[\s*_`]{0,4}PRs?\b|per[- ]item[\s*_`]{0,4}PRs?\b[^\n]{0,120}\b(?:item list|the list)|\b(?:item list|the list)\b[^\n]{0,120}per[- ]item[\s*_`]{0,4}PRs?\b'
+    pattern: 'execution[- ]shape[\s*_`:]{1,6}(?:[^\n]{0,20}\s)?per[- ]item[\s*_`]{0,4}PRs?\b|per[- ]item[\s*_`]{0,4}PRs?\b[^\n]{0,120}\b(?:item list|the list)|\b(?:item list|the list)\b[^\n]{0,120}per[- ]item[\s*_`]{0,4}PRs?\b|per[- ]item[\s*_`]{0,4}PRs?\b[\s\S]*?\b(?:item list|the list)\b[^\n]{0,120}\b(?:opening|opens|starting|starts)\s+with\s+the\s+shape\b'
     flags: 'i'
     target: 'last_message'
   - name: 'meets-expectations'

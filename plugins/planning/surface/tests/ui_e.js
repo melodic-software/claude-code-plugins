@@ -73,6 +73,33 @@ async page => {
   await page.unroute("**/api/state");
   await nudgeVisible(); await page.waitForTimeout(400);
 
+  const lightning = route => route.fetch().then(async res => {
+    const body = await res.json();
+    body.questions.meta = Object.assign({}, body.questions.meta, {style: "lightning"});
+    body.questions.questions.forEach(q => { if (q.id === "E1") Object.assign(q, {major: true, commits: ["Cache the lockfile", "Prune weekly"], basis: "Every run downloads the same 2 GB today.\nFlips if: the cache misses more than half the time."}); });
+    await route.fulfill({response: res, json: body});
+  });
+  const liteCard = () => page.evaluate(() => ({lite: document.querySelector("#lite .lite-rec")?.textContent ?? null, lines: [...document.querySelectorAll("#lite .lite-line")].map(p => p.textContent),
+    toggle: document.getElementById("liteToggle")?.textContent ?? null, rec: !!document.querySelector(".recbox"), discl: !!document.getElementById("discl"), commits: document.querySelectorAll(".crow").length, choices: document.querySelectorAll("#choices .choice").length}));
+  await page.route("**/api/state", lightning);
+  await nudgeVisible(); await pick("E1");
+  await until(() => !!document.querySelector("#lite"), 8000);
+  let lc = await liteCard();
+  ok("lightning: a major question's short card reads (major), the bold answer, its basis after a dash and the other options' letters", lc.lite === "(major) Yes - Every run downloads the same 2 GB today (or: a No, b Only on main)", JSON.stringify(lc));
+  ok("  its Flips if line stands on its own and each commitment keeps its own row", JSON.stringify(lc.lines) === JSON.stringify(["Flips if: the cache misses more than half the time."]) && lc.commits === 2, JSON.stringify(lc));
+  ok("  the recommendation block and the Why and Details tabs fold away while the answer choices stay", !lc.rec && !lc.discl && lc.choices > 0 && lc.toggle === "Show all of E1", JSON.stringify(lc));
+  await page.click("#liteToggle"); await page.waitForTimeout(200);
+  lc = await liteCard();
+  ok("Show all of E1 expands it to the full card", lc.lite === null && lc.rec && lc.discl && lc.toggle === "Show the short card", JSON.stringify(lc));
+  await page.click("#liteToggle"); await page.waitForTimeout(200);
+  ok("  and Show the short card folds it again", (await liteCard()).lite !== null);
+  await pick("E2");
+  lc = await liteCard();
+  ok("a withheld question's short card says Withheld and why, with no options", lc.lite === "Withheld - a load test on the shared build pool would settle it.", JSON.stringify(lc));
+  await page.unroute("**/api/state");
+  await nudgeVisible(); await page.waitForTimeout(400);
+  ok("without meta.style the page shows the full card and no short-card control", await until(() => !document.getElementById("liteToggle") && !!document.querySelector(".recbox, .blk h4"), 8000));
+
   await pick("E1");
   await page.focus('#choices input[value="1"]');
   await page.keyboard.press("ArrowDown"); await page.waitForTimeout(150);

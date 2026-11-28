@@ -224,6 +224,7 @@ these and hands them to the plugin, see [User configuration](https://code.claude
 | `otel_collector_config_ref` | string | *(none)* | URL or path of the Collector configuration your machine provisioning installs, which observability names as the pipeline's source. Unset: it describes the configuration without a link. |
 | `otel_dashboards_compose_ref` | string | *(none)* | URL or path of the compose file your machine provisioning declares the Aspire dashboard containers in. Unset: observability describes the stack without a link. |
 | `transcript_sources_file` | file | *(none)* | JSON file of the Claude Code configuration directories this plugin's transcript-mining skills read, here and on hosts reached over ssh. Unset: only this host's, CLAUDE_CONFIG_DIR or ~/.claude. A missing file falls back to that with a warning; a malformed one stops the run. |
+| `branding` | string | *(none)* | Palette, type and logo overrides for rendered HTML pages as one JSON object matching branding in docs/conventions/rendered-views.yaml. Empty (default): shipped look. Repository team and personal override files win; invalid values are reported and ignored. |
 
 ### How to set these
 

@@ -3175,6 +3175,18 @@ cause of the failing or flaky required check without weakening, skipping or dele
 widen no further. The lane closes the incident itself once main stays green, so a `Refs:` pull
 request for it names no remaining work. Intake and admission do not trust it.
 
+The resolver supplies hardcoded repo-side spec templates (never reading bot body text) for four
+other maintenance issue classes as well: the remaining monitoring-lane signals (`monitor-incident`,
+matched against `FILING` title + `factory-monitor` marker), dead-link rollups (`dead-link-rollup`,
+`Dead links found by the online link check` + `<!-- link-check-dead-pointer rollup -->`),
+post-merge demotion alerts (`demotion-alert`, `: unattended merging demoted` +
+`babysit-merge-demotion` marker from `github-actions[bot]` or the lanes App), and non-`files-only`
+vendored drift rows in `scripts/upstream-drift-vendored-report.sh` (`upstream-drift`, scoped to
+inert `skills/`/`vendor/`/`reference/` docs or CSS under `plugins/<plugin>/` and `.changes/<plugin>/`
+with `vendoredSkillSafe` on a closing PR). Like `main-red-incident`, a `Refs:`
+pull request for `monitor-incident`, `dead-link-rollup` or `demotion-alert` names no remaining
+work, and intake/admission still do not trust them.
+
 A trusted edit to the spec after a pass, an issue body edit or a spec comment added or edited,
 makes the gate refuse that pass `verify:spec-changed`, and so does a change to the trusted-actor
 list it judged with (owner decision row 383, option (c)): in a repository whose `trusted_actors_source` is

@@ -12,6 +12,12 @@ source "$SCRIPT_DIR/test-helpers.sh"
 
 command -v git >/dev/null 2>&1 || skip_suite "git not available"
 
+is_windows=false
+case "$(uname -s 2>/dev/null || true)" in
+  MINGW* | MSYS* | CYGWIN*) is_windows=true ;;
+  *) ;;
+esac
+
 TEST_TMPDIR="$(mktemp -d)"
 trap 'rm -rf "$TEST_TMPDIR"' EXIT
 
@@ -149,7 +155,9 @@ git -C "$REPO_ODD" commit -qm "carry cfg"
 WT_ODD="$TEST_TMPDIR/wt-odd"
 git -C "$REPO_ODD" worktree add -q -b feat/odd "$WT_ODD" main >/dev/null 2>&1
 mkdir -p "$REPO_ODD/cfg" "$WT_ODD/cfg"
-if printf 'same\n' 2>/dev/null >"$REPO_ODD/cfg/"$'a.env\r'; then
+if $is_windows; then
+  skip_case "odd names: Windows bash stores a trailing CR in a file name as U+F00D, so the name cannot round-trip"
+elif printf 'same\n' 2>/dev/null >"$REPO_ODD/cfg/"$'a.env\r'; then
   for f in a.env $'a.env\r' '"q.env' z.env; do
     printf 'same\n' >"$REPO_ODD/cfg/$f"
     printf 'same\n' >"$WT_ODD/cfg/$f"
@@ -223,28 +231,32 @@ printf '*.env\n.work/**/*.md\n' >"$REPO_SYM/.worktreeinclude"
 git -C "$REPO_SYM" add .gitignore .worktreeinclude
 git -C "$REPO_SYM" commit -q -m "add include rules for symlink test"
 ln -s "$OUTSIDE_DIR/secret.env" "$REPO_SYM/linked-src.env"
-printf 'real\n' >"$REPO_SYM/real.env"
-WT_SYM="$TEST_TMPDIR/wt-sym"
-git -C "$REPO_SYM" worktree add -q -b feat/sym "$WT_SYM" main >/dev/null 2>&1
+if [[ ! -L "$REPO_SYM/linked-src.env" ]]; then
+  skip_case "symlinks: ln -s made a copy, not a symlink (Windows without symlink rights), so the symlink guards cannot be exercised"
+else
+  printf 'real\n' >"$REPO_SYM/real.env"
+  WT_SYM="$TEST_TMPDIR/wt-sym"
+  git -C "$REPO_SYM" worktree add -q -b feat/sym "$WT_SYM" main >/dev/null 2>&1
 
-run_inc copy --from "$REPO_SYM" --to "$WT_SYM"
-assert_exit "copy skips symlinked source cleanly" 0 "$?"
-assert_eq "copy counts only regular non-symlink source" "1" "$OUT"
-assert_file_absent "copy does not materialize symlinked source" "$WT_SYM/linked-src.env"
+  run_inc copy --from "$REPO_SYM" --to "$WT_SYM"
+  assert_exit "copy skips symlinked source cleanly" 0 "$?"
+  assert_eq "copy counts only regular non-symlink source" "1" "$OUT"
+  assert_file_absent "copy does not materialize symlinked source" "$WT_SYM/linked-src.env"
 
-printf 'overwrite-attempt\n' >"$WT_SYM/dest-link.env"
-ln -s "$OUTSIDE_DIR/secret.env" "$REPO_SYM/dest-link.env"
-run_inc sync-back "$WT_SYM" --copy "dest-link.env"
-assert_exit "sync-back rejects symlinked destination file (exit 2)" 2 "$?"
-assert_eq "rejected symlink destination leaves outside file untouched" "keep-outside" "$(cat "$OUTSIDE_DIR/secret.env")"
+  printf 'overwrite-attempt\n' >"$WT_SYM/dest-link.env"
+  ln -s "$OUTSIDE_DIR/secret.env" "$REPO_SYM/dest-link.env"
+  run_inc sync-back "$WT_SYM" --copy "dest-link.env"
+  assert_exit "sync-back rejects symlinked destination file (exit 2)" 2 "$?"
+  assert_eq "rejected symlink destination leaves outside file untouched" "keep-outside" "$(cat "$OUTSIDE_DIR/secret.env")"
 
-mkdir -p "$WT_SYM/.work/sub"
-printf 'escape-parent\n' >"$WT_SYM/.work/sub/escape.md"
-mkdir -p "$REPO_SYM/.work"
-ln -s "$OUTSIDE_DIR" "$REPO_SYM/.work/sub"
-run_inc sync-back "$WT_SYM" --copy ".work/sub/escape.md"
-assert_exit "sync-back rejects symlinked parent directory under main root (exit 2)" 2 "$?"
-assert_file_absent "rejected symlinked parent writes nothing outside main root" "$OUTSIDE_DIR/escape.md"
+  mkdir -p "$WT_SYM/.work/sub"
+  printf 'escape-parent\n' >"$WT_SYM/.work/sub/escape.md"
+  mkdir -p "$REPO_SYM/.work"
+  ln -s "$OUTSIDE_DIR" "$REPO_SYM/.work/sub"
+  run_inc sync-back "$WT_SYM" --copy ".work/sub/escape.md"
+  assert_exit "sync-back rejects symlinked parent directory under main root (exit 2)" 2 "$?"
+  assert_file_absent "rejected symlinked parent writes nothing outside main root" "$OUTSIDE_DIR/escape.md"
+fi
 
 REPO_BADINC="$(mkfixture)"
 mkdir -p "$REPO_BADINC/.worktreeinclude"
@@ -297,7 +309,11 @@ sleep 1
 printf 'same-size-b\n' >"$WT_CI/keys.env"
 touch -r "$TEST_TMPDIR/keys.ref" "$WT_CI/keys.env"
 run_inc diff "$WT_CI" --main-root "$REPO_CI" --worktree-only
-assert_contains "carried-index: same-size edit with a preserved mtime is MODIFIED" "$OUT" $'MODIFIED\tkeys.env\t'
+if $is_windows; then
+  skip_case "carried-index: under Git for Windows the index stat check misses a same-size edit with a preserved mtime, which reads clean"
+else
+  assert_contains "carried-index: same-size edit with a preserved mtime is MODIFIED" "$OUT" $'MODIFIED\tkeys.env\t'
+fi
 
 run_inc sync-back "$WT_CI" --main-root "$REPO_CI" --copy notes.env
 assert_exit "carried-index: sync-back refuses when main's file changed since the copy" 2 "$?"

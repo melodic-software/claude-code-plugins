@@ -248,6 +248,7 @@ the refused op's index).
 | `set-title`, `set-goal` | `title` / `goal` | |
 | `set-repo` | `repo` (`owner/name`, `""` clears), `commit?` (40 lowercase hex) | The page links `#N` to `https://github.com/<repo>/issues/N`, and a repository path (`path`, `path:line`) to `https://github.com/<repo>/blob/<commit>/<path>#L<line>` once a commit is set. Every joined person's snapshot carries both; the anonymous view does not. Both are replaced together; no `commit` removes the old one |
 | `set-intro` | `intro` (0..600) | "Why you're here", shown to a guest before question 1; empty removes it |
+| `set-style` | `style` (`standard`, `lightning`) | Writes `settings.style`, which the owner's `/api/session/settings` also sets and a guest cannot (403 `owner-only`). Under `lightning` every page shows each question as a short card (a `major: true` question tagged `(major)`, the recommendation, its basis, the other options' letters, any Flips if, Second view and Departs from line in `basis`; under Answer first a recommendation and those lines wait until the person answers, votes or asks, as Claude's answer cards do) with a control to the full question, and a round holds 8 questions whatever `roundCap` says. Absent is `standard` |
 | `open-round` | `questions` (1..8), `placements?` | Closes the `working` round (or starts round 1) and opens the next |
 | `close-round` | `placements?`, `reason?` | `working` -> `closed`, no new round |
 | `ack-round` | `round` | `sent` -> `working` |

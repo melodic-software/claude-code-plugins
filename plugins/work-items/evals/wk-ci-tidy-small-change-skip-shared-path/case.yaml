@@ -3,7 +3,7 @@ name: wk-ci-tidy-small-change-skip-shared-path
 graders:
   - name: 'turns-at-most-18'
     type: 'regex'
-    pattern: '--turns\W{0,3}(?:is\s+)?(?:set\s+)?(?:to\s+)?(?:1[0-8]|[1-9])\b'
+    pattern: '--turns\W{0,3}(?:is\s+)?(?:set\s+)?(?:to\s+)?(?:the\s+(?:smaller|lesser|minimum)\s+of\s+)?(?:1[0-8]|[1-9])\b'
     flags: 'i'
     target: 'last_message'
   - name: 'tidy-skipped'

@@ -100,7 +100,7 @@
     const view = {
       ...structuredClone(DEFAULTS),
       rev: s.rev, title: s.title || "", goal: s.goal || "", intro: s.intro || "", repo: s.repo || "", commit: s.commit || "", ended: !!s.ended, serverTime: s.serverTime,
-      settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always", reviewAnswers: settings.reviewAnswers !== false,
+      settings: { ...settings, showNames: settings.names === "full", hideClaude: settings.claudeTake !== "always", lightning: settings.style === "lightning", reviewAnswers: settings.reviewAnswers !== false,
         prototypeTiers: settings.prototypeTiers || DEFAULTS.settings.prototypeTiers },
       people, ownerPid: "host",
       leaders: live.filter(p => p.role === "leader").map(p => p.pid), trusted: live.filter(p => p.trusted && p.pid !== "host").map(p => p.pid),
@@ -647,11 +647,12 @@
     setAboutYou: (techComfort, note) => act("/api/about-you", { techComfort, ...(note ? { note } : {}) }),
     setLeader: (pid, on) => act("/api/person/role", { pid, role: on ? "leader" : "guest" }),
     setTrusted: (pid, on) => act("/api/person/trust", { pid, on }),
-    /** Owner: the page's settings names (showNames, hideClaude) become the contract's. */
+    /** Owner: the page's settings names (showNames, hideClaude, lightning) become the contract's. */
     saveSettings: patch => {
       const out = { ...patch };
       if ("showNames" in out) { out.names = out.showNames ? "full" : "initials"; delete out.showNames; }
       if ("hideClaude" in out) { out.claudeTake = out.hideClaude ? "answerFirst" : "always"; delete out.hideClaude; }
+      if ("lightning" in out) { out.style = out.lightning ? "lightning" : "standard"; delete out.lightning; }
       return act("/api/session/settings", out);
     },
     setPurpose: (qid, purpose) => act("/api/question/purpose", { qid, purpose }),

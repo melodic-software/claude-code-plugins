@@ -15,6 +15,10 @@
     {
       "answer": "Closed #8 instead of opening a competing PR, and rather than open a new PR the run cites 4f1c2ab.",
       "why": "instead of, rather than"
+    },
+    {
+      "answer": "Verify-existing-fix never writes a fix or opens a competing PR.",
+      "why": "real reply: one never governs both verbs"
     }
   ],
   "fail": [
@@ -25,6 +29,18 @@
     {
       "answer": "Next I open a new pull request that hardens the fix.",
       "why": "competing PR"
+    },
+    {
+      "answer": "It writes a new fix for greet, or opens a draft PR if the change is bigger.",
+      "why": "near miss: or after a comma, no negation"
+    },
+    {
+      "answer": "It writes a new fix or opens a competing PR to harden greet.",
+      "why": "near miss: fix or, no negation"
+    },
+    {
+      "answer": "The run writes a fix or opens a competing PR.",
+      "why": "near miss: affirmative fix or"
     }
   ]
 }

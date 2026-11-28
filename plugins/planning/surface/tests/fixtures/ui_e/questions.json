@@ -11,6 +11,6 @@
   ],
   "questions": [
     {"id": "E1", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Cache", "title": "Should the build cache the dependencies?", "recommendation": "Yes.", "commits": [], "alternatives": [{"key": "a", "text": "No"}, {"key": "b", "text": "Only on main"}]},
-    {"id": "E2", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Runner", "title": "Should the build move to the shared runner?", "recommendation": "Withheld: a load test on the shared runner would settle it.", "commits": [], "alternatives": [{"key": "a", "text": "Move it"}, {"key": "b", "text": "Keep the dedicated runner"}]}
+    {"id": "E2", "group": "base", "stage": "interview", "round": 1, "rev": 1, "short": "Runner", "title": "Should the build move to the shared runner?", "recommendation": "Withheld: a load test on the shared build pool would settle it.", "commits": [], "alternatives": [{"key": "a", "text": "Move it"}, {"key": "b", "text": "Keep the dedicated runner"}]}
   ]
 }

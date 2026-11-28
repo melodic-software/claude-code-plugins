@@ -35,9 +35,9 @@ Moved to [this section](../../contracts/standards/README.md#personal-overrides-i
 
 Moved to [this section](../../contracts/standards/README.md#user-global-layer).
 
-## Concern file: .claude/standards.yaml
+## Concern file: docs/conventions/standards.yaml
 
-Moved to [this section](../../contracts/standards/README.md#concern-file-claudestandardsyaml).
+Moved to [this section](../../contracts/standards/README.md#concern-file-docsconventionsstandardsyaml).
 
 ## Resolution ladder
 

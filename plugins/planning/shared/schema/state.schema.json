@@ -276,6 +276,7 @@
         "reviewAnswers": {"description": "Every answer waits for the owner's Share. A new session writes it off; absent (a session from before it) is on.", "type": "boolean"},
         "guestPopups": {"description": "The pop-ups a guest starts with, set by the owner; a guest's own popups pref wins. Absent, all three are on.", "type": "array", "maxItems": 3, "items": {"enum": ["request", "mention", "round"]}},
         "roundCap": {"description": "The host's questions per round, set from the session's start settings; a round holds at most this many. Absent, the server limit of 8.", "type": "integer", "minimum": 1, "maximum": 8},
+        "style": {"$ref": "#/$defs/style"},
         "prototypeTiers": {"description": "The prototype views the session offers guests: screenshots, HTML snapshots, live prototypes, each at most once. Absent, screenshots and HTML snapshots are on and live is off.", "type": "array", "maxItems": 3, "uniqueItems": true, "items": {"enum": ["screenshot", "snapshot", "live"]}},
         "theme": {
           "type": "object",
@@ -650,9 +651,12 @@
         "origin": {"$ref": "#/$defs/origin"},
         "lockedText": {"type": "string"},
         "needsReview": {"type": "array", "items": {"$ref": "#/$defs/reviewFlag"}},
-        "for": {"description": "Who must answer, as pids, each once (session.py checks): optional; absent asks everyone.", "type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pid"}}
+        "for": {"description": "Who must answer, as pids, each once (session.py checks): optional; absent asks everyone.", "type": "array", "minItems": 1, "items": {"$ref": "#/$defs/pid"}},
+        "major": {"$ref": "#/$defs/major"}
       }
     },
+    "style": {"description": "How the pages show each question: `standard` cards, or `lightning`, condensed cards each person can expand, with a round cap of 8. Absent is standard.", "enum": ["standard", "lightning"]},
+    "major": {"description": "A major question (problem, intent, vision, goals, quality bar, or another consequential call): a lightning card tags it (major). Absent is not major.", "enum": [true]},
     "deviceKind": {"enum": ["phone", "tablet", "computer"]},
     "deviceInfo": {
       "type": "object",
