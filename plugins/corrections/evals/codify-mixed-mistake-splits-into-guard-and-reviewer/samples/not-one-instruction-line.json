@@ -1,0 +1,26 @@
+{
+  "pass": [
+    {
+      "answer": "Part 1: rung action-guard, a Stop hook proved on a fixture. Part 2: rung automated-review, a line in REVIEW.md.",
+      "why": "hand-written: a checking rung plus a guidance rung"
+    },
+    {
+      "answer": "Part 1: rung action-guard, unproven so not proposed for install. Until it is built, add this line to CLAUDE.md: \"Wait for background test runs before saying checks passed.\"",
+      "why": "hand-written: an interim instruction line beside a chosen checking rung"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "",
+      "why": "hand-written: empty reply"
+    },
+    {
+      "answer": "Rung: instruction. Add one line to CLAUDE.md: \"Never end a turn while tests run, and never call a flaky test good enough to merge.\"",
+      "why": "hand-written: one instruction line as the whole fix"
+    },
+    {
+      "answer": "action-guard and automated-review were considered and rejected. Fix: one line in AGENTS.md.",
+      "why": "hand-written: both rung ids named only as rejected, one instruction line chosen"
+    }
+  ]
+}

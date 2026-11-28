@@ -242,7 +242,7 @@ current one. End with the question for any blocking install.
 
 ## Next
 
-- hook: /harness-config:audit-automation-gaps.
+- `action-guard` or a model-judged hook: /harness-config:audit-automation-gaps.
 - make-impossible: /architecture:improve.
 - a group at or over the threshold: /corrections:codify "<the group's mistake>".
 - existing violations to clean up, or a proven check or a ledger's checks to build: /implementation:implement.

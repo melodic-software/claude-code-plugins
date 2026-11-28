@@ -13,9 +13,9 @@ execution:
   timeout_seconds: 720
 graders:
   - name: strengthens-existing-rule
-    type: 'regex'
-    pattern: 'strengthen'
-    flags: 'i'
+    type: 'llm'
+    criteria: 'PASS only if the reply proposes strengthening the rule AGENTS.md already states, in place, such as rewording it, moving it up or adding an example beside it. FAIL if the reply says not to strengthen it, rejects strengthening, proposes adding a new or second instruction line instead, or proposes nothing. Judge what the reply proposes, not which words appear.'
+    focus: 'last_message'
     arm: 'both'
   - name: reports-no-rung-above
     type: 'regex'

@@ -13,14 +13,19 @@ execution:
   timeout_seconds: 720
 graders:
   - name: names-action-guard
-    type: 'regex'
-    pattern: 'action-guard'
-    flags: 'i'
+    type: 'llm'
+    criteria: 'PASS only if the reply chooses action-guard as the rung for the part where the turn ends claiming every check passed while a background test run is still going. A rung id that is only listed, rejected, ruled out, set aside or named as an alternative does not count as chosen, and neither does a sentence saying not to use it. FAIL if that part has no chosen rung, a different rung, or a rung named only in prose such as "a hook" rather than by the id action-guard. A chosen rung counts even when its check is unproven or not proposed for install.'
+    focus: 'last_message'
     arm: 'both'
   - name: names-reviewer-rung
-    type: 'regex'
-    pattern: 'automated-review'
-    flags: 'i'
+    type: 'llm'
+    criteria: 'PASS only if the reply chooses automated-review as the rung for the judgment part, calling a flaky test good enough to merge. A rung id that is only listed, rejected, ruled out or named as an alternative does not count as chosen, and neither does a sentence saying not to use it. FAIL if that part has no chosen rung or a different rung.'
+    focus: 'last_message'
+    arm: 'both'
+  - name: not-one-instruction-line
+    type: 'llm'
+    criteria: 'PASS only if the reply proposes more than a single instruction line as the fix: at least one part of the mistake gets a checking rung such as action-guard. FAIL if the whole fix is one line in CLAUDE.md, AGENTS.md or another instruction file, or one instruction-rung entry, even when other rungs are named as rejected. An interim instruction line beside a chosen checking rung does not fail.'
+    focus: 'last_message'
     arm: 'both'
   - name: writes-only-under-work-codify
     type: 'tool_used'

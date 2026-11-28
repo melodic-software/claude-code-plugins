@@ -39,6 +39,7 @@ many merged pull requests `reviews` reads without `--pr`. Each is a plugin optio
 
 ```shell
 plugins/corrections/scripts/prove-check.sh --check '<command>' (--old <ref> | --plant <patch>) [--new <ref>]
+plugins/corrections/scripts/prove-check.sh --check '<command>' --fixture <dir>
 ```
 
 Run it from inside the repository the refs belong to. It runs `<command>`
@@ -52,6 +53,11 @@ ever made. The script applies it to `<new>` in the old-side worktree and
 commits it there, with hooks and signing off, so the check sees a clean
 checkout. That commit is on no branch, tag or surviving reflog and is never
 pushed; git's garbage collection prunes it like any unreachable object.
+
+`--fixture` proves a check over an agent action or turn, with no refs: it runs
+`<command>` in a copy of `<dir>/with-mistake/`, which must exit non-zero, and of
+`<dir>/without-mistake/`, which must exit 0, feeding each input's `stdin` file
+on standard input when present.
 
 | Exit | Meaning |
 |---|---|

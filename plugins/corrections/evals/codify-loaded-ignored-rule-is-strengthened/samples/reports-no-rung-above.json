@@ -1,15 +1,22 @@
 {
   "pass": [
     {
-      "answer": "Problems: no rung above holds it."
+      "answer": "Problems: no rung above holds it.",
+      "why": "hand-written: the ladder's fallback problem line"
     }
   ],
   "fail": [
     {
-      "answer": ""
+      "answer": "",
+      "why": "hand-written: empty reply"
     },
     {
-      "answer": "Rung: instruction."
+      "answer": "Rung: instruction.",
+      "why": "hand-written: no fallback problem reported"
+    },
+    {
+      "answer": "A rung above holds it: automated-review.",
+      "why": "hand-written: claims a rung above holds it"
     }
   ]
 }
