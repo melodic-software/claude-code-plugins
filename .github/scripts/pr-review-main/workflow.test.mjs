@@ -910,7 +910,7 @@ test("each select reads the files again after a failure and holds green on a lis
   }
 });
 
-const KEY_SKIP = "      && (needs.check-trigger.outputs.run-attempt != github.run_attempt\n      || needs.check-trigger.outputs.review != 'false' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true')\n";
+const KEY_SKIP = "      && (needs.check-trigger.outputs.run-attempt != github.run_attempt\n      || needs.check-trigger.outputs.proceed == 'true' && needs.check-trigger.outputs.review != 'false' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true')\n";
 
 const RECORD_IF = /^ {4}if: \$\{\{ !cancelled\(\) && github\.ref == 'refs\/heads\/main' && \(needs\.review\.result != 'skipped' \|\| needs\.review-subscription\.result != 'skipped'\) \}\}$/m;
 
@@ -967,15 +967,16 @@ test("the credit gate skips the key leg only on next-leg subscription, and a gat
   assert.ok(!runs({ result: "success", outputs: {} }, triggered, { status: "cancelled" }));
   const probeRuns = (trigger) => admits(jobGate(PROBE), { github: upstreamRun, needs: { "check-trigger": trigger } });
   const reviewRuns = (trigger) => admits(jobGate(KEY), { github: upstreamRun, needs: { "check-trigger": trigger, [PROBE]: { result: "skipped", outputs: {} } } });
-  for (const outputs of [{}, { proceed: "" }, { review: "" }]) {
+  for (const outputs of [{}, { review: "" }]) {
     const trigger = { ...triggered, outputs: { ...triggered.outputs, ...outputs } };
     assert.ok(probeRuns(trigger), JSON.stringify(outputs));
   }
-  for (const outputs of [{ review: "false" }, { judged: "true" }, { held: "true" }]) {
+  for (const outputs of [{ proceed: "" }, { proceed: "false" }, { review: "false" }, { judged: "true" }, { held: "true" }]) {
     const trigger = { ...triggered, outputs: { ...triggered.outputs, ...outputs } };
     assert.ok(!probeRuns(trigger), JSON.stringify(outputs));
     assert.ok(!reviewRuns(trigger), `the review job runs where the gate skipped: ${JSON.stringify(outputs)}`);
   }
+  assert.ok(reviewRuns({ ...triggered, outputs: { ...triggered.outputs, proceed: "", "run-attempt": "0" } }), "a re-run of an older attempt reviews on the re-run's own gate");
   assert.ok(!probeRuns({ ...triggered, outputs: { ...triggered.outputs, "run-attempt": "2" } }));
   assert.ok(!admits(jobGate(PROBE), { github: { ...upstreamRun, ref: "refs/heads/x" }, needs: { "check-trigger": triggered } }));
 });

@@ -351,6 +351,7 @@ jobs:
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && needs.check-trigger.outputs.run-attempt == github.run_attempt
+      && needs.check-trigger.outputs.proceed == 'true'
       && needs.check-trigger.outputs.review != 'false'
       && needs.check-trigger.outputs.judged != 'true'
       && needs.check-trigger.outputs.held != 'true'
@@ -591,7 +592,7 @@ jobs:
       && github.event.workflow_run.conclusion == 'success'
       && github.event.workflow_run.head_repository.full_name == github.repository
       && (needs.check-trigger.outputs.run-attempt != github.run_attempt
-      || needs.check-trigger.outputs.review != 'false' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true')
+      || needs.check-trigger.outputs.proceed == 'true' && needs.check-trigger.outputs.review != 'false' && needs.check-trigger.outputs.judged != 'true' && needs.check-trigger.outputs.held != 'true')
     strategy:
       fail-fast: false
       matrix:
