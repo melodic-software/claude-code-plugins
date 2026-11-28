@@ -1,5 +1,5 @@
 ---
-description: "Agentic multi-persona EventStorming simulation on markdown (default) or Miro board (--backend): --simulate, --process-model, --design-level, --evaluate, --retrospective, --induction, --value, --crc, --ux, --discover-bcs. Use when: 'agentic simulation', 'run a board simulation', 'Miro board'. Not for reference: /event-storming:methodology."
+description: "Agentic multi-persona EventStorming simulation on markdown (default) or Miro board (--backend): --simulate, --process-model, --design-level, --evaluate, --retrospective, --induction, --value, --crc, --ux, --discover-bcs. Use when: 'agentic simulation', 'run a board simulation', 'Miro EventStorming'. Not for reference: /event-storming:methodology."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<--simulate|--process-model|--design-level|--evaluate…> [domain|board] [--backend markdown|miro]"
