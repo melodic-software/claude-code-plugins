@@ -3,6 +3,12 @@
 All notable changes to the `plugin-profiles` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.14.2] - 2026-11-28
+
+### Changed
+
+- Resolve `session_start_profile_enabled` in-process through the shared `lib/hook-enabled.mjs` helper and `plugin_profile_module_enabled` in-process through the shared `hooks/mod-hook-enabled.ts` helper, removing the per-plugin `lib/hook-enablement.mjs` bash wrapper and vendored `hooks/hook-enabled.sh` copy.
+
 ## [0.14.1] - 2026-11-28
 
 ### Changed

@@ -5,6 +5,12 @@ All notable changes to the `harness-config` plugin are documented here. Format f
 
 Versions 0.51.8 to 0.51.9 and 0.51.11 to 0.51.14 were reserved by parallel branches and never released.
 
+## [6.0.0] - 2026-11-28
+
+### Removed
+
+- Stop reading retired `~/.claude/audit-pass.md` and `.claude/audit-pass.local.md` suppression files in `audit-engine.sh`; demote `harness-config-r001` to `report-only` and remove the `/harness-config:setup` old-file migration path.
+
 ## [5.12.4] - 2026-11-28
 
 ### Changed

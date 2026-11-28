@@ -3,6 +3,12 @@
 All notable changes to the `guardrails` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [5.5.7] - 2026-11-28
+
+### Fixed
+
+- The merge guard now refuses a merge at a head pr-verify failed when no PASS or PASS-NOTES was judged after the FAIL, instead of letting it through after the 30-minute no-verdict wait. An approving review of the head by a person on the trusted-actor list lifts it, as the merge queue does.
+
 ## [5.5.6] - 2026-11-28
 
 ### Changed

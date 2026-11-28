@@ -1,5 +1,11 @@
 # Changelog: discovery plugin
 
+## [3.5.2] - 2026-11-28
+
+### Changed
+
+- Shared `README.md` synced to standards contract 1.3.2 (carriers of the ecosystem-resolution contract named as paved-path readers; merged pull request counts as acceptance for ecosystem records only); no change to this plugin's reference.
+
 ## [3.5.1] - 2026-11-28
 
 ### Changed

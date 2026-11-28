@@ -3,6 +3,12 @@
 All notable changes to the `formal-verification` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.4.0] - 2026-11-28
+
+### Added
+
+- Register `reference/html-tokens.css` and `lib/view-settings.mjs` (with `view-registry.mjs` and `state-key.sh`), add the `branding` `userConfig` option, migrate `skills/chart/reference/render-theme.css` base `--pele-*` tokens onto the shared token layer, and add `skills/chart/scripts/render-theme.mjs` plus branding/floor tests.
+
 ## [0.3.13] - 2026-11-28
 
 ### Changed

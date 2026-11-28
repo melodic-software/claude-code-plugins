@@ -3,6 +3,12 @@
 All notable changes to the `code-tidying` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.2.5] - 2026-11-28
+
+### Fixed
+
+- The comment lint passes actionlint's inline suppression directives (`actionlint:ignore`, `actionlint-ignore` and their `-next-line` forms) as machine-read directives instead of flagging them; a plain comment that names actionlint is still flagged ([#19742](https://github.com/melodic-software/claude-code-plugins/issues/19742)).
+
 ## [2.2.4] - 2026-11-28
 
 ### Changed

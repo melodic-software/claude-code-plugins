@@ -3,6 +3,16 @@
 All notable changes to the `harness-ops` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [11.4.0] - 2026-11-28
+
+### Added
+
+- Adopt the shared rendered-views token layer (`reference/html-tokens.css`) and branding overrides (palette, type stacks, logo slot, and `branding` `userConfig` option) in the observability dashboard HTML view.
+
+### Changed
+
+- Trimmed `harness-ops:control-claude-code` control-skill frontmatter description (184 -> 147 chars) to <= 150 chars while keeping `disable-model-invocation: true` and `user-invocable` omitted.
+
 ## [11.3.8] - 2026-11-28
 
 ### Changed

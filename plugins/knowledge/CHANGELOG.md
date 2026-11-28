@@ -4,6 +4,12 @@ All notable changes to the `knowledge` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [3.7.0] - 2026-11-28
+
+### Added
+
+- Adopt the shared rendered-views token layer (`reference/html-tokens.css`), `lib/view-settings.mjs`, and branding overrides (palette, type stacks, logo slot, and `branding` `userConfig` option) in the video-digest menu HTML view.
+
 ## [3.6.6] - 2026-11-28
 
 ### Changed

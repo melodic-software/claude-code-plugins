@@ -3,6 +3,21 @@
 All notable changes to the `planning` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [6.3.0] - 2026-11-28
+
+### Added
+
+- `/planning:interview` lightning style: each question prints as a condensed entry (question line, a few-word bold answer, its basis after a dash, the alternatives' letters), major questions tagged, every gate and the full confirmation kept. Turn it on with `lightning` as the first argument word, "lightning", "go lightning" or "speed this up" mid-interview, or the new `interview_style` setting (`standard` default); "stop lightning" turns it off.
+- `round.sh show --level lightning` renders a saved round file as condensed entries; the round file keeps every full block, so "more Q<N>" and `/planning:audit-answers` read it unchanged.
+
+### Changed
+
+- Shared `README.md` synced to standards contract 1.3.2 (carriers of the ecosystem-resolution contract named as paved-path readers; merged pull request counts as acceptance for ecosystem records only); no change to this plugin's reference.
+
+### Fixed
+
+- `/planning:interview` now defines, in the same question, any coined term a Context definition leans on, and restates each definition in every later question that uses it, instead of only naming the term (#18216).
+
 ## [6.2.4] - 2026-11-28
 
 ### Changed

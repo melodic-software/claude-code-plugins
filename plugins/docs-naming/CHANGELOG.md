@@ -3,6 +3,16 @@
 All notable changes to the `docs-naming` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [0.10.0] - 2026-11-28
+
+### Changed
+
+- Trimmed `/docs-naming:generate-file-name-gate` frontmatter description (380 -> 342 chars) to <= 350 chars while preserving standalone checker/test-suite emission, flags (`--rule`, `--force`), all 3 triggers, sibling exclusions, and exact probe parity.
+
+### Removed
+
+- Stop reading retired `~/.claude/docs-naming.json` and `~/.claude/docs-hygiene.json` user files in `resolve-config.sh` and remove the `/docs-naming:setup` `--user-config-value` migration path.
+
 ## [0.9.15] - 2026-11-28
 
 ### Changed

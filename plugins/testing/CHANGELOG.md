@@ -3,6 +3,12 @@
 All notable changes to the `testing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [7.0.0] - 2026-11-28
+
+### Removed
+
+- Stop reading retired `~/.claude/testing.yaml`, `.claude/testing.yaml`, `.claude/testing.local.yaml`, `~/.claude/testing/e2e.md`, `.claude/testing/e2e.md`, `.claude/testing/e2e.local.md`, and `.claude/testing/worst-case.md` files across `resolve-config.sh`, `visual-compare.sh`, `cant-fail-scan.sh`, `judge-lib.sh`, and `run-e2e`, and remove `/testing:setup` `--copy-old` and the `.claude/testing.yaml` write fallback.
+
 ## [6.0.10] - 2026-11-28
 
 ### Changed

@@ -4,6 +4,12 @@ All notable changes to the `playbooks` plugin are recorded here. The `version` i
 `.claude-plugin/plugin.json` is the delivery vehicle. A consumer receives a change
 only after that version increases.
 
+## [0.37.0] - 2026-11-28
+
+### Added
+
+- Register `reference/html-tokens.css` and `lib/view-settings.mjs` (with `view-registry.mjs`, `config-cascade.mjs`, `yaml-subset.mjs`, and `state-key.sh`), add the `branding` `userConfig` option, and migrate `/playbooks:repo-sweep` (`reference/repo-sweep-plan-page.html` and `render.sh`) to the shared token layer, chrome toggle/comment box, logo slot, and resolved `branding` overrides.
+
 ## [0.36.24] - 2026-11-28
 
 ### Changed

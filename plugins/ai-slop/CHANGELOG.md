@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.22.0] - 2026-11-28
+
+### Removed
+
+- Stop reading retired `~/.claude/ai-slop.json` in `detect.sh` and remove the `/ai-slop:setup` old-file migration path.
+
 ## [0.21.11] - 2026-11-28
 
 ### Changed

@@ -3,6 +3,12 @@
 All notable changes to the `disk-hygiene` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.0] - 2026-11-28
+
+### Removed
+
+- Stop reading retired `~/.claude/disk-hygiene.json` and `.claude/disk-hygiene.json` standing policy files in `policy_cascade.py` and remove `policy_migration.py` and the `/disk-hygiene:setup` old-file migration path.
+
 ## [1.4.1] - 2026-11-28
 
 ### Changed
