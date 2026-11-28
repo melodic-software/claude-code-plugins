@@ -11,6 +11,14 @@
     {
       "answer": "It invokes `code-tidying:tidy-diff` with the lines file. `--turns` is set to 18 or to what is left after that reserve, whichever is smaller.",
       "why": "the wb2 reply line: the flag in a code span, its value in prose"
+    },
+    {
+      "answer": "It calls `code-tidying:tidy-diff` with the lines file. `--turns` is the smaller of 18 and the turns left after the reserve.",
+      "why": "real reply: is the smaller of 18"
+    },
+    {
+      "answer": "It passes the lines file and sets `--turns` to the smaller of 18 and what is left after the reserve.",
+      "why": "real reply: sets the flag to the smaller of 18"
     }
   ],
   "fail": [
@@ -21,6 +29,10 @@
     {
       "answer": "invoke code-tidying:tidy-diff with an 18-turn budget",
       "why": "no flag"
+    },
+    {
+      "answer": "`--turns` is the smaller of 75 and what is left after the reserve.",
+      "why": "near miss: the smaller of the whole budget"
     }
   ]
 }
