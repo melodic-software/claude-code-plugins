@@ -8,6 +8,12 @@
   "version": "0.6.2",
   "license": "MIT",
   "userConfig": {
+    "peer_list_enabled": {
+      "type": "boolean",
+      "title": "Peer list session-start hook",
+      "description": "Whether the SessionStart hook queries fleet lanes for live Claude Code sessions and injects the peer list into session context. Defaults to false because it queries other lanes over WSL or SSH.",
+      "default": false
+    },
     "converge_docs_url": {
       "type": "string",
       "title": "Converge docs URL",
