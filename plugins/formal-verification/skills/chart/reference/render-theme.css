@@ -1,13 +1,11 @@
 .pele {
-  --pele-bg: var(--bg);
-  --pele-fg: var(--fg);
-  --pele-muted: var(--muted);
-  --pele-line: var(--muted);
-  --pele-surface: var(--panel);
-  --pele-surface-alt: var(--gray-100);
-  --pele-border: var(--gray-300);
-  --pele-font: var(--sans);
-  font-family: var(--sans);
+  --pele-bg: #ffffff;
+  --pele-fg: #1c1c1c;
+  --pele-muted: #656565;
+  --pele-line: #808080;
+  --pele-surface: #fcfcfc;
+  --pele-surface-alt: #f1f1f1;
+  --pele-border: #c9c9c9;
 }
 .pele .blue rect { fill: #c3e0ff !important; }
 .pele .orange rect { fill: #f0d3bf !important; }
@@ -43,8 +41,13 @@
 }
 @media (prefers-color-scheme: dark) {
   :is(:root.pele:not([data-theme=light]), :root:not([data-theme=light]) .pele) {
-    --pele-surface-alt: var(--gray-700);
-    --pele-border: var(--gray-500);
+    --pele-bg: #1f1f1f;
+    --pele-fg: #f5f5f5;
+    --pele-muted: #acacac;
+    --pele-line: #939393;
+    --pele-surface: #121212;
+    --pele-surface-alt: #2c2c2c;
+    --pele-border: #4e4e4e;
   }
   :is(:root.pele:not([data-theme=light]), :root:not([data-theme=light]) .pele) .blue rect { fill: #1b3857 !important; }
   :is(:root.pele:not([data-theme=light]), :root:not([data-theme=light]) .pele) .orange rect { fill: #573117 !important; }
@@ -75,8 +78,13 @@
   }
 }
 :is(:root.pele[data-theme=dark], :root[data-theme=dark] .pele) {
-  --pele-surface-alt: var(--gray-700);
-  --pele-border: var(--gray-500);
+  --pele-bg: #1f1f1f;
+  --pele-fg: #f5f5f5;
+  --pele-muted: #acacac;
+  --pele-line: #939393;
+  --pele-surface: #121212;
+  --pele-surface-alt: #2c2c2c;
+  --pele-border: #4e4e4e;
 }
 :is(:root.pele[data-theme=dark], :root[data-theme=dark] .pele) .blue rect { fill: #1b3857 !important; }
 :is(:root.pele[data-theme=dark], :root[data-theme=dark] .pele) .orange rect { fill: #573117 !important; }

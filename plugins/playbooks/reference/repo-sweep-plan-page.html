@@ -12,10 +12,9 @@
     font-family: var(--sans); max-width: 900px; margin: 2rem auto;
     padding: 0 1rem 4rem; line-height: 1.5; background: var(--bg); color: var(--fg);
   }
-  h1, h2 { font-family: var(--serif); }
   h1 { font-size: 1.5rem; margin-bottom: .25rem; }
-  p.lead { color: var(--muted); margin-top: 0; }
-  h2.phase { font-size: 1rem; margin: 1.5rem 0 .5rem; border-bottom: var(--border); padding-bottom: .25rem; color: var(--muted); }
+  p.lead { opacity: .8; margin-top: 0; }
+  h2.phase { font-size: 1rem; margin: 1.5rem 0 .5rem; border-bottom: 1px solid currentColor; padding-bottom: .25rem; opacity: .8; }
   a { color: var(--link); }
   a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible {
     outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 2px;
@@ -35,17 +34,17 @@
   ul#list { list-style: none; margin: 0; padding: 0; }
   li.row {
     display: grid; grid-template-columns: auto auto 1fr auto; gap: .5rem .75rem;
-    align-items: start; border: var(--border); border-radius: var(--radius-row);
-    padding: .6rem .8rem; margin-bottom: .5rem; cursor: grab; background: var(--panel);
+    align-items: start; border: 1px solid var(--gray-300); border-radius: var(--radius-row);
+    padding: .6rem .8rem; margin-bottom: .5rem; cursor: grab; background: var(--bg);
   }
   li.row.dimmed { opacity: .55; }
   li.row.dragover { outline: 2px dashed currentColor; }
   li.row .id { font-family: var(--mono); font-weight: 600; }
-  li.row .meta { font-size: .85rem; color: var(--muted); margin-top: .2rem; }
+  li.row .meta { font-size: .85rem; opacity: .85; margin-top: .2rem; }
   .badge { font-size: .75rem; padding: .1rem .5rem; border-radius: 1rem; border: 1px solid currentColor; white-space: nowrap; height: fit-content; }
-  .badge.run, .badge.rerun { color: #2f6b2f; border-color: #2f6b2f; }
-  .badge.rerun-optional { color: #8a6d00; border-color: #8a6d00; }
-  .badge.not-applicable { color: #8a3b3b; border-color: #8a3b3b; }
+  .badge.run, .badge.rerun { color: color-mix(in srgb, var(--olive) 55%, var(--fg)); border-color: currentColor; }
+  .badge.rerun-optional { color: var(--link); border-color: currentColor; }
+  .badge.not-applicable { color: color-mix(in srgb, var(--accent) 55%, var(--fg)); border-color: currentColor; }
   .order-buttons { display: flex; flex-direction: column; gap: .15rem; }
   .order-buttons button { font: inherit; cursor: pointer; }
   #copy-row { display: flex; gap: .5rem; align-items: center; margin: 1.5rem 0; flex-wrap: wrap; }
@@ -201,8 +200,11 @@
 
   document.getElementById('copy-btn').addEventListener('click', function () {
     var line = document.getElementById('line').value;
+    var noteEl = document.getElementById('rv-comment-text');
+    var note = noteEl ? noteEl.value.trim() : '';
+    var payload = note ? line + '\ncomment: ' + note : line;
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(line).catch(function () {});
+      navigator.clipboard.writeText(payload).catch(function () {});
     }
     document.getElementById('line').select();
   });

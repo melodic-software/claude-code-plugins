@@ -50,23 +50,28 @@ function renderPage(root, { brandingOption = "", configDir = join(root, "empty-c
   return execFileSync("bash", [RENDER_SH, "--page", CATALOG, recs], { encoding: "utf8", env });
 }
 
-test("repo-sweep plan template defines no literal palette role or type-stack custom properties", () => {
+test("repo-sweep plan template defines no literal palette role, hex color, or type-stack custom properties", () => {
   const tpl = readFileSync(TEMPLATE_PATH, "utf8");
   const style = tpl.slice(tpl.indexOf("<style>"), tpl.indexOf("</style>"));
   assert.doesNotMatch(style, /--(?:bg|fg|panel|muted|accent|link|focus|serif|sans|mono)\s*:/);
-  assert.doesNotMatch(style, /#(?:FAF9F5|141413|D1CFC5)/i);
+  assert.doesNotMatch(style, /#[0-9a-fA-F]{3,8}\b/);
   assert.match(style, /background:\s*var\(--bg\)/);
   assert.match(style, /color:\s*var\(--fg\)/);
   assert.match(style, /font-family:\s*var\(--sans\)/);
   assert.match(style, /font-family:\s*var\(--mono\)/);
 });
 
-test("default render inlines html-tokens.css, omits .rv-brand, and preserves toggle, comment box, and floor", () => {
+test("default render inlines html-tokens.css, keeps unbranded look, omits .rv-brand, and preserves toggle, comment box, and floor", () => {
   withTempRepo((root) => {
     const html = renderPage(root);
     assert.match(html, /--ivory:\s*#FAF9F5;/);
     assert.match(html, /--bg:\s*var\(--ivory\);/);
     assert.match(html, /--fg:\s*var\(--slate\);/);
+    assert.doesNotMatch(html, /h1,\s*h2\s*\{\s*font-family:\s*var\(--serif\)/);
+    assert.match(html, /p\.lead\s*\{\s*opacity:\s*\.8;/);
+    assert.match(html, /h2\.phase\s*\{[^}]*opacity:\s*\.8;/);
+    assert.match(html, /li\.row\s*\{[^}]*background:\s*var\(--bg\);/);
+    assert.match(html, /li\.row \.meta\s*\{[^}]*opacity:\s*\.85;/);
     assert.doesNotMatch(html, /class="rv-brand"/);
     assert.match(html, /<button type="button" data-rv-theme="system" aria-pressed="true">System<\/button>/);
     assert.match(html, /<button type="button" data-rv-theme="light" aria-pressed="false">Light<\/button>/);
@@ -169,12 +174,23 @@ test("theme toggle handler pins data-theme on light/dark and removes it on syste
   const buttons = [makeBtn("system"), makeBtn("light"), makeBtn("dark")];
   for (const b of buttons) b.closest = (sel) => (sel === "button[data-rv-theme]" ? b : null);
   const elStub = () => ({ textContent: "", value: "", addEventListener: () => {}, appendChild: () => {}, select: () => {} });
+  const copyHandlers = [];
+  const copied = [];
+  const copyBtn = {
+    textContent: "",
+    value: "",
+    addEventListener: (ev, fn) => { if (ev === "click") copyHandlers.push(fn); },
+    appendChild: () => {},
+    select: () => {},
+  };
+  const noteBox = elStub();
   const elements = {
     "repo-sweep-data": { textContent: JSON.stringify({ playbook: "fixture", entries: [] }) },
     title: elStub(),
     groups: elStub(),
     line: elStub(),
-    "copy-btn": elStub(),
+    "copy-btn": copyBtn,
+    "rv-comment-text": noteBox,
   };
   const document = {
     documentElement: {
@@ -186,8 +202,16 @@ test("theme toggle handler pins data-theme on light/dark and removes it on syste
     querySelectorAll: (sel) => (sel === "button[data-rv-theme]" ? buttons : []),
     addEventListener: (ev, fn) => { if (ev === "click") listeners.push(fn); },
   };
-  new Function("document", "navigator", scripts[0][1])(document, {});
+  const navigator = { clipboard: { writeText: (text) => { copied.push(text); return Promise.resolve(); } } };
+  new Function("document", "navigator", scripts[0][1])(document, navigator);
   assert.equal(listeners.length, 1);
+  assert.equal(copyHandlers.length, 1);
+
+  copyHandlers[0]();
+  assert.equal(copied.at(-1), "repo-sweep-selection: ");
+  noteBox.value = "  skip tidy on this pass  ";
+  copyHandlers[0]();
+  assert.equal(copied.at(-1), "repo-sweep-selection: \ncomment: skip tidy on this pass");
 
   listeners[0]({ target: buttons[2] });
   assert.equal(attrs.get("data-theme"), "dark");

@@ -34,6 +34,42 @@ export function stripTokenComment(tokensCss) {
   return tokensCss.replace(/\r\n?/g, "\n").replace(/^(?:\/\*[\s\S]*?\*\/\s*)+/, "").trim();
 }
 
+const PELE_ROLE_MAP = [
+  ["bg", "--pele-bg", "var(--bg)"],
+  ["fg", "--pele-fg", "var(--fg)"],
+  ["muted", "--pele-muted", "var(--muted)"],
+  ["panel", "--pele-surface", "var(--panel)"],
+];
+
+export function peleOverrideCss(branding) {
+  const sources = branding?.sources ?? {};
+  const light = [];
+  for (const [role, peleProp, tokenRef] of PELE_ROLE_MAP) {
+    if (sources[`palette.light.${role}`] && sources[`palette.light.${role}`] !== "default") {
+      light.push(`${peleProp}: ${tokenRef};`);
+    }
+  }
+  if (sources["type.sans"] && sources["type.sans"] !== "default") {
+    light.push("--pele-font: var(--sans);", "font-family: var(--pele-font);");
+  }
+  const dark = [];
+  for (const [role, peleProp, tokenRef] of PELE_ROLE_MAP) {
+    if (sources[`palette.dark.${role}`] && sources[`palette.dark.${role}`] !== "default") {
+      dark.push(`${peleProp}: ${tokenRef};`);
+    }
+  }
+  const blocks = [];
+  if (light.length) blocks.push(`.pele { ${light.join(" ")} }`);
+  if (dark.length) {
+    const body = dark.join(" ");
+    blocks.push(
+      `@media (prefers-color-scheme: dark) { :is(:root.pele:not([data-theme=light]), :root:not([data-theme=light]) .pele) { ${body} } }`,
+      `:is(:root.pele[data-theme=dark], :root[data-theme=dark] .pele) { ${body} }`,
+    );
+  }
+  return blocks.join("\n");
+}
+
 export function buildChartStyle({ userConfig = null, projectRoot = findRoot(), teamRef = null } = {}, options = {}) {
   const tokens = stripTokenComment(readFileSync(TOKENS_PATH, "utf8"));
   const theme = readFileSync(THEME_PATH, "utf8").replace(/\r\n?/g, "\n").trim();
@@ -41,6 +77,8 @@ export function buildChartStyle({ userConfig = null, projectRoot = findRoot(), t
   const parts = [tokens];
   if (branding.css) parts.push(branding.css);
   parts.push(theme);
+  const peleOverrides = peleOverrideCss(branding);
+  if (peleOverrides) parts.push(peleOverrides);
   return { css: `${parts.join("\n")}\n`, branding };
 }
 

@@ -24,26 +24,38 @@ function withTempRepo(fn) {
   }
 }
 
-test("render-theme.css derives --pele-* base tokens from html-tokens.css and matches root-SVG dark mode", () => {
+test("render-theme.css preserves Pele default light/dark values and root-SVG dark mode", () => {
   const theme = readFileSync(THEME_PATH, "utf8");
-  assert.doesNotMatch(theme, /--pele-[a-z-]+\s*:\s*#[0-9a-fA-F]+/);
-  assert.match(theme, /--pele-bg:\s*var\(--bg\);/);
-  assert.match(theme, /--pele-fg:\s*var\(--fg\);/);
-  assert.match(theme, /--pele-muted:\s*var\(--muted\);/);
-  assert.match(theme, /--pele-surface:\s*var\(--panel\);/);
-  assert.match(theme, /--pele-font:\s*var\(--sans\);/);
+  assert.match(theme, /--pele-bg:\s*#ffffff;/);
+  assert.match(theme, /--pele-fg:\s*#1c1c1c;/);
+  assert.match(theme, /--pele-muted:\s*#656565;/);
+  assert.match(theme, /--pele-line:\s*#808080;/);
+  assert.match(theme, /--pele-surface:\s*#fcfcfc;/);
+  assert.match(theme, /--pele-surface-alt:\s*#f1f1f1;/);
+  assert.match(theme, /--pele-border:\s*#c9c9c9;/);
+  assert.match(theme, /--pele-bg:\s*#1f1f1f;/);
+  assert.match(theme, /--pele-fg:\s*#f5f5f5;/);
+  assert.match(theme, /--pele-muted:\s*#acacac;/);
+  assert.match(theme, /--pele-line:\s*#939393;/);
+  assert.match(theme, /--pele-surface:\s*#121212;/);
+  assert.match(theme, /--pele-surface-alt:\s*#2c2c2c;/);
+  assert.match(theme, /--pele-border:\s*#4e4e4e;/);
+  assert.doesNotMatch(theme, /--pele-font:/);
   assert.match(theme, /:is\(:root\.pele:not\(\[data-theme=light\]\), :root:not\(\[data-theme=light\]\) \.pele\)/);
   assert.match(theme, /:is\(:root\.pele\[data-theme=dark\], :root\[data-theme=dark\] \.pele\)/);
   assert.match(readFileSync(RENDER_DOC_PATH, "utf8"), /render-theme\.mjs/);
 });
 
-test("default chart style includes html-tokens.css shipped values and keeps categorical/verdict classes", () => {
+test("default chart style keeps exact unbranded Pele light/dark palette without forcing --pele-font", () => {
   withTempRepo((root) => {
     const { css, branding } = buildChartStyle({ projectRoot: root });
     assert.equal(branding.css, "");
     assert.match(css, /--ivory:\s*#FAF9F5;/);
     assert.match(css, /--bg:\s*var\(--ivory\);/);
-    assert.match(css, /--pele-bg:\s*var\(--bg\);/);
+    assert.match(css, /\.pele \{\n  --pele-bg: #ffffff;\n  --pele-fg: #1c1c1c;\n  --pele-muted: #656565;\n  --pele-line: #808080;\n  --pele-surface: #fcfcfc;\n  --pele-surface-alt: #f1f1f1;\n  --pele-border: #c9c9c9;\n\}/);
+    assert.match(css, /:is\(:root\.pele\[data-theme=dark\], :root\[data-theme=dark\] \.pele\) \{\n  --pele-bg: #1f1f1f;\n  --pele-fg: #f5f5f5;\n  --pele-muted: #acacac;\n  --pele-line: #939393;\n  --pele-surface: #121212;\n  --pele-surface-alt: #2c2c2c;\n  --pele-border: #4e4e4e;\n\}/);
+    assert.doesNotMatch(css, /--pele-bg:\s*var\(--bg\)/);
+    assert.doesNotMatch(css, /--pele-font:/);
     assert.match(css, /\.pele \.breaks rect/);
     assert.ok(readFileSync(TOKENS_PATH, "utf8").includes("--bg: var(--ivory);"));
   });
@@ -75,7 +87,8 @@ test("CLI render-theme.mjs applies repo and userConfig branding overrides in ord
     assert.equal(run.stderr, "");
     assert.match(run.stdout, /:root \{ --bg: #FFFFFF; --fg: #101828; --muted: #595959; --sans: IBM Plex Sans, system-ui, sans-serif; --mono: JetBrains Mono, monospace; \}/);
     assert.match(run.stdout, /:root\[data-theme=dark\] \{ --bg: #0B1220; --fg: #F8FAFC; \}/);
-    assert.match(run.stdout, /--pele-bg:\s*var\(--bg\);/);
+    assert.match(run.stdout, /\.pele \{ --pele-bg: var\(--bg\); --pele-fg: var\(--fg\); --pele-muted: var\(--muted\); --pele-font: var\(--sans\); font-family: var\(--pele-font\); \}/);
+    assert.match(run.stdout, /:is\(:root\.pele\[data-theme=dark\], :root\[data-theme=dark\] \.pele\) \{ --pele-bg: var\(--bg\); --pele-fg: var\(--fg\); \}/);
   });
 });
 
