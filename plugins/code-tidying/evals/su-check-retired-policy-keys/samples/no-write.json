@@ -1,0 +1,29 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Read",
+          "input": {
+            "file_path": "/w/docs/conventions/code-tidying.yaml"
+          }
+        }
+      ],
+      "why": "read only"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [
+        {
+          "tool": "Write",
+          "input": {
+            "file_path": "/w/docs/conventions/comment-policy.yaml",
+            "content": "comment_lint: block\n"
+          }
+        }
+      ],
+      "why": "a write"
+    }
+  ]
+}

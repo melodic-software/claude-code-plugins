@@ -1,0 +1,43 @@
+{
+  "pass": [
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/lib/check-retirements.sh\" --manifest \"${CLAUDE_PLUGIN_ROOT}/retirements.yaml\" --root \"/w\""
+          }
+        }
+      ],
+      "why": "plugin-root form"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/code-tidying/lib/check-retirements.sh --manifest /opt/plugins/code-tidying/retirements.yaml --root /w"
+          }
+        }
+      ],
+      "why": "expanded form"
+    }
+  ],
+  "fail": [
+    {
+      "answer": [],
+      "why": "no call"
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "bash /opt/plugins/code-tidying/lib/check-retirements.sh --manifest /opt/plugins/code-tidying/retirements.yaml --clean code-tidying-r001 --i-migrated"
+          }
+        }
+      ],
+      "why": "the clean step is apply's, not check's"
+    }
+  ]
+}

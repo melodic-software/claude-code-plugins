@@ -1,0 +1,46 @@
+schema_version: "1.1"
+name: su-check-retired-policy-keys
+description: check on a repo whose docs/conventions/code-tidying.yaml still sets comment_posture, comment_lint and comment_lint_exclude, and whose untracked code-tidying.local.yaml sets comment_posture, reports both retirement records as migrate findings at FAIL with apply as the remediation, and writes, edits or cleans nothing
+tags: [setup, check, read-only, retirements]
+expected_outcome: The report names code-tidying-r001 (docs/conventions/code-tidying.yaml) and code-tidying-r002 (docs/conventions/code-tidying.local.yaml) as migrate findings at FAIL, with apply as the remediation; reports comment_lint block read from docs/conventions/code-tidying.yaml with the comment-settings move warning; runs check-retirements.sh without --clean; and creates, edits or removes no file.
+context:
+  scaffold_script: scaffold.sh
+execution:
+  prompt: /code-tidying:setup check
+  allowed_tools: [Read, Glob, Grep, Skill, Bash, Edit, Write]
+  max_turns: 40
+  timeout_seconds: 900
+graders:
+  - name: retirements-checked
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?check-retirements\.sh(?!(?:[^"\\]|\\.)*?--clean\b)'
+    min: 1
+    arm: with-only
+  - name: reports-both-records
+    type: regex
+    pattern: '(?=[\s\S]*code-tidying-r001)[\s\S]*code-tidying-r002'
+    target: last_message
+  - name: records-at-fail
+    type: regex
+    pattern: 'code-tidying-r00[12][^\n]{0,200}\bFAIL\b|\bFAIL\b[^\n]{0,200}code-tidying-r00[12]'
+    target: last_message
+  - name: no-clean
+    type: tool_used
+    tool: Bash
+    input_match: '"command":"(?:[^"\\]|\\.)*?--clean\b'
+    min: 0
+    max: 0
+    arm: both
+  - name: no-edit
+    type: tool_used
+    tool: Edit
+    min: 0
+    max: 0
+    arm: both
+  - name: no-write
+    type: tool_used
+    tool: Write
+    min: 0
+    max: 0
+    arm: both

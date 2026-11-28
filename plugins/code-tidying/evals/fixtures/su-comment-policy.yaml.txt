@@ -1,0 +1,2 @@
+comment_posture: necessary
+comment_lint: block

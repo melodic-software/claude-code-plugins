@@ -1,0 +1,2 @@
+comment_posture: none
+comment_edit_scope: diff

@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "Retired conventions: FAIL code-tidying-r002 docs/conventions/code-tidying.local.yaml. Copy comment_posture to comment-policy.local.yaml, then confirm the result before I clean.",
+      "why": "names the record and stops for confirmation"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "Everything is configured; nothing to migrate.",
+      "why": "record not named"
+    }
+  ]
+}
