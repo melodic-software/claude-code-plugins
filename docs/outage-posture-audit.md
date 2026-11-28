@@ -720,7 +720,7 @@ pr-unblock's elements 3 and 4 script row is kept on evidence; nothing in it is l
   withholding its failing status would leave the head stopped with no record; the route is that
   record, and its `clear` mode removes it once a later round succeeds.
 
-The two `etag` rows are kept as not worth doing:
+The two `etag` rows need no further change:
 
 - **pr-require-checks, element 6: the review wait.** It reads each review run still going once a
   poll, `REVIEW_WAIT_SECONDS / REVIEW_POLL_SECONDS` = 900 / 60 = 15 polls at most per lane, and at
@@ -736,10 +736,11 @@ The two `etag` rows are kept as not worth doing:
   per repository ([rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)),
   and the rate-limits page says nothing about a `304` and secondary limits, where a GET costs one
   point. The run being polled is still going, so its body (status, `updated_at`) can change between
-  polls, and a `304` saves only polls where nothing moved: at most 8 reads a lane a run. Saving them
-  would add a conditional path to `gh_read`, the required gate's one retry layer, which has no path
-  for a `304` today. Not worth doing while the wait is that bounded; reopen if `ci-status` shows
-  `GITHUB_TOKEN` rate stops.
+  polls, and a `304` saves only polls where nothing moved: at most 8 reads a lane a run. The wait
+  already polls conditionally: each read after a lane's first sends `If-None-Match` with the ETag of
+  its last `200`, and a `304` (`gh_read` exit 3) keeps the lane waiting with that ETag
+  ([`:6268-6272`](https://github.com/melodic-software/claude-code-plugins/blob/8a0d127eac4fb0dffd7fb0fd58c45fb674bf3ceb/.github/workflows/pr-require-checks.yml#L6268-L6272)).
+  Nothing is left to do; reopen if `ci-status` shows `GITHUB_TOKEN` rate stops.
 - **pr-merge, element 6: the re-run read-back.** After one `rerun-failed-jobs` POST the step reads
   the run up to 7 times (waits 0, 5, 10, 20, 30, 45 and 60 s), and stops at the first read that
   shows an attempt past 1 ([`.github/workflows/pr-merge.yml`:697-705](https://github.com/melodic-software/claude-code-plugins/blob/d4d5c4939c10ecc0939b76f9d4346762293ab2bf/.github/workflows/pr-merge.yml#L697-L705)), so it sends at most 7 reads
