@@ -1373,52 +1373,6 @@ assert_eq "reuse does not copy .worktreeinclude files over the tree's edits" "ed
 assert_eq "reuse keeps the session's lock as it was" "$reason_before" "$(lock_reason_of "$first")"
 assert_contains "reuse is named on stderr" "$(cat "$TEST_TMPDIR/reuse-own.err")" "reusing"
 
-: >"$reuse_cfg/projects/p/s-live.jsonl"
-root="$TEST_TMPDIR/wtreuse-live"
-first=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/held --root "$root" --session-id s-live --repo-dir "$repo" 2>/dev/null)
-code=0
-err=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/held --root "$root" --session-id s-new \
-  --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
-assert_exit "a live foreign session's worktree refuses (exit 4)" 4 "$code"
-assert_contains "the refusal names the live session's claim" "$err" "session s-live since"
-assert_contains "the live session's lock is kept" "$(lock_reason_of "$first")" "session s-live since"
-
-root="$TEST_TMPDIR/wtreuse-stale"
-first=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/relaunch --root "$root" --session-id s-gone --repo-dir "$repo" 2>/dev/null)
-code=0
-second=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/relaunch --root "$root" --session-id s-next \
-  --repo-dir "$repo" 2>"$TEST_TMPDIR/reuse-stale.err") || code=$?
-assert_exit "a stale foreign session's worktree is taken over (exit 0)" 0 "$code"
-assert_eq "a stale takeover prints the same path" "$first" "$second"
-bash "$CLAIM" check-enter "$first" --repo-dir "$repo" --session-id s-next >/dev/null 2>&1
-assert_exit "after the takeover check-enter treats the tree as this session's" 0 "$?"
-assert_contains "the takeover keeps the creating helper in the reason" "$(lock_reason_of "$first")" "worktree-create.sh:"
-
-root="$TEST_TMPDIR/wtreuse-stale-gone"
-first=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/relaunch-gone --root "$root" --session-id s-gone --repo-dir "$repo" 2>/dev/null)
-git -C "$repo" config branch.feat/relaunch-gone.remote origin
-git -C "$repo" config branch.feat/relaunch-gone.merge refs/heads/feat/relaunch-gone
-code=0
-CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/relaunch-gone --root "$root" --session-id s-next \
-  --repo-dir "$repo" >/dev/null 2>&1 || code=$?
-assert_exit "a stale takeover of a [gone] branch's worktree exits 0" 0 "$code"
-bash "$CLAIM" check-enter "$first" --repo-dir "$repo" --session-id s-next >/dev/null 2>&1
-assert_exit "after a [gone] takeover the tree is this session's claim" 0 "$?"
-
-root="$TEST_TMPDIR/wtreuse-anon"
-first=$(bash "$HELPER" --name feat/anon --root "$root" --repo-dir "$repo" 2>/dev/null)
-code=0
-err=$(CLAUDE_CONFIG_DIR="$reuse_cfg" bash "$HELPER" --name feat/anon --root "$root" --session-id s-any \
-  --repo-dir "$repo" 2>&1 >/dev/null) || code=$?
-assert_exit "a lock naming no session refuses (exit 4)" 4 "$code"
-assert_contains "the refusal says the lock names no session" "$err" "names no session"
-root="$TEST_TMPDIR/wtreuse-reasonless"
-first=$(bash "$HELPER" --name feat/bare-lock --root "$root" --session-id s-hand --repo-dir "$repo" 2>/dev/null)
-git -C "$repo" worktree unlock "$first" >/dev/null 2>&1
-git -C "$repo" worktree lock "$first" >/dev/null 2>&1
-code=0
-bash "$HELPER" --name feat/bare-lock --root "$root" --session-id s-hand --repo-dir "$repo" >/dev/null 2>&1 || code=$?
-assert_exit "a lock with no reason refuses (exit 4)" 4 "$code"
 root="$TEST_TMPDIR/wtreuse-nosid"
 first=$(bash "$HELPER" --name feat/nosid-again --root "$root" --session-id s-a --repo-dir "$repo" 2>/dev/null)
 code=0
@@ -1432,11 +1386,6 @@ git -C "$repo" worktree add -q -b feat/plain "$root/acme-widget-feat-plain" >/de
 code=0
 bash "$HELPER" --name feat/plain --root "$root" --repo-dir "$repo" >/dev/null 2>&1 || code=$?
 assert_exit "an unlocked worktree without --session-id refuses (exit 4)" 4 "$code"
-code=0
-out=$(bash "$HELPER" --name feat/plain --root "$root" --session-id s-adopt --repo-dir "$repo" 2>/dev/null) || code=$?
-assert_exit "an unlocked worktree is claimed and reused (exit 0)" 0 "$code"
-assert_eq "the claimed worktree's path is printed" "$root/acme-widget-feat-plain" "$out"
-assert_contains "the claim names this session" "$(lock_reason_of "$out")" "session s-adopt since"
 
 root="$TEST_TMPDIR/wtreuse-mismatch"
 mkdir -p "$root"

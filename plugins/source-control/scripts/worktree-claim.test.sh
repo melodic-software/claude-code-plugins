@@ -411,6 +411,50 @@ assert_exit "stale: a non-numeric idle window is usage (exit 2)" 2 "$?"
 CLAUDE_CONFIG_DIR="$CFG" run_claim stale "$UNRELATED" --repo-dir "$REPO"
 assert_exit "stale: a non-worktree path is environment (exit 5)" 5 "$?"
 
+run_take() {
+  local target="$1"
+  shift
+  CLAUDE_CONFIG_DIR="${TAKE_CFG:-$CFG}" HOSTNAME="$STALE_HOST" run_claim take "$target" --repo-dir "${TAKE_REPO:-$REPO}" "$@"
+}
+
+git -C "$REPO" worktree add -q "$EXT/wt-tk-free" -b feat/tk-free
+run_take "$EXT/wt-tk-free" --session-id tk-own
+assert_exit "take: an unlocked tree is claimed (exit 0)" 0 "$?"
+assert_contains "take: the new lock names this session" "$(stanza_for wt-tk-free)" "session tk-own since"
+tk_before="$(stanza_for wt-tk-free)"
+run_take "$EXT/wt-tk-free" --session-id tk-own
+assert_exit "take: this session's own lock is kept (exit 0)" 0 "$?"
+assert_eq "take: its own lock is not rewritten" "$tk_before" "$(stanza_for wt-tk-free)"
+
+stale_lock wt-tk-live "$(stale_reason tk-live)"
+touch "$CFG/projects/-proj/tk-live.jsonl"
+run_take "$EXT/wt-tk-live" --session-id tk-new
+assert_exit "take: a live foreign session's claim refuses (exit 4)" 4 "$?"
+assert_contains "take: the refusal names the live claim" "$ERR" "session tk-live since"
+assert_contains "take: the refusal offers the handover" "$ERR" "handover"
+assert_contains "take: the live claim is kept" "$(stanza_for wt-tk-live)" "session tk-live since"
+
+stale_lock wt-tk-stale "$(HOSTNAME=$STALE_HOST bash -c 'source "$1"; worktree_lock_reason worktree-create.sh "$2"' _ "$SCRIPT_DIR/lib/worktree-facts.sh" tk-gone)"
+run_take "$EXT/wt-tk-stale" --session-id tk-next
+assert_exit "take: a stale foreign session's claim is taken over (exit 0)" 0 "$?"
+assert_contains "take: the takeover prints the stale evidence" "$ERR" "stale: session tk-gone"
+assert_contains "take: the takeover keeps the creating helper in the reason" "$OUT" "worktree-create.sh:"
+run_claim check-enter "$EXT/wt-tk-stale" --repo-dir "$REPO" --session-id tk-next
+assert_exit "take: after the takeover check-enter treats the tree as this session's" 0 "$?"
+
+git -C "$REPO" worktree add -q "$EXT/wt-tk-bare" -b feat/tk-bare
+git -C "$REPO" worktree lock "$EXT/wt-tk-bare"
+run_take "$EXT/wt-tk-bare" --session-id tk-new
+assert_exit "take: a lock with no reason refuses (exit 4)" 4 "$?"
+assert_contains "take: the refusal says the lock names no session" "$ERR" "names no session"
+
+run_take "$EXT/wt-tk-free"
+assert_exit "take without a session id is usage (exit 2)" 2 "$?"
+run_take "$REPO" --session-id tk-own
+assert_exit "take of the main worktree is usage (exit 2)" 2 "$?"
+run_take "$UNRELATED" --session-id tk-own
+assert_exit "take of a non-worktree path is environment (exit 5)" 5 "$?"
+
 run_batch() {
   local rc repo="$1"
   shift
@@ -695,6 +739,15 @@ if [[ "$(uname -s)" == Linux && -r "/proc/$$/stat" ]] && command -v jq >/dev/nul
   run_sl wt-sl-recent
   assert_exit "sessionless: a lock set within the idle window is not provable" 1 "$?"
 
+  stale_lock wt-sl-take "$(sessionless_reason 10800)"
+  TAKE_CFG="$SL_CFG" run_take "$EXT/wt-sl-take" --session-id sl-taker
+  assert_exit "take: a session-less lock proved stale is taken over (exit 0)" 0 "$?"
+  assert_contains "take: the session-less takeover names this session" "$(stanza_for wt-sl-take)" "session sl-taker since"
+  TAKE_CFG="$SL_CFG" run_take "$EXT/wt-sl-recent" --session-id sl-taker
+  assert_exit "take: a session-less lock not provably stale refuses (exit 4)" 4 "$?"
+  assert_contains "take: the session-less refusal says the lock names no session" "$ERR" "names no session"
+  assert_not_contains "take: the session-less lock is kept" "$(stanza_for wt-sl-recent)" "sl-taker"
+
   stale_lock wt-sl-live "$(sessionless_reason 10800)"
   mkdir -p "$EXT/wt-sl-live/sub"
   registry_entry "$SL_CFG" sl-live "$$" sl-live-sid "$OWN_START" "$EXT/wt-sl-live/sub"
@@ -930,6 +983,13 @@ assert_exit "handover of a [gone] branch releases instead (exit 0)" 0 "$?"
 assert_contains "handover names the [gone] release" "$OUT" "is [gone] upstream"
 assert_not_contains "handover leaves the [gone] tree unlocked" \
   "$(git -C "$W5_REPO" worktree list --porcelain | awk -v RS= '/wt-gone/')" "locked"
+
+git -C "$W5_REPO" worktree lock --reason "$(stale_reason tk-gone-old)" "$W5_EXT/wt-gone"
+TAKE_REPO="$W5_REPO" run_take "$W5_EXT/wt-gone" --session-id tk-gone-new
+assert_exit "take: a stale claim on a [gone] branch is replaced (exit 0)" 0 "$?"
+assert_contains "take: the [gone] takeover names the [gone] branch" "$ERR" "is [gone] upstream"
+assert_contains "take: the [gone] takeover locks the tree for this session" \
+  "$(git -C "$W5_REPO" worktree list --porcelain | awk -v RS= '/wt-gone/')" "session tk-gone-new since"
 
 run_claim report --include-gone --repo-dir "$W5_REPO"
 assert_exit "--include-gone outside claim is usage (exit 2)" 2 "$?"
