@@ -2518,6 +2518,9 @@ jobs:
           sparse-checkout: |
             /.github/actions/log-api-budget/
             /lib/publish-gate.mjs
+            /.github/scripts/pr-merge/cancel-orphaned-runs.mjs
+            /.github/scripts/lib/github-client.mjs
+            /.node-version
           sparse-checkout-cone-mode: false
 
       - name: Read main's full-run cover
@@ -2671,6 +2674,24 @@ jobs:
           path: ${{ runner.temp }}/dispatched.json
           retention-days: 30
           if-no-files-found: error
+
+      - name: Set up Node
+        id: node
+        if: ${{ !cancelled() && steps.tip.outputs.sha != '' }}
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
+      - name: Cancel merge_group runs whose queue group is gone
+        if: >-
+          !cancelled() && steps.node.outcome == 'success'
+          && steps.cover.outputs.rate-limited != 'true' && steps.dispatch.outputs.rate-limited != 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node .base/.github/scripts/pr-merge/cancel-orphaned-runs.mjs
 
       - name: Log the API budget at the end
         if: always()
