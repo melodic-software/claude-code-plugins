@@ -111,19 +111,29 @@ function headCheckRuns(client, repo) {
 }
 
 const REQUIRED_WORKFLOW = "pr-require-checks.yml";
+export const REQUIRED_SUITE_MARKER = Object.freeze({ job: "mark-lanes", name: "Mark Lanes" });
+const actionsRun = (run) => run?.app?.slug === "github-actions";
+
+async function requiredSuites({ checks, repo, head }, runs) {
+  const marked = runs.filter((run) => actionsRun(run) && run.name === REQUIRED_SUITE_MARKER.name && run.check_suite?.id != null).map((run) => run.check_suite.id);
+  if (marked.length > 0) {
+    return new Set(marked);
+  }
+  const required = (await checks("GET", `/repos/${repo}/actions/workflows/${REQUIRED_WORKFLOW}/runs?head_sha=${head}&per_page=100`))?.workflow_runs;
+  return Array.isArray(required) && required.length < 100 ? new Set(required.map((run) => run.check_suite_id)) : null;
+}
 
 async function headFailing({ checks, repo, pull, checkRunsAt }) {
   try {
-    const required = (await checks("GET", `/repos/${repo}/actions/workflows/${REQUIRED_WORKFLOW}/runs?head_sha=${pull.head.sha}&per_page=100`))?.workflow_runs;
-    if (!Array.isArray(required) || required.length >= 100) {
-      return false;
-    }
-    const suites = new Set(required.map((run) => run.check_suite_id));
     const runs = await checkRunsAt(pull.head.sha);
     if (runs === null) {
       return false;
     }
-    return failingChecks(runs.filter((run) => run.app?.slug === "github-actions" && suites.has(run.check_suite?.id))).length > 0;
+    const suites = await requiredSuites({ checks, repo, head: pull.head.sha }, runs);
+    if (suites === null) {
+      return false;
+    }
+    return failingChecks(runs.filter((run) => actionsRun(run) && suites.has(run.check_suite?.id))).length > 0;
   } catch {
     return false;
   }

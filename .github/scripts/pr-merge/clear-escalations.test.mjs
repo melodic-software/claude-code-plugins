@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 
-import { main, MENDED_OUTPUT, NATIVE_READS_PER_RUN, SESSION_CHECKS_PER_RUN } from "./clear-escalations.mjs";
+import { workflowText } from "../lib/workflow-text.mjs";
+import { main, MENDED_OUTPUT, NATIVE_READS_PER_RUN, REQUIRED_SUITE_MARKER, SESSION_CHECKS_PER_RUN } from "./clear-escalations.mjs";
 import { refusalBody, unblockHold } from "./enable-auto-merge.mjs";
 import { unblockStops } from "./merge-holds.mjs";
 import { escalationActivity, escalationRoute, ROUTES } from "../pr-unblock/escalation-routes.mjs";
@@ -407,6 +408,41 @@ test("a fix-ci label comes off only while the head's own checks read failed", as
     assert.equal(w.writes().at(-1)?.method === "DELETE", cleared, label);
     assert.ok(w.calls.filter((call) => call.token === "checks").length <= 2, label);
   }
+});
+
+const marker = (suite, conclusion = "success", id = 90 + suite) => check(REQUIRED_SUITE_MARKER.name, conclusion, { id, suite });
+const requiredRunsReads = (w) => w.calls.filter((call) => call.path.startsWith(`/repos/${REPO}/actions/workflows/pr-require-checks.yml/runs?`)).length;
+
+test("the Mark Lanes check run names pr-require-checks' suites, so the workflow-runs read is skipped", async () => {
+  const timeline = [labeled(BOT, "2026-10-18T10:00:00Z"), escalated("ci-fix-escalated")];
+  for (const [label, headChecks, cleared, reads] of [
+    ["marked suite red", [marker(700), check("test-node", "failure", { id: 2, suite: 700 })], true, 0],
+    ["marked suite green, another workflow's suite red", [marker(700), check("test-node", "success", { id: 2, suite: 700 }), check("test-windows", "failure", { id: 3, suite: 900 })], false, 0],
+    ["a skipped Mark Lanes on a labeled-event suite", [marker(700, "skipped"), check("lint-repo", "failure", { id: 2, suite: 700 })], true, 0],
+    ["several marked suites, the red one second", [marker(700), marker(701, "skipped"), check("test-node", "success", { id: 2, suite: 700 }), check("lint-shell", "cancelled", { id: 3, suite: 701 })], true, 0],
+    ["several marked suites, red only in an unmarked one", [marker(700), marker(701), check("test-node", "failure", { id: 2, suite: 702 })], false, 0],
+    ["another app's Mark Lanes", [marker(700), { ...marker(702), app: { slug: "someone-else" } }, check("test-node", "failure", { id: 2, suite: 702 })], false, 0],
+    ["no marker: the workflow-runs read decides, as before", RED, true, 1],
+    ["no marker and green: the workflow-runs read decides, as before", [check("test-node", "success")], false, 1],
+  ]) {
+    const w = world({ timeline, headChecks });
+    const { code } = await run(w);
+    assert.equal(code, 0, label);
+    assert.equal(w.writes().at(-1)?.method === "DELETE", cleared, `${label}: cleared`);
+    assert.equal(requiredRunsReads(w), reads, `${label}: pr-require-checks runs reads`);
+  }
+});
+
+test("the suite marker is pr-require-checks.yml's only Mark Lanes job, and it has no needs", () => {
+  const dir = new URL("../../workflows/", import.meta.url);
+  const workflow = workflowText(readFileSync(new URL("pr-require-checks.yml", dir), "utf8"));
+  const job = workflow.job(REQUIRED_SUITE_MARKER.job);
+  assert.equal(/^ {4}name: (.*)$/m.exec(job)?.[1], REQUIRED_SUITE_MARKER.name, "the mark-lanes job carries the marker's check-run name");
+  assert.doesNotMatch(job, /^ {4}needs:/m, "mark-lanes starts with the run, so its check run exists before any job can fail");
+  const named = readdirSync(dir)
+    .filter((file) => /\.ya?ml$/.test(file))
+    .flatMap((file) => [...readFileSync(new URL(file, dir), "utf8").matchAll(/^ {4}name: (.*)$/gm)].filter((match) => match[1].trim() === REQUIRED_SUITE_MARKER.name).map(() => file));
+  assert.deepEqual(named, ["pr-require-checks.yml"], "no other workflow job carries the marker's name");
 });
 
 test("a reason still held for a person keeps the label beside a fail-routed one", async () => {
@@ -1067,7 +1103,7 @@ test("labels past the read cap are read on a later run", async () => {
   assert.deepEqual([...read].sort((a, b) => a - b), numbers);
 });
 
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -1466,7 +1502,8 @@ test("a ci-fix stop reads the head's check runs once a run, whichever check judg
     assert.equal(w.writes().at(-1)?.method === "DELETE", cleared, `${label}: cleared`);
     const paths = [...w.calls.map((call) => call.path), ...readerCalls];
     const checkRunReads = paths.filter((path) => path.startsWith(CHECK_RUNS_AT_HEAD)).length;
-    assert.equal(paths.filter((path) => path.startsWith(REQUIRED_RUNS_AT_HEAD)).length, 1, `${label}: pr-require-checks runs read once`);
+    const requiredReads = label === "unread" ? 0 : 1;
+    assert.equal(paths.filter((path) => path.startsWith(REQUIRED_RUNS_AT_HEAD)).length, requiredReads, `${label}: pr-require-checks runs read ${requiredReads} time(s)`);
     if (label === "unread") {
       assert.ok(checkRunReads <= 2, `${label}: a failed check-runs read is tried again once, no more: ${checkRunReads}`);
     } else {
