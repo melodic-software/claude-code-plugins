@@ -1,0 +1,37 @@
+# Pages not yet migrated to the token layer, for scripts/check-token-literals.sh.
+# One repo-relative path per line; a `#` starts a comment. The check skips these
+# files' findings and fails on an entry whose file is gone or no longer defines a
+# palette role or type stack with its own value, so the list only shrinks: delete
+# a page's line in the slice that migrates it (ADR 0133, Decision 8). Never add a
+# new page here: take its palette and stacks from the plugin's token-layer copy.
+
+# Wave 1
+plugins/architecture/scripts/deepening-report.mjs
+plugins/architecture/templates/map-view.html
+plugins/planning/shared/web/app.css
+plugins/planning/skills/brainstorm/templates/brainstorm-view.html
+plugins/planning/skills/design/templates/design-view.html
+plugins/planning/skills/plan/templates/plan-view.html
+plugins/planning/surface/index.html
+plugins/visualization/reference/html-loop-closure.html
+
+# Wave 2
+plugins/education/lib/page-kit.mjs
+plugins/education/skills/illustrate/templates/explainer.html
+plugins/education/skills/quiz-me/scripts/build-report.mjs
+plugins/event-storming/skills/simulation/scripts/build-bc-view.mjs
+plugins/harness-ops/skills/observability/scripts/build-dashboard.mjs
+plugins/knowledge/skills/video-digest/scripts/build-menu-view.mjs
+plugins/review/skills/explain-change/templates/digest.html
+
+# Wave 3
+plugins/debugging/skills/debug/templates/post-mortem-view.html
+plugins/discovery/skills/blindspot/templates/blindspot-view.html
+plugins/machine-health/skills/audit/templates/checkup.html
+plugins/work-items/skills/morning-brief/templates/brief.html
+plugins/work-items/skills/triage/templates/board.html
+
+# Outside the ADR 0133 inventory (no --clay or prefers-color-scheme): a later
+# slice migrates each or records in the rendered-views contract why it stays apart.
+plugins/ai-briefing/skills/generate/output/build/build-css.js
+plugins/explainer-video/scripts/media_templates/frames.css

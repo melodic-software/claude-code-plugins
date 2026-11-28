@@ -2265,6 +2265,9 @@ jobs:
       - name: Verify generated shared-library copies match their canonical sources
         if: needs.select-tests.outputs.run_tests == 'true'
         run: scripts/sync-shared-copies.sh --check
+      - name: Check page sources take palette and type tokens from the token layer
+        if: needs.select-tests.outputs.run_tests == 'true'
+        run: scripts/check-token-literals.sh
       - name: Check plugin prerequisites are declared
         if: needs.select-tests.outputs.run_tests == 'true'
         run: node scripts/check-declared-prerequisites.mjs
@@ -2286,7 +2289,7 @@ jobs:
 
       - name: Report not applicable to a docs-only diff
         if: needs.select-tests.outputs.run_tests == 'false'
-        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin validation, the rendered-view HTML assets, the shared-library copies, the declared prerequisites and the plugin profiles cannot be affected — reporting success."
+        run: echo "The diff is within the docs-only allowlist (scripts/docs-only-paths.txt); the plugin validation, the rendered-view HTML assets, the shared-library copies, the page token literals, the declared prerequisites and the plugin profiles cannot be affected — reporting success."
 
       - name: Log the API budget at the end
         if: always() && hashFiles('.github/actions/log-api-budget/action.yml') != ''
