@@ -115,8 +115,9 @@ class PruneRunRootsTest(unittest.TestCase):
         outside = self.run_root(self.base, "outside")
         result = self.cli(str(outside), "/tmp")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        reason = "not directly under %s and not a legacy %s/.ev* root" % (
+        reason = "not directly under %s and not a legacy %s/.ev* or %s/ev* root" % (
             self.ev,
+            self.home,
             self.home,
         )
         self.assertIn("refused (%s): %s" % (reason, outside), result.stdout)
@@ -187,6 +188,102 @@ class PruneRunRootsTest(unittest.TestCase):
         self.assertNotIn(str(root), listed.stdout)
         named = self.cli(str(root))
         self.assertIn("refused (not directly under", named.stdout)
+        self.assertTrue((root / "claude-eval-abc123").exists())
+
+    def test_undotted_legacy_run_roots_are_removed(self):
+        names = [
+            "ev8635",
+            "ev8635rlg2",
+            "ev8431a",
+            "ev12251",
+            "eval",
+            "eval-runs",
+            "eval-13765",
+            "evcp",
+        ]
+        roots = [self.run_root(self.home, name) for name in names]
+        result = self.cli()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        for root in roots:
+            with self.subTest(root=root.name):
+                self.assertIn("removed: %s\n" % root, result.stdout)
+                self.assertFalse(root.exists())
+        self.assertTrue(self.ev.is_dir())
+
+    def test_undotted_legacy_run_root_given_as_an_argument_is_removed(self):
+        root = self.run_root(self.home, "ev8635")
+        result = self.cli(str(root))
+        self.assertIn("removed: %s" % root, result.stdout)
+        self.assertFalse(root.exists())
+
+    def test_recent_undotted_legacy_run_root_is_kept(self):
+        root = self.run_root(self.home, "eval-13765", age=60)
+        result = self.cli()
+        self.assertIn("kept (changed within 3 days): %s" % root, result.stdout)
+        self.assertTrue((root / "claude-eval-abc123").exists())
+
+    def test_undotted_legacy_run_root_a_live_process_holds_is_kept(self):
+        root = self.run_root(self.home, "evcp")
+        held = subprocess.Popen(["sleep", "60"], cwd=str(root))
+        self.addCleanup(held.wait)
+        self.addCleanup(held.kill)
+        result = self.cli()
+        self.assertIn(
+            "kept (a process has a file open under it): %s" % root, result.stdout
+        )
+        self.assertTrue(root.exists())
+
+    def test_undotted_legacy_symlink_is_left_with_how_to_remove_it(self):
+        outside = self.run_root(self.base, "elsewhere")
+        link = self.home / "ev12251"
+        link.symlink_to(outside)
+        result = self.cli()
+        self.assertIn(
+            "refused (a symlink, not followed; rm on the link alone removes it, once "
+            "nothing uses its target): %s" % link,
+            result.stdout,
+        )
+        self.assertTrue(link.is_symlink())
+        self.assertTrue((outside / "claude-eval-abc123").exists())
+
+    def test_undotted_user_directory_without_a_sandbox_is_left(self):
+        other = self.home / "evolution"
+        (other / "mail").mkdir(parents=True)
+        self.age(other, FOUR_DAYS)
+        result = self.cli()
+        self.assertIn(
+            "kept (holds no claude-eval-* sandbox, so not a run root; remove it by hand "
+            "only after checking its contents): %s" % other,
+            result.stdout,
+        )
+        self.assertTrue((other / "mail").is_dir())
+
+    def test_sandbox_nested_a_level_down_is_not_a_run_root(self):
+        runs = self.home / "eval-runs"
+        self.run_root(runs, "123")
+        self.age(runs, FOUR_DAYS)
+        result = self.cli()
+        self.assertIn(
+            "kept (holds no claude-eval-* sandbox, so not a run root; remove it by hand "
+            "only after checking its contents): %s" % runs,
+            result.stdout,
+        )
+        self.assertTrue((runs / "123" / "claude-eval-abc123").exists())
+
+    def test_home_entries_outside_the_two_prefixes_are_not_candidates(self):
+        for name in ("e4", "ev", "my-ev1", "Ev1"):
+            with self.subTest(name=name):
+                root = self.run_root(self.home, name)
+                listed = self.cli()
+                self.assertNotIn(str(root), listed.stdout)
+                named = self.cli(str(root))
+                self.assertIn("refused (not directly under", named.stdout)
+                self.assertTrue((root / "claude-eval-abc123").exists())
+
+    def test_undotted_name_below_home_is_refused(self):
+        root = self.run_root(self.home / "projects", "ev8635")
+        result = self.cli(str(root))
+        self.assertIn("refused (not directly under", result.stdout)
         self.assertTrue((root / "claude-eval-abc123").exists())
 
     def test_eval_root_itself_is_refused(self):
