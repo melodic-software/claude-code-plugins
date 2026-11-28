@@ -1,5 +1,5 @@
 ---
-description: "Hands a task, investigation or review to Google's Antigravity CLI (agy, Gemini models) as a background job and reads back its jobs. Use when the user asks for Gemini or Antigravity: 'ask Gemini', 'have Gemini do X', 'Gemini second opinion', 'Antigravity review of this branch', 'run this through agy', 'is the Gemini job done', 'cancel the agy run', 'is agy ready', 'update antigravity'. A multi-reviewer panel is /review:council."
+description: "Delegate a task, investigation, or read-only review to Google's Antigravity CLI (agy, Gemini) as a background job (status, result, cancel, update); delegate only when asked for Gemini or Antigravity. Use when: 'ask Gemini', 'run this through agy', 'Antigravity review'. Not for a multi-reviewer panel: /review:council."
 argument-hint: "[run <prompt>|review --base <ref>|status [<job>]|result <job>|cancel <job>|update]"
 user-invocable: true
 disable-model-invocation: false
