@@ -1,5 +1,5 @@
 ---
-description: "Audit an arbitrary directory tree for orphaned, temporary, stale-lock, failed-write, partial-download, and empty leftover artifacts; classify evidence into confidence tiers; and optionally remove exact validated paths after explicit per-tier approval. Read-only by default; removes nothing without the user's own answer naming one tier and its paths. Use when: 'audit this directory', 'find orphaned files', 'what junk can I clean up', 'reclaim disk space', 'find temp or lock leftovers', 'clean up my home directory'. Skip when: repository cache/build cleanup belongs to repo-hygiene, a product has its own prune/GC command, or the target is an OS-managed root."
+description: "Audit a directory tree for orphaned, temp, stale-lock, failed-write, partial-download, and empty leftovers; classify by tier; remove validated paths after explicit per-tier approval (read-only default). Use when: 'audit this directory', 'what junk can I clean up', 'find temp or lock leftovers'. Not for repos: /repo-hygiene:clean, GC, or OS roots."
 argument-hint: "[--execute] [--deep] [--max-depth <N>] [--sizes-only] [--policy <file>] [--quiet] <target-directory>"
 user-invocable: true
 disable-model-invocation: false
