@@ -421,3 +421,42 @@ test("a compare on a pull request a bot wrote stays on the key", () => {
     rmSync(work, { recursive: true, force: true });
   }
 });
+
+test("both legs of a compare pass upload each run's final reply under the manifest, and a hill-climb pass uploads none", () => {
+  const pass = workflowText(readFileSync(new URL("../../workflows/maintenance-measure-skill-edit-pass.yml", import.meta.url), "utf8"));
+  const repoRoot = fileURLToPath(new URL("../../..", import.meta.url));
+  const reply = "compare-arm-reply-fixture";
+  for (const leg of ["run-eval", "run-eval-subscription"]) {
+    const read = pass.stepNamed(leg, "Read the pass");
+    assert.equal(read.env.LANE, "${{ inputs.lane }}", `${leg} passes the lane to the step`);
+    const script = /\n {8}run: \|\n((?: {10}.*\n|\n)+)/.exec(read.text)[1].replace(/^ {10}/gm, "");
+    for (const lane of ["eval-compare", "eval-hill-climb-pass"]) {
+      const work = mkdtempSync(join(tmpdir(), "compare-replies-"));
+      try {
+        symlinkSync(repoRoot, join(work, ".base"));
+        mkdirSync(join(work, "pass/run"), { recursive: true });
+        writeFileSync(join(work, "pass/run/trace.jsonl"), `${JSON.stringify({ type: "result", result: reply })}\n`);
+        writeFileSync(join(work, "pass/results.json"), JSON.stringify({ cases: [{ name: "one", arms: { with: [{ tracePath: "run/trace.jsonl" }] } }] }));
+        const run = spawnSync("bash", ["-eo", "pipefail", "-c", script], {
+          cwd: work,
+          env: { PATH: process.env.PATH, NODE_OPTIONS: "--preserve-symlinks --preserve-symlinks-main", OUT: join(work, "pass"), STAGE: join(work, "upload"), PLUGIN: "testing", PASS: "compare-before", LANE: lane, GITHUB_OUTPUT: join(work, "output") },
+          encoding: "utf8",
+        });
+        assert.equal(run.status, 0, `${leg} ${lane}: ${run.stderr}`);
+        assert.ok(!run.stdout.includes(reply) && !run.stderr.includes(reply), `${leg} ${lane} prints no reply`);
+        const kept = join(work, "upload/last-messages.jsonl");
+        const manifest = readFileSync(join(work, "upload/manifest.sha256"), "utf8");
+        if (lane === "eval-compare") {
+          assert.ok(existsSync(kept), `${leg} writes last-messages.jsonl: ${run.stdout}${run.stderr}`);
+          assert.deepEqual(JSON.parse(readFileSync(kept, "utf8")), { case: "one", arm: "with", run: 1, last_message: reply }, `${leg} keeps the reply`);
+          assert.match(manifest, / {2}\.\/last-messages\.jsonl\n/, `${leg} lists the replies in the manifest the verdict job checks`);
+        } else {
+          assert.ok(!existsSync(kept), `${leg} ${lane} keeps no reply`);
+          assert.doesNotMatch(manifest, /last-messages/, `${leg} ${lane}`);
+        }
+      } finally {
+        rmSync(work, { recursive: true, force: true });
+      }
+    }
+  }
+});
