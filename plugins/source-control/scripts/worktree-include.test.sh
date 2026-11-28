@@ -231,28 +231,32 @@ printf '*.env\n.work/**/*.md\n' >"$REPO_SYM/.worktreeinclude"
 git -C "$REPO_SYM" add .gitignore .worktreeinclude
 git -C "$REPO_SYM" commit -q -m "add include rules for symlink test"
 ln -s "$OUTSIDE_DIR/secret.env" "$REPO_SYM/linked-src.env"
-printf 'real\n' >"$REPO_SYM/real.env"
-WT_SYM="$TEST_TMPDIR/wt-sym"
-git -C "$REPO_SYM" worktree add -q -b feat/sym "$WT_SYM" main >/dev/null 2>&1
+if [[ ! -L "$REPO_SYM/linked-src.env" ]]; then
+  skip_case "symlinks: ln -s made a copy, not a symlink (Windows without symlink rights), so the symlink guards cannot be exercised"
+else
+  printf 'real\n' >"$REPO_SYM/real.env"
+  WT_SYM="$TEST_TMPDIR/wt-sym"
+  git -C "$REPO_SYM" worktree add -q -b feat/sym "$WT_SYM" main >/dev/null 2>&1
 
-run_inc copy --from "$REPO_SYM" --to "$WT_SYM"
-assert_exit "copy skips symlinked source cleanly" 0 "$?"
-assert_eq "copy counts only regular non-symlink source" "1" "$OUT"
-assert_file_absent "copy does not materialize symlinked source" "$WT_SYM/linked-src.env"
+  run_inc copy --from "$REPO_SYM" --to "$WT_SYM"
+  assert_exit "copy skips symlinked source cleanly" 0 "$?"
+  assert_eq "copy counts only regular non-symlink source" "1" "$OUT"
+  assert_file_absent "copy does not materialize symlinked source" "$WT_SYM/linked-src.env"
 
-printf 'overwrite-attempt\n' >"$WT_SYM/dest-link.env"
-ln -s "$OUTSIDE_DIR/secret.env" "$REPO_SYM/dest-link.env"
-run_inc sync-back "$WT_SYM" --copy "dest-link.env"
-assert_exit "sync-back rejects symlinked destination file (exit 2)" 2 "$?"
-assert_eq "rejected symlink destination leaves outside file untouched" "keep-outside" "$(cat "$OUTSIDE_DIR/secret.env")"
+  printf 'overwrite-attempt\n' >"$WT_SYM/dest-link.env"
+  ln -s "$OUTSIDE_DIR/secret.env" "$REPO_SYM/dest-link.env"
+  run_inc sync-back "$WT_SYM" --copy "dest-link.env"
+  assert_exit "sync-back rejects symlinked destination file (exit 2)" 2 "$?"
+  assert_eq "rejected symlink destination leaves outside file untouched" "keep-outside" "$(cat "$OUTSIDE_DIR/secret.env")"
 
-mkdir -p "$WT_SYM/.work/sub"
-printf 'escape-parent\n' >"$WT_SYM/.work/sub/escape.md"
-mkdir -p "$REPO_SYM/.work"
-ln -s "$OUTSIDE_DIR" "$REPO_SYM/.work/sub"
-run_inc sync-back "$WT_SYM" --copy ".work/sub/escape.md"
-assert_exit "sync-back rejects symlinked parent directory under main root (exit 2)" 2 "$?"
-assert_file_absent "rejected symlinked parent writes nothing outside main root" "$OUTSIDE_DIR/escape.md"
+  mkdir -p "$WT_SYM/.work/sub"
+  printf 'escape-parent\n' >"$WT_SYM/.work/sub/escape.md"
+  mkdir -p "$REPO_SYM/.work"
+  ln -s "$OUTSIDE_DIR" "$REPO_SYM/.work/sub"
+  run_inc sync-back "$WT_SYM" --copy ".work/sub/escape.md"
+  assert_exit "sync-back rejects symlinked parent directory under main root (exit 2)" 2 "$?"
+  assert_file_absent "rejected symlinked parent writes nothing outside main root" "$OUTSIDE_DIR/escape.md"
+fi
 
 REPO_BADINC="$(mkfixture)"
 mkdir -p "$REPO_BADINC/.worktreeinclude"
