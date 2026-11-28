@@ -47,6 +47,14 @@
     {
       "answer": "The draft is 823 characters, under the 4000 limit.\n",
       "why": "count then under the limit, run 3 of suite run 46092986142"
+    },
+    {
+      "answer": "The condition below is 500 characters, well under the 4000 limit.\n",
+      "why": "a real count of exactly 500, run 2 of suite run 46095248310"
+    },
+    {
+      "answer": "The condition is 823 characters, below the 4000-character cap.\n",
+      "why": "a count beside cap wording"
     }
   ],
   "fail": [
