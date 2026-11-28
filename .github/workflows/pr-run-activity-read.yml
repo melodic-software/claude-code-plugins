@@ -169,6 +169,8 @@ on:
         value: ${{ jobs.scan.outputs.triage-verdict-sha256 }}
       scan-collect-refused:
         value: ${{ jobs.scan.outputs.collect-refused }}
+      scan-skip-reason:
+        value: ${{ jobs.scan.outputs.skip-reason }}
       scan-base-sha:
         value: ${{ jobs.check-issue-fields.outputs.base-sha }}
       scan-resume-tip:
@@ -450,7 +452,7 @@ jobs:
       trigger-proceed: ${{ steps.gate.outputs.proceed }}
       trigger-reason: ${{ steps.gate.outputs.reason }}
       config-outcome: ${{ steps.config.outcome }}
-      skip-reason: ${{ steps.config.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
+      skip-reason: ${{ steps.config.outputs.skip-reason || steps.issue-prior.outputs.skip-reason || steps.act-script.outputs.skip-reason }}
       dirty-tree: ${{ steps.tree.outputs.dirty-tree }}
       patch-collected: ${{ steps.patch.outputs.state }}
       issue-run-started: ${{ inputs.issue-number != '' && steps.go.outputs.run == 'true' }}
@@ -2073,6 +2075,7 @@ jobs:
       triage-verdict-attempt: ${{ steps.triage-verdict-upload.outcome == 'success' && github.run_attempt || '' }}
       triage-verdict-sha256: ${{ steps.triage-verdict-upload.outcome == 'success' && steps.leak-scan.outputs.verdict-sha256 || '' }}
       collect-refused: ${{ steps.decode.outputs.collect-refused == 'true' && 'true' || '' }}
+      skip-reason: ${{ steps.decode.outcome == 'success' && needs.run.outputs.skip-reason || '' }}
       refused: >-
         ${{ steps.decode.outputs.refused
         || steps.leak-scan.outputs.refused

@@ -1,5 +1,5 @@
 ---
-description: "Manage the Kindle for PC 2.8.0 + Calibre DeDRM workflow for personal-use ebook DRM removal on books the user owns (Windows only). Actions: setup (first-time provisioning, delegated to /kindle-dedrm:setup), sync (new purchases), update (drift check, no mutations), cleanup (reversible decommission: per-item confirmation, --soft or --full), status (diagnostic). Use when: 'set up Kindle DRM removal', 'convert Kindle books to EPUB', or syncing, drift-checking, or decommissioning personal-use Kindle DRM removal; making an owned Kindle library readable on a non-Kindle device; or Calibre and Kindle are mentioned together."
+description: "Manage Kindle for PC 2.8.0 + Calibre DeDRM personal-use DRM removal for owned ebooks (Windows only). Actions: setup (/kindle-dedrm:setup), sync, update (read-only drift), cleanup (per-item confirm, --soft/--full), status. Use when: 'set up Kindle DRM removal', 'convert Kindle books to EPUB', or syncing/decommissioning owned Kindle books."
 argument-hint: "[setup|sync|update|cleanup|status] [--dry-run] [--soft|--full]"
 user-invocable: true
 disable-model-invocation: false

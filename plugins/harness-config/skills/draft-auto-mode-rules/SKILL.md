@@ -1,5 +1,5 @@
 ---
-description: "Draft a paste-ready `autoMode` classifier block by interviewing the user about what should and should not be auto-approved, each entry in the shape the classifier reads well and every section keeping `$defaults`. Use when: 'help me write auto mode rules', 'draft an autoMode block', 'set up auto mode', 'add an auto-mode rule for X', 'my auto mode rules are too vague', 'rewrite this classifier entry', or an audit shows rules dropped or ignored. Prints only, never writes a settings file."
+description: "Interview user to draft a paste-ready autoMode classifier block (what should/should not be auto-approved, each entry shaped well, every section keeping $defaults); prints only, never writes settings. Use when: 'help me write auto mode rules', 'draft an autoMode block', 'set up auto mode', add a classifier rule, or rewrite vague/dropped entries."
 argument-hint: "[environment|allow|soft_deny|hard_deny] [--unattended]"
 user-invocable: true
 disable-model-invocation: false

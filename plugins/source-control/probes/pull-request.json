@@ -1,0 +1,32 @@
+{
+  "skill": "source-control:pull-request",
+  "plugin": "source-control",
+  "skill_dir": "plugins/source-control/skills/pull-request",
+  "competitors": [
+    "source-control:babysit-prs",
+    "source-control:commit",
+    "source-control:worktree"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "open a pull request for this feature branch"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "run PR prep review and checks before creating a PR"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "mark this draft PR ready for review after updating from main"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "check PR status and pull down the failing CI logs"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "address the review comments on PR #742 and fix CI"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "merge PR #619 now that checks are green"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "ship this branch to GitHub with a proper PR body"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "monitor PR #501 until CI and reviews settle"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "flip my draft pull request to ready"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "inspect why CI failed on this branch's pull request"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "commit these local edits without pushing"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "babysit all of my open PRs across the organization"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "spin up an isolated git worktree for my next task"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "run the merge lane loop to drain acme/api"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "make a clean git commit for the docs tweak"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "clean up merged worktrees on disk"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "watch my whole PR fleet in worker tier"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "stage only src/app.ts and record a commit"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "audit worktree health and orphaned directories"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "configure source-control commit conventions"}
+  ]
+}

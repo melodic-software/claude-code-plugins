@@ -1,5 +1,5 @@
 ---
-description: "Verify harness-config's readiness for this repository: the external CLI prerequisites its audit scripts need, jq (the JSON-parsing audit scripts) and curl (the plugin-drift check), and the tracked suppression record in docs/conventions/harness-config.yaml, so the audit skills run instead of failing. Use when: 'set up harness-config', 'configure harness-config', 'is harness-config working', 'set up audit-pass suppressions', or an audit skill reported a missing prerequisite. Actions: check (read-only verification, default) | apply (resolve what check found) | wsl-profile (print an opt-in WSL hardening settings block, writes nothing). Re-runnable and safe."
+description: "Check jq/curl prerequisites and harness-config.yaml suppressions (check, default), apply fixes (apply), or print WSL hardening (wsl-profile)."
 argument-hint: "[check|apply|wsl-profile]"
 user-invocable: true
 disable-model-invocation: true
