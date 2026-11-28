@@ -182,7 +182,6 @@
         {"phrase": "\\b(trust|attack|telemetry|launch|escape) surfaces?\\b|\\bPATH surfaces\\b", "reason": "an attack, telemetry or launch surface, not a config file"},
         {"path": "docs/contracts/standards/**", "reason": "the standards contract's surfaces are standard ids (csharp, paved-path), not config files"},
         {"path": "**/standards-contract.md", "reason": "the standards contract's surfaces are standard ids (csharp, paved-path), not config files"},
-        {"phrase": "`surfaces`", "reason": "the standards contract's subscription key, which filters by Surface id, not a config file"},
         {"phrase": "\\bsurface,?\\s+(or|and|checker or)\\s+(supplying\\s+)?settings files?\\b", "reason": "a promotion-evidence enforcement surface (a hook or checker the lane must not write), named beside the settings files"},
         {"phrase": "##\\s*Surfaces\\b|\\bthe surfaces `lens` runs\\b", "reason": "review fanout's leaf surfaces are the reviewers it runs, not config files"},
         {"path": "plugins/harness-config/skills/audit-permission-state/**", "reason": "the permission-state reader's surface column (a code field) names each settings source it reads"},
