@@ -1,6 +1,6 @@
 ---
 description: "First step for build request/idea naming no problem, users or scope ('add search to the product'): asks before code is written. Numbered questions lock PLAN.md Brief (goal, constraints, criteria, done) or questionnaire someone else fills in. Use: 'interview me', 'lock the brief', 'spec this task', 'grill me', 'this is underspecified', 'ask me questions first', 'help me think this through'; skip quick diffs."
-argument-hint: "[lightning] [lock|scope|restate|share|document|product] [topic]"
+argument-hint: "[lock|scope|restate|share|document|product|lightning] [topic]"
 user-invocable: true
 disable-model-invocation: false
 metadata:
@@ -8,7 +8,7 @@ metadata:
   summary: Interview in rounds of ready questions until the task contract is locked
 ---
 
-**Arguments.** `[lightning] [lock|scope|restate|share|document|product] [topic]`. e.g., /planning:interview, /planning:interview lightning <topic>, /planning:interview lock, /planning:interview scope, /planning:interview restate, /planning:interview share <topic>, /planning:interview document <topic> (a document another person fills in), /planning:interview product <idea>, /planning:interview <topic>
+**Arguments.** `[lock|scope|restate|share|document|product|lightning] [topic]` (`lightning` can also precede another action). e.g., /planning:interview, /planning:interview lightning <topic>, /planning:interview lock, /planning:interview scope, /planning:interview restate, /planning:interview share <topic>, /planning:interview document <topic> (a document another person fills in), /planning:interview product <idea>, /planning:interview <topic>
 
 ## Repository context. Gather first
 
