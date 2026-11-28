@@ -1,6 +1,6 @@
 ---
 description: "Control: an error row whose message already names its cause and fix is derivable, so a trim drops it; guards against keeping every symptom row by reflex"
-tags: [pocock-34, symptom-rows, control]
+tags: [pocock-34, symptom-rows, contrast]
 runs: 3
 max_turns: 8
 allowed_tools: [Skill]
