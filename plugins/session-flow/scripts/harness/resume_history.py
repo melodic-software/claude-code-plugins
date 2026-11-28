@@ -158,7 +158,15 @@ def seed_history(
     standing_rel = frontmatter_value(newest, "standing_rules")
     reads: list[dict] = []
     if standing_rel:
-        reads += read_turns(newest.parent / standing_rel, pattern)
+        standing_path = newest.parent / standing_rel
+        standing_pattern = (
+            pattern
+            if pattern in ("whole", "paged")
+            else "whole"
+            if len(standing_path.read_bytes()) <= WHOLE_MAX
+            else "paged"
+        )
+        reads += read_turns(standing_path, standing_pattern)
     reads += read_turns(newest, pattern)
     subs = {"repo": str(repo), "handoff": str(newest)}
     history = seed.get("history") or {}

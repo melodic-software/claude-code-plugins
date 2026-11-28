@@ -100,12 +100,15 @@ def _num(key: str, lo: int, hi: int) -> int:
 _RESERVED: contextvars.ContextVar[frozenset[int]] = contextvars.ContextVar(
     "reserved", default=frozenset()
 )
-SPEC_NUMBER_RE = re.compile(r"(?<![0-9a-f])(?:4[1-4]\d\d|8\d{7})(?![0-9a-f])")
+SPEC_NUMBER_RE = re.compile(
+    r"(?<![0-9a-f])(?:4[1-4]\d\d|5\d{3}|8\d{4}|8\d{7})(?![0-9a-f])"
+)
 
 
 def reserved_numbers(case_spec: dict) -> frozenset[int]:
     """Every PR, issue or run number in the case's own text."""
-    return frozenset(int(m) for m in SPEC_NUMBER_RE.findall(json.dumps(case_spec)))
+    body = {k: v for k, v in case_spec.items() if k != "_dir"}
+    return frozenset(int(m) for m in SPEC_NUMBER_RE.findall(json.dumps(body)))
 
 
 def _sha(key: str) -> str:

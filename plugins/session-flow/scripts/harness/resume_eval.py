@@ -550,6 +550,8 @@ def check_matches(check: dict, ctx: GradeContext) -> bool:
     kind = check["kind"]
     if kind == "any_of":
         return any(check_matches(inner, ctx) for inner in check["checks"])
+    if kind == "all_of":
+        return all(check_matches(inner, ctx) for inner in check["checks"])
     if kind == "handoff_contains":
         return ctx.handoff_text is not None and check["text"] in ctx.handoff_text
     if kind == "handoff_regex":

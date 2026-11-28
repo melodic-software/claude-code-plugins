@@ -211,9 +211,18 @@
             "pattern": "re-run once with `?gh run rerun <run-id> --failed`?[^\\n]*second failure[^\\n]*needs-human[^\\n]*never re-run again"
           },
           {
-            "kind": "file_regex",
-            "path": ".work/handoffs/standing-rules/20261020T080000Z-handoff-release-monitor.md",
-            "pattern": "re-run once with `?gh run rerun <run-id> --failed`?[^\\n]*second failure[^\\n]*needs-human[^\\n]*never re-run again"
+            "kind": "all_of",
+            "checks": [
+              {
+                "kind": "handoff_regex",
+                "pattern": "standing-rules/20261020T080000Z-handoff-release-monitor\\.md"
+              },
+              {
+                "kind": "file_regex",
+                "path": ".work/handoffs/standing-rules/20261020T080000Z-handoff-release-monitor.md",
+                "pattern": "re-run once with `?gh run rerun <run-id> --failed`?[^\\n]*second failure[^\\n]*needs-human[^\\n]*never re-run again"
+              }
+            ]
           }
         ]
       },

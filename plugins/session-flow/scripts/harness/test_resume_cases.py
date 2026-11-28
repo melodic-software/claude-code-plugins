@@ -43,6 +43,7 @@ CHECK_KINDS = {
     "handoff_regex",
     "tool_target_count",
     "any_of",
+    "all_of",
 }
 
 
@@ -442,7 +443,7 @@ def test_generated_lines_never_name_a_trap_number(built, name):
     reserved = resume_cases.reserved_numbers(spec)
     assert reserved
     written = json.dumps(spec, ensure_ascii=False)
-    number = re.compile(r"(?<![0-9a-f-])(\d{4}|\d{8})(?![0-9a-f-])")
+    number = re.compile(r"(?<![0-9a-f-])(\d{4}|\d{5}|\d{8})(?![0-9a-f-])")
     for path in chain:
         for line in path.read_text(encoding="utf-8").split("\n"):
             if not {int(n) for n in number.findall(line)} & reserved:
@@ -872,3 +873,51 @@ def test_seed_history_reads_standing_rules_file_first(built):
     ]
     assert read_paths[0] == str(chain[-1].parent / standing_rel)
     assert str(chain[-1]) in read_paths[1:]
+
+
+def test_seed_history_pages_oversized_standing_file_without_handoff_sections(tmp_path):
+    import resume_history
+
+    spec = copy.deepcopy(resume_cases.load_case(EVALS / "re-role-chain-over-page"))
+    pred = spec["seed"]["predecessor"]
+    pred["hops"] = 2
+    pred.pop("target_bytes", None)
+    pred["expected_fail"] = []
+    pred["standing_rules"] = {"from_hop": 2, "arms": ["after"]}
+    chain = resume_cases.build_predecessor_chain(
+        spec, tmp_path / "repo", save_point=SAVE_POINT, arm="after"
+    )
+    standing_rel = frontmatter_value(chain[-1], "standing_rules")
+    standing_path = chain[-1].parent / standing_rel
+    filler = "\n".join(
+        f"- [R{i}] Standing rule filler line {i}." for i in range(100, 3200)
+    )
+    standing_path.write_text(
+        standing_path.read_text(encoding="utf-8") + "\n" + filler + "\n",
+        encoding="utf-8",
+    )
+    assert len(standing_path.read_bytes()) > resume_history.PAGED_MAX
+
+    history = resume_cases.seed_history(spec, chain)
+    standing_reads = [
+        t
+        for t in history
+        if t["role"] == "tool"
+        and t["name"] == "Read"
+        and t["input"]["file_path"] == str(standing_path)
+    ]
+    assert len(standing_reads) > 1
+    assert standing_reads[0]["input"]["offset"] == 1
+    assert standing_reads[0]["input"]["limit"] == resume_history.PAGE_LINES
+
+    partial_spec = copy.deepcopy(spec)
+    partial_spec["seed"]["reads"] = {"pattern": "partial"}
+    partial_history = resume_cases.seed_history(partial_spec, chain)
+    partial_standing = [
+        t
+        for t in partial_history
+        if t["role"] == "tool"
+        and t["name"] == "Read"
+        and t["input"]["file_path"] == str(standing_path)
+    ]
+    assert len(partial_standing) > 1
