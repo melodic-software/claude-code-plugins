@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { createGitHub, GitHubError } from "../lib/github-client.mjs";
 import { createRateLimitLatch, RateLimitStop } from "../../actions/log-api-budget/rate-guard.mjs";
 import { deferResets, stopRecordLine } from "../../actions/check-kill-switch/stop-record.mjs";
-import { CI_WORKFLOWS, DEFER_MAX, DEFER_STEP, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_JOB_PREFIXES, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, reviewStopped, reviewStopsAmidGateNotes, SETTLED_VERSION, TOO_OLD_DAYS, TRUNCATED_STEPS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
+import { CI_WORKFLOWS, DEFER_MAX, DEFER_STEP, RECORD_SLOTS, FLOOR_NOTE, floorNoted, floorReset, RATE_STEP, RATE_WRITE_STEP, RATER, RATER_LEGS, RATER_RESOLVE_STEP, RATER_SWITCH_STEP, RECORDED_LANES, GITHUB_STATUS_URL, JUDGE_PREDECESSOR, JUDGE_STEP, KILL_SWITCH_NOTE, LANE_RUN_PAGES, LANE_TRIGGERS, main, NPM_STATUS_URL, MISSING_REVIEW_NOTE, PENDING_BACKOFF_MINUTES, PENDING_REVIEW_NOTE, prefilterSpec, RATE_HELD_NOTE, REVIEW_JOB_PREFIXES, REVIEW_STEP, REVIEW_STOP_NOTE, REVIEW_STOP_STEP, REVIEW_SWITCHES, reviewStopped, reviewStopsAmidGateNotes, SETTLED_VERSION, TOO_OLD_DAYS, TRUNCATED_STEPS, UPSTREAM_STOP_STEP, VERDICT_STOP_STEP, WRITE_STEP } from "./reconcile.mjs";
 import { switchHold } from "../pr-merge/merge-holds.mjs";
 import { listCommits } from "../lib/trusted-actors.fixtures.mjs";
 import { tempDir } from "../../../lib/test-tmp.mjs";
@@ -79,16 +79,17 @@ function fakeGitHub({ pulls, runs = [], fail = {}, statuses = {} }) {
       const found = runs.filter((r) => r.head_sha === listing[1]);
       return { total_count: found.length, workflow_runs: found };
     }
-    const byWorkflow = /^\/repos\/[^/]+\/[^/]+\/actions\/workflows\/([a-z0-9-]+\.yml)\/runs\?created=%3E%3D([0-9-]+T[0-9]{2}%3A[0-9]{2}%3A[0-9]{2}Z)(?:&status=([a-z_]+))?&per_page=100(?:&page=([0-9]+))?$/.exec(path);
+    const byWorkflow = /^\/repos\/[^/]+\/[^/]+\/actions\/workflows\/([a-z0-9-]+\.yml)\/runs\?created=(?:%3E%3D)?([0-9-]+T[0-9]{2}%3A[0-9]{2}%3A[0-9]{2}Z)(?:\.\.([0-9-]+T[0-9]{2}%3A[0-9]{2}%3A[0-9]{2}Z))?(?:&status=([a-z_]+))?&per_page=100(?:&page=([0-9]+))?$/.exec(path);
     if (method === "GET" && byWorkflow) {
-      const after = Date.parse(decodeURIComponent(byWorkflow[2]));
+      const [, file, from, to, status, at] = byWorkflow;
       const found = runs.filter(
         (r) =>
-          r.path === `.github/workflows/${byWorkflow[1]}` &&
-          Date.parse(r.created_at) >= after &&
-          (byWorkflow[3] === undefined || r.status === byWorkflow[3] || r.conclusion === byWorkflow[3]),
+          r.path === `.github/workflows/${file}` &&
+          Date.parse(r.created_at) >= Date.parse(decodeURIComponent(from)) &&
+          (to === undefined || Date.parse(r.created_at) <= Date.parse(decodeURIComponent(to))) &&
+          (status === undefined || r.status === status || r.conclusion === status),
       );
-      const page = Number(byWorkflow[4] ?? 1);
+      const page = Number(at ?? 1);
       return { total_count: found.length, workflow_runs: found.slice((page - 1) * 100, page * 100) };
     }
     const byStatus = /^\/repos\/[^/]+\/[^/]+\/actions\/runs\?created=%3E%3D2026-10-18T20%3A00%3A00Z&status=([a-z_]+)&per_page=100$/.exec(path);
@@ -831,20 +832,71 @@ test("a succeeded run is read for a hold when an open head's run listing failed 
   assert.ok(jobReads(noStart.calls).includes(321), "no open head could own the review run, so nothing rules it out");
 });
 
+const switchStopped = (name = "Check Intent") => [
+  {
+    name,
+    steps: [
+      { name: "Set up job", status: "completed", conclusion: "success" },
+      { name: "Check the kill switch", status: "completed", conclusion: "success" },
+      { name: "Report the kill switch", status: "completed", conclusion: "failure" },
+      { name: "Check the trigger", status: "completed", conclusion: "skipped" },
+    ],
+  },
+];
+
 test("a verify run the kill switch stopped is re-run once the switch is off", async () => {
-  const stopped = [
-    {
-      name: "Check Intent",
-      steps: [
-        { name: "Set up job", status: "completed", conclusion: "success" },
-        { name: "Check the kill switch", status: "completed", conclusion: "success" },
-        { name: "Report the kill switch", status: "completed", conclusion: "failure" },
-        { name: "Check the trigger", status: "completed", conclusion: "skipped" },
-      ],
-    },
-  ];
-  const { reruns } = await reconcile({ pulls: [], runs: [{ ...verifyRun(201, { conclusion: "failure" }), jobs: stopped }] });
+  const { reruns } = await reconcile({ pulls: [], runs: [{ ...verifyRun(201, { conclusion: "failure" }), jobs: switchStopped() }] });
   assert.deepEqual(reruns, [201]);
+});
+
+const checksAt = (id, n, done) => run(id, sha(n), { conclusion: "success", created: done.replace("T12:00:00Z", "T11:50:00Z"), updated: done });
+const oldVerify = (id, created, jobs) => ({ ...verifyRun(id, { conclusion: "failure", created }), jobs });
+
+test("a verify run the kill switch stopped past the lookback is re-run within the re-run window when it pairs with an open head's newest checks", async () => {
+  const { code, reruns, outputs, calls } = await reconcile({
+    pulls: [pr(1), pr(2), pr(3)],
+    runs: [
+      checksAt(101, 1, "2026-10-10T12:00:00Z"),
+      oldVerify(201, "2026-10-10T12:00:30Z", switchStopped("Check Intent Fallback")),
+      oldVerify(205, "2026-10-10T12:30:00Z", switchStopped()),
+      checksAt(102, 2, "2026-10-12T12:00:00Z"),
+      oldVerify(202, "2026-10-12T12:00:30Z", verifyJob("failure")),
+      oldVerify(203, "2026-10-05T00:00:00Z", switchStopped()),
+      checksAt(103, 3, "2026-09-19T12:00:00Z"),
+      oldVerify(204, "2026-09-19T12:00:30Z", switchStopped()),
+    ],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(reruns, [201], "202 failed on its judge step, 203 follows no open head, 204 is past the 30-day window, 205 started 30 minutes after head 1's checks");
+  assert.deepEqual(records(outputs), [`reconcile-rerun-201-2-${MAIN_TIP}`, "", ""]);
+  assert.deepEqual(jobReads(calls), [201, 202], "only the one run paired to each open head's newest checks is read");
+  assert.ok(calls.some((c) => c.includes("/workflows/pr-verify.yml/runs?created=2026-09-19T20%3A00%3A00Z..2026-10-18T20%3A00%3A00Z&status=failure&")));
+  assert.ok(calls.some((c) => c.includes("/workflows/pr-verify.yml/runs?created=%3E%3D2026-10-18T20%3A00%3A00Z&status=failure&")), "the lookback's failures are listed as before");
+});
+
+test("a verify listing of older failures past its page cap drops only the older runs", async () => {
+  const dir = tempDir("reconcile-summary-");
+  try {
+    const summary = path.join(dir, "summary.md");
+    writeFileSync(summary, "");
+    const older = Array.from({ length: LANE_RUN_PAGES * 100 + 1 }, (_, i) => oldVerify(10_000 + i, new Date(Date.parse("2026-10-10T12:00:00Z") + i * 60_000).toISOString().replace(".000Z", "Z"), switchStopped()));
+    const { code, reruns, calls } = await reconcile({
+      pulls: [pr(1), pr(2)],
+      runs: [
+        checksAt(101, 1, "2026-10-10T12:00:00Z"),
+        ...older,
+        run(102, sha(2), { conclusion: "success", created: "2026-10-19T18:50:00Z", updated: "2026-10-19T18:59:00Z" }),
+        { ...verifyRun(201, { conclusion: "failure" }), jobs: switchStopped() },
+      ],
+      env: { GITHUB_STEP_SUMMARY: summary },
+    });
+    assert.equal(code, 0);
+    assert.deepEqual(reruns, [201]);
+    assert.deepEqual(jobReads(calls), [201]);
+    assert.match(readFileSync(summary, "utf8"), /pr-verify\.yml: its failed runs created 2026-10-10T11:59:00Z\.\.2026-10-18T20:00:00Z were not listed \(.*has more than 5 pages\); only kill switch stops from the last 24 hours are re-run/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("a failed verify run's second attempt is never re-run", async () => {

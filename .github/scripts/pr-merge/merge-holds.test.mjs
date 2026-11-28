@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -1956,4 +1957,49 @@ test("authorSkip judges an author as resolve-pr.mjs and ci-status's queue author
     assert.equal(holdsModule.authorSkip(user, mode, identity, OWNERS), want, JSON.stringify({ user, mode, identity }));
   }
   assert.equal(holdsModule.authorSkip(OWNER, "lane-or-owner", LANE_ID, []), "author-not-lane-or-owner", "an empty list");
+});
+
+test("judgedAuthorHolds holds another judged author's pull request on a FAIL, the repeated-fail cap included", () => {
+  for (const [refusal, want] of [
+    ["verify:fail", true],
+    ["verify:earlier-fail", true],
+    ["verify:repeated-fail", true],
+    ["verify:missing", false],
+    ["verify:spec-changed", false],
+    ["verify:unreadable", false],
+    [null, false],
+    ["", false],
+    ["VERIFY:FAIL", false],
+  ]) {
+    assert.equal(holdsModule.judgedAuthorHolds(refusal), want, String(refusal));
+  }
+});
+
+test("the lifters entry prints pathLifters over a reviews file and the trusted-actor list, and exits non-zero on an unreadable input", () => {
+  const dir = tempDir("merge-holds-lifters-");
+  const file = (name, text) => (writeFileSync(join(dir, name), text), join(dir, name));
+  const row = (id, login, state, commit = HEAD, at = "2026-10-23T11:00:00Z") => JSON.stringify({ user: { id, login, type: "User" }, state, commit_id: commit, submitted_at: at });
+  const actors = file("actors", JSON.stringify({ actors: [{ kind: "human", login: "owner-person", id: 5 }, { kind: "human", login: "a-person", id: 6 }, { kind: "human", login: "late-person", id: 7 }] }));
+  const reviews = file(
+    "reviews",
+    [row(5, "owner-person", "APPROVED"), row(6, "a-person", "APPROVED"), row(7, "late-person", "APPROVED"), row(7, "late-person", "CHANGES_REQUESTED", HEAD, "2026-10-23T12:00:00Z"), row(8, "stranger", "APPROVED"), row(5, "owner-person", "APPROVED", OLD), ""].join("\n"),
+  );
+  const cli = (...args) => spawnSync(process.execPath, [new URL("./merge-holds.mjs", import.meta.url).pathname, "lifters", ...args], { encoding: "utf8" });
+  const lifted = cli(reviews, actors, HEAD);
+  assert.equal(lifted.status, 0, lifted.stderr);
+  assert.equal(lifted.stdout, "a-person, owner-person\n");
+  const none = cli(file("none", ""), actors, HEAD);
+  assert.deepEqual([none.status, none.stdout], [0, "\n"], "no lifter prints an empty line");
+  for (const [label, args] of [
+    ["a missing reviews file", [join(dir, "missing"), actors, HEAD]],
+    ["a reviews line that is not JSON", [file("broken", "{"), actors, HEAD]],
+    ["a missing trusted-actor list", [reviews, join(dir, "missing"), HEAD]],
+    ["a trusted-actor list with no actors", [reviews, file("empty", "{}"), HEAD]],
+    ["a head that is not a SHA", [reviews, actors, "main"]],
+    ["no arguments", []],
+  ]) {
+    const run = cli(...args);
+    assert.notEqual(run.status, 0, label);
+    assert.equal(run.stdout, "", label);
+  }
 });

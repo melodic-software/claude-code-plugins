@@ -34,6 +34,8 @@ export function authorSkip(user, verifyAuthors, laneIdentity, ownerIds) {
   if (verifyAuthors === "lane-or-owner" && !lane() && !owner()) return "author-not-lane-or-owner";
   return null;
 }
+const JUDGED_AUTHOR_HOLDS = Object.freeze(["verify:fail", "verify:earlier-fail", "verify:repeated-fail"]);
+export const judgedAuthorHolds = (refusal) => JUDGED_AUTHOR_HOLDS.includes(refusal);
 export const baselineNote = (baselineFile) =>
   `the lanes App's pull request changes only ${baselineFile} (merge.baseline-file), which merges with no linked issue or pr-verify verdict`;
 
@@ -1286,7 +1288,33 @@ function pullAuthor(path) {
   }
 }
 
+const lines = (file) => readFileSync(file, "utf8").split("\n").filter((line) => line.trim());
+
+function actorsOf(file) {
+  const actors = JSON.parse(readFileSync(file, "utf8"))?.actors;
+  if (!Array.isArray(actors)) {
+    throw new Error("the trusted-actor list has no actors");
+  }
+  return actors;
+}
+
+export function liftersCli([reviewsFile, actorsFile, head] = []) {
+  try {
+    if (!reviewsFile || !actorsFile || !isSha(head)) {
+      throw new Error("usage: merge-holds.mjs lifters <reviews-file> <trusted-actors-file> <head-sha>");
+    }
+    console.log(pathLifters(lines(reviewsFile).map((line) => fromRest(JSON.parse(line))), humansOf(actorsOf(actorsFile)), head).join(", "));
+    return 0;
+  } catch (error) {
+    console.error(`merge-holds lifters: ${String(error?.message ?? error)}`);
+    return 2;
+  }
+}
+
 export async function main(argv = process.argv.slice(2), { env = process.env, github = fetchGitHub(env) } = {}) {
+  if (argv[0] === "lifters") {
+    return liftersCli(argv.slice(1));
+  }
   const [number, bodyFile, discussionFile, filesFile, deniedFile, actorsFile, head, verdictsFile, linkFile, evidenceFile] = argv;
   try {
     if (
@@ -1302,16 +1330,11 @@ export async function main(argv = process.argv.slice(2), { env = process.env, gi
         "usage: merge-holds.mjs <number> <body-file> <discussion-file> <files-file> <denied-paths-file> <trusted-actors-file> <head-sha> [<verdicts-file> <link-file> [<evidence-file>]]",
       );
     }
-    const lines = (file) => readFileSync(file, "utf8").split("\n").filter((line) => line.trim());
     const items = lines(discussionFile).map((line) => fromRest(JSON.parse(line)));
     const changes = lines(filesFile).map((line) => changeOf(JSON.parse(line)));
     const files = changes.flatMap(({ path, previous }) => [path, ...(previous === null ? [] : [previous])]);
     const holdPaths = holdPathsOf(JSON.parse(readFileSync(deniedFile, "utf8")));
-    const actors = JSON.parse(readFileSync(actorsFile, "utf8"))?.actors;
-    if (!Array.isArray(actors)) {
-      throw new Error("the trusted-actor list has no actors");
-    }
-    const humans = humansOf(actors);
+    const humans = humansOf(actorsOf(actorsFile));
     const approved = pathLifters(items, humans, head);
     const body = readFileSync(bodyFile, "utf8");
     const repo = String(env.GITHUB_REPOSITORY);

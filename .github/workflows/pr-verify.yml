@@ -44,6 +44,7 @@ jobs:
       verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
       standards-sha: ${{ steps.standards.outputs.sha }}
       resolve-reason: ${{ steps.pr.outputs.reason }}
+      judged-verdict: ${{ steps.pr.outputs.judged-verdict }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -836,6 +837,7 @@ jobs:
       pr-number: ${{ steps.pr.outputs.pr-number }}
       verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
       resolve-reason: ${{ steps.pr.outputs.reason }}
+      judged-verdict: ${{ steps.pr.outputs.judged-verdict }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -1496,6 +1498,7 @@ jobs:
       pr-number: ${{ steps.pr.outputs.pr-number }}
       verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
       resolve-reason: ${{ steps.pr.outputs.reason }}
+      judged-verdict: ${{ steps.pr.outputs.judged-verdict }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -2251,6 +2254,7 @@ jobs:
     permissions:
       statuses: write
       contents: read
+      pull-requests: read
     env:
       API_BUDGET_TOKEN: github-token
     steps:
@@ -2260,7 +2264,7 @@ jobs:
         uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
         with:
           branch: main
-      - name: Check out the api-budget library
+      - name: Check out the api-budget library and the lift rule
         if: steps.tip.outputs.sha != ''
         continue-on-error: true
         uses: actions/checkout@v7
@@ -2270,7 +2274,23 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             /.github/actions/log-api-budget/
+            /.github/scripts/pr-merge/merge-holds.mjs
+            /.node-version
           sparse-checkout-cone-mode: false
+
+      - name: Download standards
+        id: standards
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/download-standards@main
+
+      - name: Set up Node
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: melodic-software/ci-workflows/.github/actions/setup-pinned-node@main
+        with:
+          node-version-file: .base/.node-version
+
       - name: Post the pr-verify status on the head
         timeout-minutes: 2
         env:
@@ -2282,6 +2302,13 @@ jobs:
           KEY_REASON: ${{ needs.check-intent.outputs.resolve-reason }}
           SUB_REASON: ${{ needs.check-intent-subscription.outputs.resolve-reason }}
           FB_REASON: ${{ needs.check-intent-fallback.outputs.resolve-reason }}
+          KEY_JUDGED: ${{ needs.check-intent.outputs.judged-verdict }}
+          SUB_JUDGED: ${{ needs.check-intent-subscription.outputs.judged-verdict }}
+          FB_JUDGED: ${{ needs.check-intent-fallback.outputs.judged-verdict }}
+          KEY_PR: ${{ needs.check-intent.outputs.pr-number }}
+          SUB_PR: ${{ needs.check-intent-subscription.outputs.pr-number }}
+          FB_PR: ${{ needs.check-intent-fallback.outputs.pr-number }}
+          TRUSTED_ACTORS: ${{ steps.standards.outputs.path }}/components/trusted-actors/trusted-actors.json
         run: |
           set -euo pipefail
           { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
@@ -2289,40 +2316,80 @@ jobs:
             echo "::error::report-status: the upstream run's head '${HEAD_SHA:-}' is not a commit SHA; no pr-verify status posted"
             exit 1
           fi
+          # The trusted people whose latest review of the head approves it, for pull request $1 (merge-holds.mjs pathLifters).
+          lifters() {
+            [[ $1 =~ ^[1-9][0-9]{0,15}$ ]] &&
+              gh api "repos/$GITHUB_REPOSITORY/pulls/$1/reviews?per_page=100" --paginate --jq '.[] | @json' >"$RUNNER_TEMP/reviews.jsonl" &&
+              node .base/.github/scripts/pr-merge/merge-holds.mjs lifters "$RUNNER_TEMP/reviews.jsonl" "$TRUSTED_ACTORS" "$HEAD_SHA"
+          }
+          # Sets the status for verdict $1 of pull request $2: a FAIL stands unless a trusted approval of the head lifts it.
+          judge() {
+            case $1 in
+            pass | pass-notes) state=success description="pr-verify ${1^^} on this head" ;;
+            fail)
+              state=failure description="pr-verify FAIL on this head" failed_pr=$2
+              if ! approvers=$(lifters "$2"); then
+                echo "::warning title=pr-verify status::the reviews of pull request '$2' or the trusted-actor list could not be read; the FAIL stands"
+              elif [ -n "$approvers" ]; then
+                state=success description="pr-verify FAIL lifted: $approvers approved this head"
+              fi
+              ;;
+            *) return 1 ;;
+            esac
+          }
           state='' description=''
           # One job per run judges; the first uploaded verdict in job order is it.
-          for verdict in "${KEY_VERDICT:-}" "${SUB_VERDICT:-}" "${FB_VERDICT:-}"; do
-            case $verdict in
-            pass | pass-notes) state=success description="pr-verify ${verdict^^} on this head" ;;
-            fail) state=failure description="pr-verify FAIL on this head" ;;
-            *) continue ;;
-            esac
-            break
+          for leg in KEY SUB FB; do
+            verdict=${leg}_VERDICT pr=${leg}_PR
+            judge "${!verdict:-}" "${!pr:-}" && break
           done
           if [ -z "$state" ]; then
-            reason=${KEY_REASON:-${SUB_REASON:-${FB_REASON:-}}}
+            for leg in KEY SUB FB; do
+              reason=${leg}_REASON
+              [ -z "${!reason:-}" ] || break
+            done
+            reason=${!reason:-} judged=${leg}_JUDGED pr=${leg}_PR
             case $reason in
-            dependency-manager | author-not-lane | author-not-lane-or-owner)
-              state=success description="author not judged ($reason)" ;;
-            native-baseline)
-              state=success description="lanes App baseline-only change, not judged" ;;
+            native-baseline) state=success description="lanes App baseline-only change, not judged" ;;
+            already-judged)
+              if ! posted=$(gh api "repos/$GITHUB_REPOSITORY/commits/$HEAD_SHA/status?per_page=100" --paginate --jq '.statuses[] | select(.context == "pr-verify") | .state'); then
+                echo "::error::report-status: could not read the pr-verify status of $HEAD_SHA; no status posted"
+                exit 1
+              fi
+              if [ -n "$posted" ]; then
+                echo "::notice title=pr-verify status::$HEAD_SHA is already judged and its pr-verify status is $posted; no status posted"
+                exit 0
+              fi
+              if ! judge "${!judged:-}" "${!pr:-}"; then
+                echo "::notice title=pr-verify status::$HEAD_SHA is already judged, but its verdict ('${!judged:-}') did not reach this job; no status posted"
+                exit 0
+              fi
+              ;;
             *)
-              echo "::notice title=pr-verify status::no verdict and no unjudged author for $HEAD_SHA (reason: ${reason:-none}); no status posted"
+              echo "::notice title=pr-verify status::no verdict and no lanes App baseline-only change for $HEAD_SHA (reason: ${reason:-none}); no status posted here"
               exit 0
               ;;
             esac
           fi
-          for attempt in 1 2 3; do
-            if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
-              -f state="$state" -f context=pr-verify -f description="$description" \
-              -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null; then
-              echo "::notice title=pr-verify status::$state ($description) on $HEAD_SHA"
-              exit 0
-            fi
-            [ "$attempt" -eq 3 ] || sleep $((attempt * 5))
-          done
-          echo "::error::report-status: could not post pr-verify $state on $HEAD_SHA; the merge queue refuses this head until a re-run of this job posts it"
-          exit 1
+          # Posts state $1 with description $2, retrying twice.
+          post() {
+            for attempt in 1 2 3; do
+              if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+                -f state="$1" -f context=pr-verify -f description="${2:0:140}" \
+                -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null; then
+                echo "::notice title=pr-verify status::$1 ($2) on $HEAD_SHA"
+                return 0
+              fi
+              [ "$attempt" -eq 3 ] || sleep $((attempt * 5))
+            done
+            echo "::error::report-status: could not post pr-verify $1 on $HEAD_SHA; a re-run of this job posts it"
+            return 1
+          }
+          post "$state" "$description" || exit 1
+          # An approval that landed after the first reviews read may have met lift-verify-fail before this failure did.
+          if [ "$state" = failure ] && approvers=$(lifters "${failed_pr:-}") && [ -n "$approvers" ]; then
+            post success "pr-verify FAIL lifted: $approvers approved this head"
+          fi
 
       - name: Log the API budget
         if: always()
