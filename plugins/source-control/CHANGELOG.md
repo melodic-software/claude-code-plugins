@@ -3,6 +3,12 @@
 All notable changes to the `source-control` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [15.3.5] - 2026-11-28
+
+### Changed
+
+- The babysit-prs verdict reader reads the standards trusted-actor list from the job's standards checkout when that checkout holds the same commit the API read would use, and skips the contents probe for a `.github/standards/` copy the tip checkout shows absent.
+
 ## [15.3.4] - 2026-11-28
 
 ### Changed
