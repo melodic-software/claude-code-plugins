@@ -230,28 +230,47 @@ wit_gh_annotate_native_status() {
 }
 
 wit_gh_annotate_list_native_statuses() {
-  local target_repo="$1" state="$2" limit="$3" label="${4:-}" json rest_label=() page=1 map='{}' out page_len has_key=0 fetched=0
+  local target_repo="$1" state="$2" limit="$3" label="${4:-}" json rest_label=() page=1 map='{}' seen='{}' wanted='{}'
+  local out meta page_len=0 issue_count=0 has_status=0 status_checked=0 fetched_issues=0 remaining=0
   json="$(cat)"
   if ! jq -e 'type == "array" and length > 0' <<<"$json" >/dev/null 2>&1 ||
     jq -e 'any(.[]; (.status | type) == "object")' <<<"$json" >/dev/null 2>&1; then
     printf '%s' "$json"
     return 0
   fi
+  wanted="$(jq -c --argjson limit "$limit" 'reduce (.[:$limit][] | .number | tostring) as $n ({}; .[$n] = true)' <<<"$json" 2>/dev/null)" || {
+    printf '%s' "$json"
+    return 0
+  }
+  [[ "$wanted" != "{}" ]] || {
+    printf '%s' "$json"
+    return 0
+  }
   [[ -n "$label" && "$label" != *,* ]] && rest_label=(-f "labels=$label")
   while :; do
     out="$(gh api -X GET "repos/$target_repo/issues" -f state="$state" -f per_page=100 \
       -f page="$page" "${rest_label[@]+"${rest_label[@]}"}" 2>/dev/null)" || break
     out="$(printf '%s' "$out" | wit_strip_cr)"
-    page_len="$(jq -e 'if type == "array" then length else error end' <<<"$out" 2>/dev/null)" || break
-    if ((page == 1)); then
-      jq -e 'any(.[]; select(has("pull_request") | not) | has("status"))' <<<"$out" >/dev/null 2>&1 && has_key=1
-      ((has_key)) || break
+    meta="$(jq -r 'if type != "array" then error end
+      | [length, ([.[] | select(has("pull_request") | not)] | length),
+         (if any(.[]; select(has("pull_request") | not) | has("status")) then 1 else 0 end)]
+      | @tsv' <<<"$out" 2>/dev/null)" || break
+    IFS=$'\t' read -r page_len issue_count has_status <<<"$meta"
+    if ((issue_count > 0)); then
+      if ((status_checked == 0)); then
+        status_checked=1
+        ((has_status)) || break
+      fi
+      map="$(printf '%s\n%s' "$map" "$out" | jq -cs '.[0] + (reduce (.[1][] | select(has("pull_request") | not)
+        | select((.status | type) == "object" and (.status.name | type) == "string" and (.status.name | length) > 0))
+        as $i ({}; .[($i.number | tostring)] = $i.status.name))' 2>/dev/null)" || break
+      seen="$(printf '%s\n%s' "$seen" "$out" | jq -cs '.[0] + (reduce (.[1][] | select(has("pull_request") | not))
+        as $i ({}; .[($i.number | tostring)] = true))' 2>/dev/null)" || break
+      fetched_issues=$((fetched_issues + issue_count))
+      remaining="$(printf '%s\n%s' "$wanted" "$seen" | jq -cs '.[0] as $w | .[1] as $s | [($w | keys_unsorted)[] | select($s[.] | not)] | length' 2>/dev/null)" || break
+      ((remaining == 0)) && break
     fi
-    map="$(printf '%s\n%s' "$map" "$out" | jq -cs '.[0] + (reduce (.[1][] | select(has("pull_request") | not)
-      | select((.status | type) == "object" and (.status.name | type) == "string" and (.status.name | length) > 0))
-      as $i ({}; .[($i.number | tostring)] = $i.status.name))' 2>/dev/null)" || break
-    fetched=$((fetched + page_len))
-    ((page_len == 100 && fetched <= limit)) || break
+    ((page_len == 100 && fetched_issues <= limit)) || break
     page=$((page + 1))
   done
   if [[ "$map" == "{}" ]]; then
