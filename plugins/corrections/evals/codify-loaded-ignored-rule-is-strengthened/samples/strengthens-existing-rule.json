@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Strengthen the existing rule at AGENTS.md:3: move it to the top and put an example of the failure beside it."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Add a line to CLAUDE.md: ask before building on an unapproved design choice."
+    }
+  ]
+}

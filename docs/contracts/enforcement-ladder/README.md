@@ -28,10 +28,10 @@ default branch: Tan's `principle-encode-lessons-in-structure`
 read for the source's reasoning when weighing a mechanism against an instruction; Matt Pocock's
 `retro` (<https://github.com/mattpocock/skills/tree/main/skills/engineering/retro>), read for the
 source's reasoning when splitting a violation into a mechanical part and a judgment part. The rules
-here are this ladder's own. Inside the static-analysis tier a compiler setting sits above an architecture test for the reason
-Simon Brown gives: "lean on the compiler to enforce your architectural principles, rather than
-discipline, post-compilation tooling, and automated fitness functions"
-(<https://simonbrown.je/modular-monolith>).
+here are this ladder's own. Inside the static-analysis tier a compiler setting sits above an
+architecture test for the reason Simon Brown gives: "lean on the compiler to enforce your
+architectural principles, rather than discipline, post-compilation tooling, and automated fitness
+functions" (<https://simonbrown.je/modular-monolith>).
 
 ### Tier 1: Codebase
 
@@ -125,13 +125,13 @@ reader meets it and put an example of the mistake beside it.
    <https://code.claude.com/docs/en/hooks#prompt-based-hooks>): it runs at each agent action, can
    block it, and is held to guardrail criterion item 3's bar for a blocking check, no effective
    false positives. `/harness-config:audit-automation-gaps` decides whether such a hook earns its
-   place, when that skill is available. The rule goes in the review-criteria index (`docs/review/README.md` at
-   the repository root, and the file its rows route the concern to) when the repository has one,
-   else in a repository-owned `CODING_STANDARDS.md`, else in `REVIEW.md`. Skip a file a
-   standards-sync bot owns (its commits are that bot's): the next sync overwrites a rule written
-   there. When every candidate is skipped, write nothing in this repository and report the rule as
-   a proposal for the repository the bot copies `REVIEW.md` from, named when the file's sync
-   commits show it.
+   place, when that skill is available. The rule goes in the review-criteria index
+   (`docs/review/README.md` at the repository root, and the file its rows route the concern to)
+   when the repository has one, else in a repository-owned `CODING_STANDARDS.md`, else in
+   `REVIEW.md`. Skip a file a standards-sync bot owns (its commits are that bot's): the next sync
+   overwrites a rule written there. When every candidate is skipped, write nothing in this
+   repository and report the rule as a proposal for the repository the bot copies `REVIEW.md` from,
+   named when the file's sync commits show it.
 2. **`instruction`**: a lesson for the agent or person writing the code, in a `CLAUDE.md` or
    `AGENTS.md` line, or in a rules file under `.claude/rules/` (a path-scoped rule loads when a
    covered file is read).

@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Part 2 (reasoning-only): rung automated-review, a line in the review criteria."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Rung: instruction, one line in CLAUDE.md."
+    }
+  ]
+}

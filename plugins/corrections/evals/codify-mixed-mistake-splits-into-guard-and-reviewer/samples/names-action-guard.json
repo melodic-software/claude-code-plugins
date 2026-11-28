@@ -1,0 +1,15 @@
+{
+  "pass": [
+    {
+      "answer": "Part 1 (deterministic): rung action-guard, a Stop hook over the turn's output."
+    }
+  ],
+  "fail": [
+    {
+      "answer": ""
+    },
+    {
+      "answer": "Rung: instruction, one line in CLAUDE.md."
+    }
+  ]
+}
