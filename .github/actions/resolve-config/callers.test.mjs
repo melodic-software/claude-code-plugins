@@ -8980,13 +8980,13 @@ test("no caller of a lane runner caps its cache below read", () => {
 });
 
 const STALE_CALLS = ["resolve-issue", "resolve-issue-subscription", "resolve-issue-fallback"];
-const staleContext = ({ started = "false", reuse = "", stale = "", skip = "", leg = "resolve-issue" } = {}) => {
+const staleContext = ({ started = "false", reuse = "", stale = "", skip = "", leg = "resolve-issue", kill = "" } = {}) => {
   const context = {
     "needs.check-admission.outputs.proceed": "true",
     "needs.resolve-issue.result": "success",
     "needs.resolve-issue-subscription.result": leg === "resolve-issue" ? "skipped" : "success",
     "needs.resolve-issue-fallback.result": leg === "resolve-issue-fallback" ? "success" : "skipped",
-    "needs.apply-issue-patch.outputs.skip-reason": "",
+    "needs.apply-issue-patch.outputs.skip-reason": kill,
     "needs.resolve-issue-stale.outputs.stale": stale,
   };
   for (const id of STALE_CALLS) {
@@ -9038,6 +9038,9 @@ test("work-resolve-issue.yml: a closed-by-open-pr pre-build skip runs report-out
   }
   assert.deepEqual(at({ skip: "closed-by-open-pr", stale: "true" }), { runs: true, skip: "workflow-stale", lease: "" });
   assert.deepEqual(at({ skip: "not-applicable" }), { runs: false, skip: "", lease: "555" }, "another pre-build skip reports nothing, as before");
+  assert.equal(at({ skip: "closed-by-open-pr", kill: "kill-switch" }).runs, false, "a kill-switch stop keeps the closing-PR report from running");
+  assert.equal(at({ skip: "closed-by-open-pr", kill: "rung-up" }).runs, true, "another apply skip still reports");
+  assert.equal(at({ stale: "true", kill: "kill-switch" }).runs, true, "a stale stop runs as before");
 });
 
 test("handoff-evidence.sh: stale is a leg's run job stop step, and no other job's step of that name", (t) => {

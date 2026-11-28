@@ -442,47 +442,52 @@ function stopPlan({ route, stop, shown, retries, cap, outcome, issueNumber, bran
       : route === "wait"
         ? `It keeps \`agent-ready\`, and work-unblock starts it again once #${pr} merges or closes (wait ${retries + 1} of ${cap}).`
         : ROUTE_TEXT[neutral ? "intake-security" : route];
-  if (preBuild && Object.hasOwn(PRE_BUILD_VERDICT, route)) {
-    const lines = [
-      marker,
-      `### ${WORK_RESOLVE_ISSUE} / report-outcome`,
-      `${PRE_BUILD_VERDICT[route]}: ${lowerFirst(outcome.reason)}`,
-      "",
-      `- Stop: \`${stop}\`.`,
-      ...(why ? [`- ${why}`] : []),
-      `- ${kept}`,
-      ...(runUrl ? [`- Run: ${runUrl}`] : []),
-    ];
-    return { action: route, exit, stop, issueNumber, runId, comment: lines.join("\n"), addLabels: [], ...(pr && { pr }) };
-  }
-  const lines = [
-    marker,
-    `${stopLine(stop)} ${neutral ? PUSHBACK_SECURITY_WHY : stopWhy(shown)}.`,
-    ...(why ? [why] : []),
-    ...(after ? [`It must land after #${after}: intake triage records #${after} on its \`Blocked by:\` line, which writes the blocked-by edge.`] : []),
-    kept,
-  ];
+  const next =
+    route === "host-run"
+      ? `To hand it back to the lane, remove \`${HOST_RUN_LABEL}\` and set Work status to agent-ready again.`
+      : route === "attended"
+        ? `Once the step is done, a listed human removes \`${ATTENDED_LABEL}\` and sets Work status to agent-ready again.`
+        : route === "fail"
+          ? "To run it again, set Work status to agent-ready."
+          : "";
+  const lines = preBuild
+    ? [
+        marker,
+        `### ${WORK_RESOLVE_ISSUE} / report-outcome`,
+        `${PRE_BUILD_VERDICT[route] ?? "Stopped"}: ${lowerFirst(outcome.reason)}`,
+        "",
+        `- Stop: \`${stop}\`${shown === stop ? "" : `, then \`${shown}\`: ${stopWhy(shown)}`}.`,
+        ...(why ? [`- ${why}`] : []),
+        `- ${kept}`,
+        ...(next ? [`- ${next}`] : []),
+        ...(runUrl ? [`- Run: ${runUrl}`] : []),
+      ]
+    : [
+        marker,
+        `${stopLine(stop)} ${neutral ? PUSHBACK_SECURITY_WHY : stopWhy(shown)}.`,
+        ...(why ? [why] : []),
+        ...(after ? [`It must land after #${after}: intake triage records #${after} on its \`Blocked by:\` line, which writes the blocked-by edge.`] : []),
+        kept,
+      ];
   const words = outcome.reason || outcome.summary;
-  if (words) {
-    lines.push("", RUN_WORDS, "", quoted(words));
-  }
-  if (outcome.exit === "pushback" && String(outcome.cause ?? "").trim()) {
-    lines.push("", "The cause the run named:", "", quoted(String(outcome.cause)));
-  }
-  if (route === "close" && outcome.reason && outcome.summary) {
-    lines.push("", "The run's report:", "", quoted(outcome.summary));
-  }
-  lines.push(...notDoneLines(outcome.notDone));
-  if (branch) {
-    lines.push("", `Partial work is on the branch \`${branch}\`. The next run continues from it while it is not behind the default branch, and otherwise starts fresh.`);
-  }
-  lines.push(...runLines(runUrl));
-  if (route === "host-run") {
-    lines.push("", `To hand it back to the lane, remove \`${HOST_RUN_LABEL}\` and set Work status to agent-ready again.`);
-  } else if (route === "attended") {
-    lines.push("", `Once the step is done, a listed human removes \`${ATTENDED_LABEL}\` and sets Work status to agent-ready again.`);
-  } else if (route === "fail") {
-    lines.push("", "To run it again, set Work status to agent-ready.");
+  if (!preBuild) {
+    if (words) {
+      lines.push("", RUN_WORDS, "", quoted(words));
+    }
+    if (outcome.exit === "pushback" && String(outcome.cause ?? "").trim()) {
+      lines.push("", "The cause the run named:", "", quoted(String(outcome.cause)));
+    }
+    if (route === "close" && outcome.reason && outcome.summary) {
+      lines.push("", "The run's report:", "", quoted(outcome.summary));
+    }
+    lines.push(...notDoneLines(outcome.notDone));
+    if (branch) {
+      lines.push("", `Partial work is on the branch \`${branch}\`. The next run continues from it while it is not behind the default branch, and otherwise starts fresh.`);
+    }
+    lines.push(...runLines(runUrl));
+    if (next) {
+      lines.push("", next);
+    }
   }
   return {
     action: route,
