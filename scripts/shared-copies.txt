@@ -26,7 +26,6 @@ lib/install-python-deps.sh plugins/explainer-video/hooks/install-python-deps.sh
 lib/install-python-deps.sh plugins/speech/hooks/install-python-deps.sh
 lib/hook-enabled.sh plugins/animation/hooks/hook-enabled.sh
 lib/hook-enabled.sh plugins/explainer-video/hooks/hook-enabled.sh
-lib/hook-enabled.sh plugins/plugin-profiles/hooks/hook-enabled.sh
 lib/hook-enabled.sh plugins/speech/hooks/hook-enabled.sh
 lib/fetch-docs.sh plugins/harness-config/scripts/fetch-docs.sh
 lib/fetch-docs.sh plugins/harness-ops/scripts/fetch-docs.sh
@@ -1161,7 +1160,9 @@ lib/prerequisites.sh plugins/engineering-concepts/lib/prerequisites.sh
 lib/prerequisites.ps1 plugins/engineering-concepts/lib/prerequisites.ps1
 lib/mod-hook-enabled.ts plugins/context-budget/hooks/mod-hook-enabled.ts
 lib/mod-hook-enabled.ts plugins/display-redaction/hooks/mod-hook-enabled.ts
+lib/mod-hook-enabled.ts plugins/plugin-profiles/hooks/mod-hook-enabled.ts
 lib/mod-hook-enabled.ts plugins/themes/hooks/mod-hook-enabled.ts
 lib/hook-enabled.mjs plugins/discovery/lib/hook-enabled.mjs
 lib/hook-enabled.mjs plugins/fleet/lib/hook-enabled.mjs
+lib/hook-enabled.mjs plugins/plugin-profiles/lib/hook-enabled.mjs
 lib/hook-enabled.mjs plugins/toolchain/lib/hook-enabled.mjs
