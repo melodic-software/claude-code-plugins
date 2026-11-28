@@ -1,6 +1,6 @@
 ---
 # portability-ok: R6 kept-adapter operation - cant-fail-scan.sh
-description: "Read-only: find tests that cannot fail (assertion-free, tautological, vacuous, mock-only expectations, dead asserts, snapshot-only, change detectors, retry-masking runner configs, test.only). JS/TS, Python, C#, Bash, Go. Use when: 'find tests that prove nothing', 'audit test quality', can't-fail CI gate (--check, --strict), or --persist-findings."
+description: "Read-only: find tests that cannot fail (assertion-free, tautological, vacuous, mock-only, dead asserts, snapshot-only, change detectors, retry-masking configs, test.only). JS/TS, Python, C#, Bash, PowerShell, Go. Use when: 'find tests that prove nothing', 'audit test quality', can't-fail CI gate (--check, --strict), or --persist-findings."
 argument-hint: "[--check] [--strict] [--persist-findings] [--file <path>] [--judge [<base>]] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

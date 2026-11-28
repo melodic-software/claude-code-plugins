@@ -1,5 +1,5 @@
 ---
-description: "When bundled run resolves in this session, prefer it for quick launch; else end-to-end live app verification: start app, drive UI/API or non-UI smoke tests (libs, MCP, hooks, scripts), capture screenshots/logs. Use when verifying running app end to end ('e2e', 'smoke test', 'does it actually work'). Not for build/test/lint: /verification:confirm."
+description: "When bundled run resolves in this session, prefer it for quick launch; use for evidenced end-to-end live app verification: start app, drive UI/API/non-UI smoke tests (libs/MCP/hooks/scripts), capture screenshots/logs. Use verifying running app end to end ('e2e', 'smoke test', 'does it actually work'). Not for build/test/lint: /verification:confirm."
 argument-hint: "[map|worst-case…] [--unattended] [app=<app>] [base=<ref>] [trusted-root=<dir>] [scenario|<target>]"
 user-invocable: true
 disable-model-invocation: false
