@@ -94,8 +94,6 @@ const CAPTURED_ATTEMPT_1_LISTING = JSON.parse(
 const CAPTURED_BOT_RERUN_RUN = CAPTURED_BOT_RERUN_LISTING.workflow_runs[0];
 const CAPTURED_ATTEMPT_1_RUN = CAPTURED_ATTEMPT_1_LISTING.workflow_runs[0];
 
-// Derived from the captured GitHub Actions REST workflow-run response
-// (fixtures/workflow-runs-46103022626-attempt-1.json).
 const upstreamRun = (overrides = {}) => {
   const base = structuredClone(CAPTURED_ATTEMPT_1_RUN);
   delete base.created_at;
