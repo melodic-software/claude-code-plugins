@@ -210,11 +210,13 @@ finding. It always applies: `REVIEW.md`, rule files and the PR text add findings
 never relax it. This lane runs no settings script, so take the verdict, patterns and decision
 record from the prompt's `loosened_check_verdict:`, `loosened_check_patterns:` and
 `loosened_check_decision_record:` lines when the wrapper writes them. Without the first two, use
-`fail` and no consumer entries, and say so in the summary. Without the decision-record line, ask for
-no citation and say in the summary that the citation requirement was not checked. Two texts in the
-PR context file give a reason: the closing-issue text, the only spec ("Closing issue" above), and
+`fail` and no consumer entries. Without the decision-record line, ask for no citation. Two texts in
+the PR context file give a reason: the closing-issue text, the only spec ("Closing issue" above), and
 the `## Loosened checks` section of the PR body, for an ordinary check only; with neither, no
-loosening has a reason. Report the criterion file's `Loosened checks would be marked:` line in the summary.
+loosening has a reason. Report the criterion file's `Loosened checks would be marked:` line in the
+summary, in its format exactly; with no wrapper lines it reads
+`Loosened checks would be marked: fail (default); patterns: 0`. That line is the only place the
+summary mentions these settings.
 
 **Plugin manifests.** When the diff changes a `.claude-plugin/plugin.json` or
 `.claude-plugin/marketplace.json`, compare the base and head manifests:
@@ -322,7 +324,8 @@ wrapper's line check, never on comment text, so it covers a `manifest <field>:
 flag` line, a loosened-check finding and a security finding too; the manifest
 summary line then reads `manifest <field>: already posted, <link>`. Post the rest: a different problem
 on the same lines, a match marked `yes`, and a match on an entry with no line
-anchor (a summary finding is restated each round).
+anchor (a summary finding is restated each round, with no link to the summary comment this review
+replaces).
 
 **After the first review.** When the prior-findings file says `blocking only:
 yes`, this lane already reviewed an earlier head of the pull request: post only
@@ -339,8 +342,9 @@ when the wrapper named them: a subagent of a lane without Bash has no other way 
 finding must not be the verifier. Drop candidates the verifier rejects, except a
 `manifest <field>: flag` line, which a verifier never drops: the diff hitting the item is the
 evidence. A verifier never rejects a loosened-check finding because a thread answered or resolved
-it. End the summary with one line, `Verifier dropped N of M candidates.`, so verifier
-precision can be baselined across runs. Committable
+it. End the summary with one line, so verifier precision can be baselined across runs:
+`Verifier dropped N of M candidates.` when a verifier ran, else `Verifier: not run (M candidates).`,
+`M` counting the candidates either way. Committable
 suggestion fences (GitHub `suggestion` code blocks) are allowed only when the
 suggestion alone fully fixes the finding on the anchored lines.
 
@@ -353,7 +357,7 @@ HEAD SHA for locations no changed line can carry.
 
 **Fold the detail lines.** Put every `Pre-existing (advisory):` line and every `manifest <field>:`
 line of the summary in one block after the overview and the blocking findings, so a reader sees
-what blocks first, and before the `Verifier dropped N of M candidates.` line, which stays last:
+what blocks first, and before the verifier line ("Adversarial validation"), which stays last:
 
 ```markdown
 <details>
@@ -376,7 +380,7 @@ most), then the rule in one sentence and the `file:line` that prompted it. A can
 basis is that rule is not a finding: it posts no inline comment, adds nothing to the findings
 count and never sets `hold`. A candidate that meets the bar on its own stays a finding, and the
 line records only the missing rule. Put at most five such lines in one block of their own, after
-the advisory and manifest block and before the `Verifier dropped N of M candidates.` line:
+the advisory and manifest block and before the verifier line:
 
 ```markdown
 <details>

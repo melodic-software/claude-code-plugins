@@ -213,6 +213,34 @@ describe("earlier reviews and blocking only", () => {
     assert.equal(result([skip]), 1);
   });
 
+  test("the summary comment this review edits in place renders no link to itself; a separate review keeps its link", () => {
+    const summaryUrl = "https://example.test/pull/1#issuecomment-7";
+    const reviewUrl = "https://example.test/pull/1#pullrequestreview-9";
+    const out = render({
+      lane: LANE,
+      reviewed: 1,
+      more: false,
+      ...collect({
+        threads: [],
+        reviews: [{ url: reviewUrl, body: `Review finding\n\nclaude-lane: ${LANE}`, lastEditedAt: null, author: BOT, commit: { oid: v1 } }],
+        comments: [
+          {
+            url: summaryUrl,
+            lastEditedAt: null,
+            author: BOT,
+            body: `<!-- claude-lane-reviewed-head lane=${LANE} sha=${v1} -->\n**${LANE}** reviewed \`${v1}\`: read 1 of 1 changed file(s); 1 finding(s), 0 as inline comments.\n\nA summary finding.`,
+          },
+        ],
+        lane: LANE,
+        head: edited,
+        diff,
+      }),
+    });
+    assert.doesNotMatch(out, /issuecomment-7/u, "the edited-in-place summary must not be offered as its own earlier post");
+    assert.match(out, /^- link: none \(this lane's summary comment/mu, "the summary entry says why it carries no link");
+    assert.match(out, new RegExp(`^- link: ${reviewUrl}$`, "mu"), "a review post, never edited in place, keeps its link");
+  });
+
   test("render states blocking only once the lane reviewed an earlier head", () => {
     assert.match(render({ lane: LANE, findings: [], reviewed: 0, more: false }), /^- blocking only: no$/mu);
     assert.match(render({ lane: LANE, findings: [], reviewed: 1, more: false }), /^- blocking only: yes$/mu);
