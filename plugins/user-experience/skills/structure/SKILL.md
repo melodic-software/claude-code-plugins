@@ -1,5 +1,5 @@
 ---
-description: "Structure of the app being built: user flows with their branches, exits and the states each step handles, information architecture, navigation and content structure, and card-sort or tree-test plans. Use when: 'map the sign-up to first-success flow', 'which states does this flow need to handle', 'structure the navigation', 'draft a sitemap', 'plan a card sort', 'plan a tree test', 'outline the first-run flow'."
+description: "Structure the app being built: user flows (branches, exits, per-step states), information architecture, navigation, sitemaps, content structure, and card-sort or tree-test plans. Use when: 'map the sign-up to first-success flow', 'structure the navigation', or 'plan a card sort'."
 argument-hint: "[flow, navigation or app context]"
 user-invocable: true
 disable-model-invocation: false

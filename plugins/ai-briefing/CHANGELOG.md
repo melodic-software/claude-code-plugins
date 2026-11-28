@@ -3,6 +3,12 @@
 All notable changes to the `ai-briefing` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.0.3] - 2026-11-28
+
+### Changed
+
+- Trimmed `/ai-briefing:setup` user-invoked frontmatter description (444 -> 143 chars) to a one-line summary without trigger phrasing.
+
 ## [2.0.2] - 2026-11-28
 
 ### Changed

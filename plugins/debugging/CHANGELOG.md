@@ -3,6 +3,12 @@
 All notable changes to the `debugging` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.2.0] - 2026-11-28
+
+### Added
+
+- Adopt the shared rendered-views token layer (`reference/html-tokens.css`), chrome theme toggle, and branding overrides (palette, type stacks, logo slot, and `branding` `userConfig` option) in the post-mortem HTML view.
+
 ## [3.1.5] - 2026-11-28
 
 ### Changed

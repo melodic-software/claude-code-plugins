@@ -4098,6 +4098,136 @@ class OneRunSharesItsFailRunReads(unittest.TestCase):
         self.assertEqual(self.run_reads(fake, 2), 1)
 
 
+class RunArtifactsGitHub(FakeGitHub):
+    """The fake GitHub, also answering one run's artifacts and a run still
+    in progress."""
+
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        self.running: set[int] = set()
+
+    def rest(self, args, ok, missing, kwargs):  # type: ignore[no-untyped-def]
+        path = next(a for a in args if a.startswith("repos/"))
+        of_run = re.fullmatch(
+            rf"repos/{REPO}/actions/runs/([0-9]+)/artifacts\?per_page=100", path
+        )
+        if of_run:
+            held = [
+                a for a in self.artifacts if a["workflow_run"]["id"] == int(of_run[1])
+            ]
+            return ok({"total_count": len(held), "artifacts": held})
+        ran = re.fullmatch(rf"repos/{REPO}/actions/runs/([0-9]+)", path)
+        if ran and int(ran[1]) in self.running:
+            return ok(run(int(ran[1]), status="in_progress", conclusion=None))
+        return super().rest(args, ok, missing, kwargs)
+
+
+class OneRunSharesARunsFinalArtifacts(unittest.TestCase):
+    """With `BABYSIT_RUN_CACHE` named, the gate processes of one run share,
+    for `run_cache.MAX_AGE`, the artifacts of an index's run that hold a
+    FAIL. A set with no FAIL, completed or still uploading, is read again by
+    every process, since a re-run keeps the run's id."""
+
+    FAILED, DONE = 3, 4
+
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        path = str(pathlib.Path(tmp.name, "run.json"))
+        patcher = mock.patch.dict("os.environ", {"BABYSIT_RUN_CACHE": path})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.fake = RunArtifactsGitHub(
+            [
+                artifact(named(HEAD, "fail", 90), self.FAILED),
+                artifact(f"{ve.INDEX_PREFIX}pr-90", self.FAILED) | {"id": 31},
+                artifact(f"{ve.INDEX_PREFIX}pr-{PR}", self.DONE),
+            ],
+            {self.FAILED: run(self.FAILED), self.DONE: run(self.DONE)},
+        )
+
+    def process(self, run_id: int) -> list[str]:
+        """One gate process's reader asked for the run's artifacts."""
+        with (
+            mock.patch.object(postmerge, "gh_capture", side_effect=self.fake),
+            mock.patch.object(ve.merge_policy, "gh_capture", side_effect=self.fake),
+            mock.patch.object(ve, "gh_api_with_headers", side_effect=_page_with_date),
+        ):
+            reader = ve.Reader(REPO, "main", now=NOW)
+            found = reader._run_artifacts(
+                run_id, ve._listing_clock() + ve.listing_cap()[0]
+            )
+        return sorted(a["name"] for a in found)
+
+    def reads(self, run_id: int) -> tuple[int, int]:
+        """The run's artifact listings and run-record reads so far."""
+        listings = f"repos/{REPO}/actions/runs/{run_id}/artifacts?per_page=100"
+        record = f"repos/{REPO}/actions/runs/{run_id}"
+        return (
+            sum(listings in c for c in self.fake.calls),
+            sum(record in c for c in self.fake.calls),
+        )
+
+    def test_a_run_holding_a_fail_is_listed_once_per_run(self) -> None:
+        first = self.process(self.FAILED)
+        self.assertEqual(self.reads(self.FAILED), (1, 0), "first process reads it")
+        self.assertEqual(self.process(self.FAILED), first)
+        self.assertEqual(self.reads(self.FAILED), (1, 0), "second process reads none")
+        self.assertIn(named(HEAD, "fail", 90), first)
+
+    def test_a_completed_run_without_a_fail_is_read_by_every_process(self) -> None:
+        first = self.process(self.DONE)
+        self.assertEqual(self.reads(self.DONE), (2, 1), "read, run record, re-read")
+        self.assertEqual(self.process(self.DONE), first)
+        self.assertEqual(self.reads(self.DONE), (4, 2), "second process reads again")
+        self.assertEqual(first, [f"{ve.INDEX_PREFIX}pr-{PR}"])
+
+    def test_a_fail_a_re_run_uploads_reaches_the_next_process(self) -> None:
+        self.process(self.DONE)
+        late = named(HEAD, "fail", 91)
+        self.fake.artifacts.append(artifact(late, self.DONE) | {"id": 41})
+        self.assertIn(late, self.process(self.DONE), "same run id, new FAIL")
+
+    def test_a_judgment_notes_when_its_run_artifacts_were_read(self) -> None:
+        read_at = datetime(2026, 10, 18, 11, 58, 30, tzinfo=UTC)
+        clock = [read_at]
+        with mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]):
+            with ve.run_cache.track() as fresh:
+                self.process(self.FAILED)
+            clock[0] += timedelta(seconds=90)
+            with ve.run_cache.track() as shared:
+                self.process(self.FAILED)
+        self.assertEqual(self.reads(self.FAILED), (1, 0), "second process reads none")
+        self.assertEqual(fresh, [read_at], "a fresh read notes when it began")
+        self.assertEqual(shared, [read_at], "a shared read notes when it was read")
+
+    def test_a_run_still_uploading_is_read_again_by_the_next_process(self) -> None:
+        self.fake.running.add(self.DONE)
+        with self.assertRaises(ve._Unreadable):
+            self.process(self.DONE)
+        self.assertEqual(self.reads(self.DONE), (1, 1), "no re-read while running")
+        self.fake.running.clear()
+        self.process(self.DONE)
+        self.assertEqual(self.reads(self.DONE), (3, 2), "nothing was shared")
+
+    def test_a_listing_older_than_the_bound_is_read_again(self) -> None:
+        clock = [datetime(2026, 10, 18, 12, 0, tzinfo=UTC)]
+        with mock.patch.object(ve.run_cache, "now", side_effect=lambda: clock[0]):
+            self.process(self.FAILED)
+            clock[0] += ve.run_cache.MAX_AGE + timedelta(seconds=1)
+            self.process(self.FAILED)
+        self.assertEqual(self.reads(self.FAILED), (2, 0))
+
+    def test_no_run_cache_reads_in_every_process(self) -> None:
+        with mock.patch.dict("os.environ"):
+            os.environ.pop(ve.run_cache.ENV)
+            for _ in range(2):
+                self.process(self.FAILED)
+                self.process(self.DONE)
+        self.assertEqual(self.reads(self.FAILED), (2, 0))
+        self.assertEqual(self.reads(self.DONE), (4, 2))
+
+
 class ACarriedHeadServesOnlyAFail(unittest.TestCase):
     """A run head an earlier pr-merge run found on main reaches this run's
     cache as `carried-on-branch` (carry-run-cache.mjs). Only a FAIL's run may

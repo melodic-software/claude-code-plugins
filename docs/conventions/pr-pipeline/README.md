@@ -296,7 +296,7 @@ dispatches it.
 on `workflow_run` `completed` of `pr-review-hosted` and `pr-review-security-hosted`. It takes only
 the upstream run id from the event and reads the rest back. It dispatches `pr-unblock.yml` with
 `activity: address-feedback` when the upstream is a `pull_request` run of one of those two paths in
-this repository, exactly one open non-draft PR into `main` has its head, the lanes App or an
+this repository whose actor and triggering actor satisfy the broker's review-upstream rule (attempt 1 by the lanes App, or any attempt triggered by a listed human; when a review event's latest attempt was a bot re-run, the dispatcher falls back to the sibling broker-accepted review run at that head, or skips naming the attempt and triggering actor if none exists), exactly one open non-draft PR into `main` has its head, the lanes App or an
 [adopted owner](#owner-pull-requests) opened that PR, it carries no `do-not-merge`, both lanes' newest reviewed-head markers
 name the head, an unresolved thread exists that `address-feedback` would keep (left only by the
 reviewer bot, one the lane never answered where a fix request, below, follows the reviewer bot's
@@ -3172,8 +3172,7 @@ listed human or the lanes App, and no run's patch stopped over the scan job's si
 (`scan-refused-patch`) since a listed human last added `agent-ready`. A filing short of any of these reads `verify:untrusted-spec`, and a
 failed read `verify:unreadable`. github-actions[bot] never counts as an own-agent identity, even if
 the list names it, and comments still count only when a listed human wrote them.
-A lanes App filing intake briefed and no one vetoed is spec too (the owner's standing rule,
-[owner-decisions L318](https://github.com/melodic-software/architecture/blob/main/docs/owner-decisions.md?plain=1#L318)):
+A lanes App filing intake briefed and no one vetoed is spec too (owner's standing rule):
 the newest `<!-- issue-admission-record -->` comment the lanes App posted, by its account id,
 canonical and never edited, names the issue's current title and body by sha256
 (`.github/scripts/lib/admission-record.mjs`), its labels read whole carry no hold state
@@ -3183,8 +3182,7 @@ merge gate reads the same facts again at each judgment (`briefed_issue`), and a 
 on the issue still stops a lane merge (`issue_hold_refusal`). A marker in anyone else's comment,
 an edit after the record, or a hold keeps the body out of the spec.
 Intake-triage's own verdict briefs such a filing too, under the same vetoes
-([#18107](https://github.com/melodic-software/claude-code-plugins/issues/18107),
-[architecture PR 167](https://github.com/melodic-software/architecture/pull/167)): the first
+([#18107](https://github.com/melodic-software/claude-code-plugins/issues/18107)): the first
 `<!-- intake-triage verdict -->` comment the lanes App posted, by its account id and last edited by
 no other account, says the verdict holds nothing because the issue is at `status: ready` or
 admission moved it, and its last line stamps the issue's current title and body by sha256
@@ -3632,7 +3630,7 @@ them on every `pull_request` run, contract-only runs included:
   of the action's repository points to (an unauthenticated `git ls-remote --tags`), so a branch,
   a commit no tag names or a SHA swapped for a tag keeps the hold. An official vendor's action
   (`actions`, `github`, `dependabot`, `microsoft`, `azure`, `anthropics`, `openai`, any case;
-  owner decision D3, architecture `docs/owner-decisions.md` L351) may instead move from one
+  owner decision D3) may instead move from one
   version tag (`vN`, `vN.N`, `vN.N.N`) to another that exists in its repository; any other tag
   swap keeps the hold. Any other line, file, status or owner, a
   patch GitHub omitted or cut short, or an unread tag list keeps the hold, and an unreadable

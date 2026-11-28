@@ -1,5 +1,5 @@
 ---
-description: "Verify or configure the user-experience plugin for this repository: check probes node and the claude CLI, resolves the convention home and reports every team-file key with its source and any error with its line; apply writes the team file user-experience.yaml per key in block style, idempotently."
+description: "Verify node, claude CLI, convention home, and user-experience.yaml keys (check, read-only), or write user-experience.yaml per key (apply)."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true

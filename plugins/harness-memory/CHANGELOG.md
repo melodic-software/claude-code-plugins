@@ -3,6 +3,12 @@
 All notable changes to the `harness-memory` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.5.9] - 2026-11-28
+
+### Changed
+
+- Trimmed `harness-memory` skill frontmatter descriptions (`audit` 444 -> 321 chars, `stateless` 620 -> 347 chars; total 1064 -> 668 chars, -396 chars) while preserving all action modes, confirm-gated purge posture, and `/harness-memory:audit` <-> `/harness-config:audit` boundaries.
+
 ## [2.5.8] - 2026-11-26
 
 ### Changed
