@@ -11,6 +11,10 @@
   ],
   "fail": [
     {
+      "answer": "Suppressed: Deploy conventions (team layer, .claude/instruction-placement.md, 2026-11-02). Movement reported: Lint rules.",
+      "why": "reports Deploy conventions as suppressed from the old file"
+    },
+    {
       "answer": "Suppressed: 9c1e0b7a44d2f310. Movement reported: Lint rules.",
       "why": "omits Deploy conventions"
     },

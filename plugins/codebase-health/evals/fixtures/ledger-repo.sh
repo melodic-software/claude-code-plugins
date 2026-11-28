@@ -218,9 +218,9 @@ MD
 fi
 
 case "${mode}" in
-setup-existing | setup-both) config_path=.claude/codebase-health.md ;;
-setup-new) config_path=docs/conventions/codebase-health.md ;;
-*) config_path= ;;
+setup-existing | setup-both) config_path=.claude/codebase-health.md; doc_glob='docs/**/*.md' ;;
+setup-new) config_path=docs/conventions/codebase-health.md; doc_glob='guides/**/*.md' ;;
+*) config_path=; doc_glob= ;;
 esac
 
 if [[ -n "${config_path}" ]]; then
@@ -237,14 +237,17 @@ paths:
         "200":
           description: ok
 YAML
-  cat >"${config_path}" <<'MD'
+  {
+    cat <<'MD'
 # codebase-health configuration
 
 ## documentation
 
 **primary-sources:**
 
-- `docs/**/*.md`
+MD
+    printf -- '- `%s`\n' "${doc_glob}"
+    cat <<'MD'
 - `README.md`
 
 **verification-sources:**
@@ -267,6 +270,7 @@ YAML
 - claim: "The OpenAPI info.version matches package.json version"
   - verify-via: "Read contracts/ledger.openapi.yaml info.version and package.json version"
 MD
+  } >"${config_path}"
 fi
 
 if [[ "${mode}" == setup-both ]]; then

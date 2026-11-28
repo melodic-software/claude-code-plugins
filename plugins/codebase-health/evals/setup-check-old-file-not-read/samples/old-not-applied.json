@@ -15,6 +15,10 @@
       "why": "still reads the old file"
     },
     {
+      "answer": "INFO: no canonical layer (docs/conventions/codebase-health.md absent). Retired conventions (report-only): codebase-health-r001; codebase-health-r002. Still read .claude/codebase-health.md for api-contracts.",
+      "why": "still applies api-contracts from .claude/codebase-health.md while mentioning INFO and absent"
+    },
+    {
       "answer": "PASS: codebase-health-r001 active.",
       "why": "omits INFO/report-only and absent/not read"
     },

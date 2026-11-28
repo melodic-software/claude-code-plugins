@@ -34,7 +34,7 @@ graders:
     arm: both
   - name: old-not-applied
     type: regex
-    pattern: '(?=[\s\S]*\b(?:INFO|report-only)\b)[\s\S]*\b(?:absent|no (?:canonical )?(?:config|layer)|not read|no longer read)\b'
+    pattern: '^(?![\s\S]*\bapi-contracts\b[^\n]{0,120}?\.claude/codebase-health\.md)(?![\s\S]*\.claude/codebase-health\.md[^\n]{0,120}?\bapi-contracts\b)(?=[\s\S]*\b(?:INFO|report-only)\b)[\s\S]*\b(?:absent|no (?:canonical )?(?:config|layer)|not read|no longer read)\b'
     flags: 'i'
     target: last_message
     arm: both

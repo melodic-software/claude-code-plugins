@@ -3,7 +3,7 @@ name: dl-old-team-path-not-read
 graders:
   - name: 'both-candidates-reported'
     type: 'regex'
-    pattern: '(?=[\s\S]*\bDeploy conventions\b)[\s\S]*\bLint rules\b'
+    pattern: '^(?![\s\S]*(?<!\bno )(?<!\bnot )(?<!\bun)(?<!\b0 )\bsuppress(?:ed|ing|es)\b[^\n]{0,80}?\bDeploy conventions\b)(?![\s\S]*\bDeploy conventions\b[^\n]{0,40}?(?<!\bnot )(?<!\bun)(?<!\b0 )\bsuppressed\b)(?=[\s\S]*\bDeploy conventions\b)[\s\S]*\bLint rules\b'
     flags: 'im'
     target: 'last_message'
   - name: 'meets-expectations'

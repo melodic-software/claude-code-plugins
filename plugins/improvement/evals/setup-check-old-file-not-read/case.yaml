@@ -30,7 +30,7 @@ graders:
     arm: both
   - name: old-value-not-applied
     type: regex
-    pattern: '(?=[\s\S]*\b90 days\b)[\s\S]*\b(?:INFO|report-only)\b|(?=[\s\S]*\b(?:INFO|report-only)\b)[\s\S]*\b90 days\b'
+    pattern: '^(?![\s\S]*\b30 days(?: ago)?[^\n]{0,200}?\.claude/improvement\.md)(?![\s\S]*\.claude/improvement\.md[^\n]{0,200}?\b30 days\b)(?![\s\S]*\bchurn_window\b[^\n]{0,80}?\b30 days\b)(?:(?=[\s\S]*\b90 days\b)[\s\S]*\b(?:INFO|report-only)\b|(?=[\s\S]*\b(?:INFO|report-only)\b)[\s\S]*\b90 days\b)'
     flags: 'i'
     target: last_message
     arm: both
