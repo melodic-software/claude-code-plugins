@@ -16,19 +16,19 @@ It never edits `CLAUDE.md` or `AGENTS.md`. The instruction line is printed for y
 
 ## The config
 
-The testing config resolves across the config-cascade layers, in order: `~/.claude/testing.yaml`,
-the team layer and `<root>/.claude/testing.local.yaml`, where `<root>` is the scanned file's git
-toplevel, else `${CLAUDE_PROJECT_DIR}`. The team layer is `<root>/docs/conventions/testing.yaml`.
-Without it, the team layer is the `yaml config` block in `<root>/docs/conventions/testing.md`
-(read for one more release), else `<root>/.claude/testing.yaml`; the first present wins and the
-resolver prints a warning naming each one it ignores. Lists concatenate across layers; a later
-layer's scalar overrides. The format is the adapters' YAML subset in every file; a glob that starts
-with `*` must be single-quoted. `docs/conventions/testing.yaml` also holds `/testing:run-e2e`'s
-`e2e_driver`, `reuse_running_instance`, `browser_driver`, `map_unit`, `map_entry_points`,
-`map_report_order`, `file_findings` and `file_findings_floor`, and `/testing:write`'s
-`tdd_refactor_step` and `first_test`, which the scan ignores.
+The testing config resolves across the config-cascade layers, in order: the team layer and
+`<root>/<home>/testing.local.yaml`, where `<root>` is the scanned file's git toplevel, else
+`${CLAUDE_PROJECT_DIR}`, and `<home>` is the convention home (`docs/conventions` by default). The
+team layer is `<root>/<home>/testing.yaml`. Without it, the team layer is the `yaml config` block
+in `<root>/<home>/testing.md` (read for one more release); when both exist, `testing.yaml` wins
+and the resolver prints a warning naming both. Lists concatenate across layers; a later layer's
+scalar overrides. The format is the adapters' YAML subset in every file; a glob that starts with
+`*` must be single-quoted. `<home>/testing.yaml` also holds `/testing:run-e2e`'s `e2e_driver`,
+`reuse_running_instance`, `browser_driver`, `map_unit`, `map_entry_points`, `map_report_order`,
+`file_findings` and `file_findings_floor`, and `/testing:write`'s `tdd_refactor_step` and
+`first_test`, which the scan ignores.
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../reference/config-locations.md) says.
+Config locations across all plugins: [config locations](../../reference/config-locations.md).
 
 The keys:
 
@@ -73,30 +73,10 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.sh" check
 ```
 
 It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer does not resolve
-(the file and line are on stderr). Its five sections:
+(the file and line are on stderr). Its four sections:
 
 1. **config**: the resolved records, or the note that no layer exists.
-2. **old paths**: each testing config file found at an old path, the location to move it to, and a
-   preview of what a copy would write there. The old paths and their new locations:
-
-   | Old path | New location |
-   |---|---|
-   | `.claude/testing.yaml` | `<home>/testing.yaml` |
-   | `.claude/testing.local.yaml` | `<home>/testing.local.yaml` |
-   | `~/.claude/testing.yaml` | each key's `userConfig` option, else `<home>/testing.local.yaml` |
-   | `.claude/testing/e2e.md` | `<home>/testing/e2e.md` |
-   | `.claude/testing/e2e.local.md` and `~/.claude/testing/e2e.md` | `<home>/testing/e2e.local.md` |
-   | `.claude/testing/worst-case.md` | `<home>/testing/worst-case.md` |
-
-   A copy writes a whole file into a new location that does not exist yet, else appends the old
-   file's top-level YAML keys the new file lacks. A copy leaves out three things the section names
-   for the user to handle by hand: a key both files set, a key of `~/.claude/testing.yaml` with a
-   `userConfig` option (set the option), and a Markdown file whose new location exists. A personal (`.local.`) location must be
-   gitignored before a copy. A user-global file (`~/.claude/testing.yaml`, `~/.claude/testing/e2e.md`)
-   is not copied while its new location is absent and the repository's old personal file for that
-   location exists: creating the location would stop that file being read, so copy it first. The
-   old file always stays in place.
-3. **lint**: one row per rule for each language the repository's tracked test files use. The script
+2. **lint**: one row per rule for each language the repository's tracked test files use. The script
    reads the lint config as text: a rule named there, or its plugin referenced beside a recommended
    config, reads as present. Treat a `PRESENT` row from the recommended-config path as likely rather
    than proven, and say so. A `FINDING` is a gap to report, not a neutral absence. The rules:
@@ -138,7 +118,7 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
      a change that makes the mistake impossible first, then a check that blocks it, then a test,
      and an instruction only when nothing a machine runs can decide it.
      Say that the `corrections` plugin is not enabled, so the proposal is unproven.
-4. **instruction**: the optional line, naming one file Claude Code loads at the repository
+3. **instruction**: the optional line, naming one file Claude Code loads at the repository
    root: `CLAUDE.md`, else `.claude/CLAUDE.md`, else `CLAUDE.local.md`, else `AGENTS.md`, else `CLAUDE.md` in
    `${CLAUDE_CONFIG_DIR:-~/.claude}` (the script's order). Which files load, and when `AGENTS.md` is
    read: [memory § When Claude Code reads AGENTS.md](https://code.claude.com/docs/en/memory#when-claude-code-reads-agents-md). Offer it as a pointer: it
@@ -146,7 +126,7 @@ It exits 0 with no finding, 1 when a test-lint rule is missing, 2 when a layer d
    pointing at that team file; do not paste it anywhere. A test rule a check could decide goes to
    `/corrections:codify "<the test pattern>"` (if enabled) instead of the instruction line, named for the user
    behind the same availability gate and fallback as the lint rows above.
-5. **hook-entry**: a `none:` line saying test-quality findings come from `/testing:audit`, not a
+4. **hook-entry**: a `none:` line saying test-quality findings come from `/testing:audit`, not a
    per-edit hook, then, when a consumer glob matches no shipped `test-weaken` row, a line naming
    those globs: the audit scans them, `test-weaken` skips them. No settings entry is printed.
 
@@ -158,25 +138,16 @@ missing launcher.
 ## `apply`
 
 1. Run `check` and summarize the effective config before proposing a change. Nothing already
-   configured is dropped without the user confirming. For each file the old paths section names
-   with a copy preview, show that preview and ask whether to copy it. On a yes, run the command
-   the section prints for that file, one file per yes; `--copy-old` takes no answer flags and
-   writes nothing else. Pass the old path exactly as the section prints it: it is already quoted
-   for the shell.
-
-   ```bash
-   bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.sh" apply --copy-old <old file as printed>
-   ```
-
+   configured is dropped without the user confirming.
 2. Ask only what the repository cannot answer: folders or files to leave out, test files the
    shipped globs miss (and which adapter reads them), adapters to turn off, rule levels.
 3. Write the team layer with the answers. The script writes the team file in use:
    `docs/conventions/testing.yaml` whole (keeping its `e2e_driver`, `reuse_running_instance`, `browser_driver`,
    `map_unit`, `map_entry_points`, `map_report_order`, `file_findings`, `file_findings_floor`,
    `tdd_refactor_step` and `first_test` lines), else the body of the `yaml config` block in `docs/conventions/testing.md` (the rest of
-   that file stays), else `.claude/testing.yaml` whole; with none, it creates
-   `docs/conventions/testing.yaml`. It keeps the result only when it resolves and writes nothing
-   else; pass every value the team layer should hold, the existing ones included:
+   that file stays); with neither, it creates `docs/conventions/testing.yaml`. It keeps the result
+   only when it resolves and writes nothing else; pass every value the team layer should hold, the
+   existing ones included:
 
    ```bash
    bash "${CLAUDE_PLUGIN_ROOT}/skills/setup/scripts/setup.sh" apply \

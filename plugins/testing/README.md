@@ -14,7 +14,7 @@ skills cover it.
 | `/testing:fix-failing` | Failing-test diagnosis. Failure classification, root-cause analysis (never retry blindly), then the reproduce → isolate → fix → retest → regression loop. |
 | `/testing:audit` | Can't-fail test detection: a deterministic script runs thirteen rules across JS/TS, Python, C#, Bash, PowerShell and Go, from assertion-free bodies and self-identical (recomputed-expectation) assertions to unawaited assertions, conditional assertions and Playwright retry or `test.only` configs. `--check` fails on the first two (Bash-harness findings only with `--strict`); `--strict` adds mock-only oracles and the two Playwright config rules; the other eight only report. It reports with a coverage denominator and opt-in persists findings for a review fix pass. `--repo` and the other target forms of the shipped `reference/target-scope.md` scan several repositories, one scan each. |
 | `/testing:cleanup` | Clean up low-value tests in one folder. Given the repository root, it plans one batch per test project, ordered by finding count, skips live and operational projects unless you name one, and runs each batch on its own. Reads `/testing:audit` findings, its judge pass's FLAG verdicts and the tests you name as flaky; a fresh-context classifier picks quarantine, rewrite, delete, merge or keep per test. It rewrites by default and deletes or merges only with a stated no-contract reason and your yes on each item. `/mutation-testing:audit --record-mutants` records the mutants the tests kill before any edit, and `--replay-mutants` blocks the batch when a kill is lost. An attended run commits the batch once it is shown and every item has your answer, with no batch-level approval; an unattended run stops before the commit. Needs the `mutation-testing` plugin set up with a `test-command`; without one, or when the mutation run maps or kills nothing, it offers `--cannot-fail-only`, which deletes only tests that cannot fail, each cleared by a fresh-context skeptic and your yes. With `--repo` or another target form, it plans each repository in its own worktree and names the command that runs that repository's batches in a session opened there. |
-| `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved testing config, the test-lint rules missing per language, an optional instruction line to paste, and the test globs the shipped `test-weaken` hook skips; `apply` writes the config block of `docs/conventions/testing.md` (or `.claude/testing.yaml` when that file is the one in use). |
+| `/testing:setup` | Configure the can't-fail checks: `check` prints the resolved testing config, the test-lint rules missing per language, an optional instruction line to paste, and the test globs the shipped `test-weaken` hook skips; `apply` writes `docs/conventions/testing.yaml` (or the config block of `docs/conventions/testing.md` when that file holds one). |
 | `testing:test-value` | Model-invoked guidance, loaded by the review and implementation agents and the `/testing:audit` judge pass: where each expected value must come from, when call-count and database checks are legitimate, and the can't-fail taxonomy keyed to `/testing:audit` rule ids. |
 
 The feature map `/testing:run-e2e` drives entry point by entry point is the app's control skill, which `/app-control:map` writes and keeps current. When the app-control plugin is installed and the app has a control skill, run-e2e hands launching, operating and capturing to `/app-control:drive` and judges what it recorded; otherwise it offers `/app-control:map create` or suggests installing app-control, and drives the app itself when the person declines or no one is present. testing does not depend on app-control.
@@ -100,10 +100,8 @@ installed and enabled, and otherwise reports
 `/testing:run-e2e` reads these optional keys only when it drives the app itself; a run through `/app-control:drive` takes its tools from the control skill. `recording` (`video | gif | off`, default `off`) and
 `browser_mode` (`headed | headless`, default `headless`) live in `<home>/testing/e2e.md`, with a
 personal override at `<home>/testing/e2e.local.md`; the worst-case catalog extension is
-`<home>/testing/worst-case.md`. `<home>` is your convention home, `docs/conventions` by default.
-The old `.claude/testing/` files are still read, with a warning naming where to move each one;
-[the run-e2e config page](skills/run-e2e/context/e2e-config.md#convention-home-and-old-paths)
-lists them.
+`<home>/testing/worst-case.md`. `<home>` is your convention home, `docs/conventions` by default
+([the run-e2e config page](skills/run-e2e/context/e2e-config.md#convention-home)).
 `e2e_driver` (`auto | harness | run | playwright | chrome`) and `reuse_running_instance`
 (`auto | true | false`), both default `auto`, live in `docs/conventions/testing.yaml`, its personal
 layers, or the `userConfig` options below; `scripts/resolve-config.sh e2e` resolves them and names
@@ -138,13 +136,13 @@ never closed.
 `pixel_tolerance` is a map in `docs/conventions/testing.yaml`: `pixels`, the differing pixels per
 image `/testing:check-visual-parity` accepts (a whole number, default 0), and `reason`, required when
 `pixels` is above 0. Quote a reason that holds a colon followed by a space. The team value is read
-from origin's default branch (the working tree only when there is no `origin`). The user-global
-`~/.claude/testing.yaml`, `.claude/testing.local.yaml` and the `pixel_tolerance` option can only
+from origin's default branch (the working tree only when there is no `origin`). The personal
+override `docs/conventions/testing.local.yaml` and the `pixel_tolerance` option can only
 lower it: the lowest valid value wins, a raise is reported as ignored, and an invalid layer is
 named and dropped. A testing release without this key stops its test scan on `pixel_tolerance` in
 `testing.yaml`, so add the map once every member runs this release.
 
-This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](reference/config-locations.md) says.
+Config locations across all plugins: [config locations](reference/config-locations.md).
 
 `verification` (`off | light | standard | strict`, default `light`) and `verification_skills`
 (per-skill levels; an entry beats `verification`) set whether `/testing:cleanup`'s Cannot-fail-only mode
@@ -157,7 +155,7 @@ are read from `docs/conventions/testing.yaml` on the default branch only, throug
 
 `/testing:write` reads two keys, `tdd_refactor_step` (`on | off`, default `on`) and `first_test`
 (`user-flow | unit`, default `user-flow`), resolved by `scripts/resolve-config.sh write`. They are
-repository settings: only `docs/conventions/testing.yaml` and `.claude/testing.local.yaml` set
+repository settings: only `docs/conventions/testing.yaml` and `docs/conventions/testing.local.yaml` set
 them, and there is no `userConfig` option. With `on`, the skill closes each green with a line that
 begins `Refactor checkpoint:`, naming what it tidied or why nothing needed it, and repeats those
 lines in its final summary. With `unit`, the first test is a unit test and the user-flow test is
@@ -166,51 +164,40 @@ them in `testing.yaml`, so add them once every member runs this release.
 
 **Upgrade note.** A testing release older than these keys never reads
 `docs/conventions/testing.yaml`, and refuses an unknown key in the files it does read, which stops
-its test scan. Keep the team's scan config where it is (the `docs/conventions/testing.md` block or
-`.claude/testing.yaml`) until every member has upgraded, and put `e2e_driver` and
-`reuse_running_instance` only in `docs/conventions/testing.yaml`, or in a personal layer on a
-machine that runs this release.
+its test scan. Keep the team's scan config in the `docs/conventions/testing.md` block until every
+member has upgraded, and put `e2e_driver` and `reuse_running_instance` only in
+`docs/conventions/testing.yaml`, or in a personal layer on a machine that runs this release.
 
 Its `worst-case` action also reads an optional `<home>/testing/worst-case.md`, after the bundled
 catalog in `run-e2e/context/worst-case.md`: the project's own worst-case values, field limits and
-data formats, read as data. An old `.claude/testing/worst-case.md` is still read when no `<home>`
-file exists, with a warning naming where to move it. The action renders a target with that data, reverts what it injected
+data formats, read as data. The action renders a target with that data, reverts what it injected
 (proven with `cmp` snapshots), and reports what breaks without editing component code.
 
 `/testing:audit` and the `test-weaken` hook read the testing config through the same cascade
-(`~/.claude/testing.yaml`, the team layer, `.claude/testing.local.yaml`): adapters to turn off or
+(the team layer, then `<home>/testing.local.yaml`): adapters to turn off or
 allow, path globs to exclude or include, extra adapter globs, consumer adapters, and a level per
 rule (`off`, `warn`, `error`). `/testing:setup` documents the keys and writes the team layer.
 
 The team layer is `docs/conventions/testing.yaml`, validated by
-[`schemas/testing.schema.json`](schemas/testing.schema.json). It takes the keys `.claude/testing.yaml`
-takes, plus the two run-e2e keys above. Without it, the team layer is the `yaml config` block in
-`docs/conventions/testing.md` (read for one more release), else `<root>/.claude/testing.yaml`. The
-first of the three present wins, and the resolver prints one warning for each other one present.
+[`schemas/testing.schema.json`](schemas/testing.schema.json). Without it, the team layer is the
+`yaml config` block in `docs/conventions/testing.md` (read for one more release). When both exist,
+`testing.yaml` wins and the resolver prints one warning naming both.
 The prose testing rules stay in `docs/conventions/testing.md`. The personal override is
 `docs/conventions/testing.local.yaml`. The convention home is the folder that holds these files,
 `docs/conventions` by default. When the repository's `AGENTS.md` or `CLAUDE.md` binds another
-convention home, the resolver reads all three files from that folder.
+convention home, the resolver reads all three files from that folder. Retired `.claude/testing*`
+and `~/.claude/testing*` paths are not read.
 
 #### Move the team layer to `docs/conventions/testing.yaml`
 
 1. Create `docs/conventions/testing.yaml` with the content of the docs block (the lines between the
-   fences) or of `.claude/testing.yaml`. The keys do not change; use plain or single-quoted values.
+   fences). The keys do not change; use plain or single-quoted values.
 2. Run `/testing:setup check`: it prints the resolved config and must show
    `docs/conventions/testing.yaml` as the team layer.
-3. Once every member runs this release, delete the old block or file. Until then every run prints a
+3. Once every member runs this release, delete the old block. Until then every run prints a
    warning naming both; an older release keeps reading the old one.
 
-`scripts/resolve-config.sh` still reads the old files, and each run prints one warning for each
-old file it finds, naming where to move it. `.claude/testing.yaml` goes to
-`docs/conventions/testing.yaml`. `.claude/testing.local.yaml` goes to
-`docs/conventions/testing.local.yaml`; once that new file exists, the resolver ignores the old one.
-Each setting in `~/.claude/testing.yaml` goes to its `userConfig` option, and a setting with no
-option goes to `docs/conventions/testing.local.yaml`. A `userConfig` value other than its default
-wins over the old file. `/testing:setup check` names each old file, including the `.claude/testing/`
-ones, and previews copying its keys to the new location. After you say yes,
-`/testing:setup apply` copies them and leaves the old file in place. The other scripts and skills move in their own changes
-([#17999](https://github.com/melodic-software/claude-code-plugins/issues/17999)). Reading the block costs the same as reading the file; the measured p50 and p95 are in the
+Reading the block costs the same as reading the file; the measured p50 and p95 are in the
 [latency probes](https://github.com/melodic-software/claude-code-plugins/blob/927a5305d238874ce006eaad6b3fa5c3cb07ebc1/docs/specs/tautological-tests/probes.md#team-layer-location-docs-block-or-claudetestingyaml-wsl2),
 and `plugins/testing/scripts/time-config.sh` reproduces them.
 

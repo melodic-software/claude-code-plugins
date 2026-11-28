@@ -955,6 +955,8 @@ merge:
         class: enforcement
       - glob: "plugins/improvement/lib/state-key.sh"
         class: enforcement
+      - glob: "plugins/improvement/scripts/filing-plan.mjs"
+        class: enforcement
       - glob: "plugins/architecture/lib/resolve-convention-home.sh"
         class: enforcement
       - glob: "plugins/architecture/lib/read-verification.sh"

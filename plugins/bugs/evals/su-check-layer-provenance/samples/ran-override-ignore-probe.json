@@ -5,7 +5,7 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git check-ignore -v .claude/bugs.local.md",
+            "command": "git check-ignore -v docs/conventions/bugs.local.md",
             "description": "run"
           }
         }
@@ -18,7 +18,18 @@
         {
           "tool": "Bash",
           "input": {
-            "command": "git ls-files --error-unmatch .claude/bugs.local.md",
+            "command": "git check-ignore -v .claude/bugs.local.md",
+            "description": "run"
+          }
+        }
+      ]
+    },
+    {
+      "answer": [
+        {
+          "tool": "Bash",
+          "input": {
+            "command": "git ls-files --error-unmatch docs/conventions/bugs.local.md",
             "description": "run"
           }
         }

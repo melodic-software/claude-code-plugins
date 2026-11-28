@@ -5,15 +5,14 @@ visible, who drives, and whether it drives an app already running. The keys live
 
 - `recording` and `browser_mode` live on the `e2e.md` surface at the convention home: team
   `<home>/testing/e2e.md` and personal override `<home>/testing/e2e.local.md`, both relative to the
-  repository root. [Convention home and old paths](#convention-home-and-old-paths) says how
-  `<home>` resolves and which old files are still read.
+  repository root. [Convention home](#convention-home) says how `<home>` resolves.
 - `e2e_driver`, `reuse_running_instance` and `browser_driver` are top-level keys of the testing
-  plugin's YAML config, the file the scan settings share: team `docs/conventions/testing.yaml` (schema
-  [`schemas/testing.schema.json`](../../../schemas/testing.schema.json)), user-global
-  `~/.claude/testing.yaml`, and personal override `.claude/testing.local.yaml`; per user, the plugin
-  `userConfig` options of the same names. `scripts/resolve-config.sh e2e` resolves them.
+  plugin's YAML config, the file the scan settings share: team `<home>/testing.yaml` (schema
+  [`schemas/testing.schema.json`](../../../schemas/testing.schema.json)), personal override
+  `<home>/testing.local.yaml`, and per user, the plugin `userConfig` options of the same names.
+  `scripts/resolve-config.sh e2e` resolves them.
 
-  This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](../../../reference/config-locations.md) says.
+  Config locations across all plugins: [config locations](../../../reference/config-locations.md).
 
 All five keys govern only this skill's own driving ([own-driving.md](own-driving.md)). When a run
 goes through `/app-control:drive` (SKILL.md Step 1), the app's control skill, which
@@ -115,20 +114,18 @@ any file layer, and "drive it with playwright" overrides `e2e_driver`.
 `recording` and `browser_mode`, highest authority first:
 
 1. Explicit session prompt
-2. Personal override (`<home>/testing/e2e.local.md`, else the old `.claude/testing/e2e.local.md`)
-3. Team (`<home>/testing/e2e.md`, else the old `.claude/testing/e2e.md`)
-4. Old user-global file (`~/.claude/testing/e2e.md`), while it exists
-5. Bundled default (`recording: off`, `browser_mode: headless`)
+2. Personal override (`<home>/testing/e2e.local.md`)
+3. Team (`<home>/testing/e2e.md`)
+4. Bundled default (`recording: off`, `browser_mode: headless`)
 
 `e2e_driver`, `reuse_running_instance`, `browser_driver` and the five `map` keys, highest
 authority first:
 
 1. Explicit session prompt
-2. Personal override (`<home>/testing.local.yaml`, else the old `.claude/testing.local.yaml`)
+2. Personal override (`<home>/testing.local.yaml`)
 3. Team (`<home>/testing.yaml`; `<home>` is `docs/conventions` unless the repository binds another)
 4. The plugin `userConfig` option of the same name, when set to a value other than its default
-5. The old user-global file (`~/.claude/testing.yaml`)
-6. Bundled default (`auto` for the first two, `playwright-cli` for `browser_driver`, and each
+5. Bundled default (`auto` for the first two, `playwright-cli` for `browser_driver`, and each
    `map` key's default in [map.md](map.md))
 
 On own driving, when the app has a control skill (`/app-control:map` writes it), the driving tool
@@ -141,7 +138,7 @@ The highest layer that sets a key decides it. A value outside the key's list is 
 and key, and the key takes its default: a lower layer's value is never used in its place, and the
 run never stops on it. An unrendered `${user_config.<key>}` reads as unset.
 
-## Convention home and old paths
+## Convention home
 
 `<home>` is the repository's convention home. Before the first read, run SKILL.md's
 convention-home command (Own driving) once as one Bash call and follow its exit code; never parse
@@ -150,37 +147,20 @@ the root instruction file yourself:
 - Exit 0: `<home>` is the path it prints.
 - Exit 1 (no pointer) or 4 (declined): `<home>` is the default, `docs/conventions`.
 - Any other exit: read no `<home>` file, name the exit code and its stderr line in the config
-  report, and read only the old paths below.
+  report, and fall back to defaults.
 
 Two run-e2e surfaces sit at `<home>`: `<home>/testing/e2e.md` with its personal override
 `<home>/testing/e2e.local.md` (the keys above), and `<home>/testing/worst-case.md`, the consumer
-extension to the worst-case catalog ([worst-case.md](worst-case.md)).
-
-While a file at an old path exists, it is still read, and its values apply wherever no `<home>`
-file supplies that layer:
-
-| Old path | Layer | Move it to |
-|---|---|---|
-| `.claude/testing/e2e.md` | team | `<home>/testing/e2e.md` |
-| `.claude/testing/e2e.local.md` | personal override | `<home>/testing/e2e.local.md` |
-| `~/.claude/testing/e2e.md` | user-global, below team | `<home>/testing/e2e.local.md` in each repository that needs it, where its values rank above team; there is no user-global file layer |
-| `.claude/testing/worst-case.md` | team | `<home>/testing/worst-case.md` |
-
-Each run prints one warning per old file it finds, naming the old file and where to move it. When
-the `<home>` file for the same layer also exists, the warning names both and says the `<home>` file
-was used. A warning that points at `<home>/testing/e2e.local.md` also says the repository's
-`.gitignore` needs the `<home>/**/*.local.*` line before that file is written, so the personal file
-stays out of the index.
+extension to the worst-case catalog ([worst-case.md](worst-case.md)). Retired `.claude/testing/`
+and `~/.claude/testing/` files are not read.
 
 ## Older releases
 
 A testing release older than `e2e_driver` and `reuse_running_instance` does not read
 `docs/conventions/testing.yaml`, and it refuses an unknown key in the files it does read, which
 stops its test scan. So `e2e_driver`, `reuse_running_instance` and `browser_driver` are never read
-from the `docs/conventions/testing.md` config block or `.claude/testing.yaml`, the team files an
-older teammate's release reads. Set them in `docs/conventions/testing.yaml`; set them in
-`~/.claude/testing.yaml` or `.claude/testing.local.yaml` only on a machine that runs this release
-or later.
+from the `docs/conventions/testing.md` config block. Set them in `docs/conventions/testing.yaml` or
+`docs/conventions/testing.local.yaml`.
 
 A release that reads `docs/conventions/testing.yaml` but predates a `map` key refuses that key
 there too, which stops its test scan. Add each `map` key to the team file once every member runs

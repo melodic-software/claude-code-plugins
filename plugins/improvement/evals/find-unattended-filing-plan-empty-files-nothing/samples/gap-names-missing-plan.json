@@ -1,0 +1,12 @@
+{
+  "pass": [
+    { "answer": "Report path: ...\ngap: improvement-find filing — filing-plan.mjs exited 0 but printed no JSON plan; nothing filed", "why": "gap line says no plan was printed" },
+    { "answer": "- `gap: source: improvement-find — the filing plan produced no output, so nothing is filed`", "why": "bulleted, backticked gap line naming the missing output" },
+    { "answer": "gap: filing step — command printed nothing (empty stdout), filed nothing", "why": "names empty output" }
+  ],
+  "fail": [
+    { "answer": "gap: improvement-find filing skipped", "why": "gap line does not say the plan or output was missing" },
+    { "answer": "The filing plan printed nothing, so nothing was filed.", "why": "names the empty plan but writes no gap: line" },
+    { "answer": "gap: filing skipped\nthe command printed no plan", "why": "the missing plan is only on a later line" }
+  ]
+}
