@@ -12,6 +12,12 @@ adding an optional layer or relaxing a rule additively is a minor bump.
 Additive (minor bump): a linked worktree reads the personal override from the main checkout. The
 other entries below leave `contract_version` as it is.
 
+- **The `rendered-views` row covers `branding` in plain ADR 0075 order.** Alongside `medium`
+  (which keeps its declared publish trust walk), `docs/conventions/rendered-views.yaml`,
+  `docs/conventions/rendered-views.local.yaml` and the plugin's `branding` `userConfig` option
+  resolve `branding` per key in plain personal-override > team > `userConfig` > default order,
+  validated against `SCHEMA` in `lib/view-registry.mjs` and resolved by `lib/view-settings.mjs`
+  (including `--team-ref`). The layering axis is unchanged, so `contract_version` stays.
 - **A linked worktree reads the main checkout's personal override.** Git does not copy an ignored
   file into a linked worktree, so every personal value was lost there. `lib/config-cascade.mjs`
   now reads `<main checkout>/<home>/<concern>.local.<ext>` when the worktree has no personal file
