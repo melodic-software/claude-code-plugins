@@ -4,4 +4,4 @@ bump: patch
 
 ### Changed
 
-- Trimmed `/playgrounds:use` frontmatter description (972 -> 349 chars, -623 chars) while preserving upstream playground invocation, generates-nothing-itself posture, install/delivery guidance, core triggers, and `/prototype:explore-directions` exclusion.
+- Trim `/playgrounds:use` frontmatter description (972 -> 346 chars, -626 chars) while preserving upstream playground invocation, this-wrapper-generates-nothing posture, install guidance, core triggers, and `/prototype:explore-directions` exclusion.
