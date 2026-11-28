@@ -1,5 +1,5 @@
 ---
-description: "Measure duplicated code and redundant copy-paste clone classes (duplicated lines, DRY) across a change, diff, path, or tree with file and line ranges, excluding repo-sanctioned replication. Reports, never gates. Use when: 'find copy-paste code', 'clone detection', 'duplication report'. Not for file length: /code-metrics:audit size."
+description: "Measure duplicated code and redundant copy-paste clone classes (DRY) across a change, path, or tree with instance spans, excluding repo-sanctioned replication. Reports, never gates. Use when 'find copy-paste code', 'clone detection', 'duplication report'. Not for file length: /code-metrics:audit size."
 argument-hint: "[--json] [--keep] [--all] [--base <ref>] [--registry <file>] [<path>...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

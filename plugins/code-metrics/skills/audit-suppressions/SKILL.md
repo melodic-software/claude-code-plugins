@@ -1,6 +1,6 @@
 ---
 # portability-ok: R6 kept-adapter operation - audit-suppressions.sh C# patterns
-description: "Lint/type/coverage/mutation/security suppression (diff/tree): eslint-disable/@ts-expect-error, noqa/type: ignore/pylint/pyright, SuppressMessage/@SuppressWarnings/pragma, shellcheck/nolint/markdownlint/rubocop, istanbul/c8/coverage.py, Stryker, bandit/nosec/nosemgrep/gitleaks; rule/reason/justified/correctness; never gates. Use when: 'audit lint suppressions', 'count suppressions'. Not for size: /code-metrics:audit."
+description: "List lint/type/coverage/security suppression diff/tree: eslint-disable/@ts-expect-error/noqa/type: ignore/pylint/pyright/SuppressMessage/@SuppressWarnings/pragma/shellcheck/nolint/markdownlint/rubocop/istanbul/c8/coverage.py/Stryker/bandit/nosec/nosemgrep/gitleaks; rule/reason/justified/correctness, no gate. Use when 'which noqa have no reason', 'suppressions added in this change'. Not for size: /code-metrics:audit."
 argument-hint: "[--json|--findings [--memory-dir <dir>]] [--all] [--base <ref>] [<path>...] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
