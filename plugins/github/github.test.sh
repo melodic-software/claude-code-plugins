@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # test-scope: plugins/github/*
 set -uo pipefail
+unset RUNNER_TEMP GITHUB_ACTIONS
 
 [[ "${BASH_VERSINFO[0]}" -ge 4 ]] || {
   echo "SKIP: bash 4+ required (mapfile)" >&2
@@ -94,7 +95,7 @@ else
   fi
 fi
 
-recipes=(billing.md security-posture.md rulesets-repo-drift.md actions-policy.md)
+recipes=(billing.md security-posture.md rulesets-repo-drift.md actions-policy.md projects-and-issues.md)
 fixed_headings=(
   "## Credential-and-gate preflight"
   "## Audit-question checklist"
@@ -127,6 +128,22 @@ for r in "${recipes[@]}"; do
     fail "$r checklist has only $qcount numbered questions (<10)"
   fi
 done
+
+mapfile -t disk_recipes < <(find "$RECIPES_DIR" -maxdepth 1 -type f -name '*.md' -printf '%f\n' | sort)
+recipe_diff=$(diff <(printf '%s\n' "${recipes[@]}" | sort) <(printf '%s\n' "${disk_recipes[@]}") || true)
+if [[ -z "$recipe_diff" ]]; then
+  ok "recipe inventory: every file in reference/recipes/ is covered by github.test.sh"
+else
+  fail "recipe inventory mismatch (test list vs disk):"$'\n'"$recipe_diff"
+fi
+
+mapfile -t linked_recipes < <(grep -oE 'recipes/[a-z0-9-]+\.md' "$AREAS" | sed 's|^recipes/||' | sort -u)
+link_diff=$(diff <(printf '%s\n' "${disk_recipes[@]}") <(printf '%s\n' "${linked_recipes[@]}") || true)
+if [[ -z "$link_diff" ]]; then
+  ok "recipe links: areas.md links every recipe under reference/recipes/"
+else
+  fail "recipe links mismatch (disk vs areas.md):"$'\n'"$link_diff"
+fi
 
 for s in audit advise setup; do
   e="$PLUGIN_DIR/skills/$s/evals/evals.json"
