@@ -1,5 +1,5 @@
 ---
-description: "Re-anchors actually using the session's skills: maps the task to the listing, invokes the fitting skill instead of reinventing it, names skills when delegating, and audits for one that should have fired. Use when: 'use your skills', 'you have a skill for that', 'did you check your skills', 'there's a skill for this', 'you reinvented that', 'you skipped the skill', 'invoke your skills', or at conversation start to set the posture that available skills get used."
+description: "Re-anchor using available session skills: check and map the task to the skill listing, invoke the fitting skill instead of reinventing it, name skill when delegating, and audit for a skill that should have fired. Use when 'use your skills', 'you have a skill for that', 'you skipped the skill', did you check your skills, or set skill-use posture."
 user-invocable: true
 disable-model-invocation: false
 metadata:
