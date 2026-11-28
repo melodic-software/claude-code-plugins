@@ -1370,17 +1370,22 @@ for (const [activity, select] of [
 
 const refineLines = () => jobBlock(DISPATCHER, "refine").filter((line) => !/^\s*#/.test(line));
 
-test("pr-unblock-dispatch.yml starts the refine job on a ready same-repository PR's event into main, and the listing job never on one", () => {
+test("pr-unblock-dispatch.yml starts the refine job on a ready same-repository PR's event into main from a person or the lanes App, and the listing job never on one", () => {
   const text = readFileSync(new URL(`../../workflows/${DISPATCHER}`, import.meta.url), "utf8");
   assert.match(text, /\n {2}pull_request_target: # zizmor: ignore\[dangerous-triggers\]\n {4}types: \[opened, reopened, ready_for_review, synchronize\]\n {4}branches: \[main\]\n/);
-  const refine = (event, draft = false, head = "o/r") =>
+  const refine = (event, draft = false, head = "o/r", sender = { type: "User", id: 4242 }) =>
     evaluate(jobGate(DISPATCHER, "refine").gate, {
       "github.event_name": event,
       "github.event.pull_request.draft": draft,
       "github.event.pull_request.head.repo.full_name": head,
       "github.repository": "o/r",
+      "github.event.sender.type": sender.type,
+      "github.event.sender.id": sender.id,
+      "vars.AUTOMATION_LANES_APP_SENDER_ID": "1",
     });
   assert.equal(refine("pull_request_target"), true);
+  assert.equal(refine("pull_request_target", false, "o/r", { type: "Bot", id: 1 }), true, "the lanes App");
+  assert.equal(refine("pull_request_target", false, "o/r", { type: "Bot", id: 337859524 }), false, "another bot, which the script would refuse");
   assert.equal(refine("pull_request_target", true), false, "a draft");
   assert.equal(refine("pull_request_target", false, "fork/r"), false, "a fork PR");
   assert.equal(refine("push"), false);

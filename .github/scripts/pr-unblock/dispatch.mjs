@@ -1,4 +1,4 @@
-import { appendFileSync } from "node:fs";
+import { appendFileSync, existsSync, readFileSync } from "node:fs";
 
 import { DISPATCH_HOLDS, SHARED_COPY_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { runAsScript } from "../lib/run-main.mjs";
@@ -15,7 +15,7 @@ import { prHold, reviewReader } from "./gate-source.mjs";
 import { shareWorkflowRuns } from "./feedback-dispatch.mjs";
 import { adoptableOwnerIds, DEFAULTS as CI_FIX_DEFAULTS, dispatchCiFixes, dispatchTestScope, humanGatedLabel } from "./fix-ci-dispatch.mjs";
 import { TRACKER_BINDING_PATH, trackerBindingText } from "../pr-merge/merge-holds.mjs";
-import { HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
+import { DEFAULTS as DOCS_FIX_DEFAULTS, HISTORY_QUERY as DOCS_FIX_HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 import { anyHandles, cappedAt, headLagStop, laneStop, limitStop, pendingStop, permanentlyHandles, releasedBy, stopRelease } from "./limit-stop.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { readConflictRecord } from "../lib/conflict-record.mjs";
@@ -679,6 +679,14 @@ export async function loadBaseTidyCutoffs(env) {
 
 export async function loadBaseRefineActivities(env) {
   return fromBase(env, "refineDispatchActivitiesFromBase");
+}
+
+export async function loadBaseDocsTargets(env) {
+  const { laneSlots, slotTargets } = await import(new URL("../../actions/resolve-config/resolve.mjs", import.meta.url).href);
+  const slot = laneSlots(await fromBase(env, "configFromBase"), "pr-refine").find((entry) => entry.name === DOCS_FIX_DEFAULTS.activity);
+  const ownersPath = `${basePath(env)}/.github/CODEOWNERS`;
+  const codeowners = existsSync(ownersPath) ? readFileSync(ownersPath, "utf8") : undefined;
+  return (paths) => (slot?.enabled ? slotTargets(slot, paths, codeowners) : []);
 }
 
 export function wrapRunIds(base, env) {

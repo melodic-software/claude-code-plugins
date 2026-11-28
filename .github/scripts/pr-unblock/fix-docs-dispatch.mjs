@@ -22,7 +22,6 @@ export const DEFAULTS = Object.freeze({
 
 export const HISTORY_COMMITS = 50;
 const MAX_PAGES = 20;
-const MARKDOWN = /\.md$/;
 
 export const HISTORY_QUERY = `query($owner: String!, $name: String!, $number: Int!, $appId: Int!, $checkName: String!, $earlierCheckName: String!) {
   rateLimit { cost remaining }
@@ -81,7 +80,7 @@ function laneRunHead(node) {
   return allLaneCommits([rest], `${node.author.login}[bot]`);
 }
 
-export function skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel = null, appSenderId, tidyCutoffs = null }) {
+export function skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel = null, appSenderId, tidyCutoffs = null, docsTargets = null }) {
   if (node.isDraft !== false || node.isCrossRepository !== false || node.baseRefName !== base) {
     return "not a ready same-repository PR into the base";
   }
@@ -99,8 +98,8 @@ export function skipReason(node, { base, actionsAppId, checkName, earlierCheckNa
     return "held";
   }
   const paths = (node.files?.nodes ?? []).map((file) => String(file?.path ?? ""));
-  if (!paths.some((path) => MARKDOWN.test(path)) && !node.files?.pageInfo?.hasNextPage) {
-    return "changes no Markdown file";
+  if (docsTargets !== null && !node.files?.pageInfo?.hasNextPage && docsTargets(paths).length === 0) {
+    return "changes no file pr-refine's fix-docs pass targets";
   }
   const commit = node.commits?.nodes?.[0]?.commit;
   if (!commit || commit.oid !== node.headRefOid || commit.statusCheckRollup?.contexts?.pageInfo?.hasNextPage) {
@@ -198,6 +197,7 @@ export async function dispatchDocsFixes({
   gateLabel = null,
   appSenderId,
   tidyCutoffs = null,
+  docsTargets = null,
 }) {
   if (maxDispatch === 0) {
     log("fix-docs is off (fix-docs-per-run: 0)");
@@ -209,7 +209,7 @@ export async function dispatchDocsFixes({
     const { rateLimit, pullRequests } = await api.listDocsFixCandidates({ base, after });
     log(`fix-docs listing page ${page}: rateLimit.cost=${rateLimit?.cost} remaining=${rateLimit?.remaining}`);
     for (const node of pullRequests.nodes) {
-      const reason = skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel, appSenderId, tidyCutoffs });
+      const reason = skipReason(node, { base, actionsAppId, checkName, earlierCheckName, excludedAuthorIds, holdLabels, gateLabel, appSenderId, tidyCutoffs, docsTargets });
       if (reason.startsWith("head already has") || (reason === "" && isHandled(record, earlierCheckName, node.headRefOid))) {
         markHandled(record, checkName, node.headRefOid);
       } else if (reason === "" && !isHandled(record, checkName, node.headRefOid)) {

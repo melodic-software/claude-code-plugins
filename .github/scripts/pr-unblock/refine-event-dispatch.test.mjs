@@ -3,11 +3,14 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
-import { createGitHubApi, PULL_QUERY } from "./dispatch.mjs";
+import { STANDARDS_FIXTURE } from "../lib/trusted-actors.fixtures.mjs";
+import { createGitHubApi, loadBaseDocsTargets, PULL_QUERY } from "./dispatch.mjs";
 import { main, REFINE_ACTIVITIES } from "./refine-event-dispatch.mjs";
 
 const HEAD = "a".repeat(40);
+const PLANNER_BASE = { BASE_PATH: fileURLToPath(new URL("../../..", import.meta.url)), STANDARDS_DIR: STANDARDS_FIXTURE };
 const checkRun = (name) => ({ __typename: "CheckRun", name, checkSuite: { app: { databaseId: 15368 } } });
 
 function pr({ checks = [], paths = ["docs/guide.md"], ...overrides } = {}) {
@@ -59,7 +62,7 @@ async function run(api, { prNumber = "77", limits = {}, sender = "4242", attempt
   const lines = [];
   try {
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "555", RUN_IDS_FILE: join(dir, "ids"), PR_NUMBER: prNumber, APP_SENDER_ID: "1", SENDER_ID: sender, ...(attempt === null ? {} : { RUN_ATTEMPT: attempt }) };
-    const code = await main(env, { api, log: (line) => lines.push(line), loadLimits: async () => limits, loadTidyCutoffs: async () => null, loadActivities: async () => activities, readGateLabel: () => null, readHumans: () => new Set([4242]) });
+    const code = await main(env, { api, log: (line) => lines.push(line), loadLimits: async () => limits, loadTidyCutoffs: async () => null, loadActivities: async () => activities, loadDocsTargets: () => loadBaseDocsTargets(PLANNER_BASE), readGateLabel: () => null, readHumans: () => new Set([4242]) });
     let ids = "";
     try {
       ids = readFileSync(env.RUN_IDS_FILE, "utf8");
@@ -90,10 +93,12 @@ test("once per PR: a head with a fix-docs check run, or an earlier commit with o
   assert.deepEqual(earlier.calls.dispatch, []);
 });
 
-test("a draft, a PR with no Markdown file, a closed PR or fix-docs-per-run 0 dispatches nothing", async () => {
+test("a draft, a PR with no file the fix-docs pass targets, a closed PR or fix-docs-per-run 0 dispatches nothing", async () => {
   for (const [what, api, limits] of [
     ["draft", fakeApi({ node: pr({ isDraft: true }) }), {}],
     ["no Markdown", fakeApi({ node: pr({ paths: ["src/a.js"] }) }), {}],
+    ["only .changes", fakeApi({ node: pr({ paths: [".changes/x/f.md"] }) }), {}],
+    ["only a skill", fakeApi({ node: pr({ paths: ["plugins/x/skills/y/SKILL.md"] }) }), {}],
     ["closed", fakeApi({ node: null }), {}],
     ["off", fakeApi(), { "fix-docs-per-run": 0 }],
   ]) {
@@ -170,7 +175,7 @@ test("by default the sender check reads the humans of the standards checkout's t
       try {
         const api = fakeApi();
         const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "555", RUN_IDS_FILE: join(dir, "ids"), PR_NUMBER: "77", APP_SENDER_ID: "1", SENDER_ID: sender, RUN_ATTEMPT: "1", BASE_PATH: base, STANDARDS_DIR: join(base, "standards") };
-        assert.equal(await main(env, { api, log: () => {}, loadLimits: async () => ({}), loadTidyCutoffs: async () => null, loadActivities: async () => [], readGateLabel: () => null }), 0);
+        assert.equal(await main(env, { api, log: () => {}, loadLimits: async () => ({}), loadTidyCutoffs: async () => null, loadActivities: async () => [], loadDocsTargets: async () => null, readGateLabel: () => null }), 0);
         assert.equal(api.calls.dispatch.length, dispatched, `sender ${sender}`);
       } finally {
         rmSync(dir, { recursive: true, force: true });
@@ -178,7 +183,7 @@ test("by default the sender check reads the humans of the standards checkout's t
     }
     const api = fakeApi();
     const env = { GITHUB_TOKEN: "t", GITHUB_REPOSITORY: "o/r", GITHUB_RUN_ID: "555", RUN_IDS_FILE: join(base, "ids"), PR_NUMBER: "77", APP_SENDER_ID: "1", SENDER_ID: "4242", RUN_ATTEMPT: "1", BASE_PATH: base };
-    const deps = { api, log: () => {}, loadLimits: async () => ({}), loadTidyCutoffs: async () => null, loadActivities: async () => [], readGateLabel: () => null };
+    const deps = { api, log: () => {}, loadLimits: async () => ({}), loadTidyCutoffs: async () => null, loadActivities: async () => [], loadDocsTargets: async () => null, readGateLabel: () => null };
     await assert.rejects(main(env, deps), /STANDARDS_DIR is unset/, "with no standards checkout the base's copy, which lists 4242, is not read");
     assert.equal(api.calls.dispatch.length, 0);
   } finally {

@@ -1,8 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
+import { STANDARDS_FIXTURE } from "../lib/trusted-actors.fixtures.mjs";
 import { emptyRecord, isHandled, markHandled, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, PULL_QUERY } from "./dispatch.mjs";
+import { createGitHubApi, loadBaseDocsTargets, PULL_QUERY } from "./dispatch.mjs";
 import { dispatchDocsFixes, docsRunState, heldHandoff, heldHead, HISTORY_COMMITS, HISTORY_QUERY } from "./fix-docs-dispatch.mjs";
 
 const ACTIONS = 15368;
@@ -12,6 +14,7 @@ const DEPENDABOT = 49699333;
 const RELEASE_APP = 337859524;
 const STANDARDS_SYNC_APP = 300666570;
 const LANES_APP = 337595936;
+const REPO_ROOT = fileURLToPath(new URL("../../..", import.meta.url));
 
 const checkRun = (name, app = ACTIONS) => ({ __typename: "CheckRun", name, checkSuite: { app: { databaseId: app } } });
 
@@ -140,10 +143,16 @@ test("a run listing that cannot be read, rate-limited or not, defers with a warn
   assert.ok(broken.lines.some((line) => line.startsWith("::warning::") && line.includes("could not be read") && line.includes("404")));
 });
 
-test("a PR that changes no Markdown file is not dispatched; a file list cut off at 100 leaves it to the lane", async () => {
-  assert.deepEqual(numbers((await run({ pages: [[pr(6, { paths: ["src/a.js", "README.txt", "notes.mdx"] })]] })).api), []);
-  assert.deepEqual(numbers((await run({ pages: [[pr(7, { paths: ["src/a.js"], more: true })]] })).api), ["7"]);
-  assert.deepEqual(numbers((await run({ pages: [[pr(8, { paths: ["a/b/c.md"] })]] })).api), ["8"]);
+test("a PR is dispatched only when pr-refine's planner would give its fix-docs pass a target; a file list cut off at 100 leaves it to the lane", async () => {
+  const docsTargets = await loadBaseDocsTargets({ BASE_PATH: REPO_ROOT, STANDARDS_DIR: STANDARDS_FIXTURE });
+  const dispatched = async (paths, more = false) => numbers((await run({ pages: [[pr(6, { paths, more })]] }, { docsTargets })).api);
+  for (const paths of [["src/a.js", "README.txt", "notes.mdx"], [".changes/x/f.md"], ["plugins/x/skills/y/SKILL.md"], ["docs/conventions/pr-pipeline/README.md"]]) {
+    assert.deepEqual(docsTargets(paths), [], paths.join());
+    assert.deepEqual(await dispatched(paths), [], paths.join());
+  }
+  assert.deepEqual(await dispatched(["a/b/c.md", ".changes/x/f.md"]), ["6"], "a docs file the pass targets");
+  assert.deepEqual(await dispatched(["src/a.js"], true), ["6"], "a cut-off list");
+  assert.deepEqual(numbers((await run({ pages: [[pr(6, { paths: ["src/a.js"] })]] })).api), ["6"], "no planner targets given: no path filter");
 });
 
 test("a draft, a fork, a PR into another base, or a held PR is not dispatched", async () => {
