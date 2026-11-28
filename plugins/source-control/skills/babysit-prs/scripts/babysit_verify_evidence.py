@@ -1402,6 +1402,7 @@ CARRIED_RUN_SECTION = "carried-run-record"
 CARRIED_RECORD_SECTION = "carried-fail-head-ref"
 CARRIED_ON_BRANCH = "carried-on-branch"
 UNREAD_RECORD_SECTION = "unreadable-fail-head-ref"
+RUN_ARTIFACTS_SECTION = "run-artifacts"
 RUN_FIELDS = (
     "id",
     "path",
@@ -3751,7 +3752,14 @@ class Reader:
         no FAIL-shaped name may still be uploading its FAIL: while it has not
         completed, `_Unreadable`; once it is seen completed, its artifacts are
         read again, since the FAIL may have uploaded between the two reads,
-        and that read decides (no FAIL then: its FAIL upload failed)."""
+        and that read decides (no FAIL then: its FAIL upload failed). A set
+        that holds a FAIL, or was read after the run completed, cannot gain
+        a FAIL, so the run's gate processes share it for `run_cache.MAX_AGE`;
+        a FAIL deleted since still refuses."""
+        key = f"{self.repo}|{run_id}"
+        shared = run_cache.get(RUN_ARTIFACTS_SECTION, key, run_cache.MAX_AGE)
+        if is_json_array(shared) and all(map(_listed_entry, shared)):
+            return shared
 
         def read() -> list[dict[str, Any]]:
             answer = self._api_object(
@@ -3773,6 +3781,7 @@ class Reader:
                 raise _Unreadable(f"the artifacts of run {run_id} could not be read")
             return [a for a in items if a["expired"] is False]
 
+        at = run_cache.now()
         items = read()
         if not any(FAIL_PREFIX_RE.match(str(a.get("name") or "")) for a in items):
             record = json_object(
@@ -3786,6 +3795,7 @@ class Reader:
                     f"run {run_id} holds a FAIL index and is still running"
                 )
             items = read()
+        run_cache.put(RUN_ARTIFACTS_SECTION, key, items, at)
         return items
 
     def _index_hits(
