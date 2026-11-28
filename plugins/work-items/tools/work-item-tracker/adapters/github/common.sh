@@ -60,6 +60,7 @@ readonly EX_UNAVAILABLE=8
 
 WIT_GH_OUT=""
 WIT_GH_ERR=""
+WIT_GH_NATIVE_STATUS_WRITTEN=""
 
 wit_usage_error() {
   printf '%s: %s\n' "$(basename "${BASH_SOURCE[${#BASH_SOURCE[@]} - 1]}")" "$1" >&2
@@ -176,6 +177,108 @@ wit_gh_emit_unavailable() {
     --arg fallback "$fallback" --argjson extra "$extra_json" \
     '({schema_version: $sv, id: $id, available: false, reason: $reason, fallback: $fallback} + $extra)'
   exit "$EX_CAPABILITY"
+}
+
+wit_gh_is_native_status_unavailable() {
+  local err="$1" owner="$2" repo="$3" number="$4"
+  [[ "$err" == *"rate limit"* ]] && return 1
+  case "$err" in
+  *"HTTP 422"* | *"Unprocessable Entity"* | *"is not a valid status"* | *"unknown field"*)
+    return 0
+    ;;
+  *) ;;
+  esac
+  wit_gh_is_feature_unavailable "$err" "$owner" "$repo" "$number" 1
+}
+
+wit_gh_try_set_native_status() {
+  local owner="$1" repo="$2" number="$3" status_name="$4" applied=""
+  # shellcheck disable=SC2034  # read by sourcing verb scripts (claim.sh)
+  WIT_GH_NATIVE_STATUS_WRITTEN=""
+  [[ -n "$status_name" ]] || return 1
+  if wit_gh_capture write api -X PATCH "repos/$owner/$repo/issues/$number" -f "status=$status_name"; then
+    applied="$(jq -r 'if type == "object" and (.status | type) == "object" and (.status.name | type) == "string" and (.status.name | length) > 0 then .status.name else empty end' <<<"$WIT_GH_OUT" 2>/dev/null)" || applied=""
+    if [[ -n "$applied" ]]; then
+      # shellcheck disable=SC2034  # read by sourcing verb scripts (claim.sh)
+      WIT_GH_NATIVE_STATUS_WRITTEN="$applied"
+      return 0
+    fi
+    return 1
+  fi
+  if wit_gh_is_native_status_unavailable "$WIT_GH_ERR" "$owner" "$repo" "$number"; then
+    return 1
+  fi
+  printf 'native status dual-write skipped for %s/%s#%s (%s): %s\n' \
+    "$owner" "$repo" "$number" "$status_name" "${WIT_GH_ERR%%$'\n'*}" >&2
+  return 1
+}
+
+wit_gh_annotate_native_status() {
+  local owner="$1" repo="$2" number="$3" json ns="" out
+  json="$(cat)"
+  if jq -e '(.status | type) == "object" and (.status.name | type) == "string" and (.status.name | length) > 0' <<<"$json" >/dev/null 2>&1; then
+    printf '%s' "$json"
+    return 0
+  fi
+  if out="$(gh api "repos/$owner/$repo/issues/$number" 2>/dev/null)"; then
+    ns="$(printf '%s' "$out" | wit_strip_cr | jq -r 'if type == "object" and (.status | type) == "object" and (.status.name | type) == "string" and (.status.name | length) > 0 then .status.name else empty end' 2>/dev/null)" || ns=""
+  fi
+  if [[ -n "$ns" ]]; then
+    printf '%s' "$json" | jq -c --arg ns "$ns" '. + {nativeStatus: $ns}'
+  else
+    printf '%s' "$json"
+  fi
+}
+
+wit_gh_annotate_list_native_statuses() {
+  local target_repo="$1" state="$2" limit="$3" label="${4:-}" json rest_label=() page=1 map='{}' seen='{}' wanted='{}'
+  local out meta page_len=0 issue_count=0 has_status=0 status_checked=0 fetched_issues=0 remaining=0
+  json="$(cat)"
+  if ! jq -e 'type == "array" and length > 0' <<<"$json" >/dev/null 2>&1 ||
+    jq -e 'any(.[]; (.status | type) == "object")' <<<"$json" >/dev/null 2>&1; then
+    printf '%s' "$json"
+    return 0
+  fi
+  wanted="$(jq -c --argjson limit "$limit" 'reduce (.[:$limit][] | .number | tostring) as $n ({}; .[$n] = true)' <<<"$json" 2>/dev/null)" || {
+    printf '%s' "$json"
+    return 0
+  }
+  [[ "$wanted" != "{}" ]] || {
+    printf '%s' "$json"
+    return 0
+  }
+  [[ -n "$label" && "$label" != *,* ]] && rest_label=(-f "labels=$label")
+  while :; do
+    out="$(gh api -X GET "repos/$target_repo/issues" -f state="$state" -f per_page=100 \
+      -f page="$page" "${rest_label[@]+"${rest_label[@]}"}" 2>/dev/null)" || break
+    out="$(printf '%s' "$out" | wit_strip_cr)"
+    meta="$(jq -r 'if type != "array" then error end
+      | [length, ([.[] | select(has("pull_request") | not)] | length),
+         (if any(.[]; select(has("pull_request") | not) | has("status")) then 1 else 0 end)]
+      | @tsv' <<<"$out" 2>/dev/null)" || break
+    IFS=$'\t' read -r page_len issue_count has_status <<<"$meta"
+    if ((issue_count > 0)); then
+      if ((status_checked == 0)); then
+        status_checked=1
+        ((has_status)) || break
+      fi
+      map="$(printf '%s\n%s' "$map" "$out" | jq -cs '.[0] + (reduce (.[1][] | select(has("pull_request") | not)
+        | select((.status | type) == "object" and (.status.name | type) == "string" and (.status.name | length) > 0))
+        as $i ({}; .[($i.number | tostring)] = $i.status.name))' 2>/dev/null)" || break
+      seen="$(printf '%s\n%s' "$seen" "$out" | jq -cs '.[0] + (reduce (.[1][] | select(has("pull_request") | not))
+        as $i ({}; .[($i.number | tostring)] = true))' 2>/dev/null)" || break
+      fetched_issues=$((fetched_issues + issue_count))
+      remaining="$(printf '%s\n%s' "$wanted" "$seen" | jq -cs '.[0] as $w | .[1] as $s | [($w | keys_unsorted)[] | select($s[.] | not)] | length' 2>/dev/null)" || break
+      ((remaining == 0)) && break
+    fi
+    ((page_len == 100 && fetched_issues <= limit)) || break
+    page=$((page + 1))
+  done
+  if [[ "$map" == "{}" ]]; then
+    printf '%s' "$json"
+  else
+    printf '%s' "$json" | jq -c --argjson m "$map" 'map((.number | tostring) as $n | if ($m | has($n)) then . + {nativeStatus: $m[$n]} else . end)'
+  fi
 }
 
 wit_gh_mutate_relates() {
@@ -362,7 +465,11 @@ readonly WIT_ITEM_JQ="$WIT_JQ_DEF_UTC_TS"'{
     end),
   url: .url,
   created_at: (.createdAt | wit_utc_ts),
-  milestone: (.milestone.title // null)
+  milestone: (.milestone.title // null),
+  native_status: (if (.nativeStatus // null) != null then .nativeStatus
+                  elif (.status | type) == "object" then (.status.name // null)
+                  elif (.status | type) == "string" and (.status | length) > 0 then .status
+                  else null end)
 }'
 
 _wit_gh_read_binding() {
@@ -443,7 +550,7 @@ wit_gh_annotate_blocker_reasons() {
 
 wit_emit_item() {
   local owner="$1" repo="$2" number="$3" native=0
-  local rest_to_view='{number, title, state, assignees, labels, issueType: .type, url: .html_url, createdAt: .created_at, milestone}'
+  local rest_to_view='{number, title, state, assignees, labels, issueType: .type, url: .html_url, createdAt: .created_at, milestone, status}'
   if wit_gh_has_native_surface; then
     wit_run_gh_native read issue view "$number" -R "$owner/$repo" \
       --json number,title,state,assignees,labels,issueType,blockedBy,parent,url,createdAt,milestone &&
@@ -452,6 +559,7 @@ wit_emit_item() {
   if ((native)); then
     wit_gh_load_wont_do_labels
     printf '%s' "$WIT_GH_OUT" | wit_gh_annotate_blocker_reasons |
+      wit_gh_annotate_native_status "$owner" "$repo" "$number" |
       jq -c --arg sv "$WIT_SCHEMA_VERSION" --arg or "$owner/$repo" "$WIT_ITEM_JQ"
   else
     wit_run_gh read api "repos/$owner/$repo/issues/$number"

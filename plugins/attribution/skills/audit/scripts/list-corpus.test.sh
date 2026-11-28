@@ -185,13 +185,12 @@ rm -f "$CONV/attribution.yaml" "$CONV/attribution.local.yaml" "$OLD_JSON"
 mkdir -p "$HOME/.claude"
 printf '%s\n' '{"excluded_paths":["README.md"]}' >"$HOME/.claude/attribution.json"
 USER_OUT="$(cd "$REPO" && CLAUDE_PROJECT_DIR="$TEST_TMPDIR/noconfig" bash "$LIST_CORPUS" 2>/dev/null)"
-assert_not_contains "the user-global layer is read" \
+assert_contains "the old user-global JSON file is not read" \
   "$(echo "$USER_OUT" | jq -r '.files[]')" "README.md"
 
-printf '%s\n' '{"excluded_paths":["README.md"]}' >"$HOME/.claude/attribution.json"
 HOME_SC="$(cd "$HOME" && CLAUDE_PROJECT_DIR="$HOME" bash "$LIST_CORPUS" --show-config 2>&1)"
-assert_eq "home root: the user-global file is listed once" \
-  "$(printf '%s\n' "$HOME_SC" | grep -c "^  $HOME/.claude/attribution.json")" "1"
+assert_not_contains "home root: the old user-global file is not listed" \
+  "$HOME_SC" "$HOME/.claude/attribution.json"
 NONREPO="$TEST_TMPDIR/nonrepo-cfg"
 mkdir -p "$NONREPO/docs/conventions"
 printf '%s\n' 'excluded_paths:' '  - docs/**' >"$NONREPO/docs/conventions/attribution.yaml"

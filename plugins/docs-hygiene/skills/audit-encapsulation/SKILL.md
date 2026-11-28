@@ -1,5 +1,5 @@
 ---
-description: "Audit skill-encapsulation violations; remediation runs only behind an explicit `fix FILE:LINE`. External citations reaching into private surfaces inside `.claude/skills/X/` or `plugins/*/skills/X/` (marketplace monorepos) beyond the slash invocation. Use when: 'audit encapsulation', 'find skill leaks', 'skill boundary violation', 'who is reaching into SKILL', 'check skill boundaries', 'public API drift', or before refactoring a skill."
+description: "Audit skill encapsulation and boundary leak where external citation reaches private skill surface (.claude/skills/X/, plugins/*/skills/X/) beyond slash invocation; read-only, explicit fix FILE:LINE. Use when 'audit encapsulation', 'find skill leaks', 'check skill boundaries', skill boundary violation, reaching into SKILL, API drift, refactor skill."
 argument-hint: "[detect|sweep|fix <file>:<line>|file-issues] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

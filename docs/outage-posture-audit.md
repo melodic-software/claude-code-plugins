@@ -720,14 +720,14 @@ pr-unblock's elements 3 and 4 script row is kept on evidence; nothing in it is l
   withholding its failing status would leave the head stopped with no record; the route is that
   record, and its `clear` mode removes it once a later round succeeds.
 
-The two `etag` rows are kept as not worth doing:
+The two `etag` rows need no further change:
 
 - **pr-require-checks, element 6: the review wait.** It reads each review run still going once a
   poll, `REVIEW_WAIT_SECONDS / REVIEW_POLL_SECONDS` = 900 / 60 = 15 polls at most per lane, and at
   most two lanes wait, so a `ci-status` run sends at most 30 such reads
-  ([`.github/workflows/pr-require-checks.yml`:7323](https://github.com/melodic-software/claude-code-plugins/blob/d4d5c4939c10ecc0939b76f9d4346762293ab2bf/.github/workflows/pr-require-checks.yml#L7323), [`:7337`](https://github.com/melodic-software/claude-code-plugins/blob/d4d5c4939c10ecc0939b76f9d4346762293ab2bf/.github/workflows/pr-require-checks.yml#L7337)). There were 586 `pull_request` runs of
+  ([`.github/workflows/pr-require-checks.yml`:6252](https://github.com/melodic-software/claude-code-plugins/blob/8a0d127eac4fb0dffd7fb0fd58c45fb674bf3ceb/.github/workflows/pr-require-checks.yml#L6252), [`:6269`](https://github.com/melodic-software/claude-code-plugins/blob/8a0d127eac4fb0dffd7fb0fd58c45fb674bf3ceb/.github/workflows/pr-require-checks.yml#L6269)). There were 586 `pull_request` runs of
   the workflow in the 24 hours to 2026-11-06T12:00Z, about 24 an hour, and a label or edit run
-  waits 0 s ([`:7005`](https://github.com/melodic-software/claude-code-plugins/blob/d4d5c4939c10ecc0939b76f9d4346762293ab2bf/.github/workflows/pr-require-checks.yml#L7005)). If every run waited the whole cap, that is about 720 reads an hour; how
+  waits 0 s ([`:5799`](https://github.com/melodic-software/claude-code-plugins/blob/8a0d127eac4fb0dffd7fb0fd58c45fb674bf3ceb/.github/workflows/pr-require-checks.yml#L5799)). If every run waited the whole cap, that is about 720 reads an hour; how
   many runs wait, and for how long, is UNVERIFIED.
   GitHub counts a `304` answer to an authorized conditional request against no primary rate limit
   ([best practices](https://docs.github.com/en/rest/using-the-rest-api/best-practices-for-using-the-rest-api):
@@ -736,10 +736,11 @@ The two `etag` rows are kept as not worth doing:
   per repository ([rate limits](https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api)),
   and the rate-limits page says nothing about a `304` and secondary limits, where a GET costs one
   point. The run being polled is still going, so its body (status, `updated_at`) can change between
-  polls, and a `304` saves only polls where nothing moved: at most 8 reads a lane a run. Saving them
-  would add a conditional path to `gh_read`, the required gate's one retry layer, which has no path
-  for a `304` today. Not worth doing while the wait is that bounded; reopen if `ci-status` shows
-  `GITHUB_TOKEN` rate stops.
+  polls, and a `304` saves only polls where nothing moved: at most 8 reads a lane a run. The wait
+  already polls conditionally: each read after a lane's first sends `If-None-Match` with the ETag of
+  its last `200`, and a `304` (`gh_read` exit 3) keeps the lane waiting with that ETag
+  ([`:6268-6272`](https://github.com/melodic-software/claude-code-plugins/blob/8a0d127eac4fb0dffd7fb0fd58c45fb674bf3ceb/.github/workflows/pr-require-checks.yml#L6268-L6272)).
+  Nothing is left to do; reopen if `ci-status` shows `GITHUB_TOKEN` rate stops.
 - **pr-merge, element 6: the re-run read-back.** After one `rerun-failed-jobs` POST the step reads
   the run up to 7 times (waits 0, 5, 10, 20, 30, 45 and 60 s), and stops at the first read that
   shows an attempt past 1 ([`.github/workflows/pr-merge.yml`:697-705](https://github.com/melodic-software/claude-code-plugins/blob/d4d5c4939c10ecc0939b76f9d4346762293ab2bf/.github/workflows/pr-merge.yml#L697-L705)), so it sends at most 7 reads

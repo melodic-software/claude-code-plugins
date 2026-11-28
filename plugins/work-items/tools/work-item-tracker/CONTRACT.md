@@ -222,7 +222,7 @@ value (named by file, key and value; the personal override when it set the value
 ## Verbs (core public surface)
 
 ```text
-work-item-tracker.sh create-item --title <t> [--body <b> | --body-file <path>] [--labels a,b] [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--repo <o>/<r>]
+work-item-tracker.sh create-item --title <t> [--body <b> | --body-file <path>] [--labels a,b] [--type <name>] [--parent <id>] [--blocked-by <id>[,<id>]] [--native-status <name>] [--repo <o>/<r>]
 work-item-tracker.sh get-item <id> [--history]
 work-item-tracker.sh claim <id> [--ttl-hours <n>] [--ttl-minutes <n>] [--session-id <s>] [--holder <h>] [--lease-only] [--phase <kind>]
 work-item-tracker.sh renew-lease <id> --lease-comment-id <n>
@@ -235,6 +235,7 @@ work-item-tracker.sh list-items [--state open|closed|all] [--repo <o>/<r>] [--la
 work-item-tracker.sh list-frontier [--autonomous] [--parent <container-id>] [--repo <o>/<r>] [--label <name>]
 work-item-tracker.sh label-provenance <id> --label <name> [--label <name> ...]
 work-item-tracker.sh set-fields <id> --field <field-id>=<option-id> [--field <field-id>=<option-id> ...]
+work-item-tracker.sh set-native-status <id> --status <name>
 work-item-tracker.sh get-field-options --field <name-or-id> [--repo <o>/<r>]
 work-item-tracker.sh get-statuses --field <name> <id>...
 work-item-tracker.sh status-storage [--repo <o>/<r>]
@@ -367,6 +368,26 @@ option's name (pointer:
 [organization issue fields](https://docs.github.com/en/rest/orgs/issue-fields); as of
 2026-10-18, recheck trigger: the write starts taking option ids, or the listing's permission
 changes). An adapter that declares no `set-fields` key exits `6`.
+
+`set-native-status` updates an item's provider-native lifecycle status (distinct from the `Work status`
+organization issue field used for trusted admission and holds). `--status` takes a non-empty status
+name string (never a numeric id; purely numeric values exit `2`). On GitHub, it sends REST
+`PATCH /repos/{owner}/{repo}/issues/{number}` with `status=<name>`, which runs in both standard and
+cloud sessions, and emits `{schema_version, id, status, available: true, updated: true}`. When the
+repository is not enrolled or rejects the write (HTTP `422`, HTTP `403` non-rate-limit, HTTP `404`
+on an existing item, or an HTTP `200` response that returns no `status` object), it exits `6` with
+`{schema_version, id, status: null, available: false, updated: false, reason, fallback: "none"}` so
+callers degrade cleanly without failing the primary transition. Missing items still exit `5`, auth
+failures exit `4`, and rate limits exit `8` (or `4` on a rate-limited `403`). An adapter that
+declares `set-native-status: false` (or omits it) exits `6` at the dispatcher.
+
+Dual-write transitions in the GitHub adapter keep `Work status` and trusted-actor verification
+untouched while updating native lifecycle status best-effort (never failing the primary verb):
+`create-item` applies `--native-status <name>` when given, applies `Todo` when labels include the
+resolved autonomous-eligible or session-owned role label or `status: ready`, and otherwise keeps
+GitHub's default `Backlog`; `claim` writes `In progress` after winning an implementation claim
+(skipped for `--phase triage` and `--phase discovery`); closing flows call `set-native-status` with
+`Done`, `Not planned`, or `Duplicate` after close and ignore exit `6`.
 
 `get-field-options` is the read-only counterpart of `set-fields`: it lists the options of one
 single-select issue field, so a caller such as planning's Work size can use a tracker's own size
@@ -583,11 +604,17 @@ Normalized item object:
   "parent_id": null,
   "url": "https://…",
   "created_at": "2026-03-01T10:00:00Z",
-  "milestone": null
+  "milestone": null,
+  "native_status": null
 }
 ```
 
 - `state` is normalized lowercase: `open` | `closed`.
+- `native_status` is the provider's native lifecycle status name (on GitHub, e.g. `Backlog`,
+  `Todo`, `In progress`, `In review`, `Done`, `Not planned`, `Duplicate`), or `null` when unset
+  (such as pre-preview open issues) or unsupported. It stays separate from the `status` field that
+  `list-frontier --autonomous` attaches from `Work status`. Additive field: an adapter written
+  before it emits none, which a reader treats as `null`.
 - `created_at` is when the provider created the item, in UTC to the second
   (`YYYY-MM-DDTHH:MM:SSZ`), so values from one adapter sort as text; `null` when the
   provider gives none or one the adapter cannot parse. Every bundled adapter and seed reads the
@@ -656,7 +683,7 @@ Per-verb result objects:
 |---|---|
 | `create-item` | normalized item object |
 | `get-item` | normalized item object; with `--history`, plus `state_history: {available, events, reopen_count, reason}` ("Verbs") |
-| `claim` | `id, holder, acquired_at, renewed_at, ttl_hours, lease_comment_id, session_id` |
+| `claim` | `id, holder, acquired_at, renewed_at, ttl_hours, lease_comment_id, session_id, native_status` (`native_status` is `"In progress"` when confirmed, else `null`) |
 | `renew-lease` | same as `claim` (with bumped `renewed_at`) |
 | `release` | `id, lease_comment_id, released` (bool), `reason` |
 | `reclaim` | `id, reclaimed` (bool), `reason` |
@@ -665,6 +692,7 @@ Per-verb result objects:
 | `list-sub-items` | `{items:[…]}` envelope of normalized item objects (each `parent_id` = the container) |
 | `label-provenance` | `id, admitted` (bool), `labels: [{label, actor, at, permission, role, trusted, reason}]`, `body_edit: {edited_at, after_admission, reason}` (`null` where not read) |
 | `get-statuses` | `statuses` (item id → option name or `null`) |
+| `set-native-status` | `id, status` (name or `null`), `available` (bool), `updated` (bool; plus `reason, fallback` on exit `6`) |
 | `status-storage` | `storage` (`field` or `labels`), `field` (`"Work status"` or `null`), `reason` |
 | `add-recurrence` | `id, source_link, recorded` (bool, `false` when the link was already recorded), `reason` |
 | `put-artifact` | `id, available` (bool), `action` (`"created"` \| `"updated"` \| `null`), `artifact: {number, name, type, url}` (or `null` with `reason, fallback` on exit `6`) |

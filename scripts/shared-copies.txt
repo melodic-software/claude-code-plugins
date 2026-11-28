@@ -669,6 +669,10 @@ lib/html-chrome.html plugins/adhd/reference/html-chrome.html
 lib/html-chrome.html plugins/planning/reference/html-chrome.html
 lib/html-chrome.html plugins/architecture/reference/html-chrome.html
 lib/html-tokens.css plugins/architecture/reference/html-tokens.css
+lib/html-tokens.css plugins/visualization/reference/html-tokens.css
+lib/html-tokens.css plugins/adhd/reference/html-tokens.css
+lib/html-branding.mjs plugins/visualization/lib/html-branding.mjs
+lib/html-branding.mjs plugins/adhd/lib/html-branding.mjs
 lib/html-tokens.css plugins/debugging/reference/html-tokens.css
 lib/html-tokens.css plugins/discovery/reference/html-tokens.css
 lib/html-tokens.css plugins/machine-health/reference/html-tokens.css
