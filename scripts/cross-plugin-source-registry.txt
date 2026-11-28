@@ -256,6 +256,14 @@ reference/html-tokens.css
 lib/html-tokens.css -> plugins/*/reference/html-tokens.css
 
 # Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
+# lib/html-branding.mjs, the rendered-views shared branding helper.
+lib/html-branding.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Cluster line for the
+# duplication audit: the root canonical and the copies.
+lib/html-branding.mjs -> plugins/*/lib/html-branding.mjs
+
+# Dedicated check: scripts/sync-shared-copies.sh --check. Canonical:
 # lib/hook-test-sink.sh, the telemetry-sink test helper
 # (docs/contracts/shell-test-helpers/README.md, "The telemetry-sink helper").
 # The autonomy, context-usage and desktop-notification plugins carry the
