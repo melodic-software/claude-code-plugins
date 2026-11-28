@@ -1,0 +1,137 @@
+{
+  "skill": "evals:audit",
+  "plugin": "evals",
+  "skill_dir": "plugins/evals/skills/audit",
+  "ranking_note": "Backfilled probe set for evals:audit before description trimming (issue #19475); queries use natural phrasing across suite-coverage gaps, uncalibrated judges, legacy formats, duplicate cases, gate-pair balance, grader fit, and skill-text drift against sibling and cross-plugin audit rivals.",
+  "competitors": [
+    "evals:design",
+    "evals:methodology",
+    "evals:plugin-eval",
+    "evals:validate",
+    "testing:audit",
+    "skill-quality:check",
+    "codebase-health:audit"
+  ],
+  "queries": [
+    {
+      "id": "pos-train-01",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "give me a health check on plugins/billing's eval suite and point out any uncovered skills"
+    },
+    {
+      "id": "pos-train-02",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "which LLM graders in our evals directory still lack labeled calibration samples"
+    },
+    {
+      "id": "pos-train-03",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "check whether any two eval cases in this plugin are testing the exact same prompt and outcome"
+    },
+    {
+      "id": "pos-train-04",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "spot any refusal gates in our plugin skills that only have one side covered by an eval case"
+    },
+    {
+      "id": "pos-train-05",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "see if any eval prompts or graders are quoting outdated wording that the skill no longer contains"
+    },
+    {
+      "id": "pos-train-06",
+      "split": "train",
+      "expect_trigger": true,
+      "request": "report which skills in plugins/payments only have legacy evals.json files or lack a negative no-fire case"
+    },
+    {
+      "id": "pos-val-01",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "review our plugin's eval coverage and tell me where deterministic checks could replace model judges"
+    },
+    {
+      "id": "pos-val-02",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "find skills in this plugin that still need a deterministic triggering eval case"
+    },
+    {
+      "id": "pos-val-03",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "do a read-only pass over our eval suite to catch stale skill tags and missing calibration labels"
+    },
+    {
+      "id": "pos-val-04",
+      "split": "validation",
+      "expect_trigger": true,
+      "request": "tell me what gaps or redundant cases exist in our eval folder and where each fix belongs"
+    },
+    {
+      "id": "neg-train-01",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "lint our case.yaml and prompt.md files to see if claude plugin eval will fail to load them"
+    },
+    {
+      "id": "neg-train-02",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "run the plugin eval suite and tell me whether the with-versus-without score delta is real"
+    },
+    {
+      "id": "neg-train-03",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "interview me to define measurable success criteria and scaffold new eval cases for my chat feature"
+    },
+    {
+      "id": "neg-train-04",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "when should I pick an exact-match grader versus a model-graded rubric for an LLM prompt"
+    },
+    {
+      "id": "neg-train-05",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "check our unit test suite in tests/ for brittle mocks and tautological assertions"
+    },
+    {
+      "id": "neg-train-06",
+      "split": "train",
+      "expect_trigger": false,
+      "request": "run static QA checks on plugins/billing/skills/invoice/SKILL.md frontmatter and line count"
+    },
+    {
+      "id": "neg-val-01",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "why did my eval case fail to load before I spend API money running it"
+    },
+    {
+      "id": "neg-val-02",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "estimate the cost of running claude plugin eval on my changed skill and interpret this validity verdict"
+    },
+    {
+      "id": "neg-val-03",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "help me design a fresh test set and criteria doc for our Messages API summarizer"
+    },
+    {
+      "id": "neg-val-04",
+      "split": "validation",
+      "expect_trigger": false,
+      "request": "audit the whole repository for factual drift across docs, config, code, and architecture"
+    }
+  ]
+}
