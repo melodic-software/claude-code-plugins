@@ -43,6 +43,7 @@ jobs:
       pr-number: ${{ steps.pr.outputs.pr-number }}
       verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
       standards-sha: ${{ steps.standards.outputs.sha }}
+      resolve-reason: ${{ steps.pr.outputs.reason }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -834,6 +835,7 @@ jobs:
       next-reason: ${{ steps.next.outputs.next-reason }}
       pr-number: ${{ steps.pr.outputs.pr-number }}
       verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
+      resolve-reason: ${{ steps.pr.outputs.reason }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -1493,6 +1495,7 @@ jobs:
     outputs:
       pr-number: ${{ steps.pr.outputs.pr-number }}
       verdict: ${{ steps.upload-verdict.outcome == 'success' && steps.verdict.outputs.verdict || '' }}
+      resolve-reason: ${{ steps.pr.outputs.reason }}
     steps:
       - name: Resolve main's tip
         id: tip
@@ -2222,6 +2225,104 @@ jobs:
           else
             echo "::warning::wake-pr-merge: the pr-merge dispatch for #$pr failed; its next scheduled run arms it"
           fi
+
+      - name: Log the API budget
+        if: always()
+        continue-on-error: true
+        timeout-minutes: 1
+        uses: ./.base/.github/actions/log-api-budget # zizmor: ignore[self-repository]
+        with:
+          tokens: github-token
+
+  report-status:
+    name: Report Verdict Status
+    needs: [check-intent, check-intent-subscription, check-intent-fallback]
+    if: >-
+      !cancelled()
+      && github.ref == 'refs/heads/main'
+      && (needs.check-intent.outputs.verdict != ''
+      || needs.check-intent-subscription.outputs.verdict != ''
+      || needs.check-intent-fallback.outputs.verdict != ''
+      || needs.check-intent.outputs.resolve-reason != ''
+      || needs.check-intent-subscription.outputs.resolve-reason != ''
+      || needs.check-intent-fallback.outputs.resolve-reason != '')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      statuses: write
+      contents: read
+    env:
+      API_BUDGET_TOKEN: github-token
+    steps:
+      - name: Resolve main's tip
+        id: tip
+        continue-on-error: true
+        uses: melodic-software/ci-workflows/.github/actions/resolve-branch-tip@main
+        with:
+          branch: main
+      - name: Check out the api-budget library
+        if: steps.tip.outputs.sha != ''
+        continue-on-error: true
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ steps.tip.outputs.sha }}
+          path: .base
+          persist-credentials: false
+          sparse-checkout: |
+            /.github/actions/log-api-budget/
+          sparse-checkout-cone-mode: false
+      - name: Post the pr-verify status on the head
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          KEY_VERDICT: ${{ needs.check-intent.outputs.verdict }}
+          SUB_VERDICT: ${{ needs.check-intent-subscription.outputs.verdict }}
+          FB_VERDICT: ${{ needs.check-intent-fallback.outputs.verdict }}
+          KEY_REASON: ${{ needs.check-intent.outputs.resolve-reason }}
+          SUB_REASON: ${{ needs.check-intent-subscription.outputs.resolve-reason }}
+          FB_REASON: ${{ needs.check-intent-fallback.outputs.resolve-reason }}
+        run: |
+          set -euo pipefail
+          { . .base/.github/actions/log-api-budget/api-budget.bash 2>/dev/null && api_budget_wrap_gh github-token; } || true
+          if [[ ! ${HEAD_SHA:-} =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::report-status: the upstream run's head '${HEAD_SHA:-}' is not a commit SHA; no pr-verify status posted"
+            exit 1
+          fi
+          state='' description=''
+          # One job per run judges; the first uploaded verdict in job order is it.
+          for verdict in "${KEY_VERDICT:-}" "${SUB_VERDICT:-}" "${FB_VERDICT:-}"; do
+            case $verdict in
+            pass | pass-notes) state=success description="pr-verify ${verdict^^} on this head" ;;
+            fail) state=failure description="pr-verify FAIL on this head" ;;
+            *) continue ;;
+            esac
+            break
+          done
+          if [ -z "$state" ]; then
+            reason=${KEY_REASON:-${SUB_REASON:-${FB_REASON:-}}}
+            case $reason in
+            dependency-manager | author-not-lane | author-not-lane-or-owner)
+              state=success description="author not judged ($reason)" ;;
+            native-baseline)
+              state=success description="lanes App baseline-only change, not judged" ;;
+            *)
+              echo "::notice title=pr-verify status::no verdict and no unjudged author for $HEAD_SHA (reason: ${reason:-none}); no status posted"
+              exit 0
+              ;;
+            esac
+          fi
+          for attempt in 1 2 3; do
+            if gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$HEAD_SHA" \
+              -f state="$state" -f context=pr-verify -f description="$description" \
+              -f target_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >/dev/null; then
+              echo "::notice title=pr-verify status::$state ($description) on $HEAD_SHA"
+              exit 0
+            fi
+            [ "$attempt" -eq 3 ] || sleep $((attempt * 5))
+          done
+          echo "::error::report-status: could not post pr-verify $state on $HEAD_SHA; the merge queue refuses this head until a re-run of this job posts it"
+          exit 1
 
       - name: Log the API budget
         if: always()
