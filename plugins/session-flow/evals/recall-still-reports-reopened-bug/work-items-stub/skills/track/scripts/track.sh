@@ -1,17 +1,12 @@
 #!/usr/bin/env bash
-# Eval stand-in for /work-items:track over fixed items. search shows only each item's
-# current state, as the real search does; an item's state history is printed only by
-# `view <id> --history`, the one read that carries it on the real tracker.
 set -euo pipefail
 
-# State history per item, base64 so that only the --history read shows it.
 history_57='eyJhdmFpbGFibGUiOnRydWUsImV2ZW50cyI6W3sic3RhdGUiOiJjbG9zZWQiLCJhdCI6IjIwMjYtMDktMDJUMTQ6MTA6MDBaIiwiYWN0b3IiOiJkZXYtYSJ9LHsic3RhdGUiOiJyZW9wZW5lZCIsImF0IjoiMjAyNi0wOS0xMFQwODo0NTowMFoiLCJhY3RvciI6InJlcG9ydGVyLWIifV0sInJlb3Blbl9jb3VudCI6MSwicmVhc29uIjpudWxsfQ=='
 history_12='eyJhdmFpbGFibGUiOnRydWUsImV2ZW50cyI6W3sic3RhdGUiOiJjbG9zZWQiLCJhdCI6IjIwMjYtMDctMzBUMDk6MDA6MDBaIiwiYWN0b3IiOiJkZXYtYSJ9XSwicmVvcGVuX2NvdW50IjowLCJyZWFzb24iOm51bGx9'
 history_61='eyJhdmFpbGFibGUiOnRydWUsImV2ZW50cyI6W10sInJlb3Blbl9jb3VudCI6MCwicmVhc29uIjpudWxsfQ=='
 
 title_57='Login redirect loop after SSO sign-in'
 title_12='Document the SSO login flow'
-# The same symptom as #57, reported under another title.
 title_61='Signed-in users keep getting redirected to /login after SSO'
 
 usage() {
@@ -19,7 +14,6 @@ usage() {
   exit 2
 }
 
-# matches <title> <query words...>: print yes when any query word is in the title, ignoring case.
 matches() {
   local title word
   title="$(printf '%s' "$1" | tr '[:upper:]' '[:lower:]')"

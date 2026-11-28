@@ -1,4 +1,3 @@
-# Fixture config for the exercised-scope evals and live runs.
 tool: manual
 command: none, the manual protocol applies each mutant by hand
 diff-target: main
