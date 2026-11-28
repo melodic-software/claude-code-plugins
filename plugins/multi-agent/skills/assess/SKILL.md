@@ -1,5 +1,5 @@
 ---
-description: "Workflow, subagent or single-context verdict for a task, with a one-line reason; downgrades `workflow` to `subagent` when workflows are unavailable in this session. Writes nothing. Use when asked 'should this be a workflow', 'workflow or subagents', 'is this worth a workflow', 'how should I orchestrate this', 'fan this out or do it inline' or 'is the Workflow tool available', or before a skill launches a workflow."
+description: "Read-only verdict (`workflow`, `subagent`, or `single-context`) and run shape for a task; downgrades `workflow` to `subagent` when unavailable. Use when asked 'workflow or subagents', 'how should I orchestrate this', 'is the Workflow tool available'. Not for tier assignment: /multi-agent:route."
 argument-hint: "<task description>"
 user-invocable: true
 disable-model-invocation: false
