@@ -106,7 +106,7 @@ graders:
     arm: both
   - name: released-untouched
     type: regex
-    pattern: '\breleased\b[^\n]{0,100}?(?:frozen|un(?:touched|rewritten|edited|changed)|never\s+(?:touched|rewritten|edited)|not\s+(?:be\s+)?(?:rewritten|touched|edited)|left\s+(?:alone|as\s+written|unchanged)|stays?\s+as\s+(?:published|written)|only\s+listed|listed\s+only|do\s+not\s+touch)'
+    pattern: '\breleased\b[^\n]{0,100}?(?:frozen|un(?:touched|rewritten|edited|changed)|never\s+(?:touched|rewritten|edited)|not\s+(?:be\s+)?(?:rewritten|touched|edited)|left\s+(?:alone|as\s+written|unchanged)|stays?\s+as\s+(?:published|written)|only\s+listed|listed\s+only|do\s+not\s+touch)|^(?=[\s\S]*?(?:`none`|\|\s*none\s*\|)[^\n]{0,80}?\b(?:never\s+touched|everything)\b)(?=[\s\S]*?\breleased\s*\(report\))(?![\s\S]*?\breleased\s*\(edit\))'
     flags: 'i'
     target: last_message
     arm: both

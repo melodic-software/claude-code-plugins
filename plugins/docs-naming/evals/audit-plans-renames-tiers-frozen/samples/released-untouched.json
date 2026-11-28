@@ -3,10 +3,13 @@
     { "answer": "| released (`CHANGELOG.md`) | `none` | Sites are listed and never touched. |" },
     { "answer": "`CHANGELOG.md:5` cites `Release_Notes.md`. This is the released tier, so it is not rewritten." },
     { "answer": "The released CHANGELOG entries and the ADR narrative are untouched." },
-    { "answer": "Your config puts `CHANGELOG.md` in the `released` tier, which is `none`, so it is frozen." }
+    { "answer": "Your config puts `CHANGELOG.md` in the `released` tier, which is `none`, so it is frozen." },
+    { "answer": "| Form | Rewrites | Leaves alone |\n|---|---|---|\n| `all` | every shape | nothing |\n| `links-and-paths` | markdown links, backtick paths, and absolute URLs | running prose and bare stems |\n| `none` | nothing | everything; sites are listed and never touched |\n\nfinding FN-6f3ce017 `docs/Rate_Limits.md` to `docs/rate-limits.md`: 2 site(s) in 2 file(s); by tier: 1 current (edit), 1 released (report); review: 0; generated: none" }
   ],
   "fail": [
     { "answer": "`CHANGELOG.md` 1.4.0, lines 5-6, references all three old names." },
-    { "answer": "The released tier has 4 sites." }
+    { "answer": "The released tier has 4 sites." },
+    { "answer": "| `none` | nothing | everything; sites are listed and never touched |\n\nfinding FN-6f3ce017 `docs/Rate_Limits.md` to `docs/rate-limits.md`: 2 site(s); by tier: 1 current (edit), 1 released (edit)" },
+    { "answer": "| `none` | nothing | everything; sites are listed and never touched |\n\nThree findings, 11 sites in total." }
   ]
 }
