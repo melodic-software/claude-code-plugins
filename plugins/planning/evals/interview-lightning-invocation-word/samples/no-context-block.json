@@ -1,0 +1,14 @@
+{
+  "pass": [
+    {
+      "answer": "❓ Q1: **What fails today?**\nNo recommendation: only you know.",
+      "why": "condensed, no Context block"
+    }
+  ],
+  "fail": [
+    {
+      "answer": "❓ Q1: **What fails today?**\n\nContext:\n1. The job does not exist (repo)",
+      "why": "a Context block printed"
+    }
+  ]
+}

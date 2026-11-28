@@ -333,11 +333,12 @@ against [`schemas/plugin-profiles.schema.json`](schemas/plugin-profiles.schema.j
 
 Your own value of the same option wins when you set one; otherwise the repository value decides,
 then the plugin default ([hook enablement](../../docs/contracts/hook-enablement/README.md)). The
-SessionStart hook reads your value from the option Claude Code passes it. The mod reads it from
-`pluginConfigs` in your user settings, since the options a mod receives carry the default whether
-or not you set one. Both read the keys when a session starts, so a change takes effect at the next
-session start. Each resolves the layers through the shared `hooks/hook-enabled.sh` helper, which
-needs bash; without bash, both stay on.
+SessionStart hook reads your value from the option Claude Code passes it and resolves layers
+in-process through the shared `lib/hook-enabled.mjs` helper. The mod reads your value from
+`pluginConfigs` in your settings (since the options a mod receives carry the default whether or not
+you set one) and resolves layers in-process through the shared `hooks/mod-hook-enabled.ts` helper.
+Both read the keys when a session starts, without spawning a shell, so a change takes effect at the
+next session start.
 
 <!-- BEGIN GENERATED: plugin options. Edit plugin.json, then run scripts/sync-plugin-options-docs.py -->
 
