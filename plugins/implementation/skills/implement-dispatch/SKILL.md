@@ -1,5 +1,5 @@
 ---
-description: "Orchestrate an approved plan or work-item list via scope-fenced worker subagents in capped waves, verifying returns against direct evidence and running build/test main-side. Use when a plan routes phases to workers, runs autonomously, or asks for workers ('dispatch this to workers', 'run this with subagents', 'execute the plan in parallel'). Not for inline edits: /implementation:implement."
+description: "Orchestrate a plan or work-item list via scope-fenced worker subagents (capped waves, direct-evidence verification, main-side build/test). Use when the plan routes phases to workers, the session runs autonomously, or the user asks for workers ('dispatch to workers', 'run with subagents', 'in parallel'). Not for inline: /implementation:implement."
 argument-hint: "[phase] [--unattended] [--items <path>] [--base <ref>] [--wave-cap <N>]"
 user-invocable: true
 disable-model-invocation: false
