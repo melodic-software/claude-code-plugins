@@ -1,5 +1,5 @@
 ---
-description: "Standing posture for multi-step work: only the current phase (exact steps, expected output, common failure, who acts, advancing reply), later ones as a 'Phase 1 of 8' count. Use when: 'hold my hand', 'walk me through this', 'one step at a time', 'one phase at a time', 'don't show me the next step yet', 'guide me through all of this', 'exact steps', 'hand-hold'. Not /adhd:shape (shows every step), /adhd:clarify (one message), /wizard:generate (human-run script), /session-flow:workflow (next stage)."
+description: "Standing hand-hold posture to guide multi-step work: show only the current phase (exact steps, expected output, common failure, who acts, advancing reply), hiding later phases behind a 'Phase 1 of N' count. Use when: 'hold my hand', 'walk me through this', 'one step at a time'. Not for full lists: /adhd:shape; not for scripts: /wizard:generate."
 user-invocable: true
 disable-model-invocation: false
 metadata:

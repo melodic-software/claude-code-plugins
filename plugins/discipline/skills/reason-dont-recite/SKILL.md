@@ -1,5 +1,5 @@
 ---
-description: "Re-anchors: inherited content is evidence of what is, never self-justifying authority; re-derives choices coasting on precedent. Use when: 'reason don't recite', 'why is it this way', 'challenge that convention', 'you're deferring to precedent', \"that's just how it's done\", 'question the inherited design', 'stop reciting the docs', 'is this actually right', or at conversation start on legacy or inherited code. To RECOVER past reasoning from history, use '/discovery:trace-intent' if installed."
+description: "Re-anchor: inherited docs and code are evidence of what is, never self-justifying authority; stop reciting or deferring to precedent and re-derive why it should hold. Use when: 'reason don't recite', 'challenge that convention', 'question the inherited design', or at conversation start on legacy code. Not for history: /discovery:trace-intent."
 user-invocable: true
 disable-model-invocation: false
 metadata:

@@ -1,5 +1,5 @@
 ---
-description: "Batches this plugin's discipline correctors into ONE pass; needs fork subagents (`subagent_type: fork`), else (and at conversation start) reports only a posture digest and audits nothing. Use when: 'sweep all disciplines', 'ground ourselves', 're-anchor everything', 'run the whole re-anchor bundle', 'posture batch', 'set our posture before we start', 'batch the correctors', or at conversation start to set posture across every discipline at once. For one discipline, invoke that corrector."
+description: "Batch this plugin's discipline correctors into one posture batch bundle; needs fork subagents (subagent_type: fork), else (and at conversation start) reports only a posture digest and audits nothing. Use when: 'sweep all disciplines', 'ground ourselves', 're-anchor everything', or at conversation start. Not for one discipline: invoke it directly."
 user-invocable: true
 disable-model-invocation: false
 metadata:

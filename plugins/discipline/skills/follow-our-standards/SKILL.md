@@ -1,5 +1,5 @@
 ---
-description: "Re-anchors to the organization's engineering standards, audits the work in flight against them, and corrects violations with doc citations. Use when: 'follow our standards', 'follow the standards', 're-anchor to standards', 'does this match our conventions', 'audit against standards', 'you're drifting from our conventions', or at conversation start on a repo governed by shared conventions."
+description: "Re-anchor to the organization's engineering standards, audit work in flight (or --repo) for drifting from our conventions, and correct standards violations with doc citations. Use when: 'follow our standards', 'does this match our conventions', 'audit against standards', or at conversation start on a repo governed by shared conventions."
 argument-hint: "[--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

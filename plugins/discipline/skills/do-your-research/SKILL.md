@@ -1,5 +1,5 @@
 ---
-description: "Re-anchors research discipline: audits and corrects work and pending recommendations, or fans out to verify every session claim. Use when: 'do your research', 'you're guessing', 'cite that', 'stop assuming', 'evidence, not vibes', 'you skipped verification', 'that's training-data recall', 'research this properly', 'fact-check that', 'make sure that's right', 'go research and update your recommendations', 'are these recommendations grounded', 're-check what you recommended', 'fact-check everything', 'verify every claim', 'audit all our claims', 'deep research pass', or at conversation start."
+description: "Re-anchor research discipline: audit and correct work and pending recommendations (grounded, cited, evidence, not guessing or recall), or fan out (tiered/full) to verify every session claim. Use when: 'do your research', 'fact-check that', 'verify every claim', or at conversation start. Not for new research: /discovery:research."
 argument-hint: "[tiered|full]"
 user-invocable: true
 disable-model-invocation: false

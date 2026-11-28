@@ -1,5 +1,5 @@
 ---
-description: "Re-anchors that existing state (config, code, docs, infra) is not evidence of its own correctness, and audits it against CURRENT official upstream docs. Use when: 'recheck against upstream', 'check this against the docs', 'is our config still current', 'did upstream change', 'are we still doing this right', 'verify against the official docs', 'this may have drifted from upstream', 'audit our setup against the vendor docs', 'recheck the whole subsystem against upstream', 'audit every surface against the docs', 'deep upstream conformance pass', or at conversation start on config, infra, or integration work."
+description: "Re-anchor that existing state (config, code, docs, setup, infra) is not proof of conformance; audit surfaces against current upstream vendor docs for drift (inline, fan-out, or --repo). Use when: 'recheck against upstream', 'is our config still current', 'verify against the official docs', or at conversation start on config/infra/integration."
 argument-hint: "[fan-out] [scope] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false
