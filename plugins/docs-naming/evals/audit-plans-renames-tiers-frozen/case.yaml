@@ -1,6 +1,6 @@
 schema_version: "1.1"
 name: audit-plans-renames-tiers-frozen
-description: 'Legacy audit-file-names 1 and 3, merged on one fixture: three offending names (docs/Release_Notes.md, docs/Rate_Limits.md, docs/CATALOG.md) cited from current files, an ADR in the historical tier (links-and-paths) and CHANGELOG.md in the released tier (none). The run inventories, sweeps and emits the plan into .work/docs-hygiene/main/file-names.md, prints the form table before the findings, lists both review sites (docs/index.md lines 8 and 9) singly, states the 4 report sites plainly (report-count-stated ties the 4 to its report or left-as-written words, so a prose site total or the 4 in a 1.4.0 heading does not count), says the tree is unchanged, and names /docs-naming:realign-file-names (audit-file-names SKILL.md lines 47-126; context/tiers.md). Nothing is renamed or edited. ran-inventory is the with-only indicator; rows-and-tiers (llm, trace) quotes the legacy expectations the regexes do not decide, and says-unchanged (llm) quotes its one legacy line. ran-sweep and ran-emit are with-only indicators beside ran-inventory. Needs --scaffold --allow-tools Bash Write Edit.'
+description: 'Legacy audit-file-names 1 and 3, merged on one fixture: three offending names (docs/Release_Notes.md, docs/Rate_Limits.md, docs/CATALOG.md) cited from current files, an ADR in the historical tier (links-and-paths) and CHANGELOG.md in the released tier (none). The run inventories, sweeps and emits the plan into .work/docs-hygiene/main/file-names.md, prints the form table before the findings, lists both review sites (docs/index.md lines 8 and 9) singly, states the 4 report sites plainly (report-count-stated ties the 4 to its report or left-as-written words, so a prose site total or the 4 in a 1.4.0 heading does not count), says the tree is unchanged, and names /docs-naming:realign-file-names (audit-file-names SKILL.md lines 47-126; context/tiers.md). Nothing is renamed or edited. Every grader is deterministic: the fixture fixes each finding''s site count and tier breakdown (row-release-notes, row-catalog, row-rate-limits match them on the finding''s own line) and each review site''s excerpt (review-excerpts), so a match is grounded in the sweep output without a judge. ran-inventory is the with-only indicator; ran-sweep and ran-emit are with-only indicators beside ran-inventory. Needs --scaffold --allow-tools Bash Write Edit.'
 tags: [audit-file-names, scaffold, no-network]
 plugins: ["../.."]
 expected_outcome: 'inventory.sh, sweep.sh and emit-findings.sh run and the plan lands at .work/docs-hygiene/main/file-names.md. The reply shows the form table (released none, historical links-and-paths, current all) before the three findings, quotes each site''s form, tier and action from the sweep, lists docs/index.md lines 8 and 9 as review sites individually, says the 4 report sites (CHANGELOG.md and the ADR''s prose) are left as written, says nothing was renamed or edited, and names /docs-naming:realign-file-names as the next step. No git mv, mv or Edit runs.'
@@ -38,9 +38,10 @@ graders:
     target: last_message
     arm: both
   - name: says-unchanged
-    type: llm
-    criteria: 'Pass only if this legacy expectation holds: "The response states that nothing was renamed or edited."'
-    focus: last_message
+    type: regex
+    pattern: '\b(?:nothing\s+(?:was|has\s+been|got)\s+(?:renamed|edited|changed|touched)|(?:renamed|edited|changed|touched|modified)\s+(?:and\s+(?:edited|changed)\s+)?nothing|no\s+files?\s+(?:was|were|has\s+been|have\s+been)\s+(?:renamed|edited|changed))\b'
+    flags: 'i'
+    target: last_message
     arm: both
   - name: names-realign
     type: regex
@@ -70,8 +71,41 @@ graders:
     tool: Bash
     input_match: 'emit-findings\.sh'
     arm: with-only
-  - name: rows-and-tiers
-    type: llm
-    criteria: 'Pass only if the trace shows inventory.sh, sweep.sh and emit-findings.sh ran and the plan path came from the configured binding. The reply puts the form table first, then gives each finding''s old and new paths, site count, tier breakdown and generated-file involvement. It lists each review site separately with its location and excerpt and grounds each finding''s tier breakdown and each review site''s location and excerpt in the sweep output. It gives the report-site total, says released sites stay untouched and historical edits cover links and paths only, and states that nothing was renamed or edited.'
-    focus: trace
+  - name: row-release-notes
+    type: regex
+    pattern: 'Release_Notes\.md[^\n]{0,40}?release-notes\.md(?=[^\n]*?(?<![\d.])5\s+(?:sites?\b|in\s+\d))(?=[^\n]*\b2\s+current)(?=[^\n]*\bhistorical)(?=[^\n]*\b1\s+released)'
+    target: last_message
+    arm: both
+  - name: row-catalog
+    type: regex
+    pattern: 'CATALOG\.md[^\n]{0,40}?\bcatalog\.md(?=[^\n]*?(?<![\d.])4\s+(?:sites?\b|in\s+\d))(?=[^\n]*\b1\s+current)(?=[^\n]*\b2\s+(?:current\s+\()?review)(?=[^\n]*\b1\s+released)'
+    target: last_message
+    arm: both
+  - name: row-rate-limits
+    type: regex
+    pattern: 'Rate_Limits\.md[^\n]{0,40}?rate-limits\.md(?=[^\n]*?(?<![\d.])2\s+(?:sites?\b|in\s+\d))(?=[^\n]*\b1\s+current)(?=[^\n]*\b1\s+released)'
+    target: last_message
+    arm: both
+  - name: no-generated
+    type: regex
+    pattern: '\b(?:no|none|not)\b[^\n.]{0,40}\bgenerated\b|\bgenerated\b[^\n]{0,20}\b(?:none|no)\b'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: review-excerpts
+    type: regex
+    pattern: '^(?=[\s\S]*see CATALOG for the full list)(?=[\s\S]*edit CATALOG by hand)'
+    target: last_message
+    arm: both
+  - name: released-untouched
+    type: regex
+    pattern: '\breleased\b[^\n]{0,100}?(?:frozen|un(?:touched|rewritten|edited|changed)|never\s+(?:touched|rewritten|edited)|not\s+(?:be\s+)?(?:rewritten|touched|edited)|left\s+(?:alone|as\s+written|unchanged)|stays?\s+as\s+(?:published|written)|only\s+listed|listed\s+only|do\s+not\s+touch)'
+    flags: 'i'
+    target: last_message
+    arm: both
+  - name: historical-links-only
+    type: regex
+    pattern: 'links-and-paths\b[^\n]*\bprose\b'
+    flags: 'i'
+    target: last_message
     arm: both

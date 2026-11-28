@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "| `FN-c5a4747f` | `docs/CATALOG.md` → `docs/catalog.md` | 4 in 3 files | 1 current (edit), 2 current (review), 1 released (report) |" },
+    { "answer": "- **FN-c5a4747f:** `docs/CATALOG.md` → `docs/catalog.md`. It has 4 sites in 3 files: 1 current (edit), 2 review and 1 released (report)." }
+  ],
+  "fail": [
+    { "answer": "| `docs/CATALOG.md` | `docs/catalog.md` |" },
+    { "answer": "`docs/CATALOG.md` → `docs/catalog.md`: 4 sites in 3 files, 3 current and 1 released." }
+  ]
+}

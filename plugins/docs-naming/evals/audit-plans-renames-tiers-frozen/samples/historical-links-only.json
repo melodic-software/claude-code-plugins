@@ -1,0 +1,10 @@
+{
+  "pass": [
+    { "answer": "| historical (`docs/adr/`) | `links-and-paths` | Markdown links and backtick paths are repointed. Prose is left as written. |" },
+    { "answer": "| `links-and-paths` (ADRs, historical) | markdown links, backtick paths, absolute URLs | running prose and bare stems |" }
+  ],
+  "fail": [
+    { "answer": "| historical | `links-and-paths` | 2 sites |" },
+    { "answer": "The ADR prose stays as written." }
+  ]
+}

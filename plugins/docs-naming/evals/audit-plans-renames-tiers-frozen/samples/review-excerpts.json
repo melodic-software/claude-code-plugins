@@ -1,0 +1,9 @@
+{
+  "pass": [
+    { "answer": "- `docs/index.md:8`: \"The catalog lists every shipment type; see CATALOG for the full list.\"\n- `docs/index.md:9`: \"Ask in the docs channel before you edit CATALOG by hand.\"" }
+  ],
+  "fail": [
+    { "answer": "- `docs/index.md:8-9` mention \"CATALOG\" as bare prose, not a path." },
+    { "answer": "- `docs/index.md:8`: \"The catalog lists every shipment type; see CATALOG for the full list.\"" }
+  ]
+}
