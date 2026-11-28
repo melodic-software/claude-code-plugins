@@ -46,7 +46,7 @@
       }
     ]
   },
-  "skillListingBudgetFraction": 0.06,
+  "skillListingBudgetFraction": 0.04,
   "enabledPlugins": {
     "ai-slop@melodic-software": true,
     "animation@melodic-software": false,
