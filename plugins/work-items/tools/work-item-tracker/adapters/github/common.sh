@@ -186,6 +186,7 @@ wit_gh_is_native_status_unavailable() {
   *"HTTP 422"* | *"Unprocessable Entity"* | *"is not a valid status"* | *"unknown field"*)
     return 0
     ;;
+  *) ;;
   esac
   wit_gh_is_feature_unavailable "$err" "$owner" "$repo" "$number" 1
 }
