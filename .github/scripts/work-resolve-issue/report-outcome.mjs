@@ -26,7 +26,17 @@ export const evalHoldComment = (issueNumber, personHold = false) =>
   personHold
     ? `Held for the before-and-after eval that cut item #${issueNumber} needs, and for a person to merge: the eval record alone does not lift this hold.\n\n<!-- pr-hold reason=eval -->\n${PERSON_HOLD_LINE}`
     : `Held for the before-and-after eval that cut item #${issueNumber} needs. The pr-merge release step lifts this hold when an eval-pair record exists for the current head.\n\n<!-- pr-hold reason=eval -->`;
-export const personHoldComment = (issueNumber) => `Held for a person to merge the fix for cut item #${issueNumber}: no eval record lifts this hold.\n\n${PERSON_HOLD_LINE}`;
+export const PERSON_HOLD_MARKER = "<!-- work-resolve-issue person-hold -->";
+export const personHoldComment = (issueNumber) =>
+  [
+    PERSON_HOLD_MARKER,
+    "### work-resolve-issue / report-outcome",
+    "",
+    `Held: a person merges the fix for cut item #${issueNumber}; no eval record lifts this hold.`,
+    `- A person removes \`${HOLD_LABEL}\` to release it.`,
+    "",
+    PERSON_HOLD_LINE,
+  ].join("\n");
 const EXITS = new Set(["done", "pushback", "stopped"]);
 const PUSHBACK_CAUSES = new Set(["intent", "intent-change"]);
 const PUSHBACK_LANE_ROUTES = new Set(["host-run", "attended"]);

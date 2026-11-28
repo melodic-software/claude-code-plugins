@@ -66,10 +66,24 @@ const pull = ({ labels = [LABEL], head = HEAD, body = "Closes #1", user = APP, c
   labels: labels.map((name) => ({ name })),
 });
 
-const labeledBy = (actor, created_at = LABELED_AT) => ({ event: "labeled", label: { name: LABEL }, actor, performed_via_github_app: actor === APP ? { id: 1, slug: "lanes" } : null, created_at });
+const CAPTURED_LABEL_EVENT = JSON.parse(readFileSync(new URL("./fixtures/release-eval-hold-labeled-event.json", import.meta.url), "utf8"));
+const labeledBy = (actor, created_at = LABELED_AT) => ({
+  ...CAPTURED_LABEL_EVENT,
+  actor: actor === PERSON ? CAPTURED_LABEL_EVENT.actor : actor,
+  performed_via_github_app: actor === APP ? { id: 1, slug: "lanes" } : CAPTURED_LABEL_EVENT.performed_via_github_app,
+  created_at,
+});
+
+test("the captured labeled event is a person's do-not-merge label, the shape labeledBy builds on", () => {
+  assert.deepEqual(CAPTURED_LABEL_EVENT.actor, PERSON);
+  assert.equal(CAPTURED_LABEL_EVENT.event, "labeled");
+  assert.equal(CAPTURED_LABEL_EVENT.label.name, LABEL);
+  assert.equal(CAPTURED_LABEL_EVENT.performed_via_github_app, null);
+  assert.equal(decide({ pull: pull(), comments: [holdComment("2026-11-28T04:23:12Z"), recordComment(HEAD, { at: "2026-11-28T05:00:00Z" })], events: [CAPTURED_LABEL_EVENT], humans: HUMANS }).release, true);
+});
 const events = [labeledBy(PERSON)];
 const appEvents = [labeledBy(APP)];
-const holdComment = () => comment(`Held for eval.\n${holdLine("eval")}`, { at: "2026-11-06T10:01:00Z" });
+const holdComment = (at = "2026-11-06T10:01:00Z") => comment(`Held for eval.\n${holdLine("eval")}`, { at });
 const recordComment = (head = HEAD, options = {}) => comment(`Paired eval: no loss.\n\n${recordLine(head)}\n`, options);
 
 const run = (overrides = {}) =>
