@@ -87,7 +87,7 @@ plugins/performance/skills/go-faster/reference/catalog/ci-cd.md	melodic-software
 plugins/planning/reference/config.md	melodic-software/claude-code-plugins	3	raw link to this marketplace's own published doc
 plugins/planning/schemas/planning.schema.json	melodic-software/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/planning/shared/schema/event.schema.json	melodic-software.github.io/claude-code-plugins	2	schema $id or $ref naming this marketplace's published schema
-plugins/planning/shared/schema/ops.schema.json	melodic-software.github.io/claude-code-plugins	30	schema $id or $ref naming this marketplace's published schema
+plugins/planning/shared/schema/ops.schema.json	melodic-software.github.io/claude-code-plugins	32	schema $id or $ref naming this marketplace's published schema
 plugins/planning/shared/schema/question-shape.schema.json	melodic-software.github.io/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema
 plugins/planning/shared/schema/state.schema.json	melodic-software.github.io/claude-code-plugins	12	schema $id or $ref naming this marketplace's published schema
 plugins/planning/shared/schema/wire.schema.json	melodic-software.github.io/claude-code-plugins	1	schema $id or $ref naming this marketplace's published schema

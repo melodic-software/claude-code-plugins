@@ -383,6 +383,10 @@
 .app .vf-qtext { font-size: clamp(22px, 2.3vw, 29px); line-height: 1.22; font-weight: 650; letter-spacing: -0.022em; text-wrap: balance; overflow-wrap: anywhere; }
 .app .vf-qtext:focus { outline: none; }
 .app .vf-qctx { margin-block: 8px 4px; color: var(--muted); font-size: 14px; line-height: 1.5; }
+.app .vf-lite { margin-block: 8px 4px; font-size: 14px; line-height: 1.5; }
+.app .vf-lite[hidden] { display: none; }
+.app .vf-lite p, .app .vf-lite ul { margin-block: 0 4px; }
+.app :is(.vf-lite-major, .vf-lite-alts) { color: var(--muted); }
 .app .vf-onit { display: flex; align-items: center; gap: 8px; margin-block: 12px 24px; color: var(--muted); font-size: 12px; min-block-size: 20px; }
 .app .vf-qonit { display: none; }
 .app .vf-readbtn { flex: none; margin-inline-start: auto; margin-block: -5px; }

@@ -20,6 +20,7 @@
           {"$ref": "#/$defs/group"},
           {"$ref": "#/$defs/group-order"},
           {"$ref": "#/$defs/meta"},
+          {"$ref": "#/$defs/set-style"},
           {"$ref": "#/$defs/note-reply"},
           {"$ref": "#/$defs/handle"},
           {"$ref": "#/$defs/archive"},
@@ -247,6 +248,13 @@
         "op": {"enum": ["meta"]},
         "set": {"$ref": "#/$defs/metaSet"}
       }
+    },
+    "set-style": {
+      "description": "How the page shows each question: `standard` cards, or `lightning`, a condensed card the user can expand to the full one, with a round cap of 8. Writes `meta.style`.",
+      "type": "object",
+      "required": ["op", "style"],
+      "additionalProperties": false,
+      "properties": {"op": {"enum": ["set-style"]}, "style": {"enum": ["standard", "lightning"]}}
     },
     "note-reply": {
       "type": "object",

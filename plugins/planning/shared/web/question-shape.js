@@ -80,6 +80,28 @@
     return f;
   }
 
+  const LABELED = /^[ \t>*-]*(?:\*\*)?(Flips if|Second view|Departs from):(?:\*\*)?[ \t]*(.*)$/gim;
+  const plain = s => String(s ?? "").replace(/[*`#]/g, "").replace(/\s+/g, " ").trim();
+  const firstSentence = s => { const t = plain(s); return (t.match(/^.*?[.!?](?=\s|$)/) || [t])[0].replace(/\.$/, ""); };
+  const clip = (s, n) => { const w = plain(s).split(" ").filter(Boolean); return w.length > n ? w.slice(0, n).join(" ") + "…" : w.join(" "); };
+  /** A question as a lightning card: `status` is rec, withheld or none; `rec` the answer in a few words, `basis` its
+   *  reason, `alts` each other option's key and short label, `lines` the Flips if, Second view and Departs from lines
+   *  the basis states, and `commits` each commitment. Works on both pages' questions (`title` or `text`). */
+  function lightning(q) {
+    const basis = String(q.basis ?? ""), rec = String(q.recommendation ?? ""), lines = [];
+    for (const m of basis.matchAll(LABELED)) if (plain(m[2])) lines.push([m[1][0].toUpperCase() + m[1].slice(1).toLowerCase(), plain(m[2])]);
+    const reason = basis.replace(LABELED, "").replace(/^[ \t>*-]*(?:\*\*)?Checked against:.*$/gim, "");
+    const held = q.withheld === true || /^\s*Withheld:/.test(rec);
+    const status = held ? "withheld" : plain(rec) ? "rec" : "none";
+    return {
+      status, major: q.major === true,
+      rec: status === "rec" ? clip(firstSentence(rec), 10) : "",
+      basis: status === "rec" ? clip(firstSentence(reason), 16) : status === "withheld" ? clip(rec.replace(/^\s*Withheld:\s*/, ""), 16) : "",
+      alts: status === "rec" ? (q.alternatives || []).filter(a => !a.restates && a.key !== "was").map(a => ({ key: a.key, label: clip(firstSentence(a.text), 5) })) : [],
+      lines, commits: (q.commits || []).map(plain).filter(Boolean),
+    };
+  }
+
   /** One page's kit. Its host gives:
    *  pane(t)        the element whose height bounds textarea t: it grows with its text up to 40% of it, then scrolls;
    *  grew(t)        what the page does once t has grown (keep it in view while typing);
@@ -168,5 +190,5 @@
   vv?.addEventListener("scroll", refit);
   fitViewport();
 
-  window.QuestionShape = { OTHER, MOD_KEY, keyHint, markdown, inline, kit, fitViewport };
+  window.QuestionShape = { OTHER, MOD_KEY, keyHint, markdown, inline, kit, fitViewport, lightning };
 })();

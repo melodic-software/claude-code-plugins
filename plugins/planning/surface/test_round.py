@@ -2135,6 +2135,17 @@ class TestClaudeActivity(DirCase):
         self.assertIn(waits.encode("utf-8"), p.stdout)
         self.assertEqual(self.q("Q3")["waitsOn"], waits)
 
+    def test_set_style_writes_meta_style_and_takes_only_a_known_style(self):
+        self.assertNotIn("style", self.doc()["meta"])
+        self.apply({"op": "set-style", "style": "lightning"})
+        self.assertEqual(self.doc()["meta"]["style"], "lightning")
+        for bad in ({"style": "fast"}, {}, {"style": "lightning", "id": "Q1"}):
+            with self.subTest(op=bad):
+                self.refused({"op": "set-style", **bad})
+        self.assertEqual(self.doc()["meta"]["style"], "lightning")
+        self.apply({"op": "set-style", "style": "standard"})
+        self.assertEqual(self.doc()["meta"]["style"], "standard")
+
     def test_set_status_needs_text_or_clear_not_both(self):
         for extra in (
             {},
