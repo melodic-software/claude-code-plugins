@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { bound, fakeActions, recordEntry } from "../lib/lane-binding.fixtures.mjs";
 import { LIMIT_DEFAULTS } from "../work-resolve-issue/limits.mjs";
 import { emptyRecord, parseRecord, serializeRecord } from "./dispatch-record.mjs";
-import { createGitHubApi, DEFERRAL_MARKER, dispatchFeedback, EARLIER_FAIL_READS, EARLIER_FAIL_WINDOW_MS, failureAnnotation, failureOutcome, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_DECIDE_BUDGET_MS, SWEEP_HEAD_CAP, SWEEP_TICK_CAP, sweepReleased, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
+import { createGitHubApi, DEFERRAL_MARKER, dispatchFeedback, EARLIER_FAIL_READS, EARLIER_FAIL_WINDOW_MS, failureAnnotation, failureOutcome, FAILED_RUN_WINDOW_HOURS, IDLE_OWNER_WINDOW_HOURS, main, NO_ADOPTION, ownerAdoption, reviewRunAt, SWEEP_DECIDE_BUDGET_MS, SWEEP_HEAD_CAP, SWEEP_TICK_CAP, sweepReleased, trustedReviewRun, UNSENT_GRACE_MS } from "./feedback-dispatch.mjs";
 import { onReviewedHead, threadAuthors } from "./address-feedback.mjs";
 import { budgetedFetch } from "./request-budget.mjs";
 import { verifyReader } from "./verify-cap.mjs";
@@ -84,6 +84,8 @@ const decidedThread = (reply = { author: KYLE }) => ({
   },
 });
 
+const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP_ID, type: "Bot" };
+
 // A workflow_run event's run object, in the REST workflow run schema
 // (https://docs.github.com/en/rest/actions/workflow-runs#get-a-workflow-run).
 const upstreamRun = (overrides = {}) => ({
@@ -91,6 +93,9 @@ const upstreamRun = (overrides = {}) => ({
   path: ".github/workflows/pr-review-hosted.yml",
   event: "pull_request",
   status: "completed",
+  run_attempt: 1,
+  actor: APP_USER,
+  triggering_actor: APP_USER,
   head_sha: HEAD,
   repository: { full_name: REPOSITORY },
   head_repository: { full_name: REPOSITORY },
@@ -1463,7 +1468,6 @@ for (const [label, options] of [
   });
 }
 
-const APP_USER = { login: "melodic-automation-lanes[bot]", id: APP_ID, type: "Bot" };
 const ACTIONS_USER = { ...ACTIONS_BOT, type: "Bot" };
 const RESUME = `<!-- pr-unblock resume-key=${OLD_HEAD} -->`;
 const escalationComment = ({ body = `<!-- work-items:escalation lane=pr-unblock kind=escalated -->\n${RESUME}\nThe pr-unblock lane stopped.\n\n- Reason: \`ci-fix-round-cap\``, user = APP_USER, at = "2026-10-18T10:00:05Z" } = {}) => ({
@@ -3653,10 +3657,24 @@ test("an owner PR's CodeQL thread on a later push's scan dispatches with no @cod
   assert.ok(codex.lines.some((line) => /^skip thread PRRT_9: codex-request-not-found/.test(line)), codex.lines.join("\n"));
 });
 
-test("reviewRunAt lists each review workflow's runs one after the other and picks the newest", async () => {
+test("reviewRunAt lists each review workflow's runs one after the other and picks the newest broker-accepted run", async () => {
   const events = [];
-  const run = (id, created_at) => ({ id, head_sha: HEAD, event: "pull_request", head_repository: { full_name: REPOSITORY }, conclusion: "success", created_at });
-  const listings = { "a.yml": [run(1, "2026-10-28T07:00:00Z")], "b.yml": [run(2, "2026-10-28T08:00:00Z")] };
+  const run = (id, created_at, overrides = {}) => ({
+    id,
+    head_sha: HEAD,
+    event: "pull_request",
+    head_repository: { full_name: REPOSITORY },
+    conclusion: "success",
+    run_attempt: 1,
+    actor: APP_USER,
+    triggering_actor: APP_USER,
+    created_at,
+    ...overrides,
+  });
+  const listings = {
+    "a.yml": [run(1, "2026-10-28T07:00:00Z")],
+    "b.yml": [run(2, "2026-10-28T08:00:00Z"), run(3, "2026-10-28T09:00:00Z", { run_attempt: 2, triggering_actor: ACTIONS_BOT })],
+  };
   const api = {
     listCompletedRuns: async (path) => {
       events.push(`${path} start`);
@@ -3665,7 +3683,14 @@ test("reviewRunAt lists each review workflow's runs one after the other and pick
       return listings[path];
     },
   };
-  const upstream = await reviewRunAt({ api, head: HEAD, repository: REPOSITORY, settings: { reviewWorkflows: ["a.yml", "b.yml"] } });
+  const upstream = await reviewRunAt({
+    api,
+    head: HEAD,
+    repository: REPOSITORY,
+    settings: { reviewWorkflows: ["a.yml", "b.yml"] },
+    appSenderId: APP_ID,
+    trustedHumans: new Set([KYLE.databaseId]),
+  });
   assert.equal(upstream.id, 2);
   assert.deepEqual(events, ["a.yml start", "a.yml end", "b.yml start", "b.yml end"]);
 });
@@ -3759,4 +3784,104 @@ test("a lane run still going ends the event path green with a skip line; any oth
   const other = failureOutcome(new Error("boom"), "tok");
   assert.equal(other.code, 1);
   assert.match(other.line, /^::error::pr-feedback dispatch failed: boom/);
+});
+
+test("trustedReviewRun matches the broker's actor and attempt rule", () => {
+  const ctx = { appSenderId: APP_ID, trustedHumans: new Set([KYLE.databaseId]) };
+  const stranger = { id: STRANGER.databaseId, login: "stranger" };
+  assert.equal(trustedReviewRun({ run_attempt: 1, actor: APP_USER, triggering_actor: APP_USER }, ctx), true);
+  assert.equal(trustedReviewRun({ run_attempt: 1, actor: KYLE_USER, triggering_actor: KYLE_USER }, ctx), true);
+  assert.equal(trustedReviewRun({ run_attempt: 2, actor: APP_USER, triggering_actor: KYLE_USER }, ctx), true);
+  assert.equal(trustedReviewRun({ run_attempt: 2, actor: KYLE_USER, triggering_actor: KYLE_USER }, ctx), true);
+  assert.equal(trustedReviewRun({ run_attempt: 2, actor: APP_USER, triggering_actor: ACTIONS_BOT }, ctx), false);
+  assert.equal(trustedReviewRun({ run_attempt: 2, actor: KYLE_USER, triggering_actor: ACTIONS_BOT }, ctx), false);
+  assert.equal(trustedReviewRun({ run_attempt: 2, actor: APP_USER, triggering_actor: APP_USER }, ctx), false);
+  assert.equal(trustedReviewRun({ run_attempt: 1, actor: stranger, triggering_actor: KYLE_USER }, ctx), false);
+  assert.equal(trustedReviewRun({ run_attempt: 1, actor: KYLE_USER, triggering_actor: stranger }, ctx), false);
+  assert.equal(trustedReviewRun({ run_attempt: 2, actor: APP_USER, triggering_actor: APP_USER }, { appSenderId: APP_ID, trustedHumans: new Set([APP_ID]) }), false);
+});
+
+test("dispatchFeedback skips a bot-rerun review run with reason and recovery path, and accepts a listed human's rerun", async () => {
+  const rerun = fakeApi({ run: { run_attempt: 2, actor: KYLE_USER, triggering_actor: ACTIONS_BOT } });
+  const skipped = await decide(rerun);
+  assert.equal(skipped.result, null);
+  assert.deepEqual(rerun.calls.dispatch, []);
+  assert.match(skipped.lines.at(-1), /attempt 2.*triggering_actor github-actions\[bot\].*not a broker-accepted review run.*push a fresh head or have a listed human re-run/);
+
+  const humanRerun = fakeApi({ run: { run_attempt: 2, actor: APP_USER, triggering_actor: KYLE_USER } });
+  const accepted = await decide(humanRerun);
+  assert.equal(accepted.result?.number, 42);
+  assert.equal(humanRerun.calls.dispatch.length, 1);
+});
+
+test("main falls back from a bot-rerun review event to a broker-accepted sibling review run, or skips when none exists", async (t) => {
+  const dir = tempDir("pr-dispatch-feedback-");
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const actors = join(dir, "actors.json");
+  writeFileSync(actors, JSON.stringify({ actors: [{ id: KYLE.databaseId, login: "kyle-sexton", kind: "human" }] }));
+
+  const botRerunEvent = upstreamRun({
+    id: 46072085390,
+    path: ".github/workflows/pr-review-hosted.yml",
+    run_attempt: 2,
+    actor: KYLE_USER,
+    triggering_actor: ACTIONS_BOT,
+    created_at: "2026-11-27T21:43:02Z",
+  });
+  const trustedSibling = upstreamRun({
+    id: 46072085399,
+    path: ".github/workflows/pr-review-security-hosted.yml",
+    run_attempt: 1,
+    actor: KYLE_USER,
+    triggering_actor: KYLE_USER,
+    created_at: "2026-11-27T21:43:00Z",
+  });
+
+  const withSibling = fakeApi();
+  withSibling.listCompletedRuns = async (path) =>
+    path.endsWith("pr-review-hosted.yml") ? [botRerunEvent] : [trustedSibling];
+  const output1 = join(dir, "output-1");
+  writeFileSync(output1, "");
+  const lines1 = [];
+  const code1 = await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output1,
+      GITHUB_EVENT_PATH: eventFile(dir, botRerunEvent),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: actors,
+    },
+    { api: withSibling, resolveSlot: async () => resolvedLane(), log: (line) => lines1.push(line) },
+  );
+  assert.equal(code1, 0);
+  assert.equal(withSibling.calls.dispatch.length, 1);
+  assert.equal(readFileSync(output1, "utf8"), "run-id=38779200001\nupstream-run-id=46072085399\n");
+  assert.ok(lines1.some((line) => /using sibling review run 46072085399/.test(line)), lines1.join("\n"));
+
+  const noTrustedSibling = fakeApi();
+  noTrustedSibling.listCompletedRuns = async (path) =>
+    path.endsWith("pr-review-hosted.yml")
+      ? [botRerunEvent]
+      : [{ ...trustedSibling, run_attempt: 2, triggering_actor: ACTIONS_BOT }];
+  const output2 = join(dir, "output-2");
+  writeFileSync(output2, "");
+  const lines2 = [];
+  const code2 = await main(
+    {
+      GITHUB_TOKEN: "t",
+      GITHUB_REPOSITORY: REPOSITORY,
+      GITHUB_RUN_ID: RUN_ID,
+      GITHUB_OUTPUT: output2,
+      GITHUB_EVENT_PATH: eventFile(dir, botRerunEvent),
+      APP_SENDER_ID: String(APP_ID),
+      TRUSTED_ACTORS: actors,
+    },
+    { api: noTrustedSibling, resolveSlot: async () => resolvedLane(), log: (line) => lines2.push(line) },
+  );
+  assert.equal(code2, 0);
+  assert.deepEqual(noTrustedSibling.calls.dispatch, []);
+  assert.equal(readFileSync(output2, "utf8"), "");
+  assert.match(lines2.at(-1), /attempt 2.*triggering_actor github-actions\[bot\].*not a broker-accepted review run/);
 });
