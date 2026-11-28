@@ -1,5 +1,5 @@
 ---
-description: "When the bundled update-config skill resolves in this session, prefer it to make a requested settings change; this skill to audit what is configured. Audit settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions and env vars for correctness, security, and drift against current official docs. Use when: 'audit settings', 'check config', 'check for config drift', after a Claude Code update; pass --fix to apply auto-correctable findings with confirmation."
+description: "If update-config resolves in this session, prefer it to change settings; this skill audits settings.json, settings.local.json, .mcp.json, hooks, plugins, permissions, env vars (correctness, security, drift vs official docs; --fix confirms auto-fix). Use when: 'audit settings', 'check config', 'check for config drift', after Claude Code update."
 argument-hint: "[--fix] [permissions|mcp|hooks|plugins|issues|effort-pins|all]"
 user-invocable: true
 disable-model-invocation: false
@@ -122,10 +122,6 @@ bash "${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/audit-engine.sh" --table \
 `${user_config.audit_pass_suppressions_file}`; pass `''` when that reads empty or as an
 unsubstituted placeholder. Read the option value from this text; never put a `${user_config.*}`
 string in a shell command. Pass the same `--user-suppressions` value on every later engine run.
-
-Relay each `WARNING:` line the engine prints about an old suppression location (also listed in
-`suppressions.old_locations`): it names the file, where it moves, and `/harness-config:setup apply`,
-which moves it.
 
 The engine records the installed Claude Code version itself (`claude --version`, carried as
 `claude_version`); version-gated rows are evaluated against it, and Phase 3.2 compares issue-fix

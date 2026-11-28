@@ -1,5 +1,5 @@
 ---
-description: "Hands a task, investigation or review to OpenAI's Codex CLI as a background job and reads back its jobs. Use when the user asks for Codex: 'ask Codex', 'have Codex do X', 'Codex second opinion', 'Codex review of this branch', 'resume the Codex thread', 'is the Codex job done', 'cancel the Codex run', 'is Codex ready', 'update codex'. A multi-reviewer panel is /review:council."
+description: "Delegate a task, investigation, or read-only review to OpenAI's Codex CLI as a background job (status, result, cancel, update); delegate only when asked for Codex. Use when: 'ask Codex', 'Codex review of this branch', 'resume the Codex thread'. Not for a multi-reviewer panel: /review:council."
 argument-hint: "[run <prompt>|review --base <ref>|status [<job>]|result <job>|cancel <job>|update]"
 user-invocable: true
 disable-model-invocation: false

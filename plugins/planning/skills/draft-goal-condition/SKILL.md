@@ -1,5 +1,5 @@
 ---
-description: "Pick the repetition lever (/goal, /loop, routines and /schedule, a workflow, a Stop hook, or a one-shot prompt) and, when /goal fits, draft a transcript-demonstrable completion condition, checked against the documented limit by a deterministic counter. Use when: 'which loop should I use', 'pick the right autonomy lever', 'craft a /goal', 'make Claude keep working until X', 'my goal is not measurable', 'my /goal is too long'."
+description: "Pick the right autonomy lever (/goal, /loop, routines, /schedule, workflow, Stop hook, one-shot) and, when /goal fits, draft a transcript-demonstrable completion condition checked against the limit by a deterministic counter. Use when: 'which loop should I use', 'craft a /goal', 'make Claude keep working until X', or unmeasurable/too-long /goal."
 argument-hint: "[--unattended] [intent]"
 user-invocable: true
 disable-model-invocation: false

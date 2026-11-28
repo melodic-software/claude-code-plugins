@@ -23,15 +23,15 @@ extend:
     files:
       - '*.it.js'"
 
-ARMS=(none claude docs both)
+ARMS=(none yaml docs both)
 for arm in "${ARMS[@]}"; do
   r="$W/$arm"
   mkdir -p "$r/src"
   git -C "$r" init -q
   cp "$FIXTURE" "$r/src/a.test.js"
-  if [[ $arm == claude || $arm == both ]]; then
-    mkdir -p "$r/.claude"
-    printf '%s\n' "$BODY" >"$r/.claude/testing.yaml"
+  if [[ $arm == yaml || $arm == both ]]; then
+    mkdir -p "$r/docs/conventions"
+    printf '%s\n' "$BODY" >"$r/docs/conventions/testing.yaml"
   fi
   if [[ $arm == docs || $arm == both ]]; then
     mkdir -p "$r/docs/conventions"

@@ -1,5 +1,5 @@
 ---
-description: "Agentic AI-driven multi-persona EventStorming simulation on a board: a markdown board file in the repository by default, a live Miro board when chosen. Use when: 'simulate a workshop', 'run an EventStorming simulation', 'agentic EventStorming', 'multi-persona domain modeling on Miro'. Actions: --simulate [domain] (full multi-persona agentic workshop), --process-model / --design-level [board] (deep-dive against an existing board), --evaluate, --retrospective, --induction, --value, --crc, --ux, --discover-bcs (BC heuristics vs a board). --backend markdown|miro picks the board. For methodology / facilitation reference use /event-storming:methodology."
+description: "Agentic multi-persona EventStorming simulation on markdown (default) or Miro board (--backend): --simulate, --process-model, --design-level, --evaluate, --retrospective, --induction, --value, --crc, --ux, --discover-bcs. Use when: 'agentic simulation', 'run a board simulation', 'Miro EventStorming'. Not for reference: /event-storming:methodology."
 user-invocable: true
 disable-model-invocation: false
 argument-hint: "<--simulate|--process-model|--design-level|--evaluate…> [domain|board] [--backend markdown|miro]"

@@ -1,5 +1,5 @@
 ---
-description: "Structured five-field bug report (title, steps to reproduce, expected vs actual, justified severity, suggested fix location) from an informal description, read-only. Use when the user names a defect they observed ('there is a bug in X', 'expected X got Y', 'I am seeing ERROR in FILE'), or asks for one written up ('report a bug', 'file a bug', 'write this up as a bug'). Skip when the defect needs investigation first, a fix is already in progress, or the request is a missing capability rather than a defect."
+description: "Read-only structured five-field bug report (title, reproduce steps, expected vs actual, severity, fix location) for an observed defect or error (--file writes/offers filing). Use when writing up a defect: 'report a bug', 'file a bug', 'expected X got Y'. Not for root-cause debugging: /debugging:debug; not for missing features or active fixes."
 argument-hint: "[--unattended] [--file] [--quick|--full] [--no-survey] <bug description>"
 user-invocable: true
 disable-model-invocation: false
@@ -219,10 +219,8 @@ present in their host.
   bugs config layers (the `gotchas_file` option's file, team, personal override) in layer order;
   apply them to this invocation. A missing layer is absent, not an error. When the personal
   gotchas file line names a file but the block shows no `userConfig` block for it, Read that
-  file's `## Gotchas` section and apply it as the first layer. Relay each `Warning:`
-  line under the block to the user: it names an old config path and the `/bugs:setup apply` that
-  moves it. A generalizable line belongs in this shipped skill via an issue, not in the consumer
-  file.
+  file's `## Gotchas` section and apply it as the first layer. A generalizable line belongs in this
+  shipped skill via an issue, not in the consumer file.
 
 ## Cross-references
 

@@ -28,21 +28,23 @@ own sandboxes by results file.
 
 How preflight fills `stale_run_roots` on Linux and WSL2. A run root is a direct child of
 `$HOME/.ev`, one per run ([SKILL.md, Run](../SKILL.md#run) step 3). A legacy run root is a
-directory directly under `$HOME` whose name starts with `.ev`, other than `$HOME/.ev`, left by
-runs from before `$HOME/.ev` held them. A missing `$HOME/.ev` and no legacy root report `0`. Probe
-read-only, the third and fourth commands once per root the first two print:
+directory directly under `$HOME` whose name is `.ev` or `ev` followed by at least one more
+character (`.ev-16626f-a`, `ev8635`, `eval-runs`), other than `$HOME/.ev`, left by runs from before
+`$HOME/.ev` held them. A name outside those two prefixes, such as `e4`, is never one. A missing
+`$HOME/.ev` and no legacy root report `0`. Probe read-only, the third and fourth commands once per
+root the first two print:
 
 ```bash
 find "$HOME/.ev/" -mindepth 1 -maxdepth 1 -type d -mmin +4320
-find "$HOME/" -mindepth 1 -maxdepth 1 -type d -name '.ev?*' -mmin +4320
+find "$HOME/" -mindepth 1 -maxdepth 1 -type d \( -name '.ev?*' -o -name 'ev?*' \) -mmin +4320
 find '<root>' -mindepth 1 -maxdepth 1 -type d -name 'claude-eval-*'
 du -skc '<root>'
 ```
 
 The first two commands' lines are the roots older than 3 days (4,320 minutes since the root last
 gained or lost an entry), listed by path; `-type d` skips a symlink. A legacy root counts only when
-the third command prints a line for it, since a `.ev*` directory with no `claude-eval-*` sandbox
-is not a run root. The sandbox count is the sum of the third command's lines over the counted
+the third command prints a line for it, since a matching directory with no `claude-eval-*`
+sandbox directly inside it is not a run root. The sandbox count is the sum of the third command's lines over the counted
 roots, the `claude-eval-*` sandboxes nested in them. The size and unreadable-path rules are the
 ones above: a root `find` cannot read makes the sandbox count `unknown`, and a `sealed/` `du`
 cannot enter makes the size `at least <total>`.
@@ -68,9 +70,10 @@ It checks every direct child of `$HOME/.ev` except the [Docker link swap](#docke
 and removes one only when all of these hold:
 
 - it is a directory, not a symlink, and its `realpath` is a direct child of the `realpath` of
-  `$HOME/.ev`, or a direct child of the `realpath` of `$HOME` named `.ev*` that is not the
-  `realpath` of `$HOME/.ev`;
-- it holds at least one `claude-eval-*` directory;
+  `$HOME/.ev`, or a legacy run root: a direct child of the `realpath` of `$HOME` named `.ev?*`
+  or `ev?*` that is not the `realpath` of `$HOME/.ev`;
+- it holds at least one `claude-eval-*` directory directly inside it, and an undotted (`ev?*`)
+  legacy root holds nothing else directly inside it, so a user folder such as `~/evals` is kept;
 - nothing in it changed for 3 days: neither the root nor any entry under it, read without
   following symlinks, has a newer mtime. A directory it cannot open, such as a mode-000 `sealed/`,
   counts by its own mtime. This is stricter than the age [Stale run roots](#stale-run-roots)
@@ -88,7 +91,7 @@ It removes a root the way [Removing a run root](#removing-a-run-root) does, `chm
 `sealed/` included. A path given as an argument is checked by the same rules, so `$HOME/.ev`
 itself and a path neither under it nor a legacy root are refused. Each path gets one line:
 `removed`, `kept` or `refused` with its reason, or `left behind` with the error and exit 1. A
-legacy `.ev*` entry that is a symlink, or a directory holding no `claude-eval-*` sandbox, is left,
+legacy entry that is a symlink, or a directory holding no `claude-eval-*` sandbox, is left,
 and its line says what removing it by hand takes. Exit 2 removes nothing: `$HOME` or `$HOME/.ev`
 resolves to `/`, `/tmp`, `/var/tmp` or the system temp directory, or `/proc` cannot be read. On exit 1 or 2, print
 the output for the user and go on with the run. A run kept for a later read is read before this

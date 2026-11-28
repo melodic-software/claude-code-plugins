@@ -22,13 +22,13 @@ List work items with optional filtering.
 
 1. List items filtered by the parsed flags (adapter: "List items", bare read; category/label/state/assignee/limit map to the adapter's filter args; `--search` uses the adapter's "Search items" path). The adapter returns normalized item objects. With `--parent`, run `"$TRACKER" list-sub-items '<id>' --state <state>` instead (the dispatcher resolved as in [start.md](start.md); `--state` defaults to `all` here); exit `6` means the provider cannot enumerate children: say so.
 
-1. Parse the result and present as a condensed table:
+1. Parse the result and present as a condensed table (include a `Status` column when any returned item carries a non-null `native_status`, showing `--` for items where `native_status` is `null`):
 
 ```markdown
-| # | Item | Type | Labels | Assignee | Updated |
-|---|------|------|--------|----------|---------|
-| 1 | #42 Fix <thing> | Bug | area: <your-area> | @user | 2d ago |
-| 2 | #38 Review <config> | Task | area: <your-area> | -- | 5d ago |
+| # | Item | Type | Status | Labels | Assignee | Updated |
+|---|------|------|--------|--------|----------|---------|
+| 1 | #42 Fix <thing> | Bug | In progress | area: <your-area> | @user | 2d ago |
+| 2 | #38 Review <config> | Task | Backlog | area: <your-area> | -- | 5d ago |
 ```
 
 The `#` column is a sequential index for this listing. When the user references an item by `#`, match it to the item in the most recent listing.

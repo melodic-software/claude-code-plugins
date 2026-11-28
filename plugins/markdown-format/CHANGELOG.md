@@ -3,6 +3,24 @@
 All notable changes to the `markdown-format` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [2.4.7] - 2026-11-28
+
+### Fixed
+
+- Scope pre-commit `format.sh` rewrites to hunks overlapping `checks_changed_lines` by running `markdownlint-cli2 --fix` in a temporary mirror, leaving untouched lines byte-identical and noting skipped untouched drift on stderr with exit 0 ([#19208](https://github.com/melodic-software/claude-code-plugins/issues/19208)).
+
+## [2.4.6] - 2026-11-28
+
+### Changed
+
+- The shared hook library's physical-path cache answers a lookup in the order its paths were primed from the next slot, and rules out an uncached path with one string match, so a plugins sync read no longer rescans the cache for every catalog entry; results are unchanged.
+
+## [2.4.5] - 2026-11-28
+
+### Changed
+
+- Trimmed `/markdown-format:setup` user-invoked frontmatter description (514 -> 137 chars) to a one-line summary without trigger phrasing.
+
 ## [2.4.4] - 2026-11-28
 
 ### Changed

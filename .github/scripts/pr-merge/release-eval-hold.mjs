@@ -5,7 +5,7 @@ import { pathToFileURL } from "node:url";
 
 import { createGitHub, paginate } from "../lib/github-client.mjs";
 import { loadTrustedList, trustedListPath } from "../lib/trusted-actors.mjs";
-import { bodyHolds, fromRest, LANES_APP_LOGIN, vetoers } from "./merge-holds.mjs";
+import { LANES_APP_LOGIN } from "./merge-holds.mjs";
 
 export const LABEL = "do-not-merge";
 export const RELEASES_PER_RUN = 5;
@@ -195,12 +195,37 @@ const counts =(comment, humans, vouched, number) => {
   return run !== undefined && run.pr === number && run.head === markers(comment.body, RECORD)[0];
 };
 
+const at = (item) => String(item?.created_at ?? "");
+
+/** The newest `labeled` event for LABEL in GET issues/{n}/events, or null. */
+const latestLabel = (events) =>
+  (events ?? []).filter((event) => event?.event === "labeled" && event.label?.name === LABEL).reduce((newest, event) => (newest === null || at(event) >= at(newest) ? event : newest), null);
+
 export function heldAt(events) {
-  const times = (events ?? []).filter((event) => event?.event === "labeled" && event.label?.name === LABEL).map((event) => String(event.created_at ?? ""));
-  return times.length === 0 ? null : times.sort().at(-1);
+  const label = latestLabel(events);
+  return label === null ? null : at(label);
 }
 
-export function decide({ pull, comments, reviews = [], events, humans, vouched = new Map(), cannotStart = null }) {
+/**
+ * How long after the label event the eval reason comment may land and still
+ * mark the label as the eval hold's own. report-outcome and holdEvalGated post
+ * the label, then the comment, in one step, seconds apart.
+ */
+export const OWN_LABEL_WINDOW_MS = 10 * 60 * 1000;
+
+/**
+ * Whether `comment` (an eval reason line's comment) marks the `label` event
+ * as the eval hold's: the same listed human or the lanes App made both, and
+ * the comment followed the label within OWN_LABEL_WINDOW_MS.
+ */
+function ownsLabel(label, comment, humans) {
+  const actor = { user: label?.actor, performed_via_github_app: label?.performed_via_github_app };
+  const same = byLanesApp(actor) ? byLanesApp(comment) : byHuman(actor, humans) && byHuman(comment, humans) && actor.user.id === comment.user.id;
+  const gap = Date.parse(at(comment)) - Date.parse(at(label));
+  return same && gap >= 0 && gap <= OWN_LABEL_WINDOW_MS;
+}
+
+export function decide({ pull, comments, events, humans, vouched = new Map(), cannotStart = null }) {
   const keep = (reason) => ({ release: false, reason });
   if (pull?.state !== "open") {
     return keep("not-open");
@@ -212,11 +237,12 @@ export function decide({ pull, comments, reviews = [], events, humans, vouched =
   if (!/^[0-9a-f]{40}$/.test(String(head))) {
     return keep("head-unread");
   }
-  const since = heldAt(events);
-  if (since === null) {
+  const label = latestLabel(events);
+  if (label === null) {
     return keep("no-label-event");
   }
-  const recent = (comments ?? []).filter((comment) => String(comment?.created_at ?? "") >= since);
+  const since = at(label);
+  const recent = (comments ?? []).filter((comment) => at(comment) >= since);
   const holds = recent.flatMap((comment) => [...ownLines(comment.body)].filter((line) => line.trimStart().startsWith(HOLD_PREFIX)).map((line) => ({ comment, line })));
   if (holds.length === 0) {
     return keep("no-hold-reason");
@@ -233,12 +259,8 @@ export function decide({ pull, comments, reviews = [], events, humans, vouched =
       return keep("hold-reason-unlisted-author");
     }
   }
-  if (bodyHolds(pull.body, true)) {
-    return keep("body-hold");
-  }
-  const vetoing = vetoers([...(comments ?? []), ...(reviews ?? [])].map(fromRest));
-  if (vetoing.length > 0) {
-    return keep(`member-veto-${vetoing.join(",")}`);
+  if (!holds.some(({ comment }) => ownsLabel(label, comment, humans))) {
+    return keep("label-not-eval-owned");
   }
   const newest = newestRecord(recent, humans, vouched, pull.number);
   if (newest !== undefined && newest.heads[0] === head) {
@@ -430,7 +452,6 @@ async function readAll(github, repo, number, humans, runsGitHub = github, listRu
     return { early };
   }
   const pull = await github("GET", `/repos/${repo}/pulls/${number}`);
-  const reviews = await paginate(github, `/repos/${repo}/pulls/${number}/reviews`);
   const defaultBranch = pull?.base?.repo?.default_branch;
   const vouched = await readRuns(runsGitHub, repo, comments, defaultBranch);
   if (since !== null && !listed.complete) {
@@ -438,7 +459,7 @@ async function readAll(github, repo, number, humans, runsGitHub = github, listRu
   }
   const plugins = listed.complete && named.length > 0 ? await readEvalPlugins(github, repo, number, pull?.changed_files) : null;
   const cannotStart = plugins === null ? null : await readCannotStart(runsGitHub, repo, named, vouched, since, pull?.head?.sha, defaultBranch, plugins);
-  return { pull, comments, events, reviews, vouched, cannotStart };
+  return { pull, comments, events, vouched, cannotStart };
 }
 
 async function readEvalPlugins(github, repo, number, changedFiles) {

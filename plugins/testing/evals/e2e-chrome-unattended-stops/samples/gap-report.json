@@ -1,7 +1,7 @@
 {
   "pass": [
     {
-      "answer": "Stop with the gap report: e2e_driver chrome from .claude/testing.local.yaml cannot run unattended.",
+      "answer": "Stop with the gap report: e2e_driver chrome from docs/conventions/testing.local.yaml cannot run unattended.",
       "why": "gap report"
     }
   ],

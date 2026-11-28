@@ -34,11 +34,8 @@ cfg_user_config() {
 }
 
 cfg_layers_init() {
-  local config_root="$1" home="docs/conventions" resolved name moved_to="this plugin's userConfig (see How to set these in the attribution README) for budgets, judge_samples and accuracy, and"
-  local repo_files="a repository's <home>/attribution.yaml or attribution.local.yaml"
-  local old="${HOME:-/nonexistent}/.claude/attribution.json"
+  local config_root="$1" home="docs/conventions" resolved name
   CFG_LAYERS=()
-  cfg_layer_add "$old"
   [[ "${#CFG_USER_CONFIG[@]}" -eq 0 ]] || CFG_LAYERS+=(userConfig)
   if [[ "$(config_root_classify "$config_root")" == repo ]]; then
     if resolved="$(bash "$_CFG_LIB/resolve-convention-home.sh" --root "$config_root" 2>/dev/null)" && [[ -n "$resolved" ]]; then
@@ -47,10 +44,7 @@ cfg_layers_init() {
     for name in attribution attribution.local; do
       cfg_layer_add "$config_root/$home/$name.yaml"
     done
-    repo_files="$config_root/$home/attribution.yaml or attribution.local.yaml"
   fi
-  [[ -f "$old" ]] || return 0
-  echo "attribution: $old is a retired location, still read below every other layer until it is moved; run /attribution:setup apply to move its settings to $moved_to $repo_files for every other key" >&2
 }
 
 cfg_layer_add() {
@@ -60,7 +54,7 @@ cfg_layer_add() {
     [[ "$layer" != userConfig ]] || continue
     config_root_paths_same "$layer" "$path" && return 0
   done
-  if _cfg_is_yaml "$path" && ! bash "$_CFG_LIB/parse-concern-value.sh" --strict "$path" __probe__ >/dev/null 2>&1; then
+  if ! bash "$_CFG_LIB/parse-concern-value.sh" --strict "$path" __probe__ >/dev/null 2>&1; then
     echo "attribution: $path does not parse (quote a value that starts with *, & or !); its settings are not read" >&2
     return 0
   fi
@@ -70,30 +64,15 @@ cfg_layer_add() {
 # shellcheck disable=SC2034  # read by the sourcing script
 CFG_SOURCE=""
 
-_cfg_is_yaml() { [[ "$1" == *.yaml || "$1" == *.yml ]]; }
-
-cfg_have_unread_layer() {
-  local layer
-  command -v jq >/dev/null 2>&1 && return 1
-  for layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
-    _cfg_is_yaml "$layer" || [[ "$layer" == userConfig ]] || return 0
-  done
-  return 1
-}
-
 cfg_scalar() {
   local -n _cfg_dest="$1"
   local _cfg_key="$2" _cfg_ere="${3:-}" _cfg_layer _cfg_v _cfg_out="" _cfg_src=""
   for _cfg_layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
     if [[ "$_cfg_layer" == userConfig ]]; then
       _cfg_v="${CFG_USER_CONFIG[$_cfg_key]-}"
-    elif _cfg_is_yaml "$_cfg_layer"; then
-      _cfg_v="$(bash "$_CFG_LIB/parse-concern-value.sh" --strict "$_cfg_layer" "$_cfg_key" 2>/dev/null)" || continue
     else
-      command -v jq >/dev/null 2>&1 || continue
-      _cfg_v="$(jq -r --arg k "$_cfg_key" 'getpath($k | split(".")) // empty' "$_cfg_layer" 2>/dev/null)" || continue
+      _cfg_v="$(bash "$_CFG_LIB/parse-concern-value.sh" --strict "$_cfg_layer" "$_cfg_key" 2>/dev/null)" || continue
     fi
-    # A native Windows jq.exe writes CRLF: https://jqlang.org/manual/ (--binary).
     _cfg_v="${_cfg_v//$'\r'/}"
     [[ -n "$_cfg_v" ]] || continue
     [[ -z "$_cfg_ere" || "$_cfg_v" =~ $_cfg_ere ]] || continue
@@ -110,14 +89,8 @@ cfg_list() {
   local _cfg_key="$2" _cfg_layer _cfg_v _cfg_src="" _cfg_bom=$'\xEF\xBB\xBF'
   for _cfg_layer in ${CFG_LAYERS[@]+"${CFG_LAYERS[@]}"}; do
     [[ "$_cfg_layer" != userConfig ]] || continue
-    if _cfg_is_yaml "$_cfg_layer"; then
-      grep -Eq "^(${_cfg_bom})?[\"']?${_cfg_key}[\"']?[[:space:]]*:" "$_cfg_layer" 2>/dev/null || continue
-      _cfg_v="$(bash "$_CFG_LIB/parse-concern-value.sh" --strict --list "$_cfg_layer" "$_cfg_key" 2>/dev/null)" || continue
-    else
-      command -v jq >/dev/null 2>&1 || continue
-      jq -e --arg k "$_cfg_key" 'has($k) and .[$k] != null' "$_cfg_layer" >/dev/null 2>&1 || continue
-      _cfg_v="$(jq -r --arg k "$_cfg_key" '(.[$k] // []) | .[]' "$_cfg_layer" 2>/dev/null)" || _cfg_v=""
-    fi
+    grep -Eq "^(${_cfg_bom})?[\"']?${_cfg_key}[\"']?[[:space:]]*:" "$_cfg_layer" 2>/dev/null || continue
+    _cfg_v="$(bash "$_CFG_LIB/parse-concern-value.sh" --strict --list "$_cfg_layer" "$_cfg_key" 2>/dev/null)" || continue
     _cfg_v="${_cfg_v//$'\r'/}"
     _cfg_src="$_cfg_layer"
     if [[ -n "${_cfg_v//[[:space:]]/}" ]]; then

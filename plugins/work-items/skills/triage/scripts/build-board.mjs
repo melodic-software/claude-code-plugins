@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
+import { applyPluginBranding } from "../../../lib/apply-branding.mjs";
 import { buildView, ViewBuildError } from "../../../lib/view-builder.mjs";
 
 const text = (value) => (["string", "number"].includes(typeof value) ? String(value) : "");
@@ -53,15 +54,19 @@ function main(argv) {
     args[argv[i]] = argv[i + 1];
   }
   const out = args["--out"];
-  const ok = Object.entries(args).every(
-    ([key, value]) => ["--out", "--connect"].includes(key) && typeof value === "string" && value !== "",
-  );
+  const ok =
+    argv.length % 2 === 0 &&
+    Object.entries(args).every(
+      ([key, value]) => ["--out", "--connect", "--branding-option"].includes(key) && typeof value === "string" && (value !== "" || key === "--branding-option"),
+    );
   if (!out || !ok) {
-    console.error("usage: build-board.mjs --out <file> [--connect <session-bridge origin>]   (JSON on stdin)");
+    console.error("usage: build-board.mjs --out <file> [--connect <session-bridge origin>] [--branding-option <value>]   (JSON on stdin)");
     return 2;
   }
   try {
-    const template = readFileSync(new URL("../templates/board.html", import.meta.url), "utf8");
+    const template = applyPluginBranding(readFileSync(new URL("../templates/board.html", import.meta.url), "utf8"), {
+      brandingOption: args["--branding-option"] ?? null,
+    });
     const data = boardData(JSON.parse(readFileSync(0, "utf8")));
     writeFileSync(out, buildView({ profile: "interactive", template, data, connect: args["--connect"] ?? null }));
     console.log(out);

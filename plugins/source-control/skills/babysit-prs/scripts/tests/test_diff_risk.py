@@ -280,7 +280,7 @@ class HighReasonTests(unittest.TestCase):
     def test_floor_paths_are_high_whatever_the_switch(self):
         self.assertEqual(
             Counter(c for _, c in FLOOR.classes),
-            {"trust": 26, "gate": 76, "enforcement": 84},
+            {"trust": 27, "gate": 77, "enforcement": 85},
         )
         self.assertEqual(
             FLOOR.high,
@@ -305,6 +305,7 @@ class HighReasonTests(unittest.TestCase):
             (".github/scripts/pr-merge/enable-auto-merge.mjs", ".github/scripts/pr-merge/enable-auto-merge.mjs"),
             (".github/scripts/pr-merge/superseded.mjs", ".github/scripts/pr-merge/superseded.mjs"),
             (".github/scripts/pr-merge/clear-escalations.mjs", ".github/scripts/pr-merge/clear-escalations.mjs"),
+            (".github/scripts/pr-merge/verifier.mjs", ".github/scripts/pr-merge/verifier.mjs"),
             ("plugins/source-control/skills/babysit-prs/scripts/diff_risk.py", "plugins/source-control/skills/babysit-prs/scripts/diff_risk.py"),
             ("plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_verify_evidence.py"),
             ("plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py", "plugins/source-control/skills/babysit-prs/scripts/babysit_merge.py"),
@@ -2263,7 +2264,7 @@ class ReviewClearedFloorTests(unittest.TestCase):
         return score(_input(files=(_file(path),), lanes=lanes))
 
     def test_a_clean_bound_security_review_clears_each_enforcement_path(self):
-        self.assertEqual(len(FLOOR.review), 84)
+        self.assertEqual(len(FLOOR.review), 85)
         raised = [g for g in FLOOR.review if g in FLOOR.high]
         self.assertEqual(raised, [B + "babysit_verify_evidence.py"])
         for glob in (g for g in FLOOR.review if g not in raised):

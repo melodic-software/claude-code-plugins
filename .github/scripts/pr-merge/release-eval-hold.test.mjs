@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, test } from "node:test";
 
-import { EVAL_GATED_LABEL as REPORT_OUTCOME_EVAL_GATED_LABEL } from "../work-resolve-issue/report-outcome.mjs";
+import { EVAL_GATED_LABEL as REPORT_OUTCOME_EVAL_GATED_LABEL, evalHoldComment as laneHoldComment, personHoldComment } from "../work-resolve-issue/report-outcome.mjs";
 import {
   CANNOT_START_CAUSES,
   CANNOT_START_JOB,
@@ -23,6 +23,7 @@ import {
   markers,
   mayRelease,
   onDefaultBranch,
+  OWN_LABEL_WINDOW_MS,
   ownLines,
   RELEASES_PER_RUN,
   VERDICT_JOB,
@@ -65,12 +66,28 @@ const pull = ({ labels = [LABEL], head = HEAD, body = "Closes #1", user = APP, c
   labels: labels.map((name) => ({ name })),
 });
 
-const events = [{ event: "labeled", label: { name: LABEL }, created_at: LABELED_AT }];
-const holdComment = () => comment(`Held for eval.\n${holdLine("eval")}`, { at: "2026-11-06T10:01:00Z" });
+const CAPTURED_LABEL_EVENT = JSON.parse(readFileSync(new URL("./fixtures/release-eval-hold-labeled-event.json", import.meta.url), "utf8"));
+const labeledBy = (actor, created_at = LABELED_AT) => ({
+  ...CAPTURED_LABEL_EVENT,
+  actor: actor === PERSON ? CAPTURED_LABEL_EVENT.actor : actor,
+  performed_via_github_app: actor === APP ? { id: 1, slug: "lanes" } : CAPTURED_LABEL_EVENT.performed_via_github_app,
+  created_at,
+});
+
+test("the captured labeled event is a person's do-not-merge label, the shape labeledBy builds on", () => {
+  assert.deepEqual(CAPTURED_LABEL_EVENT.actor, PERSON);
+  assert.equal(CAPTURED_LABEL_EVENT.event, "labeled");
+  assert.equal(CAPTURED_LABEL_EVENT.label.name, LABEL);
+  assert.equal(CAPTURED_LABEL_EVENT.performed_via_github_app, null);
+  assert.equal(decide({ pull: pull(), comments: [holdComment("2026-11-28T04:23:12Z"), recordComment(HEAD, { at: "2026-11-28T05:00:00Z" })], events: [CAPTURED_LABEL_EVENT], humans: HUMANS }).release, true);
+});
+const events = [labeledBy(PERSON)];
+const appEvents = [labeledBy(APP)];
+const holdComment = (at = "2026-11-06T10:01:00Z") => comment(`Held for eval.\n${holdLine("eval")}`, { at });
 const recordComment = (head = HEAD, options = {}) => comment(`Paired eval: no loss.\n\n${recordLine(head)}\n`, options);
 
 const run = (overrides = {}) =>
-  decide({ pull: pull(), comments: [holdComment(), recordComment()], reviews: [], events, humans: HUMANS, ...overrides });
+  decide({ pull: pull(), comments: [holdComment(), recordComment()], events, humans: HUMANS, ...overrides });
 
 test("a listed human's VALID no-loss record at the current head releases an eval hold", () => {
   const result = run();
@@ -132,9 +149,9 @@ test("a hold line any account posted counts: an App's other reason keeps the hol
 
 test("the lanes App's eval hold line is a hold reason; the record is still a listed human's", () => {
   const app = comment(`Held for the eval.\n\n${holdLine("eval")}`, { user: APP, at: "2026-11-06T10:01:00Z", app: { id: 1, slug: "lanes" } });
-  assert.equal(run({ comments: [app, recordComment()] }).release, true);
+  assert.equal(run({ comments: [app, recordComment()], events: appEvents }).release, true);
   const appRecord = comment(recordLine(HEAD), { user: APP, app: { id: 1, slug: "lanes" } });
-  assert.equal(run({ comments: [app, appRecord] }).reason, "no-record");
+  assert.equal(run({ comments: [app, appRecord], events: appEvents }).reason, "no-record");
   const imposter = comment(holdLine("eval"), { user: { ...APP, login: "other[bot]" }, at: "2026-11-06T10:01:00Z" });
   assert.equal(run({ comments: [imposter, recordComment()] }).reason, "hold-reason-unlisted-author");
 });
@@ -144,7 +161,7 @@ test("a hold with no recorded reason is kept", () => {
 });
 
 test("only reasons and records since the newest label event count", () => {
-  const relabeled = [...events, { event: "labeled", label: { name: LABEL }, created_at: "2026-11-06T12:00:00Z" }];
+  const relabeled = [...events, labeledBy(PERSON, "2026-11-06T12:00:00Z")];
   assert.equal(run({ events: relabeled }).reason, "no-hold-reason");
   const newHold = comment(holdLine("eval"), { at: "2026-11-06T12:01:00Z" });
   assert.equal(run({ events: relabeled, comments: [holdComment(), recordComment(), newHold] }).reason, "no-record");
@@ -154,10 +171,12 @@ test("a pull request without the label is left alone", () => {
   assert.deepEqual(run({ pull: pull({ labels: [] }) }), { release: false, reason: "no-label" });
 });
 
-test("a body hold or a member veto keeps the hold", () => {
-  assert.equal(run({ pull: pull({ body: "Closes #1\n\nHold: waiting on the desk" }) }).reason, "body-hold");
+test("body hold phrases and a member's comment keep nothing; only the hold reason line does", () => {
+  assert.equal(run({ pull: pull({ body: "Closes #1\n\nHold: waiting on the desk" }) }).release, true);
   const veto = comment(`Paired eval: no loss, but do not merge yet.\n${recordLine(HEAD)}`);
-  assert.match(run({ comments: [holdComment(), veto] }).reason, /^member-veto-/);
+  assert.equal(run({ comments: [holdComment(), veto] }).release, true);
+  const other = comment(holdLine("superseded"), { at: "2026-11-06T10:02:00Z" });
+  assert.equal(run({ comments: [holdComment(), recordComment(), other] }).reason, "hold-reason-superseded");
 });
 
 test("ownLines drops fenced and quoted lines and keeps the rest", () => {
@@ -293,7 +312,7 @@ test("mayRelease lets the lanes App's eval hold line through, and no one else's"
 
 test("main releases a hold whose eval reason line is the lanes App's", async () => {
   const app = comment(holdLine("eval"), { user: APP, at: "2026-11-06T10:01:00Z", app: { id: 1, slug: "lanes" } });
-  const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [app, recordComment()] } });
+  const { github, calls } = fakeGitHub({ 7: { pull: pull(), comments: [app, recordComment()] } }, { timeline: appEvents });
   const log = console.log;
   console.log = () => {};
   try {
@@ -540,8 +559,8 @@ test("main holds a session-opened pull request that closes an eval-gated issue: 
   assert.ok(lines.includes("release-eval-hold: #9 held for eval: it closes eval-gated #1"));
   assert.ok(lines.includes("release-eval-hold: eval-gated=1 holds-added=1 not-held=0 failed=0"));
   const posted = comment(writes[1].body.body, { user: APP, at: "2026-11-06T10:01:00Z", app: { id: 1, slug: "lanes" } });
-  assert.equal(run({ comments: [posted, recordComment()] }).release, true);
-  assert.equal(run({ comments: [posted] }).reason, "no-record");
+  assert.equal(run({ comments: [posted, recordComment()], events: appEvents }).release, true);
+  assert.equal(run({ comments: [posted], events: appEvents }).reason, "no-record");
 });
 
 test("main leaves a lane-opened pull request as report-outcome held it, and reads nothing for one whose issue is not eval-gated", async () => {
@@ -629,6 +648,57 @@ test("a compare run that recorded it cannot start at the current head releases a
   }
 });
 
+test("a lane PR held for a person as well as for the eval keeps its label after a VALID record or a cannot-start record; an eval-only one releases", () => {
+  const laneHold = (personHold) => comment(laneHoldComment(77, personHold), { user: APP, at: "2026-11-06T10:01:00Z", app: { id: 1, slug: "lanes" } });
+  for (const [name, evidence] of [
+    ["a VALID record", { comments: [laneHold(true), recordComment()] }],
+    ["a cannot-start record", { comments: [laneHold(true)], cannotStart: cannotStart() }],
+  ]) {
+    assert.deepEqual(run({ ...evidence, events: appEvents }), { release: false, reason: "hold-reason-person" }, name);
+  }
+  assert.equal(run({ comments: [laneHold(false), recordComment()], events: appEvents }).release, true, "an eval-only lane hold releases on a VALID record");
+  assert.equal(run({ comments: [laneHold(false)], cannotStart: cannotStart(), events: appEvents }).release, true, "an eval-only lane hold releases on a cannot-start record");
+});
+
+test("only a label the eval hold set is released: same actor as an eval reason line that followed it within the window", () => {
+  const laneHold = (at) => comment(laneHoldComment(77, false), { user: APP, at, app: { id: 1, slug: "lanes" } });
+  const evidence = [
+    ["a VALID record", { comments: [laneHold("2026-11-06T10:01:00Z"), recordComment()] }],
+    ["a cannot-start record", { comments: [laneHold("2026-11-06T10:01:00Z")], cannotStart: cannotStart() }],
+  ];
+  for (const [name, overrides] of evidence) {
+    assert.equal(run({ ...overrides, events: appEvents }).release, true, `the lanes App's label and eval comment in one report-outcome run release on ${name}`);
+    assert.deepEqual(run({ ...overrides, events }), { release: false, reason: "label-not-eval-owned" }, `a person's label with a later lanes eval comment stays on ${name}`);
+  }
+  const late = laneHold(new Date(Date.parse(LABELED_AT) + OWN_LABEL_WINDOW_MS + 1000).toISOString());
+  assert.equal(run({ comments: [late, recordComment()], events: appEvents }).reason, "label-not-eval-owned", "an eval comment past the window does not own the label");
+  const edge = laneHold(new Date(Date.parse(LABELED_AT) + OWN_LABEL_WINDOW_MS).toISOString());
+  assert.equal(run({ comments: [edge, recordComment()], events: appEvents }).release, true, "an eval comment at the window's end owns the label");
+  const other = { login: "member", id: 7, type: "User" };
+  const otherHold = comment(holdLine("eval"), { user: other, at: "2026-11-06T10:01:00Z" });
+  assert.equal(run({ comments: [otherHold, recordComment()], humans: new Set([PERSON.id, other.id]) }).reason, "label-not-eval-owned", "another listed human's eval comment does not own the label");
+  const unread = [{ ...labeledBy(PERSON), actor: undefined }];
+  assert.equal(run({ events: unread }).reason, "label-not-eval-owned", "a label event with no actor is not the eval hold's");
+});
+
+test("a label re-added by a different actor after an eval release stays, even with a new record and a new lanes eval comment", () => {
+  const laneHold = comment(laneHoldComment(77, false), { user: APP, at: "2026-11-06T10:01:00Z", app: { id: 1, slug: "lanes" } });
+  const timeline = [...appEvents, { event: "unlabeled", label: { name: LABEL }, created_at: "2026-11-06T11:00:00Z" }, labeledBy(PERSON, "2026-11-06T12:00:00Z")];
+  const record = recordComment(HEAD, { at: "2026-11-06T12:30:00Z" });
+  assert.equal(run({ comments: [laneHold, recordComment()], events: appEvents }).release, true, "the first, App-set label releases");
+  assert.equal(run({ comments: [laneHold, recordComment(), record], events: timeline }).reason, "no-hold-reason");
+  const laneAgain = comment(laneHoldComment(77, false), { user: APP, at: "2026-11-06T12:02:00Z", app: { id: 1, slug: "lanes" } });
+  assert.equal(run({ comments: [laneHold, laneAgain, record], events: timeline }).reason, "label-not-eval-owned");
+  assert.equal(run({ comments: [laneHold, laneAgain], events: timeline, cannotStart: cannotStart() }).reason, "label-not-eval-owned");
+});
+
+test("report-outcome's person hold on a PR that is not eval-gated outlasts a later eval-only reason line by the same App", () => {
+  const person = comment(personHoldComment(77), { user: APP, at: "2026-11-06T10:00:30Z", app: { id: 1, slug: "lanes" } });
+  const laneEval = comment(laneHoldComment(77, false), { user: APP, at: "2026-11-06T10:01:00Z", app: { id: 1, slug: "lanes" } });
+  assert.deepEqual(run({ comments: [person, laneEval, recordComment()], events: appEvents }), { release: false, reason: "hold-reason-person" });
+  assert.deepEqual(run({ comments: [person, laneEval], events: appEvents, cannotStart: cannotStart() }), { release: false, reason: "hold-reason-person" });
+});
+
 test("a missing record alone, or a cannot-start record for another head or with an unknown cause, keeps the hold", () => {
   assert.equal(run({ comments: [holdComment()] }).reason, "no-record");
   assert.equal(run({ comments: [holdComment()], cannotStart: cannotStart(OLD) }).reason, "no-record");
@@ -637,14 +707,14 @@ test("a missing record alone, or a cannot-start record for another head or with 
   assert.equal(run({ comments: [holdComment()], cannotStart: { ...cannotStart(), cause: "evals-disabled" } }).reason, "no-record");
 });
 
-test("a cannot-start record lifts only an eval hold: another reason, a body hold or a veto still keeps it", () => {
+test("a cannot-start record lifts only an eval hold: another reason still keeps it, body text and comments do not", () => {
   const superseded = comment(holdLine("superseded"), { at: "2026-11-06T10:02:00Z" });
   assert.equal(run({ comments: [holdComment(), superseded], cannotStart: cannotStart() }).reason, "hold-reason-superseded");
   const split = comment(holdLine("eval-split"), { at: "2026-11-06T10:02:00Z" });
   assert.equal(run({ comments: [holdComment(), split], cannotStart: cannotStart() }).reason, "hold-reason-eval-split");
-  assert.equal(run({ pull: pull({ body: "Closes #1\n\nHold: waiting on the desk" }), comments: [holdComment()], cannotStart: cannotStart() }).reason, "body-hold");
+  assert.equal(run({ pull: pull({ body: "Closes #1\n\nHold: waiting on the desk" }), comments: [holdComment()], cannotStart: cannotStart() }).release, true);
   const veto = comment("Do not merge yet.", { at: "2026-11-06T10:05:00Z" });
-  assert.match(run({ comments: [holdComment(), veto], cannotStart: cannotStart() }).reason, /^member-veto-/);
+  assert.equal(run({ comments: [holdComment(), veto], cannotStart: cannotStart() }).release, true);
 });
 
 test("a VALID no-loss record at the head still wins over a cannot-start record", () => {
@@ -727,7 +797,7 @@ const RELABELED_AT = "2026-11-06T12:00:00Z";
 const relabeled = [
   ...events,
   { event: "unlabeled", label: { name: LABEL }, created_at: "2026-11-06T11:00:00Z" },
-  { event: "labeled", label: { name: LABEL }, created_at: RELABELED_AT },
+  labeledBy(PERSON, RELABELED_AT),
 ];
 const reHold = () => comment(`Held again.\n${holdLine("eval")}`, { at: "2026-11-06T12:01:00Z" });
 

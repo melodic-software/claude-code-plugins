@@ -59,22 +59,7 @@ emit_layer() {
 
 readable() { [[ -n "$1" && -f "$1" && -r "$1" ]]; }
 
-emit_layer_or_old() {
-  local label="$1" new="$2" old="$3" move="$4"
-  read_file=""
-  if readable "$new" && ! [[ "$old" -ef "$new" ]]; then
-    read_file="$new"
-    emit_layer "$label" "$new"
-    readable "$old" && warnings+=("Warning: bugs no longer reads the gotchas in \`$old\`, because \`$new\` supplies the $label layer. Run \`/bugs:setup apply\` to $move, then delete the old file.")
-  elif readable "$old"; then
-    read_file="$old"
-    emit_layer "$label (old path)" "$old"
-    warnings+=("Warning: bugs read \`$old\`, an old config path. Run \`/bugs:setup apply\` to $move, then delete the old file.")
-  fi
-}
-
 emitted=0
-warnings=()
 user_opt=""
 [[ "${1:-}" == "--user-file" ]] && user_opt="${2:-}"
 [[ "$user_opt" == \$\{user_config.* ]] && user_opt=""
@@ -90,23 +75,17 @@ if [[ -n "$root" && -n "${HOME:-}" ]]; then
 fi
 [[ -n "$root" && "$(git -C "$root" rev-parse --is-inside-work-tree 2>/dev/null)" != true ]] && root=""
 
-old_user="${HOME:+$HOME/.claude/bugs.md}"
-user_target="a file outside \`~/.claude\` that the bugs \`gotchas_file\` option names"
-[[ -n "$user_opt" ]] && ! [[ "$user_opt" -ef "$old_user" ]] && user_target="\`$user_opt\`"
-emit_layer_or_old "userConfig" "$user_opt" "$old_user" "move its \`## Gotchas\` to $user_target and any \`areas\` (or a retired \`lanes\` key, moved as \`areas\`) or \`filing_posture\` to the homes \`/bugs:setup check\` names"
-user="$read_file"
+user=""
+if readable "$user_opt"; then
+  user="$user_opt"
+  emit_layer "userConfig" "$user"
+fi
 if [[ -n "$root" ]]; then
   team="$root/docs/conventions/bugs.md"
   [[ -n "$user" && "$team" -ef "$user" ]] || emit_layer "team" "$team"
   personal="$root/docs/conventions/bugs.local.md"
-  old_personal="$root/.claude/bugs.local.md"
-  [[ -n "$user" && "$personal" -ef "$user" ]] && personal=""
-  [[ -n "$user" && "$old_personal" -ef "$user" ]] && old_personal=""
-  emit_layer_or_old "personal override" "$personal" "$old_personal" "move what it holds into \`$root/docs/conventions/bugs.local.md\`"
+  [[ -n "$user" && "$personal" -ef "$user" ]] || emit_layer "personal override" "$personal"
 fi
 
 [[ "$emitted" -eq 0 ]] && printf '(none)\n'
-for warning in ${warnings[@]+"${warnings[@]}"}; do
-  printf '\n%s\n' "$warning"
-done
 exit 0

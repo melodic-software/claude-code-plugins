@@ -1,5 +1,5 @@
 ---
-description: "Operator's read-only morning view of the current GitHub repo in one pass: open counts per queue label, merge-ready PRs, parked decisions with their RECOMMENDED lines, loop-lane telemetry freshness, per CI lane the week's failures by class, limit stops, restarts and turn headroom, and model usage per activity and profile, owner touches per day, and whether anything on GitHub or Azure is charging or could start charging; never mutates issues, PRs, labels, comments, or billing and Azure settings. Use when: 'morning brief', 'ops dashboard', 'what needs attention', 'daily standup view', 'how do we monitor lane failures', 'which models do the lanes use', 'are we being charged'."
+description: "Read-only daily morning view of GitHub repo: open queue counts, merge-ready PRs, parked decisions, telemetry/failure, stops/restarts, which model lanes use, owner touches, GitHub/Azure charging; never mutates repo/billing. Use for daily standup view, monitor lane failure, cost alerts: 'morning brief', 'ops dashboard', 'what needs attention'."
 argument-hint: "[precision] [--repo owner/name] [--queue-labels A,B,C] [--stale-hours N] [--stuck-days N]"
 allowed-tools: ["Bash(${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/morning-brief.sh\":*)", "Bash(${CLAUDE_SKILL_DIR}/scripts/review-precision.mjs:*)", "Bash(\"${CLAUDE_SKILL_DIR}/scripts/review-precision.mjs\":*)"]
 user-invocable: true
@@ -225,6 +225,13 @@ the field's changes as label events, dropping a bot's change before the model's
 check. Over REST the field is unread, so Queues and Parked print by label with a `PARTIAL` line. A
 failed model or field read, or a value the model has no option for, makes the section reading it
 `UNREADABLE`.
+
+When the target repository exposes native GitHub Issue Statuses (`GET /repos/{owner}/{repo}/planning-statuses`),
+the Queues section also prints a `Native statuses (open):` breakdown over REST (ordered by the
+repository's planning statuses, plus an `unset` row when pre-preview `status: null` open issues
+exist alongside non-null ones). When the endpoint is unavailable (`404`/`403`) or every open issue
+has `status: null`, the block is omitted cleanly without affecting `Work status` or marking the
+section `UNREADABLE`. Pass `--native-status-json <file>` in offline fixture runs.
 
 ## What each section reports
 

@@ -102,8 +102,6 @@ while IFS="$(printf '\t')" read -r name path state; do
   userConfig:present) row PASS "layer userConfig" "the file_names option is set" ;;
   userConfig:absent) row INFO "layer userConfig" "the file_names option is unset; the layer below it supplies these keys" ;;
   userConfig:invalid) row WARN "layer userConfig" "the file_names option is not one JSON object and is ignored; fix it with /plugin configure" ;;
-  *:legacy) row WARN "old user file" "$path is read in place of the file_names option; /docs-naming:setup apply previews copying its keys into the option" ;;
-  *:legacy-unread) row WARN "old user file" "$path is not read; /docs-naming:setup apply previews copying any key the file_names option lacks into it" ;;
   *:present) row PASS "layer $name" "$path" ;;
   *:absent) row INFO "layer $name" "absent; the layer below it supplies these keys" ;;
   *) row INFO "layer $name" "$state" ;;

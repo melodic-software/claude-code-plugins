@@ -370,15 +370,14 @@ see [hooks: WorktreeRemove](https://code.claude.com/docs/en/hooks#worktreeremove
   convention resolves from the layered source-control config (written by
   `/source-control:setup`) first, the tracked team file
   `docs/conventions/source-control.yaml` and a gitignored
-  `docs/conventions/source-control.local.yaml` personal override, merged per key
-  (`~/.claude/source-control.md` and `.claude/source-control.local.md` are still
-  read, with a warning, until `/source-control:setup apply` moves them), then the consuming project's own
+  `docs/conventions/source-control.local.yaml` personal override, merged per key,
+  then the consuming project's own
   `CLAUDE.md`, rules, and hooks; branch naming, PR template, merge style, and
   bot-identity wrappers also come from the project's own `CLAUDE.md` and
   rules. Defaults (Conventional Commits, squash merge) apply only when the
   project declares nothing.
 
-  This plugin still reads, or reports as retired, the `.claude/` paths named here; until the plugin migrates, keep config where this page says it is read, then move it where [config locations](reference/config-locations.md) says.
+  Retired `.claude/` paths are not read (`/source-control:setup check` reports a tracked `.claude/source-control.md` as retired). Config locations across all plugins: [config locations](reference/config-locations.md).
 
 ## Requirements
 

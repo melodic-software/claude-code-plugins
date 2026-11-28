@@ -1,5 +1,5 @@
 ---
-description: "Evaluation of a design, user flow, prototype or live app for usability problems: evaluation plans, expert review, fair-choice checks, UX-debt baselines and experience measures. Use when: 'is our cancel flow OK', 'run a heuristic evaluation', 'test this prototype before we build', 'what should we measure for this feature', 'where do we start redesigning this old system'. Not for plugins, prompts or model output."
+description: "Evaluate a design, user flow, prototype, or live app for usability problems: evaluation plans, expert review, fair-choice checks, UX-debt baselines, and experience measures. Use when: 'run a heuristic evaluation', 'is our cancel flow OK', or 'what should we measure for this feature'. Not for plugins, prompts, or model output."
 argument-hint: "[design, flow, app or measurement question]"
 user-invocable: true
 disable-model-invocation: false

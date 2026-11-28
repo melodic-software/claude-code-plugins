@@ -5,7 +5,7 @@
     "name": "Melodic Software",
     "email": "info@melodicsoftware.com"
   },
-  "version": "0.1.22",
+  "version": "0.2.0",
   "license": "MIT",
   "keywords": [
     "mod",
@@ -23,6 +23,12 @@
   },
   "types": "./types/index.d.ts",
   "userConfig": {
+    "display_redaction_enabled": {
+      "type": "boolean",
+      "title": "Screen masking module",
+      "description": "Runs the screen masking module that hides emails and secret-shaped text. Default true. A repository false in docs/conventions/display-redaction.yaml is ignored so a repository cannot turn off redaction; only your own false here turns it off.",
+      "default": true
+    },
     "mask_style": {
       "type": "string",
       "title": "Mask style",

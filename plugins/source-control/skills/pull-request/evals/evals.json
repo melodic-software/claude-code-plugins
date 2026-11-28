@@ -245,14 +245,14 @@
     {
       "id": 20,
       "name": "pr-body-required-sections-none-overrides-lower-layer",
-      "prompt": "/pull-request create from branch feat/512-add-widget. The old user-global ~/.claude/source-control.md (still read below team during the dual-read window) declares pr_body_required_sections as the bullet list Summary, Test plan, Related. The repo's team-tracked docs/conventions/source-control.yaml declares pr_body_required_sections as the literal keyword none. The gitignored personal override docs/conventions/source-control.local.yaml exists but does not set pr_body_required_sections. Resolve the effective section scaffold.",
-      "expected_output": "Per config-resolution.md's per-key override, with the old user-global file read lowest, then team, then the personal override, the team layer's `none` REPLACES the old user-global list wholesale — the effective value is zero required sections, and the personal override's silence on the key changes nothing (an absent key in a later layer keeps the earlier winner; it never resets or re-imports a lower layer's list). The skill distinguishes `none` (a resolved value that wins the per-key override like any list would) from absence (which would have fallen through to the old user-global list here). A personal override declaring `none` over a team list would win the same way — the semantics are per-key precedence, identical to trailer_policy / pr_body_attribution.",
+      "prompt": "/pull-request create from branch feat/512-add-widget. The repo's team-tracked docs/conventions/source-control.yaml declares pr_body_required_sections as the literal keyword none. The gitignored personal override docs/conventions/source-control.local.yaml exists (setting subject_pattern) but does not set pr_body_required_sections. Resolve the effective section scaffold, and state what would happen instead if team declared Summary/Test plan/Related and the personal override declared none.",
+      "expected_output": "Per config-resolution.md's per-key override, the team layer's `none` resolves to zero required sections (replacing the default `briefing` scaffold), and the personal override's omission of `pr_body_required_sections` does not disturb the team layer's `none` (an absent key in a later layer keeps the earlier winner; it never resets to defaults). Conversely, if team declared Summary/Test plan/Related and the personal override declared `none`, the personal override's `none` would replace the team list wholesale because `none` is a resolved value, not an absence — the same per-key precedence semantics as trailer_policy / pr_body_attribution.",
       "files": [],
       "expectations": [
-        "The team layer's `none` overrides the old user-global file's Summary/Test plan/Related list — the effective resolution is zero required sections",
-        "The personal override omitting the key does not disturb the team layer's `none` — per-key fallthrough keeps the later layer's resolved value",
-        "`none` wins the per-key override as a resolved value exactly like a list would, with the same precedence semantics as trailer_policy and pr_body_attribution",
-        "Absence and `none` are distinguished: had the team layer omitted the key, the old user-global list would have won instead"
+        "The team layer's `none` resolves to zero required sections rather than falling back to the default `briefing` scaffold",
+        "The personal override omitting the key does not disturb the team layer's `none` — per-key fallthrough keeps the team layer's resolved value",
+        "A personal override declaring `none` over a team list overrides the team list wholesale as a resolved value, with the same precedence semantics as trailer_policy and pr_body_attribution",
+        "Absence and `none` are distinguished: omitting the key falls through to the lower layer, while `none` replaces it"
       ]
     },
     {
@@ -559,25 +559,25 @@
     },
     {
       "id": 43,
-      "name": "ready-refuses-a-do-not-merge-label",
+      "name": "ready-flips-past-a-do-not-merge-label",
       "prompt": "/pull-request ready. PR 640 is an open draft on this branch and carries the do-not-merge label. Its checks are green and no one is around to answer questions. Flip it to ready.",
-      "expected_output": "The ready step checks for a hold before it touches the branch, finds the do-not-merge label, and stops: the pull request stays a draft, the label is reported as the reason, and the base is not merged, no review runs and nothing is flipped. It does not remove the label.",
+      "expected_output": "The ready step runs its hold check before it touches the branch. The do-not-merge label holds the merge, not the flip, so the check passes it and the PR is flipped to ready with the label still on. The report says the label still holds the merge. It does not remove the label.",
       "files": [],
       "expectations": [
         "The hold check runs before the branch update, the reviews and the flip",
-        "The pull request is left in draft and never flipped",
-        "The report names the do-not-merge label as the reason",
+        "The do-not-merge label does not stop the flip: the pull request is flipped to ready",
+        "The report says the label still holds the merge",
         "The label is not removed"
       ]
     },
     {
       "id": 44,
-      "name": "ready-flips-past-a-merge-hold-line",
-      "prompt": "/pull-request ready. PR 641 is an open draft on this branch. Its body ends with the line `Hold: a human merges this`. No one is around to answer questions. Flip it to ready.",
-      "expected_output": "A body line starting `Hold:` holds the merge, not the ready flip, so the hold check passes and the ready step goes on to update the branch from its base, run the reviews and the verify gate, and flip the pull request. It does not merge the pull request or edit the body.",
+      "name": "ready-flips-past-hold-wording-in-the-body",
+      "prompt": "/pull-request ready. PR 641 is an open draft on this branch with no labels. Its body ends with the line `Please do not merge until the vendor confirms`. No one is around to answer questions. Flip it to ready.",
+      "expected_output": "Only the do-not-merge label holds a pull request, and PR 641 has none, so the hold check passes and the ready step goes on to update the branch from its base, run the reviews and the verify gate, and flip the pull request. It does not merge the pull request, add a label or edit the body.",
       "files": [],
       "expectations": [
-        "The `Hold:` line is not treated as a reason to stay in draft",
+        "The body's wording is not treated as a reason to stay in draft",
         "The ready step goes on to the branch update, the reviews and the flip",
         "The pull request is not merged",
         "The body is not edited"
@@ -694,18 +694,18 @@
     },
     {
       "id": 53,
-      "name": "pr-open-state-pushed-hold-in-opening-body",
-      "prompt": "/pull-request create --pushed --worktree /work/wt-618 --hold 'Hold: a human merges this' for branch feat/618-export-csv. This is an unattended orchestrator run in a dontAsk session; no person is answering. The worker's branch is clean and pushed at HEAD. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-open-ready.yaml relative to the skill directory. Assemble the body, resolve the open state and open the PR.",
-      "expected_output": "Body composition places `Hold: a human merges this` on its own line directly below the closing-keyword line, before the first ## section, and the line is in the body file before the pre-create gates run, so the PR opens with it. The repository file sets pr_open_state: ready, so the PR opens with --draft and create then runs Phase 2.5 as ready with the new PR's number and --unattended, from the worktree as its working directory. The Hold line holds the merge only, so it does not stop the flip.",
+      "name": "pr-open-state-pushed-hold-opens-labeled",
+      "prompt": "/pull-request create --pushed --worktree /work/wt-618 --hold for branch feat/618-export-csv. This is an unattended orchestrator run in a dontAsk session; no person is answering. The worker's branch is clean and pushed at HEAD. The repository's docs/conventions/source-control.yaml on the base branch, main, is captured in evals/fixtures/source-control-open-ready.yaml relative to the skill directory. Assemble the body, resolve the open state and open the PR.",
+      "expected_output": "--hold takes no value, so the PR create carries --label do-not-merge alongside --draft and the PR opens held. The body carries no hold line. The repository file sets pr_open_state: ready, so create then runs Phase 2.5 as ready with the new PR's number and --unattended, from the worktree as its working directory. Its hold check passes the do-not-merge label, which holds the merge and not the flip, so the PR flips to ready with the label still on.",
       "files": [
         "evals/fixtures/source-control-open-ready.yaml"
       ],
       "expectations": [
-        "The body file has `Hold: a human merges this` on its own line directly below the closing-keyword line, before the first ## section",
-        "The Hold line is written before the pre-create gates run, and no body edit after create adds it",
+        "The PR create passes --label do-not-merge with --draft",
+        "The body file carries no line starting `Hold:`",
         "pr_open_state resolves to ready from the repository file, and create runs the ready phase as ready <PR number> --unattended on the PR it just opened",
         "The ready phase's commands run with the worktree /work/wt-618 as their working directory",
-        "The Hold line is not treated as a reason to leave the PR a draft"
+        "The ready phase does not refuse on the do-not-merge label: the PR flips to ready with the label still on"
       ]
     },
     {
@@ -879,13 +879,13 @@
       "id": 66,
       "name": "monitor-refreshes-stale-body-sections-in-place",
       "narration": true,
-      "prompt": "/pull-request comments 701. No source-control layer sets pr_body_refresh. A reviewer bot found that parse_date() in src/dates.py swallows a ValueError; research confirms it, and the same bare except appears in parse_time() in the same diff. You fix both and the test suite passes. PR 701's body has `## What changed`, `## Verification` ending `Left out: nothing`, a `Hold: waiting on vendor` line and a `## Follow-ups` section.",
-      "expected_output": "The fix covers both parse_date() and parse_time(), since both are instances of the finding's class in the diff. Before the single push, the run rewrites the body's What changed and Verification sections to describe the new head and posts it with `gh pr edit 701 --body-file <file>`, keeping the Hold line and the Follow-ups section unchanged. It posts no comment describing the body change.",
+      "prompt": "/pull-request comments 701. No source-control layer sets pr_body_refresh. A reviewer bot found that parse_date() in src/dates.py swallows a ValueError; research confirms it, and the same bare except appears in parse_time() in the same diff. You fix both and the test suite passes. PR 701's body has `## What changed`, `## Verification` ending `Left out: nothing`, a `Draft: waiting on vendor` line and a `## Follow-ups` section.",
+      "expected_output": "The fix covers both parse_date() and parse_time(), since both are instances of the finding's class in the diff. Before the single push, the run rewrites the body's What changed and Verification sections to describe the new head and posts it with `gh pr edit 701 --body-file <file>`, keeping the Draft line and the Follow-ups section unchanged. It posts no comment describing the body change.",
       "files": [],
       "expectations": [
         "It fixes the bare except in both parse_date() and parse_time()",
         "It updates the PR body with gh pr edit 701 --body-file, not with a comment",
-        "The edited body still holds the `Hold: waiting on vendor` line and the `## Follow-ups` section"
+        "The edited body still holds the `Draft: waiting on vendor` line and the `## Follow-ups` section"
       ]
     },
     {

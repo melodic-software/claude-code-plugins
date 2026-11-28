@@ -28,28 +28,52 @@
     --fg: var(--slate);
     --panel: var(--white);
     --muted: var(--gray-500);
+    --accent: var(--clay);
     --link: var(--clay-deep);
     --focus: var(--clay-deep);
-    --code-bg: var(--gray-100);
-    --code-fg: var(--slate);
+    color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
+    :root:not([data-theme=light]) {
       --bg: var(--slate);
       --fg: var(--ivory);
       --panel: var(--gray-700);
       --muted: var(--gray-300);
+      --accent: var(--clay);
       --border: 1.5px solid var(--gray-500);
       --link: var(--clay-soft);
       --focus: var(--clay-soft);
-      --code-bg: #23231F;
-      --code-fg: var(--ivory);
+      color-scheme: dark;
     }
+  }
+  :root[data-theme=dark] {
+    --bg: var(--slate);
+    --fg: var(--ivory);
+    --panel: var(--gray-700);
+    --muted: var(--gray-300);
+    --accent: var(--clay);
+    --border: 1.5px solid var(--gray-500);
+    --link: var(--clay-soft);
+    --focus: var(--clay-soft);
+    color-scheme: dark;
+  }
+  :root {
+    --code-bg: var(--gray-100);
+    --code-fg: var(--fg);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme=light]) {
+      --code-bg: var(--bg);
+      --code-fg: var(--fg);
+    }
+  }
+  :root[data-theme=dark] {
+    --code-bg: var(--bg);
+    --code-fg: var(--fg);
   }
   @media (prefers-reduced-motion: reduce) {
     * { animation: none !important; transition: none !important; }
   }
-  html { color-scheme: light dark; }
   body {
     margin: 0 auto; max-width: 880px; padding: 2rem 1.25rem 4rem;
     background: var(--bg); color: var(--fg);
@@ -65,7 +89,7 @@
     border-radius: var(--radius-panel); padding: 1rem 1.25rem; margin: 1rem 0;
   }
   .demo { border-left: 4px solid var(--olive); }
-  .note { border-left: 4px solid var(--clay); }
+  .note { border-left: 4px solid var(--accent); }
   code, .mono { font-family: var(--mono); font-size: .9em; }
   pre {
     font-family: var(--mono); font-size: .82rem; line-height: 1.5;

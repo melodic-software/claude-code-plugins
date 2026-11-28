@@ -1,5 +1,5 @@
 ---
-description: "Audit the Claude Code instruction/memory layer covering CLAUDE.md, a root AGENTS.md, CLAUDE.local.md, .claude/rules/, and auto-memory against a codified checklist derived from official Claude Code documentation. Use when: 'audit CLAUDE.md', 'audit AGENTS.md', 'memory health', 'audit rules', 'is my CLAUDE.md too long', 'prune instructions', after CLAUDE.md/rules changes or a Claude Code upgrade; actions: audit (default), fix, update, report."
+description: "Audit Claude Code instruction/memory files (CLAUDE.md, root AGENTS.md, CLAUDE.local.md, .claude/rules/, auto-memory) against official-docs checks; actions: audit (default), fix, update, report. Use when: 'audit CLAUDE.md', 'audit AGENTS.md', 'memory health', or pruning rules. Not for config/hooks: /harness-config:audit."
 argument-hint: "[audit|fix|update|report] [--repo <repo> ...]"
 user-invocable: true
 disable-model-invocation: false

@@ -3,6 +3,18 @@
 All notable changes to the `education` plugin are documented here. Format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); this plugin uses semantic versioning.
 
+## [3.1.6] - 2026-11-28
+
+### Changed
+
+- Trimmed frontmatter descriptions across 4 `education` skills (2,009 -> 1,169 chars, -840 / -41.8%): `explain` (570 -> 349), `illustrate` (611 -> 341), `quiz-me` (677 -> 344), and `teach` (151 -> 135, `disable-model-invocation: true`), while preserving altitude/preset/non-gating postures, `(if installed)` qualifiers, and sibling exclusions (`setup` untouched at 140 chars).
+
+## [3.1.5] - 2026-11-28
+
+### Changed
+
+- Shared `view-settings.mjs` and `view-registry.mjs` synced where this plugin carries them (ADR 0133 `branding` resolver, schema, validation, asset embedding and WCAG 2.1 contrast floor; #19213, #19214); no other change to this plugin.
+
 ## [3.1.4] - 2026-11-28
 
 ### Changed

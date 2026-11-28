@@ -70,6 +70,7 @@ DIRECTIVE = re.compile(
     | \bstylelint-(?:disable|enable)(?:-next-line|-line)?\b | [#@]\s*source(?:Mapping)?URL=
     | \bmarkdownlint-(?:disable|enable|capture|restore) | \bspellchecker:\s*(?:on|off|disable|ignore-next-line)
     | \bcspell:\s*\w | \btypos:\s*(?:on|off|ignore) | \bcodespell:\s*ignore | \bzizmor:\s*ignore
+    | \bactionlint[:-]ignore(?:-next-line)?(?=\s|$)
     | \bhadolint\s+ignore= | \byamllint\s+(?:disable|enable) | \bcheckov:skip= | \btfsec:ignore
     | \btrivy:ignore | \bdotnet_diagnostic | \bReSharper\s+(?:disable|restore)\b | \bnoinspection\b
     | \b@formatter:(?:off|on)\b | \blgtm\b | \bcoverage:\s*ignore

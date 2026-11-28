@@ -1,0 +1,34 @@
+{
+  "skill": "instruction-placement:audit",
+  "plugin": "instruction-placement",
+  "skill_dir": "plugins/instruction-placement/skills/audit",
+  "competitors": [
+    "instruction-placement:check",
+    "instruction-placement:delta",
+    "instruction-placement:establish-hub",
+    "instruction-placement:migrate",
+    "instruction-placement:realign"
+  ],
+  "queries": [
+    {"id": "pos-train-01", "split": "train", "expect_trigger": true, "request": "our root CLAUDE.md has grown huge, which conventions belong on narrower surfaces"},
+    {"id": "pos-train-02", "split": "train", "expect_trigger": true, "request": "scan docs/ for stranded engineering rules that Claude never loads"},
+    {"id": "pos-train-03", "split": "train", "expect_trigger": true, "request": "which always-loaded rules should be demoted to file-type scoped rules"},
+    {"id": "pos-train-04", "split": "train", "expect_trigger": true, "request": "find candidates for nested subtree instruction files without editing anything"},
+    {"id": "pos-train-05", "split": "train", "expect_trigger": true, "request": "run a read-only sweep of instruction placement across this repo"},
+    {"id": "pos-train-06", "split": "train", "expect_trigger": true, "request": "which conventions in our top-level instructions belong in .claude/rules"},
+    {"id": "pos-val-01", "split": "validation", "expect_trigger": true, "request": "propose destinations for misplaced repo instructions while keeping safety rails always loaded"},
+    {"id": "pos-val-02", "split": "validation", "expect_trigger": true, "request": "tell me which docs guidelines should be promoted so agents actually read them"},
+    {"id": "pos-val-03", "split": "validation", "expect_trigger": true, "request": "review where our project conventions live and suggest better placement"},
+    {"id": "pos-val-04", "split": "validation", "expect_trigger": true, "request": "do a full instruction surface sweep and produce a findings proposal"},
+    {"id": "neg-train-01", "split": "train", "expect_trigger": false, "request": "apply findings IP-002 and IP-005 from the last placement report"},
+    {"id": "neg-train-02", "split": "train", "expect_trigger": false, "request": "verify whether every .claude/rules glob matches real files and the index matches disk"},
+    {"id": "neg-train-03", "split": "train", "expect_trigger": false, "request": "replace our root CLAUDE.md with a one-line AGENTS.md import shim"},
+    {"id": "neg-train-04", "split": "train", "expect_trigger": false, "request": "show only what drifted since last week's placement run"},
+    {"id": "neg-train-05", "split": "train", "expect_trigger": false, "request": "set up a cross-repo hub repository where sessions start"},
+    {"id": "neg-train-06", "split": "train", "expect_trigger": false, "request": "debug why the checkout button returns HTTP 500"},
+    {"id": "neg-val-01", "split": "validation", "expect_trigger": false, "request": "execute the accepted placement moves one by one with confirmation"},
+    {"id": "neg-val-02", "split": "validation", "expect_trigger": false, "request": "run a pass/fail CI check on our path-scoped rules frontmatter"},
+    {"id": "neg-val-03", "split": "validation", "expect_trigger": false, "request": "can we safely remove the one-line CLAUDE.md shims now"},
+    {"id": "neg-val-04", "split": "validation", "expect_trigger": false, "request": "report new placement changes above the noise budget since Tuesday"}
+  ]
+}

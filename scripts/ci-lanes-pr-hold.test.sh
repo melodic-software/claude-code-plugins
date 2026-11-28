@@ -83,14 +83,14 @@ LANES_APP_ID="$(jq -r --arg login "$identity" '.. | objects | select(.login? == 
 . "$ROOT/scripts/lib/ci-lanes-pr-hold-stubs.sh" "$identity" "$budget" "$TMP_ROOT"
 QUEUE="refs/heads/gh-readonly-queue/main/pr-7-$SHA"
 
-export STUB_PULL STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE='' STUB_FILES='[["docs/guide.md"]]'
+export STUB_PULL STUB_ISSUE='' STUB_REVIEWS='' STUB_FILES='[["docs/guide.md"]]'
 export STUB_ACTORS="$ROOT/.github/scripts/lib/fixtures/standards/components/trusted-actors/trusted-actors.json"
 export STUB_SAMPLES="$ROOT/scripts/fixtures/verify-pass-out"
 export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 KYLE_VETO="$(comment kyle User MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')"
 
 STUB_PULL="$(pull 'Closes #1')"
-expect "a lanes App pull request with no hold passes" 0 3 "#7: no member veto and no hold path"
+expect "a lanes App pull request with no hold passes" 0 2 "#7: no member veto and no hold path."
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 expect "a person's pull request is left to pr-merge's gate, with no discussion read" 0 0 "not the lanes App's"
 STUB_PULL="$(pull 'Closes #1' '{"id":1,"login":"melodic-automation-lanes[bot]","type":"User"}')"
@@ -107,7 +107,7 @@ for user in '{"id":153232337,"login":"kyle-sexton","type":"User"}' '{"id":496993
   expect_pull_reads "a non-App payload author ($(jq -r .login <<<"$user")) reads no pull" 0
 done
 STUB_PULL="$(pull 'Closes #1')"
-expect "the lanes App's payload author goes on to the live read" 0 3 "#7: no member veto and no hold path"
+expect "the lanes App's payload author goes on to the live read" 0 2 "#7: no member veto and no hold path."
 expect_pull_reads "the lanes App's pull request is read once" 1
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 for payload in "STUB_AUTHOR_ID=" "STUB_AUTHOR_ID=x" "STUB_AUTHOR_TYPE="; do
@@ -117,7 +117,7 @@ for payload in "STUB_AUTHOR_ID=" "STUB_AUTHOR_ID=x" "STUB_AUTHOR_TYPE="; do
   unset STUB_AUTHOR_ID STUB_AUTHOR_TYPE
 done
 STUB_PULL="$(pull 'Closes #1')"
-STUB_FILES='[["docs/held/a.md"]]' STUB_AUTHOR_ID='' expect "an empty payload id for the lanes App's pull request still holds it" 1 3 "it changes docs/held/a.md, a hold path"
+STUB_FILES='[["docs/held/a.md"]]' STUB_AUTHOR_ID='' expect "an empty payload id for the lanes App's pull request still holds it" 1 2 "it changes docs/held/a.md, a hold path"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 STUB_AUTHOR_ID='' STUB_PULL='{}' expect "an unreadable author with no payload author fails closed" 1 0 "the author of #7 could not be read"
 NOT_JUDGED="#7: not held: pr-verify does not judge its author, so no verdict is read."
@@ -219,7 +219,8 @@ else
 fi
 sparse="$(awk '/sparse-checkout: \|/ { on = 1; next } on && /^            \// { print substr($0, 13); next } on { exit }' <<<"$base_step")"
 want_sparse=(/.node-version '/plugins/source-control/skills/babysit-prs/scripts/*.py' /.github/verify-legacy-fails.json /.github/source-control-settings.json /plugins/source-control/.claude-plugin/plugin.json /plugins/source-control/lib/parse-concern-value.sh /plugins/source-control/lib/yaml-subset.awk
-  /.github/actions/resolve-config/admission-rules.json /docs/conventions/pr-pipeline.yaml)
+  /.github/actions/resolve-config/admission-rules.json /docs/conventions/pr-pipeline.yaml /docs/conventions/source-control.yaml
+  /.github/recurring-schedule.json)
 queue=(.github/scripts/pr-merge/head-ref-map.mjs .github/scripts/pr-merge/carry-run-cache.mjs)
 while ((${#queue[@]})); do
   file=${queue[0]}
@@ -354,54 +355,37 @@ else
 fi
 
 STUB_PULL="$(pull $'Closes #1\n\nHold: wait for the canary')"
-expect "a Hold: line in the body does not hold: do-not-merge is the veto" 0 3 "no member veto and no hold path"
+expect "a Hold: line in the body does not hold: do-not-merge is the hold" 0 2 "no hold path."
 STUB_PULL="$(pull $'Closes #1\r\n  hold: owner call')"
-expect "an indented, lower-case hold line after a CRLF does not hold" 0 3 "no member veto and no hold path"
+expect "an indented, lower-case hold line after a CRLF does not hold" 0 2 "no hold path."
 STUB_PULL="$(pull $'Closes #1\n\nDo not merge before Friday.')"
-expect "'do not merge' in the body does not hold" 0 3 "no member veto and no hold path"
+expect "'do not merge' in the body does not hold" 0 2 "no hold path."
 STUB_PULL="$(pull $'Closes #1\n\nThe threshold: unchanged')"
-expect "a line that only contains 'hold:' later does not hold" 0 3
+expect "a line that only contains 'hold:' later does not hold" 0 2
 
 STUB_PULL="$(pull 'Closes #1')"
 STUB_ISSUE="[$KYLE_VETO]"
-expect "a member's veto comment fails, naming the member" 1 3 "::error::#7: kyle asked not to merge it"
-STUB_ISSUE="[$(comment drive-by User NONE 2026-10-23T10:00:00Z 'do not merge')]"
-expect "a NONE-association veto does not hold" 0 3
-STUB_ISSUE="[$(comment outsider User CONTRIBUTOR 2026-10-23T10:00:00Z "don't merge")]"
-expect "a CONTRIBUTOR veto does not hold" 0 3
-STUB_ISSUE="[$(comment helper Bot MEMBER 2026-10-23T10:00:00Z 'do-not-merge')]"
-expect "a bot's veto does not hold" 0 3
-STUB_ISSUE="[$(comment owner User OWNER 2026-10-23T10:00:00Z "Don’t merge")]"
-expect "an OWNER's curly-apostrophe veto holds" 1 3 "owner asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO,$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'Go ahead now.')]"
-expect "a later comment by the same member lifts the veto" 0 3
-STUB_ISSUE="[$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'Go ahead now.'),$KYLE_VETO]"
-expect "the newest comment decides, not the listing order" 0 3
-STUB_ISSUE="[$KYLE_VETO,$(comment other User COLLABORATOR 2026-10-23T11:00:00Z 'LGTM')]"
-expect "another member's later comment does not lift it" 1 3 "kyle asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T11:00:00Z '')]"
-expect "a later review with no text does not lift it" 1 3 "kyle asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T11:00:00Z 'Fine, ship it.')]"
-expect "a later review with text lifts it" 0 3
+expect "a member's comment saying not to merge holds nothing: the do-not-merge label is the one hold" 0 2 "#7: no member veto and no hold path."
 STUB_ISSUE='[]' STUB_REVIEWS="[$(review kyle COLLABORATOR 2026-10-23T11:00:00Z 'do not merge')]"
-expect "a review summary veto holds" 1 3 "kyle asked not to merge it"
-STUB_REVIEWS='[]' STUB_INLINE="[$KYLE_VETO]"
-expect "an inline review comment veto holds" 1 3 "kyle asked not to merge it"
-STUB_INLINE='[]' STUB_ISSUE="[$KYLE_VETO,$(comment ana User OWNER 2026-10-23T09:00:00Z 'do not merge')]"
-expect "every vetoing member is named, sorted" 1 3 "ana, kyle asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO]" STUB_PULL="$(pull $'Hold: x')"
-expect "beside a body hold, which holds nothing, the veto holds" 1 3 "kyle asked not to merge it"
-STUB_ISSUE='' STUB_REVIEWS='' STUB_INLINE=''
+expect "a review summary saying not to merge holds nothing" 0 2 "#7: no member veto and no hold path."
+STUB_REVIEWS='[]'
+expect "the lanes App's pull request reads two discussion lists, its issue comments and reviews" 0 2 "#7: no member veto and no hold path."
+if grep -q 'issues/7/comments?' "$TMP_ROOT/log" && grep -q 'pulls/7/reviews?' "$TMP_ROOT/log" && ! grep -q 'pulls/7/comments?' "$TMP_ROOT/log"; then
+  ok "the lanes App's pull request reads no inline review comments: nothing in them holds or lifts"
+else
+  fail "the lanes App's pull request read inline review comments, or skipped its issue comments or reviews: '$(sort -u "$TMP_ROOT/log")'"
+fi
+STUB_ISSUE='' STUB_REVIEWS=''
 
 STUB_PULL="$(pull 'Closes #1')"
 STUB_FILES='[["docs/held/a.md"]]'
-expect "a file under the config's denied paths fails" 1 3 "::error::#7: it changes docs/held/a.md, a hold path; an approving review of this head by a person on the trusted-actor list lifts it"
+expect "a file under the config's denied paths fails" 1 2 "::error::#7: it changes docs/held/a.md, a hold path; an approving review of this head by a person on the trusted-actor list lifts it"
 STUB_FILES='[["docs/guide.md"],["docs/moved.md","docs/held/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
-expect "a rename away from a denied path fails on its old path" 1 3 "it changes docs/held/x.md, a hold path"
+expect "a rename away from a denied path fails on its old path" 1 2 "it changes docs/held/x.md, a hold path"
 STUB_FILES='[["docs/held/x\n::stop-commands::t"]]' STUB_PULL="$(pull 'Closes #1')"
-expect "a newline in a held file name cannot start a workflow command" 1 3 "it changes docs/held/x%0A::stop-commands::t, a hold path"
+expect "a newline in a held file name cannot start a workflow command" 1 2 "it changes docs/held/x%0A::stop-commands::t, a hold path"
 STUB_FILES='[["docs/guide.md"],["docs/held/.x.mjs"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
-expect "a dot-prefixed file under a denied tree fails" 1 3 "it changes docs/held/.x.mjs, a hold path"
+expect "a dot-prefixed file under a denied tree fails" 1 2 "it changes docs/held/.x.mjs, a hold path"
 file_reads() { grep -cE 'repos/o/r/pulls/7/files\?' "$TMP_ROOT/log"; }
 expect_file_reads() {
   if [[ "$(file_reads)" -eq "$2" ]]; then ok "$1"; else fail "$1: expected $2 files read(s): '$(sort -u "$TMP_ROOT/log")'"; fi
@@ -410,24 +394,24 @@ page() { jq -c '[.[] | {filename: .[0], previous_filename: .[1], status: (.[2] /
 STUB_FILES='[["docs/guide.md"]]'
 STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 STUB_PR_FILES="$(page '[["docs/guide.md"]]')$(page '[["docs/moved.md","docs/held/x.md"]]')" \
-  expect "the broker step's pages hold a renamed-from denied path across pages" 1 3 "it changes docs/held/x.md, a hold path"
+  expect "the broker step's pages hold a renamed-from denied path across pages" 1 2 "it changes docs/held/x.md, a hold path"
 expect_file_reads "the broker step's pages leave no files read" 0
 STUB_PR_FILES="$(page '[["docs/guide.md"]]')" \
   expect "broker pages listing fewer files than changed_files fail closed" 1 0 "GitHub listed fewer files than #7 changes"
 expect_file_reads "the short broker pages are not read again" 0
 STUB_PULL="$(pull 'Closes #1')"
-STUB_PR_FILES="$(page '[["docs/guide.md"]]')" expect "clean broker pages pass" 0 3 "#7: no member veto and no hold path"
+STUB_PR_FILES="$(page '[["docs/guide.md"]]')" expect "clean broker pages pass" 0 2 "#7: no member veto and no hold path."
 expect_file_reads "clean broker pages leave no files read" 0
 STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES='not json' \
-  expect "unparsable broker pages fall back to the live read" 1 3 "it changes docs/held/a.md, a hold path"
+  expect "unparsable broker pages fall back to the live read" 1 2 "it changes docs/held/a.md, a hold path"
 expect_file_reads "unparsable broker pages are read again live" 1
 for head in fedcba9876543210fedcba9876543210fedcba98 ''; do
   STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES="$(page '[["docs/guide.md"]]')" STUB_HEAD="$head" \
-    expect "broker pages for another head (payload head '${head:-none}') leave the live read" 1 3 "it changes docs/held/a.md, a hold path"
+    expect "broker pages for another head (payload head '${head:-none}') leave the live read" 1 2 "it changes docs/held/a.md, a hold path"
   expect_file_reads "broker pages for another head (payload head '${head:-none}') are read again live" 1
 done
 STUB_FILES='[["docs/held/a.md"]]' STUB_PR_FILES="$(page '[["docs/guide.md"]]')" EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA=$BASE \
-  expect "in the merge queue the files are read live, whatever the file holds" 1 3 "it changes docs/held/a.md, a hold path"
+  expect "in the merge queue the files are read live, whatever the file holds" 1 2 "it changes docs/held/a.md, a hold path"
 expect_file_reads "in the merge queue the files are read" 1
 STUB_FILES='[["docs/guide.md"]]'
 for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-config/resolve.mjs \
@@ -443,7 +427,7 @@ for path in CODEOWNERS docs/CODEOWNERS .gitmodules .github/actions/resolve-confi
   .github/workflows/pr-merge.yml .github/workflows/pr-review-main.yml \
   .github/scripts/pr-review-main/write-verdict.mjs; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
-  expect "the floor holds $path" 1 3 "it changes $path, a hold path"
+  expect "the floor holds $path" 1 2 "it changes $path, a hold path"
 done
 for path in .github/scripts/pr-unblock/address-feedback.mjs .github/scripts/pr-unblock/gate-source.mjs \
   .github/scripts/pr-unblock/thread-scope.mjs .github/scripts/lib/retry-fetch.mjs \
@@ -459,24 +443,24 @@ for path in .github/scripts/pr-unblock/address-feedback.mjs .github/scripts/pr-u
   .github/scripts/pr-unblock/fix-ci-context.mjs \
   .github/scripts/maintenance-reconcile-lost-runs/infra-failure.mjs; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
-  expect "the gate, not ci-status, holds $path" 0 3 "no hold path"
+  expect "the gate, not ci-status, holds $path" 0 2 "no hold path"
 done
 for path in .github/workflows/pr-require-checks.yml .github/workflows/intake-reenter.yml; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
-  expect "ci-status holds $path for a person" 1 3 "it changes $path, a hold path"
+  expect "ci-status holds $path for a person" 1 2 "it changes $path, a hold path"
 done
 STUB_FILES='[["docs/guide.md"],["docs/moved.md",".github/actions/resolve-config/x.md"]]' STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
-expect "a rename away from a floor path fails on its old path" 1 3 "it changes .github/actions/resolve-config/x.md, a hold path"
+expect "a rename away from a floor path fails on its old path" 1 2 "it changes .github/actions/resolve-config/x.md, a hold path"
 for path in .github/standards/trusted-actors/README.md docs/conventions/pr-pipeline/README.md \
   plugins/p/.claude-plugin/plugin.json .github/workflows/x.yml .github/scripts/pr-unblock/other.mjs .github/actions/other/action.yml \
   .github/actions/log-api-budget/action.yml docs/CODEOWNERS.md; do
   STUB_FILES="[[\"$path\"]]" STUB_PULL="$(pull 'Closes #1')"
-  expect "$path is no hold path" 0 3 "no hold path"
+  expect "$path is no hold path" 0 2 "no hold path"
 done
 STUB_FILES='[[".claude-plugin/marketplace.json",null,"removed"]]' STUB_PULL="$(pull 'Closes #1')"
-expect "a removed manifest is no hold" 0 3 "no hold path"
+expect "a removed manifest is no hold" 0 2 "no hold path"
 STUB_FILES='[[".github/standards/trusted-actors/trusted-actors.json",null,"modified"]]' STUB_PULL="$(pull 'Closes #1')"
-expect "a change at the retired synced trusted-actor list path passes" 0 3 "no hold path"
+expect "a change at the retired synced trusted-actor list path passes" 0 2 "no hold path"
 if grep -qF "[.filename, .previous_filename, .status]" <<<"$step"; then
   ok "the step hands merge-holds.mjs each file's status"
 else
@@ -485,17 +469,17 @@ fi
 STUB_FILES='[["docs/held/x.md"]]'
 KYLE_OK="$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")"
 STUB_REVIEWS="[$KYLE_OK]"
-expect "a trusted person's approval of the head lifts a hold path" 0 3 "kyle-sexton approved this head, which lifts its hold path"
+expect "a trusted person's approval of the head lifts a hold path" 0 2 "kyle-sexton approved this head, which lifts its hold path"
 STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$BASE")]"
-expect "an approval of an earlier head does not lift it" 1 3 "it changes docs/held/x.md, a hold path"
+expect "an approval of an earlier head does not lift it" 1 2 "it changes docs/held/x.md, a hold path"
 STUB_REVIEWS="[$KYLE_OK,$(approval kyle-sexton 153232337 CHANGES_REQUESTED 2026-10-23T12:00:00Z "$SHA")]"
-expect "a later request for changes by the same person takes the lift back" 1 3 "a hold path"
+expect "a later request for changes by the same person takes the lift back" 1 2 "a hold path"
 STUB_REVIEWS="[$KYLE_OK,$(approval kyle-sexton 153232337 COMMENTED 2026-10-23T12:00:00Z "$SHA")]"
-expect "a later comment-only review keeps the lift" 0 3 "lifts its hold path"
+expect "a later comment-only review keeps the lift" 0 2 "lifts its hold path"
 STUB_REVIEWS="[$(approval someone 99 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
-expect "an approval by a person off the trusted-actor list does not lift it" 1 3 "a hold path"
+expect "an approval by a person off the trusted-actor list does not lift it" 1 2 "a hold path"
 STUB_REVIEWS="[$KYLE_OK]" STUB_PULL="$(pull $'Hold: x')"
-expect "an approval lifts the hold path, and the body's hold text holds nothing" 0 3 "lifts its hold path"
+expect "an approval lifts the hold path, and the body's hold text holds nothing" 0 2 "lifts its hold path"
 STUB_PULL="$(pull 'Closes #1')"
 NO_IDENTITY="::error::cannot read merge.agent-identity from the hold config (the default branch's tip at run time, or the base commit for another base); re-run this run."
 NO_IDENTITY_ID="::error::cannot read $identity's trusted-actor id from the standards checkout's trusted-actor list; re-run this run."
@@ -505,17 +489,17 @@ unset STUB_NO_ACTORS
 STUB_STANDARDS='' expect "with no standards checkout the hold config's copy is never read, and it fails closed" 1 0 "$NO_IDENTITY_ID"
 STUB_REVIEWS=''
 STUB_FILES='[["docs/guide.md"]]' STUB_CONFIG='merge: {}'
-expect "a config with no denied paths holds no path" 0 3 "no hold path"
+expect "a config with no denied paths holds no path" 0 2 "no hold path"
 STUB_FILES='[[".github/scripts/pr-merge/clear-escalations.mjs"]]'
 for config in $'merge:\n  diff-check:\n    denied-paths: [docs/held/**]' $'merge:\n  diff-check:\n    path-holds: false'; do
   STUB_CONFIG=$config
-  expect "path holds off ($(tr '\n' ' ' <<<"$config")) holds no floor path" 0 3 "path holds are off (merge.diff-check.path-holds), so nothing holds it for this: it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path."
+  expect "path holds off ($(tr '\n' ' ' <<<"$config")) holds no floor path" 0 2 "path holds are off (merge.diff-check.path-holds), so nothing holds it for this: it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path."
 done
 STUB_CONFIG=$'merge:\n  diff-check:\n    path-holds: true'
-expect "path holds on holds a floor path" 1 3 "it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path"
+expect "path holds on holds a floor path" 1 2 "it changes .github/scripts/pr-merge/clear-escalations.mjs, a hold path"
 STUB_FILES='[["docs/guide.md"]]'
 STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: docs/held/**\n    path-holds: true'
-expect "denied paths that are not a list fail closed" 1 3 "the hold paths could not be read"
+expect "denied paths that are not a list fail closed" 1 2 "the hold paths could not be read"
 STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 STUB_PULL="$(STUB_CHANGED=2 pull 'Closes #1')"
 expect "a file list shorter than changed_files fails closed before the discussion" 1 0 "::error::GitHub listed fewer files than #7 changes"
@@ -543,7 +527,7 @@ STUB_RUNS="$(jq -c '. + {"17": .["11"]}' <<<"$STUB_RUNS")"
 export STUB_RUNS
 
 STUB_PULL="$(pull 'Closes #1')"
-expect "a pull request event reads no verdict" 0 3 "no hold path"
+expect "a pull request event reads no verdict" 0 2 "no hold path"
 if [[ "$(lookups)" -eq 0 && "$(readers)" -eq 0 && "$(maps)" -eq 0 ]] && ! grep -q 'actions/runs/' "$TMP_ROOT/log"; then
   ok "a pull request event makes no verdict read, so pr-verify can follow a green ci-status"
 else
@@ -552,13 +536,13 @@ fi
 
 disarms() { grep -c '^api graphql .*disablePullRequestAutoMerge' "$TMP_ROOT/log"; }
 STUB_PULL="$(STUB_ARMED=1 pull 'Closes #1')"
-expect "a push to an armed lanes App pull request passes" 0 3 "no hold path"
+expect "a push to an armed lanes App pull request passes" 0 2 "no hold path"
 if [[ "$(disarms)" -eq 0 ]]; then ok "a push sends no disarm"; else fail "a push sent a disarm"; fi
 STUB_PULL="$(pull 'Closes #1')"
 
 export EVENT=merge_group REF="$QUEUE" PR_NUMBER='' GROUP_BASE_SHA="$SHA"
 export STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
-expect "in the merge queue, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+expect "in the merge queue, a pass at the head passes" 0 2 "#7: no verifier hold: pr-verify passed this head."
 zips() { grep -c '/zip$' "$TMP_ROOT/log"; }
 closings() { grep -c 'closingIssuesReferences' "$TMP_ROOT/log"; }
 if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 0 && "$(zips)" -eq 0 && "$(closings)" -eq 0 ]]; then
@@ -579,7 +563,7 @@ fi
 for case in "300 $((budget - 300))" "$budget 0" "$((budget + 60)) 0" " 0" "x 0"; do
   read -r waited want <<<"$case"
   [[ -n "$want" ]] || { want=$waited; waited=; }
-  STUB_WAITED="$waited" expect "in the merge queue, after a ${waited:-unread} s wait, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+  STUB_WAITED="$waited" expect "in the merge queue, after a ${waited:-unread} s wait, a pass at the head passes" 0 2 "#7: no verifier hold: pr-verify passed this head."
   if grep -qxF "reader-env floor-wait=$want" "$TMP_ROOT/log"; then
     ok "after a ${waited:-unread} s wait the verdict reader may wait $want s"
   else
@@ -594,117 +578,117 @@ else
 fi
 evidence() { jq -nc --arg refusal "$1" --arg head "${2:-$SHA}" '{refusal: $refusal, head: $head, detail: "why"}'; }
 for refusal in verify:fail verify:earlier-fail verify:repeated-fail verify:unreadable verify:too-old; do
-  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds a passed head" 1 3 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why)"
+  STUB_EVIDENCE="$(evidence "$refusal")" expect "in the merge queue, the reader's $refusal holds a passed head" 1 2 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why)"
 done
-STUB_EVIDENCE="$(evidence verify:spec-changed)" expect "in the merge queue, a stale pass holds until pr-verify judges the head again" 1 3 "#7: pr-verify's pass on this head is stale (verify:spec-changed)"
-STUB_EVIDENCE="$(evidence verify:untrusted-spec)" expect "in the merge queue, another pass refusal holds with no pass to judge" 1 3 "#7: pr-verify's reader refuses this head's pass (verify:untrusted-spec)"
+STUB_EVIDENCE="$(evidence verify:spec-changed)" expect "in the merge queue, a stale pass holds until pr-verify judges the head again" 1 2 "#7: pr-verify's pass on this head is stale (verify:spec-changed)"
+STUB_EVIDENCE="$(evidence verify:untrusted-spec)" expect "in the merge queue, another pass refusal holds with no pass to judge" 1 2 "#7: pr-verify's reader refuses this head's pass (verify:untrusted-spec)"
 STUB_EVIDENCE="$(evidence verify:untrusted-spec)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
-  expect "in the merge queue, a trusted approval of the head lifts another pass refusal" 0 3 "no verifier hold: kyle-sexton approved this head"
+  expect "in the merge queue, a trusted approval of the head lifts another pass refusal" 0 2 "no verifier hold: kyle-sexton approved this head"
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
-  expect "in the merge queue, a trusted approval of the head lifts the reader's FAIL hold" 0 3 "no pr-verify FAIL hold: kyle-sexton approved this head"
+  expect "in the merge queue, a trusted approval of the head lifts the reader's FAIL hold" 0 2 "no pr-verify FAIL hold: kyle-sexton approved this head"
 STUB_EVIDENCE="$(evidence verify:fail)" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]" \
-  expect "in the merge queue, an approval of an earlier head lifts no FAIL hold" 1 3 "pr-verify's reader refuses this head (verify:fail: why)"
-STUB_EVIDENCE="$(jq -nc --arg head "$OLD" '{refusal: null, head: $head}')" expect "in the merge queue, a report for another head holds" 1 3 "its pr-verify FAILs could not be read"
-STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report holds" 1 3 "its pr-verify FAILs could not be read"
-STUB_READER_RC=1 expect "in the merge queue, a reader that fails fails closed" 1 3 "::error::babysit_verify_evidence.py could not judge #7 at $SHA"
+  expect "in the merge queue, an approval of an earlier head lifts no FAIL hold" 1 2 "pr-verify's reader refuses this head (verify:fail: why)"
+STUB_EVIDENCE="$(jq -nc --arg head "$OLD" '{refusal: null, head: $head}')" expect "in the merge queue, a report for another head holds" 1 2 "its pr-verify FAILs could not be read"
+STUB_EVIDENCE=' ' expect "in the merge queue, a reader that prints no report holds" 1 2 "its pr-verify FAILs could not be read"
+STUB_READER_RC=1 expect "in the merge queue, a reader that fails fails closed" 1 2 "::error::babysit_verify_evidence.py could not judge #7 at $SHA"
 for refusal in verify:unreadable verify:too-old; do
   STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence "$refusal")" \
-    expect "in the merge queue, the reader's $refusal before any listing holds" 1 3 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why)"
+    expect "in the merge queue, the reader's $refusal before any listing holds" 1 2 "::error title=pr-verify hold::#7: pr-verify's reader refuses this head ($refusal: why)"
   STUB_NO_LISTING=1 STUB_EVIDENCE="$(evidence "$refusal")" STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]" \
-    expect "in the merge queue, a trusted approval of the head lifts the reader's $refusal before any listing" 0 3 "no pr-verify FAIL hold: kyle-sexton approved this head"
+    expect "in the merge queue, a trusted approval of the head lifts the reader's $refusal before any listing" 0 2 "no pr-verify FAIL hold: kyle-sexton approved this head"
 done
 NO_PASS_FILE="::error::the verdict reader left no readable pass file for #7 at $SHA; re-run this run."
 for sent in none '"not json"' ".head = \"$OLD\"" '.verdicts = {}' 'del(.record)'; do
-  STUB_PASS_OUT="$sent" expect "in the merge queue, a pass file that does not read fails closed ($sent)" 1 3 "$NO_PASS_FILE"
+  STUB_PASS_OUT="$sent" expect "in the merge queue, a pass file that does not read fails closed ($sent)" 1 2 "$NO_PASS_FILE"
 done
 : >"$TMP_ROOT/verify-legacy-fails.json"
-STUB_COLD=1 STUB_RATE='' expect "a legacy FAILs file beside the reader, with none at BABYSIT_VERIFY_LEGACY_FAILS, is not FAIL index mode" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
+STUB_COLD=1 STUB_RATE='' expect "a legacy FAILs file beside the reader, with none at BABYSIT_VERIFY_LEGACY_FAILS, is not FAIL index mode" 1 2 "GITHUB_TOKEN's remaining requests could not be read"
 rm -f "$TMP_ROOT/verify-legacy-fails.json"
 mkdir -p "$TMP_ROOT/base/.github"
 : >"$TMP_ROOT/base/.github/verify-legacy-fails.json"
-STUB_NO_LISTING=1 expect "in the merge queue in FAIL index mode, a pass at the head passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+STUB_NO_LISTING=1 expect "in the merge queue in FAIL index mode, a pass at the head passes" 0 2 "#7: no verifier hold: pr-verify passed this head."
 if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 0 && "$(zips)" -eq 0 && "$(closings)" -eq 0 ]]; then
   ok "in FAIL index mode the step reads no pass, run, record or closing issues of its own"
 else
   fail "in FAIL index mode the step took $(lookups) lookups, $(runs) run reads, $(zips) record downloads and $(closings) closing-issues reads"
 fi
-STUB_COLD=1 STUB_RATE='' STUB_NO_LISTING=1 expect "in FAIL index mode no cold gate runs" 0 3 "#7: no verifier hold: pr-verify passed this head."
-STUB_NO_LISTING=1 STUB_ARTIFACTS='{}' expect "in the merge queue in FAIL index mode, no pass at the head holds" 1 3 "pr-verify has not passed this head"
+STUB_COLD=1 STUB_RATE='' STUB_NO_LISTING=1 expect "in FAIL index mode no cold gate runs" 0 2 "#7: no verifier hold: pr-verify passed this head."
+STUB_NO_LISTING=1 STUB_ARTIFACTS='{}' expect "in the merge queue in FAIL index mode, no pass at the head holds" 1 2 "pr-verify has not passed this head"
 rm -f "$TMP_ROOT/base/.github/verify-legacy-fails.json"
 rate() { jq -nc --argjson remaining "$1" '{resources: {core: {limit: 5000, remaining: $remaining, reset: 1793030000}}}'; }
-STUB_COLD=1 STUB_RATE="$(rate 2239)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_COLD=1 STUB_RATE="$(rate 2239)" expect "in the merge queue, a cold reader with the headroom for it reads" 0 2 "#7: no pr-verify FAIL hold: the reader allows this head."
 if [[ "$(readers)" -eq 1 ]]; then ok "a cold reader with headroom is started"; else fail "a cold reader with headroom ran $(readers) times"; fi
-STUB_COLD=1 STUB_RATE="$(rate 2238)" expect "in the merge queue, a cold reader without the headroom holds without reading" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN has 2238 requests left, under the 2239 a cold read needs"
+STUB_COLD=1 STUB_RATE="$(rate 2238)" expect "in the merge queue, a cold reader without the headroom holds without reading" 1 2 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN has 2238 requests left, under the 2239 a cold read needs"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader without headroom is never started"; else fail "a cold reader without headroom ran: '$(grep '^reader ' "$TMP_ROOT/log")'"; fi
-STUB_COLD=1 STUB_RATE='' expect "in the merge queue, a cold reader whose rate limit does not read holds" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
+STUB_COLD=1 STUB_RATE='' expect "in the merge queue, a cold reader whose rate limit does not read holds" 1 2 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread rate limit is never started"; else fail "a cold reader with an unread rate limit ran"; fi
-STUB_COLD=1 STUB_RATE='{"resources":{"core":{"limit":5000}}}' expect "in the merge queue, a rate limit with no remaining count holds a cold reader" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
-STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2637)" expect "in the merge queue, a cold read's cost grows with the live listing" 0 3 "cold reads for 1 queue entries need 2637"
-STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2636)" expect "in the merge queue, a larger live listing holds a cold reader the old cost would start" 1 3 "GITHUB_TOKEN has 2636 requests left, under the 2637 a cold read needs (2137 for each of the 1 entries"
-STUB_COLD=1 STUB_TOTAL=150 STUB_LISTED_FAILS=10 STUB_RATE="$(rate 737)" expect "in the merge queue, a small live listing needs only its own cost" 0 3 "cold reads for 1 queue entries need 737"
-STUB_COLD=1 STUB_TOTAL='' STUB_RATE="$(rate 9999)" expect "in the merge queue, a live listing that does not read holds a cold reader" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and the artifact listing could not be read"
+STUB_COLD=1 STUB_RATE='{"resources":{"core":{"limit":5000}}}' expect "in the merge queue, a rate limit with no remaining count holds a cold reader" 1 2 "GITHUB_TOKEN's remaining requests could not be read"
+STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2637)" expect "in the merge queue, a cold read's cost grows with the live listing" 0 2 "cold reads for 1 queue entries need 2637"
+STUB_COLD=1 STUB_TOTAL=10450 STUB_LISTED_FAILS=300 STUB_RATE="$(rate 2636)" expect "in the merge queue, a larger live listing holds a cold reader the old cost would start" 1 2 "GITHUB_TOKEN has 2636 requests left, under the 2637 a cold read needs (2137 for each of the 1 entries"
+STUB_COLD=1 STUB_TOTAL=150 STUB_LISTED_FAILS=10 STUB_RATE="$(rate 737)" expect "in the merge queue, a small live listing needs only its own cost" 0 2 "cold reads for 1 queue entries need 737"
+STUB_COLD=1 STUB_TOTAL='' STUB_RATE="$(rate 9999)" expect "in the merge queue, a live listing that does not read holds a cold reader" 1 2 "::error::#7 is held: no carried run cache from pr-merge's last run, and the artifact listing could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread listing is never started"; else fail "a cold reader with an unread listing ran"; fi
-STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 9195)" expect "in the merge queue, a cold reader reads with headroom for every entry the queue builds" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
-STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 9194)" expect "in the merge queue, a cold reader holds under the headroom of every entry the queue builds" 1 3 "GITHUB_TOKEN has 9194 requests left, under the 9195 a cold read needs"
-STUB_COLD=1 STUB_RULES=2 STUB_RATE="$(rate 3977)" expect "in the merge queue, the cold headroom scales with max_entries_to_build" 1 3 "under the 3978 a cold read needs"
-STUB_COLD=1 STUB_RULES='' STUB_RATE="$(rate 9195)" expect "in the merge queue, a merge queue rule that does not read holds a cold reader" 1 3 "the merge queue's max_entries_to_build could not be read"
+STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 9195)" expect "in the merge queue, a cold reader reads with headroom for every entry the queue builds" 0 2 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_COLD=1 STUB_RULES=5 STUB_RATE="$(rate 9194)" expect "in the merge queue, a cold reader holds under the headroom of every entry the queue builds" 1 2 "GITHUB_TOKEN has 9194 requests left, under the 9195 a cold read needs"
+STUB_COLD=1 STUB_RULES=2 STUB_RATE="$(rate 3977)" expect "in the merge queue, the cold headroom scales with max_entries_to_build" 1 2 "under the 3978 a cold read needs"
+STUB_COLD=1 STUB_RULES='' STUB_RATE="$(rate 9195)" expect "in the merge queue, a merge queue rule that does not read holds a cold reader" 1 2 "the merge queue's max_entries_to_build could not be read"
 if [[ "$(readers)" -eq 0 ]]; then ok "a cold reader with an unread queue rule is never started"; else fail "a cold reader with an unread queue rule ran"; fi
-STUB_CARRIED='{"carried-run-record":{},"carried-fail-head-ref":{},"carried-on-branch":{}}' expect "in the merge queue, a carried cache with every section empty is cold" 1 3 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
-STUB_CARRIED='not json' expect "in the merge queue, a carried cache that does not parse is cold" 1 3 "GITHUB_TOKEN's remaining requests could not be read"
-STUB_MAP_FAILS=1 expect "in the merge queue, a head-ref map that does not read leaves the reader to read GitHub" 0 3 "#7: no pr-verify FAIL hold: the reader allows this head."
+STUB_CARRIED='{"carried-run-record":{},"carried-fail-head-ref":{},"carried-on-branch":{}}' expect "in the merge queue, a carried cache with every section empty is cold" 1 2 "::error::#7 is held: no carried run cache from pr-merge's last run, and GITHUB_TOKEN's remaining requests could not be read"
+STUB_CARRIED='not json' expect "in the merge queue, a carried cache that does not parse is cold" 1 2 "GITHUB_TOKEN's remaining requests could not be read"
+STUB_MAP_FAILS=1 expect "in the merge queue, a head-ref map that does not read leaves the reader to read GitHub" 0 2 "#7: no pr-verify FAIL hold: the reader allows this head."
 export STUB_EVIDENCE='' STUB_READER_RC='' STUB_NO_LISTING='' STUB_MAP_FAILS='' STUB_COLD='' STUB_RATE=''
 unset STUB_RULES STUB_CARRIED STUB_TOTAL STUB_LISTED_FAILS
 NO_CLOSING='[]'
 export STUB_CLOSING STUB_RECORD STUB_NO_RECORD
 STUB_PULL="$(pull 'Refs: #1')" STUB_CLOSING="$NO_CLOSING" STUB_RECORD='.spec_kind = "refs"'
-expect "in the merge queue, a Refs pull request whose pass judged that issue passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+expect "in the merge queue, a Refs pull request whose pass judged that issue passes" 0 2 "#7: no verifier hold: pr-verify passed this head."
 STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='[2]'
-expect "in the merge queue, a Refs: #1 pass does not merge a body edited to Closes #2" 1 3 "its link changed since pr-verify passed it: it closes #2, and the pass judged #1 (refs)"
+expect "in the merge queue, a Refs: #1 pass does not merge a body edited to Closes #2" 1 2 "its link changed since pr-verify passed it: it closes #2, and the pass judged #1 (refs)"
 STUB_PULL="$(pull 'Closes #1')" STUB_CLOSING='' STUB_RECORD='.spec_kind = "refs"'
-expect "in the merge queue, a pass judged as a Refs slice does not cover the issue closed" 1 3 "its link changed since pr-verify passed it"
+expect "in the merge queue, a pass judged as a Refs slice does not cover the issue closed" 1 2 "its link changed since pr-verify passed it"
 STUB_PULL="$(pull $'Refs: #1\nRefs: #3')" STUB_CLOSING="$NO_CLOSING"
-expect "in the merge queue, a body naming two Refs issues passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+expect "in the merge queue, a body naming two Refs issues passes" 0 2 "#7: no verifier hold: pr-verify passed this head."
 STUB_PULL="$(pull '## Summary')"
-expect "in the merge queue, a body that drops its link holds" 1 3 "its link changed since pr-verify passed it: it refs no issue, and the pass judged #1 (refs)"
+expect "in the merge queue, a body that drops its link holds" 1 2 "its link changed since pr-verify passed it: it refs no issue, and the pass judged #1 (refs)"
 STUB_PULL="$(pull 'Closes #1')" STUB_RECORD='' STUB_CLOSING='[1,3]'
-expect "in the merge queue, a body closing the judged issue and another passes" 0 3 "#7: no verifier hold: pr-verify passed this head."
+expect "in the merge queue, a body closing the judged issue and another passes" 0 2 "#7: no verifier hold: pr-verify passed this head."
 STUB_PULL="$(pull 'Closes #2')" STUB_CLOSING='[2,3]'
-expect "in the merge queue, a body closing two issues but not the judged one holds" 1 3 "it closes #2, #3, and the pass judged #1"
+expect "in the merge queue, a body closing two issues but not the judged one holds" 1 2 "it closes #2, #3, and the pass judged #1"
 STUB_CLOSING='' STUB_RECORD='del(.linked_issues)'
-expect "in the merge queue, a record with no linked issues holds" 1 3 "its verifier pass's record could not be read"
+expect "in the merge queue, a record with no linked issues holds" 1 2 "its verifier pass's record could not be read"
 STUB_RECORD='' STUB_NO_RECORD=1
-expect "in the merge queue, a record the reader could not read holds" 1 3 "its verifier pass's record could not be read"
+expect "in the merge queue, a record the reader could not read holds" 1 2 "its verifier pass's record could not be read"
 STUB_NO_RECORD='' STUB_RECORD='.linked_issues[].number = 9' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
-expect "in the merge queue, a trusted approval of the head lifts a changed link" 0 3 "#7: no member veto and no hold path."
+expect "in the merge queue, a trusted approval of the head lifts a changed link" 0 2 "#7: no member veto and no hold path."
 STUB_RECORD='' STUB_REVIEWS=''
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass-notes\":[11]}"
-expect "in the merge queue, a pass-notes at the head passes" 0 3 "no verifier hold: pr-verify passed this head"
+expect "in the merge queue, a pass-notes at the head passes" 0 2 "no verifier hold: pr-verify passed this head"
 STUB_ARTIFACTS='{}'
-expect "in the merge queue, no verdict fails the group" 1 3 "::error title=pr-verify hold::#7: pr-verify has not passed this head; wait for pr-verify to pass it"
+expect "in the merge queue, no verdict fails the group" 1 2 "::error title=pr-verify hold::#7: pr-verify has not passed this head; wait for pr-verify to pass it"
 if [[ "$(lookups)" -eq 0 && "$(runs)" -eq 0 ]]; then
   ok "no verdict makes no lookup by name and no run read"
 else
   fail "no verdict took $(lookups) lookups and $(runs) run reads"
 fi
 STUB_ARTIFACTS="{\"pr-verify-7-$OLD-pass\":[11],\"pr-verify-7-$SHA-fail\":[11]}"
-expect "in the merge queue, a pass at an older head and a FAIL at this one fail the group" 1 3 "pr-verify has not passed this head"
+expect "in the merge queue, a pass at an older head and a FAIL at this one fail the group" 1 2 "pr-verify has not passed this head"
 STUB_ARTIFACTS="{\"pr-verify-8-$SHA-pass\":[11]}"
-expect "in the merge queue, another pull request's pass fails the group" 1 3 "pr-verify has not passed this head"
+expect "in the merge queue, another pull request's pass fails the group" 1 2 "pr-verify has not passed this head"
 for bad in 12:in-progress 13:another-workflow 14:a-pull-request-event 15:another-branch 16:a-failed-run 17:another-run-s-record 99:an-unread-run; do
   STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[${bad%%:*}]}"
-  expect "in the merge queue, a pass from ${bad#*:} fails the group" 1 3 "pr-verify has not passed this head"
+  expect "in the merge queue, a pass from ${bad#*:} fails the group" 1 2 "pr-verify has not passed this head"
 done
 for bad in 16 17 13; do
   STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[$bad],\"pr-verify-7-$SHA-pass-notes\":[11]}"
-  expect "in the merge queue, a pass from run $bad does not hide a pass-notes from a counted run" 0 3 "pr-verify passed this head"
+  expect "in the merge queue, a pass from run $bad does not hide a pass-notes from a counted run" 0 2 "pr-verify passed this head"
 done
 STUB_ARTIFACTS='{}' STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$SHA")]"
-expect "in the merge queue, a trusted approval of the head lifts a missing pass" 0 3 "no verifier hold: kyle-sexton approved this head"
+expect "in the merge queue, a trusted approval of the head lifts a missing pass" 0 2 "no verifier hold: kyle-sexton approved this head"
 STUB_REVIEWS="[$(approval kyle-sexton 153232337 APPROVED 2026-10-23T11:00:00Z "$OLD")]"
-expect "in the merge queue, an approval of an earlier head lifts nothing" 1 3 "pr-verify has not passed this head"
+expect "in the merge queue, an approval of an earlier head lifts nothing" 1 2 "pr-verify has not passed this head"
 STUB_REVIEWS=''
 STUB_ARTIFACTS="{\"pr-verify-7-$OLD-pass\":[11]}"
-expect "in the merge queue, a push after a pass fails the group on the new head" 1 3 "pr-verify has not passed this head"
+expect "in the merge queue, a push after a pass fails the group on the new head" 1 2 "pr-verify has not passed this head"
 STUB_PULL="$(pull 'Closes #1' '{"id":153232337,"login":"kyle-sexton","type":"User"}')"
 expect "in the merge queue, a person's pull request pr-verify does not judge reads no verdict" 0 1 "$NOT_JUDGED"
 if [[ "$(lookups)" -eq 0 && "$(readers)" -eq 0 && "$(maps)" -eq 0 ]]; then
@@ -746,8 +730,8 @@ printf '%s\n' 'export const switchHold = () => null;' >"$TMP_ROOT/no-author-rule
 STUB_MODULE="$TMP_ROOT/no-author-rule.mjs" \
   expect "in the merge queue, a base module without authorSkip fails an owner pull request closed" 1 0 "::error::cannot read whether pr-verify judges the author of #7"
 KILL=true expect "in the merge queue, the kill switch does not hold an owner pull request" 0 2 "$NOT_HELD"
-STUB_ISSUE="[$KYLE_VETO]" STUB_INLINE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')]" \
-  expect "in the merge queue, a member's veto does not hold an owner pull request" 0 2 "$NOT_HELD"
+STUB_ISSUE="[$KYLE_VETO]" STUB_REVIEWS="[$(review kyle MEMBER 2026-10-23T10:00:00Z 'Please do not merge this yet.')]" \
+  expect "in the merge queue, a member's comment saying not to merge does not hold an owner pull request" 0 2 "$NOT_HELD"
 STUB_FILES='[["docs/held/x.md"],[".github/standards/trusted-actors/trusted-actors.json"],["infra/main.tf"]]' \
   expect "in the merge queue, a hold path does not hold an owner pull request" 0 2 "$NOT_HELD"
 STUB_PULL="$(pull 'Closes #1' '{"id":337859524,"login":"melodic-release[bot]","type":"Bot"}')"
@@ -823,25 +807,33 @@ EVENT=pull_request REF=refs/pull/7/merge PR_NUMBER=7 STUB_ARTIFACTS='{}' \
 export STUB_CONFIG=$'merge:\n  diff-check:\n    denied-paths: [docs/held/**]\n    path-holds: true'
 STUB_PULL="$(pull 'Closes #1')"
 stub_module() { printf 'export const switchHold = () => null;\nif (process.argv.length > 3) {\n%s\n}\n' "$2" >"$1"; }
-stub_module "$TMP_ROOT/old.mjs" 'console.log("#7: no body hold, no member veto and no hold path.");'
+stub_module "$TMP_ROOT/old.mjs" 'console.log("#7: no hold path.");'
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}" STUB_MODULE="$TMP_ROOT/old.mjs"
-expect "in the merge queue, a base module that ignores the verdicts fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its verifier verdict"
-stub_module "$TMP_ROOT/older.mjs" 'console.log("#7: no body hold, no member veto and no hold path.");
+expect "in the merge queue, a base module that ignores the verdicts fails closed" 1 2 "::error::merge-holds.mjs exited 0 without its verifier verdict"
+stub_module "$TMP_ROOT/older.mjs" 'console.log("#7: no hold path.");
 console.log("#7: no verifier hold: pr-verify passed this head.");'
 STUB_MODULE="$TMP_ROOT/older.mjs"
-expect "in the merge queue, a base module that ignores the reader's report fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its pr-verify FAIL verdict"
+expect "in the merge queue, a base module that ignores the reader's report fails closed" 1 2 "::error::merge-holds.mjs exited 0 without its pr-verify FAIL verdict"
+stub_module "$TMP_ROOT/short-wording.mjs" 'console.log("#7: no hold path.");
+console.log("#7: no verifier hold: pr-verify passed this head.");
+console.log("#7: no pr-verify FAIL hold: none stands at this head.");'
+STUB_MODULE="$TMP_ROOT/short-wording.mjs"
+expect "in the merge queue, a base module that prints the short verdict wording passes" 0 2 "#7: no hold path."
+stub_module "$TMP_ROOT/earliest-wording.mjs" 'console.log("#7: no body hold, no member veto and no hold path.");
+console.log("#7: no verifier hold: pr-verify passed this head.");
+console.log("#7: no pr-verify FAIL hold: none stands at this head.");'
+STUB_MODULE="$TMP_ROOT/earliest-wording.mjs"
+expect "in the merge queue, a base module that prints the body-hold era's verdict fails closed" 1 2 "::error::merge-holds.mjs exited 0 without its verdict."
 unset STUB_MODULE
 STUB_ARTIFACTS="{\"pr-verify-7-$SHA-pass\":[11]}"
 STUB_PULL="$(pull $'Closes #1\nHold: owner call')"
-expect "in the merge queue, a body hold does not fail the group" 0 3 "no member veto and no hold path"
+expect "in the merge queue, a body hold does not fail the group" 0 2 "no hold path."
 STUB_PULL="$(pull 'Closes #1')" STUB_ISSUE="[$KYLE_VETO]"
-expect "in the merge queue, a member's veto fails the group" 1 3 "kyle asked not to merge it"
-STUB_ISSUE="[$KYLE_VETO,$(comment kyle User MEMBER 2026-10-23T11:00:00Z 'ok, merge it')]"
-expect "in the merge queue, a lifted veto passes" 0 3
+expect "in the merge queue, a member's comment saying not to merge does not fail the group" 0 2 "#7: no member veto and no hold path."
 STUB_ISSUE='' STUB_FILES='[["docs/held/x.md"]]'
-expect "in the merge queue, a hold path fails the group" 1 3 "it changes docs/held/x.md, a hold path"
+expect "in the merge queue, a hold path fails the group" 1 2 "it changes docs/held/x.md, a hold path"
 STUB_FILES='[["docs/guide.md"]]'
-STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" expect "in the merge queue, the lanes App's own pull request ignores a lanes App unpin and judges its older pin, whose edit time this stub cannot read, so it holds" 1 3 \
+STUB_ISSUE="[$(pin "$OLD"),$(unpin "$SHA")]" expect "in the merge queue, the lanes App's own pull request ignores a lanes App unpin and judges its older pin, whose edit time this stub cannot read, so it holds" 1 2 \
   "::error::#7: the lanes App's newest pin comment was edited, or its edit time did not read"
 export REF="refs/heads/main"
 expect "a merge-group ref with no pull request fails closed without a call" 1 0 "::error::cannot read a pull request number"
@@ -851,13 +843,13 @@ unset EVENT REF PR_NUMBER GROUP_BASE_SHA
 
 STUB_PULL="$(pull 'Closes #1')"
 export STUB_FAILS=1
-expect "a transient discussion read failure is retried" 0 4
+expect "a transient discussion read failure is retried" 0 3
 export STUB_FAILS=3
 expect "an unreadable discussion fails closed" 1 3 "::error::could not read the issues/7/comments of #7"
 unset STUB_FAILS
 stub_module "$TMP_ROOT/silent.mjs" 'process.exitCode = 0;'
 export STUB_MODULE="$TMP_ROOT/silent.mjs"
-expect "a module that exits 0 without its verdict fails closed" 1 3 "::error::merge-holds.mjs exited 0 without its verdict"
+expect "a module that exits 0 without its verdict fails closed" 1 2 "::error::merge-holds.mjs exited 0 without its verdict"
 unset STUB_MODULE
 export STUB_NO_MODULE=1
 expect "a base with no merge-holds.mjs fails closed" 1 0 "::error::merge-holds.mjs in the hold config (the default branch's tip at run time, or the base commit for another base) could not judge the lanes kill switch"

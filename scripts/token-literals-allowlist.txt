@@ -1,0 +1,23 @@
+# Pages not yet migrated to the token layer, for scripts/check-token-literals.sh.
+# One '<repo-relative path> <count>' per line, the count being the page's literal
+# palette and type-stack definitions today; a `#` starts a comment. A page over its
+# count fails, and a page under it fails until the count is lowered, so the list
+# only shrinks; with --base, CI also fails an entry that is new or higher than on
+# the base branch. Lower a count as definitions go and delete a page's line in the
+# slice that migrates it (ADR 0133, Decision 8). Never add a page here: take its
+# palette and stacks from the plugin's token-layer copy.
+
+# Wave 1
+plugins/architecture/scripts/deepening-report.mjs 1
+plugins/architecture/templates/map-view.html 14
+plugins/planning/shared/web/app.css 7
+plugins/planning/skills/brainstorm/templates/brainstorm-view.html 14
+plugins/planning/skills/design/templates/design-view.html 14
+plugins/planning/skills/plan/templates/plan-view.html 14
+plugins/planning/surface/index.html 13
+plugins/visualization/reference/html-loop-closure.html 3
+
+# Outside the ADR 0133 inventory (no --clay or prefers-color-scheme): a later
+# slice migrates each or records in the rendered-views contract why it stays apart.
+plugins/ai-briefing/skills/generate/output/build/build-css.js 2
+plugins/explainer-video/scripts/media_templates/frames.css 7

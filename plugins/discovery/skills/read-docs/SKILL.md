@@ -1,5 +1,5 @@
 ---
-description: "When the bundled claude-code-docs skill resolves in this session, prefer it for a quick answer about a Claude Code feature; this skill for an answer that must rest on a named page's own text. Read an upstream docs page through the shared docs lookup and cache: whole page when small, otherwise the section map, stored notes and the sections you pick, with the page's silences marked and inference kept apart. Use when: 'read the docs page for X', 'what does the official page say about Y', 'check the hooks docs', 'look this up in the vendor docs', a docs page WebFetch truncated or summarized, or a skill points here for an upstream page. Verification reads raw bytes only. A multi-source question is /discovery:research."
+description: "Read an upstream vendor docs page via shared lookup/cache, marking silences and separating inference (raw-byte verify; when claude-code-docs resolves in this session, prefer it for Claude Code Q&A). Use when: 'read the docs page for X', 'what does the official page say', or WebFetch truncated a page. Not for multi-source: /discovery:research."
 argument-hint: "<url-or-slug> [question]"
 user-invocable: true
 disable-model-invocation: false

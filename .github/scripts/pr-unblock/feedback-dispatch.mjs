@@ -3,16 +3,16 @@ import { pathToFileURL } from "node:url";
 
 import { commitPulls, detailSuffix, errorLabel, responseDetail } from "../lib/github-client.mjs";
 import { trustedListPath } from "../lib/trusted-actors.mjs";
-import { countRequests, DISPATCH_FLOOR_GRACE_MS, rateLimitLatch } from "../../actions/log-api-budget/rate-guard.mjs";
+import { apiLimitsOrBuiltIn, countRequests, DISPATCH_FLOOR_GRACE_MS, rateLimitLatch, resetLabel } from "../../actions/log-api-budget/rate-guard.mjs";
 import { postingRunId } from "../../actions/report-check-run/posting-run.mjs";
 import { LaneRunPending } from "../lib/lane-binding.mjs";
 import { ACTIONS_BOT_ID, FEEDBACK_HOLDS } from "../lib/lane-vocabulary.mjs";
 import { isPrUnblockTitle } from "../lib/run-title.mjs";
 import { LOOKBACK_HOURS, LOST } from "../maintenance-reconcile-lost-runs/infra-failure.mjs";
 import { tokenRefusal } from "../pr-merge/refire-refused.mjs";
-import { answeredIds, anyListed, askedComments, fixRequesters, HOLD_LINE, humanGatedLabelFrom, isFixRequest, laneReader, MARKER_AUTHOR_ID, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom, VERIFY_NOTE_MARKER, withLaneBinding } from "./address-feedback.mjs";
+import { answeredIds, anyListed, askedComments, fixRequesters, humanGatedLabelFrom, isFixRequest, laneReader, MARKER_AUTHOR_ID, NO_ADOPTION, onReviewedHead, ownerAdoption, ownerAuthored, readTriggers, REQUEST_HISTORY_QUERY, requestHistoryOf, requestSkip, requestSkipLine, restMentions, reviewedHeads, reviewerIdsFrom, threadAuthors, trustedHumansFrom, VERIFY_NOTE_MARKER, withLaneBinding } from "./address-feedback.mjs";
 
-export { HOLD_LINE, NO_ADOPTION, ownerAdoption, ownerAuthored };
+export { NO_ADOPTION, ownerAdoption, ownerAuthored };
 import { commentItems, gateSource, listLabelEvents, prHold, reviewReader } from "./gate-source.mjs";
 import { emptyRecord, isHandled, markHandled, readRecord, RUN_ID, startOf, writeRecord } from "./dispatch-record.mjs";
 import { anyHandles, KILL_SWITCH_STOP, LANE_STOP, laneStop, limitResetsAt, permanentlyHandles } from "./limit-stop.mjs";
@@ -45,9 +45,6 @@ const WORKFLOW_PATH = /^\.github\/workflows\/[a-z0-9][a-z0-9-]{0,80}\.ya?ml$/;
 export const autoMergeArmed = (pull) => pull?.auto_merge != null;
 
 export async function ownerSkip({ api, pull, adoption, now }) {
-  if (HOLD_LINE.test(String(pull.body ?? ""))) {
-    return "held by a Hold: line";
-  }
   if (autoMergeArmed(pull)) {
     return "";
   }
@@ -208,7 +205,16 @@ export async function relayUpstream({ api, upstream, repository, appSenderId, tr
 }
 export const MERGE_WORKFLOW = ".github/workflows/pr-merge.yml";
 
-export async function reviewRunAt({ api, head, repository, settings = DEFAULTS }) {
+export function trustedReviewRun(run, { appSenderId, trustedHumans = new Set() } = {}) {
+  const bot = (user) => Number.isSafeInteger(user?.id) && user.id === appSenderId;
+  const human = (user) => Number.isSafeInteger(user?.id) && user.id !== appSenderId && trustedHumans.has(user.id);
+  return (
+    (bot(run?.actor) || human(run?.actor)) &&
+    ((run?.run_attempt === 1 && bot(run?.triggering_actor)) || human(run?.triggering_actor))
+  );
+}
+
+export async function reviewRunAt({ api, head, repository, settings = DEFAULTS, appSenderId, trustedHumans = new Set() }) {
   const listings = [];
   for (const path of settings.reviewWorkflows) {
     listings.push(await api.listCompletedRuns(path, head));
@@ -220,7 +226,8 @@ export async function reviewRunAt({ api, head, repository, settings = DEFAULTS }
         run.head_sha === head &&
         run.event === "pull_request" &&
         run.head_repository?.full_name === repository &&
-        !["skipped", "cancelled"].includes(run.conclusion),
+        !["skipped", "cancelled"].includes(run.conclusion) &&
+        trustedReviewRun(run, { appSenderId, trustedHumans }),
     );
   runs.sort((a, b) => Date.parse(b.created_at ?? "") - Date.parse(a.created_at ?? ""));
   return runs[0] ?? null;
@@ -286,6 +293,11 @@ export async function dispatchFeedback({
     !SHA.test(upstream.head_sha ?? "")
   ) {
     return skip(`run ${upstreamRunId} is not a completed same-repository review or relay run`);
+  }
+  if (!relayed && !trustedReviewRun(upstream, { appSenderId, trustedHumans })) {
+    return skip(
+      `run ${upstreamRunId} (attempt ${upstream.run_attempt ?? "unknown"}, actor ${upstream.actor?.login ?? "unknown"}, triggering_actor ${upstream.triggering_actor?.login ?? "unknown"}) is not a broker-accepted review run; push a fresh head or have a listed human re-run a review workflow`,
+    );
   }
   const head = upstream.head_sha;
   const cutoff = notesSince ?? requestSince;
@@ -522,9 +534,39 @@ export const SWEEP_TICK_CAP = 5;
  */
 export const SWEEP_DECIDE_BUDGET_MS = 5 * 60_000;
 
-export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, onSent = () => {}, clock = Date.now, ...rest }) {
+const WHOLE = /^\d+$/;
+/**
+ * The notice line when the core pool is under the `sweep-hold` share of its limit and resets
+ * within `sweep-hold-minutes`, else null. Rounds sent then hit the stop floor before they finish,
+ * so they spend the window's last calls for nothing; the first tick after the reset decides them
+ * again from GitHub's state. A missing or unreadable reading never holds.
+ */
+export function lateWindowHold(reading, limits, now, pending) {
+  const { limit, remaining, reset } = reading ?? {};
+  if (![limit, remaining, reset].every((value) => WHOLE.test(String(value ?? ""))) || !(Number(limit) > 0)) {
+    return null;
+  }
+  const share = limits["sweep-hold"];
+  const minutes = limits["sweep-hold-minutes"];
+  const left = Number(reset) * 1000 - now;
+  if (!(Number(remaining) < share * Number(limit) && left > 0 && left < minutes * 60_000)) {
+    return null;
+  }
+  return (
+    `::notice::sweep: held, no round sent: core remaining=${remaining} of ${limit}, under sweep-hold ${share}, ` +
+    `and it resets ${resetLabel(Number(reset))} in ${Math.ceil(left / 60_000)} min, under sweep-hold-minutes ${minutes}; ` +
+    `${pending} open PRs wait for the first tick after the reset`
+  );
+}
+
+export async function sweepReleased({ api, repository, appSenderId, log, settings = DEFAULTS, onSent = () => {}, clock = Date.now, hold = () => null, ...rest }) {
   const context = { api, repository, appSenderId, log, settings, rest: { ...rest, defer: true } };
   const listed = await openPulls(context);
+  const held = hold(listed.length);
+  if (held !== null) {
+    log(held);
+    return null;
+  }
   const pulls = listed.filter((pull) => pull.user?.id === appSenderId);
   const owners = listed.filter((pull) => pull.user?.id !== appSenderId);
   const decided = [];
@@ -664,7 +706,7 @@ async function sweepStale({ api, pull, repository, appSenderId, log, settings, r
     log(`skip: #${number}: ${settings.activity} is not enabled or does not apply`);
     return null;
   }
-  const upstream = await reviewRunAt({ api, head, repository, settings });
+  const upstream = await reviewRunAt({ api, head, repository, settings, appSenderId, trustedHumans: rest.trustedHumans });
   if (upstream === null) {
     log(`skip: #${number}: head ${head} has no completed review run`);
     return null;
@@ -703,7 +745,7 @@ async function sweepUnsent(context) {
   if (unresolved.length === 0 && !earlierFailNoted(threads, head)) {
     return null;
   }
-  const upstream = await reviewRunAt({ api, head, repository, settings });
+  const upstream = await reviewRunAt({ api, head, repository, settings, appSenderId, trustedHumans: rest.trustedHumans });
   if (upstream === null) {
     return null;
   }
@@ -794,7 +836,7 @@ async function dispatchSince(context, requestSince, what) {
 
 async function dispatchAtHead({ api, pull, repository, appSenderId, log, settings, rest }, options = {}) {
   const head = pull.head.sha;
-  const upstream = await reviewRunAt({ api, head, repository, settings });
+  const upstream = await reviewRunAt({ api, head, repository, settings, appSenderId, trustedHumans: rest.trustedHumans });
   if (upstream === null) {
     log(`skip: #${pull.number}: head ${head} has no completed review run`);
     return null;
@@ -1193,8 +1235,9 @@ export async function main(env, deps = {}) {
   }
 }
 
-async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapped, log = (line) => console.log(line), now = Date.now() }, tick, eventRun) {
+async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapped, reading: seen, log = (line) => console.log(line), now = Date.now() }, tick, eventRun) {
   const budget = api ? null : budgetedFetch({ log, floorGraceMs: DISPATCH_FLOOR_GRACE_MS });
+  const reading = seen ?? ((resource) => budget?.reading(resource) ?? null);
   const { record, text } = readRecord(env.DISPATCH_RECORD);
   const reads =
     api ??
@@ -1252,7 +1295,13 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
       const refire = swept.refireOf ? `refire-of${suffix}=${swept.refireOf}\n` : "";
       appendFileSync(env.GITHUB_OUTPUT, `run-id${suffix}=${swept.workflowRunId}\nupstream-run-id${suffix}=${swept.upstreamRunId}\n${refire}`);
     };
-    const sweep = async () => (await sweepReleased({ ...common, onSent: write })) ?? recoverLost({ ...common, now });
+    let held = false;
+    const hold = (pending) => {
+      const line = lateWindowHold(reading("core"), apiLimitsOrBuiltIn({ resolvedPath: "", log })["github-token"], now, pending);
+      held = line !== null;
+      return line;
+    };
+    const sweep = async () => (await sweepReleased({ ...common, onSent: write, hold })) ?? (held ? null : recoverLost({ ...common, now }));
     const swept = await sweep().finally(summary);
     if (swept !== null && sends === 0) {
       write(swept);
@@ -1269,7 +1318,7 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
     if ((await releaseState({ api: client, pull, log, settings: DEFAULTS })).capped) {
       return 0;
     }
-    upstream = await reviewRunAt({ api: client, head, repository: common.repository });
+    upstream = await reviewRunAt({ api: client, head, repository: common.repository, appSenderId: common.appSenderId, trustedHumans: common.trustedHumans });
     if (upstream === null) {
       log(`skip: head ${head} has no completed review run yet; the review run dispatches when it completes`);
       return 0;
@@ -1302,10 +1351,33 @@ async function dispatchTick(env, { api, actions, github, resolveSlot, verifyCapp
     if (Number.isNaN(notesSince)) {
       throw new Error(`pr-verify run ${upstream.id} has no readable creation time`);
     }
-    upstream = await reviewRunAt({ api: client, head, repository: common.repository });
+    upstream = await reviewRunAt({ api: client, head, repository: common.repository, appSenderId: common.appSenderId, trustedHumans: common.trustedHumans });
     if (upstream === null) {
       log(`skip: head ${head} has no completed review run yet; the review run dispatches when it completes`);
       return 0;
+    }
+  }
+  if (
+    DEFAULTS.reviewWorkflows.includes(upstream?.path) &&
+    upstream.event === "pull_request" &&
+    upstream.status === "completed" &&
+    upstream.repository?.full_name === common.repository &&
+    upstream.head_repository?.full_name === common.repository &&
+    SHA.test(upstream.head_sha ?? "") &&
+    !trustedReviewRun(upstream, { appSenderId: common.appSenderId, trustedHumans: common.trustedHumans })
+  ) {
+    const sibling = await reviewRunAt({
+      api: client,
+      head: upstream.head_sha,
+      repository: common.repository,
+      appSenderId: common.appSenderId,
+      trustedHumans: common.trustedHumans,
+    });
+    if (sibling !== null) {
+      log(
+        `upstream review run ${upstream.id} (attempt ${upstream.run_attempt ?? "unknown"}, triggering_actor ${upstream.triggering_actor?.login ?? "unknown"}) is not broker-accepted; using sibling review run ${sibling.id}`,
+      );
+      upstream = sibling;
     }
   }
   const dispatched = await dispatchFeedback({ ...common, record, upstream, notesSince, requestSince, passOnly }).finally(summary);

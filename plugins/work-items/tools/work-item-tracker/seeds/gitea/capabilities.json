@@ -40,6 +40,7 @@
     "release": false,
     "renew-lease": false,
     "set-fields": false,
+    "set-native-status": false,
     "unlink-relates": false
   }
 }

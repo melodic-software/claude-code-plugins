@@ -3848,24 +3848,37 @@ class EntryHold(unittest.TestCase):
         with mock.patch.object(babysit_postmerge, "_role_label", side_effect=failed):
             self.assertEqual(self.hold(), "unreadable: tracker: HTTP 502")
 
-    def test_a_body_hold(self) -> None:
-        self.fake(body="Please do not merge until the release")
-        self.assertEqual(self.hold(), "body-hold")
+    def test_body_hold_text_is_no_hold_but_the_label_is(self) -> None:
+        for body in (
+            "Please do not merge until the release",
+            "Refs: #1\r\n\r\nHold: a human merges this",
+        ):
+            with self.subTest(body=body):
+                self.fake(body=body)
+                self.assertIsNone(self.hold())
+                self.fake(body=body, labels={"totalCount": 1, "nodes": [{"name": "do-not-merge"}]})
+                self.assertEqual(self.hold(), "do-not-merge")
 
-    def test_a_body_hold_line(self) -> None:
-        self.fake(body="Refs: #1\r\n\r\nHold: a human merges this")
-        self.assertEqual(self.hold(), "body-hold")
-
-    def test_a_human_blocking_comment(self) -> None:
+    def member_comments(self, body: str) -> GhFake:
         gh = self.fake()
         gh.rest[f"repos/{REPO}/issues/5/comments?per_page=100"] = [
             {
                 "user": {"login": OPERATOR, "type": "User"},
                 "author_association": "MEMBER",
-                "body": "don't merge this",
+                "body": body,
             }
         ]
+        return gh
+
+    def test_a_human_blocking_comment(self) -> None:
+        self.member_comments("This is a blocking regression.")
         self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
+
+    def test_a_members_do_not_merge_comment_is_no_hold_but_the_label_is(self) -> None:
+        gh = self.member_comments("don't merge this")
+        self.assertIsNone(self.hold())
+        gh.graphql["PolicyEntryHold"]["repository"]["pullRequest"]["labels"] = {"totalCount": 1, "nodes": [{"name": "do-not-merge"}]}
+        self.assertEqual(self.hold(), "do-not-merge")
 
     def member_says(self, *bodies: str) -> None:
         gh = self.fake()
@@ -3887,17 +3900,19 @@ class EntryHold(unittest.TestCase):
         self.assertIsNone(self.lane_hold())
         self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
 
-    def test_the_lane_holds_a_members_newest_veto(self) -> None:
-        self.member_says("looks fine", "don't merge this")
-        self.assertEqual(self.lane_hold(), f"human-blocking-comment:{OPERATOR}")
-
-    def test_the_lane_lets_a_member_lift_their_own_veto(self) -> None:
-        self.member_says("don't merge this", "go ahead")
+    def test_the_lane_reads_no_member_comment_but_holds_the_label(self) -> None:
+        self.member_says("looks fine", "don't merge this", "a blocking regression")
         self.assertIsNone(self.lane_hold())
-
-    def test_an_empty_review_item_does_not_lift_a_lane_veto(self) -> None:
-        self.member_says("don't merge this", "  ")
-        self.assertEqual(self.lane_hold(), f"human-blocking-comment:{OPERATOR}")
+        self.assertEqual(self.hold(), f"human-blocking-comment:{OPERATOR}")
+        gh = self.fake(labels={"totalCount": 1, "nodes": [{"name": "do-not-merge"}]})
+        gh.rest[f"repos/{REPO}/pulls/5/comments?per_page=100"] = [
+            {
+                "user": {"login": OPERATOR, "type": "User"},
+                "author_association": "MEMBER",
+                "body": "don't merge this",
+            }
+        ]
+        self.assertEqual(self.lane_hold(), "do-not-merge")
 
     def test_a_strangers_blocking_text_is_no_hold(self) -> None:
         gh = self.fake()
@@ -4027,9 +4042,7 @@ class EntryHold(unittest.TestCase):
             policy.entry_hold(REPO, 5, IDENTITY, queued=False), "do-not-merge"
         )
         self.fake(timelineItems={"nodes": []}, body="Hold: waiting on a decision")
-        self.assertEqual(
-            policy.entry_hold(REPO, 5, IDENTITY, queued=False), "body-hold"
-        )
+        self.assertIsNone(policy.entry_hold(REPO, 5, IDENTITY, queued=False))
         self.fake(timelineItems={"nodes": []}, labels={"totalCount": 2, "nodes": []})
         self.assertEqual(
             policy.entry_hold(REPO, 5, IDENTITY, queued=False), "unreadable"
@@ -4551,20 +4564,20 @@ class Assess(unittest.TestCase):
     def test_a_rung_off_outranks_an_in_flight_refusal_off_the_queue(self) -> None:
         self.readable()
         flight = policy.InFlight(False, "x", frozenset({3}))
-        ineligible = policy.Eligibility(False, "fork")
+        later = mock.Mock(side_effect=AssertionError("read after the rung refusal"))
         with (
-            mock.patch.object(policy, "in_flight", return_value=flight),
+            mock.patch.object(policy, "in_flight", return_value=flight) as counted,
             mock.patch.object(
                 policy, "rung_cap", return_value=policy.RungCap("off", "cap-set")
             ),
-            mock.patch.object(policy, "eligibility", return_value=ineligible) as read,
+            mock.patch.object(policy, "eligibility", later),
         ):
-            result = self.assess(
-                post_merge=lambda floor, who: gate(), promotion=lambda s: PROMOTED
-            )
-        self.assertTrue(result.reason.startswith("rung-off:"), result.reason)
-        self.assertTrue(read.called)
-        self.assertEqual(result.inputs["own_refusal"], "ineligible:fork")
+            result = self.assess(post_merge=lambda floor, who: gate(), promotion=later)
+        self.assertEqual(result.reason, "rung-off:rungCap")
+        self.assertIs(result.enabled, True)
+        counted.assert_not_called()
+        later.assert_not_called()
+        self.assertNotIn("eligibility", result.inputs)
 
     def test_the_in_flight_refusal_matches_the_full_judgment(self) -> None:
         self.readable()
@@ -6344,10 +6357,16 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     def test_an_unresolved_human_gated_label_is_not_adopted(self) -> None:
         self.assertEqual(self.refusal(human_gated=None), "human-gated-label-unresolved")
 
-    def test_a_hold_line_in_the_body_holds(self) -> None:
-        for body in ("Closes #41\n\nHold: waiting on the owner", "  hold: x"):
+    def test_body_hold_text_is_no_refusal_but_the_label_is(self) -> None:
+        for body in (
+            "Closes #41\n\nHold: waiting on the owner",
+            "  hold: x",
+            "Do not merge",
+        ):
             with self.subTest(body=body):
-                self.assertEqual(self.refusal(owner_pr(body=body)), "hold-body")
+                self.assertIsNone(self.refusal(owner_pr(body=body)))
+                pr = owner_pr(body=body, labels=[{"name": "do-not-merge"}])
+                self.assertEqual(self.refusal(pr), "hold-label:do-not-merge")
 
     def test_a_fresh_update_keeps_adoption_while_the_lane_entry_is_queued(self) -> None:
         self.assertIsNone(self.refusal(activity=FRESH, queued_at_head=lambda: True))
@@ -6369,7 +6388,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         for pr, refused in (
             (owner_pr(labels=[{"name": "do-not-merge"}]), "hold-label:do-not-merge"),
             (owner_pr(labels=[{"name": "needs-human"}]), "hold-label:needs-human"),
-            (owner_pr(body="Hold: the owner merges"), "hold-body"),
             (owner_pr(draft=True), "draft"),
         ):
             with self.subTest(refused=refused):
@@ -6584,7 +6602,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         )
         for held, refused in (
             (owner_pr(labels=[{"name": "do-not-merge"}]), "hold-label:do-not-merge"),
-            (owner_pr(body="Hold: the owner merges"), "hold-body"),
             (owner_pr(draft=True), "draft"),
         ):
             with self.subTest(refused=refused):
@@ -6822,20 +6839,28 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
     BLOCKERS = ("OWNER", "MEMBER", "COLLABORATOR")
     DRIVE_BY = ("NONE", "CONTRIBUTOR", "FIRST_TIME_CONTRIBUTOR", "FIRST_TIMER", None)
 
+    @staticmethod
+    def tag(association: str | None) -> dict[str, Any]:
+        return {} if association is None else {"author_association": association}
+
     def holds(self, association: str | None) -> list[dict[str, Any]]:
-        """A stranger's changes-requested review and hold-phrase comment,
-        review and inline comment, each written with `association`."""
-        tag = {} if association is None else {"author_association": association}
-        events: list[dict[str, Any]] = [
+        """A stranger's changes-requested review, written with `association`."""
+        return [
             {
                 "event": "reviewed",
                 "user": self.STRANGER,
                 "state": "changes_requested",
                 "body": "",
                 "submitted_at": FRESH,
-                **tag,
+                **self.tag(association),
             }
         ]
+
+    def hold_phrases(self, association: str | None) -> list[dict[str, Any]]:
+        """A stranger's hold-phrase comment, review and inline comment, each
+        written with `association`."""
+        tag = self.tag(association)
+        events: list[dict[str, Any]] = []
         for body in ("do not merge, this leaks X", "Don't merge yet", "Hold: see #1"):
             comment = {**self.commented(self.STRANGER, FRESH), "body": body, **tag}
             thread = {
@@ -6855,9 +6880,23 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
                     result = self.eligibility(owner_pr())
                     self.assertEqual(result.reason, "not-adopted:updated-fresh")
 
+    def test_a_members_hold_phrase_leaves_an_owner_pr_idle(self) -> None:
+        for association in self.BLOCKERS:
+            for event in self.hold_phrases(association):
+                with self.subTest(association=association, event=event):
+                    self.owner_fake(timeline=[event])
+                    result = self.eligibility(owner_pr())
+                    self.assertTrue(result.eligible, result.reason)
+                    self.assertEqual(result.adoption, "idle-owner:24h")
+                    labeled = owner_pr(labels=[{"name": "do-not-merge"}])
+                    self.assertEqual(
+                        self.eligibility(labeled).reason,
+                        "not-adopted:hold-label:do-not-merge",
+                    )
+
     def test_a_drive_by_accounts_hold_leaves_an_owner_pr_idle(self) -> None:
         for association in self.DRIVE_BY:
-            for event in self.holds(association):
+            for event in [*self.holds(association), *self.hold_phrases(association)]:
                 with self.subTest(association=association, event=event):
                     self.owner_fake(timeline=[event])
                     result = self.eligibility(owner_pr())
@@ -7254,7 +7293,6 @@ class AdoptIdleOwnerPullRequests(unittest.TestCase):
         self.assertEqual(result.adoption, "idle-owner:24h")
         for pr, reason in (
             (owner_pr(labels=[{"name": "do-not-merge"}]), "hold-label:do-not-merge"),
-            (owner_pr(body="Hold: the owner merges"), "hold-body"),
             (owner_pr(draft=True), "draft"),
         ):
             with self.subTest(reason):
@@ -10986,16 +11024,21 @@ class DependabotEligibility(unittest.TestCase):
                 self.assertEqual(result.reason, "ci-status:pending")
                 self.assertEqual(result.dependabot.tier, "auto")
 
-    def test_a_human_hold_comment_refuses(self) -> None:
-        hold = {
-            "user": {"login": "maintainer", "type": "User"},
-            "author_association": "MEMBER",
-            "body": "Do not merge this one yet",
-        }
-        self.fake(comments=[hold])
-        result = self.eligibility()
-        self.assertFalse(result.eligible)
-        self.assertEqual(result.reason, "human-blocking-comment:maintainer")
+    def test_a_human_blocking_comment_refuses(self) -> None:
+        for body, reason in (
+            ("This is a blocking regression.", "human-blocking-comment:maintainer"),
+            ("Do not merge this one yet", None),
+        ):
+            with self.subTest(body=body):
+                comment = {
+                    "user": {"login": "maintainer", "type": "User"},
+                    "author_association": "MEMBER",
+                    "body": body,
+                }
+                self.fake(comments=[comment])
+                result = self.eligibility()
+                self.assertEqual(result.eligible, reason is None, result.reason)
+                self.assertEqual(result.reason, reason)
 
     def test_a_fork_or_another_author_is_ineligible(self) -> None:
         self.fake(cross=True)
@@ -11684,6 +11727,114 @@ class ConfigFromTheBaseCheckout(unittest.TestCase):
         self.assertIsNone(policy.checkout_file_at("absent.json", sha))
         self.assertIsNone(policy.checkout_file_at(policy.CONFIG_PATH, SHA))
         self.assertIsNone(policy.checkout_file_at(policy.CONFIG_PATH, "main"))
+
+    def test_a_checkout_lacks_only_a_path_absent_from_its_head_tree(self) -> None:
+        sha = self.commit({policy.CONFIG_PATH: PIPELINE})
+        self.assertTrue(policy.checkout_lacks("absent.json", sha))
+        self.assertFalse(policy.checkout_lacks(policy.CONFIG_PATH, sha))
+        self.assertFalse(policy.checkout_lacks("absent.json", SHA))
+        with mock.patch.dict(os.environ, {policy.CONFIG_CHECKOUT_ENV: ""}):
+            self.assertFalse(policy.checkout_lacks("absent.json", sha))
+
+    def test_a_sparse_partial_clone_lacks_only_what_its_tree_lacks(self) -> None:
+        sha = self.commit({policy.CONFIG_PATH: PIPELINE, TEAM_YAML: SOURCE_CONTROL})
+        self.git(self.checkout, "config", "uploadpack.allowFilter", "true")
+        clone = self.checkout.parent / "sparse"
+        self.git(
+            self.checkout.parent, "clone", "-q", "--depth", "1", "--filter=blob:none",
+            "--sparse", f"file://{self.checkout}", str(clone),
+        )  # fmt: skip
+        self.git(clone, "sparse-checkout", "set", "--no-cone", f"/{policy.CONFIG_PATH}")
+        with mock.patch.dict(os.environ, {policy.CONFIG_CHECKOUT_ENV: str(clone)}):
+            self.assertFalse(policy.checkout_lacks(TEAM_YAML, sha))
+            self.assertTrue(policy.checkout_lacks(policy.TRUSTED_ACTORS_PATH, sha))
+
+
+class StandardsFromTheJobCheckout(unittest.TestCase):
+    """`standards_file` reads the standards file from the job's standards
+    checkout (`STANDARDS_CHECKOUT_ENV`) only when its HEAD is the commit the
+    API read would use (`standards_sha`); a file the checkout lacks, another
+    commit or no checkout reads through the contents API as before."""
+
+    LISTED = '{"version": 1, "actors": [{"id": 7, "login": "octo", "kind": "user"}]}\n'
+    CRLF_PATH = "crlf.json"
+    CRLF = '{"version": 1,\r\n "actors": []}\r\n'
+
+    def setUp(self) -> None:
+        standards_cleared(self)
+        tmp = pathlib.Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.checkout = tmp / "standards"
+        listed = self.checkout / policy.STANDARDS_TRUSTED_ACTORS
+        listed.parent.mkdir(parents=True)
+        listed.write_text(self.LISTED)
+        (self.checkout / self.CRLF_PATH).write_bytes(self.CRLF.encode())
+        env = {**os.environ, "GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"}
+        for args in (["init", "-q"], ["add", "-A"],
+                     ["-c", "user.name=t", "-c", "user.email=t@t", "-c", "commit.gpgsign=false",
+                      "commit", "-q", "-m", "standards"]):  # fmt: skip
+            subprocess.run(["git", "-C", str(self.checkout), *args], check=True, env=env)
+        self.sha = subprocess.run(
+            ["git", "-C", str(self.checkout), "rev-parse", "HEAD"],
+            check=True, capture_output=True, text=True, env=env,
+        ).stdout.strip()  # fmt: skip
+        self.enterContext(
+            mock.patch.dict(
+                os.environ,
+                {policy.STANDARDS_CHECKOUT_ENV: str(self.checkout), policy.CONFIG_CHECKOUT_ENV: ""},
+            )
+        )
+        self.gh = GhFake().install(self)
+
+    def contents(self, path: str, sha: str) -> str:
+        return f"repos/{STANDARDS_REPO}/contents/{path}?ref={sha}"
+
+    def test_the_list_at_the_checkout_head_reads_no_contents(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = self.sha
+        text = policy.standards_file(STANDARDS_REPO, policy.STANDARDS_TRUSTED_ACTORS)
+        self.assertEqual(text, self.LISTED)
+        self.assertEqual(self.gh.calls, [])
+
+    def test_a_crlf_file_reads_byte_for_byte_as_the_contents_api_reads_it(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = self.sha
+        local = policy.standards_file(STANDARDS_REPO, self.CRLF_PATH)
+        self.assertEqual(self.gh.calls, [])
+        endpoint = self.contents(self.CRLF_PATH, self.sha)
+        self.gh.rest[endpoint] = file_payload(self.CRLF)
+        api = policy._file_at(*STANDARDS_REPO.split("/"), self.CRLF_PATH, self.sha)
+        self.assertEqual((local, api), (self.CRLF, self.CRLF))
+        blob = subprocess.run(
+            ["git", "-C", str(self.checkout), "hash-object", "--stdin"],
+            input=local.encode(), check=True, capture_output=True,
+        ).stdout.decode().strip()  # fmt: skip
+        committed = subprocess.run(
+            ["git", "-C", str(self.checkout), "rev-parse", f"HEAD:{self.CRLF_PATH}"],
+            check=True, capture_output=True, text=True,
+        ).stdout.strip()  # fmt: skip
+        self.assertEqual(blob, committed)
+
+    def test_a_file_the_checkout_lacks_reads_the_contents_api(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = self.sha
+        endpoint = self.contents("components/other.json", self.sha)
+        self.gh.rest[endpoint] = file_payload("{}\n")
+        self.assertEqual(policy.standards_file(STANDARDS_REPO, "components/other.json"), "{}\n")
+        self.assertEqual(self.gh.calls, [["api", endpoint]])
+
+    def test_another_standards_commit_reads_the_contents_api(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = STANDARDS_SHA
+        endpoint = self.contents(policy.STANDARDS_TRUSTED_ACTORS, STANDARDS_SHA)
+        self.gh.rest[endpoint] = file_payload('{"version": 1, "actors": []}\n')
+        text = policy.standards_file(STANDARDS_REPO, policy.STANDARDS_TRUSTED_ACTORS)
+        self.assertEqual(text, '{"version": 1, "actors": []}\n')
+        self.assertEqual(self.gh.calls, [["api", endpoint]])
+
+    def test_no_standards_checkout_reads_the_contents_api(self) -> None:
+        policy._STANDARDS_SHA[STANDARDS_REPO] = self.sha
+        endpoint = self.contents(policy.STANDARDS_TRUSTED_ACTORS, self.sha)
+        self.gh.rest[endpoint] = file_payload(self.LISTED)
+        with mock.patch.dict(os.environ, {policy.STANDARDS_CHECKOUT_ENV: ""}):
+            text = policy.standards_file(STANDARDS_REPO, policy.STANDARDS_TRUSTED_ACTORS)
+        self.assertEqual(text, self.LISTED)
+        self.assertEqual(self.gh.calls, [["api", endpoint]])
 
 
 class DefaultBranchFromTheEvent(unittest.TestCase):

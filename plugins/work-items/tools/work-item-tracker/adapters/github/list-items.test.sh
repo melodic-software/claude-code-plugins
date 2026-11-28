@@ -2,7 +2,9 @@
 # shellcheck disable=SC2154  # FAILED/CASE_NUM initialized by the sourced helper
 # test-scope: plugins/work-items/tools/work-item-tracker/adapters/github/* plugins/work-items/tools/work-item-tracker/lib/* docs/conventions/work-items.yaml
 set -uo pipefail
+unset RUNNER_TEMP GITHUB_ACTIONS
 S="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/list-items.sh"
+FIXTURES="$(dirname "$S")/fixtures"
 source "$(dirname "$S")/../../lib/verb-test-helpers.sh"
 
 assert_help "$S"
@@ -134,6 +136,78 @@ EOF
   assert_contains "REST session: a full page fetches page 2" "$(cat "$REST/argv")" "-f page=2"
   assert_eq "REST session: past the ceiling → truncated:true" "true" "$(jq -c '.truncated' <<<"$OUT")"
   assert_eq "REST session: past the ceiling keeps the ceiling's worth" "150" "$(jq '.items | length' <<<"$OUT")"
+
+  cp "$FIXTURES/gh-issue-native-status-rest.json" "$REST/page-1.json"
+  OUT="$(rest_list)"
+  assert_eq "REST session: surfaces native_status Backlog, In review, and null for pre-preview issues" \
+    '["Backlog","In review",null]' "$(jq -c '[.items[].native_status]' <<<"$OUT")"
+
+  DUAL="$FIX/dual"
+  mkdir -p "$DUAL/bin"
+  cat >"$DUAL/bin/gh" <<'EOF'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >>"$GH_STUB_ARGV"
+if [[ "$1 $2" == "issue list" ]]; then
+  jq -c '[.[] | {number, title, state: (.state | ascii_upcase), assignees, labels, issueType: .type, blockedBy: {nodes: []}, url: .html_url, createdAt: .created_at, milestone}]' "$GH_STUB_FIXTURE"
+elif [[ "$1" == "api" && "$*" == *"repos/o/r/issues"* ]]; then
+  if [[ -n "${GH_STUB_REST_DIR:-}" ]]; then
+    page=1
+    for a in "$@"; do
+      case "$a" in page=*) page="${a#page=}" ;; *) : ;; esac
+    done
+    cat "$GH_STUB_REST_DIR/page-$page.json"
+  else
+    cat "$GH_STUB_REST_FILE"
+  fi
+else
+  exit 90
+fi
+EOF
+  chmod +x "$DUAL/bin/gh"
+  : >"$DUAL/argv"
+  OUT="$(PATH="$DUAL/bin:$PATH" GH_STUB_ARGV="$DUAL/argv" GH_STUB_FIXTURE="$FIXTURES/gh-issue-native-status-rest.json" \
+    GH_STUB_REST_FILE="$FIXTURES/gh-issue-native-status-rest.json" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
+  assert_eq "gh issue list path: surfaces native_status via REST enrichment" \
+    '["Backlog","In review",null]' "$(jq -c '[.items[].native_status]' <<<"$OUT")"
+
+  jq 'map(del(.status))' "$FIXTURES/gh-issue-native-status-rest.json" >"$DUAL/unenrolled.json"
+  OUT="$(PATH="$DUAL/bin:$PATH" GH_STUB_ARGV="$DUAL/argv" GH_STUB_FIXTURE="$FIXTURES/gh-issue-native-status-rest.json" \
+    GH_STUB_REST_FILE="$DUAL/unenrolled.json" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
+  assert_eq "gh issue list path: un-enrolled repo degrades cleanly to native_status null" \
+    '[null,null,null]' "$(jq -c '[.items[].native_status]' <<<"$OUT")"
+
+  mkdir -p "$DUAL/pr-only"
+  jq -cn '[range(1; 101) | {number: (5000 + .), pull_request: {url: "u"}}]' >"$DUAL/pr-only/page-1.json"
+  cp "$FIXTURES/gh-issue-native-status-rest.json" "$DUAL/pr-only/page-2.json"
+  : >"$DUAL/argv"
+  OUT="$(PATH="$DUAL/bin:$PATH" GH_STUB_ARGV="$DUAL/argv" GH_STUB_FIXTURE="$FIXTURES/gh-issue-native-status-rest.json" \
+    GH_STUB_REST_DIR="$DUAL/pr-only" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
+  assert_eq "gh issue list path: PR-only page 1 advances to page 2 and annotates native_status" \
+    '["Backlog","In review",null]' "$(jq -c '[.items[].native_status]' <<<"$OUT")"
+  assert_contains "gh issue list path: PR-only page 1 fetches page 2" "$(cat "$DUAL/argv")" "page=2"
+
+  mkdir -p "$DUAL/pr-heavy"
+  jq -cn '[range(1; 99) | {number: (6000 + .), pull_request: {url: "u"}}] + [
+    {number: 19449, title: "a", state: "open", status: {id: 2, name: "Backlog", category: "backlog"}},
+    {number: 19535, title: "b", state: "open", status: {id: 8, name: "In review", category: "started"}}
+  ]' >"$DUAL/pr-heavy/page-1.json"
+  jq -cn '[range(1; 100) | {number: (7000 + .), pull_request: {url: "u"}}] + [
+    {number: 136, title: "c", state: "open", status: {id: 3, name: "Todo", category: "planned"}}
+  ]' >"$DUAL/pr-heavy/page-2.json"
+  jq -cn '[{number: 99999, title: "should-not-fetch", state: "open", status: {id: 3, name: "Todo", category: "planned"}}]' \
+    >"$DUAL/pr-heavy/page-3.json"
+  jq '.limits.list_items_max = 3' "$(dirname "$S")/capabilities.json" >"$FIX/adapters/github/capabilities.json"
+  : >"$DUAL/argv"
+  OUT="$(PATH="$DUAL/bin:$PATH" GH_STUB_ARGV="$DUAL/argv" GH_STUB_FIXTURE="$FIXTURES/gh-issue-native-status-rest.json" \
+    GH_STUB_REST_DIR="$DUAL/pr-heavy" \
+    bash "$FIX/adapters/github/list-items.sh" --repo o/r)"
+  assert_eq "gh issue list path: PR-heavy page 1 does not overcount PRs against limit and annotates page 2" \
+    '["Backlog","In review","Todo"]' "$(jq -c '[.items[].native_status]' <<<"$OUT")"
+  assert_eq "gh issue list path: stops once all requested issue numbers are covered (does not fetch page 3)" \
+    "0" "$(grep -c 'page=3' "$DUAL/argv" || true)"
 fi
 
 [[ $FAILED -eq 0 ]] || exit 1

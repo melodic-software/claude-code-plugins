@@ -133,7 +133,7 @@ input and sets the run size. If none resolves, add none on your own: that file's
 what to do instead. Cover the rule with example tests meanwhile.
 
 The adapters' `property_markers` lists name the markers the audit knows; a property library no
-adapter lists gets its markers through the `extend` key in `.claude/testing.yaml`
+adapter lists gets its markers through the `extend` key in `docs/conventions/testing.yaml`
 (`extend.<adapter>.property_markers`).
 
 Basis: the agent-self-check research slice (2026-10-06). Agentic property testing found real bugs

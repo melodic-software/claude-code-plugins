@@ -43,9 +43,9 @@ import {
   reusePlan,
   requiredSections,
   withRequiredSections,
-  HOLD_LINE,
   EVAL_GATED_LABEL,
   evalHoldComment,
+  personHoldComment,
   HOLD_LABEL,
   linkageLines,
   trustedLabeler,
@@ -126,6 +126,8 @@ const statusInto = (calls) => async (number, state) => {
   calls.push({ method: "STATUS", path: `/issues/${number}`, body: { state } });
 };
 
+const labeledHeld = (calls) => calls.some((c) => c.method === "POST" && /\/issues\/[0-9]+\/labels$/.test(c.path) && c.body?.labels?.includes("do-not-merge"));
+
 test("a missing outcome file reads as stopped", () => {
   withDir({}, (dir) => {
     assert.equal(readOutcome(join(dir, "work-outcome.json")).exit, "stopped");
@@ -167,12 +169,12 @@ test('"link": "refs" with no remaining work closes the issue', () => {
   }
 });
 
-test("remaining work opens a PR that starts Refs: #N, lists it, and carries no hold line", () => {
+test("remaining work opens a PR that starts Refs: #N, lists it, and holds nothing", () => {
   const body = bodyOf({ ...done, remaining: ["Part B: the Windows host check", "The docs page"] });
   assert.ok(body.startsWith("Refs: #77\n\n## Summary"), body);
   assert.ok(body.includes("\n## Remaining work\n\n- Part B: the Windows host check\n- The docs page\n"), body);
   assert.ok(!body.includes("Closes #77"), body);
-  assert.ok(!body.includes("Hold: a human merges this"), body);
+  assert.ok(!decideDone({ outcome: { ...done, remaining: ["Part B: the Windows host check", "The docs page"] } }).hold, "a Refs PR holds nothing");
 });
 
 test('remaining work opens a Refs PR whatever "link" says', () => {
@@ -280,9 +282,10 @@ test("reusePlan puts the issue's Codifies line at column 0", () => {
   assert.ok(plan.body.startsWith(`Closes #77\n${CODIFIES_LINE}\n`), plan.body);
 });
 
-test("a Refs PR with a trusted merge: human label still carries the hold line", () => {
+test("a Refs PR with a trusted merge: human label still holds", () => {
   const plan = decideDone({ outcome: { ...done, remaining: ["Part B"] }, humanMerge: true });
-  assert.ok(plan.body.startsWith("Refs: #77\n\nHold: a human merges this\n"), plan.body);
+  assert.ok(plan.body.startsWith("Refs: #77\n"), plan.body);
+  assert.equal(plan.hold, true);
 });
 
 test("done keeps a Conventional Commits title", () => {
@@ -335,41 +338,41 @@ test("done puts no label on the PR, so the class stays on the issue", () => {
   assert.equal(decideDone({ issueLabels: ["agent-ready", "work-class: mechanical"] }).labels, undefined);
 });
 
-test("read-only work on ordinary files carries no hold line", () => {
-  assert.ok(!decideDone().body.includes("Hold: a human merges this"));
+test("read-only work on ordinary files holds nothing", () => {
+  assert.ok(!decideDone().hold);
 });
 
 for (const label of ["provenance: untrusted"]) {
-  test(`untrusted-provenance work labeled only ${label} carries the hold line`, () => {
+  test(`untrusted-provenance work labeled only ${label} holds`, () => {
     const plan = decideDone({ issueLabels: [label] });
-    assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
+    assert.ok(plan.hold, plan.body);
   });
 }
 
-test("structural work on ordinary files carries no hold line", () => {
+test("structural work on ordinary files holds nothing", () => {
   const plan = decideDone({ issueLabels: ["work-class: structural"] });
-  assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
+  assert.ok(!plan.hold, plan.body);
 });
 
-test("an issue with no work class, on ordinary files, carries no hold line", () => {
+test("an issue with no work class, on ordinary files, holds nothing", () => {
   const plan = decideDone({ issueLabels: ["agent-ready"] });
-  assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
+  assert.ok(!plan.hold, plan.body);
 });
 
-test("scoped work on ordinary files carries no hold line", () => {
+test("scoped work on ordinary files holds nothing", () => {
   const plan = decideDone({ issueLabels: ["work-class: scoped"] });
-  assert.ok(!plan.body.includes("Hold: a human merges this"), plan.body);
+  assert.ok(!plan.hold, plan.body);
 });
 
 for (const path of [".github/workflows/ci.yml", "AGENTS.md", "plugins/x/AGENTS.md", ".claude-plugin/marketplace.json", "plugins/x/skills/y/SKILL.md"]) {
-  test(`a diff touching ${path}, under a merge-lane denied path, carries the hold line`, () => {
+  test(`a diff touching ${path}, under a merge-lane denied path, holds`, () => {
     const plan = decideDone({ changedFiles: ["README.md", path] });
-    assert.ok(plan.body.split("\n").includes("Hold: a human merges this"), plan.body);
+    assert.ok(plan.hold, plan.body);
   });
 }
 
-test("with no readable denied-path list every done PR carries the hold line", () => {
-  assert.ok(decideDone({ holdPaths: null }).body.split("\n").includes("Hold: a human merges this"));
+test("with no readable denied-path list every done PR holds", () => {
+  assert.ok(decideDone({ holdPaths: null }).hold);
 });
 
 test("the denied paths come from the resolved config the runner wrote", () => {
@@ -380,11 +383,11 @@ test("the denied paths come from the resolved config the runner wrote", () => {
   withDir({}, (dir) => assert.equal(readHoldPaths(join(dir, "resolved-config.json")), null));
 });
 
-test("an empty denied-path list denies no path, so a PR with no other hold reason carries no hold line", () => {
+test("an empty denied-path list denies no path, so a PR with no other hold reason holds nothing", () => {
   withDir({ "resolved-config.json": JSON.stringify({ merge: { "diff-check": { "denied-paths": [] } } }) }, (dir) => {
     const holdPaths = readHoldPaths(join(dir, "resolved-config.json"));
     assert.deepEqual(holdPaths, []);
-    assert.ok(!decideDone({ holdPaths, changedFiles: [".github/workflows/ci.yml"] }).body.includes("Hold: a human merges this"));
+    assert.ok(!decideDone({ holdPaths, changedFiles: [".github/workflows/ci.yml"] }).hold);
   });
 });
 
@@ -398,7 +401,7 @@ for (const [name, text] of [
     withDir({ "resolved-config.json": text }, (dir) => {
       const holdPaths = readHoldPaths(join(dir, "resolved-config.json"));
       assert.equal(holdPaths, null);
-      assert.ok(decideDone({ holdPaths }).body.split("\n").includes("Hold: a human merges this"));
+      assert.ok(decideDone({ holdPaths }).hold);
     });
   });
 }
@@ -409,13 +412,13 @@ test("with path holds off a denied path holds nothing, and on it holds the PR", 
     withDir({ "resolved-config.json": config(off) }, (dir) => {
       const holdPaths = heldPaths(join(dir, "resolved-config.json"));
       assert.deepEqual(holdPaths, []);
-      assert.ok(!decideDone({ holdPaths, changedFiles: ["a/x.md"] }).body.includes("Hold: a human merges this"));
+      assert.ok(!decideDone({ holdPaths, changedFiles: ["a/x.md"] }).hold);
     });
   }
   withDir({ "resolved-config.json": config(true) }, (dir) => {
     const holdPaths = heldPaths(join(dir, "resolved-config.json"));
     assert.deepEqual(holdPaths, ["a/**"]);
-    assert.ok(decideDone({ holdPaths, changedFiles: ["a/x.md"] }).body.split("\n").includes("Hold: a human merges this"));
+    assert.ok(decideDone({ holdPaths, changedFiles: ["a/x.md"] }).hold);
   });
   withDir({ "resolved-config.json": "{" }, (dir) => assert.equal(heldPaths(join(dir, "resolved-config.json")), null));
 });
@@ -424,16 +427,16 @@ test("an unreadable resolved config reads as no denied-path list and holds the P
   withDir({}, (dir) => {
     const holdPaths = readHoldPaths(dir);
     assert.equal(holdPaths, null);
-    assert.ok(decideDone({ holdPaths }).body.split("\n").includes("Hold: a human merges this"));
+    assert.ok(decideDone({ holdPaths }).hold);
   });
 });
 
-test("a trusted merge: human label carries the hold line", () => {
-  assert.ok(decideDone({ humanMerge: true }).body.split("\n").includes("Hold: a human merges this"));
+test("a trusted merge: human label holds", () => {
+  assert.ok(decideDone({ humanMerge: true }).hold);
 });
 
-test("without a trusted merge: human label scoped work carries no hold line", () => {
-  assert.ok(!decideDone({ issueLabels: ["work-class: scoped"], humanMerge: false }).body.includes("Hold: a human merges this"));
+test("without a trusted merge: human label scoped work holds nothing", () => {
+  assert.ok(!decideDone({ issueLabels: ["work-class: scoped"], humanMerge: false }).hold);
 });
 
 const labeled = (name, login, id) => ({ event: "labeled", label: { name }, actor: { login, id } });
@@ -755,8 +758,8 @@ test("an issue title carrying an issue reference or URL loses it", () => {
 
 test("a whole list of 300 or more changed files holds only on a denied path in it", () => {
   const files = Array.from({ length: 301 }, (_, i) => `docs/f${i}.md`);
-  assert.ok(!decideDone({ changedFiles: files }).body.split("\n").includes("Hold: a human merges this"));
-  assert.ok(decideDone({ changedFiles: [...files, ".github/workflows/x.yml"] }).body.split("\n").includes("Hold: a human merges this"));
+  assert.ok(!decideDone({ changedFiles: files }).hold);
+  assert.ok(decideDone({ changedFiles: [...files, ".github/workflows/x.yml"] }).hold);
 });
 
 test("done with no branch is retried, since nothing was committed", () => {
@@ -1062,7 +1065,9 @@ function fakeFetch(routes) {
         ? [method, /./, 200, { data: { repository: { issue: { closedByPullRequestsReferences: { nodes: [], pageInfo: { hasNextPage: false } } } } } }]
         : method === "POST" && /\/issues\/90\/labels$/.test(path)
           ? [method, /./, 200, []]
-          : null;
+          : method === "POST" && /\/issues\/90\/comments$/.test(path)
+            ? [method, /./, 201, {}]
+            : null;
     const route = routes.find(([m, p]) => m === method && p.test(path)) ?? none;
     const [, , status, body] = route ?? [method, /./, 404, { message: "Not Found" }];
     return method === "DIFF" && typeof body === "string" ? new Response(body, { status }) : jsonResponse(status, body);
@@ -1679,7 +1684,7 @@ test("main on done opens a ready PR from the branch, labels it do-not-merge when
       assert.equal(pull.head, BRANCH);
       assert.equal(pull.base, "main");
       assert.ok(pull.body.startsWith("Closes #77\n"));
-      assert.ok(pull.body.split("\n").includes(HOLD_LINE), pull.body);
+      assert.ok(!pull.body.includes("Hold: a human merges this"), pull.body);
       assert.deepEqual(calls.filter((c) => c.path.endsWith("/issues/90/labels")).map((c) => c.body), [{ labels: ["do-not-merge"] }]);
       assert.ok(!calls.some((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/77/")));
     },
@@ -1705,9 +1710,10 @@ test("main holds a PR whose issue is eval-gated: do-not-merge, then the eval rea
     evalHoldComment(16803),
     "Held for the before-and-after eval that cut item #16803 needs. The pr-merge release step lifts this hold when an eval-pair record exists for the current head.\n\n<!-- pr-hold reason=eval -->",
   );
-  await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
+  const config = JSON.stringify({ merge: { "diff-check": { "denied-paths": ["a/**"] } } });
+  await withAsyncDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile(), "resolved-config.json": config }, async (dir) => {
     const { fetch, calls } = fakeFetch(evalRoutes([]));
-    assert.equal(await main({ env: env(dir), fetch }), 0);
+    assert.equal(await main({ env: { ...env(dir), RESOLVED_CONFIG: join(dir, "resolved-config.json") }, fetch }), 0);
     const writes = calls.filter((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/90/"));
     assert.deepEqual(writes.map((c) => [c.path, c.body]), [
       ["/repos/o/r/issues/90/labels", { labels: ["do-not-merge"] }],
@@ -1716,9 +1722,23 @@ test("main holds a PR whose issue is eval-gated: do-not-merge, then the eval rea
   });
 });
 
+test("main holds an eval-gated PR that a person must also merge with both reasons, each on its own line", async () => {
+  const both = evalHoldComment(77, true).split("\n");
+  assert.ok(both.includes("<!-- pr-hold reason=eval -->") && both.includes("<!-- pr-hold reason=person -->"), both.join("\n"));
+  await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
+    const { fetch, calls } = fakeFetch(evalRoutes([]));
+    assert.equal(await main({ env: env(dir), fetch }), 0);
+    const writes = calls.filter((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/90/"));
+    assert.deepEqual(writes.map((c) => [c.path, c.body]), [
+      ["/repos/o/r/issues/90/labels", { labels: ["do-not-merge"] }],
+      ["/repos/o/r/issues/90/comments", { body: evalHoldComment(77, true) }],
+    ]);
+  });
+});
+
 test("main posts the eval hold comment once: a rerun finds the lanes App's", async () => {
   await withDir({ "work-outcome.json": JSON.stringify(done), "lane.json": JSON.stringify({ branch: BRANCH }), "runner-checks": checksFile() }, async (dir) => {
-    const prior = [{ user: { login: "melodic-automation-lanes[bot]" }, body: evalHoldComment(77) }];
+    const prior = [{ user: { login: "melodic-automation-lanes[bot]" }, body: evalHoldComment(77, true) }];
     const routes = evalRoutes(prior);
     routes[4] = ["GET", /\/pulls$/, 200, [{ number: 90, user: { login: "melodic-automation-lanes[bot]" }, head: { sha: "c".repeat(40) }, labels: [{ name: HOLD_LABEL }] }]];
     const { fetch, calls } = fakeFetch(routes);
@@ -1831,7 +1851,7 @@ test("main on done with Refs opens the PR and writes nothing to the issue", asyn
       ]);
       assert.equal(await main({ env: env(dir), fetch }), 0);
       const writes = calls.filter((c) => c.method !== "GET" && c.path !== "/graphql").map((c) => `${c.method} ${c.path}`);
-      assert.deepEqual(writes, ["POST /repos/o/r/pulls", "POST /repos/o/r/issues/90/labels"]);
+      assert.deepEqual(writes, ["POST /repos/o/r/pulls", "POST /repos/o/r/issues/90/labels", "POST /repos/o/r/issues/90/comments"]);
       assert.ok(calls.find((c) => c.path.endsWith("/pulls") && c.method === "POST").body.body.startsWith("Refs: #77\n"));
     },
   );
@@ -3155,13 +3175,13 @@ test("--find-prior stops not-applicable on an open lanes-App PR, with no comment
   assert.deepEqual(writesToGitHub(calls), []);
 });
 
-test("--find-prior stops not-applicable on a listed human's closing PR, names that PR and writes nothing", async () => {
+test("--find-prior stops closed-by-open-pr on a listed human's closing PR, names that PR and writes nothing", async () => {
   const lines = [];
   const log = console.log;
   console.log = (line) => lines.push(line);
   try {
     const { calls, output } = await runPrior({ nodes: [closer("User", "kyle-sexton", OWNER_ID)] });
-    assert.equal(output, "proceed=false\nskip-reason=not-applicable\nreuse-branch=\n");
+    assert.equal(output, "proceed=false\nskip-reason=closed-by-open-pr\nreuse-branch=\n");
     assert.deepEqual(writesToGitHub(calls), []);
   } finally {
     console.log = log;
@@ -3301,7 +3321,7 @@ test("--find-prior reads every page of closing PRs, so outsiders' PRs cannot hid
   const { code, calls, output } = await runPrior({ graphqlPages: [outsiders, [closer("User", "kyle-sexton", OWNER_ID)]] });
   assert.equal(code, 0);
   assert.deepEqual(calls.filter((c) => c.path === "/graphql").map((c) => c.body.variables.after), [null, "c1"]);
-  assert.equal(output, "proceed=false\nskip-reason=not-applicable\nreuse-branch=\n");
+  assert.equal(output, "proceed=false\nskip-reason=closed-by-open-pr\nreuse-branch=\n");
 });
 
 test("--find-prior holds on a pull request listing that is not a list", async () => {
@@ -3402,7 +3422,8 @@ test("a reuse PR body with no runner checks is fixed text, held, and follows the
     earlierRunUrl: "https://example/o/r/actions/runs/400",
   });
   assert.equal(plan.title, "fix: Lane PR titles fall back");
-  assert.ok(plan.body.startsWith("Closes #77\n\nHold: a human merges this\n"), plan.body);
+  assert.ok(plan.body.startsWith("Closes #77\n"), plan.body);
+  assert.equal(plan.hold, true);
   assert.deepEqual(headings(plan.body), ["## Summary", "## Fix", "## Verification", "## Related"]);
   assert.ok(plan.body.includes("https://example/o/r/actions/runs/400"), plan.body);
 });
@@ -3428,6 +3449,9 @@ test("a reused branch whose own run's outcome is here opens the normal PR from i
   });
 });
 
+const commentWrites = (calls) => calls.filter((c) => c.method !== "GET" && c.path.endsWith("/comments")).map((c) => [c.method, c.path, c.body]);
+const onlyPersonHold = ["POST", "/repos/o/r/issues/90/comments", { body: personHoldComment(77) }];
+
 test("a reused branch with another run's or no outcome opens a held PR with none of the model's text", async () => {
   for (const files of [
     { "work-outcome.json": JSON.stringify(model), "lane.json": JSON.stringify({ branch: lane(399) }) },
@@ -3441,10 +3465,11 @@ test("a reused branch with another run's or no outcome opens a held PR with none
       assert.equal(pull.head, lane(400));
       assert.equal(pull.base, "main");
       assert.equal(pull.title, "fix: resolve issue 77");
-      assert.ok(pull.body.split("\n").includes("Hold: a human merges this"), pull.body);
+      assert.ok(!pull.body.includes("Hold: a human merges this"), pull.body);
       assert.ok(!pull.body.includes("MODEL-SUMMARY-TEXT") && !pull.body.includes("model title"), pull.body);
       assert.ok(pull.body.includes("https://example/o/r/actions/runs/400"), pull.body);
-      assert.ok(!calls.some((c) => c.path.endsWith("/comments") || c.path.endsWith("/issues/77/labels")), Object.keys(files).join());
+      assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/labels")), Object.keys(files).join());
+      assert.deepEqual(commentWrites(calls), [onlyPersonHold], Object.keys(files).join());
       assert.deepEqual(calls.filter((c) => c.path.endsWith("/issues/90/labels")).map((c) => c.body), [{ labels: ["do-not-merge"] }]);
     });
   }
@@ -3454,7 +3479,7 @@ test("a reused branch ignores a limit record, so no limited marker restarts it",
   await withAsyncDir({ "lane.json": JSON.stringify({ branch: lane(400), class: "rate-limit", resets: "2026-10-17T18:00:00Z" }) }, async (dir) => {
     const { fetch, calls } = fakeFetch(PR_ROUTES);
     assert.equal(await main({ env: reuseEnv(dir), fetch, now: LIMIT_NOW }), 0);
-    assert.ok(!calls.some((c) => c.path.endsWith("/comments")));
+    assert.deepEqual(commentWrites(calls), [onlyPersonHold]);
     assert.ok(calls.some((c) => c.method === "POST" && c.path.endsWith("/pulls")));
   });
 });
@@ -3484,10 +3509,11 @@ const summaryEnv = (dir) => ({ ...reuseEnv(dir), REUSE_SUMMARY_DIR: dir, RESOLVE
 const tipRoute = (sha = TIP) => ["GET", /\/git\/ref\/heads\/work-resolve-issue\/issue-77-400-1$/, 200, { object: { sha } }];
 const usable = { title: "docs(work-items): summary title", summary: "SUMMARY-PASS-TEXT", changes: ["CHANGE-ONE"] };
 
-test("a reuse PR with a usable summary carries it under the hold line", () => {
+test("a reuse PR with a usable summary carries it, held", () => {
   const plan = reusePlan({ issueNumber: 77, branch: lane(400), summary: usable, changedFiles: ["README.md"], holdPaths: HOLD_GLOBS });
   assert.equal(plan.title, "docs(work-items): summary title");
-  assert.ok(plan.body.startsWith("Closes #77\n\nHold: a human merges this\n\n## Summary\n"), plan.body);
+  assert.ok(plan.body.startsWith("Closes #77\n\n## Summary\n"), plan.body);
+  assert.equal(plan.hold, true);
   assert.ok(plan.body.includes("> SUMMARY-PASS-TEXT"), plan.body);
   assert.ok(plan.body.includes("- CHANGE-ONE"), plan.body);
   assert.deepEqual(headings(plan.body), ["## Summary", "## Fix", "## Verification", "## Related"]);
@@ -3540,7 +3566,7 @@ test("main opens a held reuse PR when the compare request fails, saying the file
     const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
     assert.ok(pull.body.includes("The changed-file list is unavailable"), pull.body);
     assert.ok(pull.body.includes("SUMMARY-PASS-TEXT"), pull.body);
-    assert.ok(pull.body.split("\n").includes("Hold: a human merges this"), pull.body);
+    assert.ok(labeledHeld(calls), pull.body);
   });
 });
 
@@ -3553,11 +3579,11 @@ test("main opens a held reuse PR from a summary bound to this issue, branch and 
     assert.equal(pull.title, "docs(work-items): summary title");
     assert.ok(pull.body.includes("SUMMARY-PASS-TEXT") && pull.body.includes("CHANGE-ONE"), pull.body);
     assert.ok(pull.body.includes("\n- README.md\n") && !pull.body.includes("(denied path)"), pull.body);
-    assert.ok(pull.body.split("\n").includes("Hold: a human merges this"), pull.body);
+    assert.ok(labeledHeld(calls), pull.body);
   });
 });
 
-test("main keeps the fixed text and the hold line when the summary is missing or unusable", async () => {
+test("main keeps the fixed text and the hold when the summary is missing or unusable", async () => {
   for (const [label, files, tip] of [
     ["no summary file", {}, TIP],
     ["another issue", { "reuse-summary.json": summaryFile({ issue: 7 }) }, TIP],
@@ -3573,18 +3599,18 @@ test("main keeps the fixed text and the hold line when the summary is missing or
       assert.equal(await main({ env: summaryEnv(dir), fetch }), 0, label);
       const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
       assert.equal(pull.title, "fix: resolve issue 77", label);
-      assert.ok(pull.body.split("\n").includes("Hold: a human merges this"), label);
+      assert.ok(labeledHeld(calls), label);
       assert.ok(!pull.body.includes("SUMMARY-PASS-TEXT") && !pull.body.includes("CHANGE-ONE"), label);
     });
   }
 });
 
-test("main keeps the hold line when the branch tip cannot be read", async () => {
+test("main keeps the hold when the branch tip cannot be read", async () => {
   await withAsyncDir({ "reuse-summary.json": summaryFile() }, async (dir) => {
     const { fetch, calls } = fakeFetch(PR_ROUTES);
     assert.equal(await main({ env: summaryEnv(dir), fetch }), 0);
     const pull = calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls")).body;
-    assert.ok(pull.body.split("\n").includes("Hold: a human merges this"), pull.body);
+    assert.ok(labeledHeld(calls), pull.body);
     assert.ok(!pull.body.includes("SUMMARY-PASS-TEXT"), pull.body);
   });
 });
@@ -3631,28 +3657,27 @@ async function runHumanMerge({ labels, events = [], eventsStatus = 200, trusted 
         fetch,
         sleep: async () => {},
       });
-      return { code, calls, body: calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls"))?.body.body };
+      return { code, calls, body: calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls"))?.body.body, held: labeledHeld(calls) };
     },
   );
 }
 
 const MERGE_HUMAN = ["agent-ready", "work-class: scoped", "merge: human"];
-const holds = (body) => body.split("\n").includes("Hold: a human merges this");
 
 test("main holds the PR when the owner put merge: human on the issue", async () => {
-  const { code, body } = await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)] });
+  const { code, body, held } = await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)] });
   assert.equal(code, 0);
-  assert.ok(holds(body), body);
+  assert.ok(held, body);
 });
 
 test("main holds the PR when the lanes App put merge: human on the issue", async () => {
-  const { body } = await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", BOT, 337595936)] });
-  assert.ok(holds(body), body);
+  const { body, held } = await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", BOT, 337595936)] });
+  assert.ok(held, body);
 });
 
 test("main without merge: human holds no PR and reads no label events", async () => {
-  const { body, calls } = await runHumanMerge({ labels: ["agent-ready", "work-class: scoped"] });
-  assert.ok(!holds(body), body);
+  const { body, calls, held } = await runHumanMerge({ labels: ["agent-ready", "work-class: scoped"] });
+  assert.ok(!held, body);
   assert.ok(!calls.some((c) => c.path.endsWith("/events")));
 });
 
@@ -3683,6 +3708,34 @@ test("main labels a held PR it reuses from an earlier attempt", async () => {
   assert.deepEqual(holdLabelPosts(calls).map((c) => c.body), [{ labels: ["do-not-merge"] }]);
 });
 
+test("main records a person hold on a PR whose issue is not eval-gated: the label, then a reason=person line of its own", async () => {
+  const lines = personHoldComment(77).split("\n");
+  assert.equal(lines[0], "<!-- work-resolve-issue person-hold -->", "the writer marker comes first");
+  assert.equal(lines[1], "### work-resolve-issue / report-outcome");
+  assert.match(lines.find((line, i) => i > 1 && line !== ""), /^Held: .*#77\b/, "the verdict line follows the heading");
+  assert.ok(lines.includes("<!-- pr-hold reason=person -->") && !lines.some((line) => line.includes("reason=eval")), lines.join("\n"));
+  assert.ok(lines.length <= 15 && personHoldComment(77).length <= 1500, "within the PR comment limit");
+  const { code, calls } = await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)] });
+  assert.equal(code, 0);
+  const writes = calls.filter((c) => c.method === "POST" && c.path.startsWith("/repos/o/r/issues/90/"));
+  assert.deepEqual(writes.map((c) => [c.path, c.body]), [
+    ["/repos/o/r/issues/90/labels", { labels: ["do-not-merge"] }],
+    ["/repos/o/r/issues/90/comments", { body: personHoldComment(77) }],
+  ]);
+});
+
+test("main sends no label write for a PR that already carries do-not-merge, and still records the person hold", async () => {
+  const { code, calls } = await runHumanMerge({
+    labels: MERGE_HUMAN,
+    events: [labeled("merge: human", "kyle-sexton", OWNER_ID)],
+    open: [{ number: 90, user: { login: BOT }, head: { sha: "c".repeat(40) }, labels: [{ name: HOLD_LABEL }] }],
+  });
+  assert.equal(code, 0);
+  assert.deepEqual(holdLabelPosts(calls), []);
+  assert.ok(!calls.some((c) => c.method === "PATCH"), "the held PR stays open");
+  assert.deepEqual(calls.filter((c) => c.method === "POST" && c.path.endsWith("/issues/90/comments")).map((c) => c.body), [{ body: personHoldComment(77) }]);
+});
+
 test("main closes a held PR it cannot label and retries the issue", async () => {
   const { code, calls } = await runHumanMerge({
     labels: MERGE_HUMAN,
@@ -3698,12 +3751,12 @@ test("main closes a held PR it cannot label and retries the issue", async () => 
 });
 
 test("main ignores merge: human from a labeler who is not a listed human or the lanes App", async () => {
-  const { body } = await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "stranger", 42)] });
-  assert.ok(!holds(body), body);
+  const { body, held } = await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "stranger", 42)] });
+  assert.ok(!held, body);
 });
 
 test("main holds the PR when the trusted list that judges merge: human's labeler cannot be read", async () => {
-  assert.ok(holds((await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)], trusted: null })).body));
+  assert.ok((await runHumanMerge({ labels: MERGE_HUMAN, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)], trusted: null })).held);
 });
 
 test("main opens no PR and writes nothing when merge: human's labeler cannot be read, and ends green", async (t) => {
@@ -5171,7 +5224,7 @@ const CLEAN_REUSE = {
   humanMerge: false,
   checks: CLEAN_CHECKS,
 };
-const reuseHeld = (overrides = {}) => reusePlan({ ...CLEAN_REUSE, ...overrides }).body.split("\n").includes(HOLD_LINE);
+const reuseHeld = (overrides = {}) => reusePlan({ ...CLEAN_REUSE, ...overrides }).hold;
 const HOLD_CASES = {
   "the denied paths cannot be read": { holdPaths: null },
   "the compare request failed": { changedFiles: null },
@@ -5194,8 +5247,8 @@ for (const [name, overrides] of Object.entries({ ...HOLD_CASES, ...SCAN_CASES })
 }
 
 test("a reuse PR with a clean scan does not hold only because no runner check reported, and says what checks its head", () => {
-  const { body } = reusePlan({ ...CLEAN_REUSE, checks: { ...CLEAN_CHECKS, results: [] } });
-  assert.ok(!body.split("\n").includes(HOLD_LINE), body);
+  const { body, hold } = reusePlan({ ...CLEAN_REUSE, checks: { ...CLEAN_CHECKS, results: [] } });
+  assert.equal(hold, false, body);
   assert.ok(body.includes("ci-status, pr-verify and the security review lane check the head before it merges."), body);
   assert.ok(!body.includes("a person reviews the diff"), body);
 });
@@ -5218,7 +5271,7 @@ test("a reuse PR's whole list of 300 or more files holds only on a denied path i
 test("a reuse PR whose runner check failed opens unheld and names the failure in Verification", () => {
   const plan = reusePlan({ ...CLEAN_REUSE, checks: { ...CLEAN_CHECKS, results: [{ check: FRAGMENTS, exit: 1 }] } });
   assert.equal(plan.hold, false);
-  assert.ok(!plan.body.split("\n").includes(HOLD_LINE), plan.body);
+  assert.ok(!plan.hold, plan.body);
   assert.ok(plan.body.includes(`${FRAGMENTS}: failed (exit 1)`), plan.body);
   assert.ok(plan.body.includes("ci-status, pr-verify and the security review lane check the head before it merges."), plan.body);
 });
@@ -5228,7 +5281,7 @@ test("a reuse PR whose runner check failed still holds on a leak scan that is no
   for (const checks of [{ ...CLEAN_CHECKS, results: failed, scan: "found" }, { ...CLEAN_CHECKS, results: failed, scan: "failed" }, { tip: TIP, results: failed }]) {
     const plan = reusePlan({ ...CLEAN_REUSE, checks });
     assert.equal(plan.hold, true, JSON.stringify(checks));
-    assert.ok(plan.body.split("\n").includes(HOLD_LINE), plan.body);
+    assert.ok(plan.hold, plan.body);
   }
 });
 
@@ -5246,15 +5299,15 @@ test("mustHold: a reuse holds on any scan word but clean; a failed runner check 
 });
 
 test("decide() and reusePlan() hold on the same runner facts, through one mustHold", () => {
-  const held = (body) => body.split("\n").includes(HOLD_LINE);
+  const held = (plan) => plan.hold;
   for (const [name, overrides] of Object.entries({ "nothing": {}, ...HOLD_CASES })) {
     if (overrides.checks !== undefined) continue;
     const facts = { ...CLEAN_REUSE, ...overrides };
     const plan = decide({ outcome: done, branch: BRANCH, ...facts });
     assert.equal(plan.action, "open-pr", name);
-    assert.equal(held(plan.body), mustHold(facts), `decide(): ${name}`);
-    assert.equal(held(reusePlan(facts).body), mustHold({ ...facts, reused: true }), `reusePlan(): ${name}`);
-    assert.equal(held(plan.body), held(reusePlan(facts).body), name);
+    assert.equal(held(plan), mustHold(facts), `decide(): ${name}`);
+    assert.equal(held(reusePlan(facts)), mustHold({ ...facts, reused: true }), `reusePlan(): ${name}`);
+    assert.equal(held(plan), held(reusePlan(facts)), name);
   }
 });
 
@@ -5280,28 +5333,28 @@ async function runReuse({ scan = "clean", exit = 0, labels = ["agent-ready", "wo
     ]);
     const code = await main({ env: { ...reuseEnv(dir), RESOLVED_CONFIG: join(dir, "resolved.json"), TRUSTED_ACTORS: join(dir, "trusted.json") }, fetch });
     assert.equal(code, 0);
-    return { calls, body: calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls"))?.body.body };
+    return { calls, body: calls.find((c) => c.method === "POST" && c.path.endsWith("/pulls"))?.body.body, held: labeledHeld(calls) };
   });
 }
 
-test("main opens a clean reuse PR with no hold line, and holds it on a leak scan that is not clean", async () => {
-  assert.ok(!holds((await runReuse()).body));
-  for (const scan of ["found", "failed", null]) assert.ok(holds((await runReuse({ scan })).body), String(scan));
+test("main opens a clean reuse PR unheld, and holds it on a leak scan that is not clean", async () => {
+  assert.ok(!(await runReuse()).held);
+  for (const scan of ["found", "failed", null]) assert.ok((await runReuse({ scan })).held, String(scan));
 });
 
-test("main opens a reuse PR whose runner check failed with no hold line or hold label, and still holds it on a leak scan that is not clean", async () => {
+test("main opens a reuse PR whose runner check failed with no hold label, and still holds it on a leak scan that is not clean", async () => {
   const holdLabeled = (calls) => calls.some((c) => c.method === "POST" && c.path.endsWith("/labels") && c.body?.labels?.includes(HOLD_LABEL));
   const failing = await runReuse({ exit: 1 });
-  assert.ok(!holds(failing.body), failing.body);
+  assert.ok(!failing.held, failing.body);
   assert.ok(failing.body.includes(`${FRAGMENTS}: failed (exit 1)`), failing.body);
   assert.ok(!holdLabeled(failing.calls));
-  for (const scan of ["found", null]) assert.ok(holds((await runReuse({ exit: 1, scan })).body), String(scan));
+  for (const scan of ["found", null]) assert.ok((await runReuse({ exit: 1, scan })).held, String(scan));
 });
 
 test("main holds a reuse PR on a denied path or a failed compare, and opens a clean one unheld", async () => {
-  assert.ok(!holds((await runReuse()).body));
-  assert.ok(holds((await runReuse({ files: [{ filename: ".github/workflows/x.yml" }] })).body), "a denied path");
-  assert.ok(holds((await runReuse({ compareStatus: 500 })).body), "a failed compare");
+  assert.ok(!(await runReuse()).held);
+  assert.ok((await runReuse({ files: [{ filename: ".github/workflows/x.yml" }] })).held, "a denied path");
+  assert.ok((await runReuse({ compareStatus: 500 })).held, "a failed compare");
 });
 
 test("main judges a reuse PR on every file past the compare listing's 300, read from the diff, and holds only on a denied one", async () => {
@@ -5309,20 +5362,20 @@ test("main judges a reuse PR on every file past the compare listing's 300, read 
   const listed = LISTED.files;
   const diff = DIFF_TEXT;
   const clean = await runReuse({ files: listed, diff, resolved: denying("docs/never/**") });
-  assert.ok(!holds(clean.body), clean.body);
+  assert.ok(!clean.held, clean.body);
   assert.equal(clean.calls.filter((c) => c.method === "DIFF").length, 1, JSON.stringify(clean.calls.map((c) => `${c.method} ${c.path}`)));
   assert.ok(!listed.some((f) => f.filename.startsWith(".github/scripts/work-unblock/")));
   const denied = await runReuse({ files: listed, diff, resolved: denying(".github/scripts/work-unblock/*") });
-  assert.ok(holds(denied.body), "a denied path the diff names");
+  assert.ok(denied.held, "a denied path the diff names");
   const cut = diff.split(/^(?=diff --git )/m).slice(0, -2).join("");
-  assert.ok(holds((await runReuse({ files: listed, diff: cut, resolved: denying("docs/never/**") })).body), "a diff naming fewer files than the listing");
-  assert.ok(holds((await runReuse({ files: listed, resolved: denying("docs/never/**") })).body), "a capped listing whose diff does not read");
+  assert.ok((await runReuse({ files: listed, diff: cut, resolved: denying("docs/never/**") })).held, "a diff naming fewer files than the listing");
+  assert.ok((await runReuse({ files: listed, resolved: denying("docs/never/**") })).held, "a capped listing whose diff does not read");
 });
 
 test("main reads merge: human on a reuse too, and opens no PR when its labeler cannot be read", async () => {
   const labels = ["agent-ready", "work-class: scoped", "merge: human"];
-  assert.ok(!holds((await runReuse({ labels, events: [labeled("merge: human", "stranger", 42)] })).body), "an untrusted labeler");
-  assert.ok(holds((await runReuse({ labels, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)] })).body), "the owner");
+  assert.ok(!(await runReuse({ labels, events: [labeled("merge: human", "stranger", 42)] })).held, "an untrusted labeler");
+  assert.ok((await runReuse({ labels, events: [labeled("merge: human", "kyle-sexton", OWNER_ID)] })).held, "the owner");
   const unread = await runReuse({ labels, eventsStatus: 404, events: { message: "boom" } });
   assert.deepEqual(unread.calls.filter((c) => c.method !== "GET"), [], "unreadable events");
 });
@@ -5477,6 +5530,112 @@ test("main on done still opens the PR when no open PR closes the issue, or only 
     assert.ok(opened(calls), JSON.stringify(nodes));
     assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/comments")), JSON.stringify(nodes));
   }
+});
+
+async function preBuildSkip(closing, { pulls = {}, comments = [] } = {}) {
+  return withAsyncDir({ "trusted.json": TRUSTED_LIST }, async (dir) => {
+    const { fetch, calls } = fakeFetch([
+      ["POST", /^\/graphql$/, ...closing],
+      ...Object.entries(pulls).map(([number, pull]) => ["GET", new RegExp(`/pulls/${number}$`), 200, pull]),
+      ["GET", /\/issues\/77\/comments$/, 200, comments],
+      ["GET", /\/issues\/77\/events$/, 200, []],
+      ["DELETE", /\/issues\/77\/labels\//, 200, []],
+      ["POST", /\/issues\/77\/comments$/, 201, {}],
+    ]);
+    const lines = [];
+    const log = console.log;
+    console.log = (line) => lines.push(line);
+    try {
+      const code = await main({ env: { ...env(dir), TRUSTED_ACTORS: join(dir, "trusted.json"), DIMENSION_SKIP: "closed-by-open-pr" }, fetch });
+      return { code, calls, lines };
+    } finally {
+      console.log = log;
+    }
+  });
+}
+const issueComments = (calls) => calls.filter((c) => c.method === "POST" && c.path.endsWith("/issues/77/comments"));
+const sample = (name) => JSON.parse(readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8"));
+const sampledClosers = (overrides) => {
+  const answer = sample("closing-pulls.json");
+  const refs = answer.data.repository.issue.closedByPullRequestsReferences;
+  const [node] = refs.nodes;
+  refs.nodes = overrides.map(({ author, ...rest }) => ({ ...node, ...rest, author: { ...node.author, ...author } }));
+  return answer;
+};
+const sampledPull = ({ user, ...rest }) => {
+  const pull = sample("pull-open.json");
+  return { ...pull, ...rest, user: { ...pull.user, ...user } };
+};
+const SAME_REPO_CLOSER = { number: 10686, repository: { nameWithOwner: "o/r" } };
+const TRUSTED_CLOSER = { ...SAME_REPO_CLOSER, author: { databaseId: OWNER_ID } };
+
+test("main on a closed-by-open-pr pre-build skip reads the closers itself and waits on the trusted one, with agent-ready kept", async () => {
+  const { code, calls, lines } = await preBuildSkip([200, sampledClosers([TRUSTED_CLOSER])], {
+    pulls: { 10686: sampledPull({ number: 10686, user: { id: OWNER_ID } }) },
+  });
+  assert.equal(code, 0);
+  const [comment] = issueComments(calls).map((c) => c.body.body);
+  const [marker, heading, verdict, blank, ...bullets] = comment.split("\n");
+  assert.equal(marker, "<!-- work-resolve-issue outcome=wait pr=10686 run=123 -->");
+  assert.equal(heading, "### work-resolve-issue / report-outcome");
+  assert.equal(verdict, "Waiting: open PR #10686 already closes this issue, so the run stopped before the model ran.");
+  assert.equal(blank, "");
+  assert.deepEqual(bullets, [
+    "- Stop: `closed-by-open-pr`.",
+    "- It keeps `agent-ready`, and work-unblock starts it again once #10686 merges or closes (wait 1 of 2).",
+    "- Run: https://example/o/r/actions/runs/123",
+  ]);
+  assert.ok(!calls.some((c) => c.method === "POST" && c.path === "/repos/o/r/pulls"));
+  assert.ok(!calls.some((c) => c.path.endsWith("/issues/77/labels") || c.method === "DELETE"));
+  assert.ok(lines.some((line) => line.includes("waits on #10686")), lines.join("\n"));
+});
+
+test("main on a closed-by-open-pr pre-build skip retries, in the lane output format, when the closer closed before the stop was written", async () => {
+  const { code, calls } = await preBuildSkip([200, sampledClosers([TRUSTED_CLOSER])], {
+    pulls: { 10686: sampledPull({ number: 10686, state: "closed", closed_at: "2026-11-28T00:00:00Z", user: { id: OWNER_ID } }) },
+  });
+  assert.equal(code, 0);
+  const [comment] = issueComments(calls).map((c) => c.body.body);
+  const lines = comment.split("\n");
+  assert.equal(lines[0], "<!-- work-resolve-issue outcome=retry run=123 -->");
+  assert.equal(lines[1], "### work-resolve-issue / report-outcome");
+  assert.ok(lines[2].startsWith("Retrying: "), comment);
+  assert.ok(lines.includes("- #10686 is not an open pull request here, so it retries instead."), comment);
+});
+
+test("main on a closed-by-open-pr pre-build skip whose waits are spent stops in the lane output format, quoting no run's words", async () => {
+  const waited = (run) => ({ user: { login: BOT }, body: `<!-- work-resolve-issue outcome=wait pr=10686 run=${run} -->`, created_at: "2026-11-20T00:00:00Z" });
+  const { code, calls } = await preBuildSkip([200, sampledClosers([TRUSTED_CLOSER])], {
+    pulls: { 10686: sampledPull({ number: 10686, user: { id: OWNER_ID } }) },
+    comments: [waited("100"), waited("101")],
+  });
+  assert.equal(code, 0);
+  const [comment] = issueComments(calls).map((c) => c.body.body);
+  const [marker, heading, verdict, blank, ...bullets] = comment.split("\n");
+  assert.equal(marker, "<!-- work-resolve-issue outcome=failed run=123 -->");
+  assert.equal(heading, "### work-resolve-issue / report-outcome");
+  assert.equal(verdict, "Stopped: open PR #10686 already closes this issue, so the run stopped before the model ran.");
+  assert.equal(blank, "");
+  assert.deepEqual(bullets, [
+    "- Stop: `closed-by-open-pr`, then `retry-spent`: the lane has retried this issue as many times as limits.stop-retries, or the stop's own row, allows.",
+    "- It set Work status to needs-triage and added no label.",
+    "- To run it again, set Work status to agent-ready.",
+    "- Run: https://example/o/r/actions/runs/123",
+  ]);
+});
+
+test("main on a closed-by-open-pr pre-build skip posts nothing when no trusted open PR closes the issue any more", async () => {
+  for (const nodes of [[], [SAME_REPO_CLOSER]]) {
+    const { code, calls } = await preBuildSkip([200, sampledClosers(nodes)]);
+    assert.equal(code, 0, JSON.stringify(nodes));
+    assert.deepEqual(issueComments(calls), [], JSON.stringify(nodes));
+  }
+});
+
+test("main on a closed-by-open-pr pre-build skip fails and posts nothing when the closers cannot be read", async () => {
+  const { code, calls } = await preBuildSkip([502, {}]);
+  assert.equal(code, 1);
+  assert.deepEqual(issueComments(calls), []);
 });
 
 test("main on done keeps the lanes App's own open PR from the branch without reading the closers", async () => {
