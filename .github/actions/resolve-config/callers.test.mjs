@@ -141,11 +141,12 @@ for (const [file, job, lane, laneSwitch] of [
     assert.equal(evaluate(review.if, { ...context, "github.event.pull_request.draft": true }), false, "a draft is not reviewed");
   });
 
-  test(`${file}: the review grants the reusable's status job its read scopes and one write`, () => {
+  test(`${file}: the review grants the reusable's read scopes and one write`, () => {
     assert.deepEqual(jobs[job].permissions, {
       actions: "read",
       checks: "read",
       contents: "read",
+      issues: "read",
       "pull-requests": "write",
     });
   });
