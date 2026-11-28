@@ -56,9 +56,10 @@ for script in "${carriers[@]}"; do
     mkdir -p "$dir/scripts" "$dir/lib" "$dir/hooks"
     cp "$root/hooks/hooks.json" "$root/hooks/$hook_file" "$dir/hooks/"
     cp "$script" "$dir/scripts/"
-    if [[ -d "$root/lib" ]]; then
-      cp -R "$root/lib/." "$dir/lib/"
-    fi
+    local mod
+    while IFS= read -r mod; do
+      cp "$root/lib/$mod" "$dir/lib/"
+    done < <(sed -n "s#.*from ['\"]\.\./lib/\([^'\"/]*\)['\"].*#\1#p" "$root/hooks/$hook_file")
     cp "$HERE/hook-registration-check.sh" "$dir/lib/"
     [[ $# -lt 2 ]] || printf '%s\n' "$2" >"$dir/hooks/hooks.json"
     CHECK="$dir/scripts/check-hook-registration.sh"
