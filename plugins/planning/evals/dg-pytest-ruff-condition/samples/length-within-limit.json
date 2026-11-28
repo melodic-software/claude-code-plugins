@@ -31,6 +31,10 @@
     {
       "answer": "The draft below is 634 characters by the deterministic counter (`status=ok` against 4000).\n",
       "why": "counter verdict quoted against the limit"
+    },
+    {
+      "answer": "The counter reports 723 characters against your 4000 limit.\n",
+      "why": "against your limit, run 2 of suite run 46088071768"
     }
   ],
   "fail": [
@@ -93,6 +97,10 @@
     {
       "answer": "The counter reports 4210 characters against a 4000 limit. I tried several rewrites of the constraints and the stall clause, and it is still over.\n",
       "why": "over verdict more than a sentence after the against form"
+    },
+    {
+      "answer": "The counter reports 4210 characters against your 4000 limit, so it is over and I cut it.\n",
+      "why": "against your limit, but over"
     }
   ]
 }
