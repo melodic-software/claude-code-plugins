@@ -423,6 +423,21 @@ is "$(suites bash)" "$(cd "$repo" && bash scripts/run-plugin-tests.sh --list | L
   is "$(key bash_legs)" "[0,1,2,3,4]"
 check "the whole tree plans the runner's whole corpus on the fewest of its 12 legs that keep a's 100 s" $?
 
+mk tools/outside/outside.test.sh "true"
+plan
+grep -qx tools/outside/outside.test.sh <<<"$(cd "$repo" && bash scripts/run-plugin-tests.sh --list)" &&
+  grep -qx tools/outside/outside.test.sh <<<"$(suites bash)"
+check "a suite outside plugins/, .claude/hooks/, .github/, scripts/ and lib/ is in the runner's --list and the whole-tree plan" $?
+plan -- tools/outside/outside.test.sh
+is "$(suites bash)" tools/outside/outside.test.sh
+check "a narrowed plan that selects that suite runs it" $?
+rm -rf "${repo:?}/tools"
+
+live_plan="$(cd "$REPO_ROOT" && bash scripts/plan-test-lanes.sh 2>/dev/null)" &&
+  grep -qx docs/contracts/ecosystem-commands/examples.test.sh \
+    <<<"$(sed -n 's/^bash_plan=//p' <<<"$live_plan" | jq -r '.[][]' | tr -d '\r')"
+check "live: the whole-tree plan runs docs/contracts/ecosystem-commands/examples.test.sh" $?
+
 printf 'echo changed\n' >>"$repo/plugins/c/c.sh"
 plan --base HEAD
 is "$(suites bash)" "plugins/c/c.test.sh"

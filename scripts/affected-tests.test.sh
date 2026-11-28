@@ -49,13 +49,12 @@ mk_widget_consumer() {
 
 mk_repo() {
   local dir
-  fixture_tree::build "$1" --sut "$SCRIPT" --git --label affected-tests-fixture || return 1
+  fixture_tree::build "$1" --sut "$SCRIPT" --sut run-plugin-tests.sh --git --label affected-tests-fixture || return 1
   dir="${!1}"
 
   mkdir -p "$dir/lib" "$dir/plugins/alpha/hooks" "$dir/plugins/beta/hooks"
   cp "$NO_SUITE" "$dir/scripts/affected-tests-no-suite.txt"
 
-  cp "$REPO_ROOT/scripts/run-plugin-tests.sh" "$dir/scripts/run-plugin-tests.sh"
   : >"$dir/scripts/run-plugin-tests-serial.txt"
 
   write_print_manifest "$dir/scripts/sync-widget.sh" "lib/widget.sh" \
