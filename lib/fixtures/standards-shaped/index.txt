@@ -26,7 +26,7 @@ Prose is read, not executed. A reviewer or an authoring agent reads these files;
 
 This file is the team-layer index of the standards contract in
 `melodic-software/claude-code-plugins` (`docs/contracts/standards/`), found through
-[`../.claude/standards.yaml`](../.claude/standards.yaml). A repository whose
+[`../docs/conventions/standards.yaml`](../docs/conventions/standards.yaml). A repository whose
 `docs/conventions/source-control.yaml` names `standards_repository: melodic-software/standards`
 reads it from `main` as its org layer, beneath its own `docs/standards/`. Each `File` resolves
 relative to this directory.

@@ -110,7 +110,7 @@ in the user's words)` and `Chosen direction` lines of `<memory_dir>/<topic-slug>
 `## Handoff` block when it exists; with neither, establish it:
 [`${CLAUDE_PLUGIN_ROOT}/context/problem-framing.md`](../../context/problem-framing.md). Its
 `time_units` user layer is `${user_config.time_units}` (unexpanded means unset).
-Then read the consumer's standards whose `Applies when` matches the design's concerns, resolved through the "Resolution ladder" section of [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](../../reference/standards-contract.md), and list each one applied under conventions followed. A file citing shipped concept ids follows that binding's "Adopted shipped concepts" paragraph, with `/engineering-concepts:lookup` (if enabled); otherwise apply each entry as written.
+Then read the consumer's standards whose `Applies when` matches the design's concerns, resolved through the "Resolution ladder" section of [`${CLAUDE_PLUGIN_ROOT}/reference/standards-contract.md`](../../reference/standards-contract.md), and list each one applied under conventions followed. Read guidance through the binding's "Guidance layer (every rung)" paragraph: advice below every standard.
 
 Scan the whole problem space broadly before diving into any single capability. For each capability
 or concern:

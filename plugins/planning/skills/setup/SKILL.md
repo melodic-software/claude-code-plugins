@@ -1,5 +1,5 @@
 ---
-description: "Verify and configure the planning plugin for this repository. check inspects read-only the standards index, the interview-rendering toggle and docs/conventions/planning.yaml; apply bootstraps the standards index (docs/standards/ and, on relocation, .claude/standards.yaml), and apply with key=value pairs writes docs/conventions/planning.yaml after confirmation. Use when: 'set up planning', 'is planning configured', 'configure the planning plugin', 'planning setup', 'set up standards', 'bootstrap the standards index', 'set phase_order for this repo', 'set plan_store for the team', or a planning skill reports missing or thin config. Re-runnable."
+description: "Verify and configure the planning plugin for this repository. check inspects read-only the standards index, the interview-rendering toggle and docs/conventions/planning.yaml; apply bootstraps the standards index (docs/standards/ and, on relocation, docs/conventions/standards.yaml), and apply with key=value pairs writes docs/conventions/planning.yaml after confirmation. Use when: 'set up planning', 'is planning configured', 'configure the planning plugin', 'planning setup', 'set up standards', 'bootstrap the standards index', 'set phase_order for this repo', 'set plan_store for the team', or a planning skill reports missing or thin config. Re-runnable."
 argument-hint: "[check|apply] [<key>=<value> ...]"
 user-invocable: true
 disable-model-invocation: true
@@ -30,7 +30,7 @@ Report a PASS/FAIL/INFO table with one remediation line per FAIL. Modify nothing
 planning stage. Those are the pipeline skills.
 
 1. **Standards index**. The index presence test at the resolved `<standards_dir>/README.md`
-   (`.claude/standards.yaml` may relocate the root from the documented default). Absent → INFO: the
+   (`docs/conventions/standards.yaml` may relocate the root from the documented default). Absent → INFO: the
    standards concern is not bootstrapped; `apply` offers to scaffold it. A present index whose
    `standards-contract` frontmatter version is behind the plugin binding's is INFO with the DIRECTIONAL
    version-delta noted (migration runs under `apply`). A present `README.md` that is hand-authored (not
@@ -120,13 +120,13 @@ hand-authored-README confirmation gate, interview, skeleton write, row-path vali
 DIRECTIONAL version-delta detection with guided migration, idempotent re-run) lives there,
 implement it by reference, do not restate it. Plugin-side notes only:
 
-- **State reading order:** `.claude/standards.yaml` → index presence test at the resolved
+- **State reading order:** `docs/conventions/standards.yaml` → index presence test at the resolved
   `<standards_dir>/README.md` → inference sources (existing docs directories, ecosystem configs,
   a root `CODING_STANDARDS.md` and `CONTRIBUTING.md`, ambient `CLAUDE.md` content).
 - **Bootstrap writes** (interactive, user-accepted. No silent writes): the skeleton index with
   its `standards-contract` frontmatter at the binding's version, and the setup-owned
   `<standards_dir>/.gitignore` containing `*.local.md` (the personal override ignore). Write
-  `.claude/standards.yaml` only when the user relocates the root from the documented default.
+  `docs/conventions/standards.yaml` only when the user relocates the root from the documented default.
   After a bootstrap write, run the tracked-file pair on each written team file:
   `git check-ignore -v` reports no match (a match is FAIL with the pattern) and
   `git ls-files --error-unmatch` exits 0 (non-zero right after a fresh write means "written but

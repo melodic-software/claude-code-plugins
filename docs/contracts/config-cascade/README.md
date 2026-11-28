@@ -475,13 +475,13 @@ decision.
 
 - **`standards` locates its layers outside `.claude/`.** Its team and personal override layers live at
   `<standards_dir>/` (default `docs/standards/`), rooted by the `standards_dir` key of
-  `.claude/standards.yaml`, with a setup-owned in-directory `.gitignore`, rather than the contract's
+  `docs/conventions/standards.yaml`, with a setup-owned in-directory `.gitignore`, rather than the contract's
   `${CLAUDE_PROJECT_DIR}/.claude/<name>` and `*.local.*` paths. Ratified in place as a declared
   exception (the owner decision on #3577). The pointer file that roots it stays the sanctioned relocation
   mechanism for a surface that needs a configurable root; it is not a fleet rule.
   - **Claim:** `standards` keeps its team layer and personal override at `<standards_dir>/`; the location
     is a declared exception, not drift.
-  - **Basis:** the owner decision on #3577; the existing `.claude/standards.yaml` pointer
+  - **Basis:** the owner decision on #3577; the `docs/conventions/standards.yaml` concern file
     already roots the directory, so no new mechanism is needed.
   - **Recheck:** a web-session measurement shows plugin-owned `.claude/<name>` writes are fine
     everywhere and a consumer reports confusion, or Claude Code changes protected-path handling.
@@ -729,7 +729,7 @@ its conformance cell.
 | `bugs` (`verification`) | team-only | team: `docs/conventions/bugs.yaml`, whatever the convention home, beside the plugin's other keys (schema `plugins/bugs/schemas/bugs.schema.json`) | team only | the team file at the default branch; a skill entry over the plugin value; an invalid value resolves `standard`, no value `light` | per-key | conforms to the [location axis](#location-of-the-team-layer-a-docs-convention-file-or-claudename) ([ADR 0064](../../adr/0064-home-plugin-customization-in-docs-conventions-yaml.md)); no `userConfig` option, no `~/.claude` file and no personal override. `verification_skills.<skill>` beats `verification`. `lib/read-verification.sh` (the plugin's copy) reads the file at `origin/<default>` after a fetch, never the working tree, so a branch cannot lower its own level, and names a working-tree copy that gives another level. An invalid value or a file that does not parse is named and resolves `standard`; no value resolves `light`. Levels owned by [`docs/contracts/verification-level/README.md`](../verification-level/README.md); read by `/bugs:scan`, which passes `--file docs/conventions/bugs.yaml` so the reader skips the convention home. This row covers `verification` and `verification_skills` |
 | `github` | team-only | `.claude/github/` (`routing.yaml` per-key override, `conventions.md` concatenating) | all three | team on write-posture keys; later layer otherwise | per-key (`routing.yaml`); concatenate (`conventions.md`) | conforms; policy-floor inversion on write-posture routing keys, declared in the plugin's `change-routing.md` |
 | `autonomy` | no-floor | `.claude/autonomy/binding.json` | all three, plus an org rung | later layer except security axes | declared | declared deviation |
-| `standards` (`planning`, `review`) | team-only | `<standards_dir>/`, rooted by `.claude/standards.yaml` | all three | team on conflict (policy-floor) | add/tighten | precedence inversion ratified via policy-floor class (#649); layer location outside `.claude/` ratified in place as a declared exception (the owner decision on #3577) |
+| `standards` (`planning`, `review`) | team-only | `<standards_dir>/`, rooted by `docs/conventions/standards.yaml` | all three | team on conflict (policy-floor) | add/tighten | precedence inversion ratified via policy-floor class (#649); layer location outside `.claude/` ratified in place as a declared exception (the owner decision on #3577) |
 | `disk-hygiene` | no-floor | `<home>/disk-hygiene.yaml` | all three (`userConfig` is the JSON file the `policy_file` option names) | later layer; `--policy` replaces every standing layer | additive standing layers | declared deviation: stops on an unusable layer (see Deviations); the old `~/.claude/disk-hygiene.json` and `.claude/disk-hygiene.json` are read in their layer's place, with a warning, until each is moved; `elevation: uac-prompt` only from the `policy_file` file or `--policy` |
 | `ai-briefing` | no-floor | `.claude/ai-briefing/` | team only | team only | no personal override | declared deviation; team-only, no personal override (#3580). Named profile selection (`--profile`, `active_profile`, or `.claude/ai-briefing/<name>/`) is profile selection, not a `*.local.*` cascade layer. `sources.md`, optional `audience.md`, and optional `brand.json` are tracked profile files in the selected directory, not personal overrides |
 | `code-tidying` | no-floor | `.claude/tidy-areas/<area>.md` | team only | team only; residual wholesale if no `## Merge semantics` | per-section when declared | declared deviation; no user-global or `*.local.*` personal override (#723). Team layer over a bundled default. A project focus area declaring `## Merge semantics` merges per-section with its bundled focus area (`Scope` per-section override, watch-for patterns additive, per `docs-prose` #701 and `shell-tooling` #724). Residual deviation: a project focus area that declares nothing still resolves project-only wholesale, the first-match fallback retained in #701 so unmigrated consumer focus areas keep working, undeclared at the layer that takes it. Personal variation is limited to focus area names the team does not track, an uncommitted `.claude/tidy-areas/<area>.md` never added to the index; gitignoring a path the team already tracks does not make it personal |
@@ -913,10 +913,9 @@ tables above already declare policy-floor.
 | `github` | `.claude/github/routing.yaml`, `.claude/github/conventions.md` | YAML, Markdown | policy-floor keys in `routing.yaml` |
 | `mutation-testing` | `.claude/mutation-testing-arid.md` | Markdown | a finding-suppression record; the settings are on the location axis at `docs/conventions/mutation-testing.yaml` |
 | `repo-fleet-hygiene` | `.claude/repo-fleet-hygiene.conf` | key-value conf | user-global and team only |
-| `review`, `planning` | `.claude/standards.yaml` | YAML | roots `<standards_dir>/`; policy-floor |
 
 Already convention docs under ADR 0018, so outside this list: `plugin-quality`, `architecture` and
-`authoring-formats`. Already on the location axis, so outside it too: `bugs`, `codebase-health`, `improvement`, `instruction-placement`, the
+`authoring-formats`. Already on the location axis, so outside it too: `bugs`, `codebase-health`, `improvement`, `instruction-placement`, the `standards` concern file, the
 `mutation-testing` settings, `overengineering`, `planning`'s interview page settings, `source-control` and
 `toolchain`'s ecosystem records. Declared location exceptions
 (the owner decision on #3577), also outside it:
