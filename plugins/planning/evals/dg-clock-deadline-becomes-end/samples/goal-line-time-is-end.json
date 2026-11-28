@@ -47,6 +47,10 @@
     {
       "answer": "Type `/goal ` (with a trailing space), then paste everything between the dashed lines:\n\n──────────────────────────────────────────────────────────\nThe import queue is empty, shown in this conversation by `<QUEUE_CMD>`, with a results line appended to notes/status.md and shown afterwards. Do not clear items by deleting them. If the same failure repeats, try another approach. Or `date -u +%Y-%m-%dT%H:%MZ` shows 2026-11-27T05:30Z or later and the results line with the pending count is appended and shown.\n──────────────────────────────────────────────────────────\n",
       "why": "constraints between the two ends, clock end last"
+    },
+    {
+      "answer": "Type `/goal ` (with a trailing space), then paste this:\n\n```text\nThe queue is empty and notes/status.md holds a results line, or\n`date -u` shows 2026-11-29T06:00Z or later and notes/status.md holds a results line.\n```\n",
+      "why": "the alternative wraps onto the next line before date"
     }
   ],
   "fail": [
