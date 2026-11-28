@@ -10,6 +10,17 @@ CASE_NUM=0
 # shellcheck source=test-helpers.sh
 source "$SCRIPT_DIR/test-helpers.sh"
 
+case "$(uname -s 2>/dev/null || true)" in
+  MINGW* | MSYS* | CYGWIN*)
+    WIN_ERR="$(bash "$REAP" --dry-run --no-log 2>&1 >/dev/null)"
+    assert_exit "Windows bash: a dry run refuses with exit 3" 3 "$?"
+    assert_contains "Windows bash: the refusal names why on stderr" "$WIN_ERR" "cannot see native Windows processes"
+    [[ $FAILED -eq 0 ]] || exit 1
+    skip_suite "the reap refuses under Windows bash, so its reap cases cannot run here"
+    ;;
+  *) ;;
+esac
+
 command -v git >/dev/null 2>&1 || skip_suite "git not available"
 command -v jq >/dev/null 2>&1 || skip_suite "jq not installed"
 
@@ -535,5 +546,188 @@ fi
 REPORT_WORK="$(bash "$REAP" --report "$RUN_WORK" 2>&1)"
 assert_contains "report: prints the stale .work items" "$REPORT_WORK" "stale .work: 1 item(s)"
 assert_contains "report: prints the phase times" "$REPORT_WORK" "phases: fetch="
+
+landed_root() {
+  local root="$TEST_TMPDIR/$1" repo
+  IFS=$'\t' read -r repo _ <<<"$(mkrepo_with_origin)"
+  mkdir -p "$root"
+  git -C "$repo" worktree add -q --no-track -b "feat/$1" "$root/wt" origin/main >/dev/null 2>&1
+  touch -d "@$OLD_TS" "$root/wt/.git"
+  printf '%s' "$repo"
+}
+reap_env() {
+  CLAUDE_CONFIG_DIR="$CFG" HOSTNAME="$HOST_NAME" WORKTREE_REAP_NOW="$NOW_TS" "$@"
+}
+
+ROOT_WIN="$TEST_TMPDIR/root-win"
+landed_root root-win >/dev/null
+for os in MINGW64_NT-10.0-26100 MSYS_NT-10.0-26100 CYGWIN_NT-10.0-26100; do
+  shim="$TEST_TMPDIR/uname-$os"
+  mkdir -p "$shim"
+  printf '#!/usr/bin/env bash\necho %s\n' "$os" >"$shim/uname"
+  chmod +x "$shim/uname"
+  BEFORE_WIN="$(latest_run)"
+  WIN_ERR="$(reap_env env PATH="$shim:$PATH" WORKTREE_REAP_PROC_ROOT="$PROC_OK" \
+    bash "$REAP" --root "$ROOT_WIN" --log "$TEST_TMPDIR/win-$os.log" --no-pr-proof 2>&1 >/dev/null)"
+  assert_exit "Windows bash ($os): a reap refuses with exit 3" 3 "$?"
+  assert_contains "Windows bash ($os): the refusal names why on stderr" "$WIN_ERR" "cannot see native Windows processes"
+  assert_eq "Windows bash ($os): the refusal writes no run file" "$BEFORE_WIN" "$(latest_run)"
+  assert_file_absent "Windows bash ($os): the refusal opens no log" "$TEST_TMPDIR/win-$os.log"
+done
+assert_dir_exists "Windows bash: the refused reap leaves the landed worktree" "$ROOT_WIN/wt"
+reap_env env PATH="$shim:$PATH" WORKTREE_REAP_PROC_ROOT="$PROC_OK" \
+  bash "$REAP" --root "$ROOT_WIN" --dry-run --no-log >/dev/null 2>&1
+assert_exit "Windows bash: a dry run refuses with exit 3" 3 "$?"
+WIN_REPORT="$(reap_env env PATH="$shim:$PATH" bash "$REAP" --report "$RUN_DRY" 2>&1)"
+assert_contains "Windows bash: --report still prints a run's report" "$WIN_REPORT" "would remove 4 worktrees"
+reap_env env WORKTREE_REAP_PROC_ROOT="$PROC_OK" bash "$REAP" --root "$ROOT_WIN" --no-log --no-pr-proof >/dev/null 2>&1
+assert_dir_absent "control: the same reap off Windows removes the landed worktree" "$ROOT_WIN/wt"
+assert_contains "--help keeps 'Windows bash', which the provisioning Windows runner checks before it runs the reap" "$(bash "$REAP" --help 2>&1)" "Windows bash"
+
+path_without() {
+  local farm="$1" d f n
+  local -a dirs files
+  local -A skip=() have=()
+  shift
+  for n in "$@"; do skip[$n]=1; done
+  mkdir -p "$farm"
+  IFS=: read -ra dirs <<<"$PATH"
+  for d in "${dirs[@]}"; do
+    files=()
+    for f in "$d"/*; do
+      n="${f##*/}"
+      [[ -f "$f" && -x "$f" && -z "${skip[$n]+x}" && -z "${have[$n]+x}" ]] || continue
+      have[$n]=1
+      files+=("$f")
+    done
+    ((${#files[@]})) && ln -s "${files[@]}" "$farm/"
+  done
+}
+FARM="$TEST_TMPDIR/path-no-gnu"
+path_without "$FARM" realpath timeout gtimeout flock
+NO_PRINTF="$TEST_TMPDIR/find-no-printf"
+mkdir -p "$NO_PRINTF"
+cat >"$NO_PRINTF/find" <<EOF
+#!/usr/bin/env bash
+for a in "\$@"; do [[ "\$a" == -printf ]] && { echo "find: -printf: unknown primary" >&2; exit 1; }; done
+exec "$(command -v find)" "\$@"
+EOF
+chmod +x "$NO_PRINTF/find"
+NO_GNU_PATH="$NO_PRINTF:$FARM"
+
+landed_root root-nognu >/dev/null
+ROOT_NOGNU="$TEST_TMPDIR/root-nognu"
+NOGNU_LOG="$TEST_TMPDIR/nognu.log"
+OUT_NOGNU="$(reap_env env PATH="$NO_GNU_PATH" WORKTREE_REAP_PROC_ROOT="$PROC_OK" \
+  bash "$REAP" --root "$ROOT_NOGNU" --log "$NOGNU_LOG" --no-pr-proof 2>&1)"
+assert_exit "no GNU tools: a reap through every fallback exits 0" 0 "$?"
+assert_contains "no GNU tools: the run names each fallback it took" "$OUT_NOGNU" \
+  "tool fallbacks: realpath -e: cd -P,find -printf: readlink,timeout: shell watchdog,flock: perl"
+assert_contains "no GNU tools: the cd -P fallback resolves the root" "$OUT_NOGNU" "roots $(physical_dir "$ROOT_NOGNU")"
+assert_dir_absent "no GNU tools: the readlink scan sees /proc entries, so the landed worktree is removed" "$ROOT_NOGNU/wt"
+
+PROC_NOGNU="$TEST_TMPDIR/proc-nognu"
+landed_root root-nognu-held >/dev/null
+ROOT_NOGNU_HELD="$TEST_TMPDIR/root-nognu-held"
+mkdir -p "$PROC_NOGNU/4343"
+ln -s "$(physical_dir "$ROOT_NOGNU_HELD/wt")" "$PROC_NOGNU/4343/cwd"
+OUT_NOGNU_HELD="$(reap_env env PATH="$NO_GNU_PATH" WORKTREE_REAP_PROC_ROOT="$PROC_NOGNU" \
+  bash "$REAP" --root "$ROOT_NOGNU_HELD" --no-log --no-pr-proof 2>&1)"
+assert_contains "no GNU tools: the readlink scan finds a process holding the worktree" "$OUT_NOGNU_HELD" "process-holds=1"
+assert_dir_exists "no GNU tools: the held worktree stays on disk" "$ROOT_NOGNU_HELD/wt"
+
+OUT_NOGNU_LOCK="$(
+  (
+    exec 8>"$NOGNU_LOG.lock"
+    flock -n 8
+    reap_env env PATH="$NO_GNU_PATH" WORKTREE_REAP_PROC_ROOT="$PROC_OK" \
+      bash "$REAP" --root "$ROOT_NOGNU_HELD" --log "$NOGNU_LOG" --no-pr-proof 2>&1
+  )
+)"
+assert_exit "no flock: perl's lock sees a held log lock and exits 0" 0 "$?"
+assert_contains "no flock: perl's lock reports the other run" "$OUT_NOGNU_LOCK" "another reap run holds"
+
+FARM_NOPERL="$TEST_TMPDIR/path-no-flock-perl"
+path_without "$FARM_NOPERL" flock perl
+NOPERL_ERR="$(reap_env env PATH="$FARM_NOPERL" WORKTREE_REAP_PROC_ROOT="$PROC_OK" \
+  bash "$REAP" --root "$ROOT_NOGNU_HELD" --log "$TEST_TMPDIR/noperl.log" --no-pr-proof 2>&1 >/dev/null)"
+assert_exit "no flock or perl: --log refuses with exit 2" 2 "$?"
+assert_contains "no flock or perl: the refusal names --no-log" "$NOPERL_ERR" "pass --no-log"
+reap_env env PATH="$FARM_NOPERL" WORKTREE_REAP_PROC_ROOT="$PROC_OK" \
+  bash "$REAP" --root "$ROOT_NOGNU_HELD" --no-log --dry-run --no-pr-proof >/dev/null 2>&1
+assert_exit "no flock or perl: --no-log still runs" 0 "$?"
+
+pid_gone() {
+  local i s
+  for ((i = 0; i < 20; i++)); do
+    s="$(ps -o stat= -p "$1" 2>/dev/null)"
+    [[ -z "$s" || "$s" == Z* ]] && return 0
+    sleep 0.1
+  done
+  return 1
+}
+HANG_BIN="$TEST_TMPDIR/hang-fetch-bin"
+HANG_PIDS="$TEST_TMPDIR/hang-fetch.pids"
+mkdir -p "$HANG_BIN"
+cat >"$HANG_BIN/git" <<EOF
+#!/usr/bin/env bash
+case " \$* " in
+*" fetch "*)
+  sleep 30 &
+  echo \$! >>"$HANG_PIDS"
+  wait
+  ;;
+*) exec "$REAL_GIT" "\$@" ;;
+esac
+EOF
+chmod +x "$HANG_BIN/git"
+landed_root root-hang >/dev/null
+ROOT_HANG="$TEST_TMPDIR/root-hang"
+for lane in "GNU timeout:$HANG_BIN:$PATH" "shell watchdog:$HANG_BIN:$NO_GNU_PATH"; do
+  label="${lane%%:*}"
+  BEFORE_HANG="$(latest_run)"
+  t_start=$SECONDS
+  RUN_HANG="$(
+    reap_env env PATH="${lane#*:}" WORKTREE_REAP_PROC_ROOT="$PROC_OK" WORKTREE_REAP_FETCH_TIMEOUT=1 \
+      bash "$REAP" --root "$ROOT_HANG" --no-log --no-pr-proof 2>&1 | cat >/dev/null
+    latest_run
+  )"
+  assert_eq "$label: the run wrote its own run file" yes "$([[ "$RUN_HANG" != "$BEFORE_HANG" ]] && echo yes || echo no)"
+  assert_eq "$label: a fetch past the timeout is fetch-failed" "keep fetch-failed kept" "$(row "$RUN_HANG" /root-hang/wt)"
+  assert_eq "$label: the timeout ends the 30-second fetch within 15 seconds" yes "$( ((SECONDS - t_start < 15)) && echo yes || echo no)"
+  assert_eq "$label: the timeout ends the fetch's child process" yes "$(pid_gone "$(tail -n 1 "$HANG_PIDS")" && echo yes || echo no)"
+done
+assert_dir_exists "a timed-out fetch leaves the worktree" "$ROOT_HANG/wt"
+
+landed_root root-dog-lock >/dev/null
+DOG_LOG="$TEST_TMPDIR/dog-lock.log"
+for n in 1 2; do
+  OUT_DOG="$(reap_env env PATH="$NO_GNU_PATH" WORKTREE_REAP_PROC_ROOT="$PROC_OK" WORKTREE_REAP_FETCH_TIMEOUT=30 \
+    bash "$REAP" --root "$TEST_TMPDIR/root-dog-lock" --log "$DOG_LOG" --no-pr-proof 2>&1)"
+done
+assert_not_contains "shell watchdog: a fetch that ends in time leaves no timer holding the log lock" "$OUT_DOG" "another reap run holds"
+assert_not_contains "shell watchdog: ending the timer prints no job status" "$OUT_DOG" "Terminated"
+
+if command -v timeout >/dev/null 2>&1 && script -qec true /dev/null >/dev/null 2>&1; then
+  TTY_BIN="$TEST_TMPDIR/tty-fetch-bin"
+  mkdir -p "$TTY_BIN"
+  cat >"$TTY_BIN/git" <<EOF
+#!/usr/bin/env bash
+case " \$* " in
+*" fetch "*) stty -F /dev/tty -echo; sleep 30 ;;
+*) exec "$REAL_GIT" "\$@" ;;
+esac
+EOF
+  chmod +x "$TTY_BIN/git"
+  landed_root root-tty >/dev/null
+  TTY_CMD="$(printf '%q ' env CLAUDE_CONFIG_DIR="$CFG" HOSTNAME="$HOST_NAME" WORKTREE_REAP_NOW="$NOW_TS" \
+    PATH="$TTY_BIN:$NO_GNU_PATH" WORKTREE_REAP_PROC_ROOT="$PROC_OK" WORKTREE_REAP_FETCH_TIMEOUT=1 \
+    bash "$REAP" --root "$TEST_TMPDIR/root-tty" --no-log --no-pr-proof)"
+  timeout 20 script -qec "$TTY_CMD" /dev/null >/dev/null 2>&1
+  assert_exit "shell watchdog: a fetch the terminal stopped still ends at the deadline" 0 "$?"
+  assert_eq "shell watchdog: the stopped fetch is fetch-failed" "keep fetch-failed kept" "$(row "$(latest_run)" /root-tty/wt)"
+else
+  skip_case "no timeout or util-linux script for the terminal-stop case"
+fi
 
 [[ $FAILED -eq 0 ]] || exit 1
